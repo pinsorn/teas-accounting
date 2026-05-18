@@ -63,6 +63,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddPermissionAuthorization();
 
+// Sprint 14 — /api/v1/* is ApiKey-scheme-only (auth isolation: root/BFF stays
+// JWT-default, so an X-Api-Key on a root route → 401, and a JWT on v1 → 401).
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(ApiV1Endpoints.ApiKeyOnlyPolicy, p => p
+        .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
+        .RequireAuthenticatedUser());
+
 // Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -138,6 +145,7 @@ app.MapPurchaseOrderEndpoints();
 app.MapPeriodEndpoints();
 app.MapEtaxEndpoints();
 app.MapApiKeyEndpoints();
+app.MapExternalApiV1();
 
 app.Run();
 
