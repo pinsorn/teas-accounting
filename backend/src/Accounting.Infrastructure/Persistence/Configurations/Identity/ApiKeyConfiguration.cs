@@ -1,4 +1,5 @@
 using Accounting.Domain.Entities.Identity;
+using Accounting.Domain.Entities.Master;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,6 +23,15 @@ internal sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         b.Property(k => k.RevokedAt).HasColumnType("timestamptz(3)");
 
         b.HasIndex(k => k.KeyHash).IsUnique();
+        b.HasIndex(k => k.KeyPrefix).IsUnique();   // Sprint 14 — resolver lookup
         b.HasIndex(k => k.CompanyId);
+
+        // Sprint 14 — per-key BU binding (nullable; same-tenant active BU
+        // enforced at the service layer + FK). Restrict: a BU in use by a key
+        // can't be hard-deleted.
+        b.HasOne<BusinessUnit>()
+            .WithMany()
+            .HasForeignKey(k => k.DefaultBusinessUnitId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

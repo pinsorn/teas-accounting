@@ -7,4 +7,11 @@ public static class TenantClaims
     public const string BranchId     = "branch_id";
     public const string IsSuperAdmin = "is_super_admin";
     public const string Permission   = "perm";
+
+    // Sprint 14 — external API key principal (no human user).
+    public const string ApiKeyId            = "api_key_id";
+    public const string ApiKeyName          = "api_key_name";
+    public const string IsApiKey            = "is_api_key";
+    public const string Scopes              = "scopes";              // CSV of permission strings
+    public const string DefaultBusinessUnit = "default_business_unit_id";
 }

@@ -14,6 +14,7 @@ public sealed class HttpTenantContext : ITenantContext
     public long? UserId          { get; }
     public bool  IsSuperAdmin    { get; }
     public bool  IsAuthenticated { get; }
+    public long? ApiKeyId        { get; }
 
     public HttpTenantContext(IHttpContextAccessor accessor)
     {
@@ -30,6 +31,7 @@ public sealed class HttpTenantContext : ITenantContext
                        ?? user.FindFirst("sub")?.Value, out var u) ? u : null;
         IsSuperAdmin = string.Equals(user.FindFirst(TenantClaims.IsSuperAdmin)?.Value, "true",
                                      StringComparison.OrdinalIgnoreCase);
+        ApiKeyId     = long.TryParse(user.FindFirst(TenantClaims.ApiKeyId)?.Value, out var k) ? k : null;
     }
 
     private static int TryInt(ClaimsPrincipal user, string type) =>

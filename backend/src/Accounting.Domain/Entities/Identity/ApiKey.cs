@@ -20,4 +20,9 @@ public class ApiKey : ITenantOwned
     public DateTimeOffset? RevokedAt { get; set; }
     public long? RevokedBy { get; set; }
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Sprint 14 — optional per-key Business Unit binding. When set,
+    /// documents created via this key auto-fill (and lock to) this BU.
+    /// Nullable FK → master.business_units (same-tenant active BU).</summary>
+    public int? DefaultBusinessUnitId { get; set; }
 }

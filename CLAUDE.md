@@ -436,6 +436,35 @@ When implementing the Payment module, the non-negotiables:
 
 ---
 
+## 14. e-Tax environment switching (Sprint 13c)
+
+Tier 1 → 2 → 3 is **config-only** (no code edit per environment). Full audit + tier matrix + operational runbook:
+- `docs/etax-environment-tiers.md` — 3-tier swap matrix + config keys per tier + transition procedure
+- `Answer-Sana-Backend18.md` — Sprint 13c spec (8 phases shipped)
+
+### Tier 1 (local dev mock) — startup
+1. `./dev-tools/gen-test-cert.sh dev123 backend/secrets/dev-cert.pfx` — self-signed PFX for XAdES signing
+2. `docker compose -f docker-compose.dev.yml up -d postgres mailhog mockserver` — local stack (MailHog SMTP capture + MockServer RD API)
+3. Set in `appsettings.Development.json`: `ETax:Enabled=true`, `ETax:AutoSendOnTaxInvoicePost=true`, `ETax:Signing:PfxPath=secrets/dev-cert.pfx`, `ETax:Signing:PfxPassword=dev123`
+4. `dotnet run --project backend/src/Accounting.Api`
+5. MailHog Web UI: `http://localhost:8025` (sent emails) · MockServer: `http://localhost:1080` (RD API mocks)
+
+### Critical rules
+- **Config keys are .env / appsettings ONLY** — never UI (CLAUDE.md §4.6 reinforced)
+- **RD client selector:** `RdApi:Provider` = `"Mock"` (Tier 1) | `"RdUat"` (Tier 2) | `"RdProduction"` (Tier 3)
+- **`etax.submissions` is append-only** — 5-year legal retention per พรบ.การบัญชี ม.10; UPDATE/DELETE rejected by DB trigger
+- **`ETax:Email:RedirectAllToEmail` = Tier 2 safety net** — CRITICAL: prevents UAT runs from emailing real customers. Must be set to UAT mailbox when transitioning Tier 1→2. Production (Tier 3) sets to `null` to enable real customer sending.
+- **`ETax:Validation:RequireSchemaPass`** — Tier 1 `false` (graceful skip if XSDs not loaded), Tier 2/3 `true` (mandatory)
+
+### Phase 0/2 prereqs (NOT in this sprint)
+- Real RD UAT credentials (4-6 wk lead time, requires Service Provider registration with กรมสรรพากร)
+- ETDA มกค.14-2563 XSDs (external controlled artifact, download per `etax-schemas/README.md`)
+- CA-issued Class 2 PFX certificate (~3-5k บาท/ปี from TDID/INET/CAT)
+- HSM impl (`HsmETaxSigner` — Phase 2 when first customer needs HSM)
+- Durable retry queue (Hangfire/Quartz — Phase 2 at load)
+
+---
+
 ## 13. Progress & Plan Tracking — MANDATORY
 
 Two living files at repo root track state across sessions. **Read both at the start of
