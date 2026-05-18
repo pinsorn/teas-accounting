@@ -59,9 +59,17 @@ public sealed class DomainExceptionMiddleware
         }
         catch (Exception ex) when (IsV1(ctx))
         {
+            // Dev surfaces the inner cause (e.g. the Npgsql constraint name);
+            // production stays opaque.
+            string msg = "An unexpected error occurred.";
+            if (_env.IsDevelopment())
+            {
+                msg = ex.Message;
+                for (var i = ex.InnerException; i is not null; i = i.InnerException)
+                    msg += " | " + i.Message;
+            }
             await ErrorEnvelope.WriteAsync(ctx, StatusCodes.Status500InternalServerError,
-                "internal_error",
-                _env.IsDevelopment() ? ex.Message : "An unexpected error occurred.");
+                "internal_error", msg);
         }
         catch (DomainException ex)
         {

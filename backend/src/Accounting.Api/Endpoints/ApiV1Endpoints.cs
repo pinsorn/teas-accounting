@@ -18,13 +18,14 @@ public static class ApiV1Endpoints
 {
     public const string ApiKeyOnlyPolicy = "ApiKeyOnly";
 
-    private static string P(string scope) => PermissionPolicyProvider.PolicyPrefix + scope;
+    // ApiKey-scheme-pinned + scope (P6). Root JWT routes keep "perm:" — the
+    // scheme split IS the auth isolation (X-Api-Key can't satisfy "perm:";
+    // a JWT can't satisfy "apiperm:").
+    private static string P(string scope) => PermissionPolicyProvider.ApiKeyPolicyPrefix + scope;
 
     public static IEndpointRouteBuilder MapExternalApiV1(this IEndpointRouteBuilder app)
     {
-        var v1 = app.MapGroup("/api/v1")
-            .WithTags("External API v1")
-            .RequireAuthorization(ApiKeyOnlyPolicy);
+        var v1 = app.MapGroup("/api/v1").WithTags("External API v1");
 
         // ── Tax Invoices ─────────────────────────────────────────────────────
         v1.MapPost("/tax-invoices", async (
