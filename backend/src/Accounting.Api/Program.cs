@@ -137,6 +137,7 @@ app.MapAttachmentEndpoints();
 app.MapPurchaseOrderEndpoints();
 app.MapPeriodEndpoints();
 app.MapEtaxEndpoints();
+app.MapApiKeyEndpoints();
 
 app.Run();
 
