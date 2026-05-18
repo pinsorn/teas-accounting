@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Accounting.TestKit</RootNamespace>
+    <AssemblyName>Accounting.TestKit</AssemblyName>
+  </PropertyGroup>
+  <!-- Pure shared test utilities — NO production or test-framework deps. -->
+</Project>
