@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Accounting.Domain</RootNamespace>
+    <AssemblyName>Accounting.Domain</AssemblyName>
+  </PropertyGroup>
+  <!-- Pure domain layer — NO external dependencies except primitive .NET libs -->
+</Project>

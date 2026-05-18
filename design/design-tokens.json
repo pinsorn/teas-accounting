@@ -1,0 +1,72 @@
+{
+  "$schema": "https://design-tokens.org/draft/2023-09/format/",
+  "color": {
+    "primary": {
+      "50":  { "$value": "#E3F2FD" },
+      "100": { "$value": "#BBDEFB" },
+      "200": { "$value": "#90CAF9" },
+      "300": { "$value": "#64B5F6" },
+      "400": { "$value": "#42A5F5" },
+      "500": { "$value": "#1976D2" },
+      "600": { "$value": "#1565C0" },
+      "700": { "$value": "#0D47A1" }
+    },
+    "semantic": {
+      "success": { "$value": "#2E7D32" },
+      "warning": { "$value": "#F57C00" },
+      "danger":  { "$value": "#C62828" },
+      "info":    { "$value": "#0288D1" },
+      "muted":   { "$value": "#757575" }
+    },
+    "status": {
+      "draft":     { "$value": "#9E9E9E", "$description": "Document not yet issued" },
+      "pending":   { "$value": "#FB8C00", "$description": "Awaiting next action" },
+      "posted":    { "$value": "#43A047", "$description": "Immutable, e-Tax sent" },
+      "paid":      { "$value": "#1E88E5", "$description": "Payment received/made" },
+      "voided":    { "$value": "#E53935", "$description": "Cancelled with Credit Note" },
+      "cancelled": { "$value": "#757575" }
+    },
+    "neutral": {
+      "bg":       { "$value": "#FAFAFA" },
+      "surface":  { "$value": "#FFFFFF" },
+      "border":   { "$value": "#E0E0E0" },
+      "text":     { "$value": "#212121" },
+      "textMuted":{ "$value": "#616161" }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "thai":  { "$value": "TH Sarabun New, Sarabun, sans-serif" },
+      "latin": { "$value": "Inter, system-ui, sans-serif" },
+      "mono":  { "$value": "JetBrains Mono, Consolas, monospace" }
+    },
+    "fontSize": {
+      "xs":   { "$value": "12px" },
+      "sm":   { "$value": "14px" },
+      "base": { "$value": "16px" },
+      "lg":   { "$value": "18px" },
+      "xl":   { "$value": "24px" },
+      "2xl":  { "$value": "32px" },
+      "3xl":  { "$value": "40px" }
+    }
+  },
+  "space": {
+    "1":  { "$value": "4px" },
+    "2":  { "$value": "8px" },
+    "3":  { "$value": "12px" },
+    "4":  { "$value": "16px" },
+    "6":  { "$value": "24px" },
+    "8":  { "$value": "32px" },
+    "12": { "$value": "48px" }
+  },
+  "layout": {
+    "containerMax": { "$value": "1440px" },
+    "sidebarWidth": { "$value": "240px" },
+    "headerHeight": { "$value": "64px" }
+  },
+  "radius": {
+    "sm": { "$value": "4px" },
+    "md": { "$value": "6px" },
+    "lg": { "$value": "8px" }
+  }
+}
