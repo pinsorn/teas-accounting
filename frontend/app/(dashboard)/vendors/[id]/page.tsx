@@ -1,0 +1,47 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { useVendor } from '@/lib/queries';
+import { formatTaxId } from '@/lib/utils';
+
+export default function VendorDetailPage() {
+  const id = Number(useParams<{ id: string }>().id);
+  const t = useTranslations('ven');
+  const tc = useTranslations('common');
+  const { data: d, isLoading, isError } = useVendor(id);
+
+  if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
+  if (isError || !d) return <p className="text-error">{tc('error')}</p>;
+
+  const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
+    <p><b>{k}:</b> {v || '—'}</p>
+  );
+
+  return (
+    <>
+      <PageHeader title={d.nameTh} subtitle={d.vendorCode} />
+      <div className="card bg-base-100 shadow-sm">
+        <div className="card-body grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
+          <Row k={t('code')} v={d.vendorCode} />
+          <Row k={t('type')} v={d.vendorType === 'Individual' ? t('individual') : t('corporate')} />
+          <Row k={t('nameEn')} v={d.nameEn} />
+          <Row k={t('taxId')} v={<span className="font-mono">{formatTaxId(d.taxId)}</span>} />
+          <Row k={t('branchCode')} v={d.branchCode} />
+          <Row k={t('vatRegistered')} v={d.vatRegistered ? '✓' : '—'} />
+          <Row k={t('foreign.toggle')} v={d.isForeign
+            ? `${d.countryCode ?? '?'}${d.hasThaiVatDReg ? ' · VAT-D' : ''}` : '—'} />
+          <Row k={t('contact')} v={d.contactPerson} />
+          <Row k={t('phone')} v={d.phone} />
+          <Row k={t('email')} v={d.email} />
+          <Row k={t('paymentTerms')} v={d.paymentTermDays} />
+          <Row k={t('currency')} v={d.defaultCurrency} />
+          <Row k={t('defaultWht')} v={d.defaultWhtTypeCode} />
+          <Row k={t('active')} v={d.isActive ? '✓' : '—'} />
+          <p className="sm:col-span-2"><b>{t('address')}:</b> {d.address || '—'}</p>
+        </div>
+      </div>
+    </>
+  );
+}

@@ -1,0 +1,74 @@
+# ===== .NET =====
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.dll
+*.pdb
+
+# ===== Node / Next.js =====
+node_modules/
+.next/
+.turbo/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.swc/
+
+# ===== Env / secrets =====
+.env
+.env.local
+.env.*.local
+*.pfx
+*.key
+*.pem
+/secrets/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# ===== Test / Coverage =====
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Local DB / Docker volumes =====
+pgdata/
+redisdata/
+
+# ===== Build artifacts =====
+dist/
+build/
+*.tgz
+*.zip
+
+# ===== OS =====
+*.swp
+*.swo
+
+# ===== Playwright =====
+playwright-report/
+test-results/
+
+# ===== Outputs / generated =====
+schema.dump.sql
+
+# ===== Secrets (Sprint 13c — dev signing certs; NEVER commit) =====
+secrets/
+**/secrets/
+*.pfx
+*.pem

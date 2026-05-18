@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ====================================================================
+   Base — typography + DaisyUI cohabitation
+   ==================================================================== */
+
+@layer base {
+  html { font-family: var(--font-sarabun), var(--font-inter), system-ui, sans-serif; }
+
+  body { font-feature-settings: 'rlig' 1, 'calt' 1; }
+
+  /* Thai text gets slightly larger line-height for legibility */
+  :lang(th) { line-height: 1.7; }
+
+  /* Money / numeric columns — tabular for alignment */
+  .num, td.num, input.num { font-variant-numeric: tabular-nums; }
+
+  /* Scrollbar — slim + theme-aware */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: oklch(var(--b2)); }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--b3));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.3); }
+
+  /* Selection */
+  ::selection {
+    background: oklch(var(--p) / 0.25);
+    color: oklch(var(--bc));
+  }
+
+  /* Focus visible — accessible ring */
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px oklch(var(--p) / 0.5);
+    border-radius: var(--rounded-btn, 0.375rem);
+  }
+
+  /* Disabled state — consistent */
+  *:disabled { cursor: not-allowed; opacity: 0.6; }
+}
+
+/* ====================================================================
+   Custom utility classes
+   ==================================================================== */
+
+@layer components {
+  /* App shell */
+  .app-shell {
+    @apply min-h-screen bg-base-200 text-base-content;
+  }
+
+  .app-shell-main {
+    @apply mx-auto w-full max-w-[1440px] px-4 py-6 lg:px-8;
+  }
+
+  /* Cards with subtle elevation */
+  .card-soft {
+    @apply rounded-lg bg-base-100 border border-base-300/60 shadow-sm;
+  }
+
+  /* Page hero gradient */
+  .hero-gradient {
+    background: linear-gradient(135deg,
+      oklch(var(--p) / 0.08) 0%,
+      oklch(var(--s) / 0.05) 100%);
+  }
+
+  /* Skeleton shimmer */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      oklch(var(--b3) / 0.3) 0%,
+      oklch(var(--b3) / 0.6) 50%,
+      oklch(var(--b3) / 0.3) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  /* Status pills — semantic shortcuts */
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium;
+  }
+  .pill-draft     { @apply pill bg-base-300 text-base-content; }
+  .pill-pending   { @apply pill bg-warning/15 text-warning; }
+  .pill-posted    { @apply pill bg-success/15 text-success; }
+  .pill-paid      { @apply pill bg-info/15 text-info; }
+  .pill-voided    { @apply pill bg-error/15 text-error line-through; }
+  .pill-cancelled { @apply pill bg-base-300 text-base-content/60 line-through; }
+
+  /* Document number — monospace badge */
+  .doc-no {
+    @apply inline-block rounded bg-base-200 px-2 py-0.5 font-mono text-xs text-base-content/80;
+  }
+
+  /* Compliance badge — emphasizes legal critical fields */
+  .compliance-required::after {
+    content: '*';
+    @apply ml-0.5 text-error font-bold;
+  }
+
+  /* Table polish */
+  .table-zebra-soft tbody tr:nth-child(even) {
+    background: oklch(var(--b2) / 0.5);
+  }
+
+  /* Empty state */
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-3 py-16 text-center;
+  }
+}
+
+/* ====================================================================
+   Print — for Tax Invoice / Receipt
+   ==================================================================== */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+  .app-shell-main { max-width: 100%; padding: 0; }
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "httpRequest": { "method": "POST", "path": "/api/v1/pnd30" },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": { "Content-Type": ["application/json"] },
+      "body": { "submissionId": "MOCK-PND30-{{ random.uuid }}", "status": "Accepted", "ackReference": "ACK-MOCK-{{ now }}" }
+    }
+  },
+  {
+    "httpRequest": { "method": "POST", "path": "/api/v1/pnd3" },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": { "Content-Type": ["application/json"] },
+      "body": { "submissionId": "MOCK-PND3-{{ random.uuid }}", "status": "Accepted" }
+    }
+  },
+  {
+    "httpRequest": { "method": "POST", "path": "/api/v1/pnd53" },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": { "Content-Type": ["application/json"] },
+      "body": { "submissionId": "MOCK-PND53-{{ random.uuid }}", "status": "Accepted" }
+    }
+  },
+  {
+    "httpRequest": { "method": "POST", "path": "/api/v1/pnd54" },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": { "Content-Type": ["application/json"] },
+      "body": { "submissionId": "MOCK-PND54-{{ random.uuid }}", "status": "Accepted" }
+    }
+  },
+  {
+    "httpRequest": { "method": "POST", "path": "/api/v1/pnd36" },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": { "Content-Type": ["application/json"] },
+      "body": { "submissionId": "MOCK-PND36-{{ random.uuid }}", "status": "Accepted" }
+    }
+  },
+  {
+    "httpRequest": { "method": "GET", "path": "/api/v1/status/.*" },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": { "Content-Type": ["application/json"] },
+      "body": { "status": "Acknowledged", "ackReference": "ACK-DONE" }
+    }
+  }
+]

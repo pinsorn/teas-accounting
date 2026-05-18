@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Accounting.Api</RootNamespace>
+    <AssemblyName>Accounting.Api</AssemblyName>
+    <UserSecretsId>teas-api-dev</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Accounting.Application\Accounting.Application.csproj" />
+    <ProjectReference Include="..\Accounting.Infrastructure\Accounting.Infrastructure.csproj" />
+    <ProjectReference Include="..\Accounting.Domain\Accounting.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="FluentValidation.AspNetCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="QuestPDF" />
+    <!-- OpenTelemetry removed 2026-05-16: unused (no AddOpenTelemetry wiring) and the
+         OTLP exporter shipped transitive CVEs. Re-add with a patched version when
+         observability is actually implemented. -->
+  </ItemGroup>
+</Project>

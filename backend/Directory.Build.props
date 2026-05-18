@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- NU1603/1605: transitive-package version resolution noise (kept as warnings).
+         NU1902/1903 (pkg CVEs) are NOW errors again — affected packages upgraded 2026-05-16. -->
+    <WarningsNotAsErrors>CS1591;NU1603;NU1605</WarningsNotAsErrors>
+    <NoWarn>$(NoWarn);CS1591;NU1603;NU1605;CA1305;CA1711;CA1707;CA1716;CA1725;CA1848;CA1873;CA1805;CA2208;CA1860;CA1862;CA1864;CA1865;CA1050;CA1861;CA1822;CA1859;SYSLIB0057</NoWarn>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

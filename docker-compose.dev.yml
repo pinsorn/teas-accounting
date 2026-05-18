@@ -1,0 +1,24 @@
+# Sprint 13c — Tier 1 full local stack. Reuses infra/docker-compose.yml
+# (postgres + redis + mailhog + pgadmin — single source, no duplication) via
+# Compose `include`, and adds MockServer for the RD e-Filing Mock provider.
+#
+#   docker compose -f docker-compose.dev.yml up -d postgres mailhog mockserver
+#
+#   MailHog Web UI : http://localhost:8025
+#   MockServer     : http://localhost:1080   (RdApi:BaseUrl in Tier 1)
+name: teas-dev
+
+include:
+  - infra/docker-compose.yml
+
+services:
+  mockserver:
+    image: mockserver/mockserver:latest
+    container_name: teas-mockserver
+    restart: unless-stopped
+    ports:
+      - "1080:1080"
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: "/config/initializerJson.json"
+    volumes:
+      - ./dev-tools/mockserver/initializerJson.json:/config/initializerJson.json:ro

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <RootNamespace>Accounting.Workers</RootNamespace>
+    <AssemblyName>Accounting.Workers</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Accounting.Application\Accounting.Application.csproj" />
+    <ProjectReference Include="..\Accounting.Infrastructure\Accounting.Infrastructure.csproj" />
+    <ProjectReference Include="..\Accounting.Domain\Accounting.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Quartz" />
+    <PackageReference Include="Quartz.Extensions.Hosting" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+  </ItemGroup>
+</Project>

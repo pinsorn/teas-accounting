@@ -1,0 +1,68 @@
+name: teas-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: teas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-accounting}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-accounting_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-accounting_dev}
+      POSTGRES_INITDB_ARGS: "--locale=th_TH.utf8 --lc-collate=th_TH.utf8 --encoding=UTF8"
+      TZ: Asia/Bangkok
+      PGTZ: Asia/Bangkok
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: teas-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: teas-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      MH_STORAGE: memory
+
+  # Optional: pgAdmin for DB browsing
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: teas-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+volumes:
+  pgdata:
+  redisdata:
