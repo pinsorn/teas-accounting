@@ -58,6 +58,16 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
+        // Sprint 14 P7 — per-key BU lock (auto-fill / mismatch). Company-level
+        // requires_business_unit still runs below on the resolved value.
+        var (effBu, buErr) = ApiKeyBuBinding.Resolve(
+            req.BusinessUnitId, _tenant.ApiKeyDefaultBusinessUnitId);
+        if (buErr is not null)
+            throw new DomainException(buErr,
+                $"This API key is bound to Business Unit {_tenant.ApiKeyDefaultBusinessUnitId}; " +
+                $"request specified {req.BusinessUnitId}.");
+        req = req with { BusinessUnitId = effBu };
+
         await _period.EnsureOpenAsync(req.DocDate, ct);
 
         var company = await _db.Companies

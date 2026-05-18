@@ -30,6 +30,15 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
+        // Sprint 14 P7 — per-key BU lock (applied before the TI-inherit default).
+        var (effBu, buErr) = ApiKeyBuBinding.Resolve(
+            req.BusinessUnitId, _tenant.ApiKeyDefaultBusinessUnitId);
+        if (buErr is not null)
+            throw new DomainException(buErr,
+                $"This API key is bound to Business Unit {_tenant.ApiKeyDefaultBusinessUnitId}; " +
+                $"request specified {req.BusinessUnitId}.");
+        req = req with { BusinessUnitId = effBu };
+
         await _period.EnsureOpenAsync(req.DocDate, ct);
 
         var ti = await _db.TaxInvoices

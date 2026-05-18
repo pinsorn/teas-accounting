@@ -15,4 +15,8 @@ public interface ITenantContext
     /// <summary>Sprint 14 — set when the caller is an external API key (no human
     /// <see cref="UserId"/>); null for JWT users. Used for audit + scope checks.</summary>
     long? ApiKeyId { get; }
+
+    /// <summary>Sprint 14 P7 — the API key's bound Business Unit, if any.
+    /// Null for JWT users or keys without a default. Drives auto-fill + lock.</summary>
+    int? ApiKeyDefaultBusinessUnitId { get; }
 }

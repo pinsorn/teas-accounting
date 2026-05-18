@@ -39,6 +39,17 @@ public sealed class QuotationService(
     public async Task<long> CreateDraftAsync(CreateQuotationRequest req, CancellationToken ct)
     {
         Auth();
+
+        // Sprint 14 P7 — per-key BU lock (SO/DO inherit this locked Q BU; v1
+        // exposes no direct SO/DO create, so the lock at Q entry is sufficient).
+        var (effBu, buErr) = ApiKeyBuBinding.Resolve(
+            req.BusinessUnitId, tenant.ApiKeyDefaultBusinessUnitId);
+        if (buErr is not null)
+            throw new DomainException(buErr,
+                $"This API key is bound to Business Unit {tenant.ApiKeyDefaultBusinessUnitId}; " +
+                $"request specified {req.BusinessUnitId}.");
+        req = req with { BusinessUnitId = effBu };
+
         var cust = await db.Customers.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
