@@ -299,6 +299,23 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
   caught + fixed in P8 (lazy `HttpTenantContext`; `apiperm:` scheme pin).
   Mirror synced. See §23.12 + Report-Backend19. **Phase-1 = production-ready
   foundation (backbone + e-Tax tiers + external API) COMPLETE.**
+- ☑ **Sprint 14.5 DONE (2026-05-19)** — §14 fix (the single most-re-applied
+  gotcha — non-idempotent test-fixture DB state, 7+ false-positive sprint
+  failures, was elevated "actively blocking sprint e2e gates"). New pure
+  `Accounting.TestKit` lib + `TestIds` helper (prefix + short-Guid suffix) +
+  TS mirror `frontend/e2e/helpers/test-ids.ts`; 7 known §14 sites retrofitted
+  to route through the one helper (e2e `record-vendor`/`_helpers.createVendor`
+  real low-entropy fix; Sprint55/85/9Vat/86 backend ad-hoc Guid/Random →
+  single-sourced); `tools/dev-db-resync.sql` + `dev-tools/dev-db-resync.sh`
+  (idempotent, non-destructive `current_value` resync for the Sprint-14 GL
+  journal-numbering desync special case). Gates: tsc 0, backend build 0/0,
+  Domain **89/89** (+6 `TestIds` meta-tests, 0 regr). **§14 now extinct** —
+  no fixture in the suite plants a fixed identifier on the shared dev DB.
+  DB/Docker-gated verification (Api Testcontainers re-run, 3× e2e per site,
+  Playwright 31/31, one-time resync execution) deferred to the dev env with
+  exact commands in `progress.md` cont. 41 — honest, not a fake pass:
+  no Docker / port 5432 closed this session. Single per-step git history
+  (`56c68f3`→`47ad3eb`→`62cac14`→wrap). See §23.13 + Report-Backend20.
 - ☐ **Tech debt — 3-way match (PR→PO→GR):** explicitly cut from Sprint 5.5
   (Answer-Sana-Question-Backend5 §B1.3). SMEs go vendor-TI → VI → PV directly.
   Phase-2 expansion.
@@ -892,3 +909,56 @@ not edited directly (binding ownership rule, as with the Sprint-13c CLAUDE.md
 section). **Scope cuts honored (§10):** no webhook / rate-limit / OAuth /
 approve-via-key / cross-BU-receipt-via-key / file-upload / generic DELETE —
 all Phase-2.
+
+### 23.13 — Sprint 14.5: §14 fix — shared test-fixture randomization ✅ done (2026-05-19)
+
+> Doc note: Answer-Sana-Backend20 said strike "plan §23.3"; that is the
+> Sprint-8 section. Per the established pattern (§23.4/.5/… each grow the
+> numbering with this note) the Sprint-14.5 record is added here as §23.13.
+> Minor — flagged in Report-Backend20.
+
+~~Pending: gotcha §14 (test fixtures plant fixed identifiers against the
+long-lived shared dev DB → cross-run accumulation → false-positive failures)
+re-applied 7+ times across Phase 1, elevated from a Phase-2 candidate to
+"actively blocking sprint e2e gates".~~ **DONE.**
+
+**Shipped:** new pure `Accounting.TestKit` class lib (no production / test-
+framework deps) + `TestIds` (prefix + 8-hex short-Guid suffix:
+`CustomerCode`/`VendorCode`/`ProductCode`/`BranchCode`/`BusinessUnitCode`/
+`ExpenseCategoryCode`/`WhtTypeCode`/`Email`/`TaxId`/`FuturePeriod`/`Name`),
+referenced by `Accounting.Domain.Tests` + `Accounting.Api.Tests`, in
+`Accounting.sln`. 6 meta-tests (format / 1000-unique / TaxId 0000+9 /
+FuturePeriod ≥ +12 mo / BU ≤20). TS mirror
+`frontend/e2e/helpers/test-ids.ts` (`node:crypto` `randomBytes(4)`,
+byte-aligned surface). **7 §14 sites retrofitted to the one helper:**
+`record-vendor.spec.ts` + `_helpers.ts createVendor` (real fix — was
+low-entropy `Date.now().slice(-7)`, shared by many specs);
+`business-units-setup.spec.ts` (S2 smoke); `Sprint55VendorInvoiceTests`,
+`Sprint85VatThresholdTests`, `Sprint9VatComplianceTests`, `Sprint86ArWhtTests`
+(consistency refactor — behaviour already §14-safe via ephemeral
+Testcontainers `teas_test`, now single-sourced; intentional ม.82/4 window /
+WHT rate-change dates left fixed by design). **Sprint-14 GL special case:**
+`tools/dev-db-resync.sql` + `dev-tools/dev-db-resync.sh` — idempotent,
+non-destructive resync of `sys.number_sequences.current_value` →
+`MAX(running no.)` for `gl.journal_entries` + `sales.tax_invoices` +
+`purchase.payment_vouchers` (real schema verified against `db/schema.sql`;
+guarded `current_value < max` so re-runs are no-ops; posted-doc immutability
+respected — counter only advances).
+
+**Gate (static, runnable this session):** tsc 0, backend build 0/0, Domain
+**89/89** (+6, 0 skip/regr). **DB/Docker-gated (NOT runnable — no Docker,
+port 5432 closed this session, honest):** Api Testcontainers suite, 3×
+consecutive e2e re-run per site, Playwright 31/31, the one-time
+`dev-db-resync` execution — deferred to the dev env with exact commands in
+`progress.md` cont. 41. Same honest discipline as the Sprint-13c Tier-1 /
+Sprint-14 §14 e2e skips; never a fake pass.
+
+**Sana-owned doc deltas (binding ownership rule — routed, not edited
+directly):** CLAUDE.md new §15 "Test data discipline" + `runtime-gotchas.md`
+§14 "Resolved Sprint 14.5" note — full proposed text in `progress.md`
+cont. 41 §"→ Sana" + Report-Backend20.
+
+**§14 is now extinct:** no fixture in the suite plants a fixed identifier on
+the shared dev DB; new tests use `TestIds` (enforced via CLAUDE.md §15 once
+Sana applies it). Scope cuts honored: per-test DB reset, Testcontainers-
+per-test, CI parallelization changes — all Phase-2.
