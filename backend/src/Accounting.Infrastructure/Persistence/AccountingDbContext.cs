@@ -36,6 +36,7 @@ public class AccountingDbContext : DbContext
     public DbSet<RolePermission>  RolePermissions => Set<RolePermission>();
     public DbSet<UserRole>        UserRoles       => Set<UserRole>();
     public DbSet<ApiKey>          ApiKeys         => Set<ApiKey>();
+    public DbSet<IdempotencyKey>  IdempotencyKeys => Set<IdempotencyKey>();
 
     // Sys
     public DbSet<DocumentPrefix>  DocumentPrefixes   => Set<DocumentPrefix>();
