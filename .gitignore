@@ -72,3 +72,6 @@ secrets/
 **/secrets/
 *.pfx
 *.pem
+
+# ===== Runtime file-storage (Sprint 11 LocalDisk; never commit) =====
+_attachments/
