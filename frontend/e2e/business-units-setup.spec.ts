@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { login } from './_helpers';
+import { TestIds } from './helpers/test-ids';
 
 // Sprint 8 — create a Business Unit through the settings UI and see it listed.
+// Sprint 14.5 — §14 fix: random code per run (was Date-based, low entropy).
 test('create a business unit in settings', async ({ page }) => {
   await login(page);
 
-  const code = `E2EBU${Date.now().toString().slice(-6)}`;
+  const code = TestIds.businessUnitCode();
   await page.goto('/settings/business-units');
 
   // open the create modal
