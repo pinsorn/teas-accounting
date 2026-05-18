@@ -37,6 +37,15 @@ public sealed partial class ReceiptService : IReceiptService
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
+        // Sprint 14 P7 — per-key BU lock.
+        var (effBu, buErr) = ApiKeyBuBinding.Resolve(
+            req.BusinessUnitId, _tenant.ApiKeyDefaultBusinessUnitId);
+        if (buErr is not null)
+            throw new DomainException(buErr,
+                $"This API key is bound to Business Unit {_tenant.ApiKeyDefaultBusinessUnitId}; " +
+                $"request specified {req.BusinessUnitId}.");
+        req = req with { BusinessUnitId = effBu };
+
         await _period.EnsureOpenAsync(req.DocDate, ct);
 
         var customer = await _db.Customers
@@ -63,6 +72,18 @@ public sealed partial class ReceiptService : IReceiptService
             if (app.AppliedAmount > outstanding)
                 throw new DomainException("rc.overpaid",
                     $"Applied amount {app.AppliedAmount} exceeds outstanding {outstanding} on TI {ti.DocNo}.");
+        }
+
+        // Sprint 14 P7 — an API-key caller may NOT settle a cross-BU receipt
+        // (a key for Lab must not receive Reptify payments). BFF/JWT users keep
+        // the Sprint-8.6 cross-BU flexibility.
+        if (_tenant.ApiKeyId is not null)
+        {
+            var distinctBus = tis.Where(t => t.BusinessUnitId is not null)
+                .Select(t => t.BusinessUnitId!.Value).Distinct().ToList();
+            if (distinctBus.Count > 1)
+                throw new DomainException("business_unit.cross_bu_not_allowed_for_this_key",
+                    "An API key cannot settle a receipt spanning multiple Business Units.");
         }
 
         // Sprint 8 — BU. Required when the company opted in. Header value here is
