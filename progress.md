@@ -93,6 +93,20 @@ first-customer onboarding/data-migration · go-live checklist · real e-Tax UAT
 (Phase 0, 4-6 wk). Sprint 14 (External API + Per-Key BU Binding) spec ready
 (`Answer-Sana-Backend19.md`).
 
+### Git baseline initialized (one-time, post-13c — per Ham consultation)
+`code/` was **never** under git (tracking = append-only progress.md + Y: mirror).
+At this clean Phase-1-complete moment: `git init --initial-branch=main` →
+single commit `6c6418d` "Phase 1 baseline — post Sprint 13c + React 19.2.6"
+(**570 files**, 0 nested .git). `.gitignore` verified complete (bin/obj/.vs,
+node_modules/.next, .env*/*.pfx/*.pem/secrets, IDE, OS, Playwright) — left
+as-is. Leak check: **0** secrets / node_modules / bin / obj / .env.local
+staged (`.env.local.example` template is intentionally tracked). Tracking-only
+change — **no source modified**; post-13c gates carry over unchanged
+(re-verified: build 0/0, tsc 0, next 0; Playwright = post-13c 29 pass + 1
+Tier-1-gated skip, identical code). Mirror to `Y:\AccountApp` unchanged —
+`.git` stays only in `code/` (mirror is a build target, never receives it).
+Per-sprint git commits begin with Sprint 14.
+
 ---
 
 ## 2026-05-18 (cont. 38) — React 19.0.0 → **19.2.6** + @types/react 18.x → 19.x pin fix (own change, gates green)

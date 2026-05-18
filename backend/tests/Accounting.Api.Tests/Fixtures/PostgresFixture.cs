@@ -95,5 +95,6 @@ public sealed class StubTenant : ITenantContext
     public int BranchId { get; init; }
     public long? UserId { get; init; }
     public bool IsSuperAdmin { get; init; }
-    public bool IsAuthenticated => UserId is not null;
+    public long? ApiKeyId { get; init; }
+    public bool IsAuthenticated => UserId is not null || ApiKeyId is not null;
 }

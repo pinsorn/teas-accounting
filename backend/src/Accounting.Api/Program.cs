@@ -55,7 +55,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1),
         };
-    });
+    })
+    // Sprint 14 — external API key scheme (X-Api-Key). /api/v1/* uses this;
+    // root/BFF routes stay JWT-only (auth isolation enforced per route group).
+    .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+        ApiKeyAuthenticationHandler.SchemeName, _ => { });
 
 builder.Services.AddPermissionAuthorization();
 

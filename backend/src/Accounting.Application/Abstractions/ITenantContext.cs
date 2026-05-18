@@ -11,4 +11,8 @@ public interface ITenantContext
     long? UserId { get; }
     bool IsSuperAdmin { get; }
     bool IsAuthenticated { get; }
+
+    /// <summary>Sprint 14 — set when the caller is an external API key (no human
+    /// <see cref="UserId"/>); null for JWT users. Used for audit + scope checks.</summary>
+    long? ApiKeyId { get; }
 }
