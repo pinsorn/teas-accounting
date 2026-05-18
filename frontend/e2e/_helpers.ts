@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { TestIds } from './helpers/test-ids';
 
 export async function login(page: Page, username = 'admin') {
   await page.goto('/login');
@@ -34,7 +35,8 @@ export async function createAndPostTaxInvoice(page: Page): Promise<number> {
 
 /** Create a vendor via the UI; returns its unique code. */
 export async function createVendor(page: Page): Promise<string> {
-  const code = `E2EV-${Date.now().toString().slice(-7)}`;
+  // §14 (resolved Sprint 14.5): random suffix via shared TestIds, was Date.now().
+  const code = TestIds.vendorCode('E2EV');
   await page.goto('/vendors/new');
   await page.getByText(/รหัสผู้ขาย|Vendor code/).locator('xpath=following::input[1]').fill(code);
   await page.getByText(/^ชื่อ \(ไทย\)|Name \(Thai\)/).locator('xpath=following::input[1]')
