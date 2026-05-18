@@ -969,6 +969,192 @@ paths:
         '200':
           description: OK
 
+  # ============================================================
+  # ADMIN — ApiKey management (BFF/JWT only, perm: sys.api_key.manage)
+  # Sprint 14 P2
+  # ============================================================
+  /api-keys:
+    get:
+      summary: List API keys for current company
+      tags: [API Keys]
+      responses:
+        '200':
+          description: OK — list of keys with prefix (NOT plaintext), scopes, default_BU, expiry, last_used_at
+    post:
+      summary: Create new API key (plaintext returned ONCE, then bcrypt hash + 16-char prefix stored)
+      tags: [API Keys]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name: { type: string, description: 'Descriptive label (e.g. "Shopify Reptify Integration")' }
+                scopes:
+                  type: array
+                  items: { type: string, example: 'sales.tax_invoice.create' }
+                default_business_unit_id:
+                  type: integer
+                  nullable: true
+                  description: 'When set: docs auto-tag with this BU; request body mismatch → 409 business_unit.locked_mismatch'
+                expires_at: { type: string, format: date-time, nullable: true }
+      responses:
+        '201':
+          description: Created — plaintext key returned ONCE. Caller MUST save it; never retrievable again.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key_id: { type: integer, format: int64 }
+                  name: { type: string }
+                  key_prefix: { type: string, example: 'key_a1b2c3d4...wxyz' }
+                  plaintext: { type: string, example: 'key_abcdef1234567890abcdef1234567890abcdef12' }
+                  scopes: { type: array, items: { type: string } }
+                  default_business_unit_id: { type: integer, nullable: true }
+                  expires_at: { type: string, format: date-time, nullable: true }
+
+  /api-keys/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    delete:
+      summary: Revoke API key (sets revoked_at + is_active=false; key fails 401 immediately on next use)
+      tags: [API Keys]
+      responses:
+        '204': { description: Revoked }
+
+  /api-keys/{id}/rotate:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: Rotate API key (old key invalid immediately; new plaintext returned ONCE)
+      tags: [API Keys]
+      responses:
+        '200':
+          description: Rotated — new plaintext key returned (same one-time-display contract as create)
+
+# ============================================================
+# /api/v1/* — EXTERNAL API (X-Api-Key auth ONLY, JWT rejected here)
+# Sprint 14 P3+
+# Auth isolation: ApiKey scheme pinned via apiperm:<scope> policy.
+# Every POST/PUT/PATCH REQUIRES `Idempotency-Key` header (Sprint 14 P4).
+# Error responses use the standard envelope (Sprint 14 P5; v1 only — root keeps RFC 7807).
+# ============================================================
+  /api/v1/tax-invoices:
+    post:
+      summary: '[v1] Create Tax Invoice (microservice integration)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                Same shape as `CreateTaxInvoiceRequest`. If API key has `default_business_unit_id` set:
+                - Omit `business_unit_id` → auto-fill from key
+                - Specify matching `business_unit_id` → OK
+                - Specify different `business_unit_id` → 409 `business_unit.locked_mismatch`
+              properties:
+                customer_id: { type: integer, format: int64 }
+                doc_date: { type: string, format: date }
+                business_unit_id: { type: integer, nullable: true, description: 'Optional; subject to key lock' }
+                lines:
+                  type: array
+                  items: { type: object }
+      responses:
+        '201':
+          description: Created (or replayed via Idempotency-Key match — see `Idempotency-Replayed: true` header)
+        '400': { description: 'Validation error or idempotency.required (missing Idempotency-Key header on mutation)' }
+        '401': { description: 'auth.* (missing/invalid/expired/revoked API key)' }
+        '403': { description: 'auth.scope_required (key lacks sales.tax_invoice.create scope)' }
+        '409':
+          description: |
+            One of:
+            - `idempotency.body_mismatch` — same Idempotency-Key with different body within 24h TTL
+            - `business_unit.locked_mismatch` — request BU differs from key's default_business_unit_id
+            - `business_unit.cross_bu_not_allowed_for_this_key` — receipt apply spans multiple BUs (API key callers locked to single-BU)
+
+  /api/v1/tax-invoices/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: '[v1] Get Tax Invoice'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: OK }
+
+  /api/v1/tax-invoices/{id}/post:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: '[v1] Post Tax Invoice — allocates doc_no using key BU sub-prefix (e.g. MM-YYYY-TI-REPT-NNNN)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+
+  /api/v1/receipts:
+    post:
+      summary: '[v1] Create Receipt'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+
+  /api/v1/quotations:
+    post:
+      summary: '[v1] Create Quotation'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+
+  /api/v1/customers:
+    get:
+      summary: '[v1] List/search customers (microservice maps external email/code → TEAS customer_id)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+    post:
+      summary: '[v1] Create customer'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+
+  /api/v1/products:
+    get:
+      summary: '[v1] List products (microservice maps SKU → TEAS product_id)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+
+  /api/v1/system/info:
+    get:
+      summary: '[v1] System info (vat_mode, version, etc.)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  vat_mode: { type: boolean }
+                  vat_rate: { type: number }
+                  pnd30_submission_mode: { type: string, enum: [auto, manual] }
+                  document_number_format: { type: string, example: 'MM-YYYY-PREFIX-NNNN or MM-YYYY-PREFIX-SUB-NNNN with BU' }
+                  timezone: { type: string, example: 'Asia/Bangkok' }
+        '401': { $ref: '#/components/responses/ErrorEnvelope401' }
+
 # ============================================================
 # COMPONENTS
 # ============================================================
@@ -977,13 +1163,23 @@ components:
     ApiKeyAuth:
       type: apiKey
       in: header
-      name: Authorization
-      description: 'Format: `ApiKey sk_live_xxx` + X-Signature (HMAC SHA-256) + X-Timestamp headers'
+      name: X-Api-Key
+      description: |
+        Format: `key_<40-char-random>`. Issued via `POST /api-keys` (admin BFF).
+        Plaintext returned once on create/rotate; only bcrypt hash + 16-char prefix stored.
+        Scoped per-key (ScopesJson array of permission strings) + optional default_business_unit_id (auto-fill + lock per binding behavior).
+        Required on all `/api/v1/*` endpoints (auth isolation: JWT not accepted on v1; ApiKey not accepted on root).
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'BFF cookie-based JWT for human users via /auth/login. Required on all root endpoints (auth isolation: ApiKey not accepted on root).'
     OAuth2:
       type: oauth2
+      description: 'Reserved for Phase 2 client_credentials flow when first customer demands OAuth. API key sufficient for Phase 1.'
       flows:
         clientCredentials:
-          tokenUrl: https://api.accounting.example.com/oauth/token
+          tokenUrl: https://api.your-teas.example/oauth/token
           scopes:
             read: Read access
             write: Write access
@@ -1029,11 +1225,19 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    # === /api/v1/* error envelope per Sprint 14 P5 + plan §20.7 ===
+    ErrorEnvelope401:
+      description: 'Authentication failed. Body uses v1 envelope.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelopeV1'
 
   schemas:
     # === Common ===
     ErrorResponse:
       type: object
+      description: 'Legacy RFC 7807 — used on ROOT (BFF/JWT) endpoints only. Sprint 14 root path retains this.'
       properties:
         error:
           type: object
@@ -1043,6 +1247,35 @@ components:
             details: { type: object }
         meta:
           $ref: '#/components/schemas/Meta'
+
+    # === /api/v1/* standard error envelope (Sprint 14 P5 + plan §20.7) ===
+    ErrorEnvelopeV1:
+      type: object
+      description: |
+        Standard error envelope for /api/v1/* responses. Stable error code catalog:
+        - auth.missing_api_key | auth.invalid_api_key | auth.expired_api_key | auth.revoked_api_key | auth.scope_required
+        - idempotency.required | idempotency.body_mismatch
+        - validation_error
+        - tenant.cross_tenant_access
+        - business_unit.required | business_unit.locked_mismatch | business_unit.cross_bu_not_allowed_for_this_key
+        - period.closed | document.immutable_after_post
+        - rate_limit.exceeded (Phase 2)
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: 'business_unit.locked_mismatch' }
+            message: { type: string, example: 'This API key is bound to BU REPT; request specified LAB' }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string, example: 'business_unit_id' }
+                  issue: { type: string, example: 'locked_mismatch' }
+            trace_id: { type: string, example: 'abc123def456', description: 'From Activity.Current?.Id' }
+            request_id: { type: string, example: 'req_xyz789', description: 'From HttpContext.TraceIdentifier' }
 
     Meta:
       type: object
@@ -1621,6 +1854,10 @@ tags:
   - name: Vendor Invoices
   - name: Payment Vouchers
   - name: Master Data
+  - name: API Keys
+    description: 'Admin (BFF/JWT, perm: sys.api_key.manage) — manage X-Api-Key credentials for microservice integration (Sprint 14 P2).'
+  - name: External API v1
+    description: '/api/v1/* — service-to-service integration (X-Api-Key auth ONLY; JWT rejected). Idempotency-Key REQUIRED on mutations. Error responses use standard envelope per plan §20.7 (Sprint 14 P3-P8).'
   - name: Reports
   - name: Tax Filings
   - name: System

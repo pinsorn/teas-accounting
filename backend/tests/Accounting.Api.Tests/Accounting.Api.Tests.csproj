@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Accounting.Api\Accounting.Api.csproj" />
+    <ProjectReference Include="..\Accounting.TestKit\Accounting.TestKit.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
