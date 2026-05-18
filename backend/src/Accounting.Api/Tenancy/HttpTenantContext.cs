@@ -4,39 +4,43 @@ using Accounting.Application.Abstractions;
 namespace Accounting.Api.Tenancy;
 
 /// <summary>
-/// Reads tenant + user from the current request's JWT claim set.
-/// Registered Scoped so DbContext (also Scoped) gets the same instance.
+/// Reads tenant + user from the current request's principal (JWT or Sprint-14
+/// ApiKey scheme). Registered Scoped so the DbContext (also Scoped) shares it.
+///
+/// Properties are evaluated LAZILY on each access — NOT cached in the ctor.
+/// Reason: the ApiKey auth handler resolves <c>IApiKeyResolver → AccountingDbContext
+/// → ITenantContext</c> DURING authentication, i.e. before the principal is
+/// established. A ctor-snapshot would freeze the anonymous pre-auth user for
+/// the whole request. (Sprint 14 — runtime-gotcha class.)
 /// </summary>
 public sealed class HttpTenantContext : ITenantContext
 {
-    public int   CompanyId       { get; }
-    public int   BranchId        { get; }
-    public long? UserId          { get; }
-    public bool  IsSuperAdmin    { get; }
-    public bool  IsAuthenticated { get; }
-    public long? ApiKeyId        { get; }
-    public int?  ApiKeyDefaultBusinessUnitId { get; }
+    private readonly IHttpContextAccessor _accessor;
+    public HttpTenantContext(IHttpContextAccessor accessor) => _accessor = accessor;
 
-    public HttpTenantContext(IHttpContextAccessor accessor)
-    {
-        var user = accessor.HttpContext?.User;
-        IsAuthenticated = user?.Identity?.IsAuthenticated == true;
-        if (!IsAuthenticated || user is null)
-        {
-            return;
-        }
+    private ClaimsPrincipal? User => _accessor.HttpContext?.User;
 
-        CompanyId    = TryInt(user, TenantClaims.CompanyId);
-        BranchId     = TryInt(user, TenantClaims.BranchId);
-        UserId       = long.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                       ?? user.FindFirst("sub")?.Value, out var u) ? u : null;
-        IsSuperAdmin = string.Equals(user.FindFirst(TenantClaims.IsSuperAdmin)?.Value, "true",
-                                     StringComparison.OrdinalIgnoreCase);
-        ApiKeyId     = long.TryParse(user.FindFirst(TenantClaims.ApiKeyId)?.Value, out var k) ? k : null;
-        ApiKeyDefaultBusinessUnitId =
-            int.TryParse(user.FindFirst(TenantClaims.DefaultBusinessUnit)?.Value, out var b) ? b : null;
-    }
+    public bool IsAuthenticated => User?.Identity?.IsAuthenticated == true;
 
-    private static int TryInt(ClaimsPrincipal user, string type) =>
-        int.TryParse(user.FindFirst(type)?.Value, out var v) ? v : 0;
+    public int CompanyId => Authed ? TryInt(TenantClaims.CompanyId) : 0;
+    public int BranchId  => Authed ? TryInt(TenantClaims.BranchId)  : 0;
+
+    public long? UserId => Authed && long.TryParse(
+        User!.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User!.FindFirst("sub")?.Value,
+        out var u) ? u : null;
+
+    public bool IsSuperAdmin => Authed && string.Equals(
+        User!.FindFirst(TenantClaims.IsSuperAdmin)?.Value, "true",
+        StringComparison.OrdinalIgnoreCase);
+
+    public long? ApiKeyId => Authed
+        && long.TryParse(User!.FindFirst(TenantClaims.ApiKeyId)?.Value, out var k) ? k : null;
+
+    public int? ApiKeyDefaultBusinessUnitId => Authed
+        && int.TryParse(User!.FindFirst(TenantClaims.DefaultBusinessUnit)?.Value, out var b) ? b : null;
+
+    private bool Authed => User?.Identity?.IsAuthenticated == true;
+
+    private int TryInt(string type) =>
+        int.TryParse(User!.FindFirst(type)?.Value, out var v) ? v : 0;
 }

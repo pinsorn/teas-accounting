@@ -10,6 +10,10 @@ namespace Accounting.Api.Authorization;
 public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
 {
     public const string PolicyPrefix = "perm:";
+    /// <summary>Sprint 14 — pins the ApiKey scheme (so a scheme-less default
+    /// JWT can't clobber the API-key principal) + the scope requirement.
+    /// Root keeps <see cref="PolicyPrefix"/> (JWT-default) → auth isolation.</summary>
+    public const string ApiKeyPolicyPrefix = "apiperm:";
 
     private readonly DefaultAuthorizationPolicyProvider _fallback;
 
@@ -21,6 +25,16 @@ public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        if (policyName.StartsWith(ApiKeyPolicyPrefix, StringComparison.Ordinal))
+        {
+            var permission = policyName[ApiKeyPolicyPrefix.Length..];
+            var policy = new AuthorizationPolicyBuilder()
+                .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
+                .RequireAuthenticatedUser()
+                .AddRequirements(new PermissionRequirement(permission))
+                .Build();
+            return Task.FromResult<AuthorizationPolicy?>(policy);
+        }
         if (policyName.StartsWith(PolicyPrefix, StringComparison.Ordinal))
         {
             var permission = policyName[PolicyPrefix.Length..];
