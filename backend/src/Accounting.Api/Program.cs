@@ -32,6 +32,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // Sprint 13c — in-process e-Tax retry worker (composition root owns hosting).
 builder.Services.AddHostedService<ETaxRetryHostedService>();
+builder.Services.AddHostedService<IdempotencyCleanupHostedService>();   // Sprint 14 P4
 builder.Services.AddApplication();
 
 // Multi-tenant context: per-request scope, populated from the JWT claim set.
@@ -105,6 +106,7 @@ app.UseDomainExceptionMapper();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseTenantContext();
+app.UseExternalApiIdempotency();   // Sprint 14 P4 — /api/v1/* mutations only
 
 app.MapHealthChecks("/health");
 app.MapGet("/system/info", (IConfiguration cfg) => new
