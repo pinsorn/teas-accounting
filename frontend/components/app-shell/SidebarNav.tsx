@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { LayoutDashboard, FileText, Receipt, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -50,6 +50,7 @@ const SECTIONS = [
       { href: '/settings/products', key: 'products', Icon: Package },
       { href: '/settings/business-units', key: 'businessUnits', Icon: Layers },
       { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent },
+      { href: '/settings/api-keys', key: 'apiKeys', Icon: KeyRound },
     ],
   },
 ] as const;

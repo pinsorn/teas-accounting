@@ -61,6 +61,9 @@ import type {
   PurchaseOrderListItem,
   PurchaseOrderDetail,
   OutstandingPoReport,
+  ApiKeyListItem,
+  CreateApiKeyRequest,
+  ApiKeyCreatedResult,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -761,5 +764,35 @@ export function useOutstandingPo(asOf: string, vendorId?: number, overdueOnly = 
     queryKey: ['outstanding-po', asOf, vendorId ?? 0, overdueOnly],
     queryFn: () => apiGet<OutstandingPoReport>(
       `reports/outstanding-po${qs({ as_of: asOf, vendorId: vendorId || undefined, overdue_only: overdueOnly || undefined })}`),
+  });
+}
+
+// ───────────────────────── Sprint 14 — external API keys ───────────────────
+export function useApiKeys() {
+  return useQuery({
+    queryKey: ['api-keys'],
+    queryFn: () => apiGet<ApiKeyListItem[]>('api-keys'),
+  });
+}
+export function useCreateApiKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateApiKeyRequest) =>
+      apiPost<ApiKeyCreatedResult>('api-keys/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+  });
+}
+export function useRotateApiKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<ApiKeyCreatedResult>(`api-keys/${id}/rotate`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+  });
+}
+export function useRevokeApiKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`api-keys/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
   });
 }

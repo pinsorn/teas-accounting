@@ -25,6 +25,8 @@ public static class Permissions
         public const string AttachmentUpload   = "sys.attachment.upload";
         public const string AttachmentRead     = "sys.attachment.read";
         public const string AttachmentDelete   = "sys.attachment.delete";
+        // Sprint 14 — external API key management (admins only).
+        public const string ApiKeyManage       = "sys.api_key.manage";
     }
 
     public static class Gl
@@ -96,7 +98,7 @@ public static class Permissions
         Master.CoaManage, Master.BusinessUnitManage,
         Master.ProductManage, Master.ProductRead,
         Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage,
-        Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete,
+        Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete, Sys.ApiKeyManage,
         Gl.JournalCreate, Gl.JournalPost, Gl.JournalRead, Gl.PeriodClose,
         Sales.TaxInvoiceCreate, Sales.TaxInvoicePost, Sales.TaxInvoiceRead,
         Sales.ReceiptCreate, Sales.ReceiptPost,

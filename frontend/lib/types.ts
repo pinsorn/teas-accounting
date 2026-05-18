@@ -505,3 +505,18 @@ export interface OutstandingPoRow {
   linkedViTotal: number; remaining: number;
 }
 export interface OutstandingPoReport { asOf: string; rows: OutstandingPoRow[]; }
+
+// ───────────────────────── Sprint 14: External API keys ────────────────────
+export interface ApiKeyListItem {
+  apiKeyId: number; name: string; keyPrefix: string; scopes: string[];
+  defaultBusinessUnitId: number | null; defaultBusinessUnitCode: string | null;
+  createdAt: string; lastUsedAt: string | null; expiresAt: string | null;
+  revokedAt: string | null; isActive: boolean;
+}
+export interface CreateApiKeyRequest {
+  name: string; scopes: string[];
+  expiresAt: string | null; defaultBusinessUnitId: number | null;
+}
+export interface ApiKeyCreatedResult {
+  apiKeyId: number; name: string; keyPrefix: string; plaintext: string;
+}

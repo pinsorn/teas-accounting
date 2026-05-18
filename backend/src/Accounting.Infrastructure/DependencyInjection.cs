@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IPermissionLookup, PermissionLookup>();
         services.AddScoped<IApiKeyResolver, Identity.ApiKeyResolver>();   // Sprint 14
+        services.AddScoped<Application.Identity.IApiKeyService, Identity.ApiKeyService>();
         services.AddScoped<INumberSequenceService, Numbering.NumberSequenceService>();
         services.AddScoped<Application.Master.ICustomerService, Master.CustomerService>();
         services.AddScoped<Application.Ledger.IJournalService, Ledger.JournalService>();
