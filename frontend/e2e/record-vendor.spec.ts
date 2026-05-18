@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { login } from './_helpers';
+import { TestIds } from './helpers/test-ids';
 
 // Sprint 5 shippable critical path: create a vendor (master CRUD) and see it in
 // the list. NOTE: Sana asked for record-vendor-invoice + payment-voucher-with-wht,
@@ -10,11 +11,12 @@ import { login } from './_helpers';
 test('record a vendor and see it in the list', async ({ page }) => {
   await login(page);
 
-  // Unique code per run — integration DB has no teardown (runtime-gotchas §14).
+  // Unique code per run — integration DB has no teardown (runtime-gotchas §14,
+  // resolved Sprint 14.5: random suffix via shared TestIds, was Date.now()).
   // Name must NOT contain the code: the list shows code AND name in separate
   // cells, so an embedded code makes a getByRole('cell',{name:code}) match two
   // cells (runtime-gotchas §5 — keep the assertion target unambiguous).
-  const code = `E2EVEND-${Date.now().toString().slice(-7)}`;
+  const code = TestIds.vendorCode('E2EVEND');
   const name = 'ผู้ขายทดสอบอีทูอี';
 
   await page.goto('/vendors/new');

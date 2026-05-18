@@ -6,6 +6,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
+using Accounting.TestKit;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -41,7 +42,9 @@ public sealed class Sprint86ArWhtTests
             .BuildServiceProvider();
     }
 
-    private static string Sfx() => Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+    // §14 (resolved Sprint 14.5): route through the shared TestIds helper so
+    // randomization lives in one place. 6-upper preserves prior code shape.
+    private static string Sfx() => TestIds.Suffix()[..6].ToUpperInvariant();
 
     private static async Task<long> CustomerId(ServiceProvider sp)
     {
@@ -77,7 +80,7 @@ public sealed class Sprint86ArWhtTests
         long cust, long tiId, decimal applied, decimal wht = 0, int? whtType = null) =>
         new(new DateOnly(2026, 5, 16), cust, PaymentMethod.Transfer, null, null, null,
             "THB", 1m, null, [new ReceiptApplicationInput(tiId, applied)], null,
-            wht, whtType, wht > 0 ? "WHT-" + Guid.NewGuid().ToString("N")[..6] : null,
+            wht, whtType, wht > 0 ? $"WHT-{Sfx()}" : null,
             wht > 0 ? new DateOnly(2026, 5, 16) : null);
 
     [SkippableFact]

@@ -5,6 +5,7 @@ using Accounting.Application.TaxFilings;
 using Accounting.Domain.Common;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
+using Accounting.TestKit;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -130,9 +131,9 @@ public sealed class Sprint9VatComplianceTests
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<ITaxFilingService>();
 
-        // PostgresFixture persists rows across runs; finalize is immutable per
-        // (form, period) — use a unique far-future period so re-runs never clash.
-        var period = (3000 + Random.Shared.Next(0, 6000)) * 100 + Random.Shared.Next(1, 13);
+        // finalize is immutable per (form, period) — a unique future period so
+        // re-runs never clash (§14, resolved Sprint 14.5: shared TestIds helper).
+        var period = TestIds.FuturePeriod();
 
         var f = await svc.GeneratePnd30Async(period, TaxFilingMode.Finalize, default);
         f.Status.Should().BeOneOf("Finalized", "Submitted");

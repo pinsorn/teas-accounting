@@ -5,6 +5,7 @@ using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
+using Accounting.TestKit;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,7 +56,7 @@ public sealed class Sprint85VatThresholdTests
             CurrencyCode = "THB", ExchangeRate = 1m,
             TotalAmount = totalThb, TotalAmountThb = totalThb,
             Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
-            DocNo = $"05-2026-TI-{Guid.NewGuid().ToString("N")[..6]}",
+            DocNo = $"05-2026-TI-{TestIds.Suffix()[..6]}",
         });
         await db.SaveChangesAsync();
     }

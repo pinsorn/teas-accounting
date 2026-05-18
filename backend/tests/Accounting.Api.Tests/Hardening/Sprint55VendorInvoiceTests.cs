@@ -10,6 +10,7 @@ using Accounting.Infrastructure.Ledger;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.Purchase;
+using Accounting.TestKit;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,13 +59,13 @@ public sealed class Sprint55VendorInvoiceTests
 
         var vendor = new Vendor
         {
-            CompanyId = 1, VendorCode = "VI-" + Guid.NewGuid().ToString("N")[..8],
+            CompanyId = 1, VendorCode = TestIds.VendorCode("VI"),
             VendorType = CustomerType.Corporate, NameTh = "ผู้ขายทดสอบ VI",
             TaxId = "0105556123453", BranchCode = "00000", VatRegistered = true,
         };
         var cat = new ExpenseCategory
         {
-            CompanyId = 1, CategoryCode = "VIC" + Guid.NewGuid().ToString("N")[..6],
+            CompanyId = 1, CategoryCode = TestIds.ExpenseCategoryCode("VIC"),
             NameTh = "หมวดทดสอบ", DefaultExpenseAccountId = expenseId,
             DefaultIsRecoverableVat = recoverableVat,
         };
@@ -80,7 +81,7 @@ public sealed class Sprint55VendorInvoiceTests
         new(
             DocDate: docDate ?? new DateOnly(2026, 5, 16),
             VendorId: vendorId,
-            VendorTaxInvoiceNo: "VTI-" + Guid.NewGuid().ToString("N")[..6],
+            VendorTaxInvoiceNo: $"VTI-{TestIds.Suffix()[..6]}",
             VendorTaxInvoiceDate: vendorTiDate ?? new DateOnly(2026, 5, 10),
             VatClaimPeriod: claim,
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
