@@ -29,8 +29,7 @@ public static class ApiV1Endpoints
             [FromBody] CreateTaxInvoiceRequest req, IValidator<CreateTaxInvoiceRequest> v,
             ITaxInvoiceService svc, CancellationToken ct) =>
         {
-            var r = await v.ValidateAsync(req, ct);
-            if (!r.IsValid) return Results.ValidationProblem(r.ToDictionary());
+            await v.ValidateAndThrowAsync(req, ct);   // → validation_error envelope (P5)
             var id = await svc.CreateDraftAsync(req, ct);
             return Results.Created($"/api/v1/tax-invoices/{id}", new { tax_invoice_id = id });
         });
@@ -52,8 +51,7 @@ public static class ApiV1Endpoints
             [FromBody] CreateReceiptRequest req, IValidator<CreateReceiptRequest> v,
             IReceiptService svc, CancellationToken ct) =>
         {
-            var r = await v.ValidateAsync(req, ct);
-            if (!r.IsValid) return Results.ValidationProblem(r.ToDictionary());
+            await v.ValidateAndThrowAsync(req, ct);   // → validation_error envelope (P5)
             var id = await svc.CreateDraftAsync(req, ct);
             return Results.Created($"/api/v1/receipts/{id}", new { receipt_id = id });
         });
@@ -73,8 +71,7 @@ public static class ApiV1Endpoints
             [FromBody] CreateQuotationRequest req, IValidator<CreateQuotationRequest> v,
             IQuotationService svc, CancellationToken ct) =>
         {
-            var r = await v.ValidateAsync(req, ct);
-            if (!r.IsValid) return Results.ValidationProblem(r.ToDictionary());
+            await v.ValidateAndThrowAsync(req, ct);   // → validation_error envelope (P5)
             var id = await svc.CreateDraftAsync(req, ct);
             return Results.Created($"/api/v1/quotations/{id}", new { quotation_id = id });
         });
@@ -93,8 +90,7 @@ public static class ApiV1Endpoints
             [FromBody] CreateCustomerRequest req, IValidator<CreateCustomerRequest> v,
             ICustomerService svc, CancellationToken ct) =>
         {
-            var r = await v.ValidateAsync(req, ct);
-            if (!r.IsValid) return Results.ValidationProblem(r.ToDictionary());
+            await v.ValidateAndThrowAsync(req, ct);   // → validation_error envelope (P5)
             var id = await svc.CreateAsync(req, ct);
             return Results.Created($"/api/v1/customers/{id}", new { customer_id = id });
         });
