@@ -81,3 +81,6 @@ graphify-out/
 
 # Windows reserved-name stray file (blocks git add -A; cannot be stat'd)
 /nul
+
+# Transient API stderr logs
+*.err

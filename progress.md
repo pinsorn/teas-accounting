@@ -26,6 +26,12 @@
 - 4 migrations now in tree (AddInvoiceFlowLinks, AddPrintTrackingToSalesChain + cont.67/68) — **commit Migrations/ WITH code** when Ham commits.
 - NOT committed (repo pattern). `/graphify` not re-run.
 
+**Addendum (cont. 69b, Ham 4 fixes + first commit):**
+- **#1 prefix BL→IV:** Invoice doc number now `MM-YYYY-IV-{BU}-NNNN` (existing BL kept; IV starts fresh — prefix not registry-validated). `BillingNoteService.IssueAsync`.
+- **#2 investigated + FIXED** the red `Sprint10ProductTests.Wht_base_suggest_splits_service_and_goods`: root cause = `TaxInvoiceService.BuildLine` defaulted `ProductType="GOOD"` when a line passed `productId` but no type → WHT service/goods split saw 0 service. Fix: snapshot the product's ProductType (enum→UPPER_SNAKE map) onto the line at create. Test now green; suite 16/16.
+- **#3 one-Invoice-per-DO:** `CreateFromDeliveryOrderAsync` throws `do.invoice_exists` on duplicate; `DeliveryOrderDetail.BillingNoteId` populated → FE "สร้างใบแจ้งหนี้" button hides after creation.
+- **#4 COMMITTED** to `main` `7e58d9d` (590 files, cont.64–69). Added `.gitignore` for `graphify-out/` + stray Windows `nul`. ⚠️ stray `api*.err` root logs got committed (transient — gitignore + `git rm` next time). Build 0/0 · suite 16/16 · API :5080 restarted.
+
 ## 2026-05-23 (cont. 68) — Sprint **Non-VAT mode — Phase 3 FE + integration tests** SHIPPED. FE tsc 0 · next build 0/0 (52 pages) · dotnet build 0/0 · Domain 89/89 · NonVatBillingTests 4/4 (3× consecutive on shared teas_test) · live-smoked BOTH modes on :5080.
 
 **Why:** cont. 67 shipped non-VAT BE (Phase 1–3b) but the receipt form only did TI-apply. A non-VAT company issues no TI (ม.86/4) → it bills via a standalone cash receipt or by applying to a Delivery Order. This session built the FE for those two paths + the PG integration tests the BE was missing.
