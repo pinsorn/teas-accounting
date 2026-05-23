@@ -53,6 +53,11 @@ public class Quotation : ITenantOwned, IAuditable, IConcurrencyVersioned
     public long? UpdatedBy { get; set; }
     public long Version { get; set; }
 
+    // cont.69 Phase 4 — universal original/copy print tracking (D8). First original
+    // print stamps OriginalPrintedAt; later original prints downgrade to สำเนา.
+    public DateTimeOffset? OriginalPrintedAt { get; set; }
+    public int PrintCount { get; set; }
+
     public ICollection<QuotationLine> Lines { get; set; } = new List<QuotationLine>();
 }
 
@@ -64,6 +69,10 @@ public class QuotationLine
 
     public long?  ProductId { get; set; }
     public string? ProductCode { get; set; }
+    /// <summary>Sprint 13h P7 — Product master ProductType snapshot. UPPER string
+    /// (GOOD / SERVICE / EXEMPT_GOOD / EXEMPT_SERVICE). Drives WHT base + tax_rate lock.
+    /// Sprint 13i C5 — NOT NULL, defaults GOOD.</summary>
+    public string ProductType { get; set; } = "GOOD";
     public required string DescriptionTh { get; set; }
 
     public decimal Quantity { get; set; }

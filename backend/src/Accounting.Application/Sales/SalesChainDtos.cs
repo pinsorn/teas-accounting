@@ -12,7 +12,8 @@ public sealed record ChainLineInput(
     decimal DiscountPercent,
     int    TaxCodeId,
     string TaxCode,
-    decimal TaxRate);
+    decimal TaxRate,
+    string? ProductType = null);  // Sprint 13h P7 — snapshot from picker
 
 public sealed record CreateQuotationRequest(
     DateOnly DocDate,
@@ -57,7 +58,8 @@ public sealed record DeliveryLineInput(
     decimal DiscountPercent,
     int    TaxCodeId,
     string TaxCode,
-    decimal TaxRate);
+    decimal TaxRate,
+    string? ProductType = null);  // Sprint 13h P7
 
 public sealed record ChainLineDto(
     int LineNo, long? ProductId, string? ProductCode, string DescriptionTh,
@@ -88,18 +90,27 @@ public sealed record SalesOrderDetail(
 
 public sealed record DeliveryOrderListItem(
     long DeliveryOrderId, string? DocNo, string Status, DateOnly DocDate,
-    string CustomerName, bool IsCombinedWithTi, long? TaxInvoiceId, long? SalesOrderId);
+    string CustomerName, bool IsCombinedWithTi, long? TaxInvoiceId, long? SalesOrderId,
+    // Non-VAT receipt apply-to-DO (cont. 68): the DO picker scopes by customer and
+    // prefills the applied amount, so the list item must carry both.
+    long CustomerId = 0, decimal TotalAmount = 0);
 
 public sealed record DeliveryOrderDetail(
     long DeliveryOrderId, string? DocNo, string Status, DateOnly DocDate,
     long CustomerId, string CustomerName, int? BusinessUnitId,
     bool IsCombinedWithTi, long? TaxInvoiceId, long? SalesOrderId,
     decimal SubtotalAmount, decimal VatAmount, decimal TotalAmount,
-    IReadOnlyList<ChainLineDto> Lines);
+    IReadOnlyList<ChainLineDto> Lines,
+    // cont.69 — the Invoice created from this DO (one-per-DO); FE hides the
+    // "create Invoice" button once set.
+    long? BillingNoteId = null);
 
 public interface IQuotationService
 {
     Task<long> CreateDraftAsync(CreateQuotationRequest req, CancellationToken ct);
+    // Sprint 13h P4 — Draft-only edits / hard-delete.
+    Task UpdateDraftAsync(long id, CreateQuotationRequest req, CancellationToken ct);
+    Task DeleteDraftAsync(long id, CancellationToken ct);
     Task SendAsync(long id, CancellationToken ct);
     Task AcceptAsync(long id, CancellationToken ct);
     Task RejectAsync(long id, string reason, CancellationToken ct);
@@ -121,7 +132,10 @@ public interface ISalesOrderService
 public interface IDeliveryOrderService
 {
     Task<long> CreateDraftAsync(CreateDeliveryOrderRequest req, CancellationToken ct);
-    Task PostAsync(long id, CancellationToken ct);
+    // Sprint 13h P9: 4-state machine. Issue allocates doc_no without firing TI;
+    // MarkDelivered transitions Issued→Delivered AND triggers the linked TI.
+    Task IssueAsync(long id, CancellationToken ct);
+    Task MarkDeliveredAsync(long id, CancellationToken ct);
     Task<long> CreateTaxInvoiceAsync(long deliveryOrderId, CancellationToken ct);
     Task<IReadOnlyList<DeliveryOrderListItem>> ListAsync(string? status, CancellationToken ct);
     Task<DeliveryOrderDetail?> GetAsync(long id, CancellationToken ct);

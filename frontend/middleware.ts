@@ -20,5 +20,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Skip Next internals + any /public static asset (logo, mascot, images) so the
+  // auth gate doesn't 307-redirect them to /login (which broke next/image).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?)$).*)'],
 };

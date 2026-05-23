@@ -5,6 +5,17 @@ import { useTranslations } from 'next-intl';
 import { formatTHB } from '@/lib/utils';
 
 // component-patterns.md §9 — irreversible-post warning + summary preview + recipients.
+// Sprint 13h P8 — docType prop drives the localized title so RC/CN/DN/VI/Q/BN
+// dialogs no longer borrow the TI label (Sana BUG #8).
+export type PostConfirmDocType =
+  | 'tax_invoice'
+  | 'receipt'
+  | 'credit_note'
+  | 'debit_note'
+  | 'vendor_invoice'
+  | 'quotation'
+  | 'billing_note';
+
 export function PostConfirmDialog({
   open,
   onClose,
@@ -12,6 +23,7 @@ export function PostConfirmDialog({
   busy,
   summary,
   recipients,
+  docType = 'tax_invoice',
 }: {
   open: boolean;
   onClose: () => void;
@@ -19,8 +31,9 @@ export function PostConfirmDialog({
   busy: boolean;
   summary: { customer: string; total: number; vat: number };
   recipients: string[];
+  docType?: PostConfirmDocType;
 }) {
-  const t = useTranslations('ti.postConfirm');
+  const t = useTranslations('postConfirm');
   if (!open) return null;
 
   return (
@@ -28,7 +41,7 @@ export function PostConfirmDialog({
       <div className="modal-box">
         <h3 className="flex items-center gap-2 text-lg font-bold text-warning">
           <AlertTriangle className="h-5 w-5" aria-hidden />
-          {t('title')}
+          {t(`title.${docType}`)}
         </h3>
 
         <div role="alert" className="alert alert-warning mt-3 text-sm">

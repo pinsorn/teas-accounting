@@ -12,9 +12,14 @@ import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { DateInput } from '@/components/ui/DateInput';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
-import { useCreateAdjustmentNote, usePostAdjustmentNote, useCompanyBuSetting } from '@/lib/queries';
+import { TaxInvoicePicker } from '@/components/forms/TaxInvoicePicker';
+import { useCreateAdjustmentNote, usePostAdjustmentNote, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { CREDIT_NOTE_REASONS, DEBIT_NOTE_REASONS, type AdjustmentNoteType } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
+import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
 
 const schema = z.object({
   originalTaxInvoiceId: z.number().int().positive(),
@@ -33,6 +38,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
   const sp = useSearchParams();
   const t = useTranslations('note');
   const tc = useTranslations('common');
+  const tt = useTranslations('toast');
   const docDate = bangkokToday();
   const isCredit = noteType === 'Credit';
   const reasons = isCredit ? CREDIT_NOTE_REASONS : DEBIT_NOTE_REASONS;
@@ -40,10 +46,14 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
 
   const create = useCreateAdjustmentNote();
   const post = usePostAdjustmentNote();
+  const company = useCompanyProfile();
   const buSetting = useCompanyBuSetting();
   const buRequired = buSetting.data?.requiresBusinessUnit ?? false;
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
+  const [buError, setBuError] = useState(false);
   const [confirm, setConfirm] = useState<{ id: number } | null>(null);
+
+  const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 
   const { control, handleSubmit, watch, formState: { isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -57,10 +67,19 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
   });
   const sub = watch('adjustmentSubtotal');
   const rate = watch('taxRate');
+  const reasonText = watch('reason');
   const vat = sub * rate;
+  const cfg = PAPER_DOC[isCredit ? 'credit-note' : 'debit-note'];
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
 
   async function saveDraft(v: FormValues): Promise<number | null> {
-    if (buRequired && businessUnitId === null) { toast.error(tc('error')); return null; }
+    if (buRequired && businessUnitId === null) {
+      setBuError(true);
+      toast.error(tt('validationFailed'));
+      requestAnimationFrame(scrollToFirstError);
+      return null;
+    }
+    setBuError(false);
     try {
       const res = await create.mutateAsync({
         noteType: isCredit ? 'Credit' : 'Debit',
@@ -75,21 +94,29 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
         notes: null,
         businessUnitId,
       });
-      toast.success('Draft saved');
+      toast.success(tc('draftSaved'));
       return res.note_id;
     } catch { toast.error(tc('error')); return null; }
   }
 
+  if (!vatMode) return <NonVatGuard title={isCredit ? t('cnTitle') : t('dnTitle')} />;
+
   return (
     <>
       <PageHeader title={isCredit ? t('cnTitle') : t('dnTitle')} subtitle={docDate} />
-      <form className="max-w-2xl space-y-4"
-        onSubmit={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) router.push(basePath); })}>
+      <div className="create-grid">
+      <form className="space-y-4"
+        onSubmit={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) router.push(basePath); }, invalid)}>
         <Controller control={control} name="originalTaxInvoiceId" render={({ field, fieldState }) => (
           <label className="form-control">
             <span className="label-text">{t('originalTi')} *</span>
-            <AmountInput value={field.value} step={1} onValueChange={field.onChange} aria-label="originalTaxInvoiceId" />
-            {fieldState.error && <span className="text-error text-sm">ระบุใบกำกับภาษีเดิม</span>}
+            <TaxInvoicePicker
+              value={field.value || null}
+              status="Posted"
+              ariaLabel="originalTaxInvoiceId"
+              onChange={(ti) => field.onChange(ti.taxInvoiceId)}
+            />
+            {fieldState.error && <span className="text-error text-sm" data-field-error="true">ระบุใบกำกับภาษีเดิม</span>}
           </label>
         )} />
 
@@ -106,11 +133,16 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
           <label className="form-control">
             <span className="label-text">{t('reasonText')} *</span>
             <textarea className="textarea textarea-bordered" rows={3} {...field} />
-            {fieldState.error && <span className="text-error text-sm">{fieldState.error.message}</span>}
+            {fieldState.error && <span className="text-error text-sm" data-field-error="true">{fieldState.error.message}</span>}
           </label>
         )} />
 
-        <BusinessUnitSelector value={businessUnitId} onChange={setBusinessUnitId} required={buRequired} />
+        <BusinessUnitSelector
+          value={businessUnitId}
+          onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
+          required={buRequired}
+          error={buError}
+        />
 
         <div className="grid grid-cols-2 gap-4">
           <Controller control={control} name="adjustmentSubtotal" render={({ field }) => (
@@ -122,7 +154,18 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
           <Controller control={control} name="taxRate" render={({ field }) => (
             <label className="form-control">
               <span className="label-text">{t('taxRate')}</span>
-              <AmountInput value={field.value} step={0.01} onValueChange={field.onChange} aria-label="taxRate" />
+              {/* Sprint 13i C2 — locked to the referenced Posted TI's VAT rate. */}
+              {watch('originalTaxInvoiceId') > 0 ? (
+                <input
+                  className="input input-bordered bg-base-200 tabular-nums"
+                  value={field.value}
+                  readOnly
+                  disabled
+                  aria-label="taxRate"
+                />
+              ) : (
+                <AmountInput value={field.value} step={0.01} onValueChange={field.onChange} aria-label="taxRate" />
+              )}
             </label>
           )} />
         </div>
@@ -134,14 +177,30 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
           <div className="flex gap-2">
             <button type="submit" className="btn btn-ghost" disabled={isSubmitting}>{tc('save')}</button>
             <button type="button" className="btn btn-primary" disabled={isSubmitting}
-              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) setConfirm({ id }); })}>
+              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) setConfirm({ id }); }, invalid)}>
               {t('post')}
             </button>
           </div>
         </div>
       </form>
 
+      <div className="preview-side">
+        <PaperDocument
+          docType={cfg.docType}
+          docTypeEn={cfg.docTypeEn}
+          docNo="(ฉบับร่าง)"
+          issueDate={docDate}
+          seller={companyToSeller(company.data)}
+          customer={{ name: '—' }}
+          items={[{ description: reasonText?.trim() || t('reasonText'), amount: sub }]}
+          summary={{ subtotal: sub, vat, total: sub + vat, vatRate: rate * 100 }}
+          signRoles={cfg.signRoles}
+        />
+      </div>
+      </div>
+
       <PostConfirmDialog
+        docType={isCredit ? 'credit_note' : 'debit_note'}
         open={confirm !== null}
         busy={post.isPending}
         summary={{ customer: `TI #${watch('originalTaxInvoiceId')}`, total: sub + vat, vat }}
@@ -149,7 +208,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
         onClose={() => setConfirm(null)}
         onConfirm={async () => {
           if (!confirm) return;
-          try { await post.mutateAsync(confirm.id); toast.success('Posted'); router.push(`${basePath}/${confirm.id}`); }
+          try { await post.mutateAsync(confirm.id); toast.success(tc('posted')); router.push(`${basePath}/${confirm.id}`); }
           catch { toast.error(tc('error')); }
           finally { setConfirm(null); }
         }}

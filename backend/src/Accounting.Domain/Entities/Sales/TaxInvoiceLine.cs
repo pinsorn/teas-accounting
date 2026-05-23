@@ -8,6 +8,8 @@ public class TaxInvoiceLine
 
     public long?  ProductId    { get; set; }
     public string? ProductCode { get; set; }
+    /// <summary>Sprint 13h P7 — Product master ProductType snapshot. Sprint 13i C5 — NOT NULL, defaults GOOD.</summary>
+    public string ProductType { get; set; } = "GOOD";
     public required string DescriptionTh { get; set; }
 
     public decimal Quantity        { get; set; }

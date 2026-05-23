@@ -348,21 +348,83 @@ Quotation → Sales Order → Delivery Order → Tax Invoice/Receipt
 
 → Validation บังคับ: Tax Invoice date ≥ Tax Point date และ ≤ Tax Point date + 0 (วันเดียวกัน)
 
-### 6.4 Workflow Status
+### 6.4 Workflow Status — State Machines
+
+Each document type has a finite state machine that gates which actions
+(buttons, mutations) are available. Shipped per Sprint 13e+ design.
 
 ```
-Quotation:    Draft → Submitted → Sent → Accepted | Rejected | Expired
-Sales Order:  Draft → Confirmed → Partially Delivered → Fully Delivered → Closed | Cancelled
+Quotation:    Draft → Issued → Accepted → Converted (→ SO)
+                          ↓
+                       Rejected (end state)
+
+Sales Order:  Draft → Confirmed → Fulfilled (auto when linked DO/TI complete)
+                          ↓
+                       Cancelled (end state)
+
+Delivery Order: Draft → Issued → Delivered (when recipient confirms)
+                          ↓
+                        Cancelled (end state)
+
 Tax Invoice:  Draft → Posted (e-Tax submitted real-time) → (Paid | Partially Paid | Overdue)
                               ↓ (error/return/cancel)
                               Credit Note + new Tax Invoice (Reissue)
-Credit Note:  Draft → Posted → Applied
+
+Receipt:      Draft → Posted
+Credit Note:  Draft → Posted → Applied (linked to original TI)
+Debit Note:   Draft → Posted → Applied
 ```
+
+**Status-to-action map (FE PermissionGate + button-enable rules):**
+
+| Doc | State | Available actions |
+|---|---|---|
+| Q | Draft | Edit, Issue, Delete (soft) |
+| Q | Issued | Accept, Reject, Edit (until accepted), Resend PDF |
+| Q | Accepted | Convert to SO, Resend PDF |
+| Q | Rejected / Converted | Read-only |
+| SO | Draft | Edit, Confirm, Cancel |
+| SO | Confirmed | Create DO from this, Create TI from this, Cancel |
+| SO | Fulfilled / Cancelled | Read-only |
+| DO | Draft | Edit, Issue, Cancel |
+| DO | Issued | Mark Delivered, Cancel, Print |
+| DO | Delivered / Cancelled | Read-only |
+| TI | Draft | Edit, Post |
+| TI | Posted | Create CN/DN against, Reissue (via CN+new TI), View XML/PDF |
 
 **Key rules:**
 - **Tax Invoice posted = immutable + e-Tax submitted ทันที** ห้ามแก้
-- ใด ๆ ที่ผิด/เปลี่ยน → **Credit Note + Tax Invoice ใหม่** เท่านั้น
-- ไม่มี "same-day void" แล้ว — submit real-time ไม่มี window
+- ใด ๆ ที่ผิด/เปลี่ยน บน TI ที่ posted → **Credit Note + Tax Invoice ใหม่** เท่านั้น (no same-day void)
+- Q → SO conversion preserves line items, customer, BU, currency; ผู้ใช้
+  สามารถปรับ qty/price ใน SO ได้ (commit ยังไม่ legal)
+- SO → DO ตัด line items บางตัวได้ (partial delivery) — Phase 2
+- SO → TI ทันที (skip DO) ได้สำหรับ digital services / online B2C
+- Cancellation = soft (status change + audit log) ไม่ลบ row จริง
+
+**Q → SO conversion semantics (Phase 1 locked):**
+
+- **1 Q → 1 SO** (one-to-one mapping). Single FK column
+  `Quotation.ConvertedToSalesOrderId` (nullable, set on convert).
+- After convert: **source Q status = `Converted`, read-only**. No further
+  edit, no second convert attempt (button hidden via state-machine).
+- **No join table** in Phase 1 — single FK is sufficient.
+- Convert action copies: customer, BU, line items (description, qty,
+  unitPrice, taxRate, productId), notes, discount. Date fields reset
+  to today (SO is a fresh commit).
+- After convert, user can adjust qty/price/lines on the SO before
+  Confirm — commit ยังไม่ legal until Confirm.
+
+**Phase 2 additions (out of Phase 1 scope):**
+- Partial conversion (1 Q → multiple SOs across time) — would require
+  join table replacing the single FK
+- Q version history (revised Q re-issue after Converted)
+- Partial fulfillment (1 SO → multiple DO)
+- Reverse workflow (TI → DO if delivery happens after billing)
+- e-signature on DO
+
+The state-machine enums + transition endpoints land in
+`Application/Sales/Status*.cs` (BE) + `lib/api/sales.ts` (FE) per
+Sprint 13e P2–P4.
 
 ### 6.5 Error Correction via Credit Note (no same-day void)
 
@@ -458,6 +520,76 @@ Credit Note:  Draft → Posted → Applied
 - Pro: code path เดียว, dev/audit ง่าย, compliance สมบูรณ์
 - Con: ออกใบกำกับภาษีให้ลูกค้าที่ไม่ต้องการใช้ → storage cost เพิ่มขึ้น (XML + PDF ต่อ order)
 - Mitigation: storage tier S3/Azure Cool Blob — ราคา ~$0.01/GB/month, 10M orders = ~$1-2/month ไม่มีปัญหา
+
+### 6.7 Company Profile — Hybrid Lock Model
+
+ข้อมูลบริษัทที่ embed ในเอกสารทุกใบ (Tax Invoice / Receipt / CN / DN
+header) ต้องตรงกับ ภ.พ.20 ที่จดทะเบียน VAT กับกรมสรรพากร. การแก้ไข
+ข้อมูลโดยไม่ตั้งใจกระทบเอกสารที่ออกแล้ว → audit risk.
+
+**Design pattern: hybrid lock** — แยก fields ตามความเข้มงวด:
+
+**Hard fields (read-only ใน UI, Phase 1):**
+- `legal_name` — ชื่อนิติบุคคลตาม DBD
+- `tax_id` — เลขประจำตัวผู้เสียภาษี 13 หลัก
+- `registration_number` — เลขทะเบียนนิติบุคคล (มักเป็นค่าเดียวกับ tax_id)
+- `registered_address_*` — ที่อยู่จดทะเบียนตาม ภ.พ.20
+  (line1, line2, subdistrict, district, province, postal_code)
+- `vat_registration_date` — วันที่จดทะเบียน VAT
+- `branch_code` — รหัสสาขา 5 หลัก (default "00000" สำหรับสำนักงานใหญ่)
+
+→ PUT `/api/v1/company-profile/hard` returns **501 Not Implemented**
+ใน Phase 1 พร้อม body อธิบาย workaround: ต้องยื่น ภ.พ.09 ที่กรมสรรพากร
+ก่อน แล้ว ops update DB manually พร้อม audit log entry.
+
+Phase 2 จะรองรับ:
+- 2-person approval workflow (one prepares, another approves)
+- Effective-date history (รักษา profile เดิมไว้สำหรับ render เอกสารเก่า
+  — pattern เดียวกับ WHT rate effective dates §16.4)
+- ภ.พ.09 attachment upload (proof of change to revenue dept)
+- Multi-branch profile (each branch has its own legal address)
+
+**Soft fields (admin role edit ผ่าน UI ได้ใน Phase 1):**
+- `trade_name` — ชื่อทางการค้า (Brand name, อาจต่างจาก legal_name)
+- `logo_url` — URL ของโลโก้บริษัท (used in document headers)
+- `phone`, `email`, `website` — contact info
+- `contact_name` — ชื่อผู้ติดต่อสำหรับลูกค้า
+- `bank_name`, `bank_account_no`, `bank_account_name` — payment instructions
+
+→ PUT `/api/v1/company-profile/soft` returns 204; require scope
+`master.company.manage` (admin role).
+
+**Storage:**
+```sql
+-- One row per company_id (1:1 with companies table)
+master.company_profile (
+  company_id INT PRIMARY KEY REFERENCES master.companies(company_id),
+  -- ... hard fields ...
+  -- ... soft fields ...
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_by_user_id INT
+);
+```
+
+**UI (Phase 1, `/settings/company`):**
+- Section "ข้อมูลทางกฎหมาย" — 11 hard inputs rendered `disabled+readOnly`
+  with lock icon 🔒 and tooltip "การเปลี่ยนข้อมูลนี้ต้องผ่านขั้นตอนพิเศษ —
+  ติดต่อผู้ดูแลระบบหรือยื่น ภ.พ.09 ก่อน"
+- Banner above: warning to update ภ.พ.20 with revenue department before
+  any legal-data change (ยื่น ภ.พ.09)
+- Section "ข้อมูลติดต่อ + การชำระเงิน" — soft fields, editable, separate
+  Save button (no Save button on hard section — read-only by design)
+- Sidebar link "ข้อมูลบริษัท" first item in "ตั้งค่า" group
+
+**Rationale for Phase 1 hybrid (not full effective-date pattern):**
+Company profile changes occur every 5-10 years (legal change of address
+or rebranding). Building full effective-date rendering for sub-yearly use
+cases is over-engineering for Phase 1. The hard-lock + manual-edit
+workflow buys time for Phase 2 to design the 2-person approval flow
+properly without holding up production launch. WHT rate uses the
+effective-date pattern because rates change every few years on government
+schedule — different cadence.
 
 ---
 
@@ -3642,29 +3774,74 @@ Retry: 3 attempts (1m, 5m, 30m) — dead-letter queue ถ้า fail
 - Backward-compat additions → minor (no URL change)
 - Deprecation notice 12 เดือนก่อน remove
 
-### 20.7 Standard Response Envelope
+### 20.7 Standard Response Envelope — ErrorEnvelopeV1
 
-**Success:**
+All `/api/v1/*` (external) and `/api/proxy/*` (BFF) responses use a unified
+RFC-7807-derived ProblemDetails envelope for failures. Success returns the
+resource directly (no `data` wrapper); HTTP status is the primary signal.
+
+**Success (200 / 201 / 204):**
+- 200: resource body as plain JSON object/array
+- 201: created resource + `Location` header
+- 204: no body (state-change endpoints like reactivate)
+
+**Error envelope (4xx / 5xx) — ErrorEnvelopeV1:**
 
 ```json
 {
-  "data": { ... },
-  "meta": { "request_id": "uuid", "timestamp": "..." }
+  "type":   "urn:teas:error:<category>.<reason>",
+  "title":  "<i18n key>",
+  "detail": "<human-readable explanation, may include context>",
+  "status": 422,
+  "fieldErrors": [
+    { "field": "code",   "messages": ["validation.required", "validation.code.format"] },
+    { "field": "nameTh", "messages": ["validation.required"] }
+  ]
 }
 ```
 
-**Error:**
+**Field semantics:**
+- `type` — required URI of the form `urn:teas:error:<dotted>`; identifies the
+  error class for programmatic handling
+- `title` — required i18n key (NOT human English); frontend resolves to
+  current locale
+- `detail` — optional human-readable detail in the original locale of the
+  service; mainly for logs/debugging
+- `status` — required, matches the HTTP status code
+- `fieldErrors[]` — present only for validation failures (400);
+  - `field` is camelCase matching the request JSON shape (NOT the C# Pascal
+    DTO property name)
+  - `messages` is an array of i18n keys (typically `validation.<rule>`);
+    frontend resolves + can show inline beside the field
 
-```json
-{
-  "error": {
-    "code": "TAX_ID_INVALID",
-    "message": "Tax ID checksum failed",
-    "details": { "field": "customer_tax_id", "value": "0105556123455" }
-  },
-  "meta": { "request_id": "uuid", "timestamp": "..." }
-}
-```
+**Common error types:**
+| HTTP | type | When |
+|---|---|---|
+| 400 | `urn:teas:error:validation` | Request body / parameter validation failure (use `fieldErrors`) |
+| 401 | `urn:teas:error:auth.unauthenticated` | Missing/invalid JWT or API key |
+| 403 | `urn:teas:error:auth.forbidden` | Authenticated but lacks required scope |
+| 404 | `urn:teas:error:notfound` | Resource ID not in tenant scope |
+| 409 | `urn:teas:error:idempotency.conflict` | Same `Idempotency-Key` with different request payload |
+| 422 | `urn:teas:error:<domain>.<reason>` | Business rule violation (e.g. `bu.duplicate`, `product.duplicate`, `company_profile.hard_locked`) |
+| 500 | `urn:teas:error:internal` | Uncaught / unexpected — opaque detail |
+
+**Frontend handling:**
+- Single parser at `frontend/lib/api/errors.ts` (`parseApiError`) returns
+  typed envelope + i18n-resolved `fieldErrorMap` keyed by camelCase field
+  name
+- Inline field errors render under inputs; top-level errors render as toast
+- All `messages[]` i18n keys resolved via `frontend/lib/i18n/validation.ts`
+  (TH/EN dictionary); unknown keys fall through to a generic localized
+  string (do NOT 500 on unknown key)
+
+**Implementation note:** Backend used to return ASP.NET ModelState
+(`{type:"https://tools.ietf.org/...", errors:{Pascal:[]}}`) for root
+validation failures — different shape from business-rule errors. Sprint
+13d-P5 unified both into the envelope above via
+`ValidationErrorEnvelopeMiddleware` (transparent reshape, no endpoint
+edits). Carry-over: FluentValidation messages are being swept from English
+literals → i18n keys; the FE resolver passes unknown keys through as
+generic localized text so legacy literals don't 500 during the sweep.
 
 ### 20.8 Pagination
 
@@ -3863,7 +4040,7 @@ need that emerges at scale and gets specced into Phase 2.
 | ~~**Sprint 12**~~ | ✅ **Shipped 2026-05-18** (Report-Backend17) | ~~Internal Purchase Order~~ Done — 18/18 DoD, single phase. 79/79 Domain + 87/87 Api + 29/29 Playwright (3-user e2e: ap_clerk create → self-approve blocked SoD → approver approves → Outstanding lists → mark-sent → admin posts linked VI → PO auto-closes → Outstanding drops). ck_po_sod byte-mirror of ck_pv_sod. Pure PoSettlement calc (≥95% closes, >105% over-receipt chip not error). VI.purchase_order_id FK + form dropdown + line auto-fill + linked-PO badge. Outstanding-PO report with aging. AttachmentsSection on PO detail (Sprint 11 reuse). 2 mechanism notes (defensive, not improvised): PO prefix added in seed 290 (missing from 100), PURCHASING_STAFF role absent → AP_CLERK used as create-side analog per KI-01 RBAC convention. **Phase-1 backbone COMPLETE.** |
 | **Sprint 13a** ใหม่ | ✅ **Shipped 2026-05-17** (Sana parallel work) | **Test Plan documentation** — 11 files under `docs/test/`: 00 master + 01 Strategy + 02 Functional Matrix + 03 UAT Scenarios + 04 Compliance (Thai tax law) + 05 Security + 06 Performance + 07 Regression + 08 Data Migration + 09 Go-Live Checklist + 10 External API Test. Risk-based approach (HIGH/MEDIUM/LOW), test pyramid targets, gate definitions, ownership, sign-off criteria. Living document updated per sprint. |
 | **Sprint 13b** ใหม่ | Spec ready (`Answer-Sana-Backend13.md`); execute after Phase 1 fully shipped | **User Manual generator** — Playwright walkthrough scripts + CSS-injection highlight + MkDocs Material compile + wkhtmltopdf PDF. 30+ walkthroughs across ~10 chapters (sales, purchase, reports, master data, e-Tax, external API, troubleshooting). Thai-only output. `frontend/manual/` framework + `docs/manual/_site/` HTML + downloadable PDF. Deterministic `manual-demo` seed for stable screenshots. Estimate **~8-12 days**. |
-| **Sprint 14.5** ใหม่ | Spec ready (`Answer-Sana-Backend20.md`); blocked by Sprint 14 ship (✅ done) | **§14 fix — Shared test-fixture randomization helper**. Surgical 0.5-1 d. 4 steps: (S1) `Accounting.TestKit.TestIds` helper (CustomerCode/VendorCode/ProductCode/BusinessUnitCode/ExpenseCategoryCode/WhtTypeCode/Email/TaxId/FuturePeriod/Name/Suffix); (S2) `frontend/e2e/helpers/test-ids.ts` mirror; (S3) retrofit 7 known §14 sites + `tools/dev-db-resync.sh` one-time GL sequence cleanup; (S4) CLAUDE.md §15 "Test data discipline" section. Goal: §14 status "actively blocking sprint e2e gates" → "extinct". ROI: 7+ false-positives × ~30 min debug = 3.5+ hr wasted; Sprint 14.5 (0.5-1 d) pays back immediately. Estimate **~0.5-1 day**. |
+| ~~**Sprint 14.5**~~ | ✅ **Shipped 2026-05-19** (Report-Backend20) — git `56c68f3 → 47ad3eb → 62cac14 → 08c14f9` on Sprint 14 wrap parent. **§14 EXTINCT.** | ~~§14 fix — Shared test-fixture randomization helper~~ Done — 10/10 DoD. `Accounting.TestKit.TestIds` (11 methods) + `frontend/e2e/helpers/test-ids.ts` mirror + 7-site retrofit (record-vendor + Sprint55VI + Sprint85VAT-threshold + Sprint9VAT + Sprint86AR-WHT + business-units-setup + external-api-microservice) + `tools/dev-db-resync.sql` one-time idempotent sequence repair + CLAUDE.md §15 "Test data discipline" as standing rule. Domain 89/89 (+6 TestIdsTests). **Honest gate deferral**: Api Testcontainers + 3× re-run + Playwright + dev-db-resync exec deferred (no Docker/psql in session; reproducible commands in progress.md cont.41 for Ham to run in dev env). Structurally extinct regardless — no fixture plants fixed identifier anymore. |
 | **Sprint 15** ใหม่ | Outline only — spec lazy-write when 14.5 + 13b close | **Claude Code Pentest** — AI-assisted security audit (in lieu of paid vendor). White-box + black-box methodology across OWASP Top 10 + Thai compliance + TEAS-specific: auth/authz/RBAC matrix/SoD/RLS leak/input validation/data integrity (immutability)/audit log integrity/idempotency replay/file upload safety/secrets handling/PDPA/tax compliance (ม.86/4 + gapless)/dependency scan/config posture. Deliverable: `docs/security/sprint15-pentest-report.md` with findings ranked Critical/High/Medium/Low. **Honest limitation flag in report**: AI audit catches ~70-80% of common issues; doesn't replace external pen-test for enterprise/compliance-mandated audits. Adequate for SME launch. Estimate **~3-5 days**. |
 | **Sprint 16** ใหม่ | Outline only — spec lazy-write when 15 closes | **Sana + Ham UAT walkthrough** — interactive QA pass on all 20 UAT scenarios (`docs/test/03-uat-scenarios.md`). Sana plays accountant role + Ham plays admin/microservice (post Sprint 14). Find UX paper-cuts + label confusing + missing prompts. Output: `docs/test/sprint16-uat-findings.md` with issues ranked + Phase-2-polish backlog. Estimate **~2 days** (interactive). |
 | ~~**Sprint 13c**~~ | ✅ **Shipped 2026-05-18** (Report-Backend18) | ~~e-Tax production-readiness + Tier 1 mock infrastructure~~ Done — 15/15 DoD, single phase 8 ordered steps. 79/79 Domain + 107/107 Api (+20 new tests) + Playwright 29 pass + 1 honest skip (etax-pipeline-mock requires Tier-1 stack with Docker/MailHog/openssl that sandbox lacks — runs 30/30 in real Tier-1 env). Config grep-clean (legacy Tax:Etax* removed). Append-only `etax.submissions` trigger asserted. Pipeline + retry worker + backoff + dead-letter. RedirectAllToEmail + WhitelistDomains safety (Tier-2 customer-send protection). ETDA XSDs documented as Phase-2 ops prereq (not fabricated). CLAUDE.md §14 applied by Sana (escalation discipline preserved). Git baseline initialized post-ship (commit `6c6418d`, 570 files). **Phase-1 backbone + production-readiness COMPLETE.** |

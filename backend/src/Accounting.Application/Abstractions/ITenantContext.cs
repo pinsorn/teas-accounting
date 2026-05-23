@@ -9,6 +9,11 @@ public interface ITenantContext
     int CompanyId { get; }
     int BranchId { get; }
     long? UserId { get; }
+
+    /// <summary>Sprint 13k §4.8 — the JWT name claim, used as the audit actor.
+    /// Null for API-key callers (no human user).</summary>
+    string? Username { get; }
+
     bool IsSuperAdmin { get; }
     bool IsAuthenticated { get; }
 

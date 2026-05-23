@@ -74,11 +74,12 @@ public sealed class CustomerService : ICustomerService
         await _db.SaveChangesAsync(ct);
     }
 
-    public Task<CustomerDto?> GetAsync(long customerId, CancellationToken ct) =>
+    public Task<CustomerDetailDto?> GetAsync(long customerId, CancellationToken ct) =>
         _db.Customers
             .Where(c => c.CustomerId == customerId)
-            .Select(c => new CustomerDto(c.CustomerId, c.CustomerCode, c.CustomerType, c.NameTh, c.NameEn,
-                c.TaxId, c.BranchCode, c.VatRegistered, c.CreditLimit, c.IsActive))
+            .Select(c => new CustomerDetailDto(c.CustomerId, c.CustomerCode, c.CustomerType, c.NameTh, c.NameEn,
+                c.TaxId, c.BranchCode, c.BranchName, c.VatRegistered, c.BillingAddress, c.ContactPerson,
+                c.Phone, c.Email, c.CreditLimit, c.PaymentTermDays, c.DefaultCurrency, c.IsActive))
             .FirstOrDefaultAsync(ct);
 
     public async Task<IReadOnlyList<CustomerDto>> ListAsync(

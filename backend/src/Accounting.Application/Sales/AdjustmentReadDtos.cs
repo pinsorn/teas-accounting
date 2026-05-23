@@ -4,10 +4,24 @@ namespace Accounting.Application.Sales;
 
 public sealed record ReceiptListItem(
     long ReceiptId, string? DocNo, DateOnly DocDate, string CustomerName,
-    decimal Amount, string Status, string CurrencyCode, decimal WhtAmount);
+    decimal Amount, string Status, string CurrencyCode, decimal WhtAmount,
+    // Sprint 13i C3 — for client-side BU/customer filtering on the list page.
+    long CustomerId = 0, int? BusinessUnitId = null);
 
 public sealed record ReceiptAppliedTo(
     long TaxInvoiceId, string? TiDocNo, decimal AppliedAmount, string? BusinessUnitCode);
+
+/// <summary>Sprint (receipt itemize, 2026-05-22) — a goods/service line shown on the
+/// receipt, derived from the applied (immutable) Tax Invoice lines. TiDocNo lets the
+/// view/PDF reference which invoice the line came from (also put in the notes).</summary>
+public sealed record ReceiptLineView(
+    string DescriptionTh, string ProductType, decimal Quantity, string UomText,
+    decimal UnitPrice, decimal LineAmount, string? TiDocNo);
+
+/// <summary>Sprint (multi-category WHT, 2026-05-22) — one income-type WHT slice.</summary>
+public sealed record ReceiptWhtLineView(
+    int WhtTypeId, string WhtTypeCode, string? IncomeTypeCode,
+    decimal WhtRate, decimal BaseAmount, decimal WhtAmount);
 
 public sealed record ReceiptDetail(
     long ReceiptId, string? DocNo, string Status, DateOnly DocDate,
@@ -15,14 +29,21 @@ public sealed record ReceiptDetail(
     string? ChequeNo, decimal Amount, string CurrencyCode, string? Notes,
     System.DateTimeOffset? PostedAt, IReadOnlyList<ReceiptAppliedTo> AppliedTo,
     string? BusinessUnitCode,
-    // Sprint 8.6 — AR-side WHT (all 0/null when no WHT).
+    // Sprint 8.6 — AR-side WHT aggregate (all 0/null when no WHT). WhtTypeCode/Rate/Base
+    // are the single-category values, or the aggregate when multiple (Base = Σ, Rate = 0,
+    // Code = null) — consumers should prefer WhtLines for the breakdown.
     decimal WhtAmount, string? WhtTypeCode, decimal WhtRate, decimal WhtBase,
-    decimal CashReceived, string? CustomerWhtCertNo, DateOnly? CustomerWhtCertDate);
+    decimal CashReceived, string? CustomerWhtCertNo, DateOnly? CustomerWhtCertDate,
+    // Sprint (receipt itemize + multi-category WHT, 2026-05-22).
+    IReadOnlyList<ReceiptLineView>? Lines = null,
+    IReadOnlyList<ReceiptWhtLineView>? WhtLines = null);
 
 public sealed record AdjustmentNoteListItem(
     long NoteId, string? DocNo, string NoteType, DateOnly DocDate,
     string CustomerName, decimal TotalAmount, decimal TaxAmount,
-    string Status, string CurrencyCode, long OriginalTaxInvoiceId);
+    string Status, string CurrencyCode, long OriginalTaxInvoiceId,
+    // Sprint 13i C3 — for client-side BU/customer filtering on the list page.
+    long CustomerId = 0, int? BusinessUnitId = null);
 
 public sealed record AdjustmentNoteDetail(
     long NoteId, string? DocNo, string NoteType, string Status, DateOnly DocDate,

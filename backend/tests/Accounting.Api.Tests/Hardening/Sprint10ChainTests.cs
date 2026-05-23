@@ -78,23 +78,26 @@ public sealed class Sprint10ChainTests
         soDet!.DocNo.Should().NotBeNull("SO number allocated on Post");
         var soLineId = await SoLineId(s, soId);
 
-        // Combined DO (Pattern X) → auto-creates + posts a linked TI. Link the
-        // DO line to the SO line so delivered-qty (2 of 2) closes the SO.
+        // cont.69 Phase 1 — IsCombinedWithTi no longer auto-creates a TI on delivery.
+        // MarkDelivered is now a STATUS CHANGE ONLY (drops the combined-TI auto path,
+        // fixes the non-VAT 422). The TI is issued manually from the Invoice step.
+        // Link the DO line to the SO line so delivered-qty (2 of 2) closes the SO.
         var doId = await sosvc.CreateDeliveryOrderAsync(soId, new CreateDeliveryOrderRequest(
             new DateOnly(2026, 5, 17), cust, null, IsCombinedWithTi: true, null, soId,
             [new DeliveryLineInput(soLineId, null, "line", 2m, "ชิ้น", 1000m, 0m, 1, "VAT7", 0.07m)]),
             default);
 
         var dosvc = s.ServiceProvider.GetRequiredService<IDeliveryOrderService>();
-        await dosvc.PostAsync(doId, default);
+        await dosvc.IssueAsync(doId, default);
+        var doIssued = await dosvc.GetAsync(doId, default);
+        doIssued!.DocNo.Should().NotBeNull("DO number allocated on Issue");
+        doIssued.TaxInvoiceId.Should().BeNull("TI is no longer created on the DO");
 
+        await dosvc.MarkDeliveredAsync(doId, default);
         var doDet = await dosvc.GetAsync(doId, default);
-        doDet!.DocNo.Should().NotBeNull("DO number allocated on Post");
-        doDet.TaxInvoiceId.Should().NotBeNull("Pattern X auto-creates the linked TI");
+        doDet!.Status.Should().Be("Delivered");
+        doDet.TaxInvoiceId.Should().BeNull("cont.69 — mark-delivered no longer auto-creates a TI");
 
-        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
-        (await db.TaxInvoices.AnyAsync(t => t.TaxInvoiceId == doDet.TaxInvoiceId))
-            .Should().BeTrue();
         // SO fully delivered (2 of 2) → Closed.
         (await sosvc.GetAsync(soId, default))!.Status.Should().Be("Closed");
     }
@@ -142,7 +145,9 @@ public sealed class Sprint10ChainTests
             new DateOnly(2026, 5, 17), cust, null, IsCombinedWithTi: false, null, null,
             [new DeliveryLineInput(null, null, "line", 1m, "ชิ้น", 500m, 0m, 1, "VAT7", 0.07m)]),
             default);
-        await dosvc.PostAsync(doId, default);
+        // Sprint 13h P9 — Pattern Y needs Delivered state before manual TI creation.
+        await dosvc.IssueAsync(doId, default);
+        await dosvc.MarkDeliveredAsync(doId, default);
         (await dosvc.GetAsync(doId, default))!.TaxInvoiceId
             .Should().BeNull("not combined — no auto TI");
 

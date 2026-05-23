@@ -2,89 +2,121 @@
 
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
-import { useReceipt } from '@/lib/queries';
-import { downloadFile } from '@/lib/api';
-import { formatTHB, formatDate } from '@/lib/utils';
+import { DocActionBar } from '@/components/ui/DocActionBar';
+import { PrintMenu } from '@/components/ui/PrintMenu';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { ActivityLog } from '@/components/doc/ActivityLog';
+import { DocumentChain } from '@/components/doc/DocumentChain';
+import { ReceiptWhtCertSection } from '@/components/doc/ReceiptWhtCertSection';
+import { useReceipt, useCompanyProfile } from '@/lib/queries';
+import { formatTHB, formatTaxId } from '@/lib/utils';
+import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 
 export default function ReceiptDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
   const tc = useTranslations('common');
-  const tb = useTranslations('businessUnit');
   const tw = useTranslations('rc.wht');
   const { data: d, isLoading, isError } = useReceipt(id);
+  const company = useCompanyProfile();
 
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
   if (isError || !d) return <p className="text-error">{tc('error')}</p>;
 
-  const appliedBuCodes = [...new Set(
-    d.appliedTo.map((a) => a.businessUnitCode).filter((c): c is string => !!c))];
-  const crossesBu = appliedBuCodes.length > 1;
+  const cfg = PAPER_DOC.receipt;
+
+  const extraMeta = (
+    <>
+      <dt>วิธีชำระ</dt>
+      <dd>{d.paymentMethod}{d.chequeNo ? ` (${d.chequeNo})` : ''}</dd>
+      {d.whtAmount > 0 && (
+        <>
+          <dt>{tw('amount')}</dt>
+          <dd>({formatTHB(d.whtAmount)})</dd>
+          <dt>{tw('cashReceived')}</dt>
+          <dd>{formatTHB(d.cashReceived)}</dd>
+        </>
+      )}
+    </>
+  );
 
   return (
     <>
       <PageHeader
         title="ใบเสร็จรับเงิน"
         subtitle={d.docNo ?? undefined}
-        actions={
-          <button className="btn btn-ghost btn-sm gap-1"
-            onClick={() => downloadFile(`receipts/${id}/pdf`, `receipt-${id}.pdf`)}>
-            <Download className="h-4 w-4" aria-hidden /> PDF
-          </button>
-        }
+        actions={<PrintMenu docType="receipts" id={id} fiscal />}
       />
-      <div className="mb-4 flex items-center gap-3">
-        <DocumentNumberBadge value={d.docNo} />
-        <StatusBadge status={d.status} />
-        {d.businessUnitCode && (
-          <span className="badge badge-outline">{tb('title')}: {d.businessUnitCode}</span>
-        )}
-        <span className="text-sm text-base-content/60">{formatDate(d.docDate)}</span>
-      </div>
-      {crossesBu && (
-        <div role="alert" className="alert alert-warning mb-4 text-sm">
-          {tb('crossBuWarning', { n: appliedBuCodes.length, codes: appliedBuCodes.join(', ') })}
-        </div>
-      )}
-      <div className="card bg-base-100 shadow-sm">
-        <div className="card-body">
-          <p><b>ลูกค้า:</b> {d.customerName}</p>
-          <p><b>วิธีชำระ:</b> {d.paymentMethod}{d.chequeNo ? ` (${d.chequeNo})` : ''}</p>
-          <p className="text-lg font-bold tabular-nums">{formatTHB(d.amount)} {d.currencyCode}</p>
-          <h3 className="mt-2 font-semibold">ชำระสำหรับ</h3>
-          <table className="table">
-            <thead><tr><th>ใบกำกับภาษี</th><th>{tb('title')}</th><th className="text-right">จำนวน</th></tr></thead>
-            <tbody>
-              {d.appliedTo.map((a) => (
-                <tr key={a.taxInvoiceId}>
-                  <td className="font-mono">{a.tiDocNo ?? a.taxInvoiceId}</td>
-                  <td>{a.businessUnitCode ?? <span className="text-base-content/40">{tb('none')}</span>}</td>
-                  <td className="text-right tabular-nums">{formatTHB(a.appliedAmount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
 
-          {d.whtAmount > 0 && (
-            <div className="mt-4 rounded-lg border border-base-300 p-3 text-sm">
-              <h3 className="mb-2 font-semibold">{tw('title')}</h3>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-3">
-                <p><b>{tw('type')}:</b> {d.whtTypeCode ?? '—'}</p>
-                <p><b>{tw('rate')}:</b> {(d.whtRate * 100).toFixed(2)}%</p>
-                <p><b>{tw('base')}:</b> <span className="tabular-nums">{formatTHB(d.whtBase)}</span></p>
-                <p><b>{tw('amount')}:</b> <span className="tabular-nums">({formatTHB(d.whtAmount)})</span></p>
-                <p><b>{tw('cashReceived')}:</b> <span className="tabular-nums font-bold">{formatTHB(d.cashReceived)}</span></p>
-                <p><b>{tw('certNo')}:</b> {d.customerWhtCertNo ?? '—'}
-                  {d.customerWhtCertDate ? ` (${formatDate(d.customerWhtCertDate)})` : ''}</p>
-              </div>
+      <DocActionBar status={d.status} docNo={d.docNo ?? `#${d.receiptId}`} />
+
+      <div className="detail-grid">
+        <div className="paper-wrap">
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo={d.docNo ?? `#${d.receiptId}`}
+            issueDate={d.docDate}
+            seller={companyToSeller(company.data)}
+            customer={{ name: d.customerName, taxId: d.customerTaxId ? formatTaxId(d.customerTaxId) : null }}
+            items={(d.lines && d.lines.length > 0
+              ? d.lines.map((l) => ({
+                  description: l.descriptionTh,
+                  descriptionSub: l.tiDocNo ?? undefined,
+                  quantity: l.quantity,
+                  unit: l.uomText,
+                  unitPrice: l.unitPrice,
+                  amount: l.lineAmount,
+                }))
+              : d.appliedTo.map((a) => ({
+                  description: `ใบกำกับภาษี ${a.tiDocNo ?? `#${a.taxInvoiceId}`}`,
+                  descriptionSub: a.businessUnitCode ?? undefined,
+                  amount: a.appliedAmount,
+                })))}
+            summary={{ subtotal: d.amount, vat: 0, total: d.amount }}
+            notes={d.notes}
+            signRoles={cfg.signRoles}
+            watermark={paperWatermark('receipt', d.status)}
+            extraMetaBlock={extraMeta}
+          />
+        </div>
+        <div className="detail-side">
+          {d.whtLines && d.whtLines.length > 0 && (
+            <div className="rounded-lg border border-base-300 p-3">
+              <h3 className="mb-2 text-sm font-semibold">{tw('title')}</h3>
+              <table className="table table-sm">
+                <thead><tr>
+                  <th>{tw('type')}</th>
+                  <th className="text-right">{tw('rate')}</th>
+                  <th className="text-right">{tw('base')}</th>
+                  <th className="text-right">{tw('amount')}</th>
+                </tr></thead>
+                <tbody>
+                  {d.whtLines.map((w) => (
+                    <tr key={w.whtTypeId}>
+                      <td>{w.whtTypeCode}</td>
+                      <td className="text-right tabular-nums">{(w.whtRate * 100).toFixed(2)}%</td>
+                      <td className="text-right tabular-nums">{formatTHB(w.baseAmount)}</td>
+                      <td className="text-right tabular-nums">{formatTHB(w.whtAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
+          <DocumentChain type="receipt" id={id} />
+          <ActivityLog docType="receipts" id={id} />
         </div>
       </div>
+
+      <ReceiptWhtCertSection
+        receiptId={id}
+        whtAmount={d.whtAmount}
+        certNo={d.customerWhtCertNo}
+        certDate={d.customerWhtCertDate}
+      />
+
       <AttachmentsSection parentType="RECEIPT" parentId={id} />
     </>
   );

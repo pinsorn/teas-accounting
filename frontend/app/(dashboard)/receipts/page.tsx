@@ -1,24 +1,33 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { QueryStateRow } from '@/components/states/QueryState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
-import { useReceipts, useBusinessUnits } from '@/lib/queries';
+import { ListFilters } from '@/components/ui/ListFilters';
+import { applyListFilters } from '@/lib/list-filter';
+import { useReceipts } from '@/lib/queries';
 import { formatTHB, formatDate } from '@/lib/utils';
+
+// Sprint 13i C3 — RC list: BU filter stays server-side (paginated); status +
+// customer + date filter the loaded rows client-side. All URL-persisted.
+const RC_STATUSES = ['Draft', 'Posted', 'Voided'] as const;
 
 export default function ReceiptListPage() {
   const t = useTranslations('rc');
   const tc = useTranslations('common');
-  const tb = useTranslations('businessUnit');
-  const [buId, setBuId] = useState<number | undefined>();
-  const [includeUnspec, setIncludeUnspec] = useState(false);
-  const { data: bus = [] } = useBusinessUnits();
-  const q = useReceipts(buId, includeUnspec || undefined);
-  const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const params = useSearchParams();
+  const buId = params.get('bu') ? Number(params.get('bu')) : undefined;
+  const q = useReceipts(buId);
+  const rows = applyListFilters(q.data?.pages.flatMap((p) => p.items) ?? [], params, {
+    status: (r) => r.status,
+    customerId: (r) => r.customerId,
+    docDate: (r) => r.docDate,
+  });
 
   return (
     <>
@@ -30,39 +39,14 @@ export default function ReceiptListPage() {
           </Link>
         }
       />
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <label className="form-control">
-          <span className="label-text text-xs">{tb('filter')}</span>
-          <select
-            className="select select-bordered select-sm"
-            aria-label={tb('filter')}
-            value={buId ?? ''}
-            onChange={(e) => setBuId(e.target.value ? Number(e.target.value) : undefined)}
-          >
-            <option value="">{tc('all')}</option>
-            {bus.map((u) => (
-              <option key={u.businessUnitId} value={u.businessUnitId}>{u.code}</option>
-            ))}
-          </select>
-        </label>
-        <label className="label cursor-pointer gap-2 self-end">
-          <input
-            type="checkbox"
-            className="checkbox checkbox-sm"
-            checked={includeUnspec}
-            onChange={(e) => setIncludeUnspec(e.target.checked)}
-          />
-          <span className="label-text text-xs">{tb('includeUnspecified')}</span>
-        </label>
-      </div>
+      <ListFilters statusOptions={RC_STATUSES} statusTestId="rc-filter-status" />
       <div className="overflow-x-auto rounded-lg border border-base-300">
         <table className="table table-zebra">
           <thead>
-            <tr><th>No.</th><th>Date</th><th>Customer</th><th className="text-right">Amount</th><th className="text-right">{t('wht.column')}</th><th>Status</th></tr>
+            <tr><th>{t('docNo')}</th><th>{t('date')}</th><th>{t('customer')}</th><th className="text-right">{t('amount')}</th><th className="text-right">{t('wht.column')}</th><th>{tc('status')}</th><th className="text-right" /></tr>
           </thead>
           <tbody>
-            {q.isLoading && <tr><td colSpan={6} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>}
-            {!q.isLoading && rows.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-base-content/50">{tc('empty')}</td></tr>}
+            <QueryStateRow query={q} colSpan={7} isEmpty={rows.length === 0} />
             {rows.map((r) => (
               <tr key={r.receiptId} className="hover">
                 <td><Link href={`/receipts/${r.receiptId}`}><DocumentNumberBadge value={r.docNo} /></Link></td>
@@ -71,6 +55,11 @@ export default function ReceiptListPage() {
                 <td className="text-right tabular-nums">{formatTHB(r.amount)}</td>
                 <td className="text-right tabular-nums">{r.whtAmount > 0 ? formatTHB(r.whtAmount) : '—'}</td>
                 <td><StatusBadge status={r.status} /></td>
+                <td className="text-right">
+                  <Link href={`/receipts/${r.receiptId}`} className="link link-primary text-sm">
+                    {tc('view')}
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

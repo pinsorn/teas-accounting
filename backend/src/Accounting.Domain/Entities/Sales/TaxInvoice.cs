@@ -34,6 +34,14 @@ public class TaxInvoice : ITenantOwned, IAuditable, IConcurrencyVersioned
     public bool IsSubstitute { get; set; }
     public long? OriginalInvoiceId { get; set; }
 
+    /// <summary>Sprint 13h P6.1 — optional reverse-link to the originating Quotation
+    /// (Path B: Q Accepted → create TI direct). Nullable: many TIs have no Q origin.</summary>
+    public long? QuotationId { get; set; }
+
+    /// <summary>cont.69 Phase 1 — source Invoice (BillingNote) this TI was created from
+    /// (Invoice → Tax Invoice, manual, VAT only). Nullable: legacy/standalone TIs.</summary>
+    public long? BillingNoteId { get; set; }
+
     // ---- Supplier snapshot (frozen) ----
     public required string SupplierTaxId      { get; set; }
     public required string SupplierBranchCode { get; set; }
@@ -94,6 +102,12 @@ public class TaxInvoice : ITenantOwned, IAuditable, IConcurrencyVersioned
     public DateTimeOffset UpdatedAt { get; set; }
     public long?  UpdatedBy { get; set; }
     public long   Version   { get; set; }
+
+    // Sprint 13j-FE — original/copy print tracking (ม.86/4 original-once; reprints
+    // must be marked สำเนา/COPY). OriginalPrintedAt is stamped on the first
+    // original print; every print also appends to audit.activity_log.
+    public DateTimeOffset? OriginalPrintedAt { get; set; }
+    public int PrintCount { get; set; }
 
     public ICollection<TaxInvoiceLine> Lines { get; set; } = new List<TaxInvoiceLine>();
 

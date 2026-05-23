@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Master.IVendorService,           Master.VendorService>();
         services.AddScoped<Application.Master.IBusinessUnitService,      Master.BusinessUnitService>();
         services.AddScoped<Application.Master.IProductService,           Master.ProductService>();
+        services.AddScoped<Application.Master.ICompanyProfileService,    Master.CompanyProfileService>();
         services.AddScoped<Application.Tax.IWhtTypeService,              Tax.WhtTypeService>();
         services.AddScoped<Application.Master.IChartOfAccountService,   Master.ChartOfAccountService>();
         services.AddScoped<Application.Master.ICompanyService,          Master.CompanyService>();
@@ -62,6 +63,11 @@ public static class DependencyInjection
         services.AddScoped<Application.Sales.IQuotationService,          Sales.QuotationService>();
         services.AddScoped<Application.Sales.ISalesOrderService,         Sales.SalesOrderService>();
         services.AddScoped<Application.Sales.IDeliveryOrderService,      Sales.DeliveryOrderService>();
+        services.AddScoped<Application.Sales.IBillingNoteService,        Sales.BillingNoteService>();
+        services.AddScoped<Application.Sales.IDocumentCrossRefService,   Sales.DocumentCrossRefService>();
+        services.AddScoped<Application.Audit.IActivityQueryService,       Audit.ActivityQueryService>();
+        services.AddScoped<Application.Audit.IActivityRecorder,           Audit.ActivityRecorder>();
+        services.AddScoped<Application.Sales.IPrintTrackingService,       Sales.PrintTrackingService>();
         services.AddScoped<Application.Sales.ISalesChainPdfService,      Sales.SalesChainPdfService>();
         services.AddOptions<Storage.FileStorageOptions>().Bind(cfg.GetSection("FileStorage"));
         services.AddSingleton<Application.Abstractions.IFileStorageService, Storage.LocalDiskFileStorage>();

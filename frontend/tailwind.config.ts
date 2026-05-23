@@ -1,5 +1,7 @@
 import type { Config } from 'tailwindcss';
 import daisyui from 'daisyui';
+import forms from '@tailwindcss/forms';
+import typography from '@tailwindcss/typography';
 
 const config: Config = {
   content: [
@@ -9,10 +11,68 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      colors: {
+        // TEAS brand — warm peach + ink black (Sprint 13j-FE)
+        peach: {
+          50: '#FBF1E8',
+          100: '#F8E3D0',
+          200: '#F2CDB0',
+          300: '#ECB68F',
+          400: '#E8A87C', // logo orange
+          500: '#DD8E5C', // primary CTA
+          600: '#C57543', // primary hover
+          700: '#9E5C34', // primary ink / accent text
+        },
+        ink: {
+          50: '#FAF8F5',
+          75: '#F4F1EC',
+          100: '#ECE7DF',
+          200: '#D7D1C7',
+          300: '#B5AEA3',
+          400: '#8A847A',
+          500: '#6B6660',
+          600: '#4D4943',
+          700: '#34312D',
+          800: '#24221F',
+          900: '#1A1816', // logo black
+        },
+        // Warm-tinted status palette (token + soft bg)
+        'status-success': '#4A7C59',
+        'status-success-bg': '#E6EFE7',
+        'status-warning': '#C68A2E',
+        'status-warning-bg': '#FBEFD7',
+        'status-danger': '#B5524A',
+        'status-danger-bg': '#FBE4E1',
+        'status-info': '#5B7B9A',
+        'status-info-bg': '#E5ECF2',
+        'status-draft': '#8A847A',
+        'status-draft-bg': '#ECE7DF',
+      },
       fontFamily: {
-        sans: ['var(--font-sarabun)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-noto-thai)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
+        ui: ['var(--font-noto-thai)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
+        doc: ['var(--font-sarabun)', '"TH Sarabun New"', 'serif'],
         display: ['var(--font-inter)', 'var(--font-sarabun)', 'sans-serif'],
         mono: ['var(--font-jetbrains)', 'Consolas', 'monospace'],
+      },
+      boxShadow: {
+        'warm-sm': '0 1px 2px rgba(26,24,22,0.06)',
+        'warm-md': '0 4px 12px rgba(26,24,22,0.08), 0 1px 3px rgba(26,24,22,0.04)',
+        'warm-lg': '0 12px 32px rgba(26,24,22,0.12), 0 4px 8px rgba(26,24,22,0.06)',
+        'warm-pop': '0 24px 60px rgba(26,24,22,0.18)',
+      },
+      borderRadius: {
+        // Semantic warm-scale radii — named to avoid colliding with
+        // Tailwind's rounded-{side}-{size} shorthands (rounded-r-lg etc.)
+        chip: '6px',
+        field: '10px',
+        card: '14px',
+        panel: '18px',
+      },
+      spacing: {
+        sidebar: '256px',
+        'sidebar-collapsed': '72px',
+        topbar: '56px',
       },
       animation: {
         'fade-in': 'fade-in 0.2s ease-out',
@@ -36,12 +96,39 @@ const config: Config = {
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
-    require('@tailwindcss/typography'),
+    forms,
+    typography,
     daisyui,
   ],
   daisyui: {
     themes: [
+      {
+        'teas-orange': {
+          // ---- Sprint 13j-FE — warm peach + ink (Claude Design) ----
+          'primary':           '#DD8E5C',   // peach-500 CTA
+          'primary-content':   '#FFFFFF',
+          'secondary':         '#9E5C34',   // peach-700 accent ink
+          'secondary-content': '#FFFFFF',
+          'accent':            '#E8A87C',   // peach-400 logo orange
+          'accent-content':    '#1A1816',
+          'neutral':           '#1A1816',   // ink-900
+          'neutral-content':   '#FAF8F5',
+          'base-100':          '#FFFFFF',   // card / surface
+          'base-200':          '#FAF8F5',   // page bg (ink-50)
+          'base-300':          '#F4F1EC',   // surface-alt (ink-75)
+          'base-content':      '#1A1816',   // ink-900 text
+          'info':              '#5B7B9A',
+          'success':           '#4A7C59',
+          'warning':           '#C68A2E',
+          'error':             '#B5524A',
+          '--rounded-box':     '14px',
+          '--rounded-btn':     '10px',
+          '--rounded-badge':   '999px',
+          '--animation-btn':   '0.12s',
+          '--btn-text-case':   'none',
+          '--border-btn':      '1px',
+        },
+      },
       {
         teas: {
           // ---- Light theme — Professional Thai accounting ----

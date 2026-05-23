@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
@@ -33,6 +34,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     private readonly ETaxBehaviorOptions     _etaxOpts;
     private readonly VatModeOptions          _vat;
     private readonly ILogger<TaxInvoiceService> _log;
+    private readonly IActivityRecorder       _activity;
 
     public TaxInvoiceService(
         AccountingDbContext db,
@@ -45,18 +47,65 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         IETaxSubmissionPipeline etaxPipeline,
         IOptions<ETaxBehaviorOptions> etaxOpts,
         IOptions<VatModeOptions> vat,
-        ILogger<TaxInvoiceService> log)
+        ILogger<TaxInvoiceService> log,
+        IActivityRecorder activity)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period;
         _etaxXml = etaxXml; _etaxPipeline = etaxPipeline;
         _etaxOpts = etaxOpts.Value; _vat = vat.Value; _log = log;
+        _activity = activity;
+    }
+
+    // Non-VAT companies (ม.86/4) cannot issue Tax Invoices. This is the single
+    // chokepoint for ALL TI creation — manual, Pattern X (DO→TI combined), and
+    // Pattern Y (separate DO→TI) all funnel through CreateDraftAsync.
+    private void EnsureVatRegistered()
+    {
+        if (!_vat.VatMode)
+            throw new DomainException("ti.non_vat_blocked",
+                "VAT-not-registered companies cannot issue Tax Invoices (ม.86/4). " +
+                "Use a delivery note / receipt instead.");
+    }
+
+    // cont.69 Phase 1 — Invoice (BillingNote) → Tax Invoice, manual, VAT only. The
+    // EnsureVatRegistered() chokepoint in CreateDraftAsync blocks non-VAT (422
+    // ti.non_vat_blocked) — called here up-front so a non-VAT tenant never loads the BN.
+    public async Task<long> CreateFromBillingNoteAsync(long billingNoteId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        EnsureVatRegistered();
+
+        var bn = await _db.BillingNotes.AsNoTracking().Include(x => x.Lines)
+            .Where(x => x.CompanyId == _tenant.CompanyId)
+            .FirstOrDefaultAsync(x => x.BillingNoteId == billingNoteId, ct)
+            ?? throw new DomainException("billing_note.not_found", $"Invoice {billingNoteId} not found.");
+
+        var lines = bn.Lines.OrderBy(l => l.LineNo).Select(l => new TaxInvoiceLineInput(
+            l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity, 1, l.UomText,
+            l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate,
+            l.ProductType)).ToList();
+
+        var tiId = await CreateDraftAsync(new CreateTaxInvoiceRequest(
+            bn.DocDate, bn.CustomerId, false, bn.CurrencyCode, bn.ExchangeRate,
+            bn.Notes, null, null, lines, bn.BusinessUnitId), ct);
+
+        // Stamp the source link (CreateTaxInvoiceRequest has no BillingNoteId field).
+        var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
+        ti.BillingNoteId = bn.BillingNoteId;
+        await _db.SaveChangesAsync(ct);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId,
+            "CreatedFromInvoice", note: $"จากใบแจ้งหนี้ {bn.DocNo ?? bn.BillingNoteId.ToString()}");
+        await _db.SaveChangesAsync(ct);
+        return tiId;
     }
 
     public async Task<long> CreateDraftAsync(CreateTaxInvoiceRequest req, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
+        EnsureVatRegistered();
 
         // Sprint 14 P7 — per-key BU lock (auto-fill / mismatch). Company-level
         // requires_business_unit still runs below on the resolved value.
@@ -96,7 +145,36 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
-        var lines = req.Lines.Select((l, i) => BuildLine(l, i + 1, req.IsTaxInclusive)).ToList();
+        // cont.69 — snapshot ProductType from the product when a line references a
+        // productId but the caller didn't supply the type. The WHT service/goods split
+        // (SuggestWhtBaseAsync) reads line.ProductType; without this a product-linked
+        // service line silently defaulted to "GOOD" → ServiceSubtotal 0.
+        var srcLines = req.Lines;
+        var needType = req.Lines
+            .Where(l => l.ProductId is not null && string.IsNullOrEmpty(l.ProductType))
+            .Select(l => l.ProductId!.Value).Distinct().ToList();
+        if (needType.Count > 0)
+        {
+            var prods = await _db.Products.AsNoTracking()
+                .Where(p => needType.Contains(p.ProductId))
+                .Select(p => new { p.ProductId, p.ProductType })
+                .ToListAsync(ct);
+            // Line ProductType uses the UPPER_SNAKE convention IsService() expects;
+            // the Product master stores a PascalCase enum → map it.
+            var ptypes = prods.ToDictionary(p => p.ProductId, p => p.ProductType switch
+            {
+                Domain.Enums.ProductType.Service        => "SERVICE",
+                Domain.Enums.ProductType.ExemptService  => "EXEMPT_SERVICE",
+                Domain.Enums.ProductType.ExemptGood     => "EXEMPT_GOOD",
+                _                                       => "GOOD",
+            });
+            srcLines = req.Lines.Select(l =>
+                l.ProductId is { } pid && string.IsNullOrEmpty(l.ProductType)
+                    && ptypes.TryGetValue(pid, out var pt)
+                    ? l with { ProductType = pt }
+                    : l).ToList();
+        }
+        var lines = srcLines.Select((l, i) => BuildLine(l, i + 1, req.IsTaxInclusive)).ToList();
 
         var subtotal  = lines.Sum(l => l.LineAmount);
         var taxable   = lines.Where(l => l.TaxRate > 0).Sum(l => l.LineAmount);
@@ -136,10 +214,13 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             PaymentTerms     = req.PaymentTerms,
             Notes            = req.Notes,
             BusinessUnitId   = req.BusinessUnitId,
+            QuotationId      = req.QuotationId,   // Sprint 13h P6.1
             Lines            = lines,
         };
 
         _db.TaxInvoices.Add(ti);
+        await _db.SaveChangesAsync(ct);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId, "Created", toStatus: "Draft");
         await _db.SaveChangesAsync(ct);
         return ti.TaxInvoiceId;
     }
@@ -148,6 +229,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
+        // Defense: a draft TI may survive a VAT→non-VAT config switch; it must not post.
+        EnsureVatRegistered();
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
@@ -183,6 +266,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
 
         var now = _clock.UtcNow;
         ti.MarkPosted(docNo, _tenant.UserId ?? 0, now);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, docNo, ti.CompanyId, "Posted", "Draft", "Posted");
 
         await _db.SaveChangesAsync(ct);
 
@@ -242,6 +326,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             LineNo          = lineNo,
             ProductId       = input.ProductId,
             ProductCode     = input.ProductCode,
+            ProductType     = input.ProductType ?? "GOOD",   // Sprint 13h P7 + 13i C5 default
             DescriptionTh   = input.DescriptionTh,
             Quantity        = input.Quantity,
             UomId           = input.UomId,

@@ -127,6 +127,7 @@ export default function VendorInvoiceDetailPage() {
       </div>
 
       <PostConfirmDialog
+        docType="vendor_invoice"
         open={confirm}
         busy={post.isPending}
         summary={{ customer: d.vendorName, total: d.totalAmount, vat: d.vatAmount }}

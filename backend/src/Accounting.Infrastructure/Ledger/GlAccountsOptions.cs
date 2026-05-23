@@ -17,4 +17,10 @@ public sealed class GlAccountsOptions
     public string WhtPayableAccount { get; init; } = "2152";  // ภาษีหัก ณ ที่จ่ายค้างจ่าย
     public string WhtReceivableAccount { get; init; } = "1180"; // ภาษีหัก ณ ที่จ่ายค้างรับ (AR-side, Sprint 8.6)
     public string SalesReturnAccount { get; init; } = "4100"; // Sales return / discount (for CN)
+
+    /// <summary>ม.83/6 reverse-charge VAT (ภ.พ.36) paid by a NON-VAT-registered service
+    /// receiver: it must remit the VAT but CANNOT reclaim it (no ภ.พ.30) — the VAT is a
+    /// permanent sunk cost, so it is expensed here instead of debited to InputVat (1170).
+    /// Must exist in the seeded chart of accounts.</summary>
+    public string IrrecoverableVatExpenseAccount { get; init; } = "5350"; // ภาษีซื้อขอคืนไม่ได้
 }

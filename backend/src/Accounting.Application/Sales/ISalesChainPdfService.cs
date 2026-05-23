@@ -5,7 +5,8 @@ namespace Accounting.Application.Sales;
 /// ใบส่งของ + ใบกำกับภาษี labels when combined.</summary>
 public interface ISalesChainPdfService
 {
-    Task<byte[]> QuotationPdfAsync(long id, CancellationToken ct);
-    Task<byte[]> SalesOrderPdfAsync(long id, CancellationToken ct);
-    Task<byte[]> DeliveryOrderPdfAsync(long id, CancellationToken ct);
+    // cont.69 Phase 4 (D8) — copy=true renders the สำเนา watermark (universal print).
+    Task<byte[]> QuotationPdfAsync(long id, CancellationToken ct, bool copy = false);
+    Task<byte[]> SalesOrderPdfAsync(long id, CancellationToken ct, bool copy = false);
+    Task<byte[]> DeliveryOrderPdfAsync(long id, CancellationToken ct, bool copy = false);
 }

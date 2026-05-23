@@ -1,0 +1,75 @@
+/* ====================================================================
+   TEAS Design System tokens — Sprint 13j-FE (Claude Design integration)
+   Source: design/claude-design/styles.css :root block
+   Theme variant shipped: orange-bold only (decision #4). ink-bold + bi-tone
+   deferred to v2 — the :root values below ARE orange-bold.
+   ALL brand hex codes live here + tailwind.config.ts ONLY (acceptance §4).
+   ==================================================================== */
+:root {
+  /* Brand: warm peach + ink black from logo */
+  --peach-50:  #FBF1E8;
+  --peach-100: #F8E3D0;
+  --peach-200: #F2CDB0;
+  --peach-300: #ECB68F;
+  --peach-400: #E8A87C;  /* logo orange */
+  --peach-500: #DD8E5C;
+  --peach-600: #C57543;
+  --peach-700: #9E5C34;
+
+  /* Warm neutrals (ink) */
+  --ink-50:  #FAF8F5;   /* page bg */
+  --ink-75:  #F4F1EC;   /* alt surface */
+  --ink-100: #ECE7DF;   /* hairline */
+  --ink-200: #D7D1C7;
+  --ink-300: #B5AEA3;
+  --ink-400: #8A847A;
+  --ink-500: #6B6660;
+  --ink-600: #4D4943;
+  --ink-700: #34312D;
+  --ink-800: #24221F;
+  --ink-900: #1A1816;   /* logo black */
+
+  /* Status (warm-tinted) */
+  --success:    #4A7C59;
+  --success-bg: #E6EFE7;
+  --warning:    #C68A2E;
+  --warning-bg: #FBEFD7;
+  --danger:     #B5524A;
+  --danger-bg:  #FBE4E1;
+  --info:       #5B7B9A;
+  --info-bg:    #E5ECF2;
+  --draft:      #8A847A;
+  --draft-bg:   #ECE7DF;
+
+  /* Semantic */
+  --bg: var(--ink-50);
+  --surface: #FFFFFF;
+  --surface-alt: var(--ink-75);
+  --border: var(--ink-100);
+  --border-strong: var(--ink-200);
+  --text: var(--ink-900);
+  --text-2: var(--ink-600);
+  --text-3: var(--ink-500);
+  --primary: var(--peach-500);
+  --primary-hover: var(--peach-600);
+  --primary-soft: var(--peach-50);
+  --primary-ink: var(--peach-700);
+  --on-primary: #FFFFFF;
+
+  /* Shape */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+
+  /* Shadow (warm) */
+  --shadow-sm: 0 1px 2px rgba(26, 24, 22, 0.06);
+  --shadow-md: 0 4px 12px rgba(26, 24, 22, 0.08), 0 1px 3px rgba(26, 24, 22, 0.04);
+  --shadow-lg: 0 12px 32px rgba(26, 24, 22, 0.12), 0 4px 8px rgba(26, 24, 22, 0.06);
+  --shadow-pop: 0 24px 60px rgba(26, 24, 22, 0.18);
+
+  /* Sidebar geometry */
+  --sb-w: 256px;
+  --sb-w-collapsed: 72px;
+  --topbar-h: 56px;
+}

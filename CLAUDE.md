@@ -465,6 +465,60 @@ Tier 1 → 2 → 3 is **config-only** (no code edit per environment). Full audit
 
 ---
 
+## 15. Test data discipline (Sprint 14.5)
+
+The single most-re-applied gotcha (§14 — test fixture non-idempotent DB state)
+caused 7+ false-positive sprint failures. Sprint 14.5 added `TestIds` helper +
+this rule:
+
+### Rule
+
+**Every test that inserts a row with a UNIQUE constraint MUST use `TestIds.*`
+or an explicit `Guid.NewGuid()` for that field.** Never hardcode `"ACME-001"`,
+`"PROD-X"`, `"yyyymm=202601"`, etc.
+
+### Helpers
+
+- Backend: `Accounting.TestKit.TestIds` (`CustomerCode()`, `VendorCode()`,
+  `ProductCode()`, `BusinessUnitCode()`, `ExpenseCategoryCode()`,
+  `WhtTypeCode()`, `Email()`, `TaxId()`, `FuturePeriod()`, `Name()`,
+  `Suffix()`)
+- Frontend e2e: `frontend/e2e/helpers/test-ids.ts` — same surface in TypeScript
+
+### Pattern
+
+```csharp
+// ❌ WRONG (will collide on re-run against teas_app)
+await CreateCustomerAsync("ACME-001", "Acme Corp");
+
+// ✅ RIGHT
+var code = TestIds.CustomerCode();        // "CUST-a1b2c3d4"
+await CreateCustomerAsync(code, "Acme Corp");
+```
+
+```typescript
+// e2e
+import { TestIds } from './helpers/test-ids';
+await page.getByLabel('Customer code').fill(TestIds.customerCode());
+```
+
+### When fixed values ARE OK
+
+- **Pure unit tests** (no DB) — fixed values fine
+- **Read-only assertions** on seeded reference data (e.g. existing demo company's tax codes) — fine
+- **Verifying serialization shape** of a fixed example — fine
+
+The rule applies ONLY to **write-then-read** integration tests against
+long-lived shared DBs.
+
+### Why this exists
+
+The gate's "test must pass 2-3 consecutive runs on the SAME `teas_app` DB" is
+non-negotiable. If a test fails on run 2 but passes on run 1 → §14. Fix
+immediately with `TestIds.*`.
+
+---
+
 ## 13. Progress & Plan Tracking — MANDATORY
 
 Two living files at repo root track state across sessions. **Read both at the start of
@@ -484,6 +538,149 @@ Rules:
   `plan.md` item is ticked.
 - If `progress.md` / `plan.md` are missing, recreate them from `docs/accounting-system-plan.md`
   §22 before doing other work.
+
+---
+
+## 16. Chapter-by-chapter validation workflow (Sprint 13b+) — MANDATORY
+
+User manual production (Sprint 13b) follows **strict sequential** order per
+chapter. **NO PARALLEL chapters**. Every chapter must complete all 4 phases
+before the next chapter starts.
+
+### The 4-phase cycle (per chapter)
+
+```
+1. VALIDATE        — Sana drives Chrome MCP through every page in the chapter,
+                     exercises every flow (create, edit, disable, restore,
+                     submit invalid, RBAC denied, etc.), reports ALL bugs found.
+2. FIX             — Claude Code receives a focused spec (Answer-Sana-Backend{N}.md)
+                     scoped ONLY to the bugs from step 1. Fixes them.
+3. RE-VALIDATE     — Sana re-runs the same flows through Chrome MCP, confirms
+                     every fix actually works. Any regressions or new bugs → back to step 2.
+4. CREATE MANUAL   — Sana writes the chapter walkthroughs + chapter markdown
+                     based on the verified, bug-free behavior. ONLY after step 3
+                     fully passes.
+                     Sub-step 4a (OPTIONAL per chapter, REQUIRED before final
+                     ship): Run the manual framework (Sprint 13g+) against
+                     the chapter's walkthroughs → produce PNG screenshots per
+                     capture() + integrate into generated MD + render
+                     intermediate HTML/PDF. Sana visually inspects intermediate
+                     PDF; any issue (caption clipped, wrong selector, etc.) →
+                     fix walkthrough + re-run.
+
+                     POLICY (post Sprint 13g pilot, 2026-05-20): once the
+                     framework is proven stable (5+ runs without code change),
+                     per-chapter render becomes optional — batched final
+                     render before ship is acceptable. Sana keeps walkthrough
+                     scripts up-to-date with verified behavior; final v1.0
+                     PDF run renders everything at once + Sana inspects all
+                     chapters in one pass.
+```
+
+**Then and only then** does work move to the next chapter.
+
+### Why sequential
+
+Parallel chapters create cascading rewrites: a bug discovered in chapter 5
+that affects shared components (forms, RBAC, error envelope) forces
+walkthroughs in chapter 2/3/4 to be re-tested + rewritten. Sequential keeps
+the manual stable as it's written.
+
+### What this rules out
+- Writing chapter B walkthroughs while chapter A bugs are still pending fix.
+- "We'll come back and update chapter A later" — that's how chapter 3 ended
+  up with stub Quotation forms documented as production-ready.
+- Claude Code working on chapter B fixes while Sana writes chapter B manual
+  in parallel — Sana writes only AFTER fixes verified.
+
+### What this allows
+- Bug spec ONE chapter at a time. If chapter 4 needs cross-cutting fixes
+  (e.g. new shared component), spec it as part of that chapter's fix phase,
+  not as a separate sprint.
+- Sana can do unrelated owned-file maintenance (plan.md edits, openapi
+  updates, runtime-gotchas) between chapters or while waiting on Claude Code.
+- Claude Code can do non-manual-blocking work (e-Tax production rollout,
+  security hardening, etc.) at any time — those are separate sprints,
+  not the user manual track.
+
+### Chapter ordering
+
+Follow `docs/manual/chapters/` 01→10 numerical order. As of Sprint 13b restart:
+- Chapter 1 — เริ่มต้นใช้งาน
+- Chapter 2 — ตั้งค่าระบบ
+- Chapter 3 — การขาย (Q→SO→DO→TI→RC→CN/DN)
+- Chapter 4 — การซื้อ
+- Chapter 5 — รายงาน
+- Chapter 6 — Master data
+- Chapter 7 — ขั้นสูง
+- Chapter 8 — e-Tax
+- Chapter 9 — External API
+- Chapter 10 — Troubleshooting
+
+### Definition of "manual chapter complete"
+- All walkthroughs (`frontend/manual/walkthroughs/XX.*.ts`) authored
+  with live-verified selectors + Thai captions
+- Chapter markdown (`docs/manual/chapters/XX-*.md`) reflects what the
+  shipped UI actually does (no aspirational features)
+- No `pending` bug task in TodoList tied to that chapter (bug-fix tasks
+  may be deferred IF they don't block the walkthrough script — e.g. UX
+  nits that workaround can address)
+- Sana has confirmed each walkthrough step through Chrome MCP
+
+### Definition of "manual ready to ship" (batched final render)
+- All chapters meet the per-chapter complete bar above
+- Manual framework run end-to-end: `pnpm manual:capture && pnpm manual:build`
+  produces PNG files for every `capture()` + `AccountProject-User-Manual-TH-v1.0.pdf`
+- Sana visually inspects the final PDF — every chapter, every walkthrough,
+  every step. Any issue → fix walkthrough → re-run framework
+- Final HTML site (MkDocs Material) renders cleanly at `docs/manual/_site/`
+
+---
+
+## 17. /graphify — codebase knowledge graph (USE FULLY)
+
+This repo is large + multi-layer (Domain/Application/Infrastructure/Api + Next.js
+FE). Use the **`/graphify`** skill to build/refresh a knowledge graph of the
+codebase so navigation + impact analysis stay cheap (avoid re-reading whole
+files to rediscover structure).
+
+**When to run `/graphify`:**
+- **At the START of a session** that will touch unfamiliar areas — refresh the
+  graph first, then query it instead of blind file reads.
+- **After a sprint that added/moved many files** (e.g. Sprint 13j-FE added the
+  whole `components/paper/*`, `customers/*`, print-tracking BE) — the graph goes
+  stale; regenerate so the next session sees the new modules.
+- Before a cross-cutting refactor or "where is X used" question.
+
+**Rules:**
+- Treat the graph as a *map*, not truth — a node may name a file/symbol that has
+  since changed; verify against the live file before relying on it.
+- Output lands in `graphify-out/` — do not commit secrets; the graph is a
+  derived artifact (safe to regenerate, no need to hand-edit).
+- Prefer querying the graph over `grep`-ing the whole tree for structural
+  questions (callers, dependencies, feature grouping).
+- If the graph looks outdated for the area you're touching, **regenerate before
+  trusting it** (cheaper than chasing a wrong lead).
+
+**Handoff expectation:** each session that materially changes the file tree
+should leave the graph refreshed (run `/graphify`) and note it in `progress.md`.
+
+**Split graphs — backend vs frontend (IMPORTANT):** a whole-repo `/graphify .`
+**crashes** (it scans `node_modules`/`bin`/`obj`). So the repo is graphed as **two
+separate graphs**, both under `graphify-out/`:
+- **Backend** — `graph-backend.json` + `graph-backend.html` + `GRAPH_REPORT-backend.md`.
+  Build by running `/graphify backend/src` (C#; code-only → AST is enough, no semantic
+  subagents needed).
+- **Frontend** — `graph-frontend.json` + `graph-frontend.html` + `GRAPH_REPORT-frontend.md`.
+  Build by **collecting `frontend/app` + `frontend/components` + `frontend/lib`** (NEVER
+  point graphify at `frontend/` whole — `node_modules` will blow it up).
+- There is **no combined `graph.json`** — the old whole-repo graph was renamed/dropped.
+  `/graphify query` defaults to `graph.json`; point it at the correct split file
+  (`graph-backend.json` / `graph-frontend.json`) or query each graph separately.
+- Regenerate only the half you changed (backend vs frontend) — they're independent.
+- Last full build: backend 1603 nodes / frontend 393 nodes (AST-only, 2026-05-22).
+  Frontend was AST-only too; a session with spare context can re-run frontend with
+  `--mode deep` semantic extraction for richer concept edges.
 
 ---
 

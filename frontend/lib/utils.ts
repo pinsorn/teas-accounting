@@ -18,10 +18,12 @@ export function formatTHB(value: number | string): string {
   return THB.format(n);
 }
 
+// Sprint 13h P3 — single-source Thai Buddhist-Era date display.
+// `dateStyle: 'medium'` → "20 พ.ค. 2569". The `buddhist` calendar is explicit
+// because `th-TH` defaults to Gregorian (Christian-Era) in V8 Intl.
 const dateFmt = new Intl.DateTimeFormat('th-TH', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
+  dateStyle: 'medium',
+  calendar: 'buddhist',
   timeZone: 'Asia/Bangkok',
 });
 

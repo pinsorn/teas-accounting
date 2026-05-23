@@ -273,6 +273,22 @@ paths:
           schema:
             type: string
             enum: [Draft, Posted]
+        - name: search
+          in: query
+          description: |
+            Free-text filter; matches `doc_no` OR `customer_name` (ILIKE,
+            case-insensitive substring). Added Sprint 13e P3 for the shared
+            TaxInvoicePicker UX — `?search=05-2026-TI` and `?search=Acme` both
+            work. Empty/whitespace = no filter.
+          schema: { type: string }
+        - name: unpaid
+          in: query
+          description: |
+            When `true`, restrict to Tax Invoices with `amount_paid <
+            total_amount` (still-has-balance — i.e. eligible to be referenced
+            by a new Receipt). Default `false` = no filter. Added Sprint 13e
+            P3.
+          schema: { type: boolean, default: false }
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
@@ -970,6 +986,155 @@ paths:
           description: OK
 
   # ============================================================
+  # ME — Current-user introspection (Sprint 13d P3)
+  # ============================================================
+  /me/permissions:
+    get:
+      summary: Get current user's permission scopes
+      description: |
+        Returns the flat list of permission scopes for the current authenticated
+        user, derived from their assigned roles. Used by frontend `usePermissions`
+        + `<PermissionGate>` to hide write buttons when user lacks the scope.
+
+        Claims-sourced (no DB query). Cached client-side per session.
+      tags: [Auth]
+      responses:
+        '200':
+          description: OK — list of scopes + role names + super-admin flag
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [permissions, roles, isSuperAdmin]
+                properties:
+                  permissions:
+                    type: array
+                    items: { type: string, example: 'master.business_unit.manage' }
+                    description: 'Flat list of permission scopes (RBAC).'
+                  roles:
+                    type: array
+                    items: { type: string, example: 'ACCOUNTANT' }
+                  isSuperAdmin:
+                    type: boolean
+                    description: 'True if SUPER_ADMIN role; bypasses some scope checks.'
+        '401':
+          $ref: '#/components/responses/ErrorEnvelope401'
+
+  # ============================================================
+  # COMPANY PROFILE — Hybrid lock model (Sprint 13d P6, plan §6.7)
+  # ============================================================
+  /company-profile:
+    get:
+      summary: Get current tenant's company profile
+      description: 'Any authenticated user can read (used by document headers).'
+      tags: [Company Profile]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyProfile'
+        '401':
+          $ref: '#/components/responses/ErrorEnvelope401'
+
+  /company-profile/soft:
+    put:
+      summary: Update soft fields (admin only)
+      description: |
+        Update editable contact/branding fields: trade_name, logo_url, phone,
+        email, website, contact_name, bank_*. Requires `master.company.manage`.
+      tags: [Company Profile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyProfileSoftUpdate'
+      responses:
+        '204':
+          description: Updated
+        '400':
+          description: Validation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+        '403':
+          description: Missing master.company.manage scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+
+  /company-profile/hard:
+    put:
+      summary: Update hard fields (Phase 1 = 501 Not Implemented)
+      description: |
+        Hard fields (legal_name, tax_id, registration_number, registered_address_*,
+        vat_registration_date, branch_code) are read-only via UI in Phase 1.
+        Always returns 501 with explanation pointing to ภ.พ.09 workaround
+        (file with revenue department + ops update DB manually with audit log).
+
+        Phase 2 will add 2-person approval workflow + effective-date history
+        + ภ.พ.09 attachment upload.
+      tags: [Company Profile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyProfileHardUpdate'
+      responses:
+        '501':
+          description: 'Not implemented in Phase 1 — type=company_profile.hard_locked'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+        '403':
+          description: Missing master.company.manage scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+
+  # ============================================================
+  # WHT TYPES — Reactivate (Sprint 13f-P2; mirrors BU/Product Restore)
+  # ============================================================
+  /wht-types/{id}/reactivate:
+    post:
+      summary: Reactivate a deactivated WHT type
+      description: |
+        Sets `isActive=true` for a previously deactivated WHT type. Tenant-scoped
+        (Sprint 13f-P1 explicit CompanyId filter — defense-in-depth, do not rely
+        on RLS alone). Mirrors the BU/Product Restore pattern from Sprint 13d-P4.
+
+        FE: PermissionGate-wrapped "↺ เปิดใช้งานใหม่" button appears for inactive
+        rows when user has `tax.wht_type.manage`.
+      tags: [WHT Types]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204':
+          description: Reactivated
+        '403':
+          description: Missing tax.wht_type.manage scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+        '404':
+          description: 'Not found in tenant scope (cross-tenant or deleted)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+
+  # ============================================================
   # ADMIN — ApiKey management (BFF/JWT only, perm: sys.api_key.manage)
   # Sprint 14 P2
   # ============================================================
@@ -1237,45 +1402,70 @@ components:
     # === Common ===
     ErrorResponse:
       type: object
-      description: 'Legacy RFC 7807 — used on ROOT (BFF/JWT) endpoints only. Sprint 14 root path retains this.'
-      properties:
-        error:
-          type: object
-          properties:
-            code: { type: string }
-            message: { type: string }
-            details: { type: object }
-        meta:
-          $ref: '#/components/schemas/Meta'
+      description: 'DEPRECATED — was legacy RFC 7807 root envelope. Sprint 13d-P5 unified ALL paths to use ErrorEnvelopeV1 (root + /api/v1/*). Refs remain only for backward compatibility; treat as alias for ErrorEnvelopeV1.'
+      allOf:
+        - $ref: '#/components/schemas/ErrorEnvelopeV1'
 
-    # === /api/v1/* standard error envelope (Sprint 14 P5 + plan §20.7) ===
+    # === Unified error envelope — all paths (Sprint 13d-P5 + plan §20.7) ===
     ErrorEnvelopeV1:
       type: object
       description: |
-        Standard error envelope for /api/v1/* responses. Stable error code catalog:
+        Unified RFC-7807-style error envelope for ALL TEAS paths (root BFF
+        + /api/v1/* + /api/proxy/*). Sprint 13d-P5 collapsed the prior
+        root-vs-v1 split into this single shape via
+        ValidationErrorEnvelopeMiddleware (transparent reshape).
+
+        Stable error type catalog (urn:teas:error:*):
+        - auth.unauthenticated | auth.forbidden
         - auth.missing_api_key | auth.invalid_api_key | auth.expired_api_key | auth.revoked_api_key | auth.scope_required
-        - idempotency.required | idempotency.body_mismatch
-        - validation_error
-        - tenant.cross_tenant_access
+        - idempotency.required | idempotency.body_mismatch | idempotency.conflict
+        - validation                                           (validation failures use fieldErrors[])
+        - tenant.cross_tenant_access | tenant.required
         - business_unit.required | business_unit.locked_mismatch | business_unit.cross_bu_not_allowed_for_this_key
+        - bu.duplicate | product.duplicate | wht_type.duplicate (business-rule uniqueness violations)
+        - company_profile.hard_locked                          (PUT /company-profile/hard always returns 501)
         - period.closed | document.immutable_after_post
+        - notfound                                             (resource id not in tenant scope)
+        - internal                                             (uncaught 5xx)
         - rate_limit.exceeded (Phase 2)
+      required: [type, title, status]
       properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code: { type: string, example: 'business_unit.locked_mismatch' }
-            message: { type: string, example: 'This API key is bound to BU REPT; request specified LAB' }
-            details:
-              type: array
-              items:
-                type: object
-                properties:
-                  field: { type: string, example: 'business_unit_id' }
-                  issue: { type: string, example: 'locked_mismatch' }
-            trace_id: { type: string, example: 'abc123def456', description: 'From Activity.Current?.Id' }
-            request_id: { type: string, example: 'req_xyz789', description: 'From HttpContext.TraceIdentifier' }
+        type:
+          type: string
+          format: uri
+          example: 'urn:teas:error:validation'
+          description: 'URN identifying the error class. Stable for programmatic handling.'
+        title:
+          type: string
+          example: 'validation'
+          description: 'i18n key (NOT human English). FE resolves to current locale.'
+        detail:
+          type: string
+          example: 'Request validation failed (2 field(s)).'
+          description: 'Optional human-readable detail in service origin locale. Mainly for logs/debugging.'
+        status:
+          type: integer
+          example: 400
+          description: 'Matches the HTTP status code.'
+        fieldErrors:
+          type: array
+          description: 'Present for validation failures (400). Empty/absent for business-rule errors.'
+          items:
+            type: object
+            required: [field, messages]
+            properties:
+              field:
+                type: string
+                example: 'code'
+                description: 'camelCase field name matching request JSON shape (NOT C# Pascal DTO).'
+              messages:
+                type: array
+                description: 'Array of i18n keys (typically validation.<rule>). FE resolves + can show inline beside the field.'
+                items:
+                  type: string
+                  example: 'validation.required'
+        trace_id: { type: string, example: 'abc123def456', description: 'From Activity.Current?.Id' }
+        request_id: { type: string, example: 'req_xyz789', description: 'From HttpContext.TraceIdentifier' }
 
     Meta:
       type: object
@@ -1299,6 +1489,71 @@ components:
         province: { type: string }
         postal_code: { type: string }
         country: { type: string, default: TH }
+
+    # === Company Profile (Sprint 13d-P6, plan §6.7) ===
+    CompanyProfile:
+      type: object
+      description: 'Tenant company profile. Hard fields are read-only via UI in Phase 1.'
+      properties:
+        companyId: { type: integer }
+        # Hard fields — read-only via UI Phase 1
+        legalName: { type: string, example: 'บริษัท แมนนวล เดโม จำกัด' }
+        taxId: { type: string, example: '0000000000002' }
+        registrationNumber: { type: string, example: '0000000000002' }
+        registeredAddressLine1: { type: string }
+        registeredAddressLine2: { type: string, nullable: true }
+        registeredSubdistrict: { type: string }
+        registeredDistrict: { type: string }
+        registeredProvince: { type: string }
+        registeredPostalCode: { type: string, example: '10110' }
+        vatRegistrationDate: { type: string, format: date, nullable: true }
+        branchCode: { type: string, example: '00000' }
+        # Soft fields — admin-editable Phase 1
+        tradeName: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        website: { type: string, nullable: true }
+        contactName: { type: string, nullable: true }
+        bankName: { type: string, nullable: true }
+        bankAccountNo: { type: string, nullable: true }
+        bankAccountName: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time }
+        updatedByUserId: { type: integer, nullable: true }
+
+    CompanyProfileSoftUpdate:
+      type: object
+      description: 'Editable fields only. All optional — omitted fields are unchanged.'
+      properties:
+        tradeName: { type: string, nullable: true }
+        logoUrl: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        website: { type: string, nullable: true }
+        contactName: { type: string, nullable: true }
+        bankName: { type: string, nullable: true }
+        bankAccountNo: { type: string, nullable: true }
+        bankAccountName: { type: string, nullable: true }
+
+    CompanyProfileHardUpdate:
+      type: object
+      description: |
+        Hard-field update request body. Phase 1 endpoint always returns 501;
+        this schema is documented for Phase 2 contract (when 2-person approval
+        + ภ.พ.09 attachment is added). DO NOT call /company-profile/hard
+        expecting success in Phase 1.
+      properties:
+        legalName: { type: string }
+        taxId: { type: string }
+        registrationNumber: { type: string }
+        registeredAddressLine1: { type: string }
+        registeredAddressLine2: { type: string, nullable: true }
+        registeredSubdistrict: { type: string }
+        registeredDistrict: { type: string }
+        registeredProvince: { type: string }
+        registeredPostalCode: { type: string }
+        vatRegistrationDate: { type: string, format: date, nullable: true }
+        branchCode: { type: string }
 
     LineItem:
       type: object

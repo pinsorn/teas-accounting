@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -47,9 +48,21 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-base-200 p-4">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="card w-full max-w-md bg-base-100 p-8 shadow-xl"
+        className="card w-full max-w-md bg-base-100 p-8 shadow-warm-lg"
       >
-        <h1 className="mb-6 text-2xl font-bold">TEAS — เข้าสู่ระบบ</h1>
+        <div className="mb-6 flex flex-col items-center text-center">
+          <span className="mb-3 grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-peach-100 to-peach-50 shadow-[inset_0_0_0_2px_rgba(232,168,124,0.3)]">
+            <Image
+              src="/teas-mascot.png"
+              alt="TEAS"
+              width={80}
+              height={80}
+              priority
+              className="h-full w-full scale-[1.4] object-cover object-[center_30%]"
+            />
+          </span>
+          <h1 className="text-2xl font-bold text-ink-900">TEAS — เข้าสู่ระบบ</h1>
+        </div>
 
         <label className="form-control mb-3">
           <span className="label-text">ชื่อผู้ใช้</span>

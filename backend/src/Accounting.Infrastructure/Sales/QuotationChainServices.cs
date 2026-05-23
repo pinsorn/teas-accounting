@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
@@ -28,7 +29,7 @@ internal static class ChainMath
 
 public sealed class QuotationService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
-    INumberSequenceService numbers) : IQuotationService
+    INumberSequenceService numbers, IActivityRecorder activity) : IQuotationService
 {
     private void Auth()
     {
@@ -72,7 +73,7 @@ public sealed class QuotationService(
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, l.TaxRate);
             q.Lines.Add(new QuotationLine
             {
-                LineNo = n++, ProductId = l.ProductId, DescriptionTh = l.DescriptionTh,
+                LineNo = n++, ProductId = l.ProductId, ProductType = l.ProductType ?? "GOOD", DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
                 TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
@@ -82,6 +83,8 @@ public sealed class QuotationService(
         }
         db.Quotations.Add(q);
         await db.SaveChangesAsync(ct);
+        activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Created", toStatus: "Draft");
+        await db.SaveChangesAsync(ct);
         return q.QuotationId;
     }
 
@@ -89,6 +92,69 @@ public sealed class QuotationService(
         await db.Quotations.Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.QuotationId == id, ct)
             ?? throw new DomainException("quotation.not_found", $"Quotation {id} not found.");
+
+    // Sprint 13h P4 — Draft-only full edit. Replaces line items wholesale (drop+add)
+    // and recomputes header aggregates. Customer + BU may change while Draft.
+    public async Task UpdateDraftAsync(long id, CreateQuotationRequest req, CancellationToken ct)
+    {
+        Auth();
+        var q = await LoadAsync(id, ct);
+        if (q.Status != QuotationStatus.Draft)
+            throw new DomainException("quotation.cannot_edit_after_send",
+                "Quotation can only be edited while in Draft.");
+
+        var cust = await db.Customers.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
+            ?? throw new DomainException("customer.not_found", "Customer not found.");
+
+        q.DocDate = req.DocDate;
+        q.ValidUntilDate = req.ValidUntilDate;
+        q.CustomerId = cust.CustomerId;
+        q.CustomerName = cust.NameTh;
+        q.CustomerAddress = cust.BillingAddress;
+        q.CustomerTaxId = cust.TaxId;
+        q.CustomerType = cust.CustomerType;
+        q.BusinessUnitId = req.BusinessUnitId;
+        q.CurrencyCode = req.CurrencyCode;
+        q.ExchangeRate = req.ExchangeRate;
+        q.Notes = req.Notes;
+        q.InternalNotes = req.InternalNotes;
+        q.ShowWhtNote = cust.CustomerType == CustomerType.Corporate;
+
+        db.RemoveRange(q.Lines);
+        q.Lines.Clear();
+        q.SubtotalAmount = q.VatAmount = q.TotalAmount = 0m;
+
+        int n = 1;
+        foreach (var l in req.Lines)
+        {
+            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, l.TaxRate);
+            q.Lines.Add(new QuotationLine
+            {
+                LineNo = n++, ProductId = l.ProductId, ProductType = l.ProductType ?? "GOOD", DescriptionTh = l.DescriptionTh,
+                Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
+                DiscountPercent = l.DiscountPercent, LineAmount = net,
+                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxAmount = vat, TotalAmount = total,
+            });
+            q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
+    // Sprint 13h P4 — hard-delete a Draft. Allowed because no doc_no allocated yet,
+    // so the gap-rule (Plan §17.6) is not violated.
+    public async Task DeleteDraftAsync(long id, CancellationToken ct)
+    {
+        Auth();
+        var q = await LoadAsync(id, ct);
+        if (q.Status != QuotationStatus.Draft)
+            throw new DomainException("quotation.cannot_delete_after_send",
+                "Quotation can only be deleted while in Draft.");
+        db.RemoveRange(q.Lines);
+        db.Quotations.Remove(q);
+        await db.SaveChangesAsync(ct);
+    }
 
     public async Task SendAsync(long id, CancellationToken ct)
     {
@@ -99,6 +165,7 @@ public sealed class QuotationService(
         q.DocNo = await SubPrefixNumberAsync("QT", q.BusinessUnitId, q.DocDate, ct);
         q.Status = QuotationStatus.Sent;
         q.SentAt = clock.UtcNow;
+        activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Sent", "Draft", "Sent");
         await db.SaveChangesAsync(ct);
     }
 
@@ -110,6 +177,7 @@ public sealed class QuotationService(
             throw new DomainException("quotation.bad_status", "Only a Sent quotation can be accepted.");
         q.Status = QuotationStatus.Accepted;
         q.AcceptedAt = clock.UtcNow;
+        activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Accepted", "Sent", "Accepted");
         await db.SaveChangesAsync(ct);
     }
 
@@ -119,7 +187,9 @@ public sealed class QuotationService(
         var q = await LoadAsync(id, ct);
         if (q.Status is not (QuotationStatus.Sent or QuotationStatus.Draft))
             throw new DomainException("quotation.bad_status", "Cannot reject in this status.");
+        var fromReject = q.Status.ToString();
         q.Status = QuotationStatus.Rejected; q.RejectedReason = reason;
+        activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Rejected", fromReject, "Rejected", note: reason);
         await db.SaveChangesAsync(ct);
     }
 
@@ -130,7 +200,9 @@ public sealed class QuotationService(
         if (q.Status is QuotationStatus.Accepted && q.ConvertedToSoId is not null)
             throw new DomainException("quotation.converted",
                 "Cannot cancel — already converted to a Sales Order.");
+        var fromCancel = q.Status.ToString();
         q.Status = QuotationStatus.Cancelled; q.CancelledReason = reason;
+        activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Cancelled", fromCancel, "Cancelled", note: reason);
         await db.SaveChangesAsync(ct);
     }
 
@@ -160,6 +232,7 @@ public sealed class QuotationService(
             so.Lines.Add(new SalesOrderLine
             {
                 LineNo = l.LineNo, ProductId = l.ProductId, ProductCode = l.ProductCode,
+                ProductType = l.ProductType,  // Sprint 13h P7 — Q→SO cascade
                 DescriptionTh = l.DescriptionTh, Quantity = l.Quantity,
                 UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = l.LineAmount,
@@ -168,8 +241,12 @@ public sealed class QuotationService(
             });
         db.SalesOrders.Add(so);
         await db.SaveChangesAsync(ct);
+        activity.Record("SalesOrder", so.SalesOrderId, so.DocNo, so.CompanyId, "Created",
+            toStatus: "Draft", note: $"จากใบเสนอราคา {q.DocNo ?? q.QuotationId.ToString()}");
 
         q.ConvertedToSoId = so.SalesOrderId;
+        activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Converted", "Accepted", "Accepted",
+            note: $"→ ใบสั่งขาย {so.SalesOrderId}");
         await db.SaveChangesAsync(ct);
         return so.SalesOrderId;
     }

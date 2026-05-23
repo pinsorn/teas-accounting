@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 const BACKEND = process.env.BACKEND_API_URL ?? 'http://localhost:5000';
 
 export async function POST(request: Request) {
+  try {
   const creds = await request.json().catch(() => null);
   if (!creds?.username || !creds?.password) {
     return NextResponse.json(
@@ -59,4 +60,14 @@ export async function POST(request: Request) {
     ...(expires && !Number.isNaN(expires.getTime()) ? { expires } : {}),
   });
   return res;
+  } catch (e) {
+    // Sprint 13h ckpt4 — surface server-side errors so the FE 500 isn't an
+    // opaque "Internal Server Error" body. Logged to fe3.log too.
+    console.error('[/api/auth/login] handler threw:', e);
+    const detail = e instanceof Error ? `${e.name}: ${e.message}\n${e.stack ?? ''}` : String(e);
+    return NextResponse.json(
+      { title: 'auth.handler_error', detail },
+      { status: 500 },
+    );
+  }
 }

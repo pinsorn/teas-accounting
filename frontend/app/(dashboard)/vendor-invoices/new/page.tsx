@@ -252,6 +252,7 @@ export default function VendorInvoiceNewPage() {
       </div>
 
       <PostConfirmDialog
+        docType="vendor_invoice"
         open={confirm !== null}
         busy={post.isPending}
         summary={{ customer: vendorLabel || `#${vendorId}`, total, vat: vatRec }}

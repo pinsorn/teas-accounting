@@ -1,0 +1,34 @@
+site_name: คู่มือการใช้งาน TEAS
+site_description: Thailand Enterprise Accounting System — User Manual (TH)
+docs_dir: .
+site_dir: ../_site
+use_directory_urls: false
+
+theme:
+  name: material
+  language: th
+  font:
+    text: Sarabun
+    code: JetBrains Mono
+  palette:
+    primary: blue
+    accent: amber
+  features:
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+
+extra_css:
+  - stylesheets/manual.css
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - toc:
+      permalink: false
+
+nav:
+  - บทนำ: index.md
+  - "บทที่ 1 — เริ่มต้นใช้งาน": generated/chapter-01.md
+  - "บทที่ 2 — ตั้งค่าระบบ": generated/chapter-02.md

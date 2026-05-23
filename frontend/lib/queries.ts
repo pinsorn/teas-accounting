@@ -6,7 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPut, apiDelete, qs } from './api';
+import { apiGet, apiPost, apiPut, apiDelete, apiUploadFile, qs } from './api';
 import type {
   CursorPage,
   CreateTaxInvoiceRequest,
@@ -30,6 +30,7 @@ import type {
   WhtBaseSuggestion,
   WhtReceivableRegister,
   WhtReceivableAging,
+  WhtMissingCertReport,
   TrialBalanceReport,
   ProfitLossReport,
   SalesSummary,
@@ -44,10 +45,15 @@ import type {
   CreateBusinessUnitRequest,
   UpdateBusinessUnitRequest,
   CompanyBuSetting,
+  CompanyProfile,
+  UpdateCompanyProfileSoftRequest,
+  MePermissions,
   ProductListItem,
   ProductDetail,
   QuotationListItem,
   QuotationDetail,
+  BillingNoteListItem,
+  BillingNoteDetail,
   SalesOrderListItem,
   SalesOrderDetail,
   DeliveryOrderListItem,
@@ -208,6 +214,56 @@ export function useVendors(search?: string) {
     queryFn: () => apiGet<VendorListItem[]>(`vendors${qs({ search, pageSize: 100 })}`),
   });
 }
+
+// Sprint 13j-FE — Customer master (sales). GET /customers returns a plain array.
+import type { CustomerListItem, CustomerDetail, CreateCustomerRequest, UpdateCustomerRequest } from './types';
+export function useCustomers(search?: string) {
+  return useQuery({
+    queryKey: ['customers', search ?? ''],
+    queryFn: () => apiGet<CustomerListItem[]>(`customers${qs({ search, pageSize: 100 })}`),
+  });
+}
+export function useCustomer(id: number | null) {
+  return useQuery({
+    queryKey: ['customer', id],
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    queryFn: () => apiGet<CustomerDetail>(`customers/${id}`),
+  });
+}
+export function useCreateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateCustomerRequest) => apiPost<{ customer_id: number }>('customers', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+  });
+}
+// Sprint 13j-FE — supply customer 50ทวิ no/date after posting a receipt.
+export function useSetReceiptWhtCert(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { certNo: string; certDate: string | null }) =>
+      apiPost<void>(`receipts/${id}/wht-cert`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['receipt', id] }),
+  });
+}
+
+// Sprint 13j-FE — record a print (original/copy) for a fiscal doc.
+import type { PrintMarkResult } from './types';
+export function useMarkPrinted(docType: string, id: number) {
+  return useMutation({
+    mutationFn: (copy: boolean) => apiPost<PrintMarkResult>(`${docType}/${id}/mark-printed?copy=${copy}`),
+  });
+}
+export function useUpdateCustomer(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateCustomerRequest) => apiPut<void>(`customers/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['customer', id] });
+    },
+  });
+}
 export function useVendor(id: number) {
   return useQuery({
     queryKey: ['vendor', id],
@@ -363,6 +419,41 @@ export function useDeactivateBusinessUnit() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['business-units'] }),
   });
 }
+// ───────────────────────── Sprint 13d P3: Permissions ─────────────────────────
+export function useMePermissions() {
+  return useQuery({
+    queryKey: ['me-permissions'],
+    queryFn: () => apiGet<MePermissions>('me/permissions'),
+    staleTime: 5 * 60_000, // scopes change rarely; refetched on login (new mount)
+  });
+}
+
+// ───────────────────────── Sprint 13d P6: Company Profile ─────────────────────────
+export function useCompanyProfile() {
+  return useQuery({
+    queryKey: ['company-profile'],
+    queryFn: () => apiGet<CompanyProfile>('company-profile'),
+  });
+}
+export function useUpdateCompanyProfileSoft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateCompanyProfileSoftRequest) =>
+      apiPut<unknown>('company-profile/soft', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+  });
+}
+
+// Sprint 13h P10 — company logo upload (multipart). Returns the new logo URL.
+export function useUploadCompanyLogo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) =>
+      apiUploadFile<{ logoUrl: string }>('company-profile/logo', file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+  });
+}
+
 export function useCompanyBuSetting() {
   return useQuery({
     queryKey: ['company-bu-setting'],
@@ -453,6 +544,13 @@ export function useDeactivateWhtType() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wht-types'] }),
   });
 }
+export function useReactivateWhtType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<unknown>(`wht-types/${id}/reactivate`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wht-types'] }),
+  });
+}
 export function useChangeWhtRate() {
   const qc = useQueryClient();
   return useMutation({
@@ -462,14 +560,18 @@ export function useChangeWhtRate() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wht-types'] }),
   });
 }
-export function useWhtBaseSuggest(taxInvoiceIds: number[], customerId: number) {
+// Sprint (multi-category WHT) — POST the applied amounts so the server can pro-rate
+// the per-income-type base across partial payments. Returns Categories breakdown.
+export function useWhtBaseSuggest(
+  applications: { taxInvoiceId: number; appliedAmount: number }[],
+  customerId: number,
+) {
+  const key = applications.map((a) => `${a.taxInvoiceId}:${a.appliedAmount}`).join(',');
   return useQuery({
-    queryKey: ['wht-base-suggest', taxInvoiceIds, customerId],
-    enabled: taxInvoiceIds.length > 0 && customerId > 0,
-    queryFn: () => apiGet<WhtBaseSuggestion>(
-      `receipts/wht-base-suggest${qs({
-        taxInvoiceIds: taxInvoiceIds.join(','), customerId,
-      })}`),
+    queryKey: ['wht-base-suggest', key, customerId],
+    enabled: applications.length > 0 && customerId > 0,
+    queryFn: () => apiPost<WhtBaseSuggestion>(
+      'receipts/wht-base-suggest', { customerId, applications }),
   });
 }
 export function useWhtReceivableRegister(fromDate: string, toDate: string) {
@@ -484,6 +586,15 @@ export function useWhtReceivableAging() {
   return useQuery({
     queryKey: ['wht-receivable-aging'],
     queryFn: () => apiGet<WhtReceivableAging>('reports/wht-receivable-aging'),
+  });
+}
+// Sprint 13j-tail — receipts missing the customer 50ทวิ cert (period = yyyymm)
+export function useWhtMissingCert(period: number) {
+  return useQuery({
+    queryKey: ['wht-receivable-missing-cert', period],
+    enabled: period > 0,
+    queryFn: () => apiGet<WhtMissingCertReport>(
+      `reports/wht-receivable-missing-cert${qs({ period })}`),
   });
 }
 
@@ -627,6 +738,24 @@ export function useCreateQuotation() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['quotations'] }),
   });
 }
+export function useUpdateQuotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: unknown }) =>
+      apiPut(`quotations/${v.id}`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['quotations'] });
+      qc.invalidateQueries({ queryKey: ['quotation', v.id] });
+    },
+  });
+}
+export function useDeleteQuotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`quotations/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['quotations'] }),
+  });
+}
 export function useQuotationAction() {
   const qc = useQueryClient();
   return useMutation({
@@ -650,6 +779,13 @@ export function useSalesOrder(id: number | null) {
     queryFn: () => apiGet<SalesOrderDetail>(`sales-orders/${id}`),
   });
 }
+export function useCreateSalesOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: unknown) => apiPost<{ sales_order_id: number }>('sales-orders/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sales-orders'] }),
+  });
+}
 export function usePostSalesOrder() {
   const qc = useQueryClient();
   return useMutation({
@@ -658,6 +794,14 @@ export function usePostSalesOrder() {
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       qc.invalidateQueries({ queryKey: ['sales-order', id] });
     },
+  });
+}
+export function useCreateDeliveryOrderDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: unknown) =>
+      apiPost<{ delivery_order_id: number }>('delivery-orders/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['delivery-orders'] }),
   });
 }
 export function useCreateDeliveryOrder() {
@@ -688,6 +832,82 @@ export function useDeliveryOrderAction() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['delivery-orders'] });
       qc.invalidateQueries({ queryKey: ['delivery-order', v.id] });
+    },
+  });
+}
+// New flow (Phase 2a): DO → Invoice (ใบแจ้งหนี้, BE BillingNote). Copies the DO
+// lines into a fresh Draft Invoice and returns its id for navigation.
+export function useCreateInvoiceFromDeliveryOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiPost<{ billing_note_id: number }>(`delivery-orders/${id}/create-invoice`),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['delivery-order', id] });
+      qc.invalidateQueries({ queryKey: ['billing-notes'] });
+    },
+  });
+}
+
+// ───────────────────────── Sprint 13h P6.2 — Billing Note ─────────────────
+export function useBillingNotes(status?: string) {
+  return useQuery({
+    queryKey: ['billing-notes', status ?? ''],
+    queryFn: () => apiGet<BillingNoteListItem[]>(`billing-notes${qs({ status: status || undefined })}`),
+  });
+}
+export function useBillingNote(id: number | null) {
+  return useQuery({
+    queryKey: ['billing-note', id], enabled: id != null,
+    queryFn: () => apiGet<BillingNoteDetail>(`billing-notes/${id}`),
+  });
+}
+export function useCreateBillingNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: unknown) => apiPost<{ billing_note_id: number }>('billing-notes/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-notes'] }),
+  });
+}
+export function useUpdateBillingNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: unknown }) =>
+      apiPut(`billing-notes/${v.id}`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['billing-notes'] });
+      qc.invalidateQueries({ queryKey: ['billing-note', v.id] });
+    },
+  });
+}
+export function useDeleteBillingNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`billing-notes/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-notes'] }),
+  });
+}
+export function useBillingNoteAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; action: string; body?: unknown }) =>
+      apiPost(`billing-notes/${v.id}/${v.action}`, v.body),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['billing-notes'] });
+      qc.invalidateQueries({ queryKey: ['billing-note', v.id] });
+    },
+  });
+}
+// New flow (Phase 2a): Invoice → Tax Invoice. VAT-only; BE returns 422
+// `ti.non_vat_blocked` for a non-VAT company (the caller toasts the detail).
+export function useCreateTaxInvoiceFromBillingNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiPost<{ tax_invoice_id: number }>(`billing-notes/${id}/create-tax-invoice`),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['billing-note', id] });
+      qc.invalidateQueries({ queryKey: ['tax-invoices'] });
     },
   });
 }
@@ -794,5 +1014,38 @@ export function useRevokeApiKey() {
   return useMutation({
     mutationFn: (id: number) => apiDelete(`api-keys/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+  });
+}
+
+// Sprint 13h P8 — cross-reference resolver used by the chip rows on TI/RC/CN/DN detail.
+import type { CrossRefDocType, DocumentCrossRefs } from './types';
+export function useCrossReferences(docType: CrossRefDocType, id: number | null) {
+  return useQuery({
+    queryKey: ['cross-refs', docType, id],
+    queryFn: () => apiGet<DocumentCrossRefs>(`document-cross-refs/${docType}/${id}`),
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    staleTime: 30_000,
+  });
+}
+
+// cont.69 Phase 3 (D7) — unified full document chain for the <DocumentChain> rail.
+import type { ChainAnchorType, DocumentChain } from './types';
+export function useDocumentChain(type: ChainAnchorType, id: number | null) {
+  return useQuery({
+    queryKey: ['doc-chain', type, id],
+    queryFn: () => apiGet<DocumentChain>(`documents/chain?type=${type}&id=${id}`),
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    staleTime: 30_000,
+  });
+}
+
+// Sprint 13j-FE D1 — document activity trail for the ActivityLog side rail.
+import type { ActivityDocType, ActivityEntry } from './types';
+export function useDocumentActivity(docType: ActivityDocType, id: number | null) {
+  return useQuery({
+    queryKey: ['activity', docType, id],
+    queryFn: () => apiGet<ActivityEntry[]>(`${docType}/${id}/activity`),
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    staleTime: 30_000,
   });
 }

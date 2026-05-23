@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "id": "02.02",
+    "title": "ตั้งค่าสินค้า/บริการ",
+    "chapter": "2. ตั้งค่าระบบ",
+    "intro": "สินค้า/บริการคือ master data ที่ใช้ในทุก line item ของเอกสาร\n(Quotation, Sales Order, Tax Invoice, Vendor Invoice). การตั้ง\n**ประเภท** ให้ถูกต้องสำคัญที่สุด — กระทบการคิด VAT 7% ทันที.\n\nระบบรองรับ 4 ประเภท:\n\n| ประเภท | VAT 7% | ตัวอย่าง |\n|---|---|---|\n| GOOD | ✓ ต้องเสีย | ตู้เลี้ยงปลา, เครื่องกรองน้ำ |\n| SERVICE | ✓ ต้องเสีย | ค่าที่ปรึกษา, ค่าบริการตรวจ |\n| EXEMPT_GOOD | — ยกเว้น | สัตว์มีชีวิต, อาหารสัตว์ |\n| EXEMPT_SERVICE | — ยกเว้น | บริการการศึกษา, ค่ารักษาพยาบาล |\n\nตั้งประเภทผิด → คิด VAT ผิด → ภ.พ.30 ยื่นผิด → โดนเบี้ยปรับ.\n\nรหัส (SKU) จะ lock หลังจากมีการใช้ใน document แล้ว — ตั้งให้ดีตั้งแต่แรก.\n\"ราคาตั้งต้น\" คือ default ที่ pre-fill ตอนเลือกสินค้าในเอกสาร — ผู้ใช้\nแก้ราคาในเอกสารได้ตามจริง.",
+    "prerequisites": [
+      "login (admin หรือ accountant)",
+      "manual-demo seed (10 product rows)"
+    ]
+  },
+  "steps": [
+    {
+      "walkthroughId": "02.02",
+      "stepId": "step-01-list",
+      "caption": "ขั้นที่ 1: หน้า \"สินค้า/บริการ\" — 10 รายการจาก seed. คอลัมน์: รหัส (SKU), ชื่อ (ไทย), ประเภท, ราคาตั้งต้น, สถานะ, [✏️ แก้ไข] [ปิดใช้งาน]",
+      "imageRel": "captures/02/02.02/step-01-list.png"
+    },
+    {
+      "walkthroughId": "02.02",
+      "stepId": "step-02-types-overview",
+      "caption": "ขั้นที่ 2: สังเกตคอลัมน์ \"ประเภท\" — แต่ละ row บอก VAT rule: EXEMPT_GOOD (MP-EXM-* ปลา/อาหารสัตว์ = VAT 0%), GOOD (MP-GD-* อุปกรณ์ = VAT 7%), SERVICE (MP-SVC-* บริการ = VAT 7% + อาจ WHT)",
+      "imageRel": "captures/02/02.02/step-02-types-overview.png"
+    },
+    {
+      "walkthroughId": "02.02",
+      "stepId": "step-03-add-modal",
+      "caption": "ขั้นที่ 3: คลิก \"+ เพิ่มสินค้า/บริการ\" → modal เปิด. Fields: รหัส (SKU)*, ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภท (dropdown 4 options), หน่วยนับ, ราคาตั้งต้น",
+      "imageRel": "captures/02/02.02/step-03-add-modal.png"
+    },
+    {
+      "walkthroughId": "02.02",
+      "stepId": "step-04-type-dropdown",
+      "caption": "ขั้นที่ 4: dropdown \"ประเภท\" มี 4 options: GOOD (default), SERVICE, EXEMPT_GOOD, EXEMPT_SERVICE. ตัวเลือกที่ขึ้นต้น \"EXEMPT_\" = ไม่คิด VAT 7%",
+      "imageRel": "captures/02/02.02/step-04-type-dropdown.png"
+    },
+    {
+      "walkthroughId": "02.02",
+      "stepId": "step-05-saved",
+      "caption": "ขั้นที่ 5: กด \"บันทึก\" → POST → toast \"บันทึก\" → row ใหม่ \"MP-SVC-KZMBB / ค่าออกแบบเว็บไซต์ KZMBB / SERVICE / 15,000.00 / ใช้งาน\" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร",
+      "imageRel": "captures/02/02.02/step-05-saved.png"
+    },
+    {
+      "walkthroughId": "02.02",
+      "stepId": "step-06-confirm-dialog",
+      "caption": "ขั้นที่ 6: กด \"ปิดใช้งาน\" → AlertDialog เปิด (เหมือน BU 02.01). ถ้าเอกสารเดิมอ้างสินค้านี้ — ยังอ้างได้ (soft delete + audit trail)",
+      "imageRel": "captures/02/02.02/step-06-confirm-dialog.png"
+    },
+    {
+      "walkthroughId": "02.02",
+      "stepId": "step-07-disabled",
+      "caption": "ขั้นที่ 7: row \"MP-SVC-KZMBB\" สถานะเปลี่ยนเป็น \"—\" + action เป็น \"↺ เปิดใช้งานใหม่\". Restore = PUT isActive=true (Sprint 13d-P4)",
+      "imageRel": "captures/02/02.02/step-07-disabled.png"
+    }
+  ],
+  "failure": null,
+  "capturedSteps": 7
+}

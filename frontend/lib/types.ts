@@ -14,12 +14,58 @@ export interface TaxInvoiceListItem {
   status: DocStatus;
   paymentStatus: string;
   currencyCode: string;
+  customerId: number;
+  businessUnitId: number | null;
 }
 
 export interface CursorPage<T> {
   items: T[];
   nextCursor: number | null;
   hasMore: boolean;
+}
+
+// Sprint 13d P6 — Company Profile (hybrid lock). Hard fields read-only in UI.
+export interface CompanyProfile {
+  companyId: number;
+  legalName: string;
+  taxId: string;
+  registrationNumber: string | null;
+  registeredAddressLine1: string;
+  registeredAddressLine2: string | null;
+  registeredSubdistrict: string | null;
+  registeredDistrict: string | null;
+  registeredProvince: string;
+  registeredPostalCode: string;
+  vatRegistrationDate: string | null;
+  branchCode: string;
+  tradeName: string | null;
+  logoUrl: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  contactName: string | null;
+  bankName: string | null;
+  bankAccountNo: string | null;
+  bankAccountName: string | null;
+}
+
+// Sprint 13d P3 — current user's effective scopes (drives PermissionGate).
+export interface MePermissions {
+  permissions: string[];
+  roles: string[];
+  isSuperAdmin: boolean;
+}
+
+export interface UpdateCompanyProfileSoftRequest {
+  tradeName: string | null;
+  logoUrl: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  contactName: string | null;
+  bankName: string | null;
+  bankAccountNo: string | null;
+  bankAccountName: string | null;
 }
 
 export interface TaxInvoiceDetailLine {
@@ -68,6 +114,7 @@ export interface TaxInvoiceDetail {
   businessUnitId: number | null;
   businessUnitCode: string | null;
   lines: TaxInvoiceDetailLine[];
+  quotationId?: number | null;   // Sprint 13h P6.1 — Q cross-ref
 }
 
 export interface NumberGapRow {
@@ -114,6 +161,7 @@ export interface CreateTaxInvoiceRequest {
   dueDate: string | null;
   lines: CreateTaxInvoiceLineInput[];
   businessUnitId?: number | null;   // Sprint 8
+  quotationId?: number | null;      // Sprint 13h P6.1 — optional Q origin
 }
 
 // ───────────────────────── Sprint 4: Receipt + CN/DN ─────────────────────────
@@ -122,6 +170,7 @@ export interface ReceiptListItem {
   receiptId: number; docNo: string | null; docDate: string;
   customerName: string; amount: number; status: DocStatus; currencyCode: string;
   whtAmount: number;
+  customerId: number; businessUnitId: number | null;
 }
 // Sprint 8.6 — AR-side WHT
 export interface WhtTypeListItem {
@@ -129,12 +178,28 @@ export interface WhtTypeListItem {
   rate: number; formType: string; incomeTypeCode: string;
   effectiveFrom: string; effectiveTo: string | null; isActive: boolean;
 }
+// Sprint (multi-category WHT, 2026-05-22) — one suggested withholding category.
+export interface WhtCategorySuggestion {
+  whtTypeId: number; code: string; nameTh: string;
+  rate: number; base: number; amount: number;
+}
+// Sprint (per-line WHT, 2026-05-22) — one applied TI line for per-line classification.
+export interface WhtSuggestLine {
+  tiDocNo: string | null; description: string; productType: string;
+  lineAmount: number; suggestedWhtTypeId: number | null;
+  suggestedCode: string | null; suggestedRate: number;
+}
 export interface WhtBaseSuggestion {
   appliedSubtotalExVat: number;
   suggestedWhtTypeId: number | null; suggestedWhtTypeCode: string | null;
   suggestedWhtRate: number; suggestedWhtBase: number;
   suggestedWhtAmount: number; explanation: string;
+  serviceSubtotal: number; goodsSubtotal: number;
+  categories: WhtCategorySuggestion[] | null;
+  lines: WhtSuggestLine[] | null;
 }
+// Sprint (multi-category WHT) — receipt WHT input line (rate/amount computed server-side).
+export interface ReceiptWhtLineInput { whtTypeId: number; baseAmount: number; }
 export interface WhtReceivableRegisterRow {
   docNo: string; docDate: string; customerName: string;
   customerTaxId: string | null; whtAmount: number; customerWhtCertNo: string | null;
@@ -154,6 +219,14 @@ export interface WhtReceivableAgingBuckets {
 export interface WhtReceivableAging {
   rows: WhtReceivableAgingRow[]; totalOutstanding: number;
   buckets: WhtReceivableAgingBuckets;
+}
+// Sprint 13j-tail — receipts missing the customer 50ทวิ cert no
+export interface WhtMissingCertRow {
+  receiptId: number; docNo: string; docDate: string;
+  customerName: string; customerTaxId: string | null; whtAmount: number;
+}
+export interface WhtMissingCertReport {
+  period: number; rows: WhtMissingCertRow[]; totalWht: number;
 }
 // Sprint 9 Part A — financial reports
 export interface TrialBalanceReportRow {
@@ -250,16 +323,29 @@ export interface ReceiptAppliedTo {
   taxInvoiceId: number; tiDocNo: string | null; appliedAmount: number;
   businessUnitCode: string | null;
 }
+// Sprint (receipt itemize, 2026-05-22) — goods/service line derived from applied TIs.
+export interface ReceiptLineView {
+  descriptionTh: string; productType: string; quantity: number; uomText: string;
+  unitPrice: number; lineAmount: number; tiDocNo: string | null;
+}
+// Sprint (multi-category WHT) — one income-type WHT slice on the receipt.
+export interface ReceiptWhtLineView {
+  whtTypeId: number; whtTypeCode: string; incomeTypeCode: string | null;
+  whtRate: number; baseAmount: number; whtAmount: number;
+}
 export interface ReceiptDetail {
   receiptId: number; docNo: string | null; status: DocStatus; docDate: string;
   customerName: string; customerTaxId: string | null; paymentMethod: string;
   chequeNo: string | null; amount: number; currencyCode: string; notes: string | null;
   postedAt: string | null; appliedTo: ReceiptAppliedTo[];
   businessUnitCode: string | null;
-  // Sprint 8.6 — AR-side WHT (0/null when none).
+  // Sprint 8.6 — AR-side WHT aggregate (0/null when none; prefer whtLines for breakdown).
   whtAmount: number; whtTypeCode: string | null; whtRate: number;
   whtBase: number; cashReceived: number;
   customerWhtCertNo: string | null; customerWhtCertDate: string | null;
+  // Sprint (receipt itemize + multi-category WHT, 2026-05-22).
+  lines: ReceiptLineView[] | null;
+  whtLines: ReceiptWhtLineView[] | null;
 }
 
 export type AdjustmentNoteType = 'Credit' | 'Debit';
@@ -267,6 +353,7 @@ export interface AdjustmentNoteListItem {
   noteId: number; docNo: string | null; noteType: AdjustmentNoteType; docDate: string;
   customerName: string; totalAmount: number; taxAmount: number; status: DocStatus;
   currencyCode: string; originalTaxInvoiceId: number;
+  customerId: number; businessUnitId: number | null;
 }
 export interface AdjustmentNoteDetail {
   noteId: number; docNo: string | null; noteType: AdjustmentNoteType; status: DocStatus;
@@ -438,6 +525,7 @@ export interface QuotationListItem {
   quotationId: number; docNo: string | null; status: string; docDate: string;
   validUntilDate: string; customerName: string; totalAmount: number;
   convertedToSoId: number | null;
+  customerId: number; businessUnitId: number | null;
 }
 export interface QuotationDetail {
   quotationId: number; docNo: string | null; status: string; docDate: string;
@@ -449,6 +537,7 @@ export interface QuotationDetail {
 export interface SalesOrderListItem {
   salesOrderId: number; docNo: string | null; status: string; docDate: string;
   customerName: string; totalAmount: number; quotationId: number | null;
+  customerId: number; businessUnitId: number | null;
 }
 export interface SalesOrderDetail {
   salesOrderId: number; docNo: string | null; status: string; docDate: string;
@@ -460,14 +549,53 @@ export interface DeliveryOrderListItem {
   deliveryOrderId: number; docNo: string | null; status: string; docDate: string;
   customerName: string; isCombinedWithTi: boolean;
   taxInvoiceId: number | null; salesOrderId: number | null;
+  customerId: number; businessUnitId: number | null;
 }
 export interface DeliveryOrderDetail {
   deliveryOrderId: number; docNo: string | null; status: string; docDate: string;
   customerId: number; customerName: string; businessUnitId: number | null;
   isCombinedWithTi: boolean; taxInvoiceId: number | null;
+  // Phase 2a (DO → Invoice): set once an Invoice has been created from this DO.
+  // Optional — older BE payloads omit it; the FE treats absent as "no invoice yet".
+  billingNoteId?: number | null;
   salesOrderId: number | null; subtotalAmount: number; vatAmount: number;
   totalAmount: number; lines: ChainLineDto[];
 }
+// Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล)
+export interface BillingNoteListItem {
+  billingNoteId: number; docNo: string | null; status: string;
+  docDate: string; dueDate: string; customerName: string;
+  totalAmount: number; quotationId: number | null;
+  customerId: number; businessUnitId: number | null;
+}
+// Sprint 13i C7 — a TaxInvoice grouped by a BN, from the join table.
+export interface BillingNoteTaxInvoiceRef {
+  taxInvoiceId: number; docNo: string | null; appliedAmount: number;
+}
+export interface BillingNoteDetail {
+  billingNoteId: number; docNo: string | null; status: string;
+  docDate: string; dueDate: string; customerId: number; customerName: string;
+  businessUnitId: number | null; quotationId: number | null;
+  taxInvoices: BillingNoteTaxInvoiceRef[];
+  currencyCode: string; subtotalAmount: number; vatAmount: number; totalAmount: number;
+  notes: string | null; lines: ChainLineDto[];
+}
+export interface BillingLineInput {
+  productId: number | null; taxInvoiceId: number | null;
+  descriptionTh: string; quantity: number; uomText: string;
+  unitPrice: number; discountPercent: number;
+  taxCodeId: number; taxCode: string; taxRate: number;
+  productType: string | null;
+}
+export interface CreateBillingNoteRequest {
+  docDate: string; dueDate: string; customerId: number;
+  businessUnitId: number | null; quotationId: number | null;
+  taxInvoiceIds: number[] | null;
+  currencyCode: string; exchangeRate: number;
+  notes: string | null; internalNotes: string | null;
+  lines: BillingLineInput[];
+}
+
 // Sprint 11 — file attachments (polymorphic)
 export interface AttachmentItem {
   attachmentId: number; category: string; fileName: string; mimeType: string;
@@ -519,4 +647,139 @@ export interface CreateApiKeyRequest {
 }
 export interface ApiKeyCreatedResult {
   apiKeyId: number; name: string; keyPrefix: string; plaintext: string;
+}
+
+// Sprint 13h P8 — cross-reference graph used by useCrossReferences / cross-ref chips.
+export interface DocumentRef {
+  id: number; docNo: string | null; status: string;
+}
+export interface ReceiptRef extends DocumentRef {
+  appliedAmount: number;
+}
+export interface DocumentCrossRefs {
+  quotation: DocumentRef | null;
+  salesOrder: DocumentRef | null;
+  deliveryOrder: DocumentRef | null;
+  taxInvoices: DocumentRef[];
+  receipts: ReceiptRef[];
+  creditNotes: DocumentRef[];
+  debitNotes: DocumentRef[];
+  billingNotes: DocumentRef[];
+}
+export type CrossRefDocType = 'tax-invoice' | 'receipt' | 'adjustment-note';
+
+// cont.69 Phase 3 (D7) — unified full document chain (Q→SO→DO→Invoice→TI→RC + CN/DN).
+export interface ChainNode {
+  id: number; docNo: string | null; docDate: string; status: string; total: number;
+}
+export interface DocumentChain {
+  quotation: ChainNode | null;
+  salesOrder: ChainNode | null;
+  deliveryOrders: ChainNode[];
+  invoices: ChainNode[];
+  taxInvoices: ChainNode[];
+  receipts: ChainNode[];
+  adjustmentNotes: ChainNode[];
+}
+// Anchor type passed to GET /documents/chain?type=…
+export type ChainAnchorType =
+  | 'quotation' | 'sales-order' | 'delivery-order' | 'billing-note'
+  | 'tax-invoice' | 'receipt' | 'adjustment-note';
+
+// Sprint 13j-FE D1 — audit activity trail entry (GET /{docType}/{id}/activity).
+export interface ActivityEntry {
+  actor: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  at: string;
+  note: string | null;
+}
+// Route segment used by the activity endpoint (one per sales doctype).
+export type ActivityDocType =
+  | 'quotations'
+  | 'sales-orders'
+  | 'delivery-orders'
+  | 'tax-invoices'
+  | 'receipts'
+  | 'credit-notes'
+  | 'debit-notes'
+  | 'billing-notes';
+
+// Sprint 13j-FE — print tracking (POST /{docType}/{id}/mark-printed?copy=).
+export interface PrintMarkResult {
+  originalPrintedAt: string | null;
+  printCount: number;
+  wasReprint: boolean;
+}
+
+// ───────────────────────── Customer master (sales) ─────────────────────────
+export type CustomerType = 'Individual' | 'Corporate';
+// Mirrors Application.Master.CustomerDto (GET /customers, GET /customers/{id}).
+export interface CustomerListItem {
+  customerId: number;
+  customerCode: string;
+  customerType: CustomerType;
+  nameTh: string;
+  nameEn: string | null;
+  taxId: string | null;
+  branchCode: string | null;
+  vatRegistered: boolean;
+  creditLimit: number;
+  isActive: boolean;
+}
+// Mirrors Application.Master.CreateCustomerRequest (POST /customers).
+export interface CreateCustomerRequest {
+  customerCode: string;
+  customerType: CustomerType;
+  nameTh: string;
+  nameEn: string | null;
+  taxId: string | null;
+  branchCode: string | null;
+  branchName: string | null;
+  vatRegistered: boolean;
+  billingAddress: string | null;
+  contactPerson: string | null;
+  phone: string | null;
+  email: string | null;
+  creditLimit: number;
+  paymentTermDays: number;
+  defaultCurrency: string;
+}
+// Mirrors Application.Master.CustomerDetailDto (GET /customers/{id}).
+export interface CustomerDetail {
+  customerId: number;
+  customerCode: string;
+  customerType: CustomerType;
+  nameTh: string;
+  nameEn: string | null;
+  taxId: string | null;
+  branchCode: string | null;
+  branchName: string | null;
+  vatRegistered: boolean;
+  billingAddress: string | null;
+  contactPerson: string | null;
+  phone: string | null;
+  email: string | null;
+  creditLimit: number;
+  paymentTermDays: number;
+  defaultCurrency: string;
+  isActive: boolean;
+}
+// Mirrors Application.Master.UpdateCustomerRequest (PUT /customers/{id}).
+export interface UpdateCustomerRequest {
+  nameTh: string;
+  nameEn: string | null;
+  taxId: string | null;
+  branchCode: string | null;
+  branchName: string | null;
+  vatRegistered: boolean;
+  billingAddress: string | null;
+  contactPerson: string | null;
+  phone: string | null;
+  email: string | null;
+  creditLimit: number;
+  paymentTermDays: number;
+  defaultCurrency: string;
+  isActive: boolean;
 }

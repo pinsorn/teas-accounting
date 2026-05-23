@@ -51,6 +51,7 @@ public class AccountingDbContext : DbContext
     public DbSet<Vendor>          Vendors         => Set<Vendor>();
     public DbSet<BusinessUnit>    BusinessUnits   => Set<BusinessUnit>();
     public DbSet<Product>         Products        => Set<Product>();
+    public DbSet<CompanyProfile>  CompanyProfiles => Set<CompanyProfile>();
 
     // Tax
     public DbSet<TaxCode>         TaxCodes        => Set<TaxCode>();
@@ -78,6 +79,8 @@ public class AccountingDbContext : DbContext
     public DbSet<TaxInvoiceLine>      TaxInvoiceLines     => Set<TaxInvoiceLine>();
     public DbSet<Receipt>             Receipts            => Set<Receipt>();
     public DbSet<ReceiptApplication>  ReceiptApplications => Set<ReceiptApplication>();
+    public DbSet<ReceiptWhtLine>      ReceiptWhtLines     => Set<ReceiptWhtLine>();
+    public DbSet<ReceiptLine>         ReceiptLines        => Set<ReceiptLine>();
     public DbSet<TaxAdjustmentNote>   TaxAdjustmentNotes  => Set<TaxAdjustmentNote>();
     public DbSet<Quotation>           Quotations          => Set<Quotation>();
     public DbSet<QuotationLine>       QuotationLines      => Set<QuotationLine>();
@@ -85,6 +88,11 @@ public class AccountingDbContext : DbContext
     public DbSet<SalesOrderLine>      SalesOrderLines     => Set<SalesOrderLine>();
     public DbSet<DeliveryOrder>       DeliveryOrders      => Set<DeliveryOrder>();
     public DbSet<DeliveryOrderLine>   DeliveryOrderLines  => Set<DeliveryOrderLine>();
+    // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล)
+    public DbSet<BillingNote>         BillingNotes        => Set<BillingNote>();
+    public DbSet<BillingNoteLine>     BillingNoteLines    => Set<BillingNoteLine>();
+    // Sprint 13i C7 — BN ↔ TI join table
+    public DbSet<BillingNoteTaxInvoice> BillingNoteTaxInvoices => Set<BillingNoteTaxInvoice>();
 
     // Audit
     public DbSet<ActivityLog>     ActivityLogs    => Set<ActivityLog>();

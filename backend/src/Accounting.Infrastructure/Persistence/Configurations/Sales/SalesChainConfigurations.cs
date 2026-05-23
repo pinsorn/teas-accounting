@@ -53,6 +53,7 @@ internal sealed class QuotationLineConfiguration : IEntityTypeConfiguration<Quot
         b.ToTable("quotation_lines", "sales");
         b.HasKey(l => l.LineId);
         b.Property(l => l.ProductCode).HasMaxLength(50);
+        b.Property(l => l.ProductType).HasMaxLength(20).IsRequired();  // Sprint 13h P7 + 13i C5 NOT NULL
         b.Property(l => l.DescriptionTh).HasMaxLength(500).IsRequired();
         b.Property(l => l.UomText).HasMaxLength(50).IsRequired();
         b.Property(l => l.TaxCode).HasMaxLength(20).IsRequired();
@@ -109,6 +110,7 @@ internal sealed class SalesOrderLineConfiguration : IEntityTypeConfiguration<Sal
         b.ToTable("sales_order_lines", "sales");
         b.HasKey(l => l.LineId);
         b.Property(l => l.ProductCode).HasMaxLength(50);
+        b.Property(l => l.ProductType).HasMaxLength(20).IsRequired();  // Sprint 13h P7 + 13i C5 NOT NULL
         b.Property(l => l.DescriptionTh).HasMaxLength(500).IsRequired();
         b.Property(l => l.UomText).HasMaxLength(50).IsRequired();
         b.Property(l => l.TaxCode).HasMaxLength(20).IsRequired();
@@ -159,6 +161,90 @@ internal sealed class DeliveryOrderConfiguration : IEntityTypeConfiguration<Deli
     }
 }
 
+// Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้). Header + lines. Optional grouping of
+// TaxInvoices via long[] (PG array) on the header. Numbering on Issue.
+internal sealed class BillingNoteConfiguration : IEntityTypeConfiguration<BillingNote>
+{
+    public void Configure(EntityTypeBuilder<BillingNote> b)
+    {
+        b.ToTable("billing_notes", "sales");
+        b.HasKey(x => x.BillingNoteId);
+        b.Property(x => x.DocNo).HasMaxLength(40);
+        b.Property(x => x.Status).HasConversion(
+            v => v.ToString().ToUpperInvariant(),
+            v => Enum.Parse<BillingNoteStatus>(v, true)).HasMaxLength(20);
+        b.Property(x => x.CustomerName).HasMaxLength(255).IsRequired();
+        b.Property(x => x.CustomerAddress).HasColumnType("text");
+        b.Property(x => x.CustomerTaxId).HasMaxLength(13);
+        b.Property(x => x.CustomerType).HasConversion(
+            v => v.ToString().ToUpperInvariant(),
+            v => Enum.Parse<CustomerType>(v, true)).HasMaxLength(20);
+        b.Property(x => x.CurrencyCode).HasMaxLength(3);
+        b.Property(x => x.ExchangeRate).HasPrecision(19, 6);
+        b.Property(x => x.SubtotalAmount).HasPrecision(19, 4);
+        b.Property(x => x.VatAmount).HasPrecision(19, 4);
+        b.Property(x => x.TotalAmount).HasPrecision(19, 4);
+        b.Property(x => x.Notes).HasMaxLength(2000);
+        b.Property(x => x.InternalNotes).HasMaxLength(2000);
+        b.Property(x => x.CancelledReason).HasMaxLength(500);
+        b.Property(x => x.IssuedAt).HasColumnType("timestamptz(3)");
+        b.Property(x => x.SettledAt).HasColumnType("timestamptz(3)");
+        b.Property(x => x.CreatedAt).HasColumnType("timestamptz(3)");
+        b.Property(x => x.UpdatedAt).HasColumnType("timestamptz(3)");
+        b.Property(x => x.Version).IsConcurrencyToken();
+        b.HasIndex(x => new { x.CompanyId, x.DocNo }).IsUnique()
+            .HasFilter("doc_no IS NOT NULL");
+        b.HasOne<Quotation>().WithMany().HasForeignKey(x => x.QuotationId)
+            .OnDelete(DeleteBehavior.Restrict);
+        // cont.69 Phase 1 — source DO link (DO → Invoice).
+        b.HasOne<DeliveryOrder>().WithMany().HasForeignKey(x => x.DeliveryOrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.DeliveryOrderId).HasFilter("delivery_order_id IS NOT NULL");
+    }
+}
+
+// Sprint 13i C7 — BN ↔ TI join table. Composite PK, persisted applied_amount.
+internal sealed class BillingNoteTaxInvoiceConfiguration : IEntityTypeConfiguration<BillingNoteTaxInvoice>
+{
+    public void Configure(EntityTypeBuilder<BillingNoteTaxInvoice> b)
+    {
+        b.ToTable("billing_note_tax_invoices", "sales");
+        b.HasKey(x => new { x.BillingNoteId, x.TaxInvoiceId });
+        b.Property(x => x.AppliedAmount).HasPrecision(19, 4);
+        b.HasOne<BillingNote>().WithMany(bn => bn.TaxInvoiceLinks)
+            .HasForeignKey(x => x.BillingNoteId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne<TaxInvoice>().WithMany().HasForeignKey(x => x.TaxInvoiceId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.TaxInvoiceId);
+    }
+}
+
+internal sealed class BillingNoteLineConfiguration : IEntityTypeConfiguration<BillingNoteLine>
+{
+    public void Configure(EntityTypeBuilder<BillingNoteLine> b)
+    {
+        b.ToTable("billing_note_lines", "sales");
+        b.HasKey(l => l.LineId);
+        b.Property(l => l.ProductCode).HasMaxLength(50);
+        b.Property(l => l.ProductType).HasMaxLength(20).IsRequired();  // Sprint 13i C5 NOT NULL
+        b.Property(l => l.DescriptionTh).HasMaxLength(500).IsRequired();
+        b.Property(l => l.UomText).HasMaxLength(50).IsRequired();
+        b.Property(l => l.TaxCode).HasMaxLength(20).IsRequired();
+        foreach (var p in new[] { nameof(BillingNoteLine.Quantity), nameof(BillingNoteLine.UnitPrice),
+            nameof(BillingNoteLine.DiscountPercent), nameof(BillingNoteLine.DiscountAmount),
+            nameof(BillingNoteLine.LineAmount), nameof(BillingNoteLine.TaxAmount), nameof(BillingNoteLine.TotalAmount) })
+            b.Property(p).HasPrecision(19, 4);
+        b.Property(l => l.TaxRate).HasPrecision(9, 6);
+        b.HasOne<BillingNote>().WithMany(bn => bn.Lines)
+            .HasForeignKey(l => l.BillingNoteId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<TaxInvoice>().WithMany().HasForeignKey(l => l.TaxInvoiceId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(l => new { l.BillingNoteId, l.LineNo }).IsUnique();
+    }
+}
+
 internal sealed class DeliveryOrderLineConfiguration : IEntityTypeConfiguration<DeliveryOrderLine>
 {
     public void Configure(EntityTypeBuilder<DeliveryOrderLine> b)
@@ -166,6 +252,7 @@ internal sealed class DeliveryOrderLineConfiguration : IEntityTypeConfiguration<
         b.ToTable("delivery_order_lines", "sales");
         b.HasKey(l => l.LineId);
         b.Property(l => l.ProductCode).HasMaxLength(50);
+        b.Property(l => l.ProductType).HasMaxLength(20).IsRequired();  // Sprint 13h P7 + 13i C5 NOT NULL
         b.Property(l => l.DescriptionTh).HasMaxLength(500).IsRequired();
         b.Property(l => l.UomText).HasMaxLength(50).IsRequired();
         b.Property(l => l.TaxCode).HasMaxLength(20).IsRequired();

@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ApiError } from '@/lib/api-client';
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -11,7 +12,13 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 30_000,
             refetchOnWindowFocus: false,
-            retry: 1,
+            // 4xx (auth/permission/validation) are deterministic — never
+            // retry (Sprint 13d P2: no 403 retry loop). 5xx/network → once.
+            retry: (failureCount, error) => {
+              if (error instanceof ApiError
+                  && error.status >= 400 && error.status < 500) return false;
+              return failureCount < 1;
+            },
           },
         },
       }),

@@ -27,6 +27,7 @@ public interface IWhtTypeService
     Task<int> CreateAsync(CreateWhtTypeRequest req, CancellationToken ct);
     Task UpdateAsync(int id, UpdateWhtTypeRequest req, CancellationToken ct);
     Task DeactivateAsync(int id, CancellationToken ct);
+    Task ReactivateAsync(int id, CancellationToken ct);   // Sprint 13f P2
     Task<IReadOnlyList<WhtTypeListItem>> ListAsync(bool includeInactive, CancellationToken ct);
     Task<WhtTypeDetail?> GetAsync(int id, CancellationToken ct);
 

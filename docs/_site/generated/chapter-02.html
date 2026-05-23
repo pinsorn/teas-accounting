@@ -1,0 +1,1702 @@
+
+<!doctype html>
+<html lang="th" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Thailand Enterprise Accounting System — User Manual (TH)">
+      
+      
+      
+      
+        <link rel="prev" href="chapter-01.html">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>บทที่ 2 — ตั้งค่าระบบ - คู่มือการใช้งาน TEAS</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Sarabun:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Sarabun";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/manual.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#2" class="md-skip">
+          ข้ามไปที่เนื้อหา
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="หัวข้อ">
+    <a href="../index.html" title="คู่มือการใช้งาน TEAS" class="md-header__button md-logo" aria-label="คู่มือการใช้งาน TEAS" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            คู่มือการใช้งาน TEAS
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              บทที่ 2 — ตั้งค่าระบบ
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="ค้นหา" placeholder="ค้นหา" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="ค้นหา">
+        
+        <button type="reset" class="md-search__icon md-icon" title="ล้าง" aria-label="ล้าง" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            กำลังเริ่มต้นการค้นหา
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="ตัวนำทาง" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="คู่มือการใช้งาน TEAS" class="md-nav__button md-logo" aria-label="คู่มือการใช้งาน TEAS" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    คู่มือการใช้งาน TEAS
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    บทนำ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="chapter-01.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    บทที่ 1 — เริ่มต้นใช้งาน
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    บทที่ 2 — ตั้งค่าระบบ
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="chapter-02.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    บทที่ 2 — ตั้งค่าระบบ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="สารบัญ">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      สารบัญ
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0201-business-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.01 — ตั้งค่าหน่วยธุรกิจ (Business Unit)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.01 — ตั้งค่าหน่วยธุรกิจ (Business Unit)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 8
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0202" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.02 — ตั้งค่าสินค้า/บริการ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.02 — ตั้งค่าสินค้า/บริการ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0203-admin-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.03 — ตั้งค่าประเภทหัก ณ ที่จ่าย (Admin only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.03 — ตั้งค่าประเภทหัก ณ ที่จ่าย (Admin only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 8
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0204-api-keys-admin-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.04 — สร้าง API Keys (Admin only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.04 — สร้าง API Keys (Admin only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0205-company-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.05 — ตั้งค่าข้อมูลบริษัท (Company Profile — ทำก่อนเป็นอันแรก)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.05 — ตั้งค่าข้อมูลบริษัท (Company Profile — ทำก่อนเป็นอันแรก)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 8
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="สารบัญ">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      สารบัญ
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0201-business-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.01 — ตั้งค่าหน่วยธุรกิจ (Business Unit)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.01 — ตั้งค่าหน่วยธุรกิจ (Business Unit)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 8
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0202" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.02 — ตั้งค่าสินค้า/บริการ
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.02 — ตั้งค่าสินค้า/บริการ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0203-admin-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.03 — ตั้งค่าประเภทหัก ณ ที่จ่าย (Admin only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.03 — ตั้งค่าประเภทหัก ณ ที่จ่าย (Admin only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 8
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0204-api-keys-admin-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.04 — สร้าง API Keys (Admin only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.04 — สร้าง API Keys (Admin only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0205-company-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        02.05 — ตั้งค่าข้อมูลบริษัท (Company Profile — ทำก่อนเป็นอันแรก)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="02.05 — ตั้งค่าข้อมูลบริษัท (Company Profile — ทำก่อนเป็นอันแรก)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 5
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 7
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 8
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="2">2. ตั้งค่าระบบ</h1>
+<h2 id="0201-business-unit">02.01 — ตั้งค่าหน่วยธุรกิจ (Business Unit)</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login ในฐานะ admin หรือ accountant (ทั้งคู่มีสิทธิ์ master.business_unit.manage) · manual-demo seed applied (ECOM/LAB/REPT)</p>
+</blockquote>
+<p>หน่วยธุรกิจ (BU) ใช้แบ่งกลุ่มภายในบริษัทเดียวกัน — รหัส BU (อักษรพิมพ์ใหญ่
+A-Z + ตัวเลข ≤20 ตัว) จะถูกแทรกใน prefix เลขเอกสาร เช่น
+<code>12-2026-TI-ECOM-0001</code>.</p>
+<p>ตั้งให้เรียบร้อยก่อนเริ่มออกเอกสาร — เปลี่ยนรหัสภายหลังจะกระทบเอกสารเก่า
+ที่อ้างรหัสเดิม.</p>
+<p>ในบทนี้คุณจะได้สาธิตทั้ง 4 actions: เพิ่ม → แก้ไข → ปิดใช้งาน → เปิดใช้งานใหม่.</p>
+<h3 id="1">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-list" src="../captures/02/02.01/step-01-list.png" />
+<br />
+<figcaption>หน้า "หน่วยธุรกิจ (Business Unit)" — 3 BUs จาก seed (ECOM อีคอมเมิร์ซ / LAB แล็บ / REPT สัตว์เลื้อยคลาน). คอลัมน์: รหัส, ชื่อ (ไทย), ชื่อ (อังกฤษ), ใช้งาน, [✏️ แก้ไข] [ปิดใช้งาน]</figcaption>
+</figure>
+<h3 id="2_1">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-enforce-toggle" src="../captures/02/02.01/step-02-enforce-toggle.png" />
+<br />
+<figcaption>toggle "บังคับระบุหน่วยธุรกิจในเอกสารรายได้" — เมื่อเปิด: ออกใบกำกับภาษี/ใบเสร็จ/ใบลดหนี้/ใบเพิ่มหนี้ ต้องเลือก BU ทุกครั้ง (กดยังต่อไม่ได้ถ้าไม่เลือก)</figcaption>
+</figure>
+<h3 id="3">ขั้นที่ 3</h3>
+<figure>
+  <img alt="step-03-add-modal" src="../captures/02/02.01/step-03-add-modal.png" />
+<br />
+<figcaption>คลิก "+ เพิ่มหน่วยธุรกิจ" → modal เปิด. Fields: รหัส* (A-Z + 0-9, ≤20), ชื่อ (ไทย)*, ชื่อ (อังกฤษ). ปุ่ม "บันทึก" จะ enable เมื่อกรอก required ครบ</figcaption>
+</figure>
+<h3 id="4">ขั้นที่ 4</h3>
+<figure>
+  <img alt="step-04-saved" src="../captures/02/02.01/step-04-saved.png" />
+<br />
+<figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "TKZDIU / ทดสอบ KZDIU / Test BU KZDIU" ปรากฏพร้อม ✓ ใช้งาน</figcaption>
+</figure>
+<h3 id="5">ขั้นที่ 5</h3>
+<figure>
+  <img alt="step-05-edit" src="../captures/02/02.01/step-05-edit.png" />
+<br />
+<figcaption>คลิก ✏️ แก้ไข ใน row "TKZDIU" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU KZDIU (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption>
+</figure>
+<h3 id="6">ขั้นที่ 6</h3>
+<figure>
+  <img alt="step-06-confirm-dialog" src="../captures/02/02.01/step-06-confirm-dialog.png" />
+<br />
+<figcaption>กด "ปิดใช้งาน" → custom AlertDialog เปิด (Sprint 13d-P1): "⚠️ ยืนยันการทำรายการ — ปิดใช้งานหน่วยธุรกิจนี้? เอกสารเดิมยังอ้างอิงได้". 2 ปุ่ม: "ยกเลิก" (เทา) + "ยืนยัน" (สีแดง — destructive variant)</figcaption>
+</figure>
+<h3 id="7">ขั้นที่ 7</h3>
+<figure>
+  <img alt="step-07-disabled" src="../captures/02/02.01/step-07-disabled.png" />
+<br />
+<figcaption>ยืนยัน → DELETE 204 (soft) → "TKZDIU" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption>
+</figure>
+<h3 id="8">ขั้นที่ 8</h3>
+<figure>
+  <img alt="step-08-restored" src="../captures/02/02.01/step-08-restored.png" />
+<br />
+<figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "TKZDIU" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption>
+</figure>
+<h2 id="0202">02.02 — ตั้งค่าสินค้า/บริการ</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login (admin หรือ accountant) · manual-demo seed (10 product rows)</p>
+</blockquote>
+<p>สินค้า/บริการคือ master data ที่ใช้ในทุก line item ของเอกสาร
+(Quotation, Sales Order, Tax Invoice, Vendor Invoice). การตั้ง
+<strong>ประเภท</strong> ให้ถูกต้องสำคัญที่สุด — กระทบการคิด VAT 7% ทันที.</p>
+<p>ระบบรองรับ 4 ประเภท:</p>
+<table>
+<thead>
+<tr>
+<th>ประเภท</th>
+<th>VAT 7%</th>
+<th>ตัวอย่าง</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GOOD</td>
+<td>✓ ต้องเสีย</td>
+<td>ตู้เลี้ยงปลา, เครื่องกรองน้ำ</td>
+</tr>
+<tr>
+<td>SERVICE</td>
+<td>✓ ต้องเสีย</td>
+<td>ค่าที่ปรึกษา, ค่าบริการตรวจ</td>
+</tr>
+<tr>
+<td>EXEMPT_GOOD</td>
+<td>— ยกเว้น</td>
+<td>สัตว์มีชีวิต, อาหารสัตว์</td>
+</tr>
+<tr>
+<td>EXEMPT_SERVICE</td>
+<td>— ยกเว้น</td>
+<td>บริการการศึกษา, ค่ารักษาพยาบาล</td>
+</tr>
+</tbody>
+</table>
+<p>ตั้งประเภทผิด → คิด VAT ผิด → ภ.พ.30 ยื่นผิด → โดนเบี้ยปรับ.</p>
+<p>รหัส (SKU) จะ lock หลังจากมีการใช้ใน document แล้ว — ตั้งให้ดีตั้งแต่แรก.
+"ราคาตั้งต้น" คือ default ที่ pre-fill ตอนเลือกสินค้าในเอกสาร — ผู้ใช้
+แก้ราคาในเอกสารได้ตามจริง.</p>
+<h3 id="1_1">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-list" src="../captures/02/02.02/step-01-list.png" />
+<br />
+<figcaption>หน้า "สินค้า/บริการ" — 10 รายการจาก seed. คอลัมน์: รหัส (SKU), ชื่อ (ไทย), ประเภท, ราคาตั้งต้น, สถานะ, [✏️ แก้ไข] [ปิดใช้งาน]</figcaption>
+</figure>
+<h3 id="2_2">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-types-overview" src="../captures/02/02.02/step-02-types-overview.png" />
+<br />
+<figcaption>สังเกตคอลัมน์ "ประเภท" — แต่ละ row บอก VAT rule: EXEMPT_GOOD (MP-EXM-* ปลา/อาหารสัตว์ = VAT 0%), GOOD (MP-GD-* อุปกรณ์ = VAT 7%), SERVICE (MP-SVC-* บริการ = VAT 7% + อาจ WHT)</figcaption>
+</figure>
+<h3 id="3_1">ขั้นที่ 3</h3>
+<figure>
+  <img alt="step-03-add-modal" src="../captures/02/02.02/step-03-add-modal.png" />
+<br />
+<figcaption>คลิก "+ เพิ่มสินค้า/บริการ" → modal เปิด. Fields: รหัส (SKU)*, ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภท (dropdown 4 options), หน่วยนับ, ราคาตั้งต้น</figcaption>
+</figure>
+<h3 id="4_1">ขั้นที่ 4</h3>
+<figure>
+  <img alt="step-04-type-dropdown" src="../captures/02/02.02/step-04-type-dropdown.png" />
+<br />
+<figcaption>dropdown "ประเภท" มี 4 options: GOOD (default), SERVICE, EXEMPT_GOOD, EXEMPT_SERVICE. ตัวเลือกที่ขึ้นต้น "EXEMPT_" = ไม่คิด VAT 7%</figcaption>
+</figure>
+<h3 id="5_1">ขั้นที่ 5</h3>
+<figure>
+  <img alt="step-05-saved" src="../captures/02/02.02/step-05-saved.png" />
+<br />
+<figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-KZMBB / ค่าออกแบบเว็บไซต์ KZMBB / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption>
+</figure>
+<h3 id="6_1">ขั้นที่ 6</h3>
+<figure>
+  <img alt="step-06-confirm-dialog" src="../captures/02/02.02/step-06-confirm-dialog.png" />
+<br />
+<figcaption>กด "ปิดใช้งาน" → AlertDialog เปิด (เหมือน BU 02.01). ถ้าเอกสารเดิมอ้างสินค้านี้ — ยังอ้างได้ (soft delete + audit trail)</figcaption>
+</figure>
+<h3 id="7_1">ขั้นที่ 7</h3>
+<figure>
+  <img alt="step-07-disabled" src="../captures/02/02.02/step-07-disabled.png" />
+<br />
+<figcaption>row "MP-SVC-KZMBB" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption>
+</figure>
+<h2 id="0203-admin-only">02.03 — ตั้งค่าประเภทหัก ณ ที่จ่าย (Admin only)</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login ในฐานะ ADMIN (demo-admin) — ไม่ใช่ accountant · manual-demo seed (3 WHT rows: ADS/RENT/SVC)</p>
+</blockquote>
+<p>ระบบหัก ณ ที่จ่าย (WHT) ในไทยต้องระบุ 3 อย่างพร้อมกัน:</p>
+<ol>
+<li><strong>ประเภทเงินได้ (มาตรา 40)</strong> — บอกประเภทของรายได้
+   (ม.40(2) ค่าจ้าง, ม.40(3) ค่าลิขสิทธิ์, ม.40(4) ดอกเบี้ย/ปันผล,
+   ม.40(5) ค่าเช่า, ม.40(6) วิชาชีพอิสระ, ม.40(7) รับเหมา, ม.40(8) อื่น ๆ)</li>
+<li><strong>อัตรา (%)</strong> — เปอร์เซ็นต์หัก ณ ที่จ่าย (เช่น 3%, 5%, 15%)</li>
+<li><strong>แบบยื่น</strong> — ภ.ง.ด.1 (เงินเดือน) / ภ.ง.ด.3 (จ่ายให้บุคคล) /
+   ภ.ง.ด.53 (จ่ายให้นิติบุคคล) / ภ.ง.ด.54 (จ่ายต่างประเทศ)</li>
+</ol>
+<p><strong>Effective-date pattern</strong>: อัตรา WHT เปลี่ยนตามกฎหมายเป็นบางช่วง — ระบบ
+เก็บประวัติอัตราผ่านปุ่ม "เปลี่ยนอัตรา" (ดู step 4). ระบบจะใช้อัตรา
+ที่ถูกต้องตามวันที่เอกสารจริง ไม่ใช่อัตราล่าสุด — สอดคล้องกับเอกสารเก่า
+ที่ออกก่อนเปลี่ยนกฎหมาย.</p>
+<p><strong>ต้องเป็น admin role</strong> (<code>tax.wht_type.manage</code> scope) เพื่อจะ CRUD —
+accountant อ่านได้แต่ไม่เห็นปุ่ม action.</p>
+<h3 id="1_2">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-list" src="../captures/02/02.03/step-01-list.png" />
+<br />
+<figcaption>หน้า "ประเภทหัก ณ ที่จ่าย" — 3 ประเภทจาก seed สำหรับ tenant นี้: ADS (ค่าโฆษณา) 2% PND53, RENT (ค่าเช่า) 5% PND3, SVC (ค่าบริการ) 3% PND53. หมายเหตุ: Sprint 13f แก้ cross-tenant leak — ก่อนหน้านี้ admin เห็น 18 rows รวมข้อมูล tenant อื่น</figcaption>
+</figure>
+<h3 id="2_3">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-row-columns" src="../captures/02/02.03/step-02-row-columns.png" />
+<br />
+<figcaption>แต่ละ row บอก รหัส, ชื่อ, อัตรา, แบบยื่น (PND3/PND53), ประเภทเงินได้ (ม.40), ช่วงมีผล (มีผลตั้งแต่ — ถึง), สถานะ, actions: [✏️ แก้ไข] [% เปลี่ยนอัตรา] [ปิดใช้งาน]</figcaption>
+</figure>
+<h3 id="3_2">ขั้นที่ 3</h3>
+<figure>
+  <img alt="step-03-effective-dates" src="../captures/02/02.03/step-03-effective-dates.png" />
+<br />
+<figcaption>คอลัมน์ "มีผลตั้งแต่ / ถึง" — แสดงช่วงเวลาที่อัตรานี้ใช้. "ปัจจุบัน" = row ที่ใช้อยู่ตอนนี้. row เก่ามี "ถึง" เป็นวันที่ — ใช้กับ เอกสารที่ออกก่อนวันนั้น (เก็บประวัติเพื่อ render เอกสารเก่าถูกต้อง)</figcaption>
+</figure>
+<h3 id="4_2">ขั้นที่ 4</h3>
+<figure>
+  <img alt="step-04-change-rate-btn" src="../captures/02/02.03/step-04-change-rate-btn.png" />
+<br />
+<figcaption>ปุ่ม "% เปลี่ยนอัตรา" — ใช้เมื่อกฎหมายเปลี่ยนอัตรา (เช่น สรรพากรลด WHT 3% → 1.5%). ระบบจะสร้าง row ใหม่ + set "ถึง" ของ row เก่าเป็นวันก่อนหน้า → เอกสารเก่าใช้อัตราเดิม, เอกสารใหม่ ใช้อัตราใหม่ (effective-date pattern, plan §16.4)</figcaption>
+</figure>
+<h3 id="5_2">ขั้นที่ 5</h3>
+<figure>
+  <img alt="step-05-add-modal" src="../captures/02/02.03/step-05-add-modal.png" />
+<br />
+<figcaption>คลิก "+ เพิ่มประเภท" → modal เปิด. Fields: รหัส*, ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภทเงินได้ (ม.40)*, แบบยื่น (dropdown), อัตรา (%)*</figcaption>
+</figure>
+<h3 id="6_2">ขั้นที่ 6</h3>
+<figure>
+  <img alt="step-06-form-dropdown" src="../captures/02/02.03/step-06-form-dropdown.png" />
+<br />
+<figcaption>dropdown "แบบยื่น" — ภ.ง.ด.1 (เงินเดือน), ภ.ง.ด.3 (บุคคลธรรมดา), ภ.ง.ด.53 (นิติบุคคล — ใช้บ่อยสุด)</figcaption>
+</figure>
+<h3 id="7_2">ขั้นที่ 7</h3>
+<figure>
+  <img alt="step-07-disabled-no-confirm" src="../captures/02/02.03/step-07-disabled-no-confirm.png" />
+<br />
+<figcaption>⚠️ คลิก "ปิดใช้งาน" SVC row → disable ทันที (no confirm). Sprint 13d-P1 ได้ migrate 7 callers จาก window.confirm → AlertDialog แต่ WHT-types ยังไม่ในชุดนั้น (task #58). ระวังการคลิกผิด</figcaption>
+</figure>
+<h3 id="8_1">ขั้นที่ 8</h3>
+<figure>
+  <img alt="step-08-restored" src="../captures/02/02.03/step-08-restored.png" />
+<br />
+<figcaption>SVC row inactive แล้ว action เปลี่ยนเป็น "↺ เปิดใช้งานใหม่". คลิก → POST /wht-types/{id}/reactivate → 204 → toast "เปิดใช้งานใหม่" → row กลับมา active (Sprint 13f-P2 Option A: dedicated endpoint)</figcaption>
+</figure>
+<h2 id="0204-api-keys-admin-only">02.04 — สร้าง API Keys (Admin only)</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login ในฐานะ ADMIN (demo-admin) · BU ตั้งครบแล้ว (walkthrough 02.01) · ทราบว่า external app จะใช้ scopes อะไรบ้าง (least privilege)</p>
+</blockquote>
+<p>API Key ใช้ให้ระบบภายนอก (microservice, mobile app, partner integration)
+เรียก TEAS โดยไม่ต้อง login. แต่ละ key มี:</p>
+<ul>
+<li><strong>Scopes</strong> — granular permissions เฉพาะที่จำเป็น (least privilege)
+  เช่น <code>sales.tax_invoice.create</code>, <code>sales.receipt.post</code></li>
+<li><strong>Business Unit เริ่มต้น</strong> (Sprint 14) — ผูก key กับ 1 BU
+  เอกสารที่สร้างจาก key นี้จะถูก tag กับ BU นั้นอัตโนมัติ —
+  ป้องกัน microservice ของ ECOM ไปสร้างเอกสารใน LAB โดยไม่ตั้งใจ</li>
+<li><strong>หมดอายุ</strong> (optional) — แนะนำตั้งสำหรับ contractor / temp staff</li>
+</ul>
+<p><strong>🔐 สำคัญ — key เห็นได้ครั้งเดียวเท่านั้น</strong>: หลังกด "สร้าง" ระบบจะแสดง
+full key 1 ครั้ง. ระบบเก็บแค่ hash + prefix. ถ้าไม่ copy เก็บใน secret
+manager ของ external app → ลืมแล้วต้องสร้างใหม่ (revoke ของเก่า).</p>
+<p><strong>Request header</strong>: external app ส่ง key มาทาง <code>X-Api-Key: &lt;full_key&gt;</code>
+ในทุก request ไป <code>/api/v1/*</code> endpoints.</p>
+<p><strong>Role</strong>: ADMIN only — sys.api_key.manage scope. Accountant เห็น
+NoAccessState ("ต้องมีสิทธิ์ผู้ดูแลระบบ").</p>
+<h3 id="1_3">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-empty-list" src="../captures/02/02.04/step-01-empty-list.png" />
+<br />
+<figcaption>หน้า "API Keys" — เริ่มต้นไม่มี key (empty state พร้อม icon). คอลัมน์: ชื่อ, Key prefix, สิทธิ์ (scopes), Business Unit เริ่มต้น, ใช้ล่าสุด, หมดอายุ, สถานะ</figcaption>
+</figure>
+<h3 id="2_4">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-rbac-note" src="../captures/02/02.04/step-02-rbac-note.png" />
+<br />
+<figcaption>หมายเหตุ — accountant ที่เข้าหน้านี้จะเห็น "ต้องมีสิทธิ์ ผู้ดูแลระบบ" (Sprint 13d-P2 NoAccessState) + ไม่มีปุ่ม "+ สร้าง" (Sprint 13d-P3 PermissionGate). ต้อง admin เท่านั้น</figcaption>
+</figure>
+<h3 id="3_3">ขั้นที่ 3</h3>
+<figure>
+  <img alt="step-03-create-modal" src="../captures/02/02.04/step-03-create-modal.png" />
+<br />
+<figcaption>คลิก "+ สร้าง API key" → modal เปิด. 4 sections: ชื่อ*, สิทธิ์ (scopes)*, Business Unit เริ่มต้น, หมดอายุ</figcaption>
+</figure>
+<h3 id="4_3">ขั้นที่ 4</h3>
+<figure>
+  <img alt="step-04-name" src="../captures/02/02.04/step-04-name.png" />
+<br />
+<figcaption>กรอก "ชื่อ" — ใช้บอกว่า key นี้สำหรับอะไร (เช่น "ECOM Storefront — production"). ไม่กระทบความปลอดภัย แต่ช่วย ตอน revoke ทีหลัง</figcaption>
+</figure>
+<h2 id="0205-company-profile">02.05 — ตั้งค่าข้อมูลบริษัท (Company Profile — ทำก่อนเป็นอันแรก)</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login ในฐานะ ADMIN (demo-admin) สำหรับ edit · manual-demo seed (รัน 410_seed_manual_demo_company_profile.sql)</p>
+</blockquote>
+<p>ข้อมูลบริษัทถูก embed ในทุกเอกสารทางภาษี (Tax Invoice / Receipt / CN / DN
+header). ตามกฎหมาย ข้อมูลที่พิมพ์ในเอกสารต้องตรงกับ ภ.พ.20 ที่จดทะเบียน
+VAT กับกรมสรรพากร.</p>
+<p><strong>Hybrid lock model</strong> (plan §6.7):</p>
+<p><strong>Hard fields (อ่านอย่างเดียวใน Phase 1):</strong>
+- ชื่อนิติบุคคล, เลขผู้เสียภาษี, เลขทะเบียนนิติบุคคล, รหัสสาขา
+- ที่อยู่จดทะเบียน (line 1+2, แขวง, เขต, จังหวัด, ไปรษณีย์)
+- วันที่จดทะเบียน VAT</p>
+<p>→ ต้องแก้ผ่าน ops + ยื่น ภ.พ.09 ก่อน. Phase 2 จะมี 2-person approval +
+attachment upload ของ ภ.พ.09.</p>
+<p><strong>Soft fields (admin role แก้ได้):</strong>
+- ชื่อทางการค้า (Brand name), โลโก้, เบอร์, อีเมล, เว็บไซต์, ผู้ติดต่อ
+- Banking info (สำหรับ payment instructions)</p>
+<p><strong>สำคัญ</strong>: ทำ walkthrough นี้ <strong>ก่อน</strong> walkthrough อื่นใน chapter 2 หาก
+เพิ่งตั้ง tenant ใหม่ — เพราะข้อมูลถูก embed ในเอกสารที่ออกหลังจากนั้น.</p>
+<p><strong>Role</strong>:
+- Read: ทุก authenticated user (ใช้ render document headers)
+- Update soft: ADMIN only (master.company.manage scope)
+- Update hard: returns 501 — Phase 2 feature</p>
+<h3 id="1_4">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-page-tour" src="../captures/02/02.05/step-01-page-tour.png" />
+<br />
+<figcaption>หน้า "ข้อมูลบริษัท" (sidebar "ตั้งค่า" → ลิงก์แรก). 2 sections: "ข้อมูลทางกฎหมาย" (hard, locked) + "ข้อมูลติดต่อ + การชำระเงิน" (soft, editable). Banner ⚠️ ส้มด้านบนเตือนเรื่อง ภ.พ.09</figcaption>
+</figure>
+<h3 id="2_5">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-banner" src="../captures/02/02.05/step-02-banner.png" />
+<br />
+<figcaption>Banner ⚠️ — "การเปลี่ยนข้อมูลทางกฎหมายของบริษัทควรอัปเดต ภ.พ.20 ที่กรมสรรพากรก่อน (ยื่น ภ.พ.09)". ผู้ใช้ต้องไปสรรพากรก่อน จึงจะมาแก้ในระบบ</figcaption>
+</figure>
+<h3 id="3_4">ขั้นที่ 3</h3>
+<figure>
+  <img alt="step-03-hard-fields-locked" src="../captures/02/02.05/step-03-hard-fields-locked.png" />
+<br />
+<figcaption>Section "ข้อมูลทางกฎหมาย" 🔒 — 11 fields ทั้งหมด disabled+readOnly. ตัวอย่าง: ชื่อนิติบุคคล "บริษัท แมนนวล เดโม จำกัด", เลขผู้เสียภาษี 0000000000002, ที่อยู่ "199 อาคารเดโม ชั้น 9 ถนนสุขุมวิท", จังหวัดกรุงเทพ, รหัสไปรษณีย์ 10110, วันที่จดทะเบียน VAT 2020-01-01. ไม่มีปุ่ม Save section นี้ (read-only by design)</figcaption>
+</figure>
+<h3 id="4_4">ขั้นที่ 4</h3>
+<figure>
+  <img alt="step-04-tooltip" src="../captures/02/02.05/step-04-tooltip.png" />
+<br />
+<figcaption>hover hard field → tooltip: "การเปลี่ยนข้อมูลนี้ต้องผ่านขั้นตอนพิเศษ — ติดต่อผู้ดูแลระบบหรือยื่น ภ.พ.09 ก่อน". อธิบายworkaround ให้ผู้ใช้ทราบทันทีโดยไม่ต้องไปอ่านคู่มือ</figcaption>
+</figure>
+<h3 id="5_3">ขั้นที่ 5</h3>
+<figure>
+  <img alt="step-05-soft-fields" src="../captures/02/02.05/step-05-soft-fields.png" />
+<br />
+<figcaption>Section "ข้อมูลติดต่อ + การชำระเงิน" — fields editable: ชื่อทางการค้า, โลโก้ URL, เบอร์ติดต่อ, อีเมล, เว็บไซต์, ผู้ติดต่อ, Banking (ธนาคาร / เลขที่บัญชี / ชื่อบัญชี). ปุ่ม "บันทึก" สำหรับ section นี้แยกต่างหาก</figcaption>
+</figure>
+<h3 id="6_3">ขั้นที่ 6</h3>
+<figure>
+  <img alt="step-06-fill-soft" src="../captures/02/02.05/step-06-fill-soft.png" />
+<br />
+<figcaption>กรอกตัวอย่าง — ชื่อทางการค้า "TEAS Manual Demo", เบอร์ "02-555-1234", อีเมล "contact@manualdemo.example.com"</figcaption>
+</figure>
+<h3 id="7_3">ขั้นที่ 7</h3>
+<figure>
+  <img alt="step-07-saved" src="../captures/02/02.05/step-07-saved.png" />
+<br />
+<figcaption>กด "บันทึก" → PUT /api/proxy/company-profile/soft → 204 → toast เขียว → fields ใหม่ persistent. Hard fields ไม่กระทบ (ดู section "ข้อมูลทางกฎหมาย" ด้านบน — ค่าเดิม)</figcaption>
+</figure>
+<h3 id="8_2">ขั้นที่ 8</h3>
+<figure>
+  <img alt="step-08-logo-url-note" src="../captures/02/02.05/step-08-logo-url-note.png" />
+<br />
+<figcaption>"URL โลโก้" — Phase 1 รับ URL อย่างเดียว (ยังไม่มี upload widget). Phase 2 จะรองรับ upload ผ่าน Sprint 11 attachment infra. Workaround: host logo บน CDN/S3 ของตัวเอง + ใส่ URL ที่นี่</figcaption>
+</figure>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  กลับไปด้านบนสุด
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.expand", "navigation.top", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01\u0e41\u0e25\u0e49\u0e27", "clipboard.copy": "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01", "search.result.more.one": "\u0e2d\u0e35\u0e01\u0e2b\u0e19\u0e36\u0e48\u0e07\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49", "search.result.more.other": "# \u0e40\u0e1e\u0e34\u0e48\u0e21\u0e40\u0e15\u0e34\u0e21\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49", "search.result.none": "\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e17\u0e35\u0e48\u0e15\u0e23\u0e07\u0e01\u0e31\u0e19", "search.result.one": "\u0e1e\u0e1a\u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e17\u0e35\u0e48\u0e15\u0e23\u0e07\u0e01\u0e31\u0e19", "search.result.other": "\u0e1e\u0e1a # \u0e40\u0e2d\u0e01\u0e2a\u0e32\u0e23\u0e17\u0e35\u0e48\u0e15\u0e23\u0e07\u0e01\u0e31\u0e19", "search.result.placeholder": "\u0e1e\u0e34\u0e21\u0e1e\u0e4c\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e40\u0e23\u0e34\u0e48\u0e21\u0e04\u0e49\u0e19\u0e2b\u0e32", "search.result.term.missing": "\u0e44\u0e21\u0e48\u0e1e\u0e1a", "select.version": "\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

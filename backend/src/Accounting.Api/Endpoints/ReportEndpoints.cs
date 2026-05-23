@@ -34,6 +34,13 @@ public static class ReportEndpoints
                 Results.Ok(await svc.GetAgingAsync(ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Tax.Pnd53Read);
 
+        // Sprint 13j-tail — receipts missing the customer 50ทวิ cert (chase per period).
+        group.MapGet("/wht-receivable-missing-cert", async (
+            [FromQuery] int period,
+            IWhtReceivableReportService svc, CancellationToken ct) =>
+                Results.Ok(await svc.GetMissingCertAsync(period, ct)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Tax.Pnd53Read);
+
         // Sprint 9 Part A — financial reports. (report.financial.read maps to
         // the existing granular TrialBalance/ProfitLoss perms — mechanism note.)
         group.MapGet("/trial-balance", async (

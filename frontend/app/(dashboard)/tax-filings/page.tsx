@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useTaxFilings } from '@/lib/queries';
+import { useTaxFilings, useSystemInfo } from '@/lib/queries';
 
+// vatOnly: ภ.พ.30 (VAT return) is filed only by VAT registrants. ภ.ง.ด.3/53/54 (WHT)
+// and ภ.พ.36 (reverse charge on imported services, ม.83/6) apply to non-VAT too.
 const FORMS = [
-  { href: '/reports/pnd30', code: 'PND30' },
+  { href: '/reports/pnd30', code: 'PND30', vatOnly: true },
   { href: '/tax-filings/pnd3', code: 'PND3' },
   { href: '/tax-filings/pnd53', code: 'PND53' },
   { href: '/tax-filings/pnd54', code: 'PND54' },
@@ -17,13 +19,14 @@ export default function TaxFilingsIndexPage() {
   const t = useTranslations('tf');
   const tc = useTranslations('common');
   const hist = useTaxFilings();
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
 
   return (
     <>
       <PageHeader title={t('indexTitle')} />
 
       <div className="mb-6 flex flex-wrap gap-2">
-        {FORMS.map((f) => (
+        {FORMS.filter((f) => !('vatOnly' in f && f.vatOnly) || vatMode).map((f) => (
           <Link key={f.code} href={f.href}
             className="btn btn-sm btn-outline">{f.code}</Link>
         ))}

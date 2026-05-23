@@ -20,6 +20,8 @@ public static class AttachmentCodes
             [AttachmentParentType.SalesOrder]        = "SALES_ORDER",
             [AttachmentParentType.DeliveryOrder]     = "DELIVERY_ORDER",
             [AttachmentParentType.PurchaseOrder]     = "PURCHASE_ORDER",
+            [AttachmentParentType.BillingNote]       = "BILLING_NOTE",
+            [AttachmentParentType.CompanyProfile]    = "COMPANY_PROFILE",
         };
 
     public static readonly IReadOnlyDictionary<AttachmentCategory, string> CategoryDb =

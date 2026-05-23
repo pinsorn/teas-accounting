@@ -94,6 +94,7 @@ public sealed class StubTenant : ITenantContext
     public int CompanyId { get; init; }
     public int BranchId { get; init; }
     public long? UserId { get; init; }
+    public string? Username { get; init; }
     public bool IsSuperAdmin { get; init; }
     public long? ApiKeyId { get; init; }
     public int? ApiKeyDefaultBusinessUnitId { get; init; }

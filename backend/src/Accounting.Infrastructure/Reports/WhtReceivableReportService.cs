@@ -69,4 +69,29 @@ public sealed class WhtReceivableReportService(AccountingDbContext db, IClock cl
             rows.Where(x => x.AgeDays > 90).Sum(x => x.WhtAmount));
         return new WhtReceivableAging(rows, rows.Sum(x => x.WhtAmount), buckets);
     }
+
+    // Sprint 13j-tail — posted WHT receipts in `period` (yyyymm) with no
+    // customer 50ทวิ cert number recorded yet. Tenant-scoped via the global filter.
+    public async Task<WhtMissingCertReport> GetMissingCertAsync(int period, CancellationToken ct)
+    {
+        var year = period / 100;
+        var month = period % 100;
+        if (month is < 1 or > 12)
+            throw new DomainException("report.bad_period",
+                "Period must be yyyymm with month 01-12.");
+        var from = new DateOnly(year, month, 1);
+        var to = from.AddMonths(1).AddDays(-1);
+
+        var rows = await db.Receipts.AsNoTracking()
+            .Where(r => r.Status == DocumentStatus.Posted
+                        && r.WhtAmount > 0m
+                        && (r.CustomerWhtCertNo == null || r.CustomerWhtCertNo == "")
+                        && r.DocDate >= from && r.DocDate <= to)
+            .OrderBy(r => r.DocDate).ThenBy(r => r.ReceiptId)
+            .Select(r => new WhtMissingCertRow(
+                r.ReceiptId, r.DocNo!, r.DocDate,
+                r.CustomerName, r.CustomerTaxId, r.WhtAmount))
+            .ToListAsync(ct);
+        return new WhtMissingCertReport(period, rows, rows.Sum(x => x.WhtAmount));
+    }
 }

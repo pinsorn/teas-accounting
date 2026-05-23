@@ -37,6 +37,18 @@ public sealed partial class TaxInvoiceService
                 ? query.Where(t => t.BusinessUnitId == bu || t.BusinessUnitId == null)
                 : query.Where(t => t.BusinessUnitId == bu);
 
+        // Sprint 13e — TaxInvoicePicker support: free-text (doc_no / customer name)
+        // + unpaid-only (RC reference). unpaid = still has a remaining balance.
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var like = $"%{q.Search.Trim()}%";
+            query = query.Where(t =>
+                (t.DocNo != null && EF.Functions.ILike(t.DocNo, like))
+                || EF.Functions.ILike(t.CustomerName, like));
+        }
+        if (q.Unpaid)
+            query = query.Where(t => t.AmountPaid < t.TotalAmount);
+
         // Desc paging by id; cursor = last id from the previous page.
         if (q.Cursor is { } cur) query = query.Where(t => t.TaxInvoiceId < cur);
 
@@ -45,7 +57,8 @@ public sealed partial class TaxInvoiceService
             .Take(limit + 1)
             .Select(t => new TaxInvoiceListItem(
                 t.TaxInvoiceId, t.DocNo, t.DocDate, t.CustomerName, t.CustomerTaxId,
-                t.TotalAmount, t.TaxAmount, t.Status.ToString(), t.PaymentStatus, t.CurrencyCode))
+                t.TotalAmount, t.TaxAmount, t.Status.ToString(), t.PaymentStatus, t.CurrencyCode,
+                t.CustomerId, t.BusinessUnitId))
             .ToListAsync(ct);
 
         var hasMore = rows.Count > limit;
@@ -82,13 +95,14 @@ public sealed partial class TaxInvoiceService
             t.Lines.OrderBy(l => l.LineNo).Select(l => new TaxInvoiceDetailLine(
                 l.LineNo, l.ProductCode, l.DescriptionTh, l.Quantity, l.UomText,
                 l.UnitPrice, l.DiscountAmount, l.LineAmount, l.TaxCode, l.TaxRate,
-                l.TaxAmount, l.TotalAmount)).ToList());
+                l.TaxAmount, l.TotalAmount)).ToList(),
+            t.QuotationId);   // Sprint 13h P6.1 — cross-ref
     }
 
     public Task<string> BuildXmlAsync(long id, CancellationToken ct) =>
         Task.FromResult(_etaxXml.BuildTaxInvoiceXml(id, ct));
 
-    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct)
+    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("ti.not_found", $"Tax Invoice {id} not found.");
@@ -96,105 +110,31 @@ public sealed partial class TaxInvoiceService
         // Sprint 8.5 — non-VAT companies must NOT head the doc "ใบกำกับภาษี" (ม.86).
         var (hdrTh, hdrEn) = DocumentLabels.TaxInvoiceHeader(
             _vat.VatMode, _vat.NonVatDocLabelTh, _vat.NonVatDocLabelEn);
-        var showVat = DocumentLabels.ShowVatBreakdown(_vat.VatMode);
 
-        return Document.Create(doc =>
-        {
-            doc.Page(p =>
-            {
-                p.Size(PageSizes.A4);
-                p.Margin(28);
-                p.DefaultTextStyle(s => s.FontSize(9));
-
-                p.Header().Column(col =>
-                {
-                    col.Item().AlignCenter().Text($"{hdrTh} / {hdrEn}").Bold().FontSize(15);
-                    col.Item().AlignCenter().Text(d.Status == "Posted" ? "(ต้นฉบับ / ORIGINAL)" : "(ร่าง / DRAFT)")
-                        .FontSize(8).FontColor(Colors.Grey.Darken1);
-                });
-
-                p.Content().PaddingVertical(8).Column(col =>
-                {
-                    col.Spacing(6);
-
-                    col.Item().Row(r =>
-                    {
-                        r.RelativeItem().Column(s =>
-                        {
-                            s.Item().Text("ผู้ขาย / Seller").Bold();
-                            s.Item().Text(d.SupplierName);
-                            s.Item().Text(d.SupplierAddress).FontSize(8);
-                            s.Item().Text($"เลขประจำตัวผู้เสียภาษี: {d.SupplierTaxId}  สาขา: {d.SupplierBranchCode}");
-                        });
-                        r.ConstantItem(12);
-                        r.RelativeItem().Column(s =>
-                        {
-                            s.Item().Text("ผู้ซื้อ / Buyer").Bold();
-                            s.Item().Text(d.CustomerName);
-                            s.Item().Text(d.CustomerAddress).FontSize(8);
-                            if (!string.IsNullOrEmpty(d.CustomerTaxId))
-                                s.Item().Text($"เลขประจำตัวผู้เสียภาษี: {d.CustomerTaxId}  สาขา: {d.CustomerBranchCode}");
-                        });
-                    });
-
-                    col.Item().Row(r =>
-                    {
-                        r.RelativeItem().Text($"เลขที่ / No.: {d.DocNo ?? "(ร่าง)"}");
-                        r.RelativeItem().AlignRight().Text($"วันที่ / Date: {d.DocDate:dd/MM/yyyy}");
-                    });
-
-                    col.Item().Table(t =>
-                    {
-                        t.ColumnsDefinition(c =>
-                        {
-                            c.ConstantColumn(24);   // #
-                            c.RelativeColumn(5);     // desc
-                            c.RelativeColumn(1.4f);  // qty
-                            c.RelativeColumn(1.8f);  // unit price
-                            c.RelativeColumn(2);     // amount
-                        });
-                        t.Header(h =>
-                        {
-                            h.Cell().Element(Th).Text("#");
-                            h.Cell().Element(Th).Text("รายการ / Description");
-                            h.Cell().Element(Th).AlignRight().Text("จำนวน");
-                            h.Cell().Element(Th).AlignRight().Text("ราคา/หน่วย");
-                            h.Cell().Element(Th).AlignRight().Text("จำนวนเงิน");
-                        });
-                        foreach (var l in d.Lines)
-                        {
-                            t.Cell().Element(Td).Text(l.LineNo.ToString());
-                            t.Cell().Element(Td).Text(l.DescriptionTh);
-                            t.Cell().Element(Td).AlignRight().Text(Num(l.Quantity));
-                            t.Cell().Element(Td).AlignRight().Text(Num(l.UnitPrice));
-                            t.Cell().Element(Td).AlignRight().Text(Num(l.LineAmount));
-                        }
-                    });
-
-                    col.Item().AlignRight().Column(s =>
-                    {
-                        // Non-VAT: no output VAT to report — single total only (§2.1).
-                        if (showVat)
-                        {
-                            s.Item().Text($"มูลค่าสินค้า / Subtotal: {Num(d.SubtotalAmount)} {d.CurrencyCode}");
-                            s.Item().Text($"ภาษีมูลค่าเพิ่ม / VAT: {Num(d.TaxAmount)} {d.CurrencyCode}").Bold();
-                        }
-                        s.Item().Text($"ยอดรวม / Total: {Num(d.TotalAmount)} {d.CurrencyCode}").Bold().FontSize(11);
-                    });
-                });
-
-                p.Footer().AlignCenter().Text(t =>
-                {
-                    t.Span("ออกโดยระบบ TEAS — ");
-                    t.Span(DateTimeOffset.UtcNow.ToString("u")).FontColor(Colors.Grey.Medium);
-                });
-            });
-        }).GeneratePdf();
-
-        static IContainer Th(IContainer c) =>
-            c.Background(Colors.Grey.Lighten3).Padding(4).BorderBottom(1).BorderColor(Colors.Grey.Medium);
-        static IContainer Td(IContainer c) => c.Padding(4).BorderBottom(1).BorderColor(Colors.Grey.Lighten2);
-        static string Num(decimal v) => v.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+        // Sprint 13j-PDF — render via the shared PaperDocument mirror, IDENTICAL to
+        // the FE TI detail mapping (tax-invoices/[id]/page.tsx): posted snapshot for
+        // seller+buyer (immutable §4.2), taxId formatted, line amount = net lineAmount,
+        // summary = subtotal/discount/beforeVat(taxable)/vat/total with no vatRate
+        // (PaperFoot defaults 7%). docType keeps the §8.5 non-VAT label.
+        var cfg = Pdf.PaperDoc.Config[Pdf.PaperDocKind.TaxInvoice];
+        var model = new Pdf.PaperDocModel(
+            DocType: hdrTh,
+            DocTypeEn: hdrEn,
+            DocNo: d.DocNo ?? string.Empty,
+            IssueDate: d.DocDate,
+            Seller: new Pdf.PaperSeller(d.SupplierName, Pdf.PaperFormat.TaxId(d.SupplierTaxId) ?? d.SupplierTaxId, d.SupplierBranchCode, d.SupplierAddress),
+            Customer: new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), d.CustomerBranchCode, d.CustomerAddress),
+            Items: d.Lines.OrderBy(l => l.LineNo).Select(l => new Pdf.PaperLine(
+                l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
+            Summary: new Pdf.PaperSummary(
+                d.SubtotalAmount, d.DiscountAmount > 0m ? d.DiscountAmount : null,
+                d.TaxableAmount, d.TaxAmount, d.TotalAmount, null, ShowVat: _vat.VatMode),
+            SignRoles: new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
+            Notes: d.Notes,
+            Watermark: copy
+                ? new Pdf.PaperWatermark("สำเนา", Pdf.PaperWatermarkVariant.Warning)
+                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.TaxInvoice, d.Status));
+        return Pdf.PaperDocumentPdf.Render(model);
     }
 
     public async Task<TaxInvoiceResendResult> ResendAsync(long id, CancellationToken ct)
@@ -215,6 +155,9 @@ public sealed partial class TaxInvoiceService
                 "e-Tax delivery is disabled (inert). No email sent.");
 
         await TryAutoSendETaxAsync(ti, ct);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId, "Resent",
+            note: "ส่ง e-Tax อีกครั้ง");
+        await _db.SaveChangesAsync(ct);
         return new TaxInvoiceResendResult(id, Sent: true, "e-Tax email re-sent.");
     }
 }

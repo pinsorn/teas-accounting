@@ -29,6 +29,11 @@ public sealed class HttpTenantContext : ITenantContext
         User!.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User!.FindFirst("sub")?.Value,
         out var u) ? u : null;
 
+    // Sprint 13k §4.8 — JWT name claim (set by JwtTokenIssuer). Audit actor.
+    public string? Username => Authed
+        ? User!.FindFirst(ClaimTypes.Name)?.Value ?? User!.FindFirst("name")?.Value
+        : null;
+
     public bool IsSuperAdmin => Authed && string.Equals(
         User!.FindFirst(TenantClaims.IsSuperAdmin)?.Value, "true",
         StringComparison.OrdinalIgnoreCase);

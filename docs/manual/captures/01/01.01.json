@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "id": "01.01",
+    "title": "เข้าสู่ระบบ",
+    "chapter": "1. เริ่มต้นใช้งาน",
+    "intro": "TEAS ใช้รหัสผ่านปกติร่วมกับ MFA (ถ้าเปิดใช้) ผ่านหน้า login เพียงหน้าเดียว.\nระบบจะออก JWT เก็บเป็น httpOnly cookie — ไม่เก็บใน localStorage ของ browser\nเพื่อความปลอดภัย (BFF cookie pattern).\n\nในบทนี้คุณจะได้เรียนรู้:\n- หน้าตา login screen\n- การกรอก username + password\n- หน้า dashboard ที่ปรากฏหลัง login สำเร็จ",
+    "prerequisites": [
+      "มี user account ที่ผู้ดูแลระบบสร้างให้แล้ว",
+      "รู้ username + password ของตัวเอง"
+    ]
+  },
+  "steps": [
+    {
+      "walkthroughId": "01.01",
+      "stepId": "step-01-login-page",
+      "caption": "ขั้นที่ 1: เปิด browser ไปที่ URL ของระบบ — หน้าเข้าสู่ระบบจะแสดงพร้อม ช่อง \"ชื่อผู้ใช้\" และ \"รหัสผ่าน\"",
+      "imageRel": "captures/01/01.01/step-01-login-page.png"
+    },
+    {
+      "walkthroughId": "01.01",
+      "stepId": "step-02-enter-username",
+      "caption": "ขั้นที่ 2: กรอก \"ชื่อผู้ใช้\" ที่ผู้ดูแลระบบให้มา (ตัวอย่างคู่มือนี้ใช้ demo-accountant)",
+      "imageRel": "captures/01/01.01/step-02-enter-username.png"
+    },
+    {
+      "walkthroughId": "01.01",
+      "stepId": "step-03-enter-password",
+      "caption": "ขั้นที่ 3: กรอก \"รหัสผ่าน\" — ตัวอักษรจะถูกซ่อนเป็นจุด. หากตั้ง MFA ไว้ ระบบจะถามรหัส OTP ในขั้นถัดไป",
+      "imageRel": "captures/01/01.01/step-03-enter-password.png"
+    },
+    {
+      "walkthroughId": "01.01",
+      "stepId": "step-04-submit",
+      "caption": "ขั้นที่ 4: คลิกปุ่ม \"เข้าสู่ระบบ\" — ระบบจะตรวจสอบ credentials และเปิด session ผ่าน httpOnly cookie",
+      "imageRel": "captures/01/01.01/step-04-submit.png"
+    },
+    {
+      "walkthroughId": "01.01",
+      "stepId": "step-05-dashboard",
+      "caption": "ขั้นที่ 5: เข้าสู่ระบบสำเร็จ — หน้า \"แดชบอร์ด\" ปรากฏพร้อมภาพรวมระบบ: ยอดขายเดือนนี้, ภาษีขาย, ใบกำกับภาษี, เลขเอกสารขาดช่วง. เมนูทางซ้ายแสดงโมดูลหลัก: ขาย, ซื้อ, รายงาน",
+      "imageRel": "captures/01/01.01/step-05-dashboard.png"
+    }
+  ],
+  "failure": null,
+  "capturedSteps": 5
+}

@@ -5,6 +5,14 @@
     <UserSecretsId>teas-api-dev</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Sprint 13j-PDF — bundle the Thai font (Sarabun, SIL OFL) into the output so
+         QuestPDF's FontManager can register it at boot on any host. -->
+    <Content Include="Fonts\*.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Sprint 13j-PDF — fallback brand mark (TEAS mascot) for the PaperDocument
+         header when a company has no uploaded logo. -->
+    <Content Include="Assets\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Accounting.Application\Accounting.Application.csproj" />
     <ProjectReference Include="..\Accounting.Infrastructure\Accounting.Infrastructure.csproj" />
     <ProjectReference Include="..\Accounting.Domain\Accounting.Domain.csproj" />

@@ -13,7 +13,8 @@ public sealed record TaxInvoiceLineInput(
     decimal DiscountPercent,
     int    TaxCodeId,
     string TaxCode,
-    decimal TaxRate);
+    decimal TaxRate,
+    string? ProductType = null);  // Sprint 13h P7 — Product master snapshot
 
 public sealed record CreateTaxInvoiceRequest(
     DateOnly DocDate,
@@ -25,7 +26,8 @@ public sealed record CreateTaxInvoiceRequest(
     string?  PaymentTerms,
     DateOnly? DueDate,
     IReadOnlyList<TaxInvoiceLineInput> Lines,
-    int? BusinessUnitId = null);   // Sprint 8 — revenue stream tag
+    int? BusinessUnitId = null,    // Sprint 8 — revenue stream tag
+    long? QuotationId = null);     // Sprint 13h P6.1 — optional Q reverse-link
 
 public sealed record TaxInvoicePostedResult(
     long TaxInvoiceId, string DocNo, DateTimeOffset PostedAt, decimal TotalAmount, decimal TaxAmount);
@@ -41,7 +43,9 @@ public sealed record TaxInvoiceListQuery(
     long?    Cursor,
     int      Limit = 25,
     int?     BusinessUnitId = null,
-    bool     IncludeUnspecified = false);
+    bool     IncludeUnspecified = false,
+    string?  Search = null,
+    bool     Unpaid = false);
 
 public sealed record TaxInvoiceListItem(
     long     TaxInvoiceId,
@@ -53,7 +57,10 @@ public sealed record TaxInvoiceListItem(
     decimal  TaxAmount,
     string   Status,
     string   PaymentStatus,
-    string   CurrencyCode);
+    string   CurrencyCode,
+    // Sprint 13i C3 — for client-side BU/customer filtering on the list page.
+    long     CustomerId = 0,
+    int?     BusinessUnitId = null);
 
 /// <summary>Cursor page. <see cref="NextCursor"/> is null when there are no more rows.</summary>
 public sealed record CursorPage<T>(IReadOnlyList<T> Items, long? NextCursor, bool HasMore);
@@ -102,7 +109,8 @@ public sealed record TaxInvoiceDetail(
     DateTimeOffset? PostedAt,
     int?     BusinessUnitId,
     string?  BusinessUnitCode,
-    IReadOnlyList<TaxInvoiceDetailLine> Lines);
+    IReadOnlyList<TaxInvoiceDetailLine> Lines,
+    long?    QuotationId = null);   // Sprint 13h P6.1 — cross-ref to originating Q
 
 /// <summary>Result of a (currently inert) e-Tax resend attempt.</summary>
 public sealed record TaxInvoiceResendResult(long TaxInvoiceId, bool Sent, string Message);

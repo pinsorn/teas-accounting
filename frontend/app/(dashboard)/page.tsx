@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { FileText, TrendingUp, Receipt, ListChecks } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
+import { MascotGreeting } from '@/components/layout/MascotGreeting';
 import { useNumberGaps, useVatThresholdStatus } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 
@@ -18,6 +19,7 @@ export default function DashboardPage() {
 
   return (
     <>
+      <MascotGreeting cta={{ label: 'ดูสรุปภาพรวม', href: '/reports/sales-summary' }} />
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
       {threshold === 'Exceeded' && (
         <div role="alert" className="alert alert-error mb-4">

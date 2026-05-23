@@ -149,8 +149,15 @@ public sealed class Sprint10ProductTests
         var ti2 = await PostTiWithProduct(sp, cust, goodP, 6000m);
 
         await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        // Sprint (multi-category WHT) — suggest is now pro-rata aware; pass each TI's
+        // full total as the applied amount → fraction 1 (full payment) so the split
+        // matches the line ex-VAT amounts.
+        var t1 = await db.TaxInvoices.Where(t => t.TaxInvoiceId == ti1).Select(t => t.TotalAmount).FirstAsync();
+        var t2 = await db.TaxInvoices.Where(t => t.TaxInvoiceId == ti2).Select(t => t.TotalAmount).FirstAsync();
         var rc = s.ServiceProvider.GetRequiredService<IReceiptService>();
-        var sug = await rc.SuggestWhtBaseAsync([ti1, ti2], cust, default);
+        var sug = await rc.SuggestWhtBaseAsync(
+            [new ReceiptApplicationInput(ti1, t1), new ReceiptApplicationInput(ti2, t2)], cust, default);
 
         sug.ServiceSubtotal.Should().Be(4000m);
         sug.GoodsSubtotal.Should().Be(6000m);

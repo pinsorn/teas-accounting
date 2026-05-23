@@ -8,17 +8,29 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import {
   useProducts, useCreateProduct, useUpdateProduct, useDeactivateProduct,
 } from '@/lib/queries';
-import type { ProductTypeStr } from '@/lib/types';
+import { apiGet } from '@/lib/api';
+import type { ProductTypeStr, ProductDetail } from '@/lib/types';
+import { useConfirm } from '@/hooks/useConfirm';
+import { PermissionGate } from '@/components/PermissionGate';
+import { WhtTypeSelect } from '@/components/ui/WhtTypeSelect';
+
+const SCOPE = 'master.product.manage';
+
+// WHT is a service-only concept (BE validator rejects a default WHT type on
+// GOOD / EXEMPT_GOOD). The product master is the single source of a line's
+// goods/service typing + service WHT category (sprint plan: product-master driven).
+const isService = (t: ProductTypeStr) => t === 'SERVICE' || t === 'EXEMPT_SERVICE';
 
 interface Editing {
   productId: number | null;
   productCode: string; nameTh: string; nameEn: string;
   productType: ProductTypeStr; defaultUomText: string;
-  defaultUnitPrice: string; isActive: boolean;
+  defaultUnitPrice: string; defaultWhtTypeId: number | null; isActive: boolean;
 }
 const EMPTY: Editing = {
   productId: null, productCode: '', nameTh: '', nameEn: '',
-  productType: 'GOOD', defaultUomText: '', defaultUnitPrice: '', isActive: true,
+  productType: 'GOOD', defaultUomText: '', defaultUnitPrice: '',
+  defaultWhtTypeId: null, isActive: true,
 };
 const TYPES: ProductTypeStr[] = ['GOOD', 'SERVICE', 'EXEMPT_GOOD', 'EXEMPT_SERVICE'];
 
@@ -29,12 +41,31 @@ export default function ProductsSettingsPage() {
   const create = useCreateProduct();
   const update = useUpdateProduct();
   const deactivate = useDeactivateProduct();
+  const confirm = useConfirm();
   const [edit, setEdit] = useState<Editing | null>(null);
   const rows = q.data ?? [];
+
+  // Open the edit modal with the FULL product (the list row omits uom / nameEn /
+  // WHT — building from it would silently wipe those on save).
+  async function openEdit(productId: number) {
+    try {
+      const d = await apiGet<ProductDetail>(`products/${productId}`);
+      setEdit({
+        productId: d.productId, productCode: d.productCode,
+        nameTh: d.nameTh, nameEn: d.nameEn ?? '',
+        productType: d.productType, defaultUomText: d.defaultUomText ?? '',
+        defaultUnitPrice: String(d.defaultUnitPrice ?? ''),
+        defaultWhtTypeId: d.defaultWhtTypeId ?? null, isActive: d.isActive,
+      });
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
 
   async function save() {
     if (!edit) return;
     const price = edit.defaultUnitPrice ? Number(edit.defaultUnitPrice) : null;
+    const whtId = isService(edit.productType) ? edit.defaultWhtTypeId : null;
     try {
       if (edit.productId === null) {
         await create.mutateAsync({
@@ -42,7 +73,7 @@ export default function ProductsSettingsPage() {
           nameEn: edit.nameEn || null, productType: edit.productType,
           defaultUomText: edit.defaultUomText || null, defaultUnitPrice: price,
           defaultOutputTaxCodeId: null, defaultInputTaxCodeId: null,
-          defaultWhtTypeId: null, descriptionTh: null, notes: null,
+          defaultWhtTypeId: whtId, descriptionTh: null, notes: null,
         });
       } else {
         await update.mutateAsync({
@@ -52,7 +83,7 @@ export default function ProductsSettingsPage() {
             productType: edit.productType,
             defaultUomText: edit.defaultUomText || null, defaultUnitPrice: price,
             defaultOutputTaxCodeId: null, defaultInputTaxCodeId: null,
-            defaultWhtTypeId: null, descriptionTh: null, notes: null,
+            defaultWhtTypeId: whtId, descriptionTh: null, notes: null,
             isActive: edit.isActive,
           },
         });
@@ -69,10 +100,12 @@ export default function ProductsSettingsPage() {
       <PageHeader
         title={t('settingsTitle')}
         actions={
-          <button className="btn btn-primary btn-sm gap-1"
-            onClick={() => setEdit({ ...EMPTY })}>
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </button>
+          <PermissionGate scope={SCOPE}>
+            <button className="btn btn-primary btn-sm gap-1"
+              onClick={() => setEdit({ ...EMPTY })}>
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </button>
+          </PermissionGate>
         }
       />
 
@@ -102,25 +135,48 @@ export default function ProductsSettingsPage() {
                 </td>
                 <td>{p.isActive ? tc('active') : tc('inactive')}</td>
                 <td className="text-right">
-                  <button className="btn btn-ghost btn-xs gap-1" onClick={() => setEdit({
-                    productId: p.productId, productCode: p.productCode,
-                    nameTh: p.nameTh, nameEn: p.nameEn ?? '',
-                    productType: p.productType,
-                    defaultUomText: '', defaultUnitPrice: String(p.defaultUnitPrice ?? ''),
-                    isActive: p.isActive,
-                  })}>
-                    <Pencil className="h-3 w-3" aria-hidden /> {tc('edit')}
-                  </button>
-                  {p.isActive && (
-                    <button className="btn btn-ghost btn-xs text-error"
-                      onClick={async () => {
-                        if (!window.confirm(t('deactivateConfirm'))) return;
-                        try { await deactivate.mutateAsync(p.productId); toast.success(tc('save')); }
-                        catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
-                      }}>
-                      {tc('deactivate')}
+                  <PermissionGate scope={SCOPE}>
+                    <button className="btn btn-ghost btn-xs gap-1" onClick={() => openEdit(p.productId)}>
+                      <Pencil className="h-3 w-3" aria-hidden /> {tc('edit')}
                     </button>
-                  )}
+                    {p.isActive ? (
+                      <button className="btn btn-ghost btn-xs text-error"
+                        onClick={async () => {
+                          if (!(await confirm({ description: t('deactivateConfirm'), variant: 'destructive' }))) return;
+                          try { await deactivate.mutateAsync(p.productId); toast.success(tc('save')); }
+                          catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+                        }}>
+                        {tc('deactivate')}
+                      </button>
+                    ) : (
+                      <button className="btn btn-ghost btn-xs text-success"
+                        data-testid="row-restore"
+                        onClick={async () => {
+                          try {
+                            // Fetch full detail so reactivation preserves uom / WHT
+                            // category instead of nulling them out.
+                            const d = await apiGet<ProductDetail>(`products/${p.productId}`);
+                            await update.mutateAsync({
+                              id: p.productId,
+                              req: {
+                                nameTh: d.nameTh, nameEn: d.nameEn ?? null,
+                                productType: d.productType,
+                                defaultUomText: d.defaultUomText ?? null,
+                                defaultUnitPrice: d.defaultUnitPrice ?? null,
+                                defaultOutputTaxCodeId: d.defaultOutputTaxCodeId ?? null,
+                                defaultInputTaxCodeId: d.defaultInputTaxCodeId ?? null,
+                                defaultWhtTypeId: d.defaultWhtTypeId ?? null,
+                                descriptionTh: d.descriptionTh ?? null, notes: d.notes ?? null,
+                                isActive: true,
+                              },
+                            });
+                            toast.success(tc('restore'));
+                          } catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+                        }}>
+                        ↺ {tc('restore')}
+                      </button>
+                    )}
+                  </PermissionGate>
                 </td>
               </tr>
             ))}
@@ -155,10 +211,28 @@ export default function ProductsSettingsPage() {
               <label className="form-control">
                 <span className="label-text text-xs">{t('type')}</span>
                 <select className="select select-bordered select-sm" value={edit.productType}
-                  onChange={(e) => setEdit({ ...edit, productType: e.target.value as ProductTypeStr })}>
-                  {TYPES.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
+                  onChange={(e) => {
+                    const next = e.target.value as ProductTypeStr;
+                    setEdit({
+                      ...edit, productType: next,
+                      defaultWhtTypeId: isService(next) ? edit.defaultWhtTypeId : null,
+                    });
+                  }}>
+                  {TYPES.map((ty) => <option key={ty} value={ty}>{t(`typeLabel.${ty}`)}</option>)}
                 </select>
               </label>
+              {isService(edit.productType) && (
+                <label className="form-control">
+                  <span className="label-text text-xs">{t('wht')}</span>
+                  <WhtTypeSelect
+                    value={edit.defaultWhtTypeId}
+                    onChange={(id) => setEdit({ ...edit, defaultWhtTypeId: id })}
+                    ariaLabel={t('wht')}
+                    placeholder={t('whtNone')}
+                  />
+                  <span className="mt-1 text-xs text-base-content/50">{t('whtHint')}</span>
+                </label>
+              )}
               <label className="form-control">
                 <span className="label-text text-xs">{t('uom')}</span>
                 <input className="input input-bordered input-sm" value={edit.defaultUomText}

@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { usePnd30 } from '@/lib/queries';
+import { usePnd30, useSystemInfo } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { Pnd30Filing } from '@/lib/types';
+import { useConfirm } from '@/hooks/useConfirm';
 
 function thisMonth() {
   return new Date().toISOString().slice(0, 7); // yyyy-MM
@@ -18,10 +19,13 @@ export default function Pnd30Page() {
   const [ym, setYm] = useState(thisMonth());
   const [filing, setFiling] = useState<Pnd30Filing | null>(null);
   const pnd30 = usePnd30();
+  const confirm = useConfirm();
+  // ม.86 — non-VAT companies do not file ภ.พ.30. Guard against direct URL access.
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
 
-  function run(mode: 'preview' | 'finalize') {
+  async function run(mode: 'preview' | 'finalize') {
     if (mode === 'finalize' &&
-        !window.confirm(t('pnd30FinalizeConfirm'))) return;
+        !(await confirm({ description: t('pnd30FinalizeConfirm'), variant: 'destructive' }))) return;
     pnd30.mutate(
       { period: toPeriod(ym), mode },
       {
@@ -36,6 +40,17 @@ export default function Pnd30Page() {
   }
 
   const L = filing?.lines;
+
+  if (!vatMode) {
+    return (
+      <>
+        <PageHeader title={t('pnd30Title')} />
+        <div className="rounded-card border border-ink-100 bg-base-100 p-8 text-center text-ink-600">
+          {t('pnd30NonVat')}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

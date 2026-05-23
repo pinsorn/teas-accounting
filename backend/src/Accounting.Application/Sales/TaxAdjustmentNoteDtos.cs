@@ -48,5 +48,5 @@ public interface ITaxAdjustmentNoteService
         string? noteType, long? cursor, int limit, CancellationToken ct,
         int? businessUnitId = null, bool includeUnspecified = false);
     Task<AdjustmentNoteDetail?> GetDetailAsync(long noteId, CancellationToken ct);
-    Task<byte[]> BuildPdfAsync(long noteId, CancellationToken ct);
+    Task<byte[]> BuildPdfAsync(long noteId, CancellationToken ct, bool copy = false);
 }

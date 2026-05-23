@@ -40,6 +40,8 @@ public sealed class AttachmentService(
             AttachmentParentType.Quotation      => "sales.quotation.manage",
             AttachmentParentType.SalesOrder     => "sales.sales_order.manage",
             AttachmentParentType.DeliveryOrder  => "sales.delivery_order.manage",
+            AttachmentParentType.BillingNote    => "sales.billing_note.read",
+            AttachmentParentType.CompanyProfile => "master.company.manage",
             // Receipt / CN-DN have no dedicated .read perm — rely on
             // sys.attachment.read + tenant isolation (documented).
             _ => null,
@@ -58,6 +60,8 @@ public sealed class AttachmentService(
         AttachmentParentType.SalesOrder        => await db.SalesOrders.AnyAsync(x => x.SalesOrderId == id, ct),
         AttachmentParentType.DeliveryOrder     => await db.DeliveryOrders.AnyAsync(x => x.DeliveryOrderId == id, ct),
         AttachmentParentType.PurchaseOrder     => false,   // Sprint 12 — no table yet
+        AttachmentParentType.BillingNote       => await db.BillingNotes.AnyAsync(x => x.BillingNoteId == id, ct),
+        AttachmentParentType.CompanyProfile    => await db.CompanyProfiles.AnyAsync(x => x.CompanyId == (int)id, ct),
         _ => false,
     };
 
