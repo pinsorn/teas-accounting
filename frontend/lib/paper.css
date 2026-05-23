@@ -1,0 +1,255 @@
+/* ====================================================================
+   PaperDocument styles — Sprint 13j-FE.
+   Ported faithfully from design/claude-design/styles.css (.paper* rules)
+   so the FE preview is the visual contract QuestPDF (13j-PDF) mirrors 1:1.
+   Lives in lib/ (outside the components/app hex-grep). Uses var() tokens
+   from design-tokens.css; `white` keyword instead of #FFFFFF.
+   ==================================================================== */
+
+.paper-wrap {
+  background: linear-gradient(180deg, var(--ink-75), var(--ink-50));
+  padding: 32px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+}
+.paper {
+  background: white;
+  max-width: 794px; /* A4 width @ 96dpi */
+  width: 100%;
+  margin: 0 auto;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  padding: 48px 56px;
+  font-family: var(--font-doc);
+  font-size: 16px;
+  color: var(--ink-900);
+  overflow: hidden;
+}
+.paper::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--ink-900) 0%, var(--ink-900) 35%, var(--peach-400) 35%, var(--peach-400) 100%);
+}
+.paper-wm {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-22deg);
+  font-size: 140px;
+  font-weight: 800;
+  color: var(--ink-100);
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: 8px;
+  opacity: 0.6;
+  white-space: nowrap;
+  z-index: 0;
+}
+.paper-wm.success { color: rgba(74,124,89,0.10); }
+.paper-wm.danger  { color: rgba(181,82,74,0.10); }
+.paper-wm.warning { color: rgba(198,138,46,0.10); }
+.paper-wm.info    { color: rgba(91,123,154,0.10); }
+.paper > * { position: relative; z-index: 1; }
+/* Higher specificity than `.paper > *` so the watermark stays out of flow
+   (same-specificity tie previously made it position:relative → in-flow → it
+   pushed the header down on docs that have a watermark). */
+.paper > .paper-wm { position: absolute; z-index: 0; }
+
+.paper-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 32px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1.5px solid var(--ink-900);
+}
+.paper-company { display: flex; gap: 14px; align-items: flex-start; }
+.paper-company .mark {
+  width: 56px; height: 56px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--peach-100), var(--peach-300));
+  display: grid; place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.paper-company .mark img { width: 100%; height: 100%; object-fit: cover; }
+.paper-company .info .name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 4px;
+}
+.paper-company .info .addr {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-700);
+}
+.paper-title { text-align: right; }
+.paper-title .label-en {
+  font-size: 13px;
+  letter-spacing: 2px;
+  font-weight: 600;
+  color: var(--peach-600);
+  text-transform: uppercase;
+}
+.paper-title .label-th {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ink-900);
+  line-height: 1;
+  margin-top: 4px;
+}
+.paper-title .docno {
+  margin-top: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.paper-meta {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.paper-meta .block {
+  border: 1px solid var(--ink-100);
+  padding: 14px 16px;
+  border-radius: 4px;
+  background: white;
+}
+.paper-meta .block .lbl {
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--peach-600);
+  margin-bottom: 6px;
+}
+.paper-meta .block .val { font-size: 15px; line-height: 1.5; }
+.paper-meta .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 15px; margin: 0; }
+.paper-meta .kv dt { color: var(--ink-500); }
+.paper-meta .kv dd { margin: 0; font-weight: 600; color: var(--ink-900); }
+
+.paper-items { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-family: var(--font-doc); }
+.paper-items thead th {
+  background: var(--ink-900);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 12px;
+  text-align: left;
+  letter-spacing: 0.5px;
+}
+.paper-items thead th.num { text-align: right; }
+.paper-items thead th:first-child { width: 36px; text-align: center; }
+.paper-items tbody td {
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--ink-100);
+  font-size: 15px;
+  vertical-align: top;
+}
+.paper-items tbody td:first-child { text-align: center; color: var(--ink-500); }
+.paper-items tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.paper-items tbody tr.empty-row td { border-bottom: 1px dashed var(--ink-100); height: 32px; background: var(--ink-50); }
+
+.paper-foot {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  margin-top: 8px;
+}
+.paper-totals { font-size: 15px; }
+.paper-totals .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dotted var(--ink-100);
+}
+.paper-totals .row > span:first-child { text-align: left; }
+.paper-totals .row .v { white-space: nowrap; text-align: right; }
+.paper-totals .row.total {
+  background: var(--peach-50);
+  border: 1.5px solid var(--peach-400);
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+.paper-totals .row.total > span:first-child { white-space: nowrap; }
+.paper-totals .row.total .v { color: var(--peach-700); }
+.paper-totals .amount-words {
+  margin-top: 8px;
+  font-style: italic;
+  color: var(--ink-600);
+  font-size: 14px;
+  text-align: right;
+}
+.paper-notes {
+  border: 1px dashed var(--ink-200);
+  padding: 12px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: var(--ink-700);
+}
+.paper-notes .lbl { font-weight: 700; color: var(--ink-900); margin-bottom: 4px; }
+
+.paper-sign {
+  margin-top: 36px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 36px;
+}
+.paper-sign .box {
+  border-top: 1px solid var(--ink-900);
+  padding-top: 8px;
+  text-align: center;
+  font-size: 14px;
+  position: relative;
+}
+.paper-sign .box .role { font-weight: 700; color: var(--ink-900); }
+.paper-sign .box .sub { color: var(--ink-500); font-size: 13px; margin-top: 2px; }
+.paper-sign .box .sig {
+  font-family: cursive;
+  font-size: 22px;
+  color: var(--ink-700);
+  transform: rotate(-6deg);
+}
+
+/* === Detail layout (paper + side rail) === */
+.detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; min-width: 0; align-items: start; }
+.detail-grid > * { min-width: 0; }
+.paper-wrap { align-self: start; }
+.detail-side { display: flex; flex-direction: column; gap: 16px; }
+
+/* === Create layout (form + sticky preview) === */
+.create-grid { display: grid; grid-template-columns: 1fr 720px; gap: 20px; align-items: flex-start; min-width: 0; }
+.create-grid > * { min-width: 0; }
+.create-grid .preview-side {
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - var(--topbar-h) - 60px);
+  overflow-y: auto;
+}
+.create-grid .preview-side .paper { width: 100%; padding: 32px 36px; font-size: 13px; }
+.create-grid .preview-side .paper-title .label-th { font-size: 22px; }
+.create-grid .preview-side .paper-items thead th,
+.create-grid .preview-side .paper-items tbody td { font-size: 13px; padding: 8px 10px; }
+.create-grid .preview-side .paper-totals .row.total { font-size: 15px; padding: 8px 12px; }
+.create-grid .preview-side .paper-meta { font-size: 13px; }
+.create-grid .preview-side .paper-meta .block { padding: 10px 12px; }
+.create-grid .preview-side .paper-meta .block .val { font-size: 13px; }
+
+@media (max-width: 1400px) {
+  .create-grid { grid-template-columns: 1fr 540px; }
+}
+@media (max-width: 1200px) {
+  .create-grid { grid-template-columns: 1fr; }
+  .create-grid .preview-side { position: static; max-height: none; }
+  .detail-grid { grid-template-columns: 1fr; }
+}

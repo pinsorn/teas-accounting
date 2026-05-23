@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "id": "01.04",
+    "title": "ออกจากระบบ",
+    "chapter": "1. เริ่มต้นใช้งาน",
+    "intro": "การ \"ออกจากระบบ\" (logout) จะส่ง POST ไปที่ /api/auth/logout — BFF จะ\nลบ httpOnly cookie ที่เก็บ access_token แล้ว redirect กลับ /login.\n\nความปลอดภัย: เนื่องจาก JWT เก็บเป็น httpOnly cookie (BFF pattern) —\nJavaScript ของหน้าเว็บอ่านไม่ได้อยู่แล้ว, การ logout ฝั่ง browser จึง\nเพียงพอแม้ยังไม่ revoke token ฝั่ง server (token จะ expire ตามอายุปกติ).\n\nหากต้องการ revoke ทันที (เช่นกรณี mobile device หาย) — admin สามารถ\nกดบังคับ logout จาก User Management (ดูบทที่ 6 → \"ผู้ใช้งาน\" → revoke session).\n\nหมายเหตุ: chapter index เดิมระบุ walkthrough \"Dark mode\" ที่ 01.04 — แต่\nฟีเจอร์ยังไม่ implement, logout จึงเลื่อนมาเป็น 01.04.",
+    "prerequisites": [
+      "login แล้ว (walkthrough 01.01)",
+      "อยู่ที่หน้าใดก็ได้หลัง login (ส่วนใหญ่ใช้จาก dashboard)"
+    ]
+  },
+  "steps": [
+    {
+      "walkthroughId": "01.04",
+      "stepId": "step-01-locate-logout",
+      "caption": "ขั้นที่ 1: ปุ่ม \"ออกจากระบบ\" อยู่ล่างสุดของ sidebar (ใต้ปุ่ม \"TH / EN\") — สีข้อความเป็นสีแดง บอกว่าเป็น destructive action",
+      "imageRel": "captures/01/01.04/step-01-locate-logout.png"
+    },
+    {
+      "walkthroughId": "01.04",
+      "stepId": "step-02-redirected-login",
+      "caption": "ขั้นที่ 2: หลังคลิก → ระบบจะส่ง POST /api/auth/logout → cookie ถูก clear → redirect กลับหน้า /login. ตอนนี้ session สิ้นสุดแล้ว",
+      "imageRel": "captures/01/01.04/step-02-redirected-login.png"
+    },
+    {
+      "walkthroughId": "01.04",
+      "stepId": "step-03-back-button-blocked",
+      "caption": "ขั้นที่ 3: ลองกดปุ่ม \"Back\" ของ browser → ระบบจะ redirect กลับ /login เสมอ (middleware ตรวจ cookie ทุก request). พิสูจน์ว่า session ถูก clear จริง",
+      "imageRel": "captures/01/01.04/step-03-back-button-blocked.png"
+    }
+  ],
+  "failure": null,
+  "capturedSteps": 3
+}

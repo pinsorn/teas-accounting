@@ -1,0 +1,27 @@
+ReferenceError: require is not defined
+    at U:\frontend\tailwind.config.ts:38:12
+    at ModuleJobSync.runSync (node:internal/modules/esm/module_job:541:37)
+    at ModuleLoader.importSyncForRequire (node:internal/modules/esm/loader:366:47)
+    at loadESMFromCJS (node:internal/modules/cjs/loader:1649:24)
+    at Module._compile (node:internal/modules/cjs/loader:1812:5)
+    at Object..js (node:internal/modules/cjs/loader:1961:10)
+    at Module.load (node:internal/modules/cjs/loader:1553:32)
+    at Module._load (node:internal/modules/cjs/loader:1355:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1576:12)
+    at mod.require (U:\frontend\node_modules\.pnpm\next@15.5.18_@playwright+te_391d438476d9cac8675c1ce0e6fe2ceb\node_modules\next\dist\server\require-hook.js:68:28)
+    at require (node:internal/modules/helpers:153:16)
+    at C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\load-config.js:51:20
+    at loadConfig (C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\load-config.js:55:6)
+    at getTailwindConfig (C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\setupTrackingContext.js:74:116)
+    at C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\setupTrackingContext.js:103:92
+    at C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\processTailwindFeatures.js:46:11
+    at plugins (C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\plugin.js:38:69)
+    at LazyResult.runOnRoot (C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\postcss@8.4.31\node_modules\postcss\lib\lazy-result.js:329:16)
+    at LazyResult.runAsync (C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\postcss@8.4.31\node_modules\postcss\lib\lazy-result.js:258:26)
+    at LazyResult.async (C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\postcss@8.4.31\node_modules\postcss\lib\lazy-result.js:160:30)
+    at LazyResult.then (C:\Users\ham_c\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\local-agent-mode-sessions\d4abcd15-fd78-4a6d-91b8-6bb0561265ad\967a47d5-449a-4c87-ad67-b4de781eefa8\local_28fa41fc-2f5a-4fd2-9659-66ab1d2c9ab1\outputs\code\frontend\node_modules\.pnpm\postcss@8.4.31\node_modules\postcss\lib\lazy-result.js:404:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at process.processImmediate (node:internal/timers:472:9)
+    at process.callbackTrampoline (node:internal/async_hooks:130:17)

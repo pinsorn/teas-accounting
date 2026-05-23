@@ -5,9 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder } from '@/lib/queries';
-import { formatTHB } from '@/lib/utils';
+import { DocActionBar } from '@/components/ui/DocActionBar';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { ActivityLog } from '@/components/doc/ActivityLog';
+import { DocumentChain } from '@/components/doc/DocumentChain';
+import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCompanyProfile, useCustomer } from '@/lib/queries';
+import { PAPER_DOC, paperWatermark, companyToSeller, custInfo } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
+import { PrintMenu } from '@/components/ui/PrintMenu';
 
 export default function SalesOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -18,6 +23,8 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
   const q = useSalesOrder(soId);
   const post = usePostSalesOrder();
   const makeDo = useCreateDeliveryOrder();
+  const company = useCompanyProfile();
+  const cust = useCustomer(q.data?.customerId ?? null);
   const d = q.data;
 
   async function doPost() {
@@ -51,38 +58,61 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
 
   if (!d) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
 
+  const cfg = PAPER_DOC['sales-order'];
+
   return (
     <>
-      <PageHeader title={`${t('listTitle')} ${d.docNo ?? `#${d.salesOrderId}`}`} />
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span data-testid="so-status" className="badge badge-lg badge-ghost">{d.status}</span>
-        <span>{d.customerName}</span>
-        {d.status === 'Draft' && (
-          <button data-testid="so-post" className="btn btn-primary btn-sm"
-            disabled={post.isPending} onClick={doPost}>{t('post')}</button>
-        )}
-        {d.status === 'Posted' && (
-          <button data-testid="so-create-do" className="btn btn-secondary btn-sm"
-            disabled={makeDo.isPending} onClick={createDelivery}>{t('createDo')}</button>
-        )}
+      <PageHeader
+        title={`${t('listTitle')} ${d.docNo ?? `#${d.salesOrderId}`}`}
+        actions={<PrintMenu docType="sales-orders" id={soId} />}
+      />
+
+      <DocActionBar
+        status={d.status}
+        docNo={d.docNo ?? `#${d.salesOrderId}`}
+        actions={
+          <>
+            {d.status === 'Draft' && (
+              <button data-testid="so-post" className="btn btn-primary btn-sm" disabled={post.isPending} onClick={doPost}>
+                {t('post')}
+              </button>
+            )}
+            {d.status === 'Posted' && (
+              <button data-testid="so-create-do" className="btn btn-primary btn-sm" disabled={makeDo.isPending} onClick={createDelivery}>
+                {t('createDo')}
+              </button>
+            )}
+          </>
+        }
+      />
+
+      <div className="detail-grid">
+        <div className="paper-wrap">
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo={d.docNo ?? `#${d.salesOrderId}`}
+            issueDate={d.docDate}
+            seller={companyToSeller(company.data)}
+            customer={custInfo(d.customerName, cust.data)}
+            items={d.lines.map((l) => ({
+              description: l.descriptionTh,
+              quantity: l.quantity,
+              unit: l.uomText,
+              unitPrice: l.unitPrice,
+              amount: l.lineAmount,
+            }))}
+            summary={{ subtotal: d.subtotalAmount, vat: d.vatAmount, total: d.totalAmount }}
+            signRoles={cfg.signRoles}
+            watermark={paperWatermark('sales-order', d.status)}
+          />
+        </div>
+        <div className="detail-side">
+          <DocumentChain type="sales-order" id={soId} />
+          <ActivityLog docType="sales-orders" id={soId} />
+        </div>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table">
-          <tbody>
-            {d.lines.map((l) => (
-              <tr key={l.lineNo}>
-                <td>{l.descriptionTh}</td>
-                <td className="text-right tabular-nums">{l.quantity}</td>
-                <td className="text-right tabular-nums">{formatTHB(l.totalAmount)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot><tr className="font-bold">
-            <td colSpan={2} className="text-right">{t('total')}</td>
-            <td className="text-right tabular-nums">{formatTHB(d.totalAmount)}</td>
-          </tr></tfoot>
-        </table>
-      </div>
+
       <AttachmentsSection parentType="SALES_ORDER" parentId={soId} />
     </>
   );

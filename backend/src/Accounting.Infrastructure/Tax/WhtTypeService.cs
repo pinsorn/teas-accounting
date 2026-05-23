@@ -41,7 +41,7 @@ public sealed class WhtTypeService(AccountingDbContext db, ITenantContext tenant
 
     public async Task UpdateAsync(int id, UpdateWhtTypeRequest req, CancellationToken ct)
     {
-        var e = await db.WhtTypes.FirstOrDefaultAsync(w => w.WhtTypeId == id, ct)
+        var e = await db.WhtTypes.FirstOrDefaultAsync(w => w.WhtTypeId == id && w.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("wht_type.not_found", $"WHT type {id} not found.");
         e.NameTh = req.NameTh;
         e.NameEn = req.NameEn;
@@ -52,16 +52,30 @@ public sealed class WhtTypeService(AccountingDbContext db, ITenantContext tenant
 
     public async Task DeactivateAsync(int id, CancellationToken ct)
     {
-        var e = await db.WhtTypes.FirstOrDefaultAsync(w => w.WhtTypeId == id, ct)
+        var e = await db.WhtTypes.FirstOrDefaultAsync(w => w.WhtTypeId == id && w.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("wht_type.not_found", $"WHT type {id} not found.");
         e.IsActive = false;   // soft — historical docs keep their snapshot
+        await db.SaveChangesAsync(ct);
+    }
+
+    // Sprint 13f P2 — undo a soft-deactivate (UI Restore button).
+    public async Task ReactivateAsync(int id, CancellationToken ct)
+    {
+        var e = await db.WhtTypes.FirstOrDefaultAsync(w => w.WhtTypeId == id && w.CompanyId == tenant.CompanyId, ct)
+            ?? throw new DomainException("wht_type.not_found", $"WHT type {id} not found.");
+        e.IsActive = true;
         await db.SaveChangesAsync(ct);
     }
 
     public async Task<IReadOnlyList<WhtTypeListItem>> ListAsync(
         bool includeInactive, CancellationToken ct)
     {
-        var q = db.WhtTypes.AsNoTracking().AsQueryable();
+        // Sprint 13f P1 — explicit tenant scope (defense-in-depth, CLAUDE.md
+        // §4.7). The dev role has BYPASSRLS and WhtType isn't covered by the
+        // EF global filter → without this, admin saw other tenants' WHT rows
+        // (the "ADS×2" Sana reported = company-1 + company-2, not a dupe).
+        var q = db.WhtTypes.AsNoTracking()
+            .Where(w => w.CompanyId == tenant.CompanyId);
         if (!includeInactive) q = q.Where(w => w.IsActive);
         return await q.OrderBy(w => w.Code).ThenBy(w => w.EffectiveFrom)
             .Select(w => new WhtTypeListItem(
@@ -72,7 +86,8 @@ public sealed class WhtTypeService(AccountingDbContext db, ITenantContext tenant
     }
 
     public async Task<WhtTypeDetail?> GetAsync(int id, CancellationToken ct) =>
-        await db.WhtTypes.AsNoTracking().Where(w => w.WhtTypeId == id)
+        await db.WhtTypes.AsNoTracking()
+            .Where(w => w.WhtTypeId == id && w.CompanyId == tenant.CompanyId)
             .Select(w => Map(w)).FirstOrDefaultAsync(ct);
 
     public async Task ChangeRateAsync(int id, ChangeWhtRateRequest req, CancellationToken ct)
@@ -80,7 +95,7 @@ public sealed class WhtTypeService(AccountingDbContext db, ITenantContext tenant
         if (!tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
-        var current = await db.WhtTypes.FirstOrDefaultAsync(w => w.WhtTypeId == id, ct)
+        var current = await db.WhtTypes.FirstOrDefaultAsync(w => w.WhtTypeId == id && w.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("wht_type.not_found", $"WHT type {id} not found.");
         if (req.EffectiveFrom <= current.EffectiveFrom)
             throw new DomainException("wht_type.bad_effective_from",

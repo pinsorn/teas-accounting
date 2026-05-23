@@ -23,9 +23,21 @@ public sealed record WhtReceivableAging(
     IReadOnlyList<WhtReceivableAgingRow> Rows, decimal TotalOutstanding,
     WhtReceivableAgingBuckets Buckets);
 
+// Sprint 13j-tail — posted receipts that withheld WHT but have NOT yet recorded
+// the customer's 50ทวิ certificate number ("ใบเสร็จที่ขาดใบทวิ 50"). The cert can
+// be entered later from the receipt detail; this report drives the chase per
+// filing period so the ภ.ง.ด./ภ.ง.ด.50 credit is not lost.
+public sealed record WhtMissingCertRow(
+    long ReceiptId, string DocNo, DateOnly DocDate,
+    string CustomerName, string? CustomerTaxId, decimal WhtAmount);
+
+public sealed record WhtMissingCertReport(
+    int Period, IReadOnlyList<WhtMissingCertRow> Rows, decimal TotalWht);
+
 public interface IWhtReceivableReportService
 {
     Task<WhtReceivableRegister> GetRegisterAsync(
         DateOnly fromDate, DateOnly toDate, CancellationToken ct);
     Task<WhtReceivableAging> GetAgingAsync(CancellationToken ct);
+    Task<WhtMissingCertReport> GetMissingCertAsync(int period, CancellationToken ct);
 }

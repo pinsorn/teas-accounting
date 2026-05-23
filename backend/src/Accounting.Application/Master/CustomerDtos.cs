@@ -49,6 +49,27 @@ public sealed record CustomerDto(
     decimal CreditLimit,
     bool IsActive);
 
+// Sprint 13j-FE — full detail for GET /customers/{id} (drives the detail/edit
+// page). Must carry every UpdateCustomerRequest field so edit doesn't data-loss.
+public sealed record CustomerDetailDto(
+    long CustomerId,
+    string CustomerCode,
+    CustomerType CustomerType,
+    string NameTh,
+    string? NameEn,
+    string? TaxId,
+    string? BranchCode,
+    string? BranchName,
+    bool VatRegistered,
+    string? BillingAddress,
+    string? ContactPerson,
+    string? Phone,
+    string? Email,
+    decimal CreditLimit,
+    int PaymentTermDays,
+    string DefaultCurrency,
+    bool IsActive);
+
 public sealed class CreateCustomerValidator : AbstractValidator<CreateCustomerRequest>
 {
     public CreateCustomerValidator()

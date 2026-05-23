@@ -38,7 +38,11 @@ public static class TaxAdjustmentNoteEndpoints
                 c.User.HasClaim("perm", Permissions.Sales.DebitNotePost) ||
                 c.User.HasClaim(TenantClaimsHelper.IsSuperAdmin, "true")));
 
+        // Sprint 13i B1 — dedicated read perms added so read-tier roles
+        // (AUDITOR, SALES_STAFF) can view CN/DN without create/post grants.
         static bool CanRead(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext c) =>
+            c.User.HasClaim("perm", Permissions.Sales.CreditNoteRead) ||
+            c.User.HasClaim("perm", Permissions.Sales.DebitNoteRead) ||
             c.User.HasClaim("perm", Permissions.Sales.CreditNoteCreate) ||
             c.User.HasClaim("perm", Permissions.Sales.DebitNoteCreate) ||
             c.User.HasClaim("perm", Permissions.Sales.CreditNotePost) ||
@@ -57,8 +61,8 @@ public static class TaxAdjustmentNoteEndpoints
             await svc.GetDetailAsync(id, ct) is { } d ? Results.Ok(d) : Results.NotFound())
         .RequireAuthorization(ctx => ctx.RequireAuthenticatedUser().RequireAssertion(CanRead));
 
-        group.MapGet("/{id:long}/pdf", async (long id, ITaxAdjustmentNoteService svc, CancellationToken ct) =>
-            Results.File(await svc.BuildPdfAsync(id, ct), "application/pdf", $"note-{id}.pdf"))
+        group.MapGet("/{id:long}/pdf", async (long id, [FromQuery] bool? copy, ITaxAdjustmentNoteService svc, CancellationToken ct) =>
+            Results.File(await svc.BuildPdfAsync(id, ct, copy ?? false), "application/pdf", $"note-{id}.pdf"))
         .RequireAuthorization(ctx => ctx.RequireAuthenticatedUser().RequireAssertion(CanRead));
 
         return app;

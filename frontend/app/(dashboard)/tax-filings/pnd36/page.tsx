@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { usePnd36 } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { Pnd36Filing } from '@/lib/types';
+import { useConfirm } from '@/hooks/useConfirm';
 
 function thisMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -17,9 +18,11 @@ export default function Pnd36Page() {
   const [ym, setYm] = useState(thisMonth());
   const [filing, setFiling] = useState<Pnd36Filing | null>(null);
   const mut = usePnd36();
+  const confirm = useConfirm();
 
-  function run(mode: 'preview' | 'finalize') {
-    if (mode === 'finalize' && !window.confirm(t('pnd36FinalizeConfirm'))) return;
+  async function run(mode: 'preview' | 'finalize') {
+    if (mode === 'finalize'
+      && !(await confirm({ description: t('pnd36FinalizeConfirm'), variant: 'destructive' }))) return;
     mut.mutate(
       { period: Number(ym.replace('-', '')), mode },
       {

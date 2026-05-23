@@ -82,9 +82,15 @@ public sealed class GlPostingService : IGlPostingService
 
         // BU of each applied TI — the AR-clearing credit line inherits the TI's BU
         // so cross-BU receipts split AR by stream; cash is fungible (BU = NULL).
-        var tiIds = rc.Applications.Select(a => a.TaxInvoiceId).ToList();
-        var tiBu = await _db.TaxInvoices.Where(t => tiIds.Contains(t.TaxInvoiceId))
-            .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.BusinessUnitId, ct);
+        var tiIds = rc.Applications.Where(a => a.TaxInvoiceId.HasValue)
+            .Select(a => a.TaxInvoiceId!.Value).ToList();
+        var tiBu = tiIds.Count > 0
+            ? await _db.TaxInvoices.Where(t => tiIds.Contains(t.TaxInvoiceId))
+                .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.BusinessUnitId, ct)
+            : new Dictionary<long, int?>();
+        // Non-VAT receipts (DO-applied / standalone) have no prior AR — they recognize
+        // revenue at receipt (Cr Sales), cash basis (ม.86 — non-VAT issues no TI).
+        var salesAcct = await ResolveAccountIdAsync(rc.CompanyId, _accounts.SalesAccount, ct);
 
         var lines = new List<JournalLine>
         {
@@ -103,12 +109,33 @@ public sealed class GlPostingService : IGlPostingService
             });
         }
         foreach (var a in rc.Applications)
+        {
+            if (a.TaxInvoiceId is { } tid)
+                lines.Add(new JournalLine
+                {
+                    LineNo = ln++, AccountId = ar, DebitAmount = 0m,
+                    CreditAmount = a.AppliedAmount,
+                    Description = $"AR settle {rc.DocNo}",
+                    BusinessUnitId = tiBu.GetValueOrDefault(tid),
+                });
+            else // DO (cont.68) or Invoice/BillingNote (cont.69) application — non-VAT,
+                 // recognize revenue now (Cr Sales 4000, cash basis; no prior AR to settle).
+                lines.Add(new JournalLine
+                {
+                    LineNo = ln++, AccountId = salesAcct, DebitAmount = 0m,
+                    CreditAmount = a.AppliedAmount,
+                    Description = $"Sales (non-VAT receipt) {rc.DocNo}",
+                    BusinessUnitId = rc.BusinessUnitId,
+                });
+        }
+        // Standalone non-VAT receipt — no applications; recognize the full amount as revenue.
+        if (rc.Applications.Count == 0)
             lines.Add(new JournalLine
             {
-                LineNo = ln++, AccountId = ar, DebitAmount = 0m,
-                CreditAmount = a.AppliedAmount,
-                Description = $"AR settle {rc.DocNo}",
-                BusinessUnitId = tiBu.GetValueOrDefault(a.TaxInvoiceId),
+                LineNo = ln++, AccountId = salesAcct, DebitAmount = 0m,
+                CreditAmount = rc.Amount,
+                Description = $"Sales (non-VAT receipt) {rc.DocNo}",
+                BusinessUnitId = rc.BusinessUnitId,
             });
 
         // businessUnitId: null — lines carry their own BU; cash line stays NULL.

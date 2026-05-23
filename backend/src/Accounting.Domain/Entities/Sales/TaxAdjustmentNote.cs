@@ -58,6 +58,10 @@ public class TaxAdjustmentNote : ITenantOwned, IAuditable, IConcurrencyVersioned
     public long? UpdatedBy { get; set; }
     public long Version { get; set; }
 
+    // Sprint 13j-FE — original/copy print tracking (reprints marked สำเนา/COPY).
+    public DateTimeOffset? OriginalPrintedAt { get; set; }
+    public int PrintCount { get; set; }
+
     public void MarkPosted(string docNo, long userId, DateTimeOffset postedAt)
     {
         if (Status != DocumentStatus.Draft)

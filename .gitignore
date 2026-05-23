@@ -75,3 +75,9 @@ secrets/
 
 # ===== Runtime file-storage (Sprint 11 LocalDisk; never commit) =====
 _attachments/
+
+# Derived knowledge-graph artifacts (CLAUDE.md §17 — regenerate, never commit)
+graphify-out/
+
+# Windows reserved-name stray file (blocks git add -A; cannot be stat'd)
+/nul

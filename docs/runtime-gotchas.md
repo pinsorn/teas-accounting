@@ -366,6 +366,8 @@ Then assert via `code`, not by hardcoded value.
   - Randomized inserts (UUID-suffixed identifiers).
 - Tests that share a DB with each other or with prior runs cannot rely on fixed values.
 
+**✅ Resolved Sprint 14.5** via shared `Accounting.TestKit.TestIds` helper (`CustomerCode()`, `VendorCode()`, `ProductCode()`, `BusinessUnitCode()`, `ExpenseCategoryCode()`, `WhtTypeCode()`, `Email()`, `TaxId()`, `FuturePeriod()`, `Name()`, `Suffix()`) + `frontend/e2e/helpers/test-ids.ts` mirror + 7-site retrofit + CLAUDE.md §15 "Test data discipline" as standing rule. Root cause eliminated: every write-then-read integration/e2e fixture now uses per-run random suffix from one helper, never plants fixed identifiers on the shared dev DB. Sprint 14 `external-api-microservice` GL journal-numbering desync has one-time idempotent repair via `tools/dev-db-resync.sql` (run via `dev-tools/dev-db-resync.sh`). **Status: extinct** — no longer a Phase-2 candidate. After 7 re-applications, root-cause fix.
+
 ---
 
 ## 15. Playwright — `getByRole('cell', { name })` substring-match ambiguity
@@ -705,6 +707,400 @@ EF Core: `entity.HasIndex(x => new { x.CompanyId, x.DocNo }).IsUnique().HasFilte
 
 ---
 
+## 23. BFF proxy env-var fallback masking a missing config
+
+**Caught in:** Sprint 13b (live capture session via Chrome MCP) — first 10 minutes
+of the manual-capture workflow. POST `/api/auth/login` returned 500 even though
+backend `:5080` direct curl returned 200.
+
+**Where:** `frontend/app/api/auth/login/route.ts` (and every other BFF proxy
+route that used the same pattern):
+```ts
+const BACKEND = process.env.BACKEND_API_URL ?? 'http://localhost:5000';
+```
+
+**Symptom:** Backend booted with `ASPNETCORE_URLS=http://localhost:5080`
+(override), but `BACKEND_API_URL` was missing from `.env.local`. The `??`
+fallback silently went to `localhost:5000` (Kestrel default that nothing was
+listening on) → BFF received ECONNREFUSED → 500 to browser. No log, no
+warning, no missing-env error — just a quiet wrong-URL.
+
+**Root cause:** Defensive `??` fallbacks for required configuration hide
+deployment misconfiguration. The fallback is only correct if it matches the
+real default of every environment the code runs in — and it didn't here
+(dev backend was on a non-default port).
+
+**Fix:**
+1. Created `frontend/.env.local` with `BACKEND_API_URL=http://localhost:5080`
+2. Updated `.env.local.example` to document the var as required (was missing
+   from the example template entirely)
+3. Left the `??` fallback in route.ts as a last-line defense (don't 500 if
+   completely unset in prod) — but the example file change is the real fix:
+   ops now sees the var on first checkout.
+
+**Prevention:**
+- For **required** server-side env vars, fail fast with a clear error rather
+  than fall back: `const BACKEND = process.env.BACKEND_API_URL ?? (() => { throw new Error('BACKEND_API_URL missing — see .env.local.example'); })();`
+- Every server-side env var the app actually needs must be in
+  `.env.local.example` from day one. If it's there, ops will copy it; if not,
+  they assume it's optional.
+- Live-capture / Chrome MCP smoke catches these in seconds — `curl`-only
+  smoke against the backend port won't (the backend itself is fine).
+
+---
+
+## 24. ESM Next.js config + CommonJS `require()` mid-file = silent /login compile crash
+
+**Caught in:** Sprint 13b (after fix #23 above — the second bug in the same
+capture session). After restarting `pnpm dev`, navigating to `/login` showed
+"Frame is showing error page"; Chrome MCP `get_page_text` + `screenshot` both
+failed silently.
+
+**Where:** `frontend/tailwind.config.ts`:
+```ts
+import daisyui from 'daisyui';      // line 2 — ESM import
+// ...
+plugins: [require('@tailwindcss/typography')],   // ← CJS in ESM file
+```
+
+**Symptom:** Next.js 15 uses native ESM config loaders. A bare `require()`
+call from inside an ESM module throws at compile time. The error didn't
+surface in any visible dev server log — it killed the `/login` route compile
+silently, leaving an unstyled error page the browser couldn't even parse.
+
+**Root cause:** Mixing CJS `require()` into an ESM file (`tailwind.config.ts`)
+works under the older webpack loader (which transpiled everything together)
+but breaks under the native ESM loader Next 15 uses for config. The crash
+happens deep in the config loader chain → no useful stack in the dev console.
+
+**Fix:** Convert `require()` to `import` matching the rest of the file:
+```ts
+import typography from '@tailwindcss/typography';
+// ...
+plugins: [typography],
+```
+
+**Prevention:**
+- An ESM config file (`*.config.ts/.mjs` with `import` syntax anywhere) must
+  use `import` everywhere. No `require()`. No mixed-mode.
+- Add a lint rule: `no-restricted-syntax: CallExpression[callee.name="require"]`
+  scoped to `*.config.{ts,mjs}` files.
+- Chrome MCP + dev-server logs together caught this within a minute; either
+  alone would have missed it (the page returns 200 — just unstyled trash).
+  Use both during dev/restart cycles.
+
+---
+
+## 25. EF Core CLI — `migrations add --no-build` + `migrations remove` cascade footgun
+
+**Caught in:** Sprint 13d (P6 Company Profile migration). Recovered without
+data loss via git, but the recovery cost ~30 min of cleanup.
+
+**Where:** `dotnet ef migrations add AddCompanyProfile --no-build` (saved a
+few seconds skipping rebuild).
+
+**Symptom:** 3-step cascade:
+1. `--no-build` used stale assembly → generated **empty** migration (no
+   Up/Down/snapshot diff at all)
+2. `dotnet ef migrations remove` to clean up the empty migration → instead
+   removed the **previous real** migration (`AddIdempotencyKeys`) AND
+   reverted `AccountingDbContextModelSnapshot.cs` to a still-earlier state,
+   because the empty migration hadn't moved the snapshot forward so `remove`
+   targeted the snapshot's last entry (not the most-recent migration file)
+3. Solution build still passed; the loss only surfaced when next migration
+   couldn't find expected tables
+
+**Root cause:** `ef migrations remove` operates on the snapshot, not the
+migration filesystem. When an empty migration is present, the snapshot is
+out of sync with the migrations folder — `remove` then "succeeds" by
+rolling back to whatever the snapshot says is latest, which is the wrong
+migration.
+
+**Fix (recovery):** Repo is git-tracked. `git restore` the two
+`AddIdempotencyKeys_*.cs` files + `AccountingDbContextModelSnapshot.cs`,
+delete the empty `AddCompanyProfile*.cs` orphans, rebuild **with** the
+real build step, regenerate `AddCompanyProfile` — clean migration on the
+correct base. `git status Migrations/` confirms clean.
+
+**Prevention (now rules — never break):**
+- **NEVER** `dotnet ef migrations add --no-build`. Always build first. The
+  few seconds saved aren't worth the failure mode.
+- **NEVER** `dotnet ef migrations remove` without first verifying:
+  - `git status Migrations/` shows expected uncommitted state
+  - `dotnet ef migrations list` shows the migration you intend to remove
+    as the LAST entry
+  - If the snapshot might be out of sync, `git diff` the snapshot file
+    before remove
+- Keep migrations folder under git always — recovery depends on it.
+
+---
+
+## 26. Tenant-isolation: master-data services must not rely on RLS alone
+
+**Caught in:** Sprint 13f (chapter 2 re-validate via Chrome MCP). `demo-admin`
+GET `/wht-types` returned 18 rows including ADS×2/RENT×2/SVC×2; investigation
+disproved data-duplication hypothesis (UNIQUE constraint already enforced
+the right key, seeds already idempotent) — actual root cause was
+**cross-tenant view leak**.
+
+**Where:** `WhtTypeService.ListAsync/GetAsync/DeactivateAsync/ReactivateAsync/
+ChangeRateAsync` queried `db.WhtTypes` with **no explicit `CompanyId`
+filter**, relying on two isolation nets that were both off:
+1. PostgreSQL Row-Level Security — but the dev `accounting` role had
+   `BYPASSRLS` (set in Sprint 13d so `DbInitializer` could seed at startup
+   without `SET app.company_id`).
+2. EF Core global query filter — `WhtType` was not registered for the filter
+   (`CLAUDE.md §4.7` mandates the EF filter as the *backup* to RLS).
+
+Result: with both nets gone, every WHT read returned every tenant's rows.
+Admin (company 2) saw company 1's 15 + company 2's 3 = 18 rows.
+
+**Symptom:** Manual user saw confusing "duplicate" rows (ADS appearing
+twice with the same code/rate/form) — but the duplicates had different
+`whtTypeId`s and belonged to different companies. Looks like a data bug;
+isn't.
+
+**Root cause:** Defense-in-depth was assumed but never verified. Devs
+added BYPASSRLS for seeder convenience; entity wasn't added to the EF
+global filter when first created → no net.
+
+**Fix:** Explicit `Where(w => w.CompanyId == tenant.CompanyId)` on every
+service read/mutation (`WhtTypeService.cs`), regardless of RLS/role state.
+The **service** is now the strongest isolation net for this entity. Plus
+`tools/wht-dedupe.sql` as defensive maintenance script for any legacy DB
+that did accumulate true duplicates (no-op on clean DB).
+
+**Prevention:**
+- Every tenant-scoped entity (anything with `CompanyId`) MUST be in one
+  of: (a) the EF Core global query filter, or (b) explicit
+  `Where(x => x.CompanyId == tenant.CompanyId)` in every service read.
+  Best: both.
+- Don't trust DB RLS as the **only** isolation net. RLS is correct in
+  production (prod role ≠ BYPASSRLS) but disappears in dev and during
+  seeding. CLAUDE.md §4.7 is the standing rule — the EF filter is the
+  backup; the service-level filter is the belt.
+- When a dev convenience patch turns off an isolation primitive (like
+  `ALTER ROLE accounting BYPASSRLS`), audit downstream nets immediately —
+  don't ship the patch alone.
+- **Future audit sprint queued** (task #59 in TodoList): enumerate every
+  `CompanyId` entity, verify each is in the global filter OR has explicit
+  service scope. Revisit dev-role BYPASSRLS vs DbInitializer
+  `SET app.company_id`.
+
+---
+
+## 27. Next.js App Router — `[id]/page.tsx` without `new/page.tsx` swallows `/new`
+
+**Caught in:** Sprint 13e P1 (P0 emergency). `/sales-orders/new` and
+`/delivery-orders/new` showed an infinite loading spinner. Network log:
+`GET /api/proxy/sales-orders/NaN` → 404. Compare with `/debit-notes/new`
+which worked fine.
+
+**Where:** Both `sales-orders/` and `delivery-orders/` resource directories
+had `page.tsx` (list) + `[id]/page.tsx` (detail) but **no `new/page.tsx`**.
+The DN folder had `new/page.tsx` — that's why it worked.
+
+**Symptom:** Next.js App Router falls back to the dynamic `[id]` route
+when no static segment matches. So `/sales-orders/new` was treated as
+"detail for record id=`new`":
+1. `[id]/page.tsx` mounts with `params.id = "new"`
+2. Component does `const id = parseInt(params.id)` → `NaN`
+3. `useTaxInvoice(NaN)` fetches `/api/proxy/sales-orders/NaN`
+4. Backend: 404 (no record with id=NaN)
+5. TanStack Query stuck on error → loading state never resolves
+6. User sees blank spinner forever
+
+**Root cause:** Static-segment precedence in Next.js routing is only
+applied when a matching static segment file **exists**. If you have
+`[id]/page.tsx` and a user navigates to `/new`, you need `new/page.tsx`
+to claim that segment — otherwise Next.js routes `/new` into `[id]` with
+`params.id="new"`.
+
+**Fix:** Create the static-segment file:
+```
+frontend/app/(dashboard)/sales-orders/new/page.tsx
+frontend/app/(dashboard)/delivery-orders/new/page.tsx
+```
+Even an emergency stub component is enough to claim the segment and
+break the fallback. Once the file exists, Next.js builds the new
+client chunk and `/new` routes there deterministically.
+
+**Prevention:**
+- **Whenever a resource directory has `[id]/page.tsx`, audit whether
+  `/new` is a valid URL for that resource.** If yes, `new/page.tsx`
+  must exist. The convention is: list page links to `/{res}/new`
+  (Create action) and clicking a row goes to `/{res}/{id}` (Detail).
+  Both need static files.
+- A grep at repo root catches missing pairs:
+  ```bash
+  for d in frontend/app/**/\[id\]; do
+    parent=$(dirname "$d")
+    if [[ ! -d "$parent/new" ]]; then
+      echo "MISSING: $parent/new/page.tsx (sibling [id]/ exists)"
+    fi
+  done
+  ```
+- An e2e regression test per resource (`/new` returns 200 + renders
+  expected form heading) catches this at PR time.
+- This bug was invisible to `tsc` + unit tests — only live navigation
+  (Chrome MCP / browser) surfaces it. Add `/new` smoke to the
+  chapter-by-chapter validation step (CLAUDE.md §16).
+
+---
+
+## 28. Master-data seed idempotency mandate
+
+**Caught in:** Sprint 13f (during the §26 investigation — disproven as the
+cause but confirmed as a baseline requirement).
+
+**Where:** Master-data seed SQL files (e.g. `tax.wht_types` seeds 120, 220,
+400).
+
+**Symptom:** None in current build — all current seeds were already
+idempotent. This entry codifies the rule before it becomes a problem.
+
+**Rule:** Every master-data seed must be safely re-runnable:
+```sql
+INSERT INTO tax.wht_types (company_id, code, effective_from, ...)
+VALUES (...)
+ON CONFLICT (company_id, code, effective_from) DO NOTHING;
+```
+And the table must have a matching UNIQUE constraint on the natural key
+referenced by the ON CONFLICT clause.
+
+**Prevention:**
+- Two halves of the same rule: (a) DB UNIQUE on natural key, (b) seed uses
+  ON CONFLICT against that key. Either alone is fragile (data drift; or
+  silent re-insert success that violates the implicit invariant).
+- If a seed needs to refresh data (not just insert-if-missing), use
+  `ON CONFLICT (...) DO UPDATE SET col = EXCLUDED.col, ...` — be explicit
+  about what gets refreshed.
+- Reviewers checklist when adding seed SQL: ON CONFLICT present? Matching
+  UNIQUE constraint present? Both must answer yes.
+
+---
+
+## 29. Claude Code session env cannot spawn `MSBuild` / `csc.exe` — .NET toolchain off-limits in-session
+
+**Caught in:** Sprint 13e P3 (Question-Backend14). Not a code bug — an
+environment fact that materially changes how sprint work is sequenced once
+a sprint needs `dotnet build` / `dotnet test` / `dotnet ef migrations add`.
+
+**Where:** Every Sprint 13e path that touches .NET (`dotnet build`,
+`dotnet test`, `dotnet ef migrations add` — the last one builds first as
+part of design-time scaffolding).
+
+**Symptom:**
+
+```
+Microsoft.Build.BackEnd.NodeFailedToLaunchException: The parameter is incorrect.
+   at Microsoft.Build.BackEnd.NodeLauncher.StartProcessWindows(...)
+MSB1025: Cannot acquire required number of nodes. NumberOfNodesToCreate: 2
+```
+
+and at one step deeper:
+
+```
+error MSB3883: An error occurred trying to start process
+'...\Roslyn\bincore\csc.exe' ... The parameter is incorrect.
+```
+
+Reproduced across **all** of: bash (sandboxed + `dangerouslyDisableSandbox`),
+PowerShell (absolute path), `-m:1` / `-nodeReuse:false` /
+`-p:UseSharedCompilation=false` / `--disable-build-servers`,
+`DOTNET_CLI_USE_MSBUILD_SERVER=0`, `MSBUILDDISABLENODEREUSE=1`. The packaged
+MSIX Claude session (`Claude_pzs8sxrjxfjjc`) cannot spawn MSBuild worker
+nodes or `csc.exe` — the entire C# compile toolchain is unusable here.
+Node tooling (`tsc`, `pnpm`) is unaffected.
+
+**Root cause:** Windows job-object / sandbox restriction on child-process
+creation in the MSIX-packaged Claude session host. Not a project config
+issue — flags and workarounds cannot un-restrict it from inside the session.
+
+**Why it matters for sprint planning:**
+- **`dotnet ef migrations add` inherits the block** (design-time scaffolding
+  builds the assembly first to read the model). So any sprint with a new
+  EF migration cannot generate the migration in-session.
+- **BUILD-PENDING handoff** to a host that *can* build (Ham's local
+  Windows workstation; CI) becomes the only viable path. See Sprint 13e
+  R-Q1a precedent (Question-Backend14 + Answer-Sana-Backend26): hand-write
+  the migration mirroring the closest existing migration shape, mark every
+  affected BE file `// BUILD-PENDING: …`, and gate merge on Ham's local
+  `dotnet build` 0/0 + `migrations add` regen byte-match + `dotnet test`
+  0 regr.
+- **§25 rules still apply** to the regen step — Ham must build *with*
+  the real assembly (`migrations add` after `dotnet build`, never
+  `--no-build`), and review the snapshot diff before any `remove`.
+
+**Prevention / process rules:**
+- **Plan sprint phases by toolchain reach.** Node-verifiable work
+  (frontend, e2e specs authored, doc deltas) is unconditionally
+  unblocked in-session. .NET-touching work is conditionally unblocked
+  via R-Q1a-style BUILD-PENDING handoffs **only when**:
+  - the change is mechanical / mirrors an existing template (low novelty)
+  - a verifying host is reachable same-day (Ham confirmed Q2 = yes:
+    he can `dotnet build` on his local Windows host on demand)
+- **Never land an unverified breaking migration without sign-off** —
+  this is the Report-Backend26/28 "half-finished" anti-pattern the
+  R-Q1c option explicitly warned against. R-Q1b (defer entirely) is
+  always preferable to R-Q1c if Q2 ever flips to "no".
+- **When Q2 turns "yes" mid-session** (Ham's local build comes back
+  online), prefer R-Q1a momentum over R-Q1b stall — but the do-not-merge
+  gate is non-negotiable until Ham reports back the three verify-command
+  results.
+- **This env limit is session-host-specific, not project-permanent.**
+  CI (when wired) or a non-MSIX Claude host removes the constraint.
+  Until then, treat as a standing constraint for every sprint planning
+  document.
+
+**ROI:** caught one sprint before it would have landed an unverifiable
+breaking migration silently. The blocker forced an honest spec-first
+question (Question-Backend14) instead of guessing — and produced the
+R-Q1a guard-rails pattern that future sprints can reuse if/when the
+constraint persists.
+
+---
+
+## 38. Spec-authoring — RBAC matrix must enumerate ALL surfaces, not a subset
+
+**Caught in:** Sprint 13h P1 (seed 320) → surfaced by Sana truly-deep RE-VALIDATE
+(cont. 58, 2026-05-21) as SR2; fixed Sprint 13i B1 (seed 330). Sana's own
+spec-authoring lesson (SR-OWN-1).
+
+**Where:** `Answer-Sana-Backend27` P1 RBAC spec + seed `320_seed_chapter3_rbac.sql`.
+
+**Symptom:** `demo-accountant` (ACCOUNTANT role) got HTTP 403 on `/receipts` and
+`/tax-adjustment-notes` (CN/DN) despite the "chapter-3 RBAC fix" sprint. The seed
+granted customer + tax_invoice perms and (later) some Receipt/CN/DN create+post to
+ACCOUNTANT only — but never created `sales.{receipt,credit_note,debit_note}.read`
+perms at all, and never granted the read tier to AR_CLERK / SALES_STAFF / AUDITOR.
+Worse, `ReceiptEndpoints` GET used `sales.receipt.create` as its policy, so a
+read-only role could never list receipts even with a read grant.
+
+**Root cause:** the RBAC spec enumerated a *subset* of sales surfaces (the ones the
+author was actively thinking about) instead of the full matrix. Partial enumeration
+is the trap: each missing (role × surface × action) cell is an invisible 403 that
+only a role-by-role traversal of every surface surfaces.
+
+**Prevention (write into every future RBAC spec):**
+- Author RBAC as an explicit **role × surface × action table**, covering ALL 8 sales
+  surfaces (Q / SO / DO / TI / RC / CN / DN / BN) + master surfaces (customer, vendor,
+  product, BU) + every action (read / create / post / manage). No surface omitted.
+- Every list/detail/pdf GET endpoint gets a dedicated `.read` permission, distinct
+  from `.create`/`.manage`. Never reuse a write perm to gate a GET (read-only roles
+  can't see the data otherwise).
+- Seeds grant the **read tier broadly** (all roles that can view the module) and the
+  **write tier narrowly** — two separate INSERT…SELECT blocks, idempotent (gotcha §28).
+- Validate with a Cartesian traversal: log in as each role, hit every surface's
+  list + detail, assert 0 unexpected 403. (Sana RE-VALIDATE acceptance for B1.)
+
+**ROI:** the gap shipped silently through Sprint 13h's own validate (which only
+tested customer + tax_invoice endpoints — same blind spot as the spec). Only a
+truly-deep role × surface traversal caught it. Cheap to prevent at spec time; a P0
+403 wall for the user if it ships.
+
+---
+
 ## ROI of the build+e2e gate
 
 Tracked since the gate became Sprint policy:
@@ -727,7 +1123,13 @@ Tracked since the gate became Sprint policy:
 | Sprint 12 (Internal PO) | 2 mechanism notes (defensive, not improvised) | (1) PO prefix missing from `100_seed_document_prefixes.sql` → added idempotently in seed 290 alongside PO permissions (single-script approach mirrors KI-01 RBAC convention). (2) `PURCHASING_STAFF` role absent from seed 110 → AP_CLERK used as create-side analog per KI-01 RBAC pattern. Pre-existing seed gaps surfaced by feature need; both noted for Phase 2 RBAC seed cleanup pass. No new EF/runtime bugs. |
 | Sprint 13c (e-Tax tier infra) | 4 architectural catches + 2 ownership-discipline escalations | (1) Hosting-free Infra layer enforced: `BackgroundService` lives in `Microsoft.Extensions.Hosting` which Infra doesn't reference (Clean Arch); refactored `ETaxRetryWorker` to pure static `RunDueAsync(db, pipeline, clock)` + `ETaxRetryHostedService` in API layer. (2) Over-removed `_etaxXml` from `TaxInvoiceService` (BuildXmlAsync preview still needs `IETaxXmlBuilder`) → restored; only signer/email moved to pipeline. (3) tsc `noUncheckedIndexedAccess` flagged MailHog `rows[0]` in e2e → guarded. (4) Pipeline retry-budget check reordered before TI lookup (correct + makes dead-letter test TI-independent). Escalation discipline: (a) CLAUDE.md §14 routed to Sana per ownership rule (not edited by Claude Code); (b) ETDA XSDs not fabricated — external artifact, ops/Tier-2 download via README. React 19.0→19.2.6 + @types upgrade (own change, 0 errors) demonstrated Sprint 1 code was already React-19-correct = forward-thinking dev. |
 | Sprint 14 (External API + Per-Key BU) | **2 real latent auth-pipeline bugs caught in P8 e2e** + 3 architectural calls + 1 ownership escalation + 7th §14 re-application | (1) `HttpTenantContext` ctor-snapshotted pre-auth user — ApiKey handler resolves DbContext→ITenantContext DURING authentication, so scoped HttpTenantContext captured anonymous principal for the whole request → every API-key request saw `IsAuthenticated=false` → 401 from service even though authorization passed. Fixed: lazy per-access evaluation. Genuine correctness defect, hidden by JWT-only path before Sprint 14 added second auth scheme. **The single most valuable Sprint 14 catch — would have shipped silently broken.** (2) Scheme-less `perm:` endpoint policy stacked with group ApiKey policy → pulled default JWT scheme → clobbered ApiKey principal. Fixed by `apiperm:` policy prefix that pins ApiKey scheme; root keeps `perm:`/JWT. **Auth-scheme isolation by policy naming = forcing function** that prevents future mixed-scheme confusion. (3) `IdempotencyFilter` → middleware (minimal-API filter returns result before serialization → can't capture byte-for-byte response). (4) Postgres rejects `WHERE expires_at > NOW()` partial-index predicate (must be IMMUTABLE) → plain btree (cleanup query unchanged). (5) 5xx not recorded for idempotency replay (Stripe pattern — transient failures stay retryable). Ownership: OpenAPI delta routed to Sana per binding rule. **7th re-application of §14** (e2e blocked by long-lived teas_app GL journal-numbering desync) — Phase 2 cleanup ELEVATED from "candidate" to "actively blocking sprint e2e gates" → propose Sprint 14.5 (shared test-fixture randomization helper) before continuing major sprints. |
-| **Total caught at runtime gate** | **23 latent bugs + 9 structural gaps + 9 pattern re-applications + 7 architectural insights** | every one invisible to `tsc` + unit tests |
+| Sprint 14.5 (§14 fix) | 0 new bugs — pure cleanup sprint | `Accounting.TestKit.TestIds` helper class (11 methods: Suffix/CustomerCode/VendorCode/ProductCode/BranchCode/BusinessUnitCode/ExpenseCategoryCode/WhtTypeCode/Email/TaxId/FuturePeriod/Name) + `frontend/e2e/helpers/test-ids.ts` TypeScript mirror + 7-site retrofit (record-vendor + Sprint55VendorInvoice + Sprint85VatThreshold + Sprint9VatCompliance + Sprint86ArWht + business-units-setup e2e + external-api-microservice e2e) + `tools/dev-db-resync.sql` one-time sequence repair script + CLAUDE.md §15 "Test data discipline" standing rule. Domain 89/89 (+6 TestIdsTests). §14 status changed from "actively blocking" → **EXTINCT**. ROI: 7+ false-positives × ~30 min debug each = 3.5+ hr saved going forward. |
+| Sprint 13b (Manual capture — first chapter 2 pass) | 2 latent BFF bugs caught in first 10 min of live capture | §23 BFF `??` fallback hid missing `BACKEND_API_URL` → POST /api/auth/login 500 (silent — backend itself 200). §24 ESM/CJS mixed `tailwind.config.ts` `require()` killed /login compile silently under Next 15's native ESM config loader. **Both invisible to curl-only smoke and `tsc` — only Chrome MCP live capture surfaced them.** Validates the "make + capture simultaneously" workflow added to chapter 2 manual production. |
+| Sprint 13d (Settings UX hardening + Company Profile) | 1 EF tooling incident + 6 UX defects fixed pre-emptively from Sana audit | §25 `ef migrations add --no-build` + `ef migrations remove` cascade footgun (recovered via git, no data loss; rules updated). 6 UX defects from Sana's chapter 2 audit not "caught" by the gate but spec'd up-front: window.confirm blocking automation, silent 403 → empty state, missing PermissionGate, missing Restore button, dual error envelope shape (RFC 9110 vs v1), missing Company Profile page. All shipped + verified via Chrome MCP re-test. Manual production found these before users would have. |
+| Sprint 13f (Chapter 2 close-out) | 1 latent tenant-isolation leak (CRITICAL latent bug) | §26 `WhtTypeService` had no explicit `CompanyId` filter; entity missing from EF global query filter; dev role had BYPASSRLS → admin saw cross-tenant rows (company 1 + company 2 merged). **Would have been a confidentiality breach the moment Phase 2 multi-tenant onboarding shipped** — caught by Sana's Chrome MCP re-validate of chapter 2 spotting "duplicate" rows that were actually a tenant leak. §28 codified seed idempotency rule as standing requirement (current seeds already comply — preventive). Systemic flag raised: other CompanyId entities may share the gap → dedicated tenant-isolation audit sprint queued. |
+| Sprint 13e P1 (Chapter 3 validate kickoff) | 2 P0 routing bugs (CRITICAL latent infra) | §27 `[id]/page.tsx` without sibling `new/page.tsx` → Next.js fallback routes `/new` to `[id]` with `params.id="new"` → `parseInt("new")=NaN` → 404. Affected `/sales-orders/new` + `/delivery-orders/new` — users sat at infinite spinner with no error message. Sana caught both during chapter 3 validate via Chrome MCP. Fixed by creating both static-segment files. Invisible to `tsc` + would have shipped silently broken. |
+| Sprint 13e P3 (TaxInvoicePicker) | 1 environment insight + R-Q1a pattern formalized | §29 Claude Code session env cannot spawn `MSBuild` / `csc.exe` (MSIX sandbox child-process restriction) → entire .NET toolchain incl. `dotnet ef migrations add` is off-limits in-session. Surfaced by trying to ship P2's breaking `AddQuotationWorkflowFields` migration. Caught BEFORE writing an unverifiable migration (spec-first Question-Backend14). R-Q1a BUILD-PENDING handoff pattern formalized for future similarly-constrained sprints. Same-class architectural insight as §21 (process-global env limit) — surfaces a sprint-planning constraint, not a code bug. |
+| **Total caught at runtime / capture gate** | **27 latent bugs + 9 structural gaps + 9 pattern re-applications (capped — §14 retired Sprint 14.5) + 8 architectural insights** | every one invisible to `tsc` + unit tests. Chapter-by-chapter manual capture (Sprint 13b+) added a new gate class: catches UX/UI-visible defects + cross-cutting isolation bugs that backend smoke misses. Sprint 13e P3 added a session-host class: catches sprint-planning constraints that the toolchain only surfaces under attempted use. |
 
 **Every bug above was either:**
 - a real defect that would have shipped (categories 1–4, 6–13), or

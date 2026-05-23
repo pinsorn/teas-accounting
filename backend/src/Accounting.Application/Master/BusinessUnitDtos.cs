@@ -36,10 +36,14 @@ public sealed class CreateBusinessUnitValidator : AbstractValidator<CreateBusine
 {
     public CreateBusinessUnitValidator()
     {
-        RuleFor(x => x.Code).NotEmpty().MaximumLength(20).Matches(@"^[A-Z0-9]+$")
-            .WithMessage("Code must be uppercase letters/digits, ≤20 chars.");
-        RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
-        RuleFor(x => x.NameEn).MaximumLength(255);
+        // Sprint 13d P5 — messages are i18n keys (FE resolves to TH/EN), not
+        // hardcoded English. Resolved via frontend/lib/i18n/validation.ts.
+        RuleFor(x => x.Code).NotEmpty().WithMessage("validation.required")
+            .MaximumLength(20).WithMessage("validation.maxLength")
+            .Matches(@"^[A-Z0-9]+$").WithMessage("validation.code.format");
+        RuleFor(x => x.NameTh).NotEmpty().WithMessage("validation.required")
+            .MaximumLength(255).WithMessage("validation.maxLength");
+        RuleFor(x => x.NameEn).MaximumLength(255).WithMessage("validation.maxLength");
     }
 }
 
@@ -47,7 +51,8 @@ public sealed class UpdateBusinessUnitValidator : AbstractValidator<UpdateBusine
 {
     public UpdateBusinessUnitValidator()
     {
-        RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
-        RuleFor(x => x.NameEn).MaximumLength(255);
+        RuleFor(x => x.NameTh).NotEmpty().WithMessage("validation.required")
+            .MaximumLength(255).WithMessage("validation.maxLength");
+        RuleFor(x => x.NameEn).MaximumLength(255).WithMessage("validation.maxLength");
     }
 }

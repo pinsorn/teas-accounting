@@ -43,6 +43,35 @@ export function VendorSelector({
   const [selectedLabel, setSelectedLabel] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sprint 13i B3 (SR5) — lookup-on-mount, same fix as CustomerSelector. Resolve
+  // a programmatically-prefilled `value` to a display label instead of "#id".
+  useEffect(() => {
+    if (!value) {
+      setSelectedLabel('');
+      return;
+    }
+    if (selectedLabel) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await apiGet<Record<string, unknown>>(`vendors/${value}`);
+        if (cancelled) return;
+        const name =
+          (raw.nameTh as string | undefined) ??
+          (raw.name as string | undefined) ??
+          `#${value}`;
+        const taxId = (raw.taxId as string | null | undefined) ?? null;
+        setSelectedLabel(`${name}${taxId ? ` (${taxId})` : ''}`);
+      } catch {
+        // keep the "#id" fallback if the lookup fails
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     if (term.trim().length < 1) {

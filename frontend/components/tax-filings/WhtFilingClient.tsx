@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { usePnd3, usePnd53, usePnd54 } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { WhtFiling } from '@/lib/types';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const HOOKS = { pnd3: usePnd3, pnd53: usePnd53, pnd54: usePnd54 } as const;
 
@@ -25,9 +26,11 @@ export function WhtFilingClient({
   const [ym, setYm] = useState(thisMonth());
   const [filing, setFiling] = useState<WhtFiling | null>(null);
   const mut = HOOKS[form]();
+  const confirm = useConfirm();
 
-  function run(mode: 'preview' | 'finalize') {
-    if (mode === 'finalize' && !window.confirm(t('finalizeConfirm'))) return;
+  async function run(mode: 'preview' | 'finalize') {
+    if (mode === 'finalize'
+      && !(await confirm({ description: t('finalizeConfirm'), variant: 'destructive' }))) return;
     mut.mutate(
       { period: Number(ym.replace('-', '')), mode },
       {

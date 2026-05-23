@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "id": "01.02",
+    "title": "สำรวจ Dashboard",
+    "chapter": "1. เริ่มต้นใช้งาน",
+    "intro": "หลัง login สำเร็จ ผู้ใช้จะมาที่ \"แดชบอร์ด\" — หน้าแรกที่สรุปภาพรวมระบบ\nและเป็นจุดเริ่มต้นในการเข้าทุกโมดูล. ในบทนี้คุณจะรู้จัก:\n\n- 4 stat cards ที่สรุปสถานะการเงินของเดือนนี้\n- โครงสร้าง sidebar ที่แบ่งเป็น 4 กลุ่ม: ขาย / ซื้อ / รายงาน / ตั้งค่า\n- ปุ่ม TH/EN สำหรับสลับภาษา และปุ่ม \"ออกจากระบบ\"\n\nหมายเหตุ: TEAS ใช้ navigation แบบ sidebar เพียงอย่างเดียว — ไม่มี top header bar.",
+    "prerequisites": [
+      "login แล้ว (walkthrough 01.01)",
+      "อยู่ที่ URL / (dashboard root)"
+    ]
+  },
+  "steps": [
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-01-overview",
+      "caption": "ขั้นที่ 1: นี่คือหน้า \"แดชบอร์ด\" — สรุปภาพรวมระบบของเดือนปัจจุบัน. หัวเรื่อง \"แดชบอร์ด\" + คำอธิบาย \"ภาพรวมระบบ\" + 4 stat cards ด้านบน",
+      "imageRel": "captures/01/01.02/step-01-overview.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-02-card-tax-invoices",
+      "caption": "ขั้นที่ 2: card แรก \"ใบกำกับภาษีเดือนนี้\" — จำนวนใบกำกับภาษีขายที่ Post แล้วในเดือนปัจจุบัน. เมื่อยังไม่มีข้อมูลจะแสดง \"—\"",
+      "imageRel": "captures/01/01.02/step-02-card-tax-invoices.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-03-card-sales",
+      "caption": "ขั้นที่ 3: card \"ยอดขายเดือนนี้\" — ผลรวม net amount ของใบกำกับภาษีขาย ที่ Post แล้ว (ไม่รวมที่ยกเลิก). หน่วยเป็นบาท (฿)",
+      "imageRel": "captures/01/01.02/step-03-card-sales.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-04-card-output-vat",
+      "caption": "ขั้นที่ 4: card \"ภาษีขายเดือนนี้\" — ผลรวม VAT 7% (Output VAT) ที่ เรียกเก็บจากลูกค้า. เป็นตัวเลขเดียวกับที่จะยื่น ภ.พ.30 ปลายเดือน",
+      "imageRel": "captures/01/01.02/step-04-card-output-vat.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-05-card-number-gaps",
+      "caption": "ขั้นที่ 5: card \"เลขเอกสารขาดช่วง\" — จำนวนช่วงของเลขเอกสารที่ขาด (ตามกฎบัญชี TEAS ต้องเป็น gapless). ถ้าไม่ใช่ 0 ต้องรีบตรวจ — ดูบทที่ 5",
+      "imageRel": "captures/01/01.02/step-05-card-number-gaps.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-06-sidebar-sales",
+      "caption": "ขั้นที่ 6: sidebar กลุ่มแรก (ไม่มีหัวข้อ) คือ \"ขาย\" — รวม แดชบอร์ด, ใบเสนอราคา, ใบสั่งขาย, ใบส่งของ, ใบกำกับภาษี, ใบเสร็จรับเงิน, ใบลดหนี้, ใบเพิ่มหนี้, ตรวจเลขเอกสารขาดช่วง",
+      "imageRel": "captures/01/01.02/step-06-sidebar-sales.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-07-sidebar-purchase",
+      "caption": "ขั้นที่ 7: กลุ่ม \"ซื้อ\" — ผู้ขาย, บันทึกใบกำกับภาษีซื้อ, ใบสั่งซื้อ, ใบสำคัญจ่าย, หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)",
+      "imageRel": "captures/01/01.02/step-07-sidebar-purchase.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-08-sidebar-reports",
+      "caption": "ขั้นที่ 8: กลุ่ม \"รายงาน\" — งบทดลอง, กำไรขาดทุน, สรุปยอดขาย, ภ.พ.30, PO ค้าง, แบบยื่นภาษี, ภาษีหัก ณ ที่จ่ายค้างรับ",
+      "imageRel": "captures/01/01.02/step-08-sidebar-reports.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-09-sidebar-settings",
+      "caption": "ขั้นที่ 9: กลุ่ม \"ตั้งค่า\" — 5 รายการ. ลิงก์แรก \"ข้อมูลบริษัท\" (Sprint 13d-P6, ทำก่อนเป็นอันดับแรกสำหรับ tenant ใหม่ — ดูบท 02.05) ตามด้วย สินค้า/บริการ, หน่วยธุรกิจ (Business Unit), ประเภทหัก ณ ที่จ่าย (admin), API Keys (admin)",
+      "imageRel": "captures/01/01.02/step-09-sidebar-settings.png"
+    },
+    {
+      "walkthroughId": "01.02",
+      "stepId": "step-10-sidebar-footer",
+      "caption": "ขั้นที่ 10: ด้านล่าง sidebar มี 2 ปุ่ม — \"TH / EN\" สลับภาษา (ดูบท 01.03) และ \"ออกจากระบบ\" สำหรับ logout (ดูบท 01.04)",
+      "imageRel": "captures/01/01.02/step-10-sidebar-footer.png"
+    }
+  ],
+  "failure": null,
+  "capturedSteps": 10
+}

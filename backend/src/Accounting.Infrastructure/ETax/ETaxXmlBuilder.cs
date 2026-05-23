@@ -28,12 +28,17 @@ public sealed class ETaxXmlBuilder : IETaxXmlBuilder
             ?? throw new DomainException("etax.ti_missing", $"Tax Invoice {taxInvoiceId} not found.");
 
         var sb = new StringBuilder();
-        using var w = XmlWriter.Create(sb, new XmlWriterSettings
+        // Sprint 13h P11 — `using var` disposes at scope end, AFTER `return sb.ToString()`,
+        // so the writer's internal buffer was never flushed → 0-byte file (Sana BUG).
+        // Wrap the writer in an explicit block so disposal (and flush) happens before we
+        // hand the StringBuilder back.
+        using (var w = XmlWriter.Create(sb, new XmlWriterSettings
         {
             Indent = true,
             Encoding = Encoding.UTF8,
             OmitXmlDeclaration = false,
-        });
+        }))
+        {
 
         w.WriteStartDocument();
         w.WriteStartElement("Invoice", "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2");
@@ -86,6 +91,7 @@ public sealed class ETaxXmlBuilder : IETaxXmlBuilder
 
         w.WriteEndElement(); // Invoice
         w.WriteEndDocument();
+        }   // <-- end using(w): writer flushes + closes here, before sb is read.
         return sb.ToString();
     }
 

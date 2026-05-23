@@ -1226,6 +1226,140 @@ namespace Accounting.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Master.CompanyProfile", b =>
+                {
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("BankAccountName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("bank_account_name");
+
+                    b.Property<string>("BankAccountNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bank_account_no");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("bank_name");
+
+                    b.Property<string>("BranchCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("00000")
+                        .HasColumnName("branch_code");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("contact_name");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("LegalName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("legal_name");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("logo_url");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("RegisteredAddressLine1")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("registered_address_line1");
+
+                    b.Property<string>("RegisteredAddressLine2")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("registered_address_line2");
+
+                    b.Property<string>("RegisteredDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("registered_district");
+
+                    b.Property<string>("RegisteredPostalCode")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character(5)")
+                        .HasColumnName("registered_postal_code")
+                        .IsFixedLength();
+
+                    b.Property<string>("RegisteredProvince")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("registered_province");
+
+                    b.Property<string>("RegisteredSubdistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("registered_subdistrict");
+
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(13)
+                        .HasColumnType("character(13)")
+                        .HasColumnName("registration_number")
+                        .IsFixedLength();
+
+                    b.Property<string>("TaxId")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("character(13)")
+                        .HasColumnName("tax_id")
+                        .IsFixedLength();
+
+                    b.Property<string>("TradeName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("trade_name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedByUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<DateOnly?>("VatRegistrationDate")
+                        .HasColumnType("date")
+                        .HasColumnName("vat_registration_date");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("website");
+
+                    b.HasKey("CompanyId")
+                        .HasName("pk_company_profile");
+
+                    b.ToTable("company_profile", "master");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Master.Customer", b =>
                 {
                     b.Property<long>("CustomerId")
@@ -2489,6 +2623,317 @@ namespace Accounting.Infrastructure.Migrations
                     b.ToTable("vendor_invoice_lines", "purchase");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.BillingNote", b =>
+                {
+                    b.Property<long>("BillingNoteId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("billing_note_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("BillingNoteId"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("integer")
+                        .HasColumnName("branch_id");
+
+                    b.Property<int?>("BusinessUnitId")
+                        .HasColumnType("integer")
+                        .HasColumnName("business_unit_id");
+
+                    b.Property<string>("CancelledReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("cancelled_reason");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency_code");
+
+                    b.Property<string>("CustomerAddress")
+                        .HasColumnType("text")
+                        .HasColumnName("customer_address");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("customer_name");
+
+                    b.Property<string>("CustomerTaxId")
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)")
+                        .HasColumnName("customer_tax_id");
+
+                    b.Property<string>("CustomerType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("customer_type");
+
+                    b.Property<long?>("DeliveryOrderId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("delivery_order_id");
+
+                    b.Property<DateOnly>("DocDate")
+                        .HasColumnType("date")
+                        .HasColumnName("doc_date");
+
+                    b.Property<string>("DocNo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("doc_no");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasPrecision(19, 6)
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("exchange_rate");
+
+                    b.Property<string>("InternalNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("internal_notes");
+
+                    b.Property<DateTimeOffset?>("IssuedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
+
+                    b.Property<long?>("QuotationId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("quotation_id");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("settled_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<decimal>("SubtotalAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("subtotal_amount");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("total_amount");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("vat_amount");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("BillingNoteId")
+                        .HasName("pk_billing_notes");
+
+                    b.HasIndex("DeliveryOrderId")
+                        .HasDatabaseName("ix_billing_notes_delivery_order_id")
+                        .HasFilter("delivery_order_id IS NOT NULL");
+
+                    b.HasIndex("QuotationId")
+                        .HasDatabaseName("ix_billing_notes_quotation_id");
+
+                    b.HasIndex("CompanyId", "DocNo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_billing_notes_company_id_doc_no")
+                        .HasFilter("doc_no IS NOT NULL");
+
+                    b.ToTable("billing_notes", "sales");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.BillingNoteLine", b =>
+                {
+                    b.Property<long>("LineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("line_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("LineId"));
+
+                    b.Property<long>("BillingNoteId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("billing_note_id");
+
+                    b.Property<string>("DescriptionTh")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description_th");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("discount_amount");
+
+                    b.Property<decimal>("DiscountPercent")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("discount_percent");
+
+                    b.Property<decimal>("LineAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("line_amount");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_no");
+
+                    b.Property<string>("ProductCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("product_code");
+
+                    b.Property<long?>("ProductId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("product_type");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("tax_amount");
+
+                    b.Property<string>("TaxCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tax_code");
+
+                    b.Property<int>("TaxCodeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("tax_code_id");
+
+                    b.Property<long?>("TaxInvoiceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tax_invoice_id");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)")
+                        .HasColumnName("tax_rate");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("total_amount");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("unit_price");
+
+                    b.Property<string>("UomText")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("uom_text");
+
+                    b.HasKey("LineId")
+                        .HasName("pk_billing_note_lines");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_billing_note_lines_product_id");
+
+                    b.HasIndex("TaxInvoiceId")
+                        .HasDatabaseName("ix_billing_note_lines_tax_invoice_id");
+
+                    b.HasIndex("BillingNoteId", "LineNo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_billing_note_lines_billing_note_id_line_no");
+
+                    b.ToTable("billing_note_lines", "sales");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.BillingNoteTaxInvoice", b =>
+                {
+                    b.Property<long>("BillingNoteId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("billing_note_id");
+
+                    b.Property<long>("TaxInvoiceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tax_invoice_id");
+
+                    b.Property<decimal>("AppliedAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("applied_amount");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.HasKey("BillingNoteId", "TaxInvoiceId")
+                        .HasName("pk_billing_note_tax_invoices");
+
+                    b.HasIndex("TaxInvoiceId")
+                        .HasDatabaseName("ix_billing_note_tax_invoices_tax_invoice_id");
+
+                    b.ToTable("billing_note_tax_invoices", "sales");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.DeliveryOrder", b =>
                 {
                     b.Property<long>("DeliveryOrderId")
@@ -2581,6 +3026,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("notes");
 
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
                     b.Property<DateTimeOffset?>("PostedAt")
                         .HasColumnType("timestamptz(3)")
                         .HasColumnName("posted_at");
@@ -2588,6 +3037,10 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("PostedBy")
                         .HasColumnType("bigint")
                         .HasColumnName("posted_by");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
 
                     b.Property<long?>("SalesOrderId")
                         .HasColumnType("bigint")
@@ -2688,6 +3141,12 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("ProductId")
                         .HasColumnType("bigint")
                         .HasColumnName("product_id");
+
+                    b.Property<string>("ProductType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("product_type");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(19, 4)
@@ -2848,6 +3307,14 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("notes");
 
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
+
                     b.Property<string>("RejectedReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -2952,6 +3419,12 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("ProductId")
                         .HasColumnType("bigint")
                         .HasColumnName("product_id");
+
+                    b.Property<string>("ProductType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("product_type");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(19, 4)
@@ -3124,6 +3597,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("notes");
 
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
                     b.Property<string>("PaymentMethod")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -3137,6 +3614,10 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("PostedBy")
                         .HasColumnType("bigint")
                         .HasColumnName("posted_by");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3204,8 +3685,6 @@ namespace Accounting.Infrastructure.Migrations
                     b.ToTable("receipts", "sales", t =>
                         {
                             t.HasCheckConstraint("ck_receipts_wht_nonneg", "wht_amount >= 0");
-
-                            t.HasCheckConstraint("ck_receipts_wht_type", "(wht_amount = 0 AND wht_type_id IS NULL) OR (wht_amount > 0 AND wht_type_id IS NOT NULL)");
                         });
                 });
 
@@ -3223,25 +3702,187 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("numeric(19,4)")
                         .HasColumnName("applied_amount");
 
+                    b.Property<long?>("BillingNoteId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("billing_note_id");
+
+                    b.Property<long?>("DeliveryOrderId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("delivery_order_id");
+
                     b.Property<long>("ReceiptId")
                         .HasColumnType("bigint")
                         .HasColumnName("receipt_id");
 
-                    b.Property<long>("TaxInvoiceId")
+                    b.Property<long?>("TaxInvoiceId")
                         .HasColumnType("bigint")
                         .HasColumnName("tax_invoice_id");
 
                     b.HasKey("ApplicationId")
                         .HasName("pk_receipt_applications");
 
+                    b.HasIndex("BillingNoteId")
+                        .HasDatabaseName("ix_receipt_applications_billing_note_id");
+
+                    b.HasIndex("DeliveryOrderId")
+                        .HasDatabaseName("ix_receipt_applications_delivery_order_id");
+
                     b.HasIndex("TaxInvoiceId")
                         .HasDatabaseName("ix_receipt_applications_tax_invoice_id");
 
+                    b.HasIndex("ReceiptId", "BillingNoteId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_receipt_applications_receipt_id_billing_note_id")
+                        .HasFilter("billing_note_id IS NOT NULL");
+
+                    b.HasIndex("ReceiptId", "DeliveryOrderId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_receipt_applications_receipt_id_delivery_order_id")
+                        .HasFilter("delivery_order_id IS NOT NULL");
+
                     b.HasIndex("ReceiptId", "TaxInvoiceId")
                         .IsUnique()
-                        .HasDatabaseName("ix_receipt_applications_receipt_id_tax_invoice_id");
+                        .HasDatabaseName("ix_receipt_applications_receipt_id_tax_invoice_id")
+                        .HasFilter("tax_invoice_id IS NOT NULL");
 
-                    b.ToTable("receipt_applications", "sales");
+                    b.ToTable("receipt_applications", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_receipt_applications_one_doc", "(CASE WHEN tax_invoice_id IS NOT NULL THEN 1 ELSE 0 END) + (CASE WHEN delivery_order_id IS NOT NULL THEN 1 ELSE 0 END) + (CASE WHEN billing_note_id IS NOT NULL THEN 1 ELSE 0 END) = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.ReceiptLine", b =>
+                {
+                    b.Property<long>("ReceiptLineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("receipt_line_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ReceiptLineId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("DescriptionTh")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description_th");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_no");
+
+                    b.Property<string>("ProductCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("product_code");
+
+                    b.Property<long?>("ProductId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("ProductType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("GOOD")
+                        .HasColumnName("product_type");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<long>("ReceiptId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("receipt_id");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("unit_price");
+
+                    b.Property<string>("UomText")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("uom_text");
+
+                    b.HasKey("ReceiptLineId")
+                        .HasName("pk_receipt_lines");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_receipt_lines_product_id");
+
+                    b.HasIndex("ReceiptId")
+                        .HasDatabaseName("ix_receipt_lines_receipt_id");
+
+                    b.ToTable("receipt_lines", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_receipt_lines_nonneg", "amount >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.ReceiptWhtLine", b =>
+                {
+                    b.Property<long>("ReceiptWhtLineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("receipt_wht_line_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ReceiptWhtLineId"));
+
+                    b.Property<decimal>("BaseAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("base_amount");
+
+                    b.Property<string>("IncomeTypeCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("income_type_code");
+
+                    b.Property<long>("ReceiptId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("receipt_id");
+
+                    b.Property<decimal>("WhtAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("wht_amount");
+
+                    b.Property<decimal>("WhtRate")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)")
+                        .HasColumnName("wht_rate");
+
+                    b.Property<string>("WhtTypeCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("wht_type_code");
+
+                    b.Property<int>("WhtTypeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("wht_type_id");
+
+                    b.HasKey("ReceiptWhtLineId")
+                        .HasName("pk_receipt_wht_lines");
+
+                    b.HasIndex("ReceiptId")
+                        .HasDatabaseName("ix_receipt_wht_lines_receipt_id");
+
+                    b.HasIndex("WhtTypeId")
+                        .HasDatabaseName("ix_receipt_wht_lines_wht_type_id");
+
+                    b.ToTable("receipt_wht_lines", "sales", t =>
+                        {
+                            t.HasCheckConstraint("ck_receipt_wht_lines_nonneg", "base_amount >= 0 AND wht_amount >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.SalesOrder", b =>
@@ -3336,6 +3977,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("notes");
 
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
                     b.Property<DateTimeOffset?>("PostedAt")
                         .HasColumnType("timestamptz(3)")
                         .HasColumnName("posted_at");
@@ -3343,6 +3988,10 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("PostedBy")
                         .HasColumnType("bigint")
                         .HasColumnName("posted_by");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
 
                     b.Property<long?>("QuotationId")
                         .HasColumnType("bigint")
@@ -3440,6 +4089,12 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("ProductId")
                         .HasColumnType("bigint")
                         .HasColumnName("product_id");
+
+                    b.Property<string>("ProductType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("product_type");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(19, 4)
@@ -3594,6 +4249,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("notes");
 
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
                     b.Property<long>("OriginalTaxInvoiceId")
                         .HasColumnType("bigint")
                         .HasColumnName("original_tax_invoice_id");
@@ -3611,6 +4270,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("prefix_code");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
 
                     b.Property<string>("Reason")
                         .IsRequired()
@@ -3713,6 +4376,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasPrecision(19, 4)
                         .HasColumnType("numeric(19,4)")
                         .HasColumnName("amount_paid");
+
+                    b.Property<long?>("BillingNoteId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("billing_note_id");
 
                     b.Property<string>("BookNo")
                         .HasMaxLength(20)
@@ -3883,6 +4550,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("original_invoice_id");
 
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
                     b.Property<string>("PaymentStatus")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -3903,6 +4574,14 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("PostedBy")
                         .HasColumnType("bigint")
                         .HasColumnName("posted_by");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
+
+                    b.Property<long?>("QuotationId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("quotation_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3993,11 +4672,19 @@ namespace Accounting.Infrastructure.Migrations
                     b.HasKey("TaxInvoiceId")
                         .HasName("pk_tax_invoices");
 
+                    b.HasIndex("BillingNoteId")
+                        .HasDatabaseName("ix_tax_invoices_billing_note_id")
+                        .HasFilter("billing_note_id IS NOT NULL");
+
                     b.HasIndex("BusinessUnitId")
                         .HasDatabaseName("ix_tax_invoices_business_unit_id");
 
                     b.HasIndex("OriginalInvoiceId")
                         .HasDatabaseName("ix_tax_invoices_original_invoice_id");
+
+                    b.HasIndex("QuotationId")
+                        .HasDatabaseName("ix_tax_invoices_quotation_id")
+                        .HasFilter("quotation_id IS NOT NULL");
 
                     b.HasIndex("CompanyId", "BusinessUnitId")
                         .HasDatabaseName("ix_tax_invoices_company_id_business_unit_id")
@@ -4067,6 +4754,12 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("ProductId")
                         .HasColumnType("bigint")
                         .HasColumnName("product_id");
+
+                    b.Property<string>("ProductType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("product_type");
 
                     b.Property<decimal>("Quantity")
                         .HasPrecision(19, 4)
@@ -4976,6 +5669,16 @@ namespace Accounting.Infrastructure.Migrations
                     b.Navigation("Parent");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Master.CompanyProfile", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Master.Company", null)
+                        .WithOne()
+                        .HasForeignKey("Accounting.Domain.Entities.Master.CompanyProfile", "CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_profile_companies_company_id");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Master.Customer", b =>
                 {
                     b.HasOne("Accounting.Domain.Entities.Tax.WhtType", null)
@@ -5077,6 +5780,60 @@ namespace Accounting.Infrastructure.Migrations
                         .HasConstraintName("fk_vendor_invoice_lines_vendor_invoices_vendor_invoice_id");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.BillingNote", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Sales.DeliveryOrder", null)
+                        .WithMany()
+                        .HasForeignKey("DeliveryOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_billing_notes_delivery_orders_delivery_order_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Sales.Quotation", null)
+                        .WithMany()
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_billing_notes_quotations_quotation_id");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.BillingNoteLine", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Sales.BillingNote", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("BillingNoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_billing_note_lines_billing_notes_billing_note_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Master.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_billing_note_lines_products_product_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Sales.TaxInvoice", null)
+                        .WithMany()
+                        .HasForeignKey("TaxInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_billing_note_lines_tax_invoices_tax_invoice_id");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.BillingNoteTaxInvoice", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Sales.BillingNote", null)
+                        .WithMany("TaxInvoiceLinks")
+                        .HasForeignKey("BillingNoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_billing_note_tax_invoices_billing_notes_billing_note_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Sales.TaxInvoice", null)
+                        .WithMany()
+                        .HasForeignKey("TaxInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_billing_note_tax_invoices_tax_invoices_tax_invoice_id");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.DeliveryOrderLine", b =>
                 {
                     b.HasOne("Accounting.Domain.Entities.Sales.DeliveryOrder", null)
@@ -5126,12 +5883,51 @@ namespace Accounting.Infrastructure.Migrations
 
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.ReceiptApplication", b =>
                 {
+                    b.HasOne("Accounting.Domain.Entities.Sales.BillingNote", null)
+                        .WithMany()
+                        .HasForeignKey("BillingNoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_receipt_applications_billing_notes_billing_note_id");
+
                     b.HasOne("Accounting.Domain.Entities.Sales.Receipt", null)
                         .WithMany("Applications")
                         .HasForeignKey("ReceiptId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_receipt_applications_receipts_receipt_id");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.ReceiptLine", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Master.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_receipt_lines_products_product_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Sales.Receipt", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("ReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_receipt_lines_receipts_receipt_id");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.ReceiptWhtLine", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Sales.Receipt", null)
+                        .WithMany("WhtLines")
+                        .HasForeignKey("ReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_receipt_wht_lines_receipts_receipt_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Tax.WhtType", null)
+                        .WithMany()
+                        .HasForeignKey("WhtTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_receipt_wht_lines_wht_types_wht_type_id");
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.SalesOrderLine", b =>
@@ -5168,6 +5964,12 @@ namespace Accounting.Infrastructure.Migrations
 
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.TaxInvoice", b =>
                 {
+                    b.HasOne("Accounting.Domain.Entities.Sales.BillingNote", null)
+                        .WithMany()
+                        .HasForeignKey("BillingNoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tax_invoices_billing_notes_billing_note_id");
+
                     b.HasOne("Accounting.Domain.Entities.Master.BusinessUnit", null)
                         .WithMany()
                         .HasForeignKey("BusinessUnitId")
@@ -5179,6 +5981,12 @@ namespace Accounting.Infrastructure.Migrations
                         .HasForeignKey("OriginalInvoiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_tax_invoices_tax_invoices_original_invoice_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Sales.Quotation", null)
+                        .WithMany()
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tax_invoices_quotations_quotation_id");
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.TaxInvoiceLine", b =>
@@ -5260,6 +6068,13 @@ namespace Accounting.Infrastructure.Migrations
                     b.Navigation("Lines");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Sales.BillingNote", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("TaxInvoiceLinks");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.DeliveryOrder", b =>
                 {
                     b.Navigation("Lines");
@@ -5273,6 +6088,10 @@ namespace Accounting.Infrastructure.Migrations
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.Receipt", b =>
                 {
                     b.Navigation("Applications");
+
+                    b.Navigation("Lines");
+
+                    b.Navigation("WhtLines");
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Sales.SalesOrder", b =>

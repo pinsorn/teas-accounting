@@ -1,11 +1,39 @@
 {
   "app": { "name": "TEAS", "tagline": "Thailand Enterprise Accounting System" },
+  "postConfirm": {
+    "title": {
+      "tax_invoice": "Confirm Tax Invoice posting",
+      "receipt": "Confirm Receipt posting",
+      "credit_note": "Confirm Credit Note posting",
+      "debit_note": "Confirm Debit Note posting",
+      "vendor_invoice": "Confirm Vendor Invoice posting",
+      "quotation": "Confirm Quotation posting",
+      "billing_note": "Confirm Invoice posting"
+    },
+    "warning": "Post is irreversible — corrections require a Credit Note + Reissue (Sec. 86/4 & 86/12).",
+    "recipients": "Recipients (when e-Tax is enabled)",
+    "confirm": "Confirm post",
+    "cancel": "Cancel"
+  },
+  "crossRef": {
+    "title": "Related documents",
+    "quotation": "Quotation",
+    "salesOrder": "Sales Order",
+    "deliveryOrder": "Delivery Order",
+    "taxInvoice": "Tax Invoice",
+    "receipt": "Receipt",
+    "creditNote": "Credit Note",
+    "debitNote": "Debit Note",
+    "billingNote": "Invoice"
+  },
   "nav": {
     "dashboard": "Dashboard",
+    "customers": "Customers",
     "quotations": "Quotations",
     "salesOrders": "Sales Orders",
     "deliveryOrders": "Delivery Orders",
     "taxInvoices": "Tax Invoices",
+    "billingNotes": "Invoices",
     "receipts": "Receipts",
     "creditNotes": "Credit Notes",
     "debitNotes": "Debit Notes",
@@ -16,6 +44,7 @@
     "paymentVouchers": "Payment Vouchers",
     "vendorInvoices": "Vendor Invoices",
     "whtCerts": "WHT Certificates (50 ทวิ)",
+    "company": "Company Profile",
     "products": "Products",
     "businessUnits": "Business Units",
     "whtTypes": "WHT Types",
@@ -26,7 +55,8 @@
     "salesSummary": "Sales Summary",
     "pnd30": "ภ.พ.30 VAT Return",
     "taxFilings": "Tax Filings",
-    "section": { "purchase": "Purchase", "reports": "Reports", "settings": "Settings" },
+    "missingWhtCert": "Missing 50ทวิ Receipts",
+    "section": { "sales": "Sales", "purchase": "Purchase", "reports": "Reports", "settings": "Settings" },
     "logout": "Sign out"
   },
   "businessUnit": {
@@ -50,6 +80,51 @@
     "crossBuWarning": "This receipt spans {n} BUs: {codes} — allowed (no block)",
     "filter": "Filter by Business Unit",
     "includeUnspecified": "Include unspecified BU"
+  },
+  "cust": {
+    "title": "Customers",
+    "subtitle": "Customer master for sales documents",
+    "create": "Add customer",
+    "createTitle": "New customer",
+    "editTitle": "Edit customer",
+    "edit": "Edit",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "deactivateConfirm": "Deactivate this customer? It won't appear when creating new documents.",
+    "activateConfirm": "Re-activate this customer?",
+    "code": "Customer code",
+    "nameTh": "Name (Thai)",
+    "nameEn": "Name (English)",
+    "taxId": "Tax ID",
+    "type": "Type",
+    "individual": "Individual",
+    "corporate": "Corporate",
+    "vatRegistered": "VAT registered",
+    "branchCode": "Branch code",
+    "branchName": "Branch name",
+    "billingAddress": "Billing address",
+    "contactPerson": "Contact person",
+    "phone": "Phone",
+    "email": "Email",
+    "creditLimit": "Credit limit",
+    "paymentTermDays": "Payment term (days)",
+    "currency": "Currency",
+    "secIdentity": "General",
+    "secTax": "Tax",
+    "secContact": "Address / contact",
+    "secTerms": "Trade terms",
+    "emptyTitle": "No customers yet",
+    "emptyDesc": "Add your first customer to start issuing quotations / tax invoices",
+    "err": {
+      "required": "Required",
+      "max50": "Max 50 characters",
+      "max255": "Max 255 characters",
+      "email": "Invalid email",
+      "currency": "Must be a 3-letter code",
+      "taxId13": "Tax ID must be 13 digits",
+      "branch5": "Branch code must be 5 digits",
+      "vatRequired": "VAT customers require Tax ID + branch code (ม.86/4 #3)"
+    }
   },
   "ven": {
     "title": "Vendors",
@@ -127,6 +202,9 @@
   "rc": {
     "title": "Receipts",
     "create": "Create Receipt",
+    "date": "Date",
+    "docNo": "No.",
+    "customer": "Customer",
     "applyTo": "Apply to Tax Invoices",
     "addApply": "Add line",
     "method": "Method",
@@ -143,8 +221,32 @@
       "cashReceived": "Net cash received",
       "certNo": "50tawi no.",
       "certDate": "50tawi date",
-      "serviceOnlyExplain": "No Product master to split goods/services — base defaults to the full ex-VAT subtotal; trim it to the service portion.",
-      "column": "WHT"
+      "serviceOnlyExplain": "WHT base is auto-computed from SERVICE lines (ex-VAT) — adjust manually if needed.",
+      "column": "WHT",
+      "applySuggest": "Apply suggestion",
+      "lineItem": "Item",
+      "noWht": "— none —",
+      "noWhtLines": "No items — pick a Tax Invoice first.",
+      "noWhtLinesManual": "No items — click Add WHT category.",
+      "noWhtLinesNonVat": "No items — add line items first.",
+      "addWhtLine": "Add WHT category",
+      "total": "total",
+      "multiCatExplain": "WHT split per service category (rent 5% / service 3% / ads 2%) — base is the ex-VAT service portion pro-rated to the amount paid; editable."
+    },
+    "nonVat": {
+      "modeLabel": "Receipt type",
+      "modeStandalone": "Cash bill (no source doc)",
+      "modeApplyDo": "Apply to Delivery Order",
+      "modeApplyInvoice": "Apply to Invoice",
+      "lineItems": "Line items",
+      "addLine": "Add line",
+      "lineDesc": "Description",
+      "qty": "Qty",
+      "unitPrice": "Unit price",
+      "applyDoHeader": "Apply to Delivery Order",
+      "deliveryOrder": "Delivery Order",
+      "applyInvoiceHeader": "Apply to Invoice",
+      "invoice": "Invoice"
     }
   },
   "whtType": {
@@ -213,6 +315,7 @@
     "vat": "VAT",
     "totalRow": "TOTAL",
     "pnd30Title": "ภ.พ.30 — VAT Return",
+    "pnd30NonVat": "This company is not VAT-registered, so ภ.พ.30 filing does not apply.",
     "period": "Period (month/year)",
     "preview": "Preview",
     "finalize": "Finalize",
@@ -264,7 +367,15 @@
     "vatAmount": "VAT 7%",
     "jvPosted": "JV posted",
     "pnd36FinalizeConfirm": "Finalize ภ.พ.36? Posts Dr 1170 / Cr 2151 and is immutable.",
-    "pnd36JvNote": "Finalize posts Dr 1170 Input VAT / Cr 2151 Output VAT (net 0)."
+    "pnd36JvNote": "Finalize posts Dr 1170 Input VAT / Cr 2151 Output VAT (net 0).",
+    "missingCertTitle": "Receipts missing 50ทวิ certificate",
+    "missingCertDesc": "Posted receipts that withheld WHT but have no customer 50ทวิ certificate number recorded yet — the number can be entered later from the receipt page.",
+    "docNo": "Doc No",
+    "docDate": "Date",
+    "customer": "Customer",
+    "customerTaxId": "Tax ID",
+    "missingCertEmpty": "No receipts missing a 50ทวิ certificate in this period.",
+    "missingCertCount": "{count} item(s)"
   },
   "note": {
     "cnTitle": "Credit Note (ม.86/10)",
@@ -276,17 +387,66 @@
     "subtotal": "Adjustment subtotal",
     "taxRate": "Tax rate",
     "post": "Post",
+    "colNo": "No.",
+    "colDate": "Date",
+    "colCustomer": "Customer",
+    "colTotal": "Total",
+    "colOrigTi": "Orig. TI",
+    "colStatus": "Status",
     "confirmWarn": "Posting auto-sends e-Tax + customer email (when enabled) and is irreversible — confirm the reason."
+  },
+  "states": {
+    "noAccessTitle": "Administrator access required",
+    "noAccessBody": "This page requires admin permission to view or edit — please contact your system administrator.",
+    "errorTitle": "Failed to load data"
+  },
+  "companyProfile": {
+    "title": "Company Profile",
+    "banner": "Legal company changes should be filed with the Revenue Department (ภ.พ.09) and reflected on ภ.พ.20 first.",
+    "legalSection": "Legal information",
+    "softSection": "Contact + payment information",
+    "hardLockedTooltip": "Changing this field requires a special process — contact your administrator or file ภ.พ.09 first.",
+    "legalName": "Legal entity name",
+    "taxId": "Tax ID",
+    "registrationNumber": "Registration number",
+    "registeredAddress": "Registered address",
+    "addressLine2": "Address (line 2)",
+    "subdistrict": "Subdistrict",
+    "district": "District",
+    "province": "Province",
+    "postalCode": "Postal code",
+    "vatRegistrationDate": "VAT registration date",
+    "branchCode": "Branch code",
+    "tradeName": "Trade name",
+    "logoUrl": "Logo URL",
+    "logoPreview": "Logo preview",
+    "logoUpload": "Upload logo file (PNG/JPEG/SVG/WebP, ≤1MB)",
+    "phone": "Phone",
+    "email": "Email",
+    "website": "Website",
+    "contactName": "Contact name",
+    "bankName": "Bank",
+    "bankAccountNo": "Account no.",
+    "bankAccountName": "Account name",
+    "saved": "Contact information saved",
+    "loadError": "Failed to load company profile"
   },
   "common": {
     "loading": "Loading…",
     "empty": "No data",
+    "nonVatUnavailable": "This feature is for VAT-registered businesses only — your company is set to non-VAT and cannot issue Tax Invoices / Credit-Debit Notes (ม.86/4).",
     "error": "Something went wrong",
     "retry": "Retry",
+    "restore": "Restore",
     "save": "Save",
     "cancel": "Cancel",
+    "confirm": "Confirm",
+    "confirmTitle": "Please confirm",
     "search": "Search",
     "all": "All",
+    "customer": "Customer",
+    "dateFrom": "From date",
+    "dateTo": "To date",
     "actions": "Actions",
     "from": "From",
     "to": "To",
@@ -295,7 +455,22 @@
     "active": "Active",
     "inactive": "Inactive",
     "edit": "Edit",
-    "deactivate": "Deactivate"
+    "view": "View",
+    "print": "Print",
+    "delete": "Delete",
+    "confirmDelete": "Confirm delete?",
+    "deactivate": "Deactivate",
+    "posted": "Posted",
+    "draftSaved": "Draft saved"
+  },
+  "toast": {
+    "validationFailed": "Please complete all required fields",
+    "requiredField": "Required",
+    "lineRequired": "Add at least one line item",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "cancelled": "Cancelled",
+    "updated": "Updated"
   },
   "product": {
     "settingsTitle": "Products",
@@ -307,6 +482,18 @@
     "type": "Type",
     "uom": "Unit",
     "unitPrice": "Default price",
+    "wht": "WHT category (service)",
+    "whtNone": "— none —",
+    "whtHint": "Withholding rate differs per service category (rent 5% / service 3% / ads 2%)",
+    "quickCreateTitle": "New product / service",
+    "quickCreateMissing": "Enter a code and name first",
+    "createAndSelect": "Create & select",
+    "typeLabel": {
+      "GOOD": "Goods",
+      "SERVICE": "Service",
+      "EXEMPT_GOOD": "VAT-exempt goods",
+      "EXEMPT_SERVICE": "VAT-exempt service"
+    },
     "deactivateConfirm": "Deactivate this product? It will be hidden from new documents."
   },
   "quotation": {
@@ -315,18 +502,52 @@
     "validUntil": "Valid until", "lineDesc": "Description", "qty": "Qty",
     "unitPrice": "Unit price", "send": "Send", "accept": "Accept",
     "convertToSo": "Convert to Sales Order", "viewSo": "View Sales Order",
+    "createTaxInvoice": "Create Tax Invoice",
     "whtNote": "Note: corporate customers withhold 3% WHT on the service portion.",
-    "pickCustomer": "Select a customer first"
+    "pickCustomer": "Select a customer first",
+    "businessUnit": "Business unit", "notes": "Notes", "uom": "UoM",
+    "discountPct": "Disc %", "subtotal": "Subtotal", "discount": "Discount",
+    "vat": "VAT", "grandTotal": "Total",
+    "saveDraft": "Save draft", "issue": "Issue quotation",
+    "issued": "Quotation issued", "searchProduct": "Search product/service or type your own",
+    "addLine": "Add line", "noProduct": "No product found — type the description",
+    "createProduct": "+ New product / service",
+    "editTitle": "Edit quotation", "downloadPdf": "Download PDF",
+    "reject": "Customer rejected", "cancelQuotation": "Cancel quotation",
+    "cancelConfirm": "Cancel this quotation?", "cancelReason": "Cancelled by user",
+    "rejectConfirm": "Confirm the customer rejected this quotation?", "rejectReason": "Customer rejected"
   },
   "salesOrder": {
     "listTitle": "Sales Orders", "docNo": "Doc No.", "customer": "Customer",
     "docDate": "Date", "total": "Total", "post": "Post",
-    "createDo": "Create Delivery Order"
+    "createDo": "Create Delivery Order", "create": "New sales order",
+    "expectedDelivery": "Delivery due", "businessUnit": "Business unit",
+    "notes": "Notes", "saveDraft": "Save draft", "confirm": "Confirm order",
+    "confirmed": "Sales order confirmed", "pickCustomer": "Select a customer first",
+    "subtotal": "Subtotal", "vat": "VAT", "grandTotal": "Total"
   },
   "deliveryOrder": {
     "listTitle": "Delivery Orders", "docNo": "Doc No.", "customer": "Customer",
     "docDate": "Date", "total": "Total", "combined": "Combined with Tax Invoice",
-    "post": "Post", "createTi": "Create Tax Invoice", "linkedTi": "Linked Tax Invoice"
+    "post": "Post", "createTi": "Create Tax Invoice", "createInvoice": "Create Invoice", "linkedTi": "Linked Tax Invoice",
+    "create": "New delivery order", "deliveryDate": "Delivery date",
+    "businessUnit": "Business unit", "shipTo": "Ship-to address", "recipient": "Received by",
+    "notes": "Notes", "lines": "Items", "desc": "Description", "qty": "Qty",
+    "uom": "UoM", "addLine": "Add line", "saveDraft": "Save draft",
+    "issue": "Issue delivery order", "issued": "Delivery order issued",
+    "markDelivered": "Confirm delivery", "delivered": "Delivered",
+    "pickCustomer": "Select a customer first"
+  },
+  "billingNote": {
+    "listTitle": "Invoices", "create": "New Invoice",
+    "docNo": "Doc No.", "customer": "Customer", "docDate": "Doc date", "dueDate": "Due date",
+    "total": "Total", "lineDesc": "Description", "qty": "Qty", "unitPrice": "Unit price",
+    "subtotal": "Subtotal", "discount": "Discount", "vat": "VAT", "grandTotal": "Grand total",
+    "saveDraft": "Save draft", "issue": "Issue", "issued": "Invoice issued",
+    "markSettled": "Mark settled", "createTaxInvoice": "Create Tax Invoice",
+    "cancelReasonPlaceholder": "Cancellation reason",
+    "pickCustomer": "Select a customer first", "notes": "Notes",
+    "taxInvoices": "Grouped Tax Invoices", "pickCustomerFirst": "Select a customer first"
   },
   "attachment": {
     "title": "Attachments", "upload": "Upload", "categoryLabel": "Category",
@@ -386,7 +607,16 @@
     "Voided": "Voided",
     "PAID": "Paid",
     "PARTIAL": "Partial",
-    "UNPAID": "Unpaid"
+    "UNPAID": "Unpaid",
+    "Sent": "Sent",
+    "Accepted": "Accepted",
+    "Rejected": "Rejected",
+    "Expired": "Expired",
+    "Cancelled": "Cancelled",
+    "Closed": "Closed",
+    "Issued": "Issued",
+    "Delivered": "Delivered",
+    "Settled": "Settled"
   },
   "vi": {
     "title": "Vendor Invoices",
@@ -463,7 +693,9 @@
       "downloadPdf": "Download PDF",
       "downloadXml": "Download XML",
       "resend": "Resend email",
-      "print": "Print"
+      "createReceipt": "Create receipt",
+      "print": "Print",
+      "fromQuotation": "From Quotation"
     },
     "form": {
       "customer": "Customer",
@@ -474,15 +706,9 @@
       "qty": "Qty",
       "unitPrice": "Unit price",
       "taxRate": "Tax rate",
+      "taxRateLocked": "Tax rate is locked to the selected product/service",
       "saveDraft": "Save draft",
       "post": "Post"
-    },
-    "postConfirm": {
-      "title": "Confirm posting Tax Invoice",
-      "warning": "Posting is irreversible — corrections require a Credit Note + reissue (ม.86/4 / ม.86/12).",
-      "recipients": "Email recipients (when e-Tax is enabled)",
-      "confirm": "Confirm Post",
-      "cancel": "Cancel"
     }
   },
   "numberGaps": {

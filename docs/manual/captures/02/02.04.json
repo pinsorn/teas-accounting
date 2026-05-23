@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "id": "02.04",
+    "title": "สร้าง API Keys (Admin only)",
+    "chapter": "2. ตั้งค่าระบบ",
+    "intro": "API Key ใช้ให้ระบบภายนอก (microservice, mobile app, partner integration)\nเรียก TEAS โดยไม่ต้อง login. แต่ละ key มี:\n\n- **Scopes** — granular permissions เฉพาะที่จำเป็น (least privilege)\n  เช่น `sales.tax_invoice.create`, `sales.receipt.post`\n- **Business Unit เริ่มต้น** (Sprint 14) — ผูก key กับ 1 BU\n  เอกสารที่สร้างจาก key นี้จะถูก tag กับ BU นั้นอัตโนมัติ —\n  ป้องกัน microservice ของ ECOM ไปสร้างเอกสารใน LAB โดยไม่ตั้งใจ\n- **หมดอายุ** (optional) — แนะนำตั้งสำหรับ contractor / temp staff\n\n**🔐 สำคัญ — key เห็นได้ครั้งเดียวเท่านั้น**: หลังกด \"สร้าง\" ระบบจะแสดง\nfull key 1 ครั้ง. ระบบเก็บแค่ hash + prefix. ถ้าไม่ copy เก็บใน secret\nmanager ของ external app → ลืมแล้วต้องสร้างใหม่ (revoke ของเก่า).\n\n**Request header**: external app ส่ง key มาทาง `X-Api-Key: <full_key>`\nในทุก request ไป `/api/v1/*` endpoints.\n\n**Role**: ADMIN only — sys.api_key.manage scope. Accountant เห็น\nNoAccessState (\"ต้องมีสิทธิ์ผู้ดูแลระบบ\").",
+    "prerequisites": [
+      "login ในฐานะ ADMIN (demo-admin)",
+      "BU ตั้งครบแล้ว (walkthrough 02.01)",
+      "ทราบว่า external app จะใช้ scopes อะไรบ้าง (least privilege)"
+    ]
+  },
+  "steps": [
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-01-empty-list",
+      "caption": "ขั้นที่ 1: หน้า \"API Keys\" — เริ่มต้นไม่มี key (empty state พร้อม icon). คอลัมน์: ชื่อ, Key prefix, สิทธิ์ (scopes), Business Unit เริ่มต้น, ใช้ล่าสุด, หมดอายุ, สถานะ",
+      "imageRel": "captures/02/02.04/step-01-empty-list.png"
+    },
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-02-rbac-note",
+      "caption": "ขั้นที่ 2: หมายเหตุ — accountant ที่เข้าหน้านี้จะเห็น \"ต้องมีสิทธิ์ ผู้ดูแลระบบ\" (Sprint 13d-P2 NoAccessState) + ไม่มีปุ่ม \"+ สร้าง\" (Sprint 13d-P3 PermissionGate). ต้อง admin เท่านั้น",
+      "imageRel": "captures/02/02.04/step-02-rbac-note.png"
+    },
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-03-create-modal",
+      "caption": "ขั้นที่ 3: คลิก \"+ สร้าง API key\" → modal เปิด. 4 sections: ชื่อ*, สิทธิ์ (scopes)*, Business Unit เริ่มต้น, หมดอายุ",
+      "imageRel": "captures/02/02.04/step-03-create-modal.png"
+    },
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-04-name",
+      "caption": "ขั้นที่ 4: กรอก \"ชื่อ\" — ใช้บอกว่า key นี้สำหรับอะไร (เช่น \"ECOM Storefront — production\"). ไม่กระทบความปลอดภัย แต่ช่วย ตอน revoke ทีหลัง",
+      "imageRel": "captures/02/02.04/step-04-name.png"
+    }
+  ],
+  "failure": "locator.click: Error: strict mode violation: getByText('sales.tax_invoice.create', { exact: true }) resolved to 2 elements:\n    1) <span class=\"badge badge-ghost badge-xs\">sales.tax_invoice.create</span> aka getByRole('table').getByText('sales.tax_invoice.create')\n    2) <span class=\"label-text font-mono text-xs\">sales.tax_invoice.create</span> aka getByRole('dialog').getByText('sales.tax_invoice.create')\n\nCall log:\n\u001b[2m  - waiting for getByText('sales.tax_invoice.create', { exact: true })\u001b[22m\n",
+  "capturedSteps": 4
+}

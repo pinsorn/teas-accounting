@@ -8,6 +8,7 @@ public static class Permissions
         public const string CompanyManage     = "master.company.manage";
         public const string BranchManage      = "master.branch.manage";
         public const string CustomerManage    = "master.customer.manage";
+        public const string CustomerRead      = "master.customer.read";    // Sprint 13h P1
         public const string VendorManage      = "master.vendor.manage";
         public const string CoaManage         = "master.coa.manage";
         public const string BusinessUnitManage = "master.business_unit.manage";
@@ -44,14 +45,20 @@ public static class Permissions
         public const string TaxInvoiceRead   = "sales.tax_invoice.read";
         public const string ReceiptCreate    = "sales.receipt.create";
         public const string ReceiptPost      = "sales.receipt.post";
+        public const string ReceiptRead      = "sales.receipt.read";       // Sprint 13i B1
         public const string CreditNoteCreate = "sales.credit_note.create";
         public const string CreditNotePost   = "sales.credit_note.post";
+        public const string CreditNoteRead   = "sales.credit_note.read";   // Sprint 13i B1
         public const string DebitNoteCreate  = "sales.debit_note.create";
         public const string DebitNotePost    = "sales.debit_note.post";
+        public const string DebitNoteRead    = "sales.debit_note.read";    // Sprint 13i B1
         // Sprint 10 — Q→SO→DO chain (manage = create/transition; read covered by manage).
         public const string QuotationManage     = "sales.quotation.manage";
         public const string SalesOrderManage    = "sales.sales_order.manage";
         public const string DeliveryOrderManage = "sales.delivery_order.manage";
+        // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล).
+        public const string BillingNoteRead     = "sales.billing_note.read";
+        public const string BillingNoteManage   = "sales.billing_note.manage";
     }
 
     public static class Purchase
@@ -94,17 +101,18 @@ public static class Permissions
     /// <summary>All permission codes — for seed migration.</summary>
     public static readonly IReadOnlyList<string> All =
     [
-        Master.CompanyManage, Master.BranchManage, Master.CustomerManage, Master.VendorManage,
+        Master.CompanyManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead, Master.VendorManage,
         Master.CoaManage, Master.BusinessUnitManage,
         Master.ProductManage, Master.ProductRead,
         Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage,
         Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete, Sys.ApiKeyManage,
         Gl.JournalCreate, Gl.JournalPost, Gl.JournalRead, Gl.PeriodClose,
         Sales.TaxInvoiceCreate, Sales.TaxInvoicePost, Sales.TaxInvoiceRead,
-        Sales.ReceiptCreate, Sales.ReceiptPost,
-        Sales.CreditNoteCreate, Sales.CreditNotePost,
-        Sales.DebitNoteCreate, Sales.DebitNotePost,
+        Sales.ReceiptCreate, Sales.ReceiptPost, Sales.ReceiptRead,
+        Sales.CreditNoteCreate, Sales.CreditNotePost, Sales.CreditNoteRead,
+        Sales.DebitNoteCreate, Sales.DebitNotePost, Sales.DebitNoteRead,
         Sales.QuotationManage, Sales.SalesOrderManage, Sales.DeliveryOrderManage,
+        Sales.BillingNoteRead, Sales.BillingNoteManage,
         Purchase.PaymentVoucherCreate, Purchase.PaymentVoucherApprove, Purchase.PaymentVoucherPost,
         Purchase.PaymentVoucherRead, Purchase.WhtRead,
         Purchase.VendorInvoiceCreate, Purchase.VendorInvoicePost, Purchase.VendorInvoiceRead,

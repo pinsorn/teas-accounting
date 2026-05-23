@@ -48,6 +48,15 @@ public static class WhtTypeEndpoints
             return Results.NoContent();
         }).RequireAuthorization(manage);
 
+        // Sprint 13f P2 — reactivate a soft-deactivated WHT type (Option A:
+        // dedicated lifecycle endpoint, mirrors DELETE; no DTO conflation).
+        g.MapPost("/{id:int}/reactivate", async (
+            int id, IWhtTypeService svc, CancellationToken ct) =>
+        {
+            await svc.ReactivateAsync(id, ct);
+            return Results.NoContent();
+        }).RequireAuthorization(manage);
+
         g.MapPost("/{id:int}/change-rate", async (
             int id, [FromBody] ChangeWhtRateRequest req, IValidator<ChangeWhtRateRequest> v,
             IWhtTypeService svc, CancellationToken ct) =>

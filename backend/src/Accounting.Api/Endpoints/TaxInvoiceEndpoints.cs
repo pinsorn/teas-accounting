@@ -36,7 +36,8 @@ public static class TaxInvoiceEndpoints
         {
             var page = await service.ListAsync(new TaxInvoiceListQuery(
                 qp.DateFrom, qp.DateTo, qp.CustomerId, qp.Status, qp.Cursor, qp.Limit ?? 25,
-                qp.BusinessUnitId, qp.IncludeUnspecified ?? false), ct);
+                qp.BusinessUnitId, qp.IncludeUnspecified ?? false,
+                qp.Search, qp.Unpaid ?? false), ct);
             return Results.Ok(page);
         })
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
@@ -56,9 +57,9 @@ public static class TaxInvoiceEndpoints
         })
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
 
-        group.MapGet("/{id:long}/pdf", async (long id, ITaxInvoiceService service, CancellationToken ct) =>
+        group.MapGet("/{id:long}/pdf", async (long id, [FromQuery] bool? copy, ITaxInvoiceService service, CancellationToken ct) =>
         {
-            var pdf = await service.BuildPdfAsync(id, ct);
+            var pdf = await service.BuildPdfAsync(id, ct, copy ?? false);
             return Results.File(pdf, "application/pdf", $"tax-invoice-{id}.pdf");
         })
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
@@ -80,4 +81,6 @@ public sealed record TaxInvoiceListQueryParams(
     long?     Cursor,
     int?      Limit,
     int?      BusinessUnitId,
-    bool?     IncludeUnspecified);
+    bool?     IncludeUnspecified,
+    string?   Search,
+    bool?     Unpaid);

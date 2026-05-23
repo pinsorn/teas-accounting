@@ -10,6 +10,11 @@ import {
 } from '@/lib/queries';
 import type { ApiKeyListItem, ApiKeyCreatedResult } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
+import { useConfirm } from '@/hooks/useConfirm';
+import { QueryState } from '@/components/states/QueryState';
+import { PermissionGate } from '@/components/PermissionGate';
+
+const SCOPE = 'sys.api_key.manage';
 
 // Spec §6 — the externally-exposable scope subset (NOT admin/master-delete/tax).
 const SCOPES = [
@@ -27,6 +32,7 @@ export default function ApiKeysSettingsPage() {
   const create = useCreateApiKey();
   const rotate = useRotateApiKey();
   const revoke = useRevokeApiKey();
+  const confirm = useConfirm();
   const bus = useBusinessUnits().data ?? [];
 
   const [open, setOpen] = useState(false);
@@ -63,7 +69,7 @@ export default function ApiKeysSettingsPage() {
   }
 
   async function doRevoke(id: number) {
-    if (!window.confirm(t('revokeConfirm'))) return;
+    if (!(await confirm({ description: t('revokeConfirm'), variant: 'destructive' }))) return;
     try { await revoke.mutateAsync(id); toast.success(t('revoked')); }
     catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
   }
@@ -77,13 +83,16 @@ export default function ApiKeysSettingsPage() {
       <PageHeader
         title={t('title')}
         actions={
-          <button className="btn btn-primary btn-sm gap-1" data-testid="api-key-new"
-            onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </button>
+          <PermissionGate scope={SCOPE}>
+            <button className="btn btn-primary btn-sm gap-1" data-testid="api-key-new"
+              onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </button>
+          </PermissionGate>
         }
       />
 
+      <QueryState query={q} isEmpty={!q.isLoading && rows.length === 0}>
       <div className="overflow-x-auto rounded-lg border border-base-300">
         <table className="table table-zebra">
           <thead><tr>
@@ -92,8 +101,6 @@ export default function ApiKeysSettingsPage() {
             <th>{t('status')}</th><th className="w-28" />
           </tr></thead>
           <tbody>
-            {q.isLoading && (<tr><td colSpan={8} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>)}
-            {!q.isLoading && rows.length === 0 && (<tr><td colSpan={8} className="py-8 text-center text-base-content/50">{tc('empty')}</td></tr>)}
             {rows.map((k: ApiKeyListItem) => (
               <tr key={k.apiKeyId} className="hover">
                 <td>{k.name}</td>
@@ -115,14 +122,14 @@ export default function ApiKeysSettingsPage() {
                 </td>
                 <td className="flex gap-1">
                   {!k.revokedAt && (
-                    <>
+                    <PermissionGate scope={SCOPE}>
                       <button className="btn btn-ghost btn-xs" aria-label={t('rotate')}
                         onClick={() => doRotate(k.apiKeyId)}>
                         <RefreshCw className="h-3 w-3" aria-hidden />
                       </button>
                       <button className="btn btn-ghost btn-xs text-error"
                         onClick={() => doRevoke(k.apiKeyId)}>{t('revoke')}</button>
-                    </>
+                    </PermissionGate>
                   )}
                 </td>
               </tr>
@@ -130,6 +137,7 @@ export default function ApiKeysSettingsPage() {
           </tbody>
         </table>
       </div>
+      </QueryState>
 
       {open && (
         <div className="modal modal-open" role="dialog" aria-modal="true">

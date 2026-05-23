@@ -70,6 +70,16 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
         b.HasOne<BusinessUnit>().WithMany().HasForeignKey(t => t.BusinessUnitId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(t => new { t.CompanyId, t.BusinessUnitId }).HasFilter("business_unit_id IS NOT NULL");
 
+        // Sprint 13h P6.1 — optional FK to the originating Quotation.
+        b.HasOne<Quotation>().WithMany().HasForeignKey(t => t.QuotationId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(t => t.QuotationId).HasFilter("quotation_id IS NOT NULL");
+
+        // cont.69 Phase 1 — optional FK to the source Invoice (BillingNote) the TI was created from.
+        b.HasOne<BillingNote>().WithMany().HasForeignKey(t => t.BillingNoteId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(t => t.BillingNoteId).HasFilter("billing_note_id IS NOT NULL");
+
         b.ToTable(t =>
         {
             t.HasCheckConstraint("ck_ti_invoice_type", "invoice_type = 'FULL'");
@@ -91,6 +101,7 @@ internal sealed class TaxInvoiceLineConfiguration : IEntityTypeConfiguration<Tax
         b.HasKey(l => l.LineId);
 
         b.Property(l => l.ProductCode).HasMaxLength(50);
+        b.Property(l => l.ProductType).HasMaxLength(20).IsRequired();  // Sprint 13h P7 + 13i C5 NOT NULL
         b.Property(l => l.DescriptionTh).HasMaxLength(500).IsRequired();
         b.Property(l => l.UomText).HasMaxLength(50).IsRequired();
         b.Property(l => l.TaxCode).HasMaxLength(20).IsRequired();

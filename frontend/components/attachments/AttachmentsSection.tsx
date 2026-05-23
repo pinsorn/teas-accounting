@@ -7,6 +7,7 @@ import {
   useAttachments, useUploadAttachment, useDeleteAttachment,
   attachmentDownloadUrl,
 } from '@/lib/queries';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const CATEGORIES = [
   'TAX_INVOICE', 'RECEIPT', 'PURCHASE_ORDER', 'DELIVERY_ORDER', 'QUOTATION',
@@ -28,6 +29,7 @@ export function AttachmentsSection({
   const q = useAttachments(parentType, parentId);
   const upload = useUploadAttachment();
   const del = useDeleteAttachment();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<string>('OTHER');
   const [description, setDescription] = useState('');
@@ -96,7 +98,7 @@ export function AttachmentsSection({
                   <button className="btn btn-ghost btn-xs text-error"
                     data-testid="att-delete"
                     onClick={async () => {
-                      if (!window.confirm(t('deleteConfirm'))) return;
+                      if (!(await confirm({ description: t('deleteConfirm'), variant: 'destructive' }))) return;
                       try { await del.mutateAsync(a.attachmentId); toast.success(tc('save')); }
                       catch (e) { toast.error(e instanceof Error ? e.message : tc('error')); }
                     }}>{t('delete')}</button>

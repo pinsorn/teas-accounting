@@ -25,7 +25,8 @@ public sealed partial class ReceiptService
         var rows = await q.OrderByDescending(r => r.ReceiptId).Take(lim + 1)
             .Select(r => new ReceiptListItem(
                 r.ReceiptId, r.DocNo, r.DocDate, r.CustomerName, r.Amount,
-                r.Status.ToString(), r.CurrencyCode, r.WhtAmount))
+                r.Status.ToString(), r.CurrencyCode, r.WhtAmount,
+                r.CustomerId, r.BusinessUnitId))
             .ToListAsync(ct);
         var more = rows.Count > lim;
         if (more) rows.RemoveAt(rows.Count - 1);
@@ -36,16 +37,85 @@ public sealed partial class ReceiptService
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
-        var r = await _db.Receipts.AsNoTracking().Include(x => x.Applications)
+        var r = await _db.Receipts.AsNoTracking()
+            .Include(x => x.Applications)
+            .Include(x => x.WhtLines)
+            .Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.ReceiptId == id, ct);
         if (r is null) return null;
 
-        var tiIds = r.Applications.Select(a => a.TaxInvoiceId).ToList();
+        var tiIds = r.Applications.Where(a => a.TaxInvoiceId.HasValue)
+            .Select(a => a.TaxInvoiceId!.Value).ToList();
         var ti = await _db.TaxInvoices.AsNoTracking()
             .Where(t => tiIds.Contains(t.TaxInvoiceId))
             .Select(t => new { t.TaxInvoiceId, t.DocNo, t.BusinessUnitId })
             .ToListAsync(ct);
         var tiNo = ti.ToDictionary(x => x.TaxInvoiceId, x => x.DocNo);
+
+        // Sprint (receipt itemize) — derive the goods/service line items from the
+        // applied (immutable) Tax Invoices so the receipt shows what was paid for.
+        var lineRows = await _db.TaxInvoiceLines.AsNoTracking()
+            .Where(l => tiIds.Contains(l.TaxInvoiceId))
+            .OrderBy(l => l.TaxInvoiceId).ThenBy(l => l.LineNo)
+            .Select(l => new ReceiptLineView(
+                l.DescriptionTh, l.ProductType, l.Quantity, l.UomText,
+                l.UnitPrice, l.LineAmount, tiNo.GetValueOrDefault(l.TaxInvoiceId)))
+            .ToListAsync(ct);
+
+        // Non-VAT sources override the TI-derived lines:
+        //  • standalone receipt → its own ReceiptLines
+        //  • DO-applied receipt (non-VAT credit) → lines from the applied Delivery Order(s)
+        if (r.Lines.Count > 0)
+        {
+            lineRows = r.Lines.OrderBy(l => l.LineNo)
+                .Select(l => new ReceiptLineView(
+                    l.DescriptionTh, l.ProductType, l.Quantity, l.UomText ?? string.Empty, l.UnitPrice, l.Amount, null))
+                .ToList();
+        }
+        else if (lineRows.Count == 0)
+        {
+            // cont.69 Phase 1 — Invoice (BillingNote)-applied receipt derives its lines
+            // from the applied Invoice. Preferred over DO for the new non-VAT flow.
+            var bnIds = r.Applications.Where(a => a.BillingNoteId.HasValue)
+                .Select(a => a.BillingNoteId!.Value).ToList();
+            if (bnIds.Count > 0)
+            {
+                var bnData = await _db.BillingNotes.AsNoTracking()
+                    .Where(b => bnIds.Contains(b.BillingNoteId))
+                    .Select(b => new
+                    {
+                        b.DocNo,
+                        Lines = b.Lines.OrderBy(l => l.LineNo).Select(l => new
+                        {
+                            l.DescriptionTh, l.ProductType, l.Quantity, l.UomText, l.UnitPrice, l.LineAmount,
+                        }),
+                    }).ToListAsync(ct);
+                lineRows = bnData.SelectMany(b => b.Lines.Select(l => new ReceiptLineView(
+                    l.DescriptionTh, l.ProductType, l.Quantity, l.UomText, l.UnitPrice, l.LineAmount, b.DocNo)))
+                    .ToList();
+            }
+            if (lineRows.Count == 0)
+            {
+                var doIds = r.Applications.Where(a => a.DeliveryOrderId.HasValue)
+                    .Select(a => a.DeliveryOrderId!.Value).ToList();
+                if (doIds.Count > 0)
+                {
+                    var doData = await _db.DeliveryOrders.AsNoTracking()
+                        .Where(d => doIds.Contains(d.DeliveryOrderId))
+                        .Select(d => new
+                        {
+                            d.DocNo,
+                            Lines = d.Lines.OrderBy(l => l.LineNo).Select(l => new
+                            {
+                                l.DescriptionTh, l.Quantity, l.UomText, l.UnitPrice, l.LineAmount,
+                            }),
+                        }).ToListAsync(ct);
+                    lineRows = doData.SelectMany(d => d.Lines.Select(l => new ReceiptLineView(
+                        l.DescriptionTh, "GOOD", l.Quantity, l.UomText, l.UnitPrice, l.LineAmount, d.DocNo)))
+                        .ToList();
+                }
+            }
+        }
         var tiBu = ti.Where(x => x.BusinessUnitId != null)
             .Select(x => x.BusinessUnitId!.Value).Distinct().ToList();
         var buCodes = await _db.BusinessUnits.AsNoTracking()
@@ -59,129 +129,228 @@ public sealed partial class ReceiptService
                 .Select(b => b.Code).FirstOrDefaultAsync(ct)
             : null;
 
-        // Sprint 8.6 — WHT detail (rate/code from the snapshot type; base derived).
-        string? whtCode = null;
-        var whtRate = 0m;
-        if (r.WhtAmount > 0m && r.WhtTypeId is { } wtId)
+        // Sprint (multi-category WHT) — the breakdown is the persisted WhtLines. The
+        // aggregate WhtTypeCode/Rate carry the single-category value or null when the
+        // bill spans multiple categories (consumers should read WhtLines).
+        var whtLineViews = r.WhtLines
+            .OrderBy(l => l.WhtTypeCode)
+            .Select(l => new ReceiptWhtLineView(
+                l.WhtTypeId, l.WhtTypeCode, l.IncomeTypeCode, l.WhtRate, l.BaseAmount, l.WhtAmount))
+            .ToList();
+
+        string? whtCode;
+        decimal whtRate, whtBase;
+        if (whtLineViews.Count == 1)
         {
-            var wt = await _db.WhtTypes.AsNoTracking()
-                .Where(w => w.WhtTypeId == wtId)
-                .Select(w => new { w.Code, w.Rate }).FirstOrDefaultAsync(ct);
-            whtCode = wt?.Code;
-            whtRate = wt?.Rate ?? 0m;
+            whtCode = whtLineViews[0].WhtTypeCode;
+            whtRate = whtLineViews[0].WhtRate;
+            whtBase = whtLineViews[0].BaseAmount;
         }
-        var whtBase = whtRate > 0m
-            ? Math.Round(r.WhtAmount / whtRate, 2, MidpointRounding.AwayFromZero)
-            : 0m;
+        else if (whtLineViews.Count > 1)
+        {
+            whtCode = null;          // multi-category — see WhtLines
+            whtRate = 0m;
+            whtBase = whtLineViews.Sum(l => l.BaseAmount);
+        }
+        else
+        {
+            // Legacy receipts posted before the multi-category change: derive the
+            // single category from the header WhtTypeId (no WhtLines rows exist).
+            whtCode = null; whtRate = 0m; whtBase = 0m;
+            if (r.WhtAmount > 0m && r.WhtTypeId is { } wtId)
+            {
+                var wt = await _db.WhtTypes.AsNoTracking()
+                    .Where(w => w.WhtTypeId == wtId)
+                    .Select(w => new { w.Code, w.Rate }).FirstOrDefaultAsync(ct);
+                whtCode = wt?.Code;
+                whtRate = wt?.Rate ?? 0m;
+                whtBase = whtRate > 0m
+                    ? Math.Round(r.WhtAmount / whtRate, 2, MidpointRounding.AwayFromZero)
+                    : 0m;
+            }
+        }
 
         return new ReceiptDetail(
             r.ReceiptId, r.DocNo, r.Status.ToString(), r.DocDate, r.CustomerName,
             r.CustomerTaxId, r.PaymentMethod.ToString(), r.ChequeNo, r.Amount,
             r.CurrencyCode, r.Notes, r.PostedAt,
-            r.Applications.Select(a => new ReceiptAppliedTo(
-                a.TaxInvoiceId, tiNo.GetValueOrDefault(a.TaxInvoiceId), a.AppliedAmount,
-                tiBuCode.GetValueOrDefault(a.TaxInvoiceId))).ToList(),
+            // AppliedTo lists the TI settlements (VAT path). DO applications + standalone
+            // lines are shown via the derived line items above, not here.
+            r.Applications.Where(a => a.TaxInvoiceId.HasValue).Select(a => new ReceiptAppliedTo(
+                a.TaxInvoiceId!.Value, tiNo.GetValueOrDefault(a.TaxInvoiceId!.Value), a.AppliedAmount,
+                tiBuCode.GetValueOrDefault(a.TaxInvoiceId!.Value))).ToList(),
             headerBuCode,
             r.WhtAmount, whtCode, whtRate, whtBase, r.CashReceived,
-            r.CustomerWhtCertNo, r.CustomerWhtCertDate);
+            r.CustomerWhtCertNo, r.CustomerWhtCertDate,
+            lineRows, whtLineViews);
     }
 
-    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct)
+    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("rc.not_found", $"Receipt {id} not found.");
-        return Document.Create(doc => doc.Page(p =>
-        {
-            p.Size(PageSizes.A4); p.Margin(28); p.DefaultTextStyle(s => s.FontSize(10));
-            p.Header().AlignCenter().Text("ใบเสร็จรับเงิน / RECEIPT").Bold().FontSize(15);
-            p.Content().PaddingVertical(10).Column(col =>
-            {
-                col.Spacing(6);
-                col.Item().Text($"เลขที่ / No.: {d.DocNo ?? "(ร่าง)"}");
-                col.Item().Text($"วันที่ / Date: {d.DocDate:dd/MM/yyyy}");
-                col.Item().Text($"ลูกค้า / Customer: {d.CustomerName}");
-                col.Item().Text($"วิธีชำระ / Method: {d.PaymentMethod}");
-                col.Item().Text($"จำนวนเงิน / Amount: {d.Amount:N2} {d.CurrencyCode}").Bold().FontSize(12);
-                col.Item().PaddingTop(6).Text("ชำระสำหรับใบกำกับภาษี / Applied to:").Bold();
-                foreach (var a in d.AppliedTo)
-                    col.Item().Text($"  {a.TiDocNo ?? a.TaxInvoiceId.ToString()} : {a.AppliedAmount:N2}");
 
-                // Sprint 8.6 — AR-side WHT section (conditional). Receipt header
-                // is VAT-status independent (8.5 §2.1) — only this block is added.
-                if (d.WhtAmount > 0m)
-                {
-                    col.Item().PaddingTop(8).LineHorizontal(0.5f);
-                    col.Item().Text("หัก ภาษี ณ ที่จ่าย / Withholding tax").Bold();
-                    col.Item().Text(
-                        $"  ประเภท: {d.WhtTypeCode}   อัตรา: {d.WhtRate:P2}   " +
-                        $"ฐาน: {d.WhtBase:N2}");
-                    col.Item().Text($"  WHT: ({d.WhtAmount:N2}) {d.CurrencyCode}").Bold();
-                    col.Item().Text(
-                        $"  ยอดสุทธิที่ได้รับ / Net received: {d.CashReceived:N2} {d.CurrencyCode}")
-                        .Bold().FontSize(12);
-                    col.Item().Text(
-                        $"  เลขที่ใบ 50ทวิ ที่ลูกค้าออก: {d.CustomerWhtCertNo} " +
-                        $"ลงวันที่ {(d.CustomerWhtCertDate is { } cd ? cd.ToString("dd/MM/yyyy") : "-")}")
-                        .FontSize(8);
-                }
-            });
-            p.Footer().AlignCenter().Text("ออกโดยระบบ TEAS").FontColor(Colors.Grey.Medium);
-        })).GeneratePdf();
+        // Sprint (receipt itemize, 2026-05-22) — list the goods/service line items the
+        // customer paid for (derived from the applied immutable Tax Invoices). The
+        // applied TI number(s) go in the notes (Ham 2026-05-22). No VAT row (the
+        // receipt settles already-VAT'd invoices). WHT is NOT printed on the receipt
+        // (only recorded: WhtAmount + per-category WhtLines + the customer 50ทวิ).
+        var cfg = Pdf.PaperDoc.Config[Pdf.PaperDocKind.Receipt];
+
+        // Prefer the derived line items; fall back to one row per applied TI for
+        // legacy receipts whose source TIs have no line rows.
+        var lines = d.Lines is { Count: > 0 }
+            ? d.Lines.Select(l => new Pdf.PaperLine(
+                l.DescriptionTh, l.TiDocNo, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList()
+            : d.AppliedTo.Select(a => new Pdf.PaperLine(
+                $"ใบกำกับภาษี {a.TiDocNo ?? $"#{a.TaxInvoiceId}"}",
+                a.BusinessUnitCode, null, null, null, null, a.AppliedAmount)).ToList();
+
+        var tiRefs = string.Join(", ", d.AppliedTo
+            .Select(a => a.TiDocNo ?? $"#{a.TaxInvoiceId}").Distinct());
+        var notes = string.IsNullOrWhiteSpace(d.Notes)
+            ? $"อ้างอิงใบกำกับภาษี: {tiRefs}"
+            : $"{d.Notes}\nอ้างอิงใบกำกับภาษี: {tiRefs}";
+
+        var model = new Pdf.PaperDocModel(
+            cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
+            await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct),
+            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId)),
+            lines,
+            new Pdf.PaperSummary(d.Amount, null, null, 0m, d.Amount, null, ShowVat: _vat.VatMode),
+            new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
+            Notes: notes,
+            Watermark: copy
+                ? new Pdf.PaperWatermark("สำเนา", Pdf.PaperWatermarkVariant.Warning)
+                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.Receipt, d.Status));
+        return Pdf.PaperDocumentPdf.Render(model);
     }
 
-    // Sprint 10 A4 — Product master now exists. Split applied TI lines by
-    // Product.ProductType: SERVICE/EXEMPT_SERVICE → service, GOOD/EXEMPT_GOOD →
-    // goods, NULL product (legacy/unlinked) → service (conservative for WHT).
-    // SuggestedWhtBase defaults to the service portion (was full ex-VAT in
-    // 8.6 R-B1a). User still override-able. Rate/type from customer default,
-    // else CORPORATE→SVC heuristic; B2C individuals get no suggestion.
+    // Sprint (multi-category WHT, 2026-05-22) — replaces the single-rate suggestion.
+    // A bill mixing rent 5% / service 3% / ads 2% withholds per income category, so
+    // the suggestion is now a per-category breakdown: each applied TI's SERVICE lines
+    // are grouped by the line's product DefaultWhtType (customer default as fallback),
+    // pro-rated to the amount actually paid toward that TI (partial payments scale the
+    // base). Goods/exempt-goods are excluded. The legacy aggregate fields are filled
+    // (sum of categories) for any caller that still reads them.
     public async Task<WhtBaseSuggestion> SuggestWhtBaseAsync(
-        IReadOnlyList<long> taxInvoiceIds, long customerId, CancellationToken ct)
+        IReadOnlyList<ReceiptApplicationInput> applications, long customerId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
-        var lines = await _db.TaxInvoiceLines.AsNoTracking()
-            .Where(l => taxInvoiceIds.Contains(l.TaxInvoiceId))
-            .Select(l => new { l.ProductId, l.LineAmount })
-            .ToListAsync(ct);
-        var svcProductIds = (await _db.Products.AsNoTracking()
-            .Where(p => p.ProductType == ProductType.Service
-                     || p.ProductType == ProductType.ExemptService)
-            .Select(p => p.ProductId).ToListAsync(ct)).ToHashSet();
+        var tiIds = applications.Select(a => a.TaxInvoiceId).Distinct().ToList();
 
-        decimal serviceSub = 0m, goodsSub = 0m;
-        foreach (var l in lines)
-        {
-            // NULL product → service bucket (conservative for WHT, per spec A4).
-            if (l.ProductId is null || svcProductIds.Contains(l.ProductId.Value))
-                serviceSub += l.LineAmount;
-            else
-                goodsSub += l.LineAmount;
-        }
-        var subtotal = serviceSub + goodsSub;
+        var tiTotals = await _db.TaxInvoices.AsNoTracking()
+            .Where(t => tiIds.Contains(t.TaxInvoiceId))
+            .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.TotalAmount, ct);
+
+        var tiLines = await _db.TaxInvoiceLines.AsNoTracking()
+            .Where(l => tiIds.Contains(l.TaxInvoiceId))
+            .OrderBy(l => l.TaxInvoiceId).ThenBy(l => l.LineNo)
+            .Select(l => new { l.TaxInvoiceId, l.ProductId, l.ProductType, l.LineAmount, l.DescriptionTh })
+            .ToListAsync(ct);
+        var tiDocNos = await _db.TaxInvoices.AsNoTracking()
+            .Where(t => tiIds.Contains(t.TaxInvoiceId))
+            .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.DocNo, ct);
+
+        var productIds = tiLines.Where(l => l.ProductId != null)
+            .Select(l => l.ProductId!.Value).Distinct().ToList();
+        var productWht = await _db.Products.AsNoTracking()
+            .Where(p => productIds.Contains(p.ProductId))
+            .ToDictionaryAsync(p => p.ProductId, p => p.DefaultWhtTypeId, ct);
 
         var customer = await _db.Customers.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CustomerId == customerId, ct);
 
-        var wt = customer?.DefaultWhtTypeId is { } dw
-            ? await _db.WhtTypes.AsNoTracking()
-                .FirstOrDefaultAsync(w => w.WhtTypeId == dw && w.IsActive, ct)
-            : customer?.CustomerType == CustomerType.Corporate
-                ? await _db.WhtTypes.AsNoTracking().FirstOrDefaultAsync(
-                    w => w.Code == "SVC" && w.IsActive && w.EffectiveTo == null, ct)
-                : null;
+        // Fallback category for a service line with no product-level WHT type:
+        // the customer default, else SVC-3% for a corporate customer (preserves the
+        // pre-existing single-category behavior). B2C individual → no fallback.
+        int? fallback = customer?.DefaultWhtTypeId;
+        if (fallback is null && customer?.CustomerType == CustomerType.Corporate)
+            fallback = await _db.WhtTypes.AsNoTracking()
+                .Where(w => w.Code == "SVC" && w.IsActive && w.EffectiveTo == null)
+                .Select(w => (int?)w.WhtTypeId).FirstOrDefaultAsync(ct);
 
-        if (wt is null)
+        decimal serviceSub = 0m, goodsSub = 0m;
+        var allocApps = new List<WhtAllocApplication>();
+        // Per-line drafts: every applied line (goods + service), pro-rated, with the
+        // resolved category (null for goods) — the FE renders the WHT table from these.
+        var lineDrafts = new List<(string? TiDocNo, string Desc, string ProductType, decimal PaidExVat, int? WhtId)>();
+        // WHT auto-suggest derives from applied Tax Invoice lines (VAT path). Non-VAT
+        // DO/standalone applications have no TI lines → skipped (manual WHT entry).
+        foreach (var a in applications.Where(x => x.TaxInvoiceId.HasValue))
+        {
+            var tiId = a.TaxInvoiceId!.Value;
+            var tiTotal = tiTotals.GetValueOrDefault(tiId);
+            var fraction = tiTotal > 0m ? a.AppliedAmount / tiTotal : 0m;
+            var rows = new List<WhtAllocLine>();
+            foreach (var l in tiLines.Where(l => l.TaxInvoiceId == tiId))
+            {
+                var paidExVat = Math.Round(l.LineAmount * fraction, 2, MidpointRounding.AwayFromZero);
+                int? whtId = null;
+                if (ReceiptWhtAllocator.IsService(l.ProductType))
+                {
+                    serviceSub += paidExVat;
+                    whtId = (l.ProductId != null ? productWht.GetValueOrDefault(l.ProductId.Value) : null)
+                            ?? fallback;
+                    rows.Add(new WhtAllocLine(l.LineAmount, l.ProductType, whtId));
+                }
+                else
+                {
+                    goodsSub += paidExVat;
+                    rows.Add(new WhtAllocLine(l.LineAmount, l.ProductType, null));
+                }
+                lineDrafts.Add((tiDocNos.GetValueOrDefault(tiId), l.DescriptionTh, l.ProductType, paidExVat, whtId));
+            }
+            allocApps.Add(new WhtAllocApplication(a.AppliedAmount, tiTotal, rows));
+        }
+        serviceSub = Math.Round(serviceSub, 2, MidpointRounding.AwayFromZero);
+        goodsSub = Math.Round(goodsSub, 2, MidpointRounding.AwayFromZero);
+        var subtotal = serviceSub + goodsSub;
+
+        var allocations = ReceiptWhtAllocator.Allocate(allocApps);
+
+        // Load every WhtType referenced by a category OR a per-line suggestion.
+        var allTypeIds = allocations.Select(a => a.WhtTypeId)
+            .Concat(lineDrafts.Where(x => x.WhtId != null).Select(x => x.WhtId!.Value))
+            .Distinct().ToList();
+        var types = await _db.WhtTypes.AsNoTracking()
+            .Where(w => allTypeIds.Contains(w.WhtTypeId))
+            .ToDictionaryAsync(w => w.WhtTypeId, ct);
+
+        var suggestLines = lineDrafts.Select(x =>
+        {
+            string? code = null; var rate = 0m;
+            if (x.WhtId is { } id && types.TryGetValue(id, out var wt)) { code = wt.Code; rate = wt.Rate; }
+            return new WhtSuggestLine(x.TiDocNo, x.Desc, x.ProductType, x.PaidExVat, x.WhtId, code, rate);
+        }).ToList();
+
+        var categories = new List<WhtCategorySuggestion>();
+        foreach (var alloc in allocations)
+        {
+            if (!types.TryGetValue(alloc.WhtTypeId, out var wt) || !wt.IsActive) continue;
+            var amount = Math.Round(alloc.BaseAmount * wt.Rate, 2, MidpointRounding.AwayFromZero);
+            categories.Add(new WhtCategorySuggestion(
+                wt.WhtTypeId, wt.Code, wt.NameTh, wt.Rate, alloc.BaseAmount, amount));
+        }
+
+        if (categories.Count == 0)
             return new WhtBaseSuggestion(subtotal, null, null, 0m, 0m, 0m,
-                "ลูกค้าบุคคลธรรมดา / ไม่มีค่าตั้งต้น — โดยทั่วไปไม่มีหัก ณ ที่จ่าย ปรับเองหากจำเป็น",
-                serviceSub, goodsSub);
+                "ไม่มีรายการบริการที่ตั้งค่าหัก ณ ที่จ่าย — เลือกประเภทต่อรายการได้หากต้องการหัก",
+                serviceSub, goodsSub, categories, suggestLines);
 
-        var wht = Math.Round(serviceSub * wt.Rate, 2, MidpointRounding.AwayFromZero);
+        var totalBase = categories.Sum(c => c.Base);
+        var totalWht = categories.Sum(c => c.Amount);
+        var single = categories.Count == 1 ? categories[0] : null;
+        var explanation = categories.Count == 1
+            ? $"WHT จากส่วนบริการ ({single!.Base:N2}) × {single.Rate:P2} = {single.Amount:N2} " +
+              $"(สินค้า {goodsSub:N2} ไม่นำมาคำนวณ). ปรับต่อรายการได้"
+            : $"WHT แยกตามประเภทบริการ {categories.Count} ประเภท (รวมหัก {totalWht:N2}; " +
+              $"สินค้า {goodsSub:N2} ไม่นำมาคำนวณ). ปรับต่อรายการได้";
+
         return new WhtBaseSuggestion(
-            subtotal, wt.WhtTypeId, wt.Code, wt.Rate, serviceSub, wht,
-            $"WHT คำนวณจากส่วนบริการ ({serviceSub:N2}) เท่านั้น × {wt.Rate:P2} = {wht:N2} " +
-            $"(สินค้า {goodsSub:N2} ไม่นำมาคำนวณ). ปรับฐานเองได้หากจำเป็น",
-            serviceSub, goodsSub);
+            subtotal, single?.WhtTypeId, single?.Code, single?.Rate ?? 0m,
+            totalBase, totalWht, explanation, serviceSub, goodsSub, categories, suggestLines);
     }
 }

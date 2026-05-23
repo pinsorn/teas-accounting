@@ -9,9 +9,12 @@ public static class CustomerEndpoints
 {
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/customers")
-            .WithTags("Customers")
-            .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CustomerManage);
+        // Sprint 13h P1 — group-level RequireAuthorization removed (was forcing
+        // master.customer.manage on GETs, blocking read-only roles). Now per-endpoint.
+        var group = app.MapGroup("/customers").WithTags("Customers");
+
+        var readPol   = PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CustomerRead;
+        var managePol = PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CustomerManage;
 
         group.MapPost("/", async (
             [FromBody] CreateCustomerRequest req,
@@ -25,7 +28,7 @@ public static class CustomerEndpoints
 
             var id = await service.CreateAsync(req, ct);
             return Results.Created($"/customers/{id}", new { customer_id = id });
-        });
+        }).RequireAuthorization(managePol);
 
         group.MapPut("/{id:long}", async (
             long id,
@@ -35,10 +38,11 @@ public static class CustomerEndpoints
         {
             await service.UpdateAsync(id, req, ct);
             return Results.NoContent();
-        });
+        }).RequireAuthorization(managePol);
 
         group.MapGet("/{id:long}", async (long id, ICustomerService service, CancellationToken ct) =>
-            await service.GetAsync(id, ct) is { } c ? Results.Ok(c) : Results.NotFound());
+            await service.GetAsync(id, ct) is { } c ? Results.Ok(c) : Results.NotFound())
+            .RequireAuthorization(readPol);
 
         group.MapGet("/", async (
             [FromQuery] string? search,
@@ -47,7 +51,8 @@ public static class CustomerEndpoints
             ICustomerService service,
             CancellationToken ct) =>
                 Results.Ok(await service.ListAsync(search, page is null or 0 ? 1 : page.Value,
-                    pageSize is null or 0 ? 50 : pageSize.Value, ct)));
+                    pageSize is null or 0 ? 50 : pageSize.Value, ct)))
+            .RequireAuthorization(readPol);
 
         return app;
     }

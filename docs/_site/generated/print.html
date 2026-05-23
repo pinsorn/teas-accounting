@@ -1,0 +1,243 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8">
+<title>AccountProject User Manual (TH) v0.5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif;
+    color:#0f172a;margin:0;padding:0;font-size:14px;line-height:1.6}
+  .cover{height:100vh;display:flex;flex-direction:column;justify-content:center;
+    align-items:center;text-align:center;page-break-after:always}
+  .cover h1{font-size:34px;margin:0 0 8px}
+  .cover .sub{color:#475569;font-size:16px}
+  .wt{padding:24px 36px;page-break-before:always}
+  h2{color:#1565C0;border-bottom:2px solid #e2e8f0;padding-bottom:6px;font-size:22px}
+  h3{color:#0f766e;font-size:16px;margin-top:22px}
+  .pre{background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 12px;font-size:13px}
+  .intro{color:#334155;font-size:13.5px;margin:8px 0 4px}
+  figure{margin:8px 0 18px;page-break-inside:avoid}
+  figure img{width:100%;border:1px solid #cbd5e1;border-radius:6px}
+  figcaption{font-style:italic;color:#475569;font-size:12.5px;margin-top:6px}
+  .intro table{border-collapse:collapse;margin:8px 0;font-size:13px}
+  .intro th,.intro td{border:1px solid #cbd5e1;padding:4px 8px;text-align:left}
+  .intro th{background:#f1f5f9;font-weight:600}
+  .intro ul,.intro ol{margin:4px 0 8px 20px}
+  .intro li{margin:2px 0}
+  .intro code{background:#f1f5f9;padding:1px 4px;border-radius:3px;
+    font-family:'Courier New',monospace;font-size:12px}
+  .intro strong{color:#0f172a}
+  .intro p{margin:6px 0}
+  @page{size:A4;margin:14mm}
+</style></head><body>
+<div class="cover">
+  <h1>คู่มือการใช้งาน TEAS</h1>
+  <div class="sub">Thailand Enterprise Accounting System</div>
+  <div class="sub">เวอร์ชัน 0.5 — บทที่ 1–2 (นำร่อง)</div>
+</div>
+
+  <section class="wt">
+    <h2>01.01 — เข้าสู่ระบบ</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> มี user account ที่ผู้ดูแลระบบสร้างให้แล้ว · รู้ username + password ของตัวเอง</p>
+    <div class="intro"><p>TEAS ใช้รหัสผ่านปกติร่วมกับ MFA (ถ้าเปิดใช้) ผ่านหน้า login เพียงหน้าเดียว.<br>ระบบจะออก JWT เก็บเป็น httpOnly cookie — ไม่เก็บใน localStorage ของ browser<br>เพื่อความปลอดภัย (BFF cookie pattern).</p>
+<p>ในบทนี้คุณจะได้เรียนรู้:</p>
+<ul>
+<li>หน้าตา login screen</li>
+<li>การกรอก username + password</li>
+<li>หน้า dashboard ที่ปรากฏหลัง login สำเร็จ</li>
+</ul>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/01/01.01/step-01-login-page.png" alt="step-01-login-page"/><figcaption>เปิด browser ไปที่ URL ของระบบ — หน้าเข้าสู่ระบบจะแสดงพร้อม ช่อง "ชื่อผู้ใช้" และ "รหัสผ่าน"</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/01/01.01/step-02-enter-username.png" alt="step-02-enter-username"/><figcaption>กรอก "ชื่อผู้ใช้" ที่ผู้ดูแลระบบให้มา (ตัวอย่างคู่มือนี้ใช้ demo-accountant)</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/01/01.01/step-03-enter-password.png" alt="step-03-enter-password"/><figcaption>กรอก "รหัสผ่าน" — ตัวอักษรจะถูกซ่อนเป็นจุด. หากตั้ง MFA ไว้ ระบบจะถามรหัส OTP ในขั้นถัดไป</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/01/01.01/step-04-submit.png" alt="step-04-submit"/><figcaption>คลิกปุ่ม "เข้าสู่ระบบ" — ระบบจะตรวจสอบ credentials และเปิด session ผ่าน httpOnly cookie</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/01/01.01/step-05-dashboard.png" alt="step-05-dashboard"/><figcaption>เข้าสู่ระบบสำเร็จ — หน้า "แดชบอร์ด" ปรากฏพร้อมภาพรวมระบบ: ยอดขายเดือนนี้, ภาษีขาย, ใบกำกับภาษี, เลขเอกสารขาดช่วง. เมนูทางซ้ายแสดงโมดูลหลัก: ขาย, ซื้อ, รายงาน</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>01.02 — สำรวจ Dashboard</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login แล้ว (walkthrough 01.01) · อยู่ที่ URL / (dashboard root)</p>
+    <div class="intro"><p>หลัง login สำเร็จ ผู้ใช้จะมาที่ &quot;แดชบอร์ด&quot; — หน้าแรกที่สรุปภาพรวมระบบ<br>และเป็นจุดเริ่มต้นในการเข้าทุกโมดูล. ในบทนี้คุณจะรู้จัก:</p>
+<ul>
+<li>4 stat cards ที่สรุปสถานะการเงินของเดือนนี้</li>
+<li>โครงสร้าง sidebar ที่แบ่งเป็น 4 กลุ่ม: ขาย / ซื้อ / รายงาน / ตั้งค่า</li>
+<li>ปุ่ม TH/EN สำหรับสลับภาษา และปุ่ม &quot;ออกจากระบบ&quot;</li>
+</ul>
+<p>หมายเหตุ: TEAS ใช้ navigation แบบ sidebar เพียงอย่างเดียว — ไม่มี top header bar.</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/01/01.02/step-01-overview.png" alt="step-01-overview"/><figcaption>นี่คือหน้า "แดชบอร์ด" — สรุปภาพรวมระบบของเดือนปัจจุบัน. หัวเรื่อง "แดชบอร์ด" + คำอธิบาย "ภาพรวมระบบ" + 4 stat cards ด้านบน</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/01/01.02/step-02-card-tax-invoices.png" alt="step-02-card-tax-invoices"/><figcaption>card แรก "ใบกำกับภาษีเดือนนี้" — จำนวนใบกำกับภาษีขายที่ Post แล้วในเดือนปัจจุบัน. เมื่อยังไม่มีข้อมูลจะแสดง "—"</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/01/01.02/step-03-card-sales.png" alt="step-03-card-sales"/><figcaption>card "ยอดขายเดือนนี้" — ผลรวม net amount ของใบกำกับภาษีขาย ที่ Post แล้ว (ไม่รวมที่ยกเลิก). หน่วยเป็นบาท (฿)</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/01/01.02/step-04-card-output-vat.png" alt="step-04-card-output-vat"/><figcaption>card "ภาษีขายเดือนนี้" — ผลรวม VAT 7% (Output VAT) ที่ เรียกเก็บจากลูกค้า. เป็นตัวเลขเดียวกับที่จะยื่น ภ.พ.30 ปลายเดือน</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/01/01.02/step-05-card-number-gaps.png" alt="step-05-card-number-gaps"/><figcaption>card "เลขเอกสารขาดช่วง" — จำนวนช่วงของเลขเอกสารที่ขาด (ตามกฎบัญชี TEAS ต้องเป็น gapless). ถ้าไม่ใช่ 0 ต้องรีบตรวจ — ดูบทที่ 5</figcaption></figure>
+<h3>ขั้นที่ 6</h3><figure><img src="../captures/01/01.02/step-06-sidebar-sales.png" alt="step-06-sidebar-sales"/><figcaption>sidebar กลุ่มแรก (ไม่มีหัวข้อ) คือ "ขาย" — รวม แดชบอร์ด, ใบเสนอราคา, ใบสั่งขาย, ใบส่งของ, ใบกำกับภาษี, ใบเสร็จรับเงิน, ใบลดหนี้, ใบเพิ่มหนี้, ตรวจเลขเอกสารขาดช่วง</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/01/01.02/step-07-sidebar-purchase.png" alt="step-07-sidebar-purchase"/><figcaption>กลุ่ม "ซื้อ" — ผู้ขาย, บันทึกใบกำกับภาษีซื้อ, ใบสั่งซื้อ, ใบสำคัญจ่าย, หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)</figcaption></figure>
+<h3>ขั้นที่ 8</h3><figure><img src="../captures/01/01.02/step-08-sidebar-reports.png" alt="step-08-sidebar-reports"/><figcaption>กลุ่ม "รายงาน" — งบทดลอง, กำไรขาดทุน, สรุปยอดขาย, ภ.พ.30, PO ค้าง, แบบยื่นภาษี, ภาษีหัก ณ ที่จ่ายค้างรับ</figcaption></figure>
+<h3>ขั้นที่ 9</h3><figure><img src="../captures/01/01.02/step-09-sidebar-settings.png" alt="step-09-sidebar-settings"/><figcaption>กลุ่ม "ตั้งค่า" — 5 รายการ. ลิงก์แรก "ข้อมูลบริษัท" (Sprint 13d-P6, ทำก่อนเป็นอันดับแรกสำหรับ tenant ใหม่ — ดูบท 02.05) ตามด้วย สินค้า/บริการ, หน่วยธุรกิจ (Business Unit), ประเภทหัก ณ ที่จ่าย (admin), API Keys (admin)</figcaption></figure>
+<h3>ขั้นที่ 10</h3><figure><img src="../captures/01/01.02/step-10-sidebar-footer.png" alt="step-10-sidebar-footer"/><figcaption>ด้านล่าง sidebar มี 2 ปุ่ม — "TH / EN" สลับภาษา (ดูบท 01.03) และ "ออกจากระบบ" สำหรับ logout (ดูบท 01.04)</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>01.03 — เปลี่ยนภาษา TH / EN</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login แล้ว (walkthrough 01.01) · อยู่ที่ภาษาไทย (default)</p>
+    <div class="intro"><p>TEAS รองรับ 2 ภาษาในหน้าเดียวกัน — ไทย (default) และ English. การสลับ<br>จะกระทบทั้ง sidebar, headings, labels, และ stat cards ทันที (client-side<br>locale switch — ไม่ต้อง reload หน้า).</p>
+<p>ศัพท์เฉพาะกฎหมายภาษีไทย เช่น &quot;ภ.พ.30&quot;, &quot;50 ทวิ&quot;, &quot;ภ.ง.ด.&quot; จะคงรูปไว้<br>แม้สลับเป็น English เพราะเป็นชื่อทางการตามมาตรฐานกรมสรรพากร<br>(เช่น &quot;ภ.พ.30 VAT Return&quot;, &quot;WHT Certificates (50 ทวิ)&quot;).</p>
+<p>User preference จะถูกเก็บไว้ใน cookie ของ browser — ครั้งต่อไปที่ login<br>ระบบจะจำภาษาที่เลือกล่าสุด.</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/01/01.03/step-01-locate-toggle.png" alt="step-01-locate-toggle"/><figcaption>ปุ่ม "TH / EN" อยู่ล่างสุดของ sidebar (เหนือปุ่ม "ออกจากระบบ") — เป็น toggle 1-คลิกสลับภาษา</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/01/01.03/step-02-switched-english.png" alt="step-02-switched-english"/><figcaption>หลังคลิก → toast "English" ปรากฏมุมขวาบน. Sidebar แปลทั้งหมด: "ใบเสนอราคา" → "Quotations", "ใบกำกับภาษี" → "Tax Invoices", "งบทดลอง" → "Trial Balance" ฯลฯ</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/01/01.03/step-03-main-translated.png" alt="step-03-main-translated"/><figcaption>หน้า dashboard แปลด้วย — "แดชบอร์ด" → "Dashboard", "ภาพรวมระบบ" → "System overview", stat cards: "Tax Invoices this month", "Sales this month", "Output VAT this month", "Number gaps"</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/01/01.03/step-04-switched-thai.png" alt="step-04-switched-thai"/><figcaption>คลิกอีกครั้ง → กลับเป็นภาษาไทย. Toast "ภาษาไทย" ปรากฏ. ค่าที่เลือกล่าสุดจะถูก save ลง cookie อัตโนมัติ</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>01.04 — ออกจากระบบ</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login แล้ว (walkthrough 01.01) · อยู่ที่หน้าใดก็ได้หลัง login (ส่วนใหญ่ใช้จาก dashboard)</p>
+    <div class="intro"><p>การ &quot;ออกจากระบบ&quot; (logout) จะส่ง POST ไปที่ /api/auth/logout — BFF จะ<br>ลบ httpOnly cookie ที่เก็บ access_token แล้ว redirect กลับ /login.</p>
+<p>ความปลอดภัย: เนื่องจาก JWT เก็บเป็น httpOnly cookie (BFF pattern) —<br>JavaScript ของหน้าเว็บอ่านไม่ได้อยู่แล้ว, การ logout ฝั่ง browser จึง<br>เพียงพอแม้ยังไม่ revoke token ฝั่ง server (token จะ expire ตามอายุปกติ).</p>
+<p>หากต้องการ revoke ทันที (เช่นกรณี mobile device หาย) — admin สามารถ<br>กดบังคับ logout จาก User Management (ดูบทที่ 6 → &quot;ผู้ใช้งาน&quot; → revoke session).</p>
+<p>หมายเหตุ: chapter index เดิมระบุ walkthrough &quot;Dark mode&quot; ที่ 01.04 — แต่<br>ฟีเจอร์ยังไม่ implement, logout จึงเลื่อนมาเป็น 01.04.</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/01/01.04/step-01-locate-logout.png" alt="step-01-locate-logout"/><figcaption>ปุ่ม "ออกจากระบบ" อยู่ล่างสุดของ sidebar (ใต้ปุ่ม "TH / EN") — สีข้อความเป็นสีแดง บอกว่าเป็น destructive action</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/01/01.04/step-02-redirected-login.png" alt="step-02-redirected-login"/><figcaption>หลังคลิก → ระบบจะส่ง POST /api/auth/logout → cookie ถูก clear → redirect กลับหน้า /login. ตอนนี้ session สิ้นสุดแล้ว</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/01/01.04/step-03-back-button-blocked.png" alt="step-03-back-button-blocked"/><figcaption>ลองกดปุ่ม "Back" ของ browser → ระบบจะ redirect กลับ /login เสมอ (middleware ตรวจ cookie ทุก request). พิสูจน์ว่า session ถูก clear จริง</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>02.01 — ตั้งค่าหน่วยธุรกิจ (Business Unit)</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login ในฐานะ admin หรือ accountant (ทั้งคู่มีสิทธิ์ master.business_unit.manage) · manual-demo seed applied (ECOM/LAB/REPT)</p>
+    <div class="intro"><p>หน่วยธุรกิจ (BU) ใช้แบ่งกลุ่มภายในบริษัทเดียวกัน — รหัส BU (อักษรพิมพ์ใหญ่<br>A-Z + ตัวเลข ≤20 ตัว) จะถูกแทรกใน prefix เลขเอกสาร เช่น<br><code>12-2026-TI-ECOM-0001</code>.</p>
+<p>ตั้งให้เรียบร้อยก่อนเริ่มออกเอกสาร — เปลี่ยนรหัสภายหลังจะกระทบเอกสารเก่า<br>ที่อ้างรหัสเดิม.</p>
+<p>ในบทนี้คุณจะได้สาธิตทั้ง 4 actions: เพิ่ม → แก้ไข → ปิดใช้งาน → เปิดใช้งานใหม่.</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/02/02.01/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "หน่วยธุรกิจ (Business Unit)" — 3 BUs จาก seed (ECOM อีคอมเมิร์ซ / LAB แล็บ / REPT สัตว์เลื้อยคลาน). คอลัมน์: รหัส, ชื่อ (ไทย), ชื่อ (อังกฤษ), ใช้งาน, [✏️ แก้ไข] [ปิดใช้งาน]</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.01/step-02-enforce-toggle.png" alt="step-02-enforce-toggle"/><figcaption>toggle "บังคับระบุหน่วยธุรกิจในเอกสารรายได้" — เมื่อเปิด: ออกใบกำกับภาษี/ใบเสร็จ/ใบลดหนี้/ใบเพิ่มหนี้ ต้องเลือก BU ทุกครั้ง (กดยังต่อไม่ได้ถ้าไม่เลือก)</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.01/step-03-add-modal.png" alt="step-03-add-modal"/><figcaption>คลิก "+ เพิ่มหน่วยธุรกิจ" → modal เปิด. Fields: รหัส* (A-Z + 0-9, ≤20), ชื่อ (ไทย)*, ชื่อ (อังกฤษ). ปุ่ม "บันทึก" จะ enable เมื่อกรอก required ครบ</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.01/step-04-saved.png" alt="step-04-saved"/><figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "TKZDIU / ทดสอบ KZDIU / Test BU KZDIU" ปรากฏพร้อม ✓ ใช้งาน</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.01/step-05-edit.png" alt="step-05-edit"/><figcaption>คลิก ✏️ แก้ไข ใน row "TKZDIU" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU KZDIU (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption></figure>
+<h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.01/step-06-confirm-dialog.png" alt="step-06-confirm-dialog"/><figcaption>กด "ปิดใช้งาน" → custom AlertDialog เปิด (Sprint 13d-P1): "⚠️ ยืนยันการทำรายการ — ปิดใช้งานหน่วยธุรกิจนี้? เอกสารเดิมยังอ้างอิงได้". 2 ปุ่ม: "ยกเลิก" (เทา) + "ยืนยัน" (สีแดง — destructive variant)</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.01/step-07-disabled.png" alt="step-07-disabled"/><figcaption>ยืนยัน → DELETE 204 (soft) → "TKZDIU" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption></figure>
+<h3>ขั้นที่ 8</h3><figure><img src="../captures/02/02.01/step-08-restored.png" alt="step-08-restored"/><figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "TKZDIU" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>02.02 — ตั้งค่าสินค้า/บริการ</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login (admin หรือ accountant) · manual-demo seed (10 product rows)</p>
+    <div class="intro"><p>สินค้า/บริการคือ master data ที่ใช้ในทุก line item ของเอกสาร<br>(Quotation, Sales Order, Tax Invoice, Vendor Invoice). การตั้ง<br><strong>ประเภท</strong> ให้ถูกต้องสำคัญที่สุด — กระทบการคิด VAT 7% ทันที.</p>
+<p>ระบบรองรับ 4 ประเภท:</p>
+<table>
+<thead>
+<tr>
+<th>ประเภท</th>
+<th>VAT 7%</th>
+<th>ตัวอย่าง</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GOOD</td>
+<td>✓ ต้องเสีย</td>
+<td>ตู้เลี้ยงปลา, เครื่องกรองน้ำ</td>
+</tr>
+<tr>
+<td>SERVICE</td>
+<td>✓ ต้องเสีย</td>
+<td>ค่าที่ปรึกษา, ค่าบริการตรวจ</td>
+</tr>
+<tr>
+<td>EXEMPT_GOOD</td>
+<td>— ยกเว้น</td>
+<td>สัตว์มีชีวิต, อาหารสัตว์</td>
+</tr>
+<tr>
+<td>EXEMPT_SERVICE</td>
+<td>— ยกเว้น</td>
+<td>บริการการศึกษา, ค่ารักษาพยาบาล</td>
+</tr>
+</tbody></table>
+<p>ตั้งประเภทผิด → คิด VAT ผิด → ภ.พ.30 ยื่นผิด → โดนเบี้ยปรับ.</p>
+<p>รหัส (SKU) จะ lock หลังจากมีการใช้ใน document แล้ว — ตั้งให้ดีตั้งแต่แรก.<br>&quot;ราคาตั้งต้น&quot; คือ default ที่ pre-fill ตอนเลือกสินค้าในเอกสาร — ผู้ใช้<br>แก้ราคาในเอกสารได้ตามจริง.</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/02/02.02/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "สินค้า/บริการ" — 10 รายการจาก seed. คอลัมน์: รหัส (SKU), ชื่อ (ไทย), ประเภท, ราคาตั้งต้น, สถานะ, [✏️ แก้ไข] [ปิดใช้งาน]</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.02/step-02-types-overview.png" alt="step-02-types-overview"/><figcaption>สังเกตคอลัมน์ "ประเภท" — แต่ละ row บอก VAT rule: EXEMPT_GOOD (MP-EXM-* ปลา/อาหารสัตว์ = VAT 0%), GOOD (MP-GD-* อุปกรณ์ = VAT 7%), SERVICE (MP-SVC-* บริการ = VAT 7% + อาจ WHT)</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.02/step-03-add-modal.png" alt="step-03-add-modal"/><figcaption>คลิก "+ เพิ่มสินค้า/บริการ" → modal เปิด. Fields: รหัส (SKU)*, ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภท (dropdown 4 options), หน่วยนับ, ราคาตั้งต้น</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.02/step-04-type-dropdown.png" alt="step-04-type-dropdown"/><figcaption>dropdown "ประเภท" มี 4 options: GOOD (default), SERVICE, EXEMPT_GOOD, EXEMPT_SERVICE. ตัวเลือกที่ขึ้นต้น "EXEMPT_" = ไม่คิด VAT 7%</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.02/step-05-saved.png" alt="step-05-saved"/><figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-KZMBB / ค่าออกแบบเว็บไซต์ KZMBB / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption></figure>
+<h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.02/step-06-confirm-dialog.png" alt="step-06-confirm-dialog"/><figcaption>กด "ปิดใช้งาน" → AlertDialog เปิด (เหมือน BU 02.01). ถ้าเอกสารเดิมอ้างสินค้านี้ — ยังอ้างได้ (soft delete + audit trail)</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.02/step-07-disabled.png" alt="step-07-disabled"/><figcaption>row "MP-SVC-KZMBB" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>02.03 — ตั้งค่าประเภทหัก ณ ที่จ่าย (Admin only)</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login ในฐานะ ADMIN (demo-admin) — ไม่ใช่ accountant · manual-demo seed (3 WHT rows: ADS/RENT/SVC)</p>
+    <div class="intro"><p>ระบบหัก ณ ที่จ่าย (WHT) ในไทยต้องระบุ 3 อย่างพร้อมกัน:</p>
+<ol>
+<li><strong>ประเภทเงินได้ (มาตรา 40)</strong> — บอกประเภทของรายได้<br>(ม.40(2) ค่าจ้าง, ม.40(3) ค่าลิขสิทธิ์, ม.40(4) ดอกเบี้ย/ปันผล,<br>ม.40(5) ค่าเช่า, ม.40(6) วิชาชีพอิสระ, ม.40(7) รับเหมา, ม.40(8) อื่น ๆ)</li>
+<li><strong>อัตรา (%)</strong> — เปอร์เซ็นต์หัก ณ ที่จ่าย (เช่น 3%, 5%, 15%)</li>
+<li><strong>แบบยื่น</strong> — ภ.ง.ด.1 (เงินเดือน) / ภ.ง.ด.3 (จ่ายให้บุคคล) /<br>ภ.ง.ด.53 (จ่ายให้นิติบุคคล) / ภ.ง.ด.54 (จ่ายต่างประเทศ)</li>
+</ol>
+<p><strong>Effective-date pattern</strong>: อัตรา WHT เปลี่ยนตามกฎหมายเป็นบางช่วง — ระบบ<br>เก็บประวัติอัตราผ่านปุ่ม &quot;เปลี่ยนอัตรา&quot; (ดู step 4). ระบบจะใช้อัตรา<br>ที่ถูกต้องตามวันที่เอกสารจริง ไม่ใช่อัตราล่าสุด — สอดคล้องกับเอกสารเก่า<br>ที่ออกก่อนเปลี่ยนกฎหมาย.</p>
+<p><strong>ต้องเป็น admin role</strong> (<code>tax.wht_type.manage</code> scope) เพื่อจะ CRUD —<br>accountant อ่านได้แต่ไม่เห็นปุ่ม action.</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/02/02.03/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "ประเภทหัก ณ ที่จ่าย" — 3 ประเภทจาก seed สำหรับ tenant นี้: ADS (ค่าโฆษณา) 2% PND53, RENT (ค่าเช่า) 5% PND3, SVC (ค่าบริการ) 3% PND53. หมายเหตุ: Sprint 13f แก้ cross-tenant leak — ก่อนหน้านี้ admin เห็น 18 rows รวมข้อมูล tenant อื่น</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.03/step-02-row-columns.png" alt="step-02-row-columns"/><figcaption>แต่ละ row บอก รหัส, ชื่อ, อัตรา, แบบยื่น (PND3/PND53), ประเภทเงินได้ (ม.40), ช่วงมีผล (มีผลตั้งแต่ — ถึง), สถานะ, actions: [✏️ แก้ไข] [% เปลี่ยนอัตรา] [ปิดใช้งาน]</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.03/step-03-effective-dates.png" alt="step-03-effective-dates"/><figcaption>คอลัมน์ "มีผลตั้งแต่ / ถึง" — แสดงช่วงเวลาที่อัตรานี้ใช้. "ปัจจุบัน" = row ที่ใช้อยู่ตอนนี้. row เก่ามี "ถึง" เป็นวันที่ — ใช้กับ เอกสารที่ออกก่อนวันนั้น (เก็บประวัติเพื่อ render เอกสารเก่าถูกต้อง)</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.03/step-04-change-rate-btn.png" alt="step-04-change-rate-btn"/><figcaption>ปุ่ม "% เปลี่ยนอัตรา" — ใช้เมื่อกฎหมายเปลี่ยนอัตรา (เช่น สรรพากรลด WHT 3% → 1.5%). ระบบจะสร้าง row ใหม่ + set "ถึง" ของ row เก่าเป็นวันก่อนหน้า → เอกสารเก่าใช้อัตราเดิม, เอกสารใหม่ ใช้อัตราใหม่ (effective-date pattern, plan §16.4)</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.03/step-05-add-modal.png" alt="step-05-add-modal"/><figcaption>คลิก "+ เพิ่มประเภท" → modal เปิด. Fields: รหัส*, ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภทเงินได้ (ม.40)*, แบบยื่น (dropdown), อัตรา (%)*</figcaption></figure>
+<h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.03/step-06-form-dropdown.png" alt="step-06-form-dropdown"/><figcaption>dropdown "แบบยื่น" — ภ.ง.ด.1 (เงินเดือน), ภ.ง.ด.3 (บุคคลธรรมดา), ภ.ง.ด.53 (นิติบุคคล — ใช้บ่อยสุด)</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.03/step-07-disabled-no-confirm.png" alt="step-07-disabled-no-confirm"/><figcaption>⚠️ คลิก "ปิดใช้งาน" SVC row → disable ทันที (no confirm). Sprint 13d-P1 ได้ migrate 7 callers จาก window.confirm → AlertDialog แต่ WHT-types ยังไม่ในชุดนั้น (task #58). ระวังการคลิกผิด</figcaption></figure>
+<h3>ขั้นที่ 8</h3><figure><img src="../captures/02/02.03/step-08-restored.png" alt="step-08-restored"/><figcaption>SVC row inactive แล้ว action เปลี่ยนเป็น "↺ เปิดใช้งานใหม่". คลิก → POST /wht-types/{id}/reactivate → 204 → toast "เปิดใช้งานใหม่" → row กลับมา active (Sprint 13f-P2 Option A: dedicated endpoint)</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>02.04 — สร้าง API Keys (Admin only)</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login ในฐานะ ADMIN (demo-admin) · BU ตั้งครบแล้ว (walkthrough 02.01) · ทราบว่า external app จะใช้ scopes อะไรบ้าง (least privilege)</p>
+    <div class="intro"><p>API Key ใช้ให้ระบบภายนอก (microservice, mobile app, partner integration)<br>เรียก TEAS โดยไม่ต้อง login. แต่ละ key มี:</p>
+<ul>
+<li><strong>Scopes</strong> — granular permissions เฉพาะที่จำเป็น (least privilege)<br>เช่น <code>sales.tax_invoice.create</code>, <code>sales.receipt.post</code></li>
+<li><strong>Business Unit เริ่มต้น</strong> (Sprint 14) — ผูก key กับ 1 BU<br>เอกสารที่สร้างจาก key นี้จะถูก tag กับ BU นั้นอัตโนมัติ —<br>ป้องกัน microservice ของ ECOM ไปสร้างเอกสารใน LAB โดยไม่ตั้งใจ</li>
+<li><strong>หมดอายุ</strong> (optional) — แนะนำตั้งสำหรับ contractor / temp staff</li>
+</ul>
+<p><strong>🔐 สำคัญ — key เห็นได้ครั้งเดียวเท่านั้น</strong>: หลังกด &quot;สร้าง&quot; ระบบจะแสดง<br>full key 1 ครั้ง. ระบบเก็บแค่ hash + prefix. ถ้าไม่ copy เก็บใน secret<br>manager ของ external app → ลืมแล้วต้องสร้างใหม่ (revoke ของเก่า).</p>
+<p><strong>Request header</strong>: external app ส่ง key มาทาง <code>X-Api-Key: &lt;full_key&gt;</code><br>ในทุก request ไป <code>/api/v1/*</code> endpoints.</p>
+<p><strong>Role</strong>: ADMIN only — sys.api_key.manage scope. Accountant เห็น<br>NoAccessState (&quot;ต้องมีสิทธิ์ผู้ดูแลระบบ&quot;).</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/02/02.04/step-01-empty-list.png" alt="step-01-empty-list"/><figcaption>หน้า "API Keys" — เริ่มต้นไม่มี key (empty state พร้อม icon). คอลัมน์: ชื่อ, Key prefix, สิทธิ์ (scopes), Business Unit เริ่มต้น, ใช้ล่าสุด, หมดอายุ, สถานะ</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.04/step-02-rbac-note.png" alt="step-02-rbac-note"/><figcaption>หมายเหตุ — accountant ที่เข้าหน้านี้จะเห็น "ต้องมีสิทธิ์ ผู้ดูแลระบบ" (Sprint 13d-P2 NoAccessState) + ไม่มีปุ่ม "+ สร้าง" (Sprint 13d-P3 PermissionGate). ต้อง admin เท่านั้น</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.04/step-03-create-modal.png" alt="step-03-create-modal"/><figcaption>คลิก "+ สร้าง API key" → modal เปิด. 4 sections: ชื่อ*, สิทธิ์ (scopes)*, Business Unit เริ่มต้น, หมดอายุ</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.04/step-04-name.png" alt="step-04-name"/><figcaption>กรอก "ชื่อ" — ใช้บอกว่า key นี้สำหรับอะไร (เช่น "ECOM Storefront — production"). ไม่กระทบความปลอดภัย แต่ช่วย ตอน revoke ทีหลัง</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>02.05 — ตั้งค่าข้อมูลบริษัท (Company Profile — ทำก่อนเป็นอันแรก)</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login ในฐานะ ADMIN (demo-admin) สำหรับ edit · manual-demo seed (รัน 410_seed_manual_demo_company_profile.sql)</p>
+    <div class="intro"><p>ข้อมูลบริษัทถูก embed ในทุกเอกสารทางภาษี (Tax Invoice / Receipt / CN / DN<br>header). ตามกฎหมาย ข้อมูลที่พิมพ์ในเอกสารต้องตรงกับ ภ.พ.20 ที่จดทะเบียน<br>VAT กับกรมสรรพากร.</p>
+<p><strong>Hybrid lock model</strong> (plan §6.7):</p>
+<p><strong>Hard fields (อ่านอย่างเดียวใน Phase 1):</strong></p>
+<ul>
+<li>ชื่อนิติบุคคล, เลขผู้เสียภาษี, เลขทะเบียนนิติบุคคล, รหัสสาขา</li>
+<li>ที่อยู่จดทะเบียน (line 1+2, แขวง, เขต, จังหวัด, ไปรษณีย์)</li>
+<li>วันที่จดทะเบียน VAT</li>
+</ul>
+<p>→ ต้องแก้ผ่าน ops + ยื่น ภ.พ.09 ก่อน. Phase 2 จะมี 2-person approval +<br>attachment upload ของ ภ.พ.09.</p>
+<p><strong>Soft fields (admin role แก้ได้):</strong></p>
+<ul>
+<li>ชื่อทางการค้า (Brand name), โลโก้, เบอร์, อีเมล, เว็บไซต์, ผู้ติดต่อ</li>
+<li>Banking info (สำหรับ payment instructions)</li>
+</ul>
+<p><strong>สำคัญ</strong>: ทำ walkthrough นี้ <strong>ก่อน</strong> walkthrough อื่นใน chapter 2 หาก<br>เพิ่งตั้ง tenant ใหม่ — เพราะข้อมูลถูก embed ในเอกสารที่ออกหลังจากนั้น.</p>
+<p><strong>Role</strong>:</p>
+<ul>
+<li>Read: ทุก authenticated user (ใช้ render document headers)</li>
+<li>Update soft: ADMIN only (master.company.manage scope)</li>
+<li>Update hard: returns 501 — Phase 2 feature</li>
+</ul>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/02/02.05/step-01-page-tour.png" alt="step-01-page-tour"/><figcaption>หน้า "ข้อมูลบริษัท" (sidebar "ตั้งค่า" → ลิงก์แรก). 2 sections: "ข้อมูลทางกฎหมาย" (hard, locked) + "ข้อมูลติดต่อ + การชำระเงิน" (soft, editable). Banner ⚠️ ส้มด้านบนเตือนเรื่อง ภ.พ.09</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.05/step-02-banner.png" alt="step-02-banner"/><figcaption>Banner ⚠️ — "การเปลี่ยนข้อมูลทางกฎหมายของบริษัทควรอัปเดต ภ.พ.20 ที่กรมสรรพากรก่อน (ยื่น ภ.พ.09)". ผู้ใช้ต้องไปสรรพากรก่อน จึงจะมาแก้ในระบบ</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.05/step-03-hard-fields-locked.png" alt="step-03-hard-fields-locked"/><figcaption>Section "ข้อมูลทางกฎหมาย" 🔒 — 11 fields ทั้งหมด disabled+readOnly. ตัวอย่าง: ชื่อนิติบุคคล "บริษัท แมนนวล เดโม จำกัด", เลขผู้เสียภาษี 0000000000002, ที่อยู่ "199 อาคารเดโม ชั้น 9 ถนนสุขุมวิท", จังหวัดกรุงเทพ, รหัสไปรษณีย์ 10110, วันที่จดทะเบียน VAT 2020-01-01. ไม่มีปุ่ม Save section นี้ (read-only by design)</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.05/step-04-tooltip.png" alt="step-04-tooltip"/><figcaption>hover hard field → tooltip: "การเปลี่ยนข้อมูลนี้ต้องผ่านขั้นตอนพิเศษ — ติดต่อผู้ดูแลระบบหรือยื่น ภ.พ.09 ก่อน". อธิบายworkaround ให้ผู้ใช้ทราบทันทีโดยไม่ต้องไปอ่านคู่มือ</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.05/step-05-soft-fields.png" alt="step-05-soft-fields"/><figcaption>Section "ข้อมูลติดต่อ + การชำระเงิน" — fields editable: ชื่อทางการค้า, โลโก้ URL, เบอร์ติดต่อ, อีเมล, เว็บไซต์, ผู้ติดต่อ, Banking (ธนาคาร / เลขที่บัญชี / ชื่อบัญชี). ปุ่ม "บันทึก" สำหรับ section นี้แยกต่างหาก</figcaption></figure>
+<h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.05/step-06-fill-soft.png" alt="step-06-fill-soft"/><figcaption>กรอกตัวอย่าง — ชื่อทางการค้า "TEAS Manual Demo", เบอร์ "02-555-1234", อีเมล "contact@manualdemo.example.com"</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.05/step-07-saved.png" alt="step-07-saved"/><figcaption>กด "บันทึก" → PUT /api/proxy/company-profile/soft → 204 → toast เขียว → fields ใหม่ persistent. Hard fields ไม่กระทบ (ดู section "ข้อมูลทางกฎหมาย" ด้านบน — ค่าเดิม)</figcaption></figure>
+<h3>ขั้นที่ 8</h3><figure><img src="../captures/02/02.05/step-08-logo-url-note.png" alt="step-08-logo-url-note"/><figcaption>"URL โลโก้" — Phase 1 รับ URL อย่างเดียว (ยังไม่มี upload widget). Phase 2 จะรองรับ upload ผ่าน Sprint 11 attachment infra. Workaround: host logo บน CDN/S3 ของตัวเอง + ใส่ URL ที่นี่</figcaption></figure>
+  </section>
+</body></html>

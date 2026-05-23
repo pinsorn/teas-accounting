@@ -10,6 +10,11 @@ import {
   useDeactivateBusinessUnit, useCompanyBuSetting, useSetCompanyBuSetting,
 } from '@/lib/queries';
 import type { BusinessUnitListItem } from '@/lib/types';
+import { useConfirm } from '@/hooks/useConfirm';
+import { PermissionGate } from '@/components/PermissionGate';
+import { errorToToast } from '@/lib/api/errors';
+
+const SCOPE = 'master.business_unit.manage';
 
 interface Editing {
   businessUnitId: number | null;
@@ -26,6 +31,7 @@ export default function BusinessUnitsSettingsPage() {
   const create = useCreateBusinessUnit();
   const update = useUpdateBusinessUnit();
   const deactivate = useDeactivateBusinessUnit();
+  const confirm = useConfirm();
   const [edit, setEdit] = useState<Editing | null>(null);
 
   const rows = q.data ?? [];
@@ -50,7 +56,7 @@ export default function BusinessUnitsSettingsPage() {
       toast.success(t('save'));
       setEdit(null);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      toast.error(errorToToast(e)); // P5 — unified envelope, i18n-resolved
     }
   }
 
@@ -59,9 +65,11 @@ export default function BusinessUnitsSettingsPage() {
       <PageHeader
         title={t('settingsTitle')}
         actions={
-          <button className="btn btn-primary btn-sm gap-1" onClick={() => setEdit({ ...EMPTY })}>
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </button>
+          <PermissionGate scope={SCOPE}>
+            <button className="btn btn-primary btn-sm gap-1" onClick={() => setEdit({ ...EMPTY })}>
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </button>
+          </PermissionGate>
         }
       />
 
@@ -108,23 +116,40 @@ export default function BusinessUnitsSettingsPage() {
                 <td>{u.nameEn ?? '—'}</td>
                 <td>{u.isActive ? '✓' : '—'}</td>
                 <td className="flex gap-1">
-                  <button className="btn btn-ghost btn-xs"
-                    onClick={() => setEdit({
-                      businessUnitId: u.businessUnitId, code: u.code, nameTh: u.nameTh,
-                      nameEn: u.nameEn ?? '', isActive: u.isActive,
-                    })}>
-                    <Pencil className="h-3 w-3" aria-hidden />
-                  </button>
-                  {u.isActive && (
-                    <button className="btn btn-ghost btn-xs text-error"
-                      onClick={async () => {
-                        if (!confirm(t('deactivateConfirm'))) return;
-                        try { await deactivate.mutateAsync(u.businessUnitId); toast.success(t('deactivate')); }
-                        catch { toast.error(tc('error')); }
-                      }}>
-                      {t('deactivate')}
+                  <PermissionGate scope={SCOPE}>
+                    <button className="btn btn-ghost btn-xs"
+                      onClick={() => setEdit({
+                        businessUnitId: u.businessUnitId, code: u.code, nameTh: u.nameTh,
+                        nameEn: u.nameEn ?? '', isActive: u.isActive,
+                      })}>
+                      <Pencil className="h-3 w-3" aria-hidden />
                     </button>
-                  )}
+                    {u.isActive ? (
+                      <button className="btn btn-ghost btn-xs text-error"
+                        onClick={async () => {
+                          if (!(await confirm({ description: t('deactivateConfirm'), variant: 'destructive' }))) return;
+                          try { await deactivate.mutateAsync(u.businessUnitId); toast.success(t('deactivate')); }
+                          catch { toast.error(tc('error')); }
+                        }}>
+                        {t('deactivate')}
+                      </button>
+                    ) : (
+                      <button className="btn btn-ghost btn-xs text-success"
+                        data-testid="row-restore"
+                        onClick={async () => {
+                          try {
+                            await update.mutateAsync({
+                              id: u.businessUnitId,
+                              req: { nameTh: u.nameTh, nameEn: u.nameEn ?? null,
+                                     defaultRevenueAccountId: null, isActive: true },
+                            });
+                            toast.success(tc('restore'));
+                          } catch { toast.error(tc('error')); }
+                        }}>
+                        ↺ {tc('restore')}
+                      </button>
+                    )}
+                  </PermissionGate>
                 </td>
               </tr>
             ))}

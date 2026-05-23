@@ -23,6 +23,17 @@ public static class SalesChainEndpoints
             var id = await svc.CreateDraftAsync(req, ct);
             return Results.Created($"/quotations/{id}", new { quotation_id = id });
         });
+        // Sprint 13h P4 — Draft-only edit + hard-delete.
+        q.MapPut("/{id:long}", async (long id, [FromBody] CreateQuotationRequest req,
+            IValidator<CreateQuotationRequest> v, IQuotationService svc, CancellationToken ct) =>
+        {
+            var r = await v.ValidateAsync(req, ct);
+            if (!r.IsValid) return Results.ValidationProblem(r.ToDictionary());
+            await svc.UpdateDraftAsync(id, req, ct);
+            return Results.NoContent();
+        });
+        q.MapDelete("/{id:long}", async (long id, IQuotationService s, CancellationToken ct) =>
+            { await s.DeleteDraftAsync(id, ct); return Results.NoContent(); });
         q.MapPost("/{id:long}/send", async (long id, IQuotationService s, CancellationToken ct) =>
             { await s.SendAsync(id, ct); return Results.NoContent(); });
         q.MapPost("/{id:long}/accept", async (long id, IQuotationService s, CancellationToken ct) =>
@@ -39,8 +50,8 @@ public static class SalesChainEndpoints
             Results.Ok(await s.ListAsync(status, ct)));
         q.MapGet("/{id:long}", async (long id, IQuotationService s, CancellationToken ct) =>
             { var d = await s.GetAsync(id, ct); return d is null ? Results.NotFound() : Results.Ok(d); });
-        q.MapGet("/{id:long}/pdf", async (long id, ISalesChainPdfService pdf, CancellationToken ct) =>
-            Results.File(await pdf.QuotationPdfAsync(id, ct), "application/pdf", $"quotation-{id}.pdf"));
+        q.MapGet("/{id:long}/pdf", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
+            Results.File(await pdf.QuotationPdfAsync(id, ct, copy ?? false), "application/pdf", $"quotation-{id}.pdf"));
 
         // ── Sales Orders ────────────────────────────────────────────────────
         var so = app.MapGroup("/sales-orders").WithTags("Sales Orders").RequireAuthorization(soPol);
@@ -61,8 +72,8 @@ public static class SalesChainEndpoints
             Results.Ok(await s.ListAsync(status, ct)));
         so.MapGet("/{id:long}", async (long id, ISalesOrderService s, CancellationToken ct) =>
             { var d = await s.GetAsync(id, ct); return d is null ? Results.NotFound() : Results.Ok(d); });
-        so.MapGet("/{id:long}/pdf", async (long id, ISalesChainPdfService pdf, CancellationToken ct) =>
-            Results.File(await pdf.SalesOrderPdfAsync(id, ct), "application/pdf", $"sales-order-{id}.pdf"));
+        so.MapGet("/{id:long}/pdf", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
+            Results.File(await pdf.SalesOrderPdfAsync(id, ct, copy ?? false), "application/pdf", $"sales-order-{id}.pdf"));
 
         // ── Delivery Orders ─────────────────────────────────────────────────
         var d0 = app.MapGroup("/delivery-orders").WithTags("Delivery Orders").RequireAuthorization(doPol);
@@ -72,16 +83,22 @@ public static class SalesChainEndpoints
             var id = await svc.CreateDraftAsync(req, ct);
             return Results.Created($"/delivery-orders/{id}", new { delivery_order_id = id });
         });
-        d0.MapPost("/{id:long}/post", async (long id, IDeliveryOrderService s, CancellationToken ct) =>
-            { await s.PostAsync(id, ct); return Results.NoContent(); });
+        // Sprint 13h P9 — 4-state machine. /post replaced by /issue + /mark-delivered.
+        d0.MapPost("/{id:long}/issue", async (long id, IDeliveryOrderService s, CancellationToken ct) =>
+            { await s.IssueAsync(id, ct); return Results.NoContent(); });
+        d0.MapPost("/{id:long}/mark-delivered", async (long id, IDeliveryOrderService s, CancellationToken ct) =>
+            { await s.MarkDeliveredAsync(id, ct); return Results.NoContent(); });
         d0.MapPost("/{id:long}/create-ti", async (long id, IDeliveryOrderService s, CancellationToken ct) =>
             Results.Ok(new { tax_invoice_id = await s.CreateTaxInvoiceAsync(id, ct) }));
+        // cont.69 Phase 1 — DO → Invoice (ใบแจ้งหนี้), manual.
+        d0.MapPost("/{id:long}/create-invoice", async (long id, IBillingNoteService s, CancellationToken ct) =>
+            Results.Ok(new { billing_note_id = await s.CreateFromDeliveryOrderAsync(id, ct) }));
         d0.MapGet("/", async ([FromQuery] string? status, IDeliveryOrderService s, CancellationToken ct) =>
             Results.Ok(await s.ListAsync(status, ct)));
         d0.MapGet("/{id:long}", async (long id, IDeliveryOrderService s, CancellationToken ct) =>
             { var d = await s.GetAsync(id, ct); return d is null ? Results.NotFound() : Results.Ok(d); });
-        d0.MapGet("/{id:long}/pdf", async (long id, ISalesChainPdfService pdf, CancellationToken ct) =>
-            Results.File(await pdf.DeliveryOrderPdfAsync(id, ct), "application/pdf", $"delivery-order-{id}.pdf"));
+        d0.MapGet("/{id:long}/pdf", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
+            Results.File(await pdf.DeliveryOrderPdfAsync(id, ct, copy ?? false), "application/pdf", $"delivery-order-{id}.pdf"));
 
         return app;
     }

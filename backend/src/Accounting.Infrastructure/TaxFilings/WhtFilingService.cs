@@ -3,6 +3,7 @@ using Accounting.Application.Ledger;
 using Accounting.Application.TaxFilings;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Ledger;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -24,6 +25,7 @@ public sealed class WhtFilingService(
     ITenantContext tenant,
     IClock clock,
     IOptions<VatModeOptions> opts,
+    IOptions<GlAccountsOptions> glAccounts,
     IRdEfilingClient rd) : IWhtFilingService
 {
     private string SubmissionMode() =>
@@ -150,26 +152,37 @@ public sealed class WhtFilingService(
     }
 
     /// <summary>
-    /// C5 auto-JV: Dr 1170 Input VAT / Cr 2151 Output VAT (net 0). Output side
-    /// remits in next month's ภ.พ.30; input side claims back — effective net 0.
+    /// ม.83/6 reverse-charge auto-JV. VAT-registered: Dr 1170 Input VAT / Cr 2151 Output
+    /// VAT — the input side is reclaimed in next month's ภ.พ.30, so net 0. NON-VAT: the
+    /// receiver still must remit (Cr 2151) but cannot reclaim — the VAT is a permanent
+    /// sunk cost, so the debit is the irrecoverable-VAT EXPENSE account, not 1170.
     /// </summary>
     private async Task<long> PostReverseChargeJvAsync(
         int period, DateOnly docDate, decimal vat, CancellationToken ct)
     {
+        var vatMode = opts.Value.VatMode;
+        // VAT registrant debits reclaimable Input VAT (1170); a non-VAT receiver debits
+        // the irrecoverable-VAT expense (the VAT is a cost it can never claim back).
+        var debitCode = vatMode ? "1170" : glAccounts.Value.IrrecoverableVatExpenseAccount;
+
         var accts = await db.ChartOfAccounts.AsNoTracking()
-            .Where(a => a.AccountCode == "1170" || a.AccountCode == "2151")
+            .Where(a => a.AccountCode == debitCode || a.AccountCode == "2151")
             .Select(a => new { a.AccountId, a.AccountCode })
             .ToListAsync(ct);
-        var input  = accts.FirstOrDefault(a => a.AccountCode == "1170")?.AccountId
-            ?? throw new DomainException("gl.account_missing", "Account 1170 (Input VAT) not found.");
+        var debit = accts.FirstOrDefault(a => a.AccountCode == debitCode)?.AccountId
+            ?? throw new DomainException("gl.account_missing",
+                vatMode
+                    ? "Account 1170 (Input VAT) not found."
+                    : $"Irrecoverable-VAT expense account '{debitCode}' not found — seed it in the chart of accounts (GlAccounts:IrrecoverableVatExpenseAccount).");
         var output = accts.FirstOrDefault(a => a.AccountCode == "2151")?.AccountId
             ?? throw new DomainException("gl.account_missing", "Account 2151 (Output VAT) not found.");
 
+        var debitDesc = vatMode ? "Input VAT (claim back)" : "Irrecoverable input VAT (non-VAT — sunk cost, ม.83/6)";
         var req = new CreateJournalRequest(
             docDate, docDate,
             $"ภ.พ.36 reverse charge {period}", $"PND36-{period}", "THB", 1m,
             [
-                new JournalLineInput(input,  vat, 0m, "Input VAT (claim back)", $"PND36-{period}", null),
+                new JournalLineInput(debit,  vat, 0m, debitDesc, $"PND36-{period}", null),
                 new JournalLineInput(output, 0m, vat, "Output VAT (reverse charge)", $"PND36-{period}", null),
             ]);
         var jid = await journals.CreateDraftAsync(req, ct);

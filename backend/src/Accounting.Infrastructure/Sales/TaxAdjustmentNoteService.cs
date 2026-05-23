@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
@@ -19,11 +20,16 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
     private readonly IGlPostingService       _gl;
     private readonly IPeriodCloseService     _period;
     private readonly VatModeOptions          _vat;
+    private readonly IActivityRecorder       _activity;
 
     public TaxAdjustmentNoteService(AccountingDbContext db, ITenantContext tenant, IClock clock,
         INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period,
-        IOptions<VatModeOptions> vat)
-    { _db = db; _tenant = tenant; _clock = clock; _numbers = numbers; _gl = gl; _period = period; _vat = vat.Value; }
+        IOptions<VatModeOptions> vat, IActivityRecorder activity)
+    { _db = db; _tenant = tenant; _clock = clock; _numbers = numbers; _gl = gl; _period = period; _vat = vat.Value; _activity = activity; }
+
+    // CN vs DN audit EntityType, matching ActivityEndpoints route mapping.
+    private static string EntityTypeOf(TaxAdjustmentNote n) =>
+        n.NoteType == TaxAdjustmentNoteType.Credit ? "CreditNote" : "DebitNote";
 
     public async Task<long> CreateDraftAsync(CreateTaxAdjustmentNoteRequest req, CancellationToken ct)
     {
@@ -94,6 +100,9 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
 
         _db.TaxAdjustmentNotes.Add(note);
         await _db.SaveChangesAsync(ct);
+        _activity.Record(EntityTypeOf(note), note.NoteId, note.DocNo, note.CompanyId, "Created",
+            toStatus: "Draft", note: $"อ้างอิงใบกำกับภาษี {ti.DocNo ?? ti.TaxInvoiceId.ToString()}");
+        await _db.SaveChangesAsync(ct);
         return note.NoteId;
     }
 
@@ -118,6 +127,7 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
 
         var now = _clock.UtcNow;
         note.MarkPosted(docNo, _tenant.UserId ?? 0, now);
+        _activity.Record(EntityTypeOf(note), note.NoteId, docNo, note.CompanyId, "Posted", "Draft", "Posted");
 
         await _db.SaveChangesAsync(ct);
 

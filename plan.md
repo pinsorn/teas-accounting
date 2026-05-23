@@ -20,6 +20,54 @@
 - ☐ Period-close gating integration test (post into closed month → rejected)
 - ☐ Wire full `AddInfrastructure` DI into `PostgresFixture` for service-level tests
 
+## Non-VAT mode completion (cont. 67, 2026-05-23)
+
+Spec: `docs/superpowers/specs/2026-05-23-non-vat-mode-design.md`. 4 decisions locked w/ Ham (async).
+- ☑ **Phase 1** — VAT-artifact hiding: `PaperSummary.ShowVat` (BE+FE), `PaperFoot` single-Total row,
+  `LineItemsTable` VAT column hidden, `SidebarNav` ภ.พ.30 hidden (ภ.ง.ด.3/53 kept), `/reports/pnd30`
+  route guarded. e-Tax covered by existing TI-detail gate.
+- ☑ **Phase 2** — Block TI (`TaxInvoiceService.EnsureVatRegistered` in Create+Post; live-verified 422
+  `ti.non_vat_blocked`) + FE create-buttons gated. taxRate>0 on pre-sale docs = scope decision (FE-hidden;
+  not BE-enforced — VAT realized only via TI which is blocked).
+- ☑ **Phase 3a (BE)** — non-VAT billing path. `ReceiptApplication.TaxInvoiceId` nullable + `DeliveryOrderId`
+  (exactly-one check); standalone `ReceiptLine` table; `MarkPosted` source = TI/DO apps OR own lines; GL
+  `PostReceiptAsync` branches Cr Sales 4000 (cash basis) for DO/standalone vs Cr AR for TI. Migration
+  `AddReceiptWhtAndNonVatBilling` applied. Live-smoked: standalone receipt create+post 200 (RC-0002).
+  Ham confirmed GL (Cr Sales 4000) + that taxInvoiceId nullable is schema correctness (ม.86/13).
+- ☑ **Phase 3b (BE)** — ภ.พ.36 non-VAT sunk VAT. `GlAccountsOptions.IrrecoverableVatExpenseAccount` (5350,
+  seeded via 240.sql) + `WhtFilingService` branches Dr 5350 / Cr 2151 (non-VAT can't reclaim, ม.83/6) vs
+  Dr 1170 / Cr 2151 (VAT). Menu kept visible.
+- ☑ **Phase 3 — FE (cont. 68)** — `receipts/new` non-VAT mode shipped: mode selector (standalone / apply-DO)
+  when `vatMode=false`; standalone line editor (ProductPicker + qty/price/amount → `Lines[]`); `DeliveryOrderPicker`
+  (mirrors TaxInvoicePicker, scoped to customer, Issued+Delivered, excludes TI-combined) → `Applications[].deliveryOrderId`;
+  manual WHT rows for non-VAT (no TI to auto-suggest from). VAT mode UI unchanged. BE: `DeliveryOrderListItem` +CustomerId/+TotalAmount.
+- ☑ **Tests (cont. 68)** — `NonVatBillingTests` (4): standalone→Cr Sales 4000, DO-apply→Cr Sales 4000 (assert account, not
+  just balance), ภ.พ.36 non-VAT→Dr 5350, ภ.พ.36 VAT→Dr 1170. Pass 3× consecutive on shared `teas_test`. Also fixed silent
+  WHT-loss (WhtAmount>0 + null type now rejected `rc.wht_type_invalid` — was dropped after cont.66 multi-WHT refactor).
+- ☑ **Verify (cont. 68):** FE tsc 0 · next build 0/0 (52 pages) · dotnet build 0/0 · Domain 89/89 · NonVat 4/4 ·
+  live-smoke both modes on :5080 (RC-0003 standalone, RC-0004 DO-apply [VatMode=false]; RC-0005 TI-apply [VatMode=true]).
+  ⚠️ **VatMode restored to true** in appsettings.Development.json (non-VAT work done; flip to false to re-test non-VAT).
+- ☑ **WHT auto-sync (cont. 68b)** — non-VAT receipt WHT table mirrors line items (standalone own lines / DO detail
+  lines); base auto, user picks income type per row, goods → ไม่หัก. `WhtTypeSelect` trigger truncate+center fix.
+- ☑ **Hide VAT-only features in non-VAT FE (cont. 68b, Ham "ซ่อนทั้งหมด + route guard")** — nav TI/CN/DN `vatOnly`;
+  DO→TI button + tax-filings ภ.พ.30 link gated; `NonVatGuard` route guards on /tax-invoices, /credit-notes, /debit-notes
+  (list/new/[id]). Kept: Q/SO/DO/BN/RC, purchase, WHT certs, ภ.ง.ด.3/53/54, ภ.พ.36, threshold banner, customer VAT checkbox.
+- ☐ **openapi delta for Sana:** `POST /receipts` body +`lines[]`, `applications[].deliveryOrderId`/`billingNoteId`; `GET /delivery-orders`
+  list item +`customerId`/+`totalAmount`; receipt detail +`lines[]`; +`POST /delivery-orders/{id}/create-invoice`,
+  +`POST /billing-notes/{id}/create-tax-invoice`, +`GET /documents/chain`, +`mark-printed` on Q/SO/DO/Invoice (cont.66/69).
+
+## Invoice flow + full chain + universal print (cont. 69, 2026-05-23) — SHIPPED via sub-agents
+
+Spec: `docs/superpowers/specs/2026-05-23-invoice-flow-related-docs-print-design.md`. Flow: VAT `Q→SO→DO→Invoice→TI→RC`, non-VAT `Q→SO→DO→Invoice→RC`.
+- ☑ **Phase 1 (BE)** — drop combined-TI auto (fix 422); `BillingNote.DeliveryOrderId` + CreateFromDeliveryOrder; `TaxInvoice.BillingNoteId` + CreateFromBillingNote (VAT-only); receipt apply-Invoice (Cr Sales 4000); migration `AddInvoiceFlowLinks`.
+- ☑ **Phase 2a (FE)** — DO→Invoice + Invoice→TI buttons; receipt InvoicePicker (non-VAT). **2b** — rename → Invoice/ใบแจ้งหนี้, route `/invoices`.
+- ☑ **Phase 3** — `GetChainAsync` + `GET /documents/chain` + FE `<DocumentChain>` (full Q→RC) on all 8 detail pages.
+- ☑ **Phase 4** — print ต้นฉบับ/สำเนา + tracking on Q/SO/DO/Invoice (migration `AddPrintTrackingToSalesChain`); universal `PrintMenu` + `ChainRowPrint`.
+- ☐ **Follow-ups:** confirm spec assumptions D5–D8; fix pre-existing RED `Sprint10ProductTests.Wht_base_suggest_splits_service_and_goods` (ServiceSubtotal=0, cont.66 suggest); hide DO→Invoice button after creation (`DeliveryOrderDetail.billingNoteId`); CN/DN chain-row routing heuristic (`docNo.includes('DN')`).
+- ⚠️ **Commit the (currently untracked) Migrations/** with the code — an `ef remove --no-build` on a stale
+  build reverted an untracked migration's Down on the dev DB this sprint. Never `dotnet ef` with `--no-build`
+  after entity edits.
+
 ## Compliance hardening (before any production use)
 
 4. ⏸ **e-Tax XAdES-BES** — see TECHNICAL DEBT below. Decision (Ham, 2026-05-16): do NOT
@@ -76,6 +124,13 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
    - ☐ Follow-up: generic `/api/proxy/[...path]` BFF so authed backend calls attach the bearer
      from the cookie (api-client currently public-endpoint only).
 8. ◐ Build out dashboard screens per `docs/Design(UI).md`.
+   - ☑ **Receipt itemization + multi-category WHT** (cont. 66, 2026-05-22) — receipt now
+     lists derived goods/service line items (TI no in notes) + WHT split per income type
+     (rent 5% / service 3% / ads 2%), pro-rata to partial payment; one 50ทวิ → N
+     `WhtCertificate` R rows; WHT not printed on receipt. New `ReceiptWhtLine` +
+     migration `AddReceiptWhtLines` + pure allocator (8 tests). Spec
+     `docs/superpowers/specs/2026-05-22-receipt-itemize-multi-wht-design.md`. Gates green.
+     **Open (PG-integration, Ham/Sana live):** multi-cert post, GL balance, openapi delta.
    - ☑ Sprint 2-4: TI/Receipt/CN/DN list+detail+create.
    - ☑ **Sprint 5 (Purchase UI — partial):** sidebar "ซื้อ"; `/vendors`
      list+new+detail; `/payment-vouchers` & `/wht-certificates` list+detail (read);
@@ -316,6 +371,157 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
   exact commands in `progress.md` cont. 41 — honest, not a fake pass:
   no Docker / port 5432 closed this session. Single per-step git history
   (`56c68f3`→`47ad3eb`→`62cac14`→wrap). See §23.13 + Report-Backend20.
+- ◐ **Sprint 13e IN PROGRESS (2026-05-19)** — chapter 3 sales-form fix
+  (Answer-Sana-Backend22 + Report-Backend28/29 + Answer-Sana-Backend26):
+  - ☑ **P1** (cont. 48 / Report-Backend28) — SO/DO `/new` routing fix
+    (created `sales-orders/new/page.tsx` + `delivery-orders/new/page.tsx`
+    stubs; was: no static-segment file → Next.js `[id]` caught `/new` →
+    `parseInt("new")=NaN` → 404 infinite spinner). Gotcha §27 logged.
+  - ☑ **P3** (cont. 49 / Report-Backend29) — Shared
+    `frontend/components/forms/TaxInvoicePicker.tsx` (async combobox:
+    doc_no/customer search, customer/status/unpaid scoping, preview row);
+    wired `/receipts/new` (per-row, customer-scoped, unpaid, auto-fills
+    `appliedAmount = TI.totalAmount`) + `AdjustmentNoteForm` CN/DN
+    (status=Posted). BE: `GET /tax-invoices` += `search` (DocNo/
+    CustomerName ILIKE) + `unpaid` (`AmountPaid < TotalAmount`),
+    3 additive files. **FE-verified** (`tsc --noEmit` → 0). **BE
+    BUILD-PENDING** — env blocker §29 (Claude session cannot spawn
+    `MSBuild`/`csc`). Sana doc deltas applied 2026-05-19 (cont. 50):
+    openapi `GET /tax-invoices` += `search`/`unpaid`; runtime-gotchas
+    §29 + ROI row.
+  - ◐ **P2 / P4 / P5 + E2E** unblocked via **R-Q1a** (Question-Backend14 →
+    Ham accepted 2026-05-19; Answer-Sana-Backend26 issued same day).
+    Claude Code: FE-now (Quotation form rebuild + ProductPicker +
+    LineItemsTable + SO/DO forms + DocumentStatusBadge — all
+    `tsc`-verifiable) + BE-code with `// BUILD-PENDING:` markers + hand-
+    written migrations `AddQuotationWorkflowFields` +
+    `AddSalesOrderDeliveryOrderWorkflowFields` mirroring
+    `20260517180740_AddQuotationChain` shape. **Do-not-merge gate:** Ham
+    must run `dotnet build` 0/0 + `dotnet ef migrations add` regen
+    byte-match + `dotnet test` 0 regr on local Windows host before any
+    merge. §25 prevention rules apply to Ham's local regen step
+    (`--no-build` forbidden, snapshot diff reviewed before any `remove`).
+  - ☐ **Chapter 3 manual** (`docs/manual/chapters/03-การขาย.md` +
+    `frontend/manual/walkthroughs/03.01-03.07.ts`) — deferred per
+    CLAUDE.md §16 chapter-sequential rule; authored by Sana **only after**
+    P2/P4/P5 merge + Chrome MCP chapter-3 validate green. No premature
+    authoring.
+- ☑ **Sprint 13e SHIPPED (2026-05-20, cont. 51)** — P2 Q form rebuild, P3
+  TaxInvoicePicker, P4 SO/DO forms, P5 StatusBadge MAP extend, E2E.
+  Toolchain unblocked via `subst U:` short-path. FE tsc 0, BE build 0/0,
+  Domain **89/89**. **No EF migration** — Sprint 10 backend already had
+  the full Q→SO→DO chain (Report-Backend28's feared breaking migration
+  never existed). Answer-Sana-Backend26's BUILD-PENDING / do-not-merge
+  gate **MOOT**. See Report-Backend29.
+- ☑ **Sprint 13h SHIPPED (2026-05-21, cont. 56)** — Chapter 3 acceptance fix
+  (Answer-Sana-Backend27 — all 13 phases across 4 checkpoints; ckpt4 = sprint
+  completion, see Report-Backend31). 4 BE migrations applied (DO Delivered
+  stage, TI←Q FK, LineItem product_type snapshot, BillingNote); P8 cross-ref
+  service + chips on TI/RC/CN/DN detail; P10 logo upload via polymorphic
+  attachments (doc-header banner + PDF embed deferred to 13i); P11 XML
+  0-byte fix (root cause: `using var` flush-ordering trap in `ETaxXmlBuilder`).
+  8 of 8 chapter-3 E2E specs ship `tsc --noEmit` 0 + parameterised demo-
+  accountant RBAC matrix. Awaiting Sana RE-VALIDATE deep mode before 13i.
+  Phase index:
+  - P1 RBAC seed gap (ACCOUNTANT/AR_CLERK 403 on customers/TI; split
+    customer.read/manage; new seed 320; group-auth refactor)
+  - P2 Picker portal (ProductPicker + TaxInvoicePicker clip/invisible
+    bugs; render via portal)
+  - P3 i18n sweep + Thai date locale
+  - P4 Quotation lifecycle (Edit Draft, Delete Draft, Cancel Finalized,
+    PDF download)
+  - P5 SO + DO list filters
+  - P6 TI-from-Q direct path + new Billing Note CRUD (entity + 4-state
+    enum + endpoints + UI + PDF + sidebar entry)
+  - P7 Product master SERVICE/GOOD type wiring through every line item;
+    kill manual VAT/tax override in TI/RC/CN/DN (enum-locked from
+    product tax_code)
+  - P8 Receipt cleanup (PostConfirmDialog label, navigation, cross-ref
+    panel)
+  - P9 DO Delivered stage extension (4-state enum migration, split
+    issue/mark-delivered endpoints; backfill existing Posted → Delivered)
+  - P10 Company Logo upload + header display
+  - P11 XML 0-byte fix (e-Tax Tier 1 pipeline verify + DO→TI signing
+    path)
+  - P12 `<select>` global half-render CSS fix
+  - P13 Product list as DataTable
+- ☑ **Sprint 13i 16/16 SHIPPED (2026-05-21, cont. 60)** — Bug fix + UX cleanup,
+  first of 4 sub-sprints (`docs/Answer-Sana-Backend28.md`). Split finalised:
+  13i bug/UX → 13j Print/PDF → 13k Security/RBAC/Perf/A11y → 13L DevOps.
+  - **Bug block B1–B7 — ☑ ALL SHIPPED + verified-live:**
+    - ☑ B1 SR2 RBAC grants (seed 330; demo-accountant Receipt+CN/DN read live)
+    - ☑ B2 SR4 QueryState 403 → "ไม่มีสิทธิ์เข้าถึง" (`QueryStateRow` on 8 lists)
+    - ☑ B3 SR5 CustomerSelector + VendorSelector lookup-on-mount
+    - ☑ B4 SR6/SR9 form validation feedback (7 forms; `lib/forms.ts`)
+    - ☑ B5 SR7 contextual edit/view link labels
+    - ☑ B6 SR8 print = PDF blob (`printPdf`; TI/RC/CN/DN)
+    - ☑ B7 confirm() → AlertDialog (BN draft delete)
+  - **Carry-overs / enhancement — ☑ shipped:**
+    - ☑ C1 Q lifecycle UI (edit page + delete/cancel/reject/PDF/print)
+    - ☑ C2 readOnly tax_rate (LineItemsTable + AdjustmentNote) + RC WHT auto-base
+    - ☑ C4 toast sweep tail + RC date label + Thai list headers
+    - ☑ C6 BN settled auto-derive from receipts (array-based)
+    - ☑ R5 cross-ref Q+SO+DO chain chips on TI detail (BE resolver)
+    - ☑ L1 legacy `ti.postConfirm.*` i18n removed
+  - **Tail (cont. 60) — ☑ ALL SHIPPED + verified-live:**
+    - ☑ C7 BN ↔ TI join table `sales.billing_note_tax_invoices` (composite PK +
+      RLS + `applied_amount`); dropped `BillingNote.TaxInvoiceIds bigint[]`;
+      rewired Create/Update/Get + DocumentCrossRef + Receipt C6 to the join;
+      FE multi-TI picker (chips + ×) + detail chips from join.
+    - ☑ C5 product_type NOT NULL ×5 line tables (backfill NULL→GOOD idempotent +
+      `AlterColumn`; entity non-nullable `= "GOOD"`; EF `.IsRequired()`; BN +
+      TI service default GOOD; coalesced cascade sites).
+    - ☑ C3 status+BU+customer+date filters on all 8 sales lists (shared
+      `<ListFilters>` + `applyListFilters`, URL-persisted; TI server-side
+      paginated, others client-side — flagged for 13j if >1000 rows).
+  - Verified cont. 60: BE build 0/0, Domain 89/89, FE tsc 0, both migrations
+    applied to accounting_dev, snapshot-drift check empty, API live :5080,
+    psql confirms join table + RLS + product_type NOT NULL ×5 + dropped column.
+- ◑ **Sprint 13j (split into 13j-FE + 13j-PDF)** — Answer-29 + ClaudeDesign-Integration-Brief.
+  - ☑ **13j-FE SHIPPED (2026-05-21, cont. 61, Report-Backend34)** — Claude Design FE
+    swap on SALES module. Phase A (tokens/teas-orange/fonts/mascot) + B (Sidebar/Topbar/
+    StatusBadge withEn/DocActionBar/MascotGreeting/EmptyState/FilterBar) + C (PaperDocument
+    suite §C4-locked + bath-text + wired 8 detail + 8 create sticky preview) + D (BE
+    `GET /{docType}/{id}/activity` ×8 + ActivityLog + RelatedDocs). Build green: FE tsc 0,
+    `next build` 0/0 (native path), dotnet 0/0, BE tests 112 pass, hex-grep components/app 0.
+    Purchase + Settings untouched (token cascade only). §0a Gold-Standard honoured.
+    - ⚠️ FLAG: `audit.activity_log` has no sales-doctype writes → ActivityLog empty until a
+      backend transition-logging sprint (§4.8). See Question-Backend15.
+  - ☑ **13j-FE post-ship polish (2026-05-22, cont. 62)** — live fixes/features (Ham-driven):
+    Customer master CRUD (+ `CustomerDetailDto`/projection) + sidebar "ขาย" group; print
+    original/copy + audit (`AddPrintTracking` migration, `PrintMenu` on 8 detail, `mark-printed`);
+    ใบทวิ 50 optional + late entry (`SetWhtCertAsync` + `/receipts/{id}/wht-cert` + `ReceiptWhtCertSection`);
+    LineItemsTable VAT dropdown 7%/0% + wider cols; receipt WHT rate readonly; customer master data on
+    Q/SO/DO/BN paper; PaperDocument fixes (total row, watermark in-flow bug, VAT float round); middleware
+    static-asset 404 fix; company-1 profile seed (420). CLAUDE.md §17 (/graphify) added.
+  - ◐ **13j-PDF (FUNCTIONALLY COMPLETE — see `docs/13j-pdf-plan.md`)** — QuestPDF mirror of
+    `PaperDocumentProps` §C4 + `lib/paper.css`, all 8 doctypes, replaces browser-print. cont. 64 (Ham
+    picked over 13k, code = source-of-truth): ☑ C# `BahtText` (9/9), ☑ Sarabun font bundled+registered,
+    ☑ `PaperDocModel`/`PaperDocConfig`/`PaperDocumentPdf` renderer, ☑ all 8 doctype mappers + endpoints
+    (BN endpoint new), ☑ FE PrintMenu "ดาวน์โหลด PDF" → server QuestPDF, ☑ 3 review bugs fixed (Thai
+    test-encoding, logo fallback, VAT 700%→VatPercent). BE 0/0 · FE tsc 0 · next build 0/0. **Polish left:**
+    watermark rotation visual-confirm; seller from CompanyProfile (not db.Companies) for full 1:1; openapi
+    routes (Sana); Sana visual 1:1 sign-off on all 8.
+  - ☑ **13j-tail — DONE (cont. 63–64)** — (1) ☑ §4.8 audit-log writes for all sales transitions
+    (cont. 63 — `IActivityRecorder` × 6 sales services; Question-Backend15 RESOLVED, verified live);
+    (2) ☑ report "ใบเสร็จขาดใบทวิ 50" ใต้ **Tax filings** (Ham confirmed placement) —
+    `GET /reports/wht-receivable-missing-cert?period=yyyymm` + `/tax-filings/missing-wht-cert` page +
+    nav link, verified live row; (3) ☑ WHT type select → `WhtTypeSelect` (FloatingListbox) in
+    receipts/new; (4) ☑ logo = Company Logo via `lib/company-logo.ts` → `useCompanyProfile().logoUrl`
+    (Sidebar + PaperHead; mascot=logo, no new static asset — Ham 2026-05-22; tsc 0 + next build 0/0).
+    **Bonus fix:** removed stale `CreateReceiptValidator` rule still forcing `CustomerWhtCertNo`
+    required (contradicted cont. 62 deferred-cert; blocked the missing-cert scenario this report chases).
+- ☐ **Sprint — Line product/service typing + service-WHT + inline product modal**
+  (Ham 2026-05-22, `docs/sprint-line-product-wht-plan.md`) — **Product-master driven**: pick
+  product → goods/service + DefaultWhtType; **price/discount per-line, master must NOT drive
+  price**; **inline "create new product/service" modal** from the line table; ProductPicker on
+  all sales line forms; receipt WHT stays receipt-level (existing). Large → focused sprint.
+- ☐ **Sprint 13k (queued)** — Security + RBAC full Cartesian + Performance +
+  Accessibility audit (Answer-30; after 13j).
+- ☐ **Sprint 13L (queued)** — DevOps: migration rollback + build pipeline +
+  test skip audit (Answer-31; after 13k).
+- ☐ **Chapter 3 manual** — re-deferred per CLAUDE.md §16, authored ONLY after
+  13i + 13j + 13k + 13L all ship + Sana RE-VALIDATE deep mode green on each.
 - ☐ **Tech debt — 3-way match (PR→PO→GR):** explicitly cut from Sprint 5.5
   (Answer-Sana-Question-Backend5 §B1.3). SMEs go vendor-TI → VI → PV directly.
   Phase-2 expansion.
@@ -327,22 +533,23 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
 
 ## Environment notes (carry forward)
 
-- Build/test from **`Y:\AccountApp\backend`** (short path). The original session path is
-  ~230 chars and breaks `csc.exe` process spawn ("The parameter is incorrect").
-- `code/` is canonical; mirror to `Y:\AccountApp` with:
-  `robocopy <code>\backend Y:\AccountApp\backend /MIR /XD bin obj`
+- Build/test from **`U:\`** (`subst U: <real_path>`). Original session path is ~230 chars
+  and breaks `csc.exe` process spawn ("The parameter is incorrect"); `U:\` short-path
+  is the canonical workspace.
+- **No Y:\ mirror** (Ham directive 2026-05-22). The old `code/` → `Y:\AccountApp\backend`
+  one-way robocopy mirror is retired — `U:\` is the single canonical tree. Sprint records
+  that say "mirror synced" reflect the prior workflow; do NOT re-instate it.
 - MSBuild multi-node spawn fails in sandbox → always pass `-m:1`.
 - No Docker in env. Integration via `TEAS_TEST_PG` env var (any Postgres).
 
-## Mirror & Ownership Rules (Answer-Backend1 §4 — binding, 2026-05-16)
+## Ownership Rules (Answer-Backend1 §4 — binding, 2026-05-16; mirror clause retired 2026-05-22)
 
-- **Do NOT relocate** the project. `code/` stays canonical; `Y:\AccountApp\backend` is the
-  one-way build/test mirror (robocopy `code/` → `Y:\AccountApp`, run after every change).
-- **Claude Code owns** (edit freely): `code/backend/`, `code/frontend/`, `code/db/`,
-  `code/infra/`, `code/design/`, `code/tests/`.
+- `U:\` is canonical (the `code/` of the original spec). Do NOT relocate.
+- **Claude Code owns** (edit freely): `backend/`, `frontend/`, `db/`, `infra/`,
+  `design/`, `tests/`.
 - **Sana owns** (Claude reads only; ping via a `progress.md` line before any edit):
-  `code/docs/`, `code/CLAUDE.md`, `code/Report-Backend*.md`, `code/Answer-Backend*.md`,
-  other root-level `*.md`.
+  `docs/`, `CLAUDE.md`, `Report-Backend*.md`, `Answer-Backend*.md`, other root-level
+  `*.md`.
   - Exception: `progress.md` + `plan.md` are Claude's primary append-only log — keep
     updating those directly (Answer-Backend1 §6).
 - If a doc/spec change is needed (e.g. the C14N errata), do NOT edit `docs/*`; write the

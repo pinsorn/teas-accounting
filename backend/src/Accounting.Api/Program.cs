@@ -18,6 +18,16 @@ var builder = WebApplication.CreateBuilder(args);
 // QuestPDF Community licence — required before any PDF is generated (TI /pdf endpoint).
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
+// Sprint 13j-PDF — register the bundled Thai font (Sarabun, SIL OFL) so QuestPDF
+// renders Thai glyphs on ANY host. The server has no system Thai font and SkiaSharp
+// can't fall back to one; both weights register under family "Sarabun" (use via
+// DefaultTextStyle(FontFamily("Sarabun")) in the PaperDocument renderer).
+var fontDir = Path.Combine(AppContext.BaseDirectory, "Fonts");
+if (Directory.Exists(fontDir))
+    foreach (var ttf in Directory.EnumerateFiles(fontDir, "*.ttf"))
+        using (var fs = File.OpenRead(ttf))
+            QuestPDF.Drawing.FontManager.RegisterFont(fs);
+
 // Accept/emit enums as strings (DTOs use enums e.g. PaymentMethod, TaxAdjustmentNoteType;
 // the frontend sends names like "Transfer"/"Credit"). Default is int → 400 otherwise.
 builder.Services.ConfigureHttpJsonOptions(o =>
@@ -103,6 +113,7 @@ app.UseHttpsRedirection();
 app.UseCors("frontend");
 
 app.UseDomainExceptionMapper();
+app.UseValidationErrorEnvelope();   // Sprint 13d P5 — ModelState 400 → unified v1 envelope
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseTenantContext();
@@ -130,6 +141,8 @@ app.MapAuthEndpoints();
 app.MapCustomerEndpoints();
 app.MapMasterEndpoints();
 app.MapBusinessUnitEndpoints();
+app.MapCompanyProfileEndpoints();
+app.MapMeEndpoints();
 app.MapProductEndpoints();
 app.MapWhtTypeEndpoints();
 app.MapJournalEndpoints();
@@ -142,6 +155,10 @@ app.MapTaxAdjustmentNoteEndpoints();
 app.MapReportEndpoints();
 app.MapTaxFilingEndpoints();
 app.MapSalesChainEndpoints();
+app.MapBillingNoteEndpoints();
+app.MapDocumentCrossRefEndpoints();
+app.MapActivityEndpoints();
+app.MapPrintEndpoints();
 app.MapAttachmentEndpoints();
 app.MapPurchaseOrderEndpoints();
 app.MapPeriodEndpoints();

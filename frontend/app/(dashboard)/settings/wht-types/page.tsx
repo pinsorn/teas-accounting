@@ -7,9 +7,13 @@ import { Plus, Pencil, Percent } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import {
   useWhtTypes, useCreateWhtType, useUpdateWhtType,
-  useDeactivateWhtType, useChangeWhtRate,
+  useDeactivateWhtType, useReactivateWhtType, useChangeWhtRate,
 } from '@/lib/queries';
 import type { WhtTypeListItem } from '@/lib/types';
+import { QueryState } from '@/components/states/QueryState';
+import { PermissionGate } from '@/components/PermissionGate';
+
+const SCOPE = 'tax.wht_type.manage';
 
 const FORMS = ['PND3', 'PND53', 'PND1'] as const;
 
@@ -30,6 +34,7 @@ export default function WhtTypesSettingsPage() {
   const create = useCreateWhtType();
   const update = useUpdateWhtType();
   const deactivate = useDeactivateWhtType();
+  const reactivate = useReactivateWhtType();
   const changeRate = useChangeWhtRate();
   const [edit, setEdit] = useState<Editing | null>(null);
   const [rateChange, setRateChange] = useState<{ id: number; code: string } | null>(null);
@@ -81,12 +86,15 @@ export default function WhtTypesSettingsPage() {
       <PageHeader
         title={t('title')}
         actions={
-          <button className="btn btn-primary btn-sm gap-1" onClick={() => setEdit({ ...EMPTY })}>
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </button>
+          <PermissionGate scope={SCOPE}>
+            <button className="btn btn-primary btn-sm gap-1" onClick={() => setEdit({ ...EMPTY })}>
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </button>
+          </PermissionGate>
         }
       />
 
+      <QueryState query={q} isEmpty={!q.isLoading && rows.length === 0}>
       <div className="overflow-x-auto rounded-lg border border-base-300">
         <table className="table table-zebra">
           <thead>
@@ -98,12 +106,6 @@ export default function WhtTypesSettingsPage() {
             </tr>
           </thead>
           <tbody>
-            {q.isLoading && (
-              <tr><td colSpan={9} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>
-            )}
-            {!q.isLoading && rows.length === 0 && (
-              <tr><td colSpan={9} className="py-8 text-center text-base-content/50">{tc('empty')}</td></tr>
-            )}
             {rows.map((w: WhtTypeListItem) => (
               <tr key={w.whtTypeId} className="hover">
                 <td className="font-mono">{w.code}</td>
@@ -115,33 +117,45 @@ export default function WhtTypesSettingsPage() {
                 <td className="tabular-nums">{w.effectiveTo ?? <span className="badge badge-ghost badge-sm">{t('current')}</span>}</td>
                 <td>{w.isActive ? '✓' : '—'}</td>
                 <td className="flex gap-1">
-                  <button className="btn btn-ghost btn-xs" aria-label={t('edit')}
-                    onClick={() => setEdit({
-                      whtTypeId: w.whtTypeId, code: w.code, nameTh: w.nameTh,
-                      nameEn: w.nameEn ?? '', incomeTypeCode: w.incomeTypeCode,
-                      formType: w.formType, rate: String(w.rate * 100),
-                    })}>
-                    <Pencil className="h-3 w-3" aria-hidden />
-                  </button>
-                  <button className="btn btn-ghost btn-xs" aria-label={t('changeRate')}
-                    onClick={() => { setRateChange({ id: w.whtTypeId, code: w.code }); setNewRate(String(w.rate * 100)); }}>
-                    <Percent className="h-3 w-3" aria-hidden />
-                  </button>
-                  {w.isActive && (
-                    <button className="btn btn-ghost btn-xs text-error"
-                      onClick={async () => {
-                        try { await deactivate.mutateAsync(w.whtTypeId); toast.success(t('deactivate')); }
-                        catch { toast.error(tc('error')); }
-                      }}>
-                      {t('deactivate')}
+                  <PermissionGate scope={SCOPE}>
+                    <button className="btn btn-ghost btn-xs" aria-label={t('edit')}
+                      onClick={() => setEdit({
+                        whtTypeId: w.whtTypeId, code: w.code, nameTh: w.nameTh,
+                        nameEn: w.nameEn ?? '', incomeTypeCode: w.incomeTypeCode,
+                        formType: w.formType, rate: String(w.rate * 100),
+                      })}>
+                      <Pencil className="h-3 w-3" aria-hidden />
                     </button>
-                  )}
+                    <button className="btn btn-ghost btn-xs" aria-label={t('changeRate')}
+                      onClick={() => { setRateChange({ id: w.whtTypeId, code: w.code }); setNewRate(String(w.rate * 100)); }}>
+                      <Percent className="h-3 w-3" aria-hidden />
+                    </button>
+                    {w.isActive ? (
+                      <button className="btn btn-ghost btn-xs text-error"
+                        onClick={async () => {
+                          try { await deactivate.mutateAsync(w.whtTypeId); toast.success(t('deactivate')); }
+                          catch { toast.error(tc('error')); }
+                        }}>
+                        {t('deactivate')}
+                      </button>
+                    ) : (
+                      <button className="btn btn-ghost btn-xs text-success"
+                        data-testid="row-restore"
+                        onClick={async () => {
+                          try { await reactivate.mutateAsync(w.whtTypeId); toast.success(tc('restore')); }
+                          catch { toast.error(tc('error')); }
+                        }}>
+                        ↺ {tc('restore')}
+                      </button>
+                    )}
+                  </PermissionGate>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      </QueryState>
 
       {edit && (
         <div className="modal modal-open" role="dialog" aria-modal="true">

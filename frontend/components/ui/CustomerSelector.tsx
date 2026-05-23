@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { apiGet, qs } from '@/lib/api';
+import { FloatingListbox } from '@/components/ui/FloatingListbox';
 
 // component-patterns.md §6 — async combobox, search name/taxId, 300ms debounce,
 // "Add new" hint when no match. Degrades to manual id entry if the list API shape
@@ -41,6 +42,38 @@ export function CustomerSelector({
   const [loading, setLoading] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sprint 13i B3 (SR5) — lookup-on-mount. When `value` is prefilled
+  // programmatically (e.g. TI created from a Quotation) the picker has no
+  // cached label and used to render the raw db id ("#5"). Resolve the id to a
+  // display label via GET /customers/{id}, matching TaxInvoicePicker's pattern.
+  useEffect(() => {
+    if (!value) {
+      setSelectedLabel('');
+      return;
+    }
+    if (selectedLabel) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await apiGet<Record<string, unknown>>(`customers/${value}`);
+        if (cancelled) return;
+        const name =
+          (raw.nameTh as string | undefined) ??
+          (raw.name as string | undefined) ??
+          `#${value}`;
+        const taxId = (raw.taxId as string | null | undefined) ?? null;
+        setSelectedLabel(`${name}${taxId ? ` (${taxId})` : ''}`);
+      } catch {
+        // keep the "#id" fallback if the lookup fails
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -65,9 +98,10 @@ export function CustomerSelector({
   }, [term]);
 
   return (
-    <div className="form-control relative">
+    <div className="form-control">
       <span className="label-text">ลูกค้า / Customer *</span>
       <input
+        ref={inputRef}
         className="input input-bordered"
         placeholder="ค้นหาชื่อ หรือเลขผู้เสียภาษี"
         value={open ? term : selectedLabel || (value ? `#${value}` : '')}
@@ -81,38 +115,36 @@ export function CustomerSelector({
         role="combobox"
         aria-controls="customer-listbox"
       />
-      {open && (term.trim().length >= 1) && (
-        <ul
-          id="customer-listbox"
-          role="listbox"
-          className="menu absolute top-full z-10 mt-1 max-h-60 w-full overflow-auto rounded-box bg-base-100 shadow"
-        >
-          {loading && <li className="px-3 py-2 text-sm text-base-content/50">กำลังค้นหา…</li>}
-          {!loading && items.length === 0 && (
-            <li className="px-3 py-2 text-sm text-base-content/50">
-              ไม่พบลูกค้า — สร้างใหม่ในเมนูลูกค้า
-            </li>
-          )}
-          {items.map((c) => (
-            <li key={c.customerId}>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  const label = `${c.nameTh}${c.taxId ? ` (${c.taxId})` : ''}`;
-                  setSelectedLabel(label);
-                  setOpen(false);
-                  setTerm('');
-                  onChange(c.customerId, label);
-                }}
-              >
-                <span>{c.nameTh}</span>
-                {c.taxId && <span className="ml-auto font-mono text-xs opacity-60">{c.taxId}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <FloatingListbox
+        anchorRef={inputRef}
+        open={open && term.trim().length >= 1}
+        listboxId="customer-listbox"
+      >
+        {loading && <li className="px-3 py-2 text-sm text-base-content/50">กำลังค้นหา…</li>}
+        {!loading && items.length === 0 && (
+          <li className="px-3 py-2 text-sm text-base-content/50">
+            ไม่พบลูกค้า — สร้างใหม่ในเมนูลูกค้า
+          </li>
+        )}
+        {items.map((c) => (
+          <li key={c.customerId}>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const label = `${c.nameTh}${c.taxId ? ` (${c.taxId})` : ''}`;
+                setSelectedLabel(label);
+                setOpen(false);
+                setTerm('');
+                onChange(c.customerId, label);
+              }}
+            >
+              <span>{c.nameTh}</span>
+              {c.taxId && <span className="ml-auto font-mono text-xs opacity-60">{c.taxId}</span>}
+            </button>
+          </li>
+        ))}
+      </FloatingListbox>
     </div>
   );
 }

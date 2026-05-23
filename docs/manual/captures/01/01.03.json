@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "id": "01.03",
+    "title": "เปลี่ยนภาษา TH / EN",
+    "chapter": "1. เริ่มต้นใช้งาน",
+    "intro": "TEAS รองรับ 2 ภาษาในหน้าเดียวกัน — ไทย (default) และ English. การสลับ\nจะกระทบทั้ง sidebar, headings, labels, และ stat cards ทันที (client-side\nlocale switch — ไม่ต้อง reload หน้า).\n\nศัพท์เฉพาะกฎหมายภาษีไทย เช่น \"ภ.พ.30\", \"50 ทวิ\", \"ภ.ง.ด.\" จะคงรูปไว้\nแม้สลับเป็น English เพราะเป็นชื่อทางการตามมาตรฐานกรมสรรพากร\n(เช่น \"ภ.พ.30 VAT Return\", \"WHT Certificates (50 ทวิ)\").\n\nUser preference จะถูกเก็บไว้ใน cookie ของ browser — ครั้งต่อไปที่ login\nระบบจะจำภาษาที่เลือกล่าสุด.",
+    "prerequisites": [
+      "login แล้ว (walkthrough 01.01)",
+      "อยู่ที่ภาษาไทย (default)"
+    ]
+  },
+  "steps": [
+    {
+      "walkthroughId": "01.03",
+      "stepId": "step-01-locate-toggle",
+      "caption": "ขั้นที่ 1: ปุ่ม \"TH / EN\" อยู่ล่างสุดของ sidebar (เหนือปุ่ม \"ออกจากระบบ\") — เป็น toggle 1-คลิกสลับภาษา",
+      "imageRel": "captures/01/01.03/step-01-locate-toggle.png"
+    },
+    {
+      "walkthroughId": "01.03",
+      "stepId": "step-02-switched-english",
+      "caption": "ขั้นที่ 2: หลังคลิก → toast \"English\" ปรากฏมุมขวาบน. Sidebar แปลทั้งหมด: \"ใบเสนอราคา\" → \"Quotations\", \"ใบกำกับภาษี\" → \"Tax Invoices\", \"งบทดลอง\" → \"Trial Balance\" ฯลฯ",
+      "imageRel": "captures/01/01.03/step-02-switched-english.png"
+    },
+    {
+      "walkthroughId": "01.03",
+      "stepId": "step-03-main-translated",
+      "caption": "ขั้นที่ 3: หน้า dashboard แปลด้วย — \"แดชบอร์ด\" → \"Dashboard\", \"ภาพรวมระบบ\" → \"System overview\", stat cards: \"Tax Invoices this month\", \"Sales this month\", \"Output VAT this month\", \"Number gaps\"",
+      "imageRel": "captures/01/01.03/step-03-main-translated.png"
+    },
+    {
+      "walkthroughId": "01.03",
+      "stepId": "step-04-switched-thai",
+      "caption": "ขั้นที่ 4: คลิกอีกครั้ง → กลับเป็นภาษาไทย. Toast \"ภาษาไทย\" ปรากฏ. ค่าที่เลือกล่าสุดจะถูก save ลง cookie อัตโนมัติ",
+      "imageRel": "captures/01/01.03/step-04-switched-thai.png"
+    }
+  ],
+  "failure": null,
+  "capturedSteps": 4
+}

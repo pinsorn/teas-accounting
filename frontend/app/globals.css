@@ -1,3 +1,6 @@
+@import '../lib/design-tokens.css';
+@import '../lib/paper.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,6 +16,11 @@
 
   /* Thai text gets slightly larger line-height for legibility */
   :lang(th) { line-height: 1.7; }
+  /* Sprint 13h P12 — but form controls have fixed heights (DaisyUI input-sm
+     etc.). The 1.7 line-height inflates their intrinsic content box and
+     clips the bottom half of the rendered <select>/option text. Reset
+     them back to the control's own metric. */
+  :lang(th) :where(input, select, option, textarea, button) { line-height: normal; }
 
   /* Money / numeric columns — tabular for alignment */
   .num, td.num, input.num { font-variant-numeric: tabular-nums; }
@@ -115,10 +123,79 @@
 }
 
 /* ====================================================================
-   Print — for Tax Invoice / Receipt
+   Print — Sprint 13j-FE: print only the PaperDocument (.paper-wrap).
+   PrintMenu calls window.print(); everything but the paper is hidden via
+   visibility (keeps .paper's own layout). Add `.printing-copy` on <html> to
+   stamp a สำเนา/COPY watermark and hide the original watermark.
    ==================================================================== */
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
   .app-shell-main { max-width: 100%; padding: 0; }
+
+  /* Hide everything, then reveal only the paper document. */
+  body * { visibility: hidden; }
+  .paper-wrap, .paper-wrap * { visibility: visible; }
+  .paper-wrap {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+  }
+  .paper-wrap .paper { box-shadow: none; max-width: 100%; }
+
+  /* สำเนา / COPY overlay (PrintMenu toggles .printing-copy on <html>). */
+  .printing-copy .paper-wrap .paper-wm { display: none !important; }
+  .printing-copy .paper-wrap .paper::after {
+    content: "สำเนา · COPY";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-22deg);
+    font-size: 120px;
+    font-weight: 800;
+    letter-spacing: 8px;
+    color: rgba(181, 82, 74, 0.12);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+/* ====================================================================
+   Sprint 13j-tail — <select> value clipped vertically on EVERY page.
+   Root cause: DaisyUI's `.select` line-height lives in the components layer
+   and beat the `:lang(th)` reset in @layer base (later layer wins), so the
+   inflated line box clipped the top of the selected value. These rules are
+   UNLAYERED — unlayered author styles win over all @layer — so they pin a
+   control-friendly metric regardless of layer order. Applies to all selects.
+   ==================================================================== */
+select.select {
+  line-height: 1.25;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* ====================================================================
+   Sprint (control sizing, 2026-05-22) — unify .input and .select heights.
+   The combobox triggers (WhtTypeSelect, CustomerSelector, TaxInvoicePicker,
+   ProductPicker, BusinessUnitSelector) are a <button>/<input> carrying the
+   .select class, so DaisyUI's native-select metrics didn't apply and they
+   ended up a different height than the adjacent .input. Pin both classes — on
+   ANY element — to one height per size modifier so a select trigger always
+   lines up with the input beside it. Unlayered → wins over DaisyUI components.
+   ==================================================================== */
+.input:not(.input-xs):not(.input-sm):not(.input-lg),
+.select:not(.select-xs):not(.select-sm):not(.select-lg) {
+  height: 3rem;
+  min-height: 3rem;
+}
+.input-sm,
+.select-sm {
+  height: 2.25rem;
+  min-height: 2.25rem;
 }
