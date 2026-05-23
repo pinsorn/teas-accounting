@@ -5,6 +5,14 @@
 
 ---
 
+## ▶ Next focus (2026-05-23): PURCHASE (การซื้อ)
+
+**Sales chain CLOSED** (cont.64–69): Q→SO→DO→Invoice→TI→RC + CN/DN, non-VAT mode, full
+document chain, universal print — shipped, tested, committed (`7e58d9d`/`65db075`).
+Next session works the **Purchase side** (vendor invoice → PV → 3-way match → WHT 50ทวิ →
+payment), then Reports. See `docs/accounting-system-plan.md` §7 + §17.3. Carry the cont.69
+follow-ups below into the purchase work where they overlap.
+
 ## Now / Next (highest impact)
 
 1. ☑ **Real EF migration** — `20260516021710_Initial` generated; `IDesignTimeDbContextFactory`
