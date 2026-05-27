@@ -79,6 +79,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
 
       <DocActionBar
         status={d.status}
+        statusTestId="bn-status"
         docNo={d.docNo ?? `#${d.billingNoteId}`}
         actions={
           <>

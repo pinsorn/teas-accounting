@@ -13,15 +13,17 @@ export function DocActionBar({
   docNo,
   docNoLabel = 'เลขที่เอกสาร',
   actions,
+  statusTestId,
 }: {
   status: string;
   docNo?: string | null;
   docNoLabel?: string;
   actions?: ReactNode;
+  statusTestId?: string;
 }) {
   return (
     <div className="mb-[18px] flex flex-wrap items-center gap-4 rounded-card border border-ink-100 bg-base-100 px-[18px] py-3.5 shadow-warm-sm">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3" data-testid={statusTestId}>
         <StatusBadge status={status} withEn />
       </div>
       <div className="flex flex-col border-l border-ink-100 pl-4">

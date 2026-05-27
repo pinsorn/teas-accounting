@@ -69,6 +69,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
 
       <DocActionBar
         status={d.status}
+        statusTestId="so-status"
         docNo={d.docNo ?? `#${d.salesOrderId}`}
         actions={
           <>
