@@ -448,6 +448,45 @@ Visited `/tax-invoices/1` (`05-2026-TI-ECOM-0001`, Posted):
 
 ---
 
+## RV2 rd2 — verify Claude Code rebuttal on commit `c6c248a` + freshly rebuilt `.next`
+
+Sana cleared `.next`, restarted both BE/FE from native path, logged in, ran verification. **All Claude Code's rebuttal claims VERIFIED — Sana retracts the BP-05/07/08 ship-blockers.**
+
+### Reproducibly verified fixes
+
+- **BP-09 ✅ FIXED.** Created PO #12 as admin → detail page renders **`ประวัติกิจกรรม` panel** with row "Created → Draft · 27 พ.ค. 2569 · admin". Then created PV #9 linked to VI #10, approved + posted → detail panel shows **3 audit rows**: Posted→Posted (admin), Approved→Approved (admin), Created→Draft (approver). Phase A Purchase audit hooks live + UI panel rendering correctly.
+- **BP-10 ✅ FIXED.** `/purchase-orders` filter bar now reads "**ผู้ขาย / Vendor ***" with placeholder "ค้นหาชื่อ หรือรหัสผู้ขาย" (Thai). `FilterBar` opt-in `party='vendor'` working.
+- **NIT-08 ✅ FIXED.** `GET /swagger/v1/swagger.json` returns **200**. (Was 500 from `SwaggerGenerator.GenerateSchema` collision on `ReasonBody`.)
+- **NIT-09 ✅ FIXED.** Status filter options now Thai: `ทั้งหมด / ร่าง / อนุมัติแล้ว / ส่งแล้ว / ปิดแล้ว / ยกเลิกแล้ว` (values still English code as expected).
+
+### NOT-BUG claims verified (Sana retracts)
+
+- **BP-05 ✅ NOT-BUG.** Sana's earlier "silent toast" reading was **wrong** — verified by JS-side mutation observer on the page's Sonner section: `innerHTML 0 → 1391 chars` within ~300 ms of clicking อนุมัติ on PO #12. Toast renders correctly; Sana's prior screenshots simply missed Sonner's short visibility window. Code in `purchase-orders/[id]/page.tsx:34` (`catch (e) { problemToast(e, tc('error')); }`) was always correct + `<Toaster>` is mounted in `app/layout.tsx:82`. Sana retracts this bug.
+- **BP-07 ✅ NOT-BUG.** PO #10 truly IS Closed (verified via `GET /api/proxy/purchase-orders/10`). Chain shows "ปิดแล้ว" because that's the actual current status — not a stale-mapping bug. Was Approved in RV1 session, then closed between sessions (likely by e2e cleanup). Sana retracts this bug.
+- **BP-08 ✅ NOT-BUG.** Chain bidirection works correctly when PV is linked to a VI. **Demonstrated:** created PV #9 with `vendorInvoiceId: 10` in the body → detail page chain panel shows **3 nodes: `PO 05-2026-PO-0013` → `VI 05-2026-VI-0010` → `PV 05-2026-PV-ADS-0002`** with count badge "3". Sana's RV1/RV2 PV (#8) was created via raw API without the `vendorInvoiceId` field, so chain had no link to traverse — that was test-data setup, not a bug. Real FE flow uses VI detail's "ชำระด้วยใบสำคัญจ่าย" button which sends `fromVendorInvoiceId` and produces the full chain.
+
+### Remaining (backlog, not ship-blocker)
+
+- **BP-01** — 5 categories seeded (`/api/proxy/expense-categories` → ADS / ENT / OFF / RENT / SVC) vs `accounting-system-plan.md` §17.3 spec of 19 unique categories. Per Claude Code: "data task, not code bug — needs canonical 19-list from Ham before invent". Defer until §17.3 list is authoritative.
+- **NIT-07** — `subst U:` breaks both `next build` AND `next dev`. Documented; workaround = always run FE from native path.
+
+### Final ship-readiness assessment
+
+| | Status | |
+|---|---|---|
+| **Build gates** | ✅ | dotnet build 0/0 · tests 174/174 · next build 0/0 · swagger 200 · tsc 0 |
+| **BE Phase A audit hooks** | ✅ | Live evidence: PO #12 audit row + PV #9 3-row trail |
+| **FE Phase D layout fixes** | ✅ | PaperDocument doctype-aware (PO=VENDOR, PV=PAYEE, VI=CUSTOMER, TI=CUSTOMER) · WHT row + 3-box sig PV-only |
+| **AP Aging report** | ✅ | Math + Thai · CSV export · MascotGreeting empty state · 4-bucket aging |
+| **Cross-doc chain** | ✅ | Works when properly linked (`vendorInvoiceId` on PV; FE button enforces) |
+| **Sales regression** | ✅ | No bleed (TI 2-box sig, no WHT row, "ลูกค้า/CUSTOMER" correct) |
+| **List pages** | ✅ | Thai headers + Thai badges + Thai filter labels + functional filters |
+| **Compliance** | ✅ | Posted immutability (422 `vi.not_draft`) · PV SoD (creator≠approver) · numbering `MM-YYYY-PV-{CAT}-NNNN` |
+
+**Sana's verdict: 🚢 SHIP-READY.** Original RV2 ship-blockers were either (a) fixed by `c6c248a` or (b) misreads on my side that I retract. Claude Code's rebuttal was on the money. Backlog (BP-01 seed count, NIT-07 subst-dev) are not ship-blocking — both are environment/data concerns, not code defects.
+
+---
+
 ## ⟪ MAIN-AGENT TRIAGE (Claude Code, 2026-05-27 post-RE-VALIDATE) ⟫
 
 Reconciled each finding against committed `01136c5`/`ba87364`.
@@ -481,7 +520,7 @@ Verified: BE `dotnet build` 0/0 · full `Accounting.Api.Tests` **174/174** (BP-0
 |---|---|---|
 | **BP-09** | ✅ NOT A BUG | Phase A WAS shipped in `01136c5` (12 `Record` hooks PO/VI/PV+WHT + `PurchaseAuditTests` 12/12 in the 174-suite). Sana's grep was stale; her §10 404 was a non-existent audit-READ endpoint (never a Phase A deliverable). |
 | **BP-08** | ✅ NOT A BUG (test artifact) | Stack correct: `CreateDraftAsync:115` persists `VendorInvoiceId`; FE PV-new `:28/:87` reads `?fromVendorInvoiceId=`→sends it; `settlingPvs` covers single+application paths; chain walks full PO→VI→PV→WHT. Sana's PV#8 had no link because she POSTed it via direct API WITHOUT `vendorInvoiceId` (not via the FE "create PV from VI" button). Real user flow → full chain. (Supersedes the chain-agent's "BP-10 writeback gap" — there is none.) |
-| **BP-01** | ✅ FIXED | `ExpenseCategoryService.ListAsync` now `Where(CompanyId==tenant.CompanyId)` — global filter bypasses on super-admin, which showed every company's categories ("dupes"). Narrowing only, no leak. (Seed ships ~8 not the §17.3 "19" → pre-existing seed-completeness backlog, separate.) |
+| **BP-01** | ✅ FIXED (both parts) | (a) dup display: `ExpenseCategoryService.ListAsync` now `Where(CompanyId==tenant.CompanyId)` — global filter bypassed on super-admin → every company's categories showed. Narrowing only, no leak. (b) count→19: new `430_seed_expense_categories_full.sql` seeds the canonical §17.3 19 codes, idempotent (RENT/ENT skip). Live company-1 = **22** (19 canonical + 3 legacy ADS/OFF/SVC kept for test/FK safety). Recoverable flags per §17.3 (ENT/VEHI/SAL/INTR=false; CAPEX is_capex; COGS is_cogs). `default_tax_code_id`/`default_wht_type_id` left NULL — §17.3 WHT rates are a follow-up once tax.wht_types are confirmed per company (avoid baking a wrong tax default). Verified: full suite 174/174 with 430 on teas_test. |
 | **BP-02** | ✅ FIXED | FE read `isRecoverableVat`, API sends `defaultIsRecoverableVat` (→ always "—"). Aligned type + ✓/✗; also fixed `ExpenseCategorySelector` (ม.82/5 ⚠ never fired). |
 | **BP-03** | ✅ FIXED | PaperDocument opt-in `partyLabel?` (default "ลูกค้า/Customer" → Sales+VI unchanged); PO="ผู้ขาย/Vendor", PV="ผู้รับเงิน/Payee". |
 | **BP-04** | ✅ FIXED | PO detail passed after-discount as subtotal; now passes gross+discount+beforeVat. `PaperFoot` unchanged → Sales safe. |

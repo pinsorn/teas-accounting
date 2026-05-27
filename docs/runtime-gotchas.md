@@ -692,6 +692,27 @@ CREATE UNIQUE INDEX uq_wht_doc_no_payable
 
 EF Core: `entity.HasIndex(x => new { x.CompanyId, x.DocNo }).IsUnique().HasFilter("direction = 'P'");`
 
+---
+
+## 23. `subst` drive (`U:`) breaks BOTH `next build` AND `next dev` — serves stale client JS
+
+**Caught in:** Sprint 13j-PURCH RV2 (NIT-07). Extends the Sprint 13j-FE gotcha that `next build`
+must run from the native frontend path, not `U:\frontend`.
+**Symptom:** RE-VALIDATE reported a fix (a PO Approve error toast) as "still broken / silent" even
+though the source was correct (`catch { problemToast(e) }` wired, `problemToast` sound). SSR-rendered
+fixes on the same page (labels, footer) DID appear, but the client-side mutation handler behaved like
+the OLD code → looked like the fix never landed.
+**Root cause:** when `next dev` is started from the `subst`-mapped `U:\frontend`, webpack's module
+resolution / on-disk cache keys go through the virtual drive and **client chunks don't reliably
+hot-reload or rebuild** — the dev server serves stale client JS while server components update. So a
+client-only fix (an `onError`/`catch` handler) silently appears unshipped.
+**Fix / prevention:**
+- Run `next dev` AND `next build` from the **native** repo path (`…\outputs\code\frontend`), never `U:`.
+- After a client-component fix that "doesn't show up", do a clean serve before concluding it's a code
+  bug: stop dev → `Remove-Item .next -Recurse -Force` → `next dev` from the native path.
+- During RE-VALIDATE, if a fix that's verifiably in source reads as "not applied", suspect stale serve
+  BEFORE re-opening the bug. Confirm the running `:3000` was started from the native path.
+
 **Prevention:**
 - When adding a Direction / Type / Variant discriminator to an existing table, audit
   EVERY unique constraint involving columns whose semantics may differ across the
