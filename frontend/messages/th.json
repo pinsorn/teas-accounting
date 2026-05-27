@@ -15,6 +15,28 @@
     "confirm": "ยืนยันบันทึก",
     "cancel": "ยกเลิก"
   },
+  "purchaseChain": {
+    "title": "เอกสารอ้างอิง",
+    "purchaseOrder": "ใบสั่งซื้อ",
+    "vendorInvoice": "ใบรับวางบิล",
+    "paymentVoucher": "ใบสำคัญจ่าย",
+    "whtCertificate": "หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)"
+  },
+  "apAging": {
+    "title": "รายงานยอดเจ้าหนี้ค้างชำระ",
+    "vendor": "ผู้ขาย",
+    "taxId": "เลขผู้เสียภาษี",
+    "current": "ยังไม่ถึงกำหนด (0-30 วัน)",
+    "bucket31To60": "31-60 วัน",
+    "bucket61To90": "61-90 วัน",
+    "bucketOver90": "เกิน 90 วัน",
+    "total": "รวม",
+    "totalsRow": "รวมทั้งหมด",
+    "clear": "ล้าง",
+    "exportCsv": "ส่งออก CSV",
+    "emptyTitle": "ไม่มียอดค้างชำระ",
+    "emptySubtitle": "ยังไม่มีใบกำกับภาษีซื้อที่ค้างชำระ ณ วันที่เลือก"
+  },
   "crossRef": {
     "title": "เอกสารอ้างอิง",
     "quotation": "ใบเสนอราคา",
@@ -42,12 +64,14 @@
     "vendorInvoices": "บันทึกใบกำกับภาษีซื้อ",
     "purchaseOrders": "ใบสั่งซื้อ",
     "outstandingPo": "PO ค้าง",
+    "apAging": "เจ้าหนี้ค้างชำระ",
     "paymentVouchers": "ใบสำคัญจ่าย",
     "whtCerts": "หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)",
     "company": "ข้อมูลบริษัท",
     "products": "สินค้า/บริการ",
     "businessUnits": "หน่วยธุรกิจ (Business Unit)",
     "whtTypes": "ประเภทหัก ณ ที่จ่าย",
+    "expenseCategories": "หมวดค่าใช้จ่าย",
     "apiKeys": "API Keys",
     "whtReceivable": "ภาษีหัก ณ ที่จ่ายค้างรับ",
     "trialBalance": "งบทดลอง",
@@ -160,6 +184,7 @@
   },
   "pv": {
     "title": "ใบสำคัญจ่าย",
+    "docNo": "เลขที่",
     "deferNote": "การสร้าง/อนุมัติใบสำคัญจ่ายอยู่ระหว่างยืนยันแนวทาง (Question-Backend5) — หน้านี้แสดงเฉพาะรายการที่บันทึกแล้ว",
     "vendor": "ผู้รับเงิน",
     "category": "หมวดค่าใช้จ่าย",
@@ -190,6 +215,7 @@
   "wht": {
     "title": "หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)",
     "subtitle": "ออกอัตโนมัติเมื่อบันทึกใบสำคัญจ่ายที่มี WHT — แก้ไขไม่ได้ (ม.50 ทวิ)",
+    "docNo": "เลขที่",
     "payer": "ผู้หักภาษี",
     "payee": "ผู้ถูกหักภาษี",
     "formType": "แบบยื่น",
@@ -451,6 +477,7 @@
     "from": "จากวันที่",
     "to": "ถึงวันที่",
     "loadMore": "โหลดเพิ่ม",
+    "date": "วันที่",
     "status": "สถานะ",
     "active": "ใช้งาน",
     "inactive": "ปิดใช้งาน",
@@ -512,6 +539,8 @@
     "issued": "ออกใบเสนอราคาแล้ว", "searchProduct": "ค้นหาสินค้า/บริการ หรือพิมพ์เอง",
     "addLine": "เพิ่มรายการ", "noProduct": "ไม่พบสินค้า — พิมพ์รายละเอียดเอง",
     "createProduct": "+ สร้างสินค้า/บริการใหม่",
+    "pickerTitle": "เลือกสินค้า / บริการ", "pickerOpen": "เลือกจากรายการ",
+    "pickerSearch": "ค้นหาด้วยชื่อ หรือรหัสสินค้า", "pickerUseTyped": "ใช้ข้อความที่พิมพ์",
     "editTitle": "แก้ไขใบเสนอราคา", "downloadPdf": "ดาวน์โหลด PDF",
     "reject": "ลูกค้าปฏิเสธ", "cancelQuotation": "ยกเลิกใบเสนอราคา",
     "cancelConfirm": "ยืนยันยกเลิกใบเสนอราคานี้?", "cancelReason": "ยกเลิกโดยผู้ใช้",
@@ -545,7 +574,7 @@
     "subtotal": "มูลค่าก่อนภาษี", "discount": "ส่วนลด", "vat": "ภาษีมูลค่าเพิ่ม",
     "grandTotal": "รวมทั้งสิ้น", "saveDraft": "บันทึกร่าง",
     "issue": "ออกใบแจ้งหนี้", "issued": "ออกใบแจ้งหนี้แล้ว",
-    "markSettled": "ยืนยันชำระครบแล้ว", "createTaxInvoice": "ออกใบกำกับภาษี",
+    "markSettled": "ยืนยันชำระครบแล้ว", "createTaxInvoice": "ออกใบกำกับภาษี", "createReceipt": "สร้างใบเสร็จ",
     "cancelReasonPlaceholder": "ระบุเหตุผลในการยกเลิก",
     "pickCustomer": "เลือกลูกค้าก่อน", "notes": "หมายเหตุ",
     "taxInvoices": "ใบกำกับภาษีที่รวม", "pickCustomerFirst": "เลือกลูกค้าก่อน"
@@ -569,14 +598,25 @@
     }
   },
   "purchaseOrder": {
-    "title": "ใบสั่งซื้อ", "docNo": "เลขที่", "status": "สถานะ",
+    "title": "ใบสั่งซื้อ", "listTitle": "ใบสั่งซื้อ", "create": "สร้างใบสั่งซื้อ",
+    "docNo": "เลขที่", "status": "สถานะ",
     "vendor": "ผู้ขาย", "docDate": "วันที่", "expectedDelivery": "วันที่คาดว่าจะส่ง",
     "total": "รวม", "lineDesc": "รายละเอียด", "qty": "จำนวน",
     "unitPrice": "ราคา/หน่วย", "pickVendor": "เลือกผู้ขายก่อน",
     "approve": "อนุมัติ", "sentToVendor": "ส่ง PO ให้ vendor", "close": "ปิด",
     "cancel": "ยกเลิก", "linkedTo": "VI ที่เชื่อม",
     "remaining": "ค้างเหลือ", "outstandingReport": "PO ค้าง",
-    "overdueDays": "วันที่เลย", "aging": "อายุ", "overdueOnly": "เฉพาะที่เลยกำหนด"
+    "overdueDays": "วันที่เลย", "aging": "อายุ", "overdueOnly": "เฉพาะที่เลยกำหนด",
+    "notes": "หมายเหตุ", "subtotal": "ยอดรวมก่อนภาษี", "discount": "ส่วนลด", "vat": "ภาษีมูลค่าเพิ่ม"
+  },
+  "expenseCategory": {
+    "title": "หมวดค่าใช้จ่าย",
+    "code": "รหัส",
+    "nameTh": "ชื่อหมวด",
+    "recoverableVat": "ภาษีซื้อขอคืนได้",
+    "capex": "สินทรัพย์ถาวร (CAPEX)",
+    "yes": "ใช่",
+    "no": "—"
   },
   "apiKey": {
     "title": "API Keys",
@@ -621,6 +661,7 @@
   },
   "vi": {
     "title": "บันทึกใบกำกับภาษีซื้อ",
+    "docNo": "เลขที่",
     "create": "บันทึกใบกำกับภาษีซื้อ",
     "linkPo": "เชื่อมกับใบสั่งซื้อ (ไม่บังคับ)",
     "noPo": "— ไม่เชื่อม PO —",
@@ -695,6 +736,7 @@
       "downloadXml": "ดาวน์โหลด XML",
       "resend": "ส่งอีเมลอีกครั้ง",
       "createReceipt": "สร้างใบเสร็จ",
+      "post": "บันทึก (Post)",
       "print": "พิมพ์",
       "fromQuotation": "จากใบเสนอราคา"
     },

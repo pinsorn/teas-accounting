@@ -170,6 +170,12 @@ public sealed partial class ReceiptService
             }
         }
 
+        // Customer billing address + branch (live from master) for the header block.
+        var custParty = await _db.Customers.AsNoTracking()
+            .Where(c => c.CustomerId == r.CustomerId)
+            .Select(c => new { c.BillingAddress, c.BranchCode })
+            .FirstOrDefaultAsync(ct);
+
         return new ReceiptDetail(
             r.ReceiptId, r.DocNo, r.Status.ToString(), r.DocDate, r.CustomerName,
             r.CustomerTaxId, r.PaymentMethod.ToString(), r.ChequeNo, r.Amount,
@@ -182,7 +188,8 @@ public sealed partial class ReceiptService
             headerBuCode,
             r.WhtAmount, whtCode, whtRate, whtBase, r.CashReceived,
             r.CustomerWhtCertNo, r.CustomerWhtCertDate,
-            lineRows, whtLineViews);
+            lineRows, whtLineViews,
+            custParty?.BillingAddress, custParty?.BranchCode);
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
@@ -215,7 +222,8 @@ public sealed partial class ReceiptService
         var model = new Pdf.PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct),
-            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId)),
+            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId),
+                d.CustomerBranchCode, d.CustomerAddress),
             lines,
             new Pdf.PaperSummary(d.Amount, null, null, 0m, d.Amount, null, ShowVat: _vat.VatMode),
             new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
@@ -254,8 +262,26 @@ public sealed partial class ReceiptService
             .Where(t => tiIds.Contains(t.TaxInvoiceId))
             .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.DocNo, ct);
 
-        var productIds = tiLines.Where(l => l.ProductId != null)
-            .Select(l => l.ProductId!.Value).Distinct().ToList();
+        // Non-VAT path (Phase 2a): a non-VAT company issues no Tax Invoice (ม.86/4),
+        // so a receipt settles an Invoice (BillingNote) directly. Mirror the TI logic
+        // off BillingNote lines — there is no VAT to strip, so paid = LineAmount × fraction.
+        var bnIds = applications.Where(a => a.BillingNoteId.HasValue)
+            .Select(a => a.BillingNoteId!.Value).Distinct().ToList();
+        var bnTotals = await _db.BillingNotes.AsNoTracking()
+            .Where(b => bnIds.Contains(b.BillingNoteId))
+            .ToDictionaryAsync(b => b.BillingNoteId, b => b.TotalAmount, ct);
+        var bnLines = await _db.BillingNoteLines.AsNoTracking()
+            .Where(l => bnIds.Contains(l.BillingNoteId))
+            .OrderBy(l => l.BillingNoteId).ThenBy(l => l.LineNo)
+            .Select(l => new { l.BillingNoteId, l.ProductId, l.ProductType, l.LineAmount, l.DescriptionTh })
+            .ToListAsync(ct);
+        var bnDocNos = await _db.BillingNotes.AsNoTracking()
+            .Where(b => bnIds.Contains(b.BillingNoteId))
+            .ToDictionaryAsync(b => b.BillingNoteId, b => b.DocNo, ct);
+
+        var productIds = tiLines.Where(l => l.ProductId != null).Select(l => l.ProductId!.Value)
+            .Concat(bnLines.Where(l => l.ProductId != null).Select(l => l.ProductId!.Value))
+            .Distinct().ToList();
         var productWht = await _db.Products.AsNoTracking()
             .Where(p => productIds.Contains(p.ProductId))
             .ToDictionaryAsync(p => p.ProductId, p => p.DefaultWhtTypeId, ct);
@@ -304,6 +330,34 @@ public sealed partial class ReceiptService
                 lineDrafts.Add((tiDocNos.GetValueOrDefault(tiId), l.DescriptionTh, l.ProductType, paidExVat, whtId));
             }
             allocApps.Add(new WhtAllocApplication(a.AppliedAmount, tiTotal, rows));
+        }
+        // Same per-line WHT auto-categorization for Invoice (BillingNote) applications
+        // (non-VAT). LineAmount carries no VAT, so the paid base is LineAmount × fraction.
+        foreach (var a in applications.Where(x => x.BillingNoteId.HasValue))
+        {
+            var bnId = a.BillingNoteId!.Value;
+            var bnTotal = bnTotals.GetValueOrDefault(bnId);
+            var fraction = bnTotal > 0m ? a.AppliedAmount / bnTotal : 0m;
+            var rows = new List<WhtAllocLine>();
+            foreach (var l in bnLines.Where(l => l.BillingNoteId == bnId))
+            {
+                var paid = Math.Round(l.LineAmount * fraction, 2, MidpointRounding.AwayFromZero);
+                int? whtId = null;
+                if (ReceiptWhtAllocator.IsService(l.ProductType))
+                {
+                    serviceSub += paid;
+                    whtId = (l.ProductId != null ? productWht.GetValueOrDefault(l.ProductId.Value) : null)
+                            ?? fallback;
+                    rows.Add(new WhtAllocLine(l.LineAmount, l.ProductType, whtId));
+                }
+                else
+                {
+                    goodsSub += paid;
+                    rows.Add(new WhtAllocLine(l.LineAmount, l.ProductType, null));
+                }
+                lineDrafts.Add((bnDocNos.GetValueOrDefault(bnId), l.DescriptionTh, l.ProductType, paid, whtId));
+            }
+            allocApps.Add(new WhtAllocApplication(a.AppliedAmount, bnTotal, rows));
         }
         serviceSub = Math.Round(serviceSub, 2, MidpointRounding.AwayFromZero);
         goodsSub = Math.Round(goodsSub, 2, MidpointRounding.AwayFromZero);

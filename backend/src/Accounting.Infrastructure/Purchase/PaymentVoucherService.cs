@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
@@ -26,6 +27,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
     private readonly INumberSequenceService  _numbers;
     private readonly IGlPostingService       _gl;
     private readonly IPeriodCloseService     _period;
+    private readonly IActivityRecorder       _activity;
 
     public PaymentVoucherService(
         AccountingDbContext db,
@@ -33,10 +35,11 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         IClock clock,
         INumberSequenceService numbers,
         IGlPostingService gl,
-        IPeriodCloseService period)
+        IPeriodCloseService period,
+        IActivityRecorder activity)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
-        _gl = gl; _period = period;
+        _gl = gl; _period = period; _activity = activity;
     }
 
     public async Task<long> CreateDraftAsync(CreatePaymentVoucherRequest req, CancellationToken ct)
@@ -135,6 +138,9 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
 
         _db.PaymentVouchers.Add(pv);
         await _db.SaveChangesAsync(ct);
+        _activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId,
+            "Created", toStatus: "Draft", module: "purchase");
+        await _db.SaveChangesAsync(ct);
         return pv.PaymentVoucherId;
     }
 
@@ -150,6 +156,8 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         var approver = _tenant.UserId ?? 0;
         // SoD enforced in the entity (and belt-and-braces by DB CHECK ck_pv_sod).
         pv.MarkApproved(approver, _clock.UtcNow);
+        _activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId,
+            "Approved", fromStatus: "Draft", toStatus: "Approved", module: "purchase");
         await _db.SaveChangesAsync(ct);
 
         return new PaymentVoucherApprovedResult(
@@ -175,6 +183,8 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
 
         var now = _clock.UtcNow;
         pv.MarkPosted(pvNo, _tenant.UserId ?? 0, now);
+        _activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId,
+            "Posted", fromStatus: "Approved", toStatus: "Posted", module: "purchase");
 
         long? certId = null;
         string? certNo = null;
@@ -236,6 +246,12 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 _db.WhtCertificates.Add(cert);
                 await _db.SaveChangesAsync(ct);
 
+                // D3 — the 50 ทวิ is auto-generated here (WHT > 0); the audit hook
+                // lives inside PaymentVoucherService.PostAsync, not WhtCertificateService
+                // (which is read-only). One "Generated" row per income-type certificate.
+                _activity.Record("WhtCertificate", cert.WhtCertificateId, cert.DocNo, cert.CompanyId,
+                    "Generated", toStatus: "Issued", note: $"pv:{pv.DocNo}", module: "purchase");
+
                 // Surface the first (lowest WhtTypeId) certificate on the result for back-compat.
                 certId ??= cert.WhtCertificateId;
                 certNo ??= grpNo;
@@ -280,6 +296,11 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             // VI is IConcurrencyVersioned → concurrent settles collide on Version (no double-settle).
             await _db.SaveChangesAsync(ct);
         }
+
+        // Flush any audit rows still tracked (the "Posted" PV row + any per-cert
+        // "Generated" rows recorded after the last cert save) before the GL post,
+        // so they always land in this same transaction regardless of branch taken.
+        await _db.SaveChangesAsync(ct);
 
         await _gl.PostPaymentVoucherAsync(pv.PaymentVoucherId, ct);
 

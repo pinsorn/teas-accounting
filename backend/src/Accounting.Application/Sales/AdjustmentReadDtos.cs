@@ -36,7 +36,10 @@ public sealed record ReceiptDetail(
     decimal CashReceived, string? CustomerWhtCertNo, DateOnly? CustomerWhtCertDate,
     // Sprint (receipt itemize + multi-category WHT, 2026-05-22).
     IReadOnlyList<ReceiptLineView>? Lines = null,
-    IReadOnlyList<ReceiptWhtLineView>? WhtLines = null);
+    IReadOnlyList<ReceiptWhtLineView>? WhtLines = null,
+    // cont.70 — customer billing address + branch (live from master) so the receipt
+    // header shows the buyer's address like every other document.
+    string? CustomerAddress = null, string? CustomerBranchCode = null);
 
 public sealed record AdjustmentNoteListItem(
     long NoteId, string? DocNo, string NoteType, DateOnly DocDate,

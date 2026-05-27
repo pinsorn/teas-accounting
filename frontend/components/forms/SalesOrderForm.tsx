@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { CustomerSelector } from '@/components/ui/CustomerSelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
-import { useCreateSalesOrder, usePostSalesOrder, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
+import { useCreateSalesOrder, usePostSalesOrder, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
 import { bangkokToday } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -48,6 +48,8 @@ export function SalesOrderForm() {
   const company = useCompanyProfile();
   const buSetting = useCompanyBuSetting();
   const buRequired = buSetting.data?.requiresBusinessUnit ?? false;
+  // Non-VAT company (ม.86): no VAT on the SO. Don't let the hidden line rate leak.
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
 
   const [docDate, setDocDate] = useState(bangkokToday());
   const [expectedDelivery, setExpectedDelivery] = useState('');
@@ -96,8 +98,8 @@ export function SalesOrderForm() {
           unitPrice: l.unitPrice,
           discountPercent: l.discountPercent ?? 0,
           taxCodeId: 1,
-          taxCode: l.taxRate > 0 ? 'VAT7' : 'VAT0',
-          taxRate: l.taxRate,
+          taxCode: vatMode && l.taxRate > 0 ? 'VAT7' : 'VAT0',
+          taxRate: vatMode ? l.taxRate : 0,
         })),
       })) as { sales_order_id: number };
       return res.sales_order_id;
@@ -231,7 +233,7 @@ export function SalesOrderForm() {
           seller={companyToSeller(company.data)}
           customer={{ name: '—' }}
           items={buildPaperItems(lines)}
-          summary={buildPaperSummary(lines)}
+          summary={buildPaperSummary(lines, vatMode)}
           notes={notes || null}
           signRoles={cfg.signRoles}
         />

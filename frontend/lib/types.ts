@@ -346,6 +346,9 @@ export interface ReceiptDetail {
   // Sprint (receipt itemize + multi-category WHT, 2026-05-22).
   lines: ReceiptLineView[] | null;
   whtLines: ReceiptWhtLineView[] | null;
+  // cont.70 — buyer billing address + branch for the header block.
+  customerAddress: string | null;
+  customerBranchCode: string | null;
 }
 
 export type AdjustmentNoteType = 'Credit' | 'Debit';
@@ -423,6 +426,11 @@ export interface PaymentVoucherDetail {
   postedAt: string | null;
   selfWithholdMode: boolean; requiresPnd36ReverseCharge: boolean;
   lines: PaymentVoucherLineView[];
+  // Sprint 13j-PURCH Flag-2 — downward chain ref: WHT cert(s) issued from this PV.
+  whtCertificates: PaymentVoucherWhtCertificateRef[];
+}
+export interface PaymentVoucherWhtCertificateRef {
+  whtCertificateId: number; docNo: string; status: DocStatus;
 }
 export interface PaymentVoucherApprovedResult {
   paymentVoucherId: number; approvedBy: number; approvedAt: string;
@@ -452,6 +460,11 @@ export interface VendorInvoiceDetail {
   postedAt: string | null;
   purchaseOrderId: number | null; purchaseOrderDocNo: string | null;
   lines: VendorInvoiceLineView[];
+  // Sprint 13j-PURCH Flag-2 — downward chain ref: PV(s) settling this VI.
+  settlingPvs: VendorInvoiceSettlingPvRef[];
+}
+export interface VendorInvoiceSettlingPvRef {
+  paymentVoucherId: number; docNo: string | null; status: DocStatus;
 }
 export interface CreateVendorInvoiceLineInput {
   expenseCategoryId: number; expenseAccountId: number | null;
@@ -633,6 +646,14 @@ export interface OutstandingPoRow {
   linkedViTotal: number; remaining: number;
 }
 export interface OutstandingPoReport { asOf: string; rows: OutstandingPoRow[]; }
+
+// Sprint 13j-PURCH Phase E — AP Aging report (matches BE ApAgingRow/ApAgingReport)
+export interface ApAgingRow {
+  vendorId: number; vendorName: string; vendorTaxId: string | null;
+  current: number; bucket31To60: number; bucket61To90: number;
+  bucketOver90: number; total: number;
+}
+export interface ApAgingReport { asOf: string; rows: ApAgingRow[]; totals: ApAgingRow; }
 
 // ───────────────────────── Sprint 14: External API keys ────────────────────
 export interface ApiKeyListItem {

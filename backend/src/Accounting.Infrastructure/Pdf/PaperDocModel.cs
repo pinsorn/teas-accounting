@@ -42,13 +42,21 @@ public sealed record PaperSummary(
     // "ยอดรวม / Total" row only (no Subtotal/Before-VAT/VAT). Sourced from
     // VatModeOptions.VatMode by the per-doctype mapper. Defaults true so positional
     // callers + the VAT-registered path are unaffected.
-    bool ShowVat = true);
+    bool ShowVat = true,
+    // Sprint 13j-PURCH Phase C — Payment Voucher only: when set, the foot prints a
+    // "หัก ณ ที่จ่าย · WHT" row above the grand total, and Total carries the
+    // WHT-deducted net ("จ่ายสุทธิ"). null for every other doctype (additive, last
+    // positional → existing callers unaffected).
+    decimal? Wht = null);
 
 public enum PaperWatermarkVariant { Success, Danger, Warning, Info }
 
 public sealed record PaperWatermark(string Text, PaperWatermarkVariant Variant);
 
-public sealed record PaperSignRoles(string Left, string Right);
+// Left/Right = the standard two-box signature strip. Middle is optional and only
+// set by the Payment Voucher (Phase C) for a three-box strip
+// (ผู้จัดทำ / ผู้อนุมัติ / ผู้รับเงิน); null → the renderer keeps the two-box layout.
+public sealed record PaperSignRoles(string Left, string Right, string? Middle = null);
 
 public sealed record PaperDocModel(
     string DocType,        // "ใบกำกับภาษี"

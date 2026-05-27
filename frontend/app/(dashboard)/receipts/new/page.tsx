@@ -56,6 +56,8 @@ export default function NewReceiptPage() {
   // ("สร้างใบเสร็จ"): ?ti & ?customer & ?amount → first application + customer.
   const sp = useSearchParams();
   const preTi = Number(sp.get('ti')) || 0;
+  // Non-VAT: arriving from an Invoice (BillingNote) detail ("สร้างใบเสร็จ").
+  const preBn = Number(sp.get('bn')) || 0;
   const preCustomer = Number(sp.get('customer')) || 0;
   const preAmount = Number(sp.get('amount')) || 0;
   const t = useTranslations('rc');
@@ -76,13 +78,16 @@ export default function NewReceiptPage() {
 
   // Mode: forced 'ti' when arriving from a TI or when VAT mode is on. For a non-VAT
   // company default to a standalone cash bill; the user can switch to apply-to-Invoice.
-  const [mode, setMode] = useState<ReceiptMode>('ti');
+  // Seed synchronously from the URL so the first render already knows the mode —
+  // otherwise a bn-sourced receipt briefly defaults to 'ti' and fetches the id as a
+  // Tax Invoice (404). vatMode-driven default (no pre-doc) is set by the effect below.
+  const [mode, setMode] = useState<ReceiptMode>(preBn ? 'invoice' : 'ti');
   const modeInit = useRef(false);
   useEffect(() => {
     if (sysInfo.isLoading || modeInit.current) return;
     modeInit.current = true;
-    setMode(preTi ? 'ti' : vatMode ? 'ti' : 'standalone');
-  }, [sysInfo.isLoading, vatMode, preTi]);
+    setMode(preTi ? 'ti' : preBn ? 'invoice' : vatMode ? 'ti' : 'standalone');
+  }, [sysInfo.isLoading, vatMode, preTi, preBn]);
 
   const { control, handleSubmit, watch, formState: { isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -92,7 +97,8 @@ export default function NewReceiptPage() {
 
   // Source rows. `apps` backs both TI- and Invoice-apply (docId = TI id or Invoice id);
   // `lines` backs the standalone cash bill.
-  const [apps, setApps] = useState<AppRow[]>([{ docId: preTi, appliedAmount: preTi ? preAmount : 0 }]);
+  const preDoc = preTi || preBn;
+  const [apps, setApps] = useState<AppRow[]>([{ docId: preDoc, appliedAmount: preDoc ? preAmount : 0 }]);
   const [lines, setLines] = useState<LineRow[]>([emptyLine()]);
   const setApp = (i: number, patch: Partial<AppRow>) =>
     setApps((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -125,26 +131,36 @@ export default function NewReceiptPage() {
       amount: l.lineAmount,
     })));
 
-  // Non-VAT WHT (cont. 68b → Phase 2a): there's no TI to derive from, so the WHT table
-  // mirrors the receipt's OWN line items (standalone) or the applied Invoice's lines
-  // (apply-Invoice) — each line is presented for category selection, base = its amount.
-  // Goods default to "ไม่หัก"; the user picks the income type per service line (same UX
-  // as TI mode). Invoice (BillingNote) detail exposes `lines` (ChainLineDto).
-  const invoiceDetailQueries = useQueries({
-    queries: (mode === 'invoice' ? apps.map((a) => a.docId).filter((v) => v > 0) : []).map((id) => ({
-      queryKey: ['billing-note', id],
-      queryFn: () => apiGet<BillingNoteDetail>(`billing-notes/${id}`),
-      enabled: id > 0,
+  // Invoice (BillingNote) mode: pull the Invoice's line items for the preview, mirroring
+  // the BE which itemizes the posted receipt from the applied Invoice (cont.69 P1).
+  const previewBnIds = mode === 'invoice'
+    ? Array.from(new Set(apps.map((a) => a.docId).filter((v) => v > 0)))
+    : [];
+  const bnDetailQueries = useQueries({
+    queries: previewBnIds.map((bid) => ({
+      queryKey: ['billing-note', bid],
+      queryFn: () => apiGet<BillingNoteDetail>(`billing-notes/${bid}`),
+      enabled: bid > 0,
     })),
   });
+  const derivedInvoiceItems = bnDetailQueries.flatMap((q) =>
+    (q.data?.lines ?? []).map((l) => ({
+      description: l.descriptionTh,
+      descriptionSub: q.data?.docNo ?? undefined,
+      quantity: l.quantity,
+      unit: l.uomText,
+      unitPrice: l.unitPrice,
+      amount: l.lineAmount,
+    })));
+
+  // Standalone non-VAT cash bill: the WHT table mirrors the receipt's OWN line items —
+  // each line offered for category selection, base = its amount. Goods default to "ไม่หัก".
+  // (Invoice and TI modes both auto-categorize server-side via the suggestion below.)
   const nonVatWhtSource: { description: string; productType: string; base: number }[] =
     mode === 'standalone'
       ? lines.filter((l) => l.description.trim() !== '')
           .map((l) => ({ description: l.description, productType: l.productType, base: l.amount }))
-      : mode === 'invoice'
-        ? invoiceDetailQueries.flatMap((q) => (q.data?.lines ?? [])
-            .map((l) => ({ description: l.descriptionTh, productType: '', base: l.lineAmount })))
-        : [];
+      : [];
 
   // ── AR-side WHT ──────────────────────────────────────────────────────────
   // TI mode: classified PER applied line, auto-resolved from the product (service →
@@ -157,10 +173,16 @@ export default function NewReceiptPage() {
   const [whtCertNo, setWhtCertNo] = useState('');
   const [whtCertDate, setWhtCertDate] = useState('');
   const [whtSeeded, setWhtSeeded] = useState(false);
-  const appsForSuggest = mode === 'ti'
-    ? apps.filter((a) => a.docId > 0 && a.appliedAmount > 0)
-        .map((a) => ({ taxInvoiceId: a.docId, appliedAmount: a.appliedAmount }))
-    : [];
+  // Server-side WHT auto-categorization: TI lines (VAT) or BillingNote lines (non-VAT).
+  // Standalone has no source doc → no server suggestion (manual / client-derived).
+  const appsForSuggest =
+    mode === 'ti'
+      ? apps.filter((a) => a.docId > 0 && a.appliedAmount > 0)
+          .map((a) => ({ taxInvoiceId: a.docId, appliedAmount: a.appliedAmount }))
+      : mode === 'invoice'
+        ? apps.filter((a) => a.docId > 0 && a.appliedAmount > 0)
+            .map((a) => ({ billingNoteId: a.docId, appliedAmount: a.appliedAmount }))
+        : [];
   const suggest = useWhtBaseSuggest(whtOn ? appsForSuggest : [], whtOn ? customerId : 0);
   const rowWht = (l: LineWhtDraft) => (l.whtTypeId ? Math.round(l.base * l.rate * 100) / 100 : 0);
   const whtAmount = lineWht.reduce((s, l) => s + rowWht(l), 0);
@@ -192,7 +214,7 @@ export default function NewReceiptPage() {
   // Auto-seed the per-line table from the server suggestion once (TI mode only),
   // while the user hasn't edited it yet. "ดึงค่าที่แนะนำ" re-seeds.
   useEffect(() => {
-    if (mode === 'ti' && whtOn && !whtSeeded && (suggest.data?.lines?.length ?? 0) > 0) applySuggestion();
+    if (mode !== 'standalone' && whtOn && !whtSeeded && (suggest.data?.lines?.length ?? 0) > 0) applySuggestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [whtOn, suggest.data, mode]);
 
@@ -200,7 +222,7 @@ export default function NewReceiptPage() {
   // change but PRESERVE the category/rate the user already picked (matched by description),
   // so editing an amount doesn't reset the chosen income type.
   useEffect(() => {
-    if (mode === 'ti' || !whtOn) return;
+    if (mode !== 'standalone' || !whtOn) return;
     setLineWht((prev) => nonVatWhtSource.map((src) => {
       const kept = prev.find((p) => p.description === src.description);
       return {
@@ -269,7 +291,9 @@ export default function NewReceiptPage() {
           unitPrice: l.unitPrice, amount: l.amount,
         }))
       : mode === 'invoice'
-        ? apps.map((a) => ({ description: `ใบแจ้งหนี้ #${a.docId || '—'}`, amount: a.appliedAmount || 0 }))
+        ? derivedInvoiceItems.length > 0
+          ? derivedInvoiceItems
+          : apps.map((a) => ({ description: `ใบแจ้งหนี้ #${a.docId || '—'}`, amount: a.appliedAmount || 0 }))
         : derivedItems.length > 0
           ? derivedItems
           : apps.map((a) => ({ description: `ใบกำกับภาษี #${a.docId || '—'}`, amount: a.appliedAmount || 0 }));
@@ -439,7 +463,7 @@ export default function NewReceiptPage() {
           </label>
           {whtOn && (
             <div className="mt-3 space-y-3">
-              {mode === 'ti' && suggest.data && (
+              {mode !== 'standalone' && suggest.data && (
                 <div className="flex items-center justify-between gap-2 rounded bg-base-200 p-2 text-xs">
                   <span>{suggest.data.explanation}</span>
                   <button type="button" className="btn btn-xs" onClick={applySuggestion}>

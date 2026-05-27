@@ -63,7 +63,9 @@ export function FloatingListbox({
         left: pos.left,
         width: pos.width,
         minWidth: Math.max(pos.width, 280),
-        zIndex: 50,
+        // Above daisyUI .modal (z-index 999) so a select inside a modal (e.g. the WHT
+        // dropdown in ProductQuickCreateModal) is never clipped behind the dialog.
+        zIndex: 1000,
       }}
     >
       {children}

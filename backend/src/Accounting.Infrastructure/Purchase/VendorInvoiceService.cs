@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
@@ -24,13 +25,15 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
     private readonly INumberSequenceService _numbers;
     private readonly IGlPostingService      _gl;
     private readonly IPeriodCloseService    _period;
+    private readonly IActivityRecorder      _activity;
 
     public VendorInvoiceService(
         AccountingDbContext db, ITenantContext tenant, IClock clock,
-        INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period)
+        INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period,
+        IActivityRecorder activity)
     {
         _db = db; _tenant = tenant; _clock = clock;
-        _numbers = numbers; _gl = gl; _period = period;
+        _numbers = numbers; _gl = gl; _period = period; _activity = activity;
     }
 
     private static int PeriodOf(DateOnly d) => d.Year * 100 + d.Month;
@@ -93,6 +96,9 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         RollUp(vi);
 
         _db.VendorInvoices.Add(vi);
+        await _db.SaveChangesAsync(ct);
+        _activity.Record("VendorInvoice", vi.VendorInvoiceId, vi.DocNo, vi.CompanyId,
+            "Created", toStatus: "Draft", module: "purchase");
         await _db.SaveChangesAsync(ct);
         return vi.VendorInvoiceId;
     }
@@ -186,6 +192,9 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
 
         EnsureClaimInWindow(vatClaimPeriod, vi.VendorTaxInvoiceDate);
         vi.VatClaimPeriod = vatClaimPeriod;
+        _activity.Record("VendorInvoice", vi.VendorInvoiceId, vi.DocNo, vi.CompanyId,
+            "ClaimedPeriod", fromStatus: "Draft", toStatus: "Draft",
+            note: $"period:{vatClaimPeriod}", module: "purchase");
         await _db.SaveChangesAsync(ct);
     }
 
@@ -209,6 +218,8 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
 
         var now = _clock.UtcNow;
         vi.MarkPosted(docNo.Value, _tenant.UserId ?? 0, now);
+        _activity.Record("VendorInvoice", vi.VendorInvoiceId, vi.DocNo, vi.CompanyId,
+            "Posted", fromStatus: "Draft", toStatus: "Posted", module: "purchase");
         await _db.SaveChangesAsync(ct);
 
         await _gl.PostVendorInvoiceAsync(vi.VendorInvoiceId, ct);

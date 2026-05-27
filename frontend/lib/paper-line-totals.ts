@@ -22,16 +22,19 @@ export function buildPaperItems(lines: FormLine[]): PaperLineItem[] {
   }));
 }
 
-export function buildPaperSummary(lines: FormLine[]): PaperSummary {
+// Non-VAT companies (ม.86) carry no VAT on any document; pass vatMode=false so the
+// line tax rate never leaks a phantom VAT into the preview total.
+export function buildPaperSummary(lines: FormLine[], vatMode = true): PaperSummary {
   const t = lines.reduce(
     (acc, l) => {
       const gross = l.quantity * l.unitPrice;
       const disc = gross * ((l.discountPercent ?? 0) / 100);
       const net = gross - disc;
+      const vat = vatMode ? net * l.taxRate : 0;
       acc.subtotal += gross;
       acc.discount += disc;
-      acc.vat += net * l.taxRate;
-      acc.total += net + net * l.taxRate;
+      acc.vat += vat;
+      acc.total += net + vat;
       return acc;
     },
     { subtotal: 0, discount: 0, vat: 0, total: 0 },

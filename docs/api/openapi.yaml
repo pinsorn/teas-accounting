@@ -886,6 +886,38 @@ paths:
         '200':
           description: OK
 
+  /reports/ap-aging:
+    get:
+      summary: รายงานอายุหนี้เจ้าหนี้ (AP Aging) — posted vendor invoices bucketed by age
+      description: >
+        Outstanding posted vendor invoices grouped by vendor and bucketed by
+        (asOf − DocDate) in days: Current (≤30), 31–60, 61–90, >90. Outstanding =
+        TotalAmount − SettledAmount, filtered to SettlementStatus != PAID.
+        Tenant-scoped (company_id filter, §4.7).
+      tags: [Reports]
+      parameters:
+        - name: asOf
+          in: query
+          description: As-of date (yyyy-MM-dd). Default = Bangkok today (UTC+7).
+          schema: { type: string, format: date }
+        - name: vendorId
+          in: query
+          description: Optional filter to a single vendor.
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asOf: { type: string, format: date }
+                  rows:
+                    type: array
+                    items: { $ref: '#/components/schemas/ApAgingRow' }
+                  totals: { $ref: '#/components/schemas/ApAgingRow' }
+
   /reports/pnd30/preview:
     get:
       summary: Preview ภ.พ.30 ก่อน submit
@@ -1399,6 +1431,20 @@ components:
             $ref: '#/components/schemas/ErrorEnvelopeV1'
 
   schemas:
+    # === Reports (Sprint 13j-PURCH Phase B) ===
+    ApAgingRow:
+      type: object
+      description: One AP-aging row per vendor (VendorId=0, VendorName=TOTAL for the totals row).
+      properties:
+        vendorId: { type: integer, format: int32 }
+        vendorName: { type: string }
+        vendorTaxId: { type: string }
+        current: { type: number, format: double, description: 'Outstanding aged ≤30 days' }
+        bucket31To60: { type: number, format: double }
+        bucket61To90: { type: number, format: double }
+        bucketOver90: { type: number, format: double }
+        total: { type: number, format: double }
+
     # === Common ===
     ErrorResponse:
       type: object

@@ -13,7 +13,8 @@ export function ChainRowPrint({ docType, id }: { docType: string; id: number }) 
   const mark = useMarkPrinted(docType, id);
 
   function pdfPath(copy: boolean) {
-    return `${docType}/${id}/pdf${copy ? '?copy=1' : ''}`;
+    // BE binds `bool? copy` — only true/false parse; "1" → 400 (Sprint 13j-PURCH D1 bugfix).
+    return `${docType}/${id}/pdf${copy ? '?copy=true' : ''}`;
   }
 
   async function trackedPrint(requestedCopy: boolean) {

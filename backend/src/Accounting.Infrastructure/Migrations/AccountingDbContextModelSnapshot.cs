@@ -1818,6 +1818,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("notes");
 
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
                     b.Property<string>("PaymentMethod")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1843,6 +1847,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("PV")
                         .HasColumnName("prefix_code");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
 
                     b.Property<bool>("RequiresPnd36ReverseCharge")
                         .ValueGeneratedOnAdd()
@@ -2160,6 +2168,14 @@ namespace Accounting.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("notes");
+
+                    b.Property<DateTimeOffset?>("OriginalPrintedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("original_printed_at");
+
+                    b.Property<int>("PrintCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("print_count");
 
                     b.Property<DateTimeOffset?>("SentToVendorAt")
                         .HasColumnType("timestamptz(3)")

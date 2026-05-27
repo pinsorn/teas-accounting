@@ -5,12 +5,21 @@
 
 ---
 
-## ▶ Next focus (2026-05-23): PURCHASE (การซื้อ)
+## ▶ Next focus (2026-05-27): Purchase Phase 1 ☑ — then E2E tail + Question-Backend36
 
 **Sales chain CLOSED** (cont.64–69): Q→SO→DO→Invoice→TI→RC + CN/DN, non-VAT mode, full
 document chain, universal print — shipped, tested, committed (`7e58d9d`/`65db075`).
-Next session works the **Purchase side** (vendor invoice → PV → 3-way match → WHT 50ทวิ →
-payment), then Reports. See `docs/accounting-system-plan.md` §7 + §17.3. Carry the cont.69
+
+☑ **Sprint 13j-PURCH — Purchase / AP Phase 1 (cont.71, 2026-05-27)** — UX parity with Sales:
+Purchase audit hooks (PO/VI/PV + WHT), AP Aging report + `/reports/ap-aging`, PO+PV PaperDocumentPdf
+consolidation (+ `AddPrintTrackingToPurchaseChain` migration), FE PaperDocument/chain/PrintMenu on
+PO/VI/PV/WHT, AP Aging page, PO `/new` lift, expense-category list. BE 174/174 (run 1) · FE tsc 0 ·
+build 0/0 (54 routes). NOT committed. Detail: `docs/Report-Backend35.md` + `progress.md` cont.71.
+- ☑ **tail (2026-05-27):** E2E `purchase-chain.spec.ts` written + PASS ×2 · Flag-1 (VI on-screen PaperDocument) · Flag-2/BP-05 (bidirectional chain via downward read-DTO refs) · BP-07 (pnd30 full-suite-2× flake fixed — `FuturePeriod` widened + test self-clean → 174/174 ×3). Full BE suite green, FE build 0/0 (66 routes).
+- ☐ **Question-Backend36** (optional): server-resolved unified chain endpoint — FE `PurchaseDocumentChain` already covers Phase 1 from detail DTOs.
+- ☐ **Sales track (not Purchase scope, Req §6):** BP-08 (`payment-voucher-non-super-rbac` test picks a cross-company expense category — the §4.7 filter is correct, fix is test-side) · BP-10 (add `q-status/so-status/bn-status` data-testids on Sales detail pages so the Sales E2E runs).
+
+Then Reports depth. See `docs/accounting-system-plan.md` §7 + §17.3. Carry the cont.69
 follow-ups below into the purchase work where they overlap.
 
 ## Now / Next (highest impact)

@@ -43,6 +43,12 @@ export interface PaperSummary {
   // row (no Subtotal/Before-VAT/VAT). Mirrors C# PaperSummary.ShowVat. Defaults
   // true; PaperDocument fills it from /system/info.vatMode.
   showVat?: boolean;
+  // Sprint 13j-PURCH D-supplement — withholding tax deduction (Payment Voucher).
+  // Mirrors C# PaperSummary.Wht (nullable). When set: PaperFoot inserts a
+  // "หัก ณ ที่จ่าย · WHT" row (shown as −amount) between VAT and the grand total,
+  // independent of showVat, and the grand-total label switches to
+  // "จ่ายสุทธิ · Net Paid" with value = total − wht. Absent → byte-identical to today.
+  wht?: number | null;
 }
 
 // §C4 locked union. `info` added additively (non-breaking) for the Billing
@@ -62,7 +68,11 @@ export interface PaperDocumentProps {
   summary: PaperSummary;
   amountWords?: string; // pre-computed Thai baht text (else derived from total)
   notes?: string | null;
-  signRoles: { left: string; right: string };
+  // `middle` is optional (Sprint 13j-PURCH D-supplement). Mirrors C#
+  // PaperSignRoles.Middle: present → PaperSign renders a 3-box strip
+  // (ผู้จัดทำ / ผู้อนุมัติ / ผู้รับเงิน for the Payment Voucher); absent → the
+  // standard two-box strip, byte-identical to every Sales caller.
+  signRoles: { left: string; middle?: string; right: string };
   watermark?: { text: string; variant: WatermarkVariant };
   extraMetaBlock?: ReactNode;
   signatureImg?: string;

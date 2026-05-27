@@ -58,7 +58,7 @@ public sealed class BillingNoteService(
             CurrencyCode = req.CurrencyCode, ExchangeRate = req.ExchangeRate,
             Notes = req.Notes, InternalNotes = req.InternalNotes,
         };
-        ApplyLines(bn, req.Lines);
+        await ApplyLinesAsync(bn, req.Lines, ct);
         foreach (var link in await BuildTaxInvoiceLinksAsync(req.TaxInvoiceIds, ct))
             bn.TaxInvoiceLinks.Add(link);
         db.BillingNotes.Add(bn);
@@ -169,7 +169,7 @@ public sealed class BillingNoteService(
         db.RemoveRange(bn.Lines);
         bn.Lines.Clear();
         bn.SubtotalAmount = bn.VatAmount = bn.TotalAmount = 0m;
-        ApplyLines(bn, req.Lines);
+        await ApplyLinesAsync(bn, req.Lines, ct);
 
         db.BillingNoteTaxInvoices.RemoveRange(bn.TaxInvoiceLinks);
         bn.TaxInvoiceLinks.Clear();
@@ -307,19 +307,24 @@ public sealed class BillingNoteService(
                 l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList());
     }
 
-    private static void ApplyLines(BillingNote bn, IReadOnlyList<BillingLineInput> lines)
+    // Compliance backstops (SalesLineBackstop): snapshot ProductType from the product
+    // master and zero all VAT for a non-VAT company, whatever the request carried.
+    private async Task ApplyLinesAsync(BillingNote bn, IReadOnlyList<BillingLineInput> lines, CancellationToken ct)
     {
+        var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, lines.Select(l => l.ProductId), ct);
         int n = 1;
         foreach (var l in lines)
         {
-            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, l.TaxRate);
+            var (prodType, taxRate, taxCode) =
+                SalesLineBackstop.Resolve(_showVat, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             bn.Lines.Add(new BillingNoteLine
             {
-                LineNo = n++, ProductId = l.ProductId, ProductType = l.ProductType ?? "GOOD",
+                LineNo = n++, ProductId = l.ProductId, ProductType = prodType,
                 TaxInvoiceId = l.TaxInvoiceId, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             bn.SubtotalAmount += net; bn.VatAmount += vat; bn.TotalAmount += total;

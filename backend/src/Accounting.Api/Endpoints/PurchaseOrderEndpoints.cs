@@ -60,8 +60,13 @@ public static class PurchaseOrderEndpoints
             { var d = await s.GetDetailAsync(id, ct); return d is null ? Results.NotFound() : Results.Ok(d); })
             .RequireAuthorization(read);
 
-        g.MapGet("/{id:long}/pdf", async (long id, IPurchaseOrderService s, CancellationToken ct) =>
-            Results.File(await s.BuildPdfAsync(id, ct), "application/pdf", $"purchase-order-{id}.pdf"))
+        // ?copy=true → "สำเนา" watermark; default/false → "ต้นฉบับ" (bound as bool?,
+        // FE sends ?copy=true). Print tracking is a separate POST /mark-printed
+        // (PrintEndpoints) mirroring the shipped Sales pattern — see Phase C deviation.
+        g.MapGet("/{id:long}/pdf", async (long id, [FromQuery] bool? copy,
+            IPurchaseOrderService s, CancellationToken ct) =>
+            Results.File(await s.BuildPdfAsync(id, ct, copy ?? false), "application/pdf",
+                $"purchase-order-{id}.pdf"))
             .RequireAuthorization(read);
 
         app.MapGet("/reports/outstanding-po", async (
@@ -71,6 +76,16 @@ public static class PurchaseOrderEndpoints
             Results.Ok(await s.OutstandingAsync(
                 asOf ?? DateOnly.FromDateTime(DateTime.UtcNow), vendorId,
                 overdueOnly ?? false, ct)))
+            .RequireAuthorization(read).WithTags("Purchase Orders");
+
+        // Sprint 13j-PURCH Phase B — AP Aging report (deviation D1: no ReportEndpoints.cs;
+        // mapped here next to outstanding-po, SAME auth policy = PurchaseOrderRead).
+        // asOf default = Bangkok today (Asia/Bangkok = UTC+7), never user-trusted (§10).
+        app.MapGet("/reports/ap-aging", async (
+            [FromQuery] DateOnly? asOf, [FromQuery] long? vendorId,
+            Accounting.Application.Reports.IApAgingService s, CancellationToken ct) =>
+            Results.Ok(await s.GetAsync(
+                asOf ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), vendorId, ct)))
             .RequireAuthorization(read).WithTags("Purchase Orders");
 
         return app;

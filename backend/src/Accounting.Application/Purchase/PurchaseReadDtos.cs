@@ -16,6 +16,12 @@ public sealed record PaymentVoucherLineView(
     decimal VatRate, decimal VatAmount, bool IsRecoverableVat,
     int? WhtTypeId, decimal WhtRate, decimal WhtAmount);
 
+// Sprint 13j-PURCH Flag-2 — downward chain ref: the WHT certificate(s) (50ทวิ)
+// issued from this Payment Voucher. Lets the FE PurchaseDocumentChain resolve
+// PV → WHT (WhtCertificate.PaymentVoucherId already points WHT → PV upward).
+public sealed record PaymentVoucherWhtCertificate(
+    long WhtCertificateId, string DocNo, string Status);
+
 public sealed record PaymentVoucherDetail(
     long PaymentVoucherId, string? DocNo, string Status, DateOnly DocDate,
     long VendorId, string VendorName, string? VendorTaxId, string? VendorBranchCode,
@@ -30,7 +36,8 @@ public sealed record PaymentVoucherDetail(
     System.DateTimeOffset? PostedAt,
     bool SelfWithholdMode,                 // Sprint 8.7 — drives the detail badge
     bool RequiresPnd36ReverseCharge,
-    IReadOnlyList<PaymentVoucherLineView> Lines);
+    IReadOnlyList<PaymentVoucherLineView> Lines,
+    IReadOnlyList<PaymentVoucherWhtCertificate> WhtCertificates);   // Sprint 13j-PURCH Flag-2 — downward → WHT
 
 public sealed record WhtCertificateListItem(
     long WhtCertificateId, string DocNo, DateOnly CertDate, long? PaymentVoucherId,

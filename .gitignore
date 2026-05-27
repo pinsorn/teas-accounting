@@ -84,3 +84,6 @@ graphify-out/
 
 # Transient API stderr logs
 *.err
+
+# Playwright MCP browser-test scratch output (snapshots/screenshots)
+.playwright-mcp/
