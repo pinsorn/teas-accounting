@@ -22,6 +22,9 @@ public static class Permissions
         public const string RoleManage         = "sys.role.manage";
         public const string DocPrefixManage    = "sys.doc_prefix.manage";
         public const string ExpenseCatManage   = "sys.expense_category.manage";
+        // BP-01 (RV2) — read-only listing so PV/VI-creating roles (ap_clerk etc.) can
+        // populate the expense-category picker without the full manage grant.
+        public const string ExpenseCatRead     = "sys.expense_category.read";
         // Sprint 11 — file attachments.
         public const string AttachmentUpload   = "sys.attachment.upload";
         public const string AttachmentRead     = "sys.attachment.read";
@@ -104,7 +107,7 @@ public static class Permissions
         Master.CompanyManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead, Master.VendorManage,
         Master.CoaManage, Master.BusinessUnitManage,
         Master.ProductManage, Master.ProductRead,
-        Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage,
+        Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage, Sys.ExpenseCatRead,
         Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete, Sys.ApiKeyManage,
         Gl.JournalCreate, Gl.JournalPost, Gl.JournalRead, Gl.PeriodClose,
         Sales.TaxInvoiceCreate, Sales.TaxInvoicePost, Sales.TaxInvoiceRead,

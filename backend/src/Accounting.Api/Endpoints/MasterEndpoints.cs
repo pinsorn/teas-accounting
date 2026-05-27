@@ -123,8 +123,9 @@ public static class MasterEndpoints
     // ------------------------- Expense Categories -------------------------
     private static void MapExpenseCategories(IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/expense-categories").WithTags("Expense Categories")
-            .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.ExpenseCatManage);
+        // BP-01 (RV2): split auth — write needs `manage`, read-only listing needs the lighter
+        // `read` (PV/VI-creating roles need the picker but must not manage the master).
+        var g = app.MapGroup("/expense-categories").WithTags("Expense Categories");
 
         g.MapPost("/", async ([FromBody] CreateExpenseCategoryRequest req, IValidator<CreateExpenseCategoryRequest> v,
             IExpenseCategoryService svc, CancellationToken ct) =>
@@ -132,7 +133,9 @@ public static class MasterEndpoints
             var val = await v.ValidateAsync(req, ct);
             if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
             return Results.Created($"/expense-categories/{await svc.CreateAsync(req, ct)}", null);
-        });
-        g.MapGet("/", async (IExpenseCategoryService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
+        }).RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.ExpenseCatManage);
+
+        g.MapGet("/", async (IExpenseCategoryService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)))
+            .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.ExpenseCatRead);
     }
 }
