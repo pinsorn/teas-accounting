@@ -57,6 +57,27 @@ resolves PO→VI→PV→WHT from cross-refs on the detail DTOs (upward + the new
 
 ---
 
+## AFK-batch deferred (2026-05-28) — need Ham's decision, not safe to ship autonomous
+
+These were authorized verbally but each carries a regression/compliance risk that shouldn't be
+shipped while the decision-maker is away. Done in the AFK batch: ap_clerk read perm + RBAC test
+(green), legacy-code retire, §17.3 WHT defaults (unambiguous ones), date-consistency check (no change).
+
+- **C — Vendor Invoice mandatory vendor-file attachment.** Ham wants VI post to REQUIRE attaching
+  the vendor's file. The attachment infra exists, but enforcing at post **breaks** existing tests
+  that post a VI without an attachment (the `purchase-chain.spec.ts` E2E + any VI-post integration
+  test) and any already-posted VI on the dev DB. Needs: a post-time guard + updating every VI-post
+  test to attach first + a decision on existing posted-VI handling. Multi-file, regression-prone —
+  do with Ham present so the test-strategy is agreed.
+- **F — server-resolved Purchase chain (Question-Backend36).** Ham said yes. Touches the SHARED
+  `DocumentCrossRefService` (fixed 7-slot Sales DTO) → Sales-regression risk; needs a Purchase DTO
+  shape decision. The FE `PurchaseDocumentChain` already renders the full PO→VI→PV→WHT (Sana RV3
+  confirmed "badge 4"), so this is parity polish, not blocking. Decide DTO shape with Ham.
+- **WAGE / SAL WHT default** (from seed 450). WAGE "ค่าจ้างแรงงาน" 3% has no unambiguous wht_types
+  row (closest = CONTRACT "ค่าจ้างทำของ/รับเหมา" — labour ≠ piecework); SAL is payroll ภ.ง.ด.1 which
+  seed 220 intentionally excludes. Both left NULL. Ham to confirm the mapping (or accept null →
+  user picks per line).
+
 ## Lower-priority watch-items (from bugPurchase.md)
 - **BP-01** 🟡 — one-off `DbUpdateException` on `PurchaseAuditTests.Pv_post_with_wht_…` (~1/many runs);
   not reproduced since. If it recurs, capture `ex.InnerException.Message`.

@@ -24,12 +24,17 @@ test('ap_clerk can create→post a PV; approver approves (SoD)', async ({ page }
   const vendors = await (await page.request.get(
     `${API}/vendors?search=${code}&pageSize=10`)).json();
   const vendorId = vendors[0].vendorId;
-  const cats = await (await page.request.get(`${API}/expense-categories`)).json();
-  const categoryId = cats.find((c: { categoryCode: string }) => c.categoryCode === 'SVC').categoryId;
 
   // ── ap_clerk (NOT super) creates the PV — was 403 before 180 ──────────────
   await logout(page);
   await login(page, 'ap_clerk');
+  // Resolve the expense category AS ap_clerk (company-scoped). Fetching it as the super admin
+  // returned categories across companies → a cross-company id the §4.7 tenant filter then
+  // rejected on create. ap_clerk now holds sys.expense_category.read (seed 440), so its own
+  // list is the correct company-1 set. Pick an ACTIVE category (SVC was retired by 440).
+  const cats = await (await page.request.get(`${API}/expense-categories`)).json();
+  const categoryId = (cats.find((c: { categoryCode: string; isActive: boolean }) =>
+    c.isActive && c.categoryCode === 'PROF') ?? cats.find((c: { isActive: boolean }) => c.isActive)).categoryId;
   const create = await page.request.post(`${API}/payment-vouchers/`, {
     data: {
       docDate: today, vendorId, expenseCategoryId: categoryId,
