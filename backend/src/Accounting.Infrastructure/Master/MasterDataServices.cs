@@ -326,8 +326,14 @@ public sealed class ExpenseCategoryService(AccountingDbContext db, ITenantContex
         return e.CategoryId;
     }
 
+    // BP-01: scope to the ACTIVE company explicitly. The global query filter
+    // bypasses on a super-admin (admin), which made this list (and the PV picker)
+    // show every company's categories — surfacing apparent "duplicate" codes
+    // (company 1's ADS + company 2's ADS, etc.). A settings list must show only
+    // the current tenant's set. Narrowing only — never widens, so no §4.7 leak.
     public Task<IReadOnlyList<ExpenseCategoryDto>> ListAsync(CancellationToken ct) =>
-        db.ExpenseCategories.OrderBy(c => c.CategoryCode)
+        db.ExpenseCategories.Where(c => c.CompanyId == tenant.CompanyId)
+            .OrderBy(c => c.CategoryCode)
             .Select(c => new ExpenseCategoryDto(c.CategoryId, c.CategoryCode, c.NameTh, c.NameEn,
                 c.DefaultIsRecoverableVat, c.IsCapex, c.IsCogs, c.IsActive))
             .ToListAsync(ct).ContinueWith<IReadOnlyList<ExpenseCategoryDto>>(t => t.Result, TaskContinuationOptions.OnlyOnRanToCompletion);

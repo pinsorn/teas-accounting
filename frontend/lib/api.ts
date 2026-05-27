@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { ApiError } from './api-client';
 
 /**
@@ -6,6 +7,31 @@ import { ApiError } from './api-client';
  * cookie server-side. No JWT ever touches client JS.
  */
 const PROXY = '/api/proxy';
+
+/**
+ * Sprint 13j-PURCH (BP-05, #SR9 class) — surface an RFC7807 ProblemDetails error
+ * as a Thai toast. `ApiError` sets `.message` to the body's `detail` (see api-client.ts),
+ * so the user-facing reason lives in `.message`, NOT `.detail` (which doesn't exist on
+ * ApiError — the old `e.detail` reads always fell through to the generic fallback).
+ * Resolution order: ApiError.message (= ProblemDetails.detail) → body.title → body.detail
+ * → caller fallback → "เกิดข้อผิดพลาด". Shared so PO/PV approve/post/mark-sent all map
+ * the BE Problem to a meaningful toast with one call.
+ */
+export function problemToast(err: unknown, fallback = 'เกิดข้อผิดพลาด'): void {
+  let msg: string | undefined;
+  if (err instanceof ApiError) {
+    // ApiError.message is the ProblemDetails `detail` (api-client.ts ctor 3rd arg).
+    msg = err.message;
+    if (!msg || !msg.trim()) {
+      const body = err.details as { detail?: string; title?: string } | undefined;
+      msg = body?.detail ?? body?.title;
+    }
+  } else if (err && typeof err === 'object') {
+    const e = err as { detail?: string; title?: string; message?: string };
+    msg = e.detail ?? e.title ?? e.message;
+  }
+  toast.error(msg && msg.trim() ? msg : fallback);
+}
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${PROXY}/${path}`, {

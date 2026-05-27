@@ -107,7 +107,7 @@ function PvForm() {
         <DateInput value={docDate} locked label="วันที่" />
         <ExpenseCategorySelector
           value={categoryId}
-          onChange={(id, cat) => { setCategoryId(id); setCatRecoverable(cat.isRecoverableVat); }}
+          onChange={(id, cat) => { setCategoryId(id); setCatRecoverable(cat.defaultIsRecoverableVat); }}
         />
         <label className="form-control">
           <span className="label-text">{t('method')}</span>

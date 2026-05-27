@@ -397,9 +397,12 @@ export interface CreateVendorRequest {
   isForeign?: boolean; hasThaiVatDReg?: boolean; countryCode?: string | null;
 }
 
+// BP-02 — mirror the BE ExpenseCategoryDto JSON exactly. The list endpoint emits
+// `defaultIsRecoverableVat` (NOT `isRecoverableVat`); the old field name read
+// undefined → the table rendered "—" for every row.
 export interface ExpenseCategoryLite {
-  categoryId: number; categoryCode: string; nameTh: string;
-  isRecoverableVat: boolean; isCapex: boolean;
+  categoryId: number; categoryCode: string; nameTh: string; nameEn?: string | null;
+  defaultIsRecoverableVat: boolean; isCapex: boolean; isCogs?: boolean; isActive?: boolean;
 }
 
 export interface PaymentVoucherListItem {

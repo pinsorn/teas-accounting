@@ -18,7 +18,7 @@
   "purchaseChain": {
     "title": "เอกสารอ้างอิง",
     "purchaseOrder": "ใบสั่งซื้อ",
-    "vendorInvoice": "ใบรับวางบิล",
+    "vendorInvoice": "ใบกำกับภาษีซื้อ",
     "paymentVoucher": "ใบสำคัญจ่าย",
     "whtCertificate": "หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)"
   },

@@ -14,6 +14,7 @@ import {
   useCompanyProfile,
 } from '@/lib/queries';
 import { formatDate, formatTaxId } from '@/lib/utils';
+import { problemToast } from '@/lib/api';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
 
@@ -31,11 +32,11 @@ export default function PaymentVoucherDetailPage() {
 
   async function doApprove() {
     try { await approve.mutateAsync(id); toast.success(t('approve')); }
-    catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+    catch (e) { problemToast(e, tc('error')); }
   }
   async function doPost() {
     try { await post.mutateAsync(id); toast.success(t('post')); }
-    catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+    catch (e) { problemToast(e, tc('error')); }
   }
 
   // Sprint 13j-PURCH D-supplement — PV renders as a PaperDocument. A PV is
@@ -95,6 +96,7 @@ export default function PaymentVoucherDetailPage() {
             docNo={d.docNo ?? `#${d.paymentVoucherId}`}
             issueDate={d.docDate}
             seller={seller}
+            partyLabel={{ th: 'ผู้รับเงิน', en: 'Payee' }}
             customer={{
               name: d.vendorName,
               taxId: d.vendorTaxId ? formatTaxId(d.vendorTaxId) : null,

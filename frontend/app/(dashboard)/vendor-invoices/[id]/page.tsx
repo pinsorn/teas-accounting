@@ -11,6 +11,7 @@ import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { useVendorInvoice, usePostVendorInvoice, useCompanyProfile } from '@/lib/queries';
 import { formatTHB, formatDate } from '@/lib/utils';
+import { problemToast } from '@/lib/api';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -145,8 +146,8 @@ export default function VendorInvoiceDetailPage() {
             toast.success(tc('save'));
             if (r?.poOverReceiptWarning)
               toast.warning(t('poOverReceipt'), { description: r.poOverReceiptWarning });
-          } catch {
-            toast.error(tc('error'));
+          } catch (e) {
+            problemToast(e, tc('error'));
           } finally {
             setConfirm(false);
           }
