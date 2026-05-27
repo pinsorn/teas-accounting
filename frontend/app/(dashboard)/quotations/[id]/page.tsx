@@ -81,6 +81,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
 
       <DocActionBar
         status={d.status}
+        statusTestId="q-status"
         docNo={d.docNo ?? `#${d.quotationId}`}
         actions={
           <>

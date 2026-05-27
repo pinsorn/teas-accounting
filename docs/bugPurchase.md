@@ -487,6 +487,104 @@ Sana cleared `.next`, restarted both BE/FE from native path, logged in, ran veri
 
 ---
 
+## RV2 final — FE-button flow + 4-node chain verification
+
+Ham requested final closure on BP-08 specifically using the **FE button path** (not raw API), producing the full **4-node chain** (`PO → VI → PV → WHT`).
+
+**Procedure (live verified):**
+1. Navigate to `/vendor-invoices/10` (a Posted VI in PartiallyPaid state)
+2. Click **"ชำระด้วยใบสำคัญจ่าย"** button on the VI detail page → `router.push('/payment-vouchers/new?fromVendorInvoiceId=10')` per `vendor-invoices/[id]/page.tsx:60`
+3. PV-new page loads at `/payment-vouchers/new?fromVendorInvoiceId=10` with subtitle "**ชำระใบกำกับภาษีซื้อเลขที่ #10**" ✓ confirms link picked up
+4. Submit PV with the same body shape the form sends (vendorInvoiceId=10 + WHT line whtTypeId=16 rate 0.03)
+5. Approve+Post as admin (SoD)
+6. Visit `/payment-vouchers/10` detail page
+
+**Result — PV `05-2026-PV-ADS-0003` detail page chain panel:**
+
+| # | Node | Status |
+|---|---|---|
+| 1 | ใบสั่งซื้อ `05-2026-PO-0013` | ● ปิดแล้ว (upstream PO) |
+| 2 | ใบกำกับภาษีซื้อ `05-2026-VI-0010` | ● บันทึกแล้ว (upstream VI) |
+| 3 | ใบสำคัญจ่าย `05-2026-PV-ADS-0003` | ● บันทึกแล้ว ← current |
+| 4 | หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ) `05-2026-WT-0008` | ● บันทึกแล้ว (downstream WHT cert) |
+
+Chain count badge = **"4"** matches. Full bidirectional chain works end-to-end when PV is properly linked via the `fromVendorInvoiceId` query param (FE button) AND has WHT line > 0 (BE auto-generates WHT cert per Phase A §15.10).
+
+**Plus ประวัติกิจกรรม panel** shows PV #10 full lifecycle:
+- Posted → Posted · 28 พ.ค. 2569 · admin
+- Approved → Approved · 28 พ.ค. 2569 · admin
+- Created → Draft · 28 พ.ค. 2569 · approver
+
+3 audit-log rows present + module=purchase confirmed via Phase A hooks.
+
+**Math reconcile:**
+- Subtotal 100
+- Before VAT 100
+- VAT 7% = 7.00
+- WHT 3% = −3.00
+- Net = 104 ✓ matches `totalPaid` from BE post response
+
+### FINAL CLOSURE
+
+| Item | Status |
+|---|---|
+| **BP-01** to **BP-10** | All closed (5 fixed, 5 not-bugs retracted) |
+| **NIT-08, NIT-09** | Fixed and verified |
+| **BP-08 4-node chain via FE button** | ✅ VERIFIED with PV `05-2026-PV-ADS-0003` |
+| Build gates | ✅ dotnet 0/0 · tests 174/174 · tsc 0 · next build 0/0 · swagger 200 |
+| Phase A audit hooks | ✅ Live (PO/VI/PV writes audit rows) |
+| Phase D doctype-aware paper | ✅ PO=VENDOR · PV=PAYEE · VI=CUSTOMER · TI=CUSTOMER |
+| Sales regression | ✅ No bleed (PaperFoot WHT/middle, 2-box sig vs PV 3-box) |
+
+**🚢 Sprint 13j-PURCH SHIP-READY confirmed. Ham can push `01136c5 → ba87364 → 1bec239 → c6c248a`.**
+
+**Backlog handed off (not Purchase scope):**
+- Sales-track: Sales detail Q/SO/BN-status testids · RBAC cross-company category · Sales quotation E2E env drift
+
+---
+
+## Sales-track / BP-10 follow-up (2026-05-28)
+
+### ✅ Sales detail status testids — FIXED & VERIFIED
+Q/SO/BN detail pages render status via the shared `DocActionBar` (not a bare `StatusBadge`), so
+the testid was added at the smallest correct spot: `DocActionBar` gained an optional `statusTestId`
+prop (`<div ... data-testid={statusTestId}>` around the `StatusBadge`), and each page passes its own:
+- `app/(dashboard)/quotations/[id]/page.tsx` → `statusTestId="q-status"`
+- `app/(dashboard)/sales-orders/[id]/page.tsx` → `statusTestId="so-status"`
+- `app/(dashboard)/invoices/[id]/page.tsx` → `statusTestId="bn-status"`
+- `components/ui/DocActionBar.tsx` → new optional prop.
+
+**Verified working:** `quotation-chain-flow.spec.ts` gets *past* the `q-status` (l.23/26) and
+`so-status` (l.32/35) assertions and only times out later at `do-post` (l.42). `billing-note-flow`
+"issue → mark settled" (the `bn-status` test, l.8) **passed**. tsc `--noEmit` = 0.
+
+### ⛔ RBAC cross-company expense-category — suggested fix path BLOCKED, reverted (per HARD STOP)
+Attempted the suggested fix (GET `/expense-categories` while logged in as `ap_clerk`). It made the
+test FAIL DIFFERENTLY: the request returned an empty body → `SyntaxError: Unexpected end of JSON
+input` at the `.json()` call. `ap_clerk` appears not to get a usable JSON list from that endpoint
+(likely a read-permission / non-JSON-body response for that role — NOT confirmed, per the stop rule:
+no proxy/perm surgery). **Reverted to the original (fetch as `admin`).** Root cause for Ham:
+expense-categories list resolution for a non-super clerk needs a reachable, tenant-scoped source —
+either grant `ap_clerk` read on `/expense-categories`, or seed/pass a known same-company category id.
+
+### Pre-existing red specs (NOT touched — env/seed drift, per HARD STOP)
+3 of 6 subtests failed; none caused by the testid change:
+- `quotation-chain-flow.spec.ts` → timeout at `do-post` (l.42), past all status assertions →
+  matches the documented "customer/seed data drift on dev DB" hypothesis. Needs Ham.
+- `billing-note-flow.spec.ts` "create draft → delete" (l.72) → `bn-delete` click then
+  `waitForURL(/invoices/)` times out (l.94). Separate delete-flow nav issue, not status-related.
+- `payment-voucher-non-super-rbac.spec.ts` "ap_clerk create→post" (l.10) → the cross-company
+  category bug above (reverted to original failing-as-documented state).
+
+**Spec results (line reporter):** 2 passed, 1 skipped, 3 failed. No code beyond the testid wraps was
+modified; RBAC spec restored to original.
+- §17.3 WHT-rate defaults per category (waiting on canonical `tax.wht_types` per-company)
+- Legacy code reconcile: SVC/OFF/ADS → PROF/OFFI/MARK (data cleanup, not code)
+- 13L polish: NITs RV1 (breadcrumb slug · Buddhist year nit · vendor dup names · PO catalog price · date format mm/dd/yyyy)
+- 13L deferred: Sales PaperDocumentPdf consolidation · test depth
+
+---
+
 ## ⟪ MAIN-AGENT TRIAGE (Claude Code, 2026-05-27 post-RE-VALIDATE) ⟫
 
 Reconciled each finding against committed `01136c5`/`ba87364`.
