@@ -350,6 +350,104 @@ Claude Code's ship report should be checked — did Phase A actually land in com
 
 ---
 
+## RV2 — Verify BP-01..06 fixed (re-walk after Claude Code fix-batch)
+
+Verified 2026-05-27 against fresh build. Fresh PO #11 created for SoD test.
+
+| Bug | Status | Evidence |
+|---|---|---|
+| **BP-01** | ◐ **PARTIAL** | Duplicates eliminated (`/api/proxy/expense-categories` returns 5 unique codes, 0 dupes). BUT total = 5 rows, **spec expects 19 seeded**. The seed may have been reduced to the 5 demo categories rather than restoring the §17.3 full set. Recommend Claude Code re-verify against `accounting-system-plan.md §17.3` row count. |
+| **BP-02** | ✅ **FIXED** | Boolean columns now render `✓` / `X` per row: ADS✓ ENT✗ OFF✓ RENT✓ SVC✓ for "ภาษีซื้อขอคืนได้" + all-X for CAPEX. |
+| **BP-03** | ✅ **FIXED** | PO PaperDocument party box now reads **"ผู้ขาย / VENDOR"**. PV PaperDocument reads **"ผู้รับเงิน / PAYEE"**. Doctype-aware label resolution applied. |
+| **BP-04** | ✅ **FIXED** | PO footer now: "มูลค่าก่อนหักส่วนลด · Subtotal **1,000.00**" + **NEW row** "ส่วนลดรวม · Discount  **100.00**" + "Before VAT 900.00" + "VAT 63.00" + "Total ฿963.00". Math fully reconcilable. |
+| **BP-05** | ❌ **NOT FIXED** | Fresh PO #11 created as admin. Click "อนุมัติ" → `POST /api/proxy/purchase-orders/11/approve` → **422** `po.sod_violation` (correct BE) **but UI shows no toast** — 2 consecutive screenshots taken right after click + 1s later, both clean. Same silent-error class as before. Approve mutation still doesn't surface the problem-details to user. |
+| **BP-06** | ✅ **FIXED** | PO `05-2026-PO-0013` chain panel now shows "ใบกำกับภาษีซื้อ **05-2026-VI-0010** ● บันทึกแล้ว" (was "ใบรับวางบิล"). Doctype-key map corrected for VI. |
+
+**Net:** 4 of 6 fully fixed, 1 partial (BP-01 row count), 1 not fixed (BP-05 toast).
+
+**BP-08 (chain bidirection) — observation:** on PO `#10` (`05-2026-PO-0013`) chain panel I now see a new "VI ที่เชื่อม" sidebar block showing the linked VI total (฿963.00) + outstanding balance (฿0.00) — a nice extra. But chain still only renders 2 nodes (PO + VI), missing PV + WHT downstream. So BP-08 is partial — chain on PO does NOT yet propagate fully to PV/WHT downstream.
+
+**Other observations during RV2:**
+- New **NIT-07** discovered: with `subst U:` active, `next dev` from `U:\frontend` crashes with `Module not found: Error: Can't resolve './C:/Users/.../next/dist/client/app-next-dev.js'` and `ENOENT: fallback-build-manifest.json`. Confirms the `runtime-gotchas §39` recommendation (run `next dev` from the native path, not `U:\frontend`) extends BEYOND `next build` — `next dev` is affected too. Documented during re-start of the session.
+- New **NIT-08**: Swagger endpoint `GET /swagger/v1/swagger.json` returns **500** from `SwaggerGenerator.GenerateSchema` on some new model. Doesn't break app runtime, but breaks OpenAPI smoke. Hand off to BE owner.
+
+### §8 List pages PO / VI / PV / WHT — verified
+
+Each of `/purchase-orders`, `/vendor-invoices`, `/payment-vouchers`, `/wht-certificates`:
+- Title + breadcrumb Thai ✓
+- Column headers all Thai (เลขที่ · สถานะ · ผู้ขาย / ผู้รับเงิน · ฯลฯ) ✓
+- Status badges Thai (ร่าง · บันทึกแล้ว · อนุมัติแล้ว · ปิดแล้ว · ชำระแล้ว · ยังไม่ชำระ · ชำระบางส่วน) ✓
+- Filters present: status / business unit / vendor-search / date-range ✓
+- **Functional filter test:** on `/purchase-orders` setting status dropdown to "Draft" filtered the list down to just `#11` (the lone Draft PO) and URL updated to `?status=Draft` — filter actually filters ✓
+
+### BP-10 · P2 · Purchase list pages — vendor-search label says "ลูกค้า / Customer" (should be "ผู้ขาย / Vendor")
+
+On `/purchase-orders`, `/vendor-invoices`, `/payment-vouchers`, `/wht-certificates` — the vendor-search filter chip is labeled "**ลูกค้า / Customer ***". For Purchase-side lists the search target is a vendor, not a customer. Sales-side `/tax-invoices` (verified next) correctly labels its search "ลูกค้า / Customer" because TI IS a customer-facing doc — so the bug is again the wrong label propagated from Sales to Purchase, same class as the original BP-03 PaperDocument label issue.
+
+**File hint:** `frontend/components/lists/*FilterBar.tsx` (or shared filter component) — likely a `searchLabel` prop hard-coded to "ลูกค้า / Customer". Needs a doctype-aware default similar to the PaperDocument fix.
+
+### NIT-09 · Status filter dropdown shows English values
+
+On Purchase list pages the status filter `<select>` shows raw English option text ("Draft", "Approved", "Closed", "Cancelled") — should show Thai labels matching the badge column ("ร่าง", "อนุมัติแล้ว", "ปิดแล้ว", "ยกเลิก"). Currently a minor confusing for Thai-only users.
+
+---
+
+## RV2 round-2 FE fixes (Sprint 13j-PURCH) — 2026-05-27
+
+### BP-09 (parity) · ✅ RESOLVED — activity panel ("ประวัติกิจกรรม") added to the 4 Purchase detail pages
+
+The audit rows already existed and the read endpoint + FE component already existed; only the FE wiring + the docType→entityType map were missing the Purchase side.
+
+- **docType → entityType mapping (confirmed against live code):** the Purchase services record activity with exactly these EntityTypes — `PurchaseOrderService.cs:48` `Record("PurchaseOrder", …)`, `VendorInvoiceService.cs:100` `"VendorInvoice"`, `PaymentVoucherService.cs:141` `"PaymentVoucher"`, `:252` `"WhtCertificate"` — and `ActivityQueryService.GetForDocumentAsync` filters `a.EntityType == entityType`. So `ActivityEndpoints.Docs` just needed the 4 route→EntityType rows.
+- **BE:** `Accounting.Api/Endpoints/ActivityEndpoints.cs` — added `("purchase-orders","PurchaseOrder")`, `("vendor-invoices","VendorInvoice")`, `("payment-vouchers","PaymentVoucher")`, `("wht-certificates","WhtCertificate")` to the `Docs` array (each gets a `GET /{route}/{id}/activity` route, same `Report.AuditRead` policy).
+- **FE:** extended `ActivityDocType` union in `lib/types.ts` with the 4 purchase route segments; added `<ActivityLog docType="…" id={id} />` to all 4 detail pages (`purchase-orders/[id]`, `vendor-invoices/[id]`, `payment-vouchers/[id]`, `wht-certificates/[id]`) in the same side-rail slot Sales uses (WHT has no `.detail-side`, so it sits in the `.mt-4 space-y-4` wrapper beside the chain panel).
+- **Live render evidence (`:5080`):** `GET /purchase-orders/11/activity` → `[Created→Draft]`; `GET /payment-vouchers/8/activity` → `[Created→Draft, Approved, Posted]`. Rows resolve, panel populates.
+
+### BP-10 · ✅ RESOLVED — Purchase party filter now labelled "ผู้ขาย / Vendor"
+
+Added an opt-in `party?: 'customer' | 'vendor'` prop to the shared `FilterBar` (`components/ui/FilterBar.tsx`; `ListFilters` re-exports it). **Default `'customer'` → all 8 Sales list pages are byte-identical** (same `CustomerSelector`, same `customerId` URL param). When `party="vendor"` it renders `VendorSelector` (which carries the "ผู้ขาย / Vendor" label) and reads/writes the `vendorId` URL param instead. The 4 Purchase list pages now pass `party="vendor"`. (Filtering behavior unchanged — the Purchase lists never passed a party accessor to `applyListFilters`, so the selector was already cosmetic; no regression.)
+
+### NIT-09 · ✅ RESOLVED — status filter dropdown now shows Thai labels
+
+`FilterBar` status `<option>` text now goes through the `status` i18n namespace (`useTranslations('status')` with a StatusBadge-style try/catch fallback) instead of the raw PascalCase enum, so Draft→"ร่าง", Approved→"อนุมัติแล้ว", etc. — matching the badge column. Applied in the shared `FilterBar`, so Sales status dropdowns now also render Thai (an improvement, not a regression; the BP-10 byte-identical constraint was scoped to the party selector).
+
+### §9 Sales regression — PASS
+
+Visited `/tax-invoices/1` (`05-2026-TI-ECOM-0001`, Posted):
+- PaperDocument renders correctly with "**ลูกค้า / CUSTOMER**" label (correct context for Sales)
+- Footer: Subtotal · Before VAT · VAT 7% · Total · Baht text "(สามพันเจ็ดร้อยสี่สิบห้าบาทถ้วน)" — **no "หัก ณ ที่จ่าย · WHT" row bleed-through** ✓
+- **2-box signature** (ผู้ออกใบกำกับ / ผู้ซื้อ) — distinct from PV's 3-box (ผู้จัดทำ / ผู้อนุมัติ / ผู้รับเงิน) → doctype-aware signature block confirmed ✓
+- "ประวัติกิจกรรม" (Activity log) sidebar panel exists, currently empty for this old TI ("ยังไม่มีประวัติกิจกรรม") — UI present even when no rows
+- Top-right actions: "พิมพ์ / PDF" + "ดาวน์โหลด XML" + "ส่งอีเมลอีกครั้ง" — Sales-specific actions intact
+
+**Conclusion:** Sales chain not regressed by shared PaperFoot WHT/middle additions or shared signature component. Phase D doctype-awareness applied correctly across both PO/PV and TI.
+
+---
+
+## RV2 final ship-readiness assessment
+
+| Spec area | Status | Notes |
+|---|---|---|
+| BP-01 expense seed count | ◐ Partial | Dupes removed but only 5 rows (spec §17.3 expects 19) |
+| BP-02 boolean cell binding | ✅ | ✓/X rendering correct |
+| BP-03 PaperDocument doctype label | ✅ | PO=VENDOR, PV=PAYEE, VI=CUSTOMER, TI=CUSTOMER |
+| BP-04 Subtotal/discount math | ✅ | Pre-discount + discount row + Before VAT + VAT + Total all visible |
+| BP-05 Approve toast on 422 | ❌ | Still silent — `urn:teas:error:po.sod_violation` not surfaced |
+| BP-06 Chain VI label | ✅ | "ใบกำกับภาษีซื้อ" correct |
+| BP-07 Chain status badge accuracy | ⏸ | Cannot fully verify without an Approved-not-Closed PO upstream of a VI; PO #10 is now Closed so chain showing "ปิดแล้ว" IS correct now |
+| BP-08 Chain bidirection PO→VI→PV→WHT | ◐ Partial | New "VI ที่เชื่อม" sidebar on PO; chain main panel still 2-node only on PO/PV/WHT detail |
+| BP-09 Purchase audit hooks (Phase A) | ⏸ | Cannot confirm — `/activity?entityType=...` endpoint shape still unknown to me; activity panel exists on Sales TI (empty), suggests Sales has hooks. Need Claude Code to confirm Purchase services now inject `IActivityRecorder` |
+| BP-10 Purchase list vendor-label | ❌ NEW | "ลูกค้า/Customer" wrong on 4 Purchase list pages |
+| §8 list filters/headers/badges | ✅ | Thai labels correct; status filter functional |
+| §9 Sales regression | ✅ | No bleed-through |
+| NIT-07 subst U: breaks next dev | n/a | Confirmed gotcha §39 extends to `next dev` not just `next build` |
+| NIT-08 swagger.json 500 | new | OpenAPI generator chokes on a model — BE-side fix |
+| NIT-09 status filter English labels | new | Thai polish |
+
+**Sana's read:** progress is real — 4/6 from RV1 fixed, plus chain VI label fixed, plus PaperFoot doctype-aware (with WHT row + 3-box signature on PV not bleeding to Sales). Still blocking: **BP-05 (toast)**, **BP-08 (chain bidirection)**, **BP-09 (Purchase audit hooks)** + BP-01 row count + BP-10 (new from RV2). Ship-blocking count: 3 same as before, but the spec-binding ones are still those.
+
+---
+
 ## ⟪ MAIN-AGENT TRIAGE (Claude Code, 2026-05-27 post-RE-VALIDATE) ⟫
 
 Reconciled each finding against committed `01136c5`/`ba87364`.

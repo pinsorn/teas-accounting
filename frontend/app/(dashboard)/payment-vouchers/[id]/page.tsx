@@ -9,6 +9,7 @@ import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
+import { ActivityLog } from '@/components/doc/ActivityLog';
 import {
   usePaymentVoucher, useApprovePaymentVoucher, usePostPaymentVoucher,
   useCompanyProfile,
@@ -127,8 +128,10 @@ export default function PaymentVoucherDetailPage() {
             }
           />
         </div>
-        <div className="detail-side">
+        <div className="detail-side space-y-4">
           <PurchaseDocumentChain type="payment-voucher" id={id} />
+          {/* BP-09 — activity history rail (parity with Sales detail pages). */}
+          <ActivityLog docType="payment-vouchers" id={id} />
         </div>
       </div>
 

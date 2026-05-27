@@ -37,7 +37,7 @@ export default function VendorInvoiceListPage() {
           </Link>
         }
       />
-      <ListFilters statusOptions={VI_STATUSES} statusTestId="vi-filter-status" />
+      <ListFilters statusOptions={VI_STATUSES} statusTestId="vi-filter-status" party="vendor" />
       {q.isSuccess && rows.length === 0 ? (
         <EmptyState
           title={t('title')}

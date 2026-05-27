@@ -83,7 +83,10 @@ builder.Services.AddAuthorizationBuilder()
 
 // Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// NIT-08: use full type names as schema ids so distinct nested types that share a
+// short name (e.g. PurchaseOrderEndpoints+ReasonBody vs SalesChainEndpoints+ReasonBody)
+// don't collide and 500 the whole /swagger/v1/swagger.json document.
+builder.Services.AddSwaggerGen(c => c.CustomSchemaIds(t => t.FullName?.Replace("+", ".")));
 builder.Services.AddOpenApi();
 
 // CORS for frontend

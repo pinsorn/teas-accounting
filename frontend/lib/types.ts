@@ -719,7 +719,7 @@ export interface ActivityEntry {
   at: string;
   note: string | null;
 }
-// Route segment used by the activity endpoint (one per sales doctype).
+// Route segment used by the activity endpoint (one per sales + purchase doctype).
 export type ActivityDocType =
   | 'quotations'
   | 'sales-orders'
@@ -728,7 +728,12 @@ export type ActivityDocType =
   | 'receipts'
   | 'credit-notes'
   | 'debit-notes'
-  | 'billing-notes';
+  | 'billing-notes'
+  // Purchase doctypes (BP-09 — parity activity rail).
+  | 'purchase-orders'
+  | 'vendor-invoices'
+  | 'payment-vouchers'
+  | 'wht-certificates';
 
 // Sprint 13j-FE — print tracking (POST /{docType}/{id}/mark-printed?copy=).
 export interface PrintMarkResult {

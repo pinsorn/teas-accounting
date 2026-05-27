@@ -14,6 +14,7 @@ import { formatTHB, formatDate } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
+import { ActivityLog } from '@/components/doc/ActivityLog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PAPER_DOC, paperWatermark, companyToCustomer } from '@/lib/paper-doc-config';
 
@@ -130,6 +131,8 @@ export default function VendorInvoiceDetailPage() {
               <progress className="progress progress-info w-full" value={pct} max={100} />
             </div>
           )}
+          {/* BP-09 — activity history rail (parity with Sales detail pages). */}
+          <ActivityLog docType="vendor-invoices" id={id} />
         </div>
       </div>
 
