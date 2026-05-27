@@ -18,7 +18,7 @@
   "purchaseChain": {
     "title": "Related documents",
     "purchaseOrder": "Purchase Order",
-    "vendorInvoice": "Vendor Invoice",
+    "vendorInvoice": "Purchase Tax Invoice",
     "paymentVoucher": "Payment Voucher",
     "whtCertificate": "WHT Certificate (50 ทวิ)"
   },

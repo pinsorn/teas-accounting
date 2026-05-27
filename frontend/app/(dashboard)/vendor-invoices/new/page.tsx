@@ -195,7 +195,7 @@ export default function VendorInvoiceNewPage() {
                 <ExpenseCategorySelector
                   value={r.categoryId}
                   onChange={(id, cat) =>
-                    setRow(r.key, { categoryId: id, recoverable: cat.isRecoverableVat })}
+                    setRow(r.key, { categoryId: id, recoverable: cat.defaultIsRecoverableVat })}
                 />
                 <label className="form-control">
                   <span className="label-text">{t('description')} *</span>

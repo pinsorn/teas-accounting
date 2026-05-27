@@ -21,7 +21,11 @@ function pick(raw: unknown): ExpenseCategoryLite[] {
       categoryId: x.categoryId as number,
       categoryCode: String(x.categoryCode ?? ''),
       nameTh: String(x.nameTh ?? x.categoryCode ?? ''),
-      isRecoverableVat: x.isRecoverableVat !== false,
+      // BP-02 — the BE field is `defaultIsRecoverableVat`; tolerate the legacy
+      // `isRecoverableVat` shape too. Reading the wrong key meant the ม.82/5
+      // ⚠ warning never fired for non-recoverable categories (ENT/VEHI).
+      defaultIsRecoverableVat:
+        (x.defaultIsRecoverableVat ?? x.isRecoverableVat) !== false,
       isCapex: x.isCapex === true,
     }));
 }
@@ -73,11 +77,11 @@ export function ExpenseCategorySelector({
         </option>
         {cats.map((c) => (
           <option key={c.categoryId} value={c.categoryId}>
-            {c.nameTh} ({c.categoryCode}){!c.isRecoverableVat ? ' ⚠' : ''}
+            {c.nameTh} ({c.categoryCode}){!c.defaultIsRecoverableVat ? ' ⚠' : ''}
           </option>
         ))}
       </select>
-      {selected && !selected.isRecoverableVat && (
+      {selected && !selected.defaultIsRecoverableVat && (
         <span className="label-text-alt text-warning">
           ⚠ ภาษีซื้อต้องห้าม — VAT นี้เครดิตไม่ได้ (ม.82/5)
         </span>

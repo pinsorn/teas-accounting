@@ -35,8 +35,14 @@ export default function ExpenseCategoriesSettingsPage() {
                 <tr key={c.categoryId} className="hover">
                   <td className="font-mono">{c.categoryCode}</td>
                   <td>{c.nameTh}</td>
-                  <td>{c.isRecoverableVat ? t('yes') : t('no')}</td>
-                  <td>{c.isCapex ? t('yes') : t('no')}</td>
+                  {/* BP-02 — bind the real BE field (defaultIsRecoverableVat) and
+                      render ✓ / ✗ instead of the dead "—" the old binding produced. */}
+                  <td className={c.defaultIsRecoverableVat ? 'text-success' : 'text-base-content/40'}>
+                    {c.defaultIsRecoverableVat ? '✓' : '✗'}
+                  </td>
+                  <td className={c.isCapex ? 'text-success' : 'text-base-content/40'}>
+                    {c.isCapex ? '✓' : '✗'}
+                  </td>
                 </tr>
               ))}
             </tbody>

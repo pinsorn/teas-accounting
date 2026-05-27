@@ -30,6 +30,7 @@ export function PaperDocument({
   validUntilLabel,
   seller,
   customer,
+  partyLabel,
   items,
   summary,
   amountWords,
@@ -50,6 +51,7 @@ export function PaperDocument({
       <PaperHead seller={seller} docType={docType} docTypeEn={docTypeEn} docNo={docNo} />
       <PaperMeta
         customer={customer}
+        partyLabel={partyLabel}
         issueDate={issueDate}
         validUntil={validUntil}
         validUntilLabel={validUntilLabel}

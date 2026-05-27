@@ -64,6 +64,12 @@ export interface PaperDocumentProps {
   validUntilLabel?: string;
   seller: SellerInfo;
   customer: CustomerInfo;
+  // Sprint 13j-PURCH (BP-03) — OPTIONAL party-box label override. The party box
+  // is hardcoded "ลูกค้า / Customer" by default (every Sales caller + the Vendor
+  // Invoice keep that, byte-identical). Purchase docs where our company is NOT
+  // the customer pass their own label: PO = "ผู้ขาย / Vendor", PV = "ผู้รับเงิน /
+  // Payee". Absent → renders exactly as today.
+  partyLabel?: { th: string; en: string };
   items: PaperLineItem[];
   summary: PaperSummary;
   amountWords?: string; // pre-computed Thai baht text (else derived from total)
