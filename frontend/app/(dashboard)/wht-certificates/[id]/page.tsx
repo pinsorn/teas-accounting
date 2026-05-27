@@ -8,6 +8,7 @@ import { PrintMenu } from '@/components/ui/PrintMenu';
 import { useWhtCertificate } from '@/lib/queries';
 import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
+import { ActivityLog } from '@/components/doc/ActivityLog';
 
 export default function WhtCertificateDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
@@ -82,8 +83,10 @@ export default function WhtCertificateDetailPage() {
         </div>
       </div>
       {/* Sprint 13j-PURCH D-supplement — FE chain panel (PO → VI → PV → WHT). */}
-      <div className="mt-4">
+      <div className="mt-4 space-y-4">
         <PurchaseDocumentChain type="wht-certificate" id={id} />
+        {/* BP-09 — activity history rail (parity with Sales detail pages). */}
+        <ActivityLog docType="wht-certificates" id={id} />
       </div>
     </>
   );

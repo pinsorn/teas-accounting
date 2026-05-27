@@ -28,7 +28,7 @@ export default function WhtCertificateListPage() {
   return (
     <>
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
-      <ListFilters statusOptions={WHT_STATUSES} statusTestId="wht-filter-status" />
+      <ListFilters statusOptions={WHT_STATUSES} statusTestId="wht-filter-status" party="vendor" />
       {q.isSuccess && rows.length === 0 ? (
         <EmptyState title={t('title')} description={tc('empty')} />
       ) : (

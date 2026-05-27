@@ -37,7 +37,7 @@ export default function PaymentVoucherListPage() {
           </Link>
         }
       />
-      <ListFilters statusOptions={PV_STATUSES} statusTestId="pv-filter-status" />
+      <ListFilters statusOptions={PV_STATUSES} statusTestId="pv-filter-status" party="vendor" />
       {q.isSuccess && rows.length === 0 ? (
         <EmptyState
           title={t('title')}

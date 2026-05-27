@@ -9,6 +9,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
+import { ActivityLog } from '@/components/doc/ActivityLog';
 import {
   usePurchaseOrder, usePurchaseOrderAction, useVendor, useCompanyProfile,
 } from '@/lib/queries';
@@ -150,6 +151,8 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
           )}
+          {/* BP-09 — activity history rail (parity with Sales detail pages). */}
+          <ActivityLog docType="purchase-orders" id={poId} />
         </div>
       </div>
 

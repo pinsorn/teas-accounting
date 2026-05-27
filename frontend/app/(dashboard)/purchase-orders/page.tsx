@@ -32,7 +32,7 @@ export default function PurchaseOrdersPage() {
           <Plus className="h-4 w-4" aria-hidden /> {t('create')}
         </Link>
       } />
-      <ListFilters statusOptions={PO_STATUSES} statusTestId="po-filter-status" />
+      <ListFilters statusOptions={PO_STATUSES} statusTestId="po-filter-status" party="vendor" />
       {q.isSuccess && rows.length === 0 ? (
         <EmptyState
           title={t('listTitle')}
