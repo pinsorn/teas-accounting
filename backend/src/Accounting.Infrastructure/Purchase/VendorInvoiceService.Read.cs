@@ -39,6 +39,24 @@ public sealed partial class VendorInvoiceService
                 .Where(p => p.PurchaseOrderId == poId)
                 .Select(p => p.DocNo).FirstOrDefaultAsync(ct)
             : null;
+
+        // Sprint 13j-PURCH Flag-2 — downward refs: PV(s) settling this VI.
+        // Source 1 = payment_vouchers.vendor_invoice_id (1:1, tenant-filtered DbSet).
+        // Source 2 = payment_voucher_applications.vendor_invoice_id (N:N join table —
+        // NOT ITenantOwned, so it has NO global filter; we scope by intersecting its
+        // PV ids with the tenant-filtered PaymentVouchers below, never trusting the raw
+        // application rows for company isolation). Deduped by PV id.
+        var appliedPvIds = await _db.PaymentVoucherApplications.AsNoTracking()
+            .Where(a => a.VendorInvoiceId == id)
+            .Select(a => a.PaymentVoucherId)
+            .ToListAsync(ct);
+        var settlingPvs = await _db.PaymentVouchers.AsNoTracking()
+            .Where(p => p.VendorInvoiceId == id || appliedPvIds.Contains(p.PaymentVoucherId))
+            .OrderBy(p => p.PaymentVoucherId)
+            .Select(p => new VendorInvoiceSettlingPv(
+                p.PaymentVoucherId, p.DocNo, p.Status.ToString()))
+            .ToListAsync(ct);
+
         return new VendorInvoiceDetail(
             v.VendorInvoiceId, v.DocNo, v.Status.ToString(), v.DocDate,
             v.VendorTaxInvoiceNo, v.VendorTaxInvoiceDate, v.VatClaimPeriod,
@@ -50,6 +68,7 @@ public sealed partial class VendorInvoiceService
             v.Lines.OrderBy(l => l.LineNo).Select(l => new VendorInvoiceLineView(
                 l.LineNo, l.ExpenseCategoryId, l.ExpenseAccountId, l.Description,
                 l.Amount, l.VatRate, l.VatAmount,
-                l.IsRecoverableVat, l.IsCapex, l.IsCogs)).ToList());
+                l.IsRecoverableVat, l.IsCapex, l.IsCogs)).ToList(),
+            settlingPvs);
     }
 }

@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { CustomerSelector } from '@/components/ui/CustomerSelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
-import { useCreateQuotation, useUpdateQuotation, useQuotationAction, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
+import { useCreateQuotation, useUpdateQuotation, useQuotationAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
 import type { QuotationDetail } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
@@ -56,6 +56,10 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
   const company = useCompanyProfile();
   const buSetting = useCompanyBuSetting();
   const buRequired = buSetting.data?.requiresBusinessUnit ?? false;
+  // Non-VAT companies (ม.86): no VAT on any document. The line VAT column is
+  // already hidden by LineItemsTable, so a stale default rate must not leak into
+  // the totals/preview — force the effective rate to 0 here.
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
 
   const today = bangkokToday();
   const [docDate, setDocDate] = useState(edit?.docDate ?? today);
@@ -106,7 +110,7 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
       const gross = l.quantity * l.unitPrice;
       const disc = gross * ((l.discountPercent ?? 0) / 100);
       const net = gross - disc;
-      const vat = net * l.taxRate;
+      const vat = vatMode ? net * l.taxRate : 0;
       acc.subtotal += gross;
       acc.discount += disc;
       acc.vat += vat;
@@ -141,8 +145,8 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
         unitPrice: l.unitPrice,
         discountPercent: l.discountPercent ?? 0,
         taxCodeId: 1,
-        taxCode: l.taxRate > 0 ? 'VAT7' : 'VAT0',
-        taxRate: l.taxRate,
+        taxCode: vatMode && l.taxRate > 0 ? 'VAT7' : 'VAT0',
+        taxRate: vatMode ? l.taxRate : 0,
       })),
     };
     try {
@@ -260,10 +264,12 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
               <dt className="text-base-content/60">{t('discount')}</dt>
               <dd className="tabular-nums">-{formatTHB(totals.discount)}</dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-base-content/60">{t('vat')}</dt>
-              <dd className="tabular-nums">{formatTHB(totals.vat)}</dd>
-            </div>
+            {vatMode && (
+              <div className="flex justify-between">
+                <dt className="text-base-content/60">{t('vat')}</dt>
+                <dd className="tabular-nums">{formatTHB(totals.vat)}</dd>
+              </div>
+            )}
             <div className="flex justify-between font-bold">
               <dt>{t('grandTotal')}</dt>
               <dd className="tabular-nums">{formatTHB(totals.total)}</dd>

@@ -43,6 +43,13 @@ public sealed record VendorInvoiceLineView(
     decimal Amount, decimal VatRate, decimal VatAmount,
     bool IsRecoverableVat, bool IsCapex, bool IsCogs);
 
+// Sprint 13j-PURCH Flag-2 — downward chain ref: the Payment Voucher(s) that
+// settle this Vendor Invoice. Lets the FE PurchaseDocumentChain resolve VI → PV
+// (the upward refs already point PV → VI). Sourced from payment_vouchers.vendor_invoice_id
+// (1:1) UNION payment_voucher_applications.vendor_invoice_id (N:N), deduped by PV id.
+public sealed record VendorInvoiceSettlingPv(
+    long PaymentVoucherId, string? DocNo, string Status);
+
 public sealed record VendorInvoiceDetail(
     long VendorInvoiceId, string? DocNo, string Status, DateOnly DocDate,
     string VendorTaxInvoiceNo, DateOnly VendorTaxInvoiceDate, int VatClaimPeriod,
@@ -52,7 +59,8 @@ public sealed record VendorInvoiceDetail(
     decimal TotalAmount, decimal SettledAmount, string SettlementStatus,
     string? Notes, System.DateTimeOffset? PostedAt,
     long? PurchaseOrderId, string? PurchaseOrderDocNo,   // Sprint 12 — linked PO
-    IReadOnlyList<VendorInvoiceLineView> Lines);
+    IReadOnlyList<VendorInvoiceLineView> Lines,
+    IReadOnlyList<VendorInvoiceSettlingPv> SettlingPvs);   // Sprint 13j-PURCH Flag-2 — downward → PV
 
 public interface IVendorInvoiceService
 {

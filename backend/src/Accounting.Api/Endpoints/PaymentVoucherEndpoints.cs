@@ -42,8 +42,12 @@ public static class PaymentVoucherEndpoints
             await svc.GetDetailAsync(id, ct) is { } d ? Results.Ok(d) : Results.NotFound())
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherRead);
 
-        group.MapGet("/{id:long}/pdf", async (long id, IPaymentVoucherService svc, CancellationToken ct) =>
-            Results.File(await svc.BuildPdfAsync(id, ct), "application/pdf", $"payment-voucher-{id}.pdf"))
+        // ?copy=true → "สำเนา" watermark; default/false → "ต้นฉบับ". Print tracking is
+        // a separate POST /mark-printed (PrintEndpoints), mirroring the Sales pattern.
+        group.MapGet("/{id:long}/pdf", async (long id, [FromQuery] bool? copy,
+            IPaymentVoucherService svc, CancellationToken ct) =>
+            Results.File(await svc.BuildPdfAsync(id, ct, copy ?? false), "application/pdf",
+                $"payment-voucher-{id}.pdf"))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherRead);
 
         return app;

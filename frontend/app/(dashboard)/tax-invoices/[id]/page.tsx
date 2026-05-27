@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -8,10 +9,11 @@ import { PrintMenu } from '@/components/ui/PrintMenu';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DocActionBar } from '@/components/ui/DocActionBar';
+import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useTaxInvoice, useSystemInfo } from '@/lib/queries';
+import { useTaxInvoice, useSystemInfo, usePostTaxInvoice } from '@/lib/queries';
 import { apiPost, downloadFile } from '@/lib/api';
 import { formatTaxId } from '@/lib/utils';
 import { PAPER_DOC, paperWatermark } from '@/lib/paper-doc-config';
@@ -25,6 +27,8 @@ export default function TaxInvoiceDetailPage() {
   const tc = useTranslations('common');
   const { data: d, isLoading, isError } = useTaxInvoice(id);
   const { data: sys } = useSystemInfo();
+  const post = usePostTaxInvoice();
+  const [confirmPost, setConfirmPost] = useState(false);
 
   if (!sys?.vatMode && sys !== undefined) return <NonVatGuard title={t('title')} />;
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
@@ -73,7 +77,25 @@ export default function TaxInvoiceDetailPage() {
         }
       />
 
-      <DocActionBar status={d.status} docNo={d.docNo ?? `#${d.taxInvoiceId}`} />
+      <DocActionBar
+        status={d.status}
+        docNo={d.docNo ?? `#${d.taxInvoiceId}`}
+        actions={
+          // A TI created from an Invoice lands as Draft (no number yet). Posting
+          // assigns the sequential number + fires e-Tax (§4.3/§4.4) — guarded by
+          // PostConfirmDialog so the user reviews buyer tax fields first (ม.86/4 #3).
+          d.status === 'Draft' ? (
+            <button
+              data-testid="ti-post-action"
+              className="btn btn-primary btn-sm"
+              disabled={post.isPending}
+              onClick={() => setConfirmPost(true)}
+            >
+              {t('post')}
+            </button>
+          ) : undefined
+        }
+      />
 
       <div className="detail-grid">
         <div className="paper-wrap">
@@ -123,6 +145,25 @@ export default function TaxInvoiceDetailPage() {
       </div>
 
       <AttachmentsSection parentType="TAX_INVOICE" parentId={id} />
+
+      <PostConfirmDialog
+        docType="tax_invoice"
+        open={confirmPost}
+        busy={post.isPending}
+        summary={{ customer: d.customerName, total: d.totalAmount, vat: d.taxAmount }}
+        recipients={[]}
+        onClose={() => setConfirmPost(false)}
+        onConfirm={async () => {
+          try {
+            await post.mutateAsync(id);
+            toast.success(tc('posted'));
+          } catch (e) {
+            toast.error((e as { detail?: string })?.detail ?? tc('error'));
+          } finally {
+            setConfirmPost(false);
+          }
+        }}
+      />
     </>
   );
 }

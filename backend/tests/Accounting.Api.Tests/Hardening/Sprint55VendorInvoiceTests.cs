@@ -1,11 +1,13 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Audit;
 using Accounting.Infrastructure.Ledger;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
@@ -44,6 +46,7 @@ public sealed class Sprint55VendorInvoiceTests
             .AddScoped<INumberSequenceService, NumberSequenceService>()
             .AddScoped<IGlPostingService, GlPostingService>()
             .AddScoped<IPeriodCloseService, PeriodCloseService>()
+            .AddScoped<IActivityRecorder, ActivityRecorder>()
             .AddScoped<IPaymentVoucherService, PaymentVoucherService>()
             .AddScoped<IVendorInvoiceService, VendorInvoiceService>()
             .BuildServiceProvider();

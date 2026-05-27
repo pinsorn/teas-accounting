@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
 import { useCompanyProfile, useSystemInfo } from '@/lib/queries';
@@ -30,8 +30,9 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/quotations', key: 'quotations', Icon: FileSignature },
       { href: '/sales-orders', key: 'salesOrders', Icon: ListChecks },
       { href: '/delivery-orders', key: 'deliveryOrders', Icon: FileInput },
-      { href: '/tax-invoices', key: 'taxInvoices', Icon: FileText, vatOnly: true },
+      // Document chain order: Invoice (ใบแจ้งหนี้) precedes the Tax Invoice (ใบกำกับภาษี).
       { href: '/invoices', key: 'billingNotes', Icon: ReceiptText },
+      { href: '/tax-invoices', key: 'taxInvoices', Icon: FileText, vatOnly: true },
       { href: '/receipts', key: 'receipts', Icon: Receipt },
       // CN/DN adjust a Tax Invoice's VAT (ม.86/10) — a non-VAT company issues none.
       { href: '/credit-notes', key: 'creditNotes', Icon: FileMinus, vatOnly: true },
@@ -57,6 +58,7 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/reports/sales-summary', key: 'salesSummary', Icon: BarChart3 },
       { href: '/reports/pnd30', key: 'pnd30', Icon: FileSpreadsheet, vatOnly: true },
       { href: '/reports/outstanding-po', key: 'outstandingPo', Icon: ListChecks },
+      { href: '/reports/ap-aging', key: 'apAging', Icon: Coins },
       { href: '/tax-filings', key: 'taxFilings', Icon: Landmark },
       { href: '/tax-filings/missing-wht-cert', key: 'missingWhtCert', Icon: FileSpreadsheet },
       { href: '/reports/wht-receivable', key: 'whtReceivable', Icon: Coins },
@@ -69,6 +71,7 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/settings/products', key: 'products', Icon: Package },
       { href: '/settings/business-units', key: 'businessUnits', Icon: Layers },
       { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent },
+      { href: '/settings/expense-categories', key: 'expenseCategories', Icon: FolderTree },
       { href: '/settings/api-keys', key: 'apiKeys', Icon: KeyRound },
     ],
   },

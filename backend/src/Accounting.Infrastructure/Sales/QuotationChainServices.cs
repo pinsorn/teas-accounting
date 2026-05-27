@@ -6,6 +6,7 @@ using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -29,8 +30,11 @@ internal static class ChainMath
 
 public sealed class QuotationService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
-    INumberSequenceService numbers, IActivityRecorder activity) : IQuotationService
+    INumberSequenceService numbers, IActivityRecorder activity,
+    IOptions<VatModeOptions> vat) : IQuotationService
 {
+    private readonly bool _vatMode = vat.Value.VatMode;
+
     private void Auth()
     {
         if (!tenant.IsAuthenticated)
@@ -67,16 +71,19 @@ public sealed class QuotationService(
             InternalNotes = req.InternalNotes,
             ShowWhtNote = cust.CustomerType == CustomerType.Corporate,
         };
+        var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, l.TaxRate);
+            var (prodType, taxRate, taxCode) =
+                SalesLineBackstop.Resolve(_vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             q.Lines.Add(new QuotationLine
             {
-                LineNo = n++, ProductId = l.ProductId, ProductType = l.ProductType ?? "GOOD", DescriptionTh = l.DescriptionTh,
+                LineNo = n++, ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;
@@ -125,16 +132,19 @@ public sealed class QuotationService(
         q.Lines.Clear();
         q.SubtotalAmount = q.VatAmount = q.TotalAmount = 0m;
 
+        var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, l.TaxRate);
+            var (prodType, taxRate, taxCode) =
+                SalesLineBackstop.Resolve(_vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             q.Lines.Add(new QuotationLine
             {
-                LineNo = n++, ProductId = l.ProductId, ProductType = l.ProductType ?? "GOOD", DescriptionTh = l.DescriptionTh,
+                LineNo = n++, ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;

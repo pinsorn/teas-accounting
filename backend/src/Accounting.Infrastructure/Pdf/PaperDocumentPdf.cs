@@ -247,10 +247,16 @@ public static class PaperDocumentPdf
                     TotalRow(tot, $"ภาษีมูลค่าเพิ่ม {vatRate.ToString("0.##", Th)}% · VAT", Num(m.Summary.Vat));
                 }
 
+                // Payment Voucher (Phase C): WHT-deducted net. The "หัก ณ ที่จ่าย"
+                // row sits above the grand total, which then reads "จ่ายสุทธิ".
+                if (m.Summary.Wht is { } wht)
+                    TotalRow(tot, "หัก ณ ที่จ่าย · WHT", $"-{Num(wht)}");
+
+                var totalLabel = m.Summary.Wht is null ? "รวมทั้งสิ้น · Total" : "จ่ายสุทธิ · Net Paid";
                 tot.Item().PaddingTop(Px(8)).Background(PaperColors.Peach50)
                     .Border(Px(1.5f)).BorderColor(PaperColors.Peach400).Padding(Px(10)).Row(r =>
                 {
-                    r.RelativeItem().Text("รวมทั้งสิ้น · Total").FontSize(Px(18)).Bold();
+                    r.RelativeItem().Text(totalLabel).FontSize(Px(18)).Bold();
                     r.AutoItem().Text($"฿ {Num(m.Summary.Total)}").FontSize(Px(18)).Bold().FontColor(PaperColors.Peach700);
                 });
                 tot.Item().PaddingTop(Px(8)).AlignRight().Text($"({words})")
@@ -270,9 +276,18 @@ public static class PaperDocumentPdf
     {
         col.Item().PaddingTop(Px(36)).Row(row =>
         {
-            SignBox(row, m.SignRoles.Left, "วันที่ ___ / ___ / ______");
+            // Left = issuer/seller (ผู้ขาย / ผู้ส่งของ / ผู้ออก…) → our name sits here;
+            // Right = the counterparty's sign-and-date line.
+            SignBox(row, m.SignRoles.Left, m.Seller.Name);
             row.ConstantItem(Px(36));
-            SignBox(row, m.SignRoles.Right, m.Seller.Name);
+            // Phase C — Payment Voucher inserts a third box (ผู้อนุมัติ) between the
+            // issuer and the payee; null Middle keeps the standard two-box strip.
+            if (m.SignRoles.Middle is { } mid)
+            {
+                SignBox(row, mid, "วันที่ ___ / ___ / ______");
+                row.ConstantItem(Px(36));
+            }
+            SignBox(row, m.SignRoles.Right, "วันที่ ___ / ___ / ______");
         });
     }
 

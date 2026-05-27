@@ -7,7 +7,9 @@ namespace Accounting.Application.Sales;
 // appends to audit.activity_log (append-only).
 // cont.69 Phase 4 (D8) — extended to the full sales chain so EVERY document
 // (not just fiscal docs) tracks original/copy printing identically.
-public enum PrintDocType { TaxInvoice, Receipt, CreditNote, DebitNote, Quotation, SalesOrder, DeliveryOrder, BillingNote }
+// Sprint 13j-PURCH Phase C (D4) — extended to Purchase docs that print
+// (PurchaseOrder + PaymentVoucher); their audit rows carry module="purchase".
+public enum PrintDocType { TaxInvoice, Receipt, CreditNote, DebitNote, Quotation, SalesOrder, DeliveryOrder, BillingNote, PurchaseOrder, PaymentVoucher }
 
 public sealed record PrintMarkResult(DateTimeOffset? OriginalPrintedAt, int PrintCount, bool WasReprint);
 

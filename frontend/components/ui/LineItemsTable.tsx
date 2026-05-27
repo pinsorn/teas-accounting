@@ -6,6 +6,7 @@ import { AmountInput } from './AmountInput';
 import { ProductPicker, taxRateForProductType } from '@/components/forms/ProductPicker';
 import { formatTHB } from '@/lib/utils';
 import { useSystemInfo } from '@/lib/queries';
+import type { ProductTypeStr } from '@/lib/types';
 
 // component-patterns.md §8 — editable rows, add/remove, auto-recalc total per row.
 // Sprint 13j-FE — VAT rate is no longer a free-text field: it's a dropdown
@@ -18,6 +19,9 @@ export interface LineItem {
   taxRate: number;
   productId?: number | null;
   productCode?: string | null;
+  // Snapshotted from the picked product — drives WHT classification downstream
+  // (SERVICE → withholdable). Free-text lines default to GOOD.
+  productType?: ProductTypeStr;
   uomText?: string;
   discountPercent?: number;
 }
@@ -29,6 +33,7 @@ export const EMPTY_LINE: LineItem = {
   taxRate: 0.07,
   productId: null,
   productCode: null,
+  productType: 'GOOD',
   uomText: 'หน่วย',
   discountPercent: 0,
 };
@@ -45,11 +50,12 @@ function vatOptions(stdRate: number): { label: string; value: number }[] {
   ];
 }
 
-/** Net of per-line discount, VAT-inclusive — row total + form totals. */
-export function lineTotal(l: LineItem): number {
+/** Net of per-line discount. VAT-inclusive in VAT mode; net only for a non-VAT
+ *  company (ม.86 — the line carries a default rate but no VAT is ever charged). */
+export function lineTotal(l: LineItem, vatMode = true): number {
   const gross = l.quantity * l.unitPrice;
   const net = gross * (1 - (l.discountPercent ?? 0) / 100);
-  return net * (1 + l.taxRate);
+  return vatMode ? net * (1 + l.taxRate) : net;
 }
 
 export function LineItemsTable({
@@ -107,7 +113,7 @@ export function LineItemsTable({
                       description={l.descriptionTh}
                       ariaLabel={`${t('description')} ${i + 1}`}
                       onDescriptionChange={(text) =>
-                        set(i, { descriptionTh: text, productId: null, productCode: null })
+                        set(i, { descriptionTh: text, productId: null, productCode: null, productType: 'GOOD' })
                       }
                       onSelectProduct={(p) =>
                         // Product master drives TYPE + tax code only — NOT price.
@@ -116,6 +122,7 @@ export function LineItemsTable({
                         set(i, {
                           productId: p.productId,
                           productCode: p.productCode,
+                          productType: p.productType,
                           descriptionTh: p.nameTh,
                           taxRate: taxRateForProductType(p.productType),
                         })
@@ -192,7 +199,7 @@ export function LineItemsTable({
                   )}
                 </td>
                 )}
-                <td className="px-3 py-2 text-right font-medium tabular-nums">{formatTHB(lineTotal(l))}</td>
+                <td className="px-3 py-2 text-right font-medium tabular-nums">{formatTHB(lineTotal(l, showVat))}</td>
                 <td className="px-2 py-2 text-center">
                   <button
                     type="button"

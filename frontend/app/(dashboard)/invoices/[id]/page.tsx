@@ -92,15 +92,28 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
                 </button>
               </>
             )}
+            {/* Non-VAT (ม.86/4): no Tax Invoice — the Invoice settles straight to a Receipt.
+                Available while Issued OR already marked settled (the Receipt is still the
+                payment document; "ยืนยันชำระครบแล้ว" must not strand the user). WHT is
+                auto-categorized server-side from the Invoice's service lines on /receipts/new. */}
+            {!vatMode && (d.status === 'Issued' || d.status === 'Settled') && (
+              <button
+                data-testid="bn-create-receipt"
+                className="btn btn-primary btn-sm"
+                onClick={() => router.push(`/receipts/new?bn=${bnId}&customer=${d.customerId}&amount=${d.totalAmount}`)}
+              >
+                {t('createReceipt')}
+              </button>
+            )}
+            {/* Phase 2a: Invoice → Tax Invoice. VAT only, while no TI issued yet. Stays
+                available after "ยืนยันชำระครบแล้ว" (Settled) — settling must not strand it. */}
+            {vatMode && (d.status === 'Issued' || d.status === 'Settled') && (d.taxInvoices?.length ?? 0) === 0 && (
+              <button data-testid="bn-create-ti" className="btn btn-primary btn-sm" disabled={createTi.isPending} onClick={createTaxInvoice}>
+                {t('createTaxInvoice')}
+              </button>
+            )}
             {d.status === 'Issued' && (
               <>
-                {/* Phase 2a new flow: Invoice → Tax Invoice. VAT companies only,
-                    and only while no TI has been issued from this Invoice yet. */}
-                {vatMode && (d.taxInvoices?.length ?? 0) === 0 && (
-                  <button data-testid="bn-create-ti" className="btn btn-primary btn-sm" disabled={createTi.isPending} onClick={createTaxInvoice}>
-                    {t('createTaxInvoice')}
-                  </button>
-                )}
                 <button data-testid="bn-mark-settled" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('mark-settled')}>
                   {t('markSettled')}
                 </button>

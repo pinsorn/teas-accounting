@@ -12,7 +12,7 @@ import { CustomerSelector } from '@/components/ui/CustomerSelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { TaxInvoicePicker, type TaxInvoiceLite } from '@/components/forms/TaxInvoicePicker';
-import { useCreateBillingNote, useBillingNoteAction, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
+import { useCreateBillingNote, useBillingNoteAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -29,6 +29,9 @@ const lineSchema = z.object({
   taxRate: z.number().min(0).max(1),
   productId: z.number().nullable().optional(),
   productCode: z.string().nullable().optional(),
+  // Kept in the schema so zod doesn't strip the picked product's type before
+  // submit — it drives WHT classification (SERVICE → withholdable) downstream.
+  productType: z.string().optional(),
   uomText: z.string().optional(),
   discountPercent: z.number().optional(),
 });
@@ -54,6 +57,9 @@ export function BillingNoteForm() {
   const company = useCompanyProfile();
   const buSetting = useCompanyBuSetting();
   const buRequired = buSetting.data?.requiresBusinessUnit ?? false;
+  // Non-VAT company (ม.86): no VAT on the Invoice — the hidden line rate must not
+  // leak into totals/payload/preview. Mirrors QuotationForm.
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
 
   const today = bangkokToday();
   const [docDate, setDocDate] = useState(today);
@@ -83,7 +89,7 @@ export function BillingNoteForm() {
       const gross = l.quantity * l.unitPrice;
       const disc = gross * ((l.discountPercent ?? 0) / 100);
       const net = gross - disc;
-      const vat = net * l.taxRate;
+      const vat = vatMode ? net * l.taxRate : 0;
       acc.subtotal += gross;
       acc.discount += disc;
       acc.vat += vat;
@@ -122,8 +128,8 @@ export function BillingNoteForm() {
           unitPrice: l.unitPrice,
           discountPercent: l.discountPercent ?? 0,
           taxCodeId: 1,
-          taxCode: l.taxRate > 0 ? 'VAT7' : 'VAT0',
-          taxRate: l.taxRate,
+          taxCode: vatMode && l.taxRate > 0 ? 'VAT7' : 'VAT0',
+          taxRate: vatMode ? l.taxRate : 0,
           productType: (l as { productType?: string | null }).productType ?? 'GOOD',
         })),
       })) as { billing_note_id: number };
@@ -272,10 +278,12 @@ export function BillingNoteForm() {
               <dt className="text-base-content/60">{t('discount')}</dt>
               <dd className="tabular-nums">-{formatTHB(totals.discount)}</dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-base-content/60">{t('vat')}</dt>
-              <dd className="tabular-nums">{formatTHB(totals.vat)}</dd>
-            </div>
+            {vatMode && (
+              <div className="flex justify-between">
+                <dt className="text-base-content/60">{t('vat')}</dt>
+                <dd className="tabular-nums">{formatTHB(totals.vat)}</dd>
+              </div>
+            )}
             <div className="flex justify-between font-bold">
               <dt>{t('grandTotal')}</dt>
               <dd className="tabular-nums">{formatTHB(totals.total)}</dd>
@@ -319,7 +327,7 @@ export function BillingNoteForm() {
           seller={companyToSeller(company.data)}
           customer={{ name: '—' }}
           items={buildPaperItems(lines)}
-          summary={buildPaperSummary(lines)}
+          summary={buildPaperSummary(lines, vatMode)}
           notes={notes || null}
           signRoles={cfg.signRoles}
         />

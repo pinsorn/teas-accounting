@@ -250,4 +250,51 @@ public sealed class NonVatBillingTests
             .FirstAsync(j => j.JournalId == filing.ReverseChargeJournalId);
         je.Lines.Should().Contain(l => l.AccountId == inputVat && l.DebitAmount == 245m);
     }
+
+    // ── 4. Non-VAT compliance backstop (SalesLineBackstop) ──────────────────
+    // A non-UI client lies: sends ProductType "GOOD" + VAT 7% for a SERVICE product on
+    // a non-VAT company. The server must (a) snapshot SERVICE from the product master so
+    // the line stays WHT-eligible (ม.50 ทวิ), and (b) carry zero VAT (ม.86 / §4.6).
+    [SkippableFact]
+    public async Task NonVat_billing_note_snapshots_master_type_and_zeros_vat()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider(vatMode: false);
+        var cust = await CustomerId(sp);
+
+        long productId;
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var p = new Accounting.Domain.Entities.Master.Product
+            {
+                CompanyId = 1, ProductCode = TestIds.ProductCode(),
+                NameTh = "บริการ backstop", ProductType = ProductType.Service, IsActive = true,
+            };
+            db.Products.Add(p);
+            await db.SaveChangesAsync();
+            productId = p.ProductId;
+        }
+
+        long bnId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            bnId = await svc.CreateDraftAsync(new CreateBillingNoteRequest(
+                new DateOnly(2026, 5, 16), new DateOnly(2026, 6, 15), cust,
+                null, null, null, "THB", 1m, null, null,
+                [new BillingLineInput(productId, null, "บริการ", 1m, "ครั้ง", 1000m, 0m, 1, "VAT7", 0.07m, "GOOD")]),
+                default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var bn = await db2.BillingNotes.Include(b => b.Lines).FirstAsync(b => b.BillingNoteId == bnId);
+        bn.VatAmount.Should().Be(0m);
+        var line = bn.Lines.Single();
+        line.ProductType.Should().Be("SERVICE");   // snapshot from master, NOT the lied 'GOOD'
+        line.TaxRate.Should().Be(0m);               // non-VAT → forced 0
+        line.TaxAmount.Should().Be(0m);
+        line.TaxCode.Should().Be("VAT0");
+    }
 }

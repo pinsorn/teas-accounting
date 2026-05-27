@@ -3,22 +3,26 @@
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
+import { PrintMenu } from '@/components/ui/PrintMenu';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import {
   usePaymentVoucher, useApprovePaymentVoucher, usePostPaymentVoucher,
+  useCompanyProfile,
 } from '@/lib/queries';
-import { downloadFile } from '@/lib/api';
-import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
+import { formatDate, formatTaxId } from '@/lib/utils';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
+import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
 
 export default function PaymentVoucherDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
   const t = useTranslations('pv');
   const tc = useTranslations('common');
   const { data: d, isLoading, isError } = usePaymentVoucher(id);
+  const { data: company } = useCompanyProfile();
   const approve = useApprovePaymentVoucher();
   const post = usePostPaymentVoucher();
 
@@ -33,6 +37,15 @@ export default function PaymentVoucherDetailPage() {
     try { await post.mutateAsync(id); toast.success(t('post')); }
     catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
   }
+
+  // Sprint 13j-PURCH D-supplement — PV renders as a PaperDocument. A PV is
+  // buyer-issued: seller block = our company, customer block = the vendor we pay.
+  // Foot uses the new optional WHT row + net-paid (whtAmount / totalPaid). The PV
+  // is view-only here regardless of status (no editable inputs on the paper —
+  // §4.2; posted PV is immutable).
+  const cfg = PAPER_DOC['payment-voucher'];
+  const seller = companyToSeller(company);
+  const hasWht = d.whtAmount > 0;
 
   return (
     <>
@@ -53,14 +66,13 @@ export default function PaymentVoucherDetailPage() {
                 {t('post')}
               </button>
             )}
-            <button className="btn btn-ghost btn-sm gap-1"
-              onClick={() => downloadFile(`payment-vouchers/${id}/pdf`, `payment-voucher-${id}.pdf`)}>
-              <Download className="h-4 w-4" aria-hidden /> PDF
-            </button>
+            {/* Sprint 13j-PURCH D3 — tracked ต้นฉบับ/สำเนา print (Phase C added
+                payment-vouchers /pdf?copy + /mark-printed). */}
+            <PrintMenu docType="payment-vouchers" id={id} />
           </div>
         }
       />
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <DocumentNumberBadge value={d.docNo} />
         <StatusBadge status={d.status} />
         {d.selfWithholdMode && (
@@ -70,71 +82,54 @@ export default function PaymentVoucherDetailPage() {
           <span className="badge badge-outline">ภ.พ.36</span>
         )}
         <span className="text-sm text-base-content/60">{formatDate(d.docDate)}</span>
+        {d.status === 'Draft' && (
+          <span className="text-xs text-base-content/60">{t('postHint')} · {t('sodHint')}</span>
+        )}
       </div>
-      <div className="card bg-base-100 shadow-sm">
-        <div className="card-body">
-          <p><b>{t('vendor')}:</b> {d.vendorName}{' '}
-            <span className="font-mono text-sm opacity-70">{formatTaxId(d.vendorTaxId)}</span></p>
-          <p><b>{t('method')}:</b> {d.paymentMethod}
-            {d.chequeNo ? ` (${d.chequeNo}${d.chequeDate ? ` / ${formatDate(d.chequeDate)}` : ''})` : ''}</p>
-          <p><b>{t('category')}:</b> <span className="font-mono">{d.subPrefix}</span></p>
-          {d.vendorInvoiceId && (
-            <p><b>{t('settlingVi')}:</b>{' '}
-              <a className="link link-primary" href={`/vendor-invoices/${d.vendorInvoiceId}`}>
-                VI #{d.vendorInvoiceId}
-              </a></p>
-          )}
-          {d.approvedBy != null && (
-            <p className="text-sm text-success">
-              {t('approvedBy')} #{d.approvedBy}
-              {d.approvedAt ? ` ${t('at')} ${formatDate(d.approvedAt)}` : ''}
-            </p>
-          )}
-          {d.status === 'Draft' && (
-            <p className="text-xs text-base-content/60">{t('postHint')} · {t('sodHint')}</p>
-          )}
 
-          <h3 className="mt-2 font-semibold">{t('lines')}</h3>
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                <th>#</th><th>Description</th>
-                <th className="text-right">Amount</th>
-                <th className="text-right">VAT</th>
-                <th className="text-right">WHT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.lines.map((l) => (
-                <tr key={l.lineNo}>
-                  <td>{l.lineNo}</td>
-                  <td>
-                    {l.description}
-                    {!l.isRecoverableVat && l.vatAmount > 0 && (
-                      <span className="ml-2 badge badge-warning badge-xs">{t('nonRecoverableVat')}</span>
-                    )}
-                  </td>
-                  <td className="text-right tabular-nums">{formatTHB(l.amount)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(l.vatAmount)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(l.whtAmount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="mt-3 ml-auto w-64 space-y-1 text-sm">
-            <div className="flex justify-between"><span>{t('subtotal')}</span>
-              <span className="tabular-nums">{formatTHB(d.subtotalAmount)}</span></div>
-            <div className="flex justify-between"><span>{t('vat')}</span>
-              <span className="tabular-nums">{formatTHB(d.vatAmount)}</span></div>
-            <div className="flex justify-between"><span>{t('wht')}</span>
-              <span className="tabular-nums">−{formatTHB(d.whtAmount)}</span></div>
-            <div className="flex justify-between border-t pt-1 text-lg font-bold">
-              <span>{t('netPaid')}</span>
-              <span className="tabular-nums">{formatTHB(d.totalPaid)} {d.currencyCode}</span></div>
-          </div>
+      <div className="detail-grid">
+        <div className="paper-wrap">
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo={d.docNo ?? `#${d.paymentVoucherId}`}
+            issueDate={d.docDate}
+            seller={seller}
+            customer={{
+              name: d.vendorName,
+              taxId: d.vendorTaxId ? formatTaxId(d.vendorTaxId) : null,
+              branchCode: d.vendorBranchCode ?? null,
+              address: d.vendorAddress ?? null,
+            }}
+            items={d.lines.map((l) => ({
+              description: l.description,
+              amount: l.amount,
+            }))}
+            summary={{
+              subtotal: d.subtotalAmount,
+              beforeVat: d.subtotalAmount,
+              vat: d.vatAmount,
+              // Pre-WHT gross; PaperFoot derives net-paid = total − wht = totalPaid.
+              total: d.subtotalAmount + d.vatAmount,
+              wht: hasWht ? d.whtAmount : null,
+            }}
+            notes={d.notes}
+            signRoles={cfg.signRoles}
+            watermark={paperWatermark('payment-voucher', d.status)}
+            extraMetaBlock={
+              <div className="text-[12px] leading-relaxed text-ink-700">
+                <div><b>{t('method')}:</b> {d.paymentMethod}
+                  {d.chequeNo ? ` (${d.chequeNo}${d.chequeDate ? ` / ${formatDate(d.chequeDate)}` : ''})` : ''}</div>
+                <div><b>{t('category')}:</b> <span className="font-mono">{d.subPrefix}</span></div>
+              </div>
+            }
+          />
+        </div>
+        <div className="detail-side">
+          <PurchaseDocumentChain type="payment-voucher" id={id} />
         </div>
       </div>
+
       <AttachmentsSection parentType="PAYMENT_VOUCHER" parentId={id} />
     </>
   );

@@ -66,7 +66,7 @@ public interface IPurchaseOrderService
     Task CancelAsync(long id, string reason, CancellationToken ct);
     Task<IReadOnlyList<PurchaseOrderListItem>> ListAsync(string? status, long? vendorId, CancellationToken ct);
     Task<PurchaseOrderDetail?> GetDetailAsync(long id, CancellationToken ct);
-    Task<byte[]> BuildPdfAsync(long id, CancellationToken ct);
+    Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false);
     Task<OutstandingPoReport> OutstandingAsync(DateOnly asOf, long? vendorId, bool overdueOnly, CancellationToken ct);
 }
 

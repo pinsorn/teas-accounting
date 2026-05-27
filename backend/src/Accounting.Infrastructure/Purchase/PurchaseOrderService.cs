@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Purchase;
@@ -6,8 +7,6 @@ using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.Sales;   // ChainMath
 using Microsoft.EntityFrameworkCore;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
 
 namespace Accounting.Infrastructure.Purchase;
 
@@ -18,7 +17,7 @@ namespace Accounting.Infrastructure.Purchase;
 /// </summary>
 public sealed class PurchaseOrderService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
-    INumberSequenceService numbers) : IPurchaseOrderService
+    INumberSequenceService numbers, IActivityRecorder activity) : IPurchaseOrderService
 {
     private void Auth()
     {
@@ -45,6 +44,9 @@ public sealed class PurchaseOrderService(
         };
         Fill(po, req);
         db.PurchaseOrders.Add(po);
+        await db.SaveChangesAsync(ct);
+        activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
+            "Created", toStatus: "Draft", module: "purchase");
         await db.SaveChangesAsync(ct);
         return po.PurchaseOrderId;
     }
@@ -99,6 +101,8 @@ public sealed class PurchaseOrderService(
         var docNo = await numbers.NextAsync(
             po.CompanyId, po.BranchId, "PO", buCode, po.DocDate, ct);
         po.MarkApproved(tenant.UserId ?? 0, docNo, clock.UtcNow);   // SoD in entity + ck_po_sod
+        activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
+            "Approved", fromStatus: "Draft", toStatus: "Approved", module: "purchase");
         await db.SaveChangesAsync(ct);
         return new PurchaseOrderApprovedResult(
             po.PurchaseOrderId, po.DocNo!, po.ApprovedBy!.Value, po.ApprovedAt!.Value);
@@ -111,6 +115,10 @@ public sealed class PurchaseOrderService(
         if (po.Status != PurchaseOrderStatus.Approved)
             throw new DomainException("po.not_approved", "Only an Approved PO can be marked sent.");
         po.SentToVendorAt = clock.UtcNow;
+        // NB: there is no "Sent" PurchaseOrderStatus enum member — the status stays
+        // Approved and only SentToVendorAt is set. "Sent" here is a semantic audit label.
+        activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
+            "MarkedSent", fromStatus: "Approved", toStatus: "Sent", module: "purchase");
         await db.SaveChangesAsync(ct);
     }
 
@@ -118,7 +126,10 @@ public sealed class PurchaseOrderService(
     {
         Auth();
         var po = await LoadAsync(id, ct);
+        var fromClose = po.Status.ToString();
         po.MarkClosed(clock.UtcNow);
+        activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
+            "Closed", fromStatus: fromClose, toStatus: "Closed", module: "purchase");
         await db.SaveChangesAsync(ct);
     }
 
@@ -126,7 +137,10 @@ public sealed class PurchaseOrderService(
     {
         Auth();
         var po = await LoadAsync(id, ct);
+        var fromCancel = po.Status.ToString();
         po.MarkCancelled(reason, clock.UtcNow);
+        activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
+            "Cancelled", fromStatus: fromCancel, toStatus: "Cancelled", note: reason, module: "purchase");
         await db.SaveChangesAsync(ct);
     }
 
@@ -170,33 +184,37 @@ public sealed class PurchaseOrderService(
             vis);
     }
 
-    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct)
+    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var po = await db.PurchaseOrders.AsNoTracking().Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.PurchaseOrderId == id, ct)
             ?? throw new DomainException("po.not_found", $"Purchase Order {id} not found.");
-        return Document.Create(d => d.Page(p =>
-        {
-            p.Size(PageSizes.A4); p.Margin(28); p.DefaultTextStyle(s => s.FontSize(10));
-            p.Header().AlignCenter().Text("ใบสั่งซื้อ / PURCHASE ORDER").Bold().FontSize(15);
-            p.Content().PaddingVertical(10).Column(col =>
-            {
-                col.Spacing(4);
-                col.Item().Text($"เลขที่ / No.: {po.DocNo ?? "(ร่าง)"}");
-                col.Item().Text($"วันที่ / Date: {po.DocDate:dd/MM/yyyy}");
-                col.Item().Text($"ผู้ขาย / Vendor: {po.VendorName}");
-                if (po.ExpectedDeliveryDate is { } ed)
-                    col.Item().Text($"กำหนดส่ง / Expected: {ed:dd/MM/yyyy}");
-                col.Item().PaddingTop(6).LineHorizontal(0.5f);
-                foreach (var l in po.Lines.OrderBy(l => l.LineNo))
-                    col.Item().Text($"{l.DescriptionTh}  x{l.Quantity:N2} @ {l.UnitPrice:N2} = {l.TotalAmount:N2}");
-                col.Item().PaddingTop(4).LineHorizontal(0.5f);
-                col.Item().AlignRight().Text($"รวม / Total: {po.TotalAmount:N2} {po.CurrencyCode}")
-                    .Bold().FontSize(12);
-            });
-            p.Footer().AlignCenter().Text("ออกโดยระบบ TEAS").FontColor(Colors.Grey.Medium);
-        })).GeneratePdf();
+
+        // Sprint 13j-PURCH Phase C — render via the shared PaperDocument mirror
+        // (IDENTICAL shape to the Sales TI builder). Seller = the issuing company
+        // (we are the buyer issuing the PO); Customer = the vendor. Two-box sign
+        // (ผู้ขออนุมัติ / ผู้อนุมัติ). Watermark: explicit copy → "สำเนา", else "ต้นฉบับ".
+        var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, po.CompanyId, ct);
+        var model = new Pdf.PaperDocModel(
+            DocType: "ใบสั่งซื้อ",
+            DocTypeEn: "Purchase Order",
+            DocNo: po.DocNo ?? "(ร่าง)",
+            IssueDate: po.DocDate,
+            Seller: seller,
+            Customer: new Pdf.PaperCustomer(po.VendorName, Pdf.PaperFormat.TaxId(po.VendorTaxId)),
+            Items: po.Lines.OrderBy(l => l.LineNo).Select(l => new Pdf.PaperLine(
+                l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
+            Summary: new Pdf.PaperSummary(
+                po.SubtotalAmount, null, po.SubtotalAmount, po.VatAmount, po.TotalAmount, null),
+            SignRoles: new Pdf.PaperSignRoles("ผู้ขออนุมัติ", "ผู้อนุมัติ"),
+            ValidUntil: po.ExpectedDeliveryDate,
+            ValidUntilLabel: po.ExpectedDeliveryDate is null ? null : "กำหนดส่ง",
+            Notes: po.Notes,
+            Watermark: new Pdf.PaperWatermark(
+                copy ? "สำเนา" : "ต้นฉบับ",
+                copy ? Pdf.PaperWatermarkVariant.Warning : Pdf.PaperWatermarkVariant.Success));
+        return Pdf.PaperDocumentPdf.Render(model);
     }
 
     public async Task<OutstandingPoReport> OutstandingAsync(

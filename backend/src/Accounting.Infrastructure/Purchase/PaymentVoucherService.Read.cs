@@ -2,9 +2,6 @@ using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Microsoft.EntityFrameworkCore;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 
 namespace Accounting.Infrastructure.Purchase;
 
@@ -36,6 +33,16 @@ public sealed partial class PaymentVoucherService
             .FirstOrDefaultAsync(x => x.PaymentVoucherId == id, ct);
         if (p is null) return null;
 
+        // Sprint 13j-PURCH Flag-2 — downward ref: WHT certificate(s) (50ทวิ) issued
+        // from this PV. WhtCertificate is ITenantOwned so the global filter scopes by
+        // company. Direction='P' (payable) carries our PaymentVoucherId.
+        var whtCerts = await _db.WhtCertificates.AsNoTracking()
+            .Where(w => w.PaymentVoucherId == id)
+            .OrderBy(w => w.WhtCertificateId)
+            .Select(w => new PaymentVoucherWhtCertificate(
+                w.WhtCertificateId, w.DocNo, w.Status.ToString()))
+            .ToListAsync(ct);
+
         return new PaymentVoucherDetail(
             p.PaymentVoucherId, p.DocNo, p.Status.ToString(), p.DocDate,
             p.VendorId, p.VendorName, p.VendorTaxId, p.VendorBranchCode, p.VendorAddress,
@@ -47,38 +54,46 @@ public sealed partial class PaymentVoucherService
             p.SelfWithholdMode, p.RequiresPnd36ReverseCharge,
             p.Lines.OrderBy(l => l.LineNo).Select(l => new PaymentVoucherLineView(
                 l.LineNo, l.ExpenseAccountId, l.Description, l.Amount, l.VatRate,
-                l.VatAmount, l.IsRecoverableVat, l.WhtTypeId, l.WhtRate, l.WhtAmount)).ToList());
+                l.VatAmount, l.IsRecoverableVat, l.WhtTypeId, l.WhtRate, l.WhtAmount)).ToList(),
+            whtCerts);
     }
 
-    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct)
+    public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("pv.not_found", $"Payment Voucher {id} not found.");
-        return Document.Create(doc => doc.Page(p =>
-        {
-            p.Size(PageSizes.A4); p.Margin(28); p.DefaultTextStyle(s => s.FontSize(10));
-            p.Header().AlignCenter().Text("ใบสำคัญจ่าย / PAYMENT VOUCHER").Bold().FontSize(15);
-            p.Content().PaddingVertical(10).Column(col =>
-            {
-                col.Spacing(5);
-                col.Item().Text($"เลขที่ / No.: {d.DocNo ?? "(ร่าง)"}");
-                col.Item().Text($"วันที่ / Date: {d.DocDate:dd/MM/yyyy}");
-                col.Item().Text($"ผู้รับเงิน / Payee: {d.VendorName}  ({d.VendorTaxId ?? "-"})");
-                col.Item().Text($"วิธีชำระ / Method: {d.PaymentMethod}"
-                    + (string.IsNullOrEmpty(d.ChequeNo) ? "" : $"  เช็คเลขที่ {d.ChequeNo}"));
-                col.Item().PaddingTop(6).Text("รายการ / Lines:").Bold();
-                foreach (var l in d.Lines)
-                    col.Item().Text(
-                        $"  {l.LineNo}. {l.Description} — {l.Amount:N2}"
-                        + (l.VatAmount > 0 ? $" (VAT {l.VatAmount:N2})" : "")
-                        + (l.WhtAmount > 0 ? $" (WHT {l.WhtAmount:N2})" : ""));
-                col.Item().PaddingTop(6).Text($"รวมก่อนภาษี / Subtotal: {d.SubtotalAmount:N2}");
-                col.Item().Text($"ภาษีซื้อ / Input VAT: {d.VatAmount:N2}");
-                col.Item().Text($"หัก ณ ที่จ่าย / WHT: {d.WhtAmount:N2}");
-                col.Item().Text($"จ่ายสุทธิ / Net Paid: {d.TotalPaid:N2} {d.CurrencyCode}")
-                    .Bold().FontSize(12);
-            });
-            p.Footer().AlignCenter().Text("ออกโดยระบบ TEAS").FontColor(Colors.Grey.Medium);
-        })).GeneratePdf();
+
+        // Sprint 13j-PURCH Phase C — render via the shared PaperDocument mirror.
+        // Seller = the issuing company (the payer); Customer = the payee (vendor).
+        // Three-box sign (ผู้จัดทำ / ผู้อนุมัติ / ผู้รับเงิน). The foot carries the
+        // WHT-deducted net via PaperSummary.Wht → grand total reads "จ่ายสุทธิ".
+        // Payment method / cheque detail goes into Notes (no §86/4 schema applies).
+        var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct);
+
+        var notes = $"วิธีชำระ / Method: {d.PaymentMethod}"
+            + (string.IsNullOrEmpty(d.ChequeNo) ? "" : $"  เช็คเลขที่ {d.ChequeNo}");
+        if (!string.IsNullOrWhiteSpace(d.Description)) notes = $"{d.Description}\n{notes}";
+        if (!string.IsNullOrWhiteSpace(d.Notes)) notes = $"{notes}\n{d.Notes}";
+
+        var model = new Pdf.PaperDocModel(
+            DocType: "ใบสำคัญจ่าย",
+            DocTypeEn: "Payment Voucher",
+            DocNo: d.DocNo ?? "(ร่าง)",
+            IssueDate: d.DocDate,
+            Seller: seller,
+            Customer: new Pdf.PaperCustomer(
+                d.VendorName, Pdf.PaperFormat.TaxId(d.VendorTaxId), d.VendorBranchCode, d.VendorAddress),
+            Items: d.Lines.Select(l => new Pdf.PaperLine(
+                l.Description, null, null, null, null, null, l.Amount)).ToList(),
+            Summary: new Pdf.PaperSummary(
+                Subtotal: d.SubtotalAmount, Discount: null, BeforeVat: d.SubtotalAmount,
+                Vat: d.VatAmount, Total: d.TotalPaid, VatRate: null, ShowVat: true,
+                Wht: d.WhtAmount > 0m ? d.WhtAmount : null),
+            SignRoles: new Pdf.PaperSignRoles("ผู้จัดทำ", "ผู้รับเงิน", Middle: "ผู้อนุมัติ"),
+            Notes: notes,
+            Watermark: new Pdf.PaperWatermark(
+                copy ? "สำเนา" : "ต้นฉบับ",
+                copy ? Pdf.PaperWatermarkVariant.Warning : Pdf.PaperWatermarkVariant.Success));
+        return Pdf.PaperDocumentPdf.Render(model);
     }
 }

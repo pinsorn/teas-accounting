@@ -15,6 +15,28 @@
     "confirm": "Confirm post",
     "cancel": "Cancel"
   },
+  "purchaseChain": {
+    "title": "Related documents",
+    "purchaseOrder": "Purchase Order",
+    "vendorInvoice": "Vendor Invoice",
+    "paymentVoucher": "Payment Voucher",
+    "whtCertificate": "WHT Certificate (50 ทวิ)"
+  },
+  "apAging": {
+    "title": "AP Aging",
+    "vendor": "Vendor",
+    "taxId": "Tax ID",
+    "current": "Current (0-30 days)",
+    "bucket31To60": "31-60 days",
+    "bucket61To90": "61-90 days",
+    "bucketOver90": "Over 90 days",
+    "total": "Total",
+    "totalsRow": "Grand total",
+    "clear": "Clear",
+    "exportCsv": "Export CSV",
+    "emptyTitle": "No outstanding payables",
+    "emptySubtitle": "No posted vendor invoices outstanding as of the selected date."
+  },
   "crossRef": {
     "title": "Related documents",
     "quotation": "Quotation",
@@ -41,6 +63,7 @@
     "vendors": "Vendors",
     "purchaseOrders": "Purchase Orders",
     "outstandingPo": "Outstanding PO",
+    "apAging": "AP Aging",
     "paymentVouchers": "Payment Vouchers",
     "vendorInvoices": "Vendor Invoices",
     "whtCerts": "WHT Certificates (50 ทวิ)",
@@ -48,6 +71,7 @@
     "products": "Products",
     "businessUnits": "Business Units",
     "whtTypes": "WHT Types",
+    "expenseCategories": "Expense Categories",
     "apiKeys": "API Keys",
     "whtReceivable": "WHT Receivable",
     "trialBalance": "Trial Balance",
@@ -160,6 +184,7 @@
   },
   "pv": {
     "title": "Payment Vouchers",
+    "docNo": "No.",
     "deferNote": "PV create/approve is pending a design decision (Question-Backend5) — this view lists posted vouchers only.",
     "vendor": "Payee",
     "category": "Expense category",
@@ -190,6 +215,7 @@
   "wht": {
     "title": "Withholding Tax Certificates (50 ทวิ)",
     "subtitle": "Issued automatically when a PV with WHT is posted — immutable (ม.50 ทวิ)",
+    "docNo": "No.",
     "payer": "Payer",
     "payee": "Payee",
     "formType": "Return type",
@@ -451,6 +477,7 @@
     "from": "From",
     "to": "To",
     "loadMore": "Load more",
+    "date": "Date",
     "status": "Status",
     "active": "Active",
     "inactive": "Inactive",
@@ -512,6 +539,8 @@
     "issued": "Quotation issued", "searchProduct": "Search product/service or type your own",
     "addLine": "Add line", "noProduct": "No product found — type the description",
     "createProduct": "+ New product / service",
+    "pickerTitle": "Select product / service", "pickerOpen": "Browse list",
+    "pickerSearch": "Search by name or code", "pickerUseTyped": "Use typed text",
     "editTitle": "Edit quotation", "downloadPdf": "Download PDF",
     "reject": "Customer rejected", "cancelQuotation": "Cancel quotation",
     "cancelConfirm": "Cancel this quotation?", "cancelReason": "Cancelled by user",
@@ -544,7 +573,7 @@
     "total": "Total", "lineDesc": "Description", "qty": "Qty", "unitPrice": "Unit price",
     "subtotal": "Subtotal", "discount": "Discount", "vat": "VAT", "grandTotal": "Grand total",
     "saveDraft": "Save draft", "issue": "Issue", "issued": "Invoice issued",
-    "markSettled": "Mark settled", "createTaxInvoice": "Create Tax Invoice",
+    "markSettled": "Mark settled", "createTaxInvoice": "Create Tax Invoice", "createReceipt": "Create receipt",
     "cancelReasonPlaceholder": "Cancellation reason",
     "pickCustomer": "Select a customer first", "notes": "Notes",
     "taxInvoices": "Grouped Tax Invoices", "pickCustomerFirst": "Select a customer first"
@@ -568,14 +597,25 @@
     }
   },
   "purchaseOrder": {
-    "title": "Purchase Orders", "docNo": "Doc No.", "status": "Status",
+    "title": "Purchase Orders", "listTitle": "Purchase Orders", "create": "New Purchase Order",
+    "docNo": "Doc No.", "status": "Status",
     "vendor": "Vendor", "docDate": "Date", "expectedDelivery": "Expected delivery",
     "total": "Total", "lineDesc": "Description", "qty": "Qty",
     "unitPrice": "Unit price", "pickVendor": "Select a vendor first",
     "approve": "Approve", "sentToVendor": "Send to vendor", "close": "Close",
     "cancel": "Cancel", "linkedTo": "Linked Vendor Invoices",
     "remaining": "Remaining", "outstandingReport": "Outstanding PO",
-    "overdueDays": "Overdue (days)", "aging": "Aging", "overdueOnly": "Overdue only"
+    "overdueDays": "Overdue (days)", "aging": "Aging", "overdueOnly": "Overdue only",
+    "notes": "Notes", "subtotal": "Subtotal", "discount": "Discount", "vat": "VAT"
+  },
+  "expenseCategory": {
+    "title": "Expense Categories",
+    "code": "Code",
+    "nameTh": "Name",
+    "recoverableVat": "Recoverable VAT",
+    "capex": "CAPEX",
+    "yes": "Yes",
+    "no": "—"
   },
   "apiKey": {
     "title": "API Keys",
@@ -620,6 +660,7 @@
   },
   "vi": {
     "title": "Vendor Invoices",
+    "docNo": "No.",
     "create": "Record Vendor Invoice",
     "linkPo": "Link to Purchase Order (optional)",
     "noPo": "— No PO —",
@@ -694,6 +735,7 @@
       "downloadXml": "Download XML",
       "resend": "Resend email",
       "createReceipt": "Create receipt",
+      "post": "Post",
       "print": "Print",
       "fromQuotation": "From Quotation"
     },

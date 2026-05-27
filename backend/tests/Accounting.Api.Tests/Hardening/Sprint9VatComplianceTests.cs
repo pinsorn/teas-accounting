@@ -130,15 +130,22 @@ public sealed class Sprint9VatComplianceTests
 
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<ITaxFilingService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
 
         // finalize is immutable per (form, period) — a unique future period so
         // re-runs never clash (§14, resolved Sprint 14.5: shared TestIds helper).
+        // teas_test PERSISTS across runs, so also clear any prior finalize of this
+        // exact period: FuturePeriod's spread can repeat over many historical runs,
+        // and this test asserts the FIRST finalize SUCCEEDS — which needs an unlocked
+        // period. (BP-07: full-suite-2× exposed the ~1/N collision.)
         var period = TestIds.FuturePeriod();
+        var stale = await db.TaxFilings
+            .Where(x => x.FormType == "PND30" && x.Period == period).ToListAsync();
+        if (stale.Count > 0) { db.TaxFilings.RemoveRange(stale); await db.SaveChangesAsync(); }
 
         var f = await svc.GeneratePnd30Async(period, TaxFilingMode.Finalize, default);
         f.Status.Should().BeOneOf("Finalized", "Submitted");
 
-        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var row = await db.TaxFilings.FirstAsync(x => x.FormType == "PND30" && x.Period == period);
         row.FinalizedAt.Should().NotBeNull();
         row.PayloadJson.Should().Contain("salesTaxable");

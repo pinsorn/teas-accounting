@@ -102,13 +102,37 @@ public sealed class PrintTrackingService(AccountingDbContext db, ITenantContext 
                 await db.SaveChangesAsync(ct);
                 return new PrintMarkResult(e.OriginalPrintedAt, e.PrintCount, was);
             }
+            // Sprint 13j-PURCH Phase C (D4) — Purchase docs that print; audit
+            // rows carry module="purchase".
+            case PrintDocType.PurchaseOrder:
+            {
+                var e = await db.PurchaseOrders.FirstOrDefaultAsync(x => x.PurchaseOrderId == id, ct);
+                if (e is null) return null;
+                var was = e.OriginalPrintedAt is not null;
+                if (!isCopy && e.OriginalPrintedAt is null) e.OriginalPrintedAt = now;
+                e.PrintCount++;
+                Log(e.CompanyId, "PurchaseOrder", id, e.DocNo, isCopy || was, was, e.PrintCount, now, "purchase");
+                await db.SaveChangesAsync(ct);
+                return new PrintMarkResult(e.OriginalPrintedAt, e.PrintCount, was);
+            }
+            case PrintDocType.PaymentVoucher:
+            {
+                var e = await db.PaymentVouchers.FirstOrDefaultAsync(x => x.PaymentVoucherId == id, ct);
+                if (e is null) return null;
+                var was = e.OriginalPrintedAt is not null;
+                if (!isCopy && e.OriginalPrintedAt is null) e.OriginalPrintedAt = now;
+                e.PrintCount++;
+                Log(e.CompanyId, "PaymentVoucher", id, e.DocNo, isCopy || was, was, e.PrintCount, now, "purchase");
+                await db.SaveChangesAsync(ct);
+                return new PrintMarkResult(e.OriginalPrintedAt, e.PrintCount, was);
+            }
             default:
                 return null;
         }
     }
 
     private void Log(int companyId, string entityType, long id, string? docNo,
-        bool isCopy, bool wasReprint, int printCount, DateTimeOffset at)
+        bool isCopy, bool wasReprint, int printCount, DateTimeOffset at, string module = "sales")
     {
         db.Set<ActivityLog>().Add(new ActivityLog
         {
@@ -116,7 +140,7 @@ public sealed class PrintTrackingService(AccountingDbContext db, ITenantContext 
             UserId = tenant.UserId,
             ActivityAt = at,
             ActivityType = isCopy ? "PrintedCopy" : "PrintedOriginal",
-            Module = "sales",
+            Module = module,
             EntityType = entityType,
             EntityId = id,
             EntityDocNo = docNo,

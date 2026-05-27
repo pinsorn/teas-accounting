@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PrintMenu } from '@/components/ui/PrintMenu';
 import { useWhtCertificate } from '@/lib/queries';
-import { downloadFile } from '@/lib/api';
 import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
+import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 
 export default function WhtCertificateDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
@@ -24,10 +24,9 @@ export default function WhtCertificateDetailPage() {
         title={t('title')}
         subtitle={d.docNo}
         actions={
-          <button className="btn btn-ghost btn-sm gap-1"
-            onClick={() => downloadFile(`wht-certificates/${id}/pdf`, `wht-50tawi-${id}.pdf`)}>
-            <Download className="h-4 w-4" aria-hidden /> PDF (50 ทวิ)
-          </button>
+          // Sprint 13j-PURCH D3 — print/download the bespoke 50ทวิ PDF. Untracked:
+          // WHT keeps its own ภ.ง.ด.50ทวิ endpoint (no ?copy / mark-printed).
+          <PrintMenu docType="wht-certificates" id={id} tracked={false} />
         }
       />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -81,6 +80,10 @@ export default function WhtCertificateDetailPage() {
             </Link>
           </p>
         </div>
+      </div>
+      {/* Sprint 13j-PURCH D-supplement — FE chain panel (PO → VI → PV → WHT). */}
+      <div className="mt-4">
+        <PurchaseDocumentChain type="wht-certificate" id={id} />
       </div>
     </>
   );

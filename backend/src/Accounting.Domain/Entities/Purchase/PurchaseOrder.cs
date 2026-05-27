@@ -48,6 +48,11 @@ public class PurchaseOrder : ITenantOwned, IAuditable, IConcurrencyVersioned
     public long? UpdatedBy { get; set; }
     public long Version { get; set; }
 
+    // Sprint 13j-PURCH — original/copy print tracking (parity with Sales TaxInvoice).
+    // OriginalPrintedAt stamped on the first original print; reprints are marked สำเนา.
+    public DateTimeOffset? OriginalPrintedAt { get; set; }
+    public int PrintCount { get; set; }
+
     public ICollection<PurchaseOrderLine> Lines { get; set; } = new List<PurchaseOrderLine>();
 
     /// <summary>Draft → Approved with SoD (approver ≠ creator). Belt-and-braces

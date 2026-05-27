@@ -15,7 +15,13 @@ export function PaperFoot({
   // prints cleanly on fiscal documents.
   const vatRate = Math.round((summary.vatRate ?? 7) * 100) / 100;
   const beforeVat = summary.beforeVat ?? summary.subtotal - (summary.discount ?? 0);
-  const words = amountWords ?? bathText(summary.total);
+  // Sprint 13j-PURCH D-supplement — WHT deduction (Payment Voucher). When set,
+  // mirror the QuestPDF PaperFoot: a "หัก ณ ที่จ่าย · WHT" row (−amount) sits
+  // above the grand total, and the grand total reads "จ่ายสุทธิ · Net Paid"
+  // (value = total − wht). The amount-in-words follows the net-paid figure.
+  const hasWht = summary.wht != null;
+  const netTotal = hasWht ? summary.total - (summary.wht ?? 0) : summary.total;
+  const words = amountWords ?? bathText(netTotal);
   // Non-VAT (ม.86): hide the Subtotal/Before-VAT/VAT breakdown, leaving only Total.
   const showVat = summary.showVat ?? true;
   return (
@@ -51,9 +57,15 @@ export function PaperFoot({
             </div>
           </>
         )}
+        {hasWht && (
+          <div className="row">
+            <span>หัก ณ ที่จ่าย · WHT</span>
+            <span className="v">−{fmtPaperNum(summary.wht)}</span>
+          </div>
+        )}
         <div className="row total">
-          <span>รวมทั้งสิ้น · Total</span>
-          <span className="v">฿&nbsp;{fmtPaperNum(summary.total)}</span>
+          <span>{hasWht ? 'จ่ายสุทธิ · Net Paid' : 'รวมทั้งสิ้น · Total'}</span>
+          <span className="v">฿&nbsp;{fmtPaperNum(netTotal)}</span>
         </div>
         <div className="amount-words">({words})</div>
       </div>

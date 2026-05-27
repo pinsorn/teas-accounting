@@ -59,7 +59,12 @@ export default function ReceiptDetailPage() {
             docNo={d.docNo ?? `#${d.receiptId}`}
             issueDate={d.docDate}
             seller={companyToSeller(company.data)}
-            customer={{ name: d.customerName, taxId: d.customerTaxId ? formatTaxId(d.customerTaxId) : null }}
+            customer={{
+              name: d.customerName,
+              taxId: d.customerTaxId ? formatTaxId(d.customerTaxId) : null,
+              branchCode: d.customerBranchCode,
+              address: d.customerAddress,
+            }}
             items={(d.lines && d.lines.length > 0
               ? d.lines.map((l) => ({
                   description: l.descriptionTh,

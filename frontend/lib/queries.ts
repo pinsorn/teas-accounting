@@ -67,6 +67,7 @@ import type {
   PurchaseOrderListItem,
   PurchaseOrderDetail,
   OutstandingPoReport,
+  ApAgingReport,
   ApiKeyListItem,
   CreateApiKeyRequest,
   ApiKeyCreatedResult,
@@ -563,10 +564,13 @@ export function useChangeWhtRate() {
 // Sprint (multi-category WHT) — POST the applied amounts so the server can pro-rate
 // the per-income-type base across partial payments. Returns Categories breakdown.
 export function useWhtBaseSuggest(
-  applications: { taxInvoiceId: number; appliedAmount: number }[],
+  // VAT path sets taxInvoiceId; non-VAT Invoice→Receipt sets billingNoteId.
+  applications: { taxInvoiceId?: number; billingNoteId?: number; appliedAmount: number }[],
   customerId: number,
 ) {
-  const key = applications.map((a) => `${a.taxInvoiceId}:${a.appliedAmount}`).join(',');
+  const key = applications
+    .map((a) => `${a.taxInvoiceId ?? ''}|${a.billingNoteId ?? ''}:${a.appliedAmount}`)
+    .join(',');
   return useQuery({
     queryKey: ['wht-base-suggest', key, customerId],
     enabled: applications.length > 0 && customerId > 0,
@@ -984,6 +988,14 @@ export function useOutstandingPo(asOf: string, vendorId?: number, overdueOnly = 
     queryKey: ['outstanding-po', asOf, vendorId ?? 0, overdueOnly],
     queryFn: () => apiGet<OutstandingPoReport>(
       `reports/outstanding-po${qs({ as_of: asOf, vendorId: vendorId || undefined, overdue_only: overdueOnly || undefined })}`),
+  });
+}
+// Sprint 13j-PURCH Phase E — AP Aging (BE query param is camelCase ?asOf=, NOT as_of)
+export function useApAgingReport(asOf: string, vendorId?: number) {
+  return useQuery({
+    queryKey: ['ap-aging', asOf, vendorId ?? 0],
+    queryFn: () => apiGet<ApAgingReport>(
+      `reports/ap-aging${qs({ asOf, vendorId: vendorId || undefined })}`),
   });
 }
 

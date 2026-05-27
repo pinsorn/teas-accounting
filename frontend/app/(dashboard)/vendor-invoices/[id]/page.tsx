@@ -9,9 +9,12 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
-import { useVendorInvoice, usePostVendorInvoice } from '@/lib/queries';
-import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
+import { useVendorInvoice, usePostVendorInvoice, useCompanyProfile } from '@/lib/queries';
+import { formatTHB, formatDate } from '@/lib/utils';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
+import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { PAPER_DOC, paperWatermark, companyToCustomer } from '@/lib/paper-doc-config';
 
 export default function VendorInvoiceDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
@@ -19,6 +22,7 @@ export default function VendorInvoiceDetailPage() {
   const t = useTranslations('vi');
   const tc = useTranslations('common');
   const { data: d, isLoading, isError } = useVendorInvoice(id);
+  const { data: company } = useCompanyProfile();
   const post = usePostVendorInvoice();
   const [confirm, setConfirm] = useState(false);
 
@@ -29,6 +33,12 @@ export default function VendorInvoiceDetailPage() {
   const canSettle = d.status === 'Posted' && d.settlementStatus !== 'PAID';
   const pct = d.totalAmount > 0
     ? Math.min(100, Math.round((d.settledAmount / d.totalAmount) * 100)) : 0;
+
+  // Sprint 13j-PURCH Flag-1 (BP-09) — on-screen READ-ONLY PaperDocument. The
+  // VENDOR issued this tax invoice, so the seller block = the vendor and the
+  // customer block = our company. No PrintMenu (no /pdf endpoint — §4.6); the
+  // paper carries no editable inputs (view-only regardless of status — §4.2).
+  const cfg = PAPER_DOC['vendor-invoice'];
 
   return (
     <>
@@ -66,56 +76,52 @@ export default function VendorInvoiceDetailPage() {
         <span className="text-sm text-base-content/60">{formatDate(d.docDate)}</span>
       </div>
 
-      <div className="card bg-base-100 shadow-sm">
-        <div className="card-body">
-          <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
-            <p><b>{t('vendor')}:</b> {d.vendorName}{' '}
-              <span className="font-mono text-sm opacity-70">{formatTaxId(d.vendorTaxId)}</span></p>
-            <p><b>{t('vendorTiNo')}:</b> <span className="font-mono">{d.vendorTaxInvoiceNo}</span></p>
-            <p><b>{t('vendorTiDate')}:</b> {formatDate(d.vendorTaxInvoiceDate)}</p>
-            <p><b>{t('claimPeriod')}:</b> <span className="tabular-nums">{d.vatClaimPeriod}</span></p>
-          </div>
-
-          <h3 className="mt-3 font-semibold">{t('lines')}</h3>
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                <th>#</th><th>{t('description')}</th>
-                <th className="text-right">{t('amount')}</th>
-                <th className="text-right">VAT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.lines.map((l) => (
-                <tr key={l.lineNo}>
-                  <td>{l.lineNo}</td>
-                  <td>
-                    {l.description}
-                    {!l.isRecoverableVat && (
-                      <span className="ml-2 badge badge-warning badge-xs">{t('nonRecVat')}</span>
-                    )}
-                  </td>
-                  <td className="text-right tabular-nums">{formatTHB(l.amount)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(l.vatAmount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="mt-3 ml-auto w-72 space-y-1 text-sm">
-            <div className="flex justify-between"><span>{t('subtotal')}</span>
-              <span className="tabular-nums">{formatTHB(d.subtotalAmount)}</span></div>
-            <div className="flex justify-between"><span>{t('vat')}</span>
-              <span className="tabular-nums">{formatTHB(d.vatAmount)}</span></div>
-            <div className="flex justify-between"><span>{t('nonRecVat')}</span>
-              <span className="tabular-nums">{formatTHB(d.nonRecoverableVatAmount)}</span></div>
-            <div className="flex justify-between border-t pt-1 text-lg font-bold">
-              <span>{t('total')}</span>
-              <span className="tabular-nums">{formatTHB(d.totalAmount)} {d.currencyCode}</span></div>
-          </div>
-
+      <div className="detail-grid">
+        <div className="paper-wrap">
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo={d.docNo ?? `#${d.vendorInvoiceId}`}
+            issueDate={d.docDate}
+            seller={{
+              name: d.vendorName,
+              taxId: d.vendorTaxId ?? '',
+              branchCode: d.vendorBranchCode ?? '00000',
+              address: d.vendorAddress ?? '',
+            }}
+            customer={companyToCustomer(company)}
+            items={d.lines.map((l) => ({
+              description: l.description,
+              amount: l.amount,
+            }))}
+            summary={{
+              subtotal: d.subtotalAmount,
+              beforeVat: d.subtotalAmount,
+              vat: d.vatAmount,
+              total: d.totalAmount,
+            }}
+            notes={d.notes}
+            signRoles={cfg.signRoles}
+            watermark={paperWatermark('vendor-invoice', d.status)}
+            extraMetaBlock={
+              <div className="text-[12px] leading-relaxed text-ink-700">
+                <div><b>{t('vendorTiNo')}:</b>{' '}
+                  <span className="font-mono">{d.vendorTaxInvoiceNo}</span></div>
+                <div><b>{t('vendorTiDate')}:</b> {formatDate(d.vendorTaxInvoiceDate)}</div>
+                <div><b>{t('claimPeriod')}:</b>{' '}
+                  <span className="tabular-nums">{d.vatClaimPeriod}</span></div>
+                {d.nonRecoverableVatAmount > 0 && (
+                  <div><b>{t('nonRecVat')}:</b>{' '}
+                    <span className="tabular-nums">{formatTHB(d.nonRecoverableVatAmount)}</span></div>
+                )}
+              </div>
+            }
+          />
+        </div>
+        <div className="detail-side space-y-4">
+          <PurchaseDocumentChain type="vendor-invoice" id={id} />
           {d.status === 'Posted' && (
-            <div className="mt-4">
+            <div className="rounded-card border border-ink-100 bg-base-100 p-4 shadow-warm-sm">
               <div className="mb-1 flex justify-between text-sm">
                 <span>{t('settled')}: {formatTHB(d.settledAmount)} / {formatTHB(d.totalAmount)}</span>
                 <span>{pct}%</span>

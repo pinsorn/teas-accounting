@@ -10,11 +10,17 @@ import { printPdf, downloadFile } from '@/lib/api';
 // on-screen PaperDocument but a real PDF (the old window.print() of the HTML page
 // rendered differently + leaked the browser print chrome).
 //
-// cont.69 Phase 4 (D8) — ORIGINAL/COPY tracking is now UNIVERSAL: every sales
-// document (Q / SO / DO / Invoice / TI / RC / CN / DN) records each print to the
-// BE audit and stamps ต้นฉบับ/สำเนา via ?copy. A reprint of an already-printed
-// original is auto-downgraded to a copy (สำเนา) and the UI warns. The `fiscal`
-// prop is kept for back-compat but `tracked` (default true) now drives the menu.
+// cont.69 Phase 4 (D8) — ORIGINAL/COPY tracking is UNIVERSAL: every sales document
+// (Q / SO / DO / Invoice / TI / RC / CN / DN) records each print to the BE audit and
+// stamps ต้นฉบับ/สำเนา via ?copy. cont.70 (Ham): re-printing the ORIGINAL is allowed
+// (2nd time onward) for Q / SO / DO / Invoice / RC — the UI just warns it was printed
+// before. The strictly-fiscal documents (Tax Invoice / CN / DN) keep the ม.86/4 /
+// ม.86/12 rule: only ONE original exists, so a reprint is downgraded to a สำเนา.
+// The `fiscal` prop is kept for back-compat but `tracked` (default true) drives the menu.
+
+// Tax Invoice / Credit Note / Debit Note: a reprint of the original is forced to สำเนา
+// (only one physical original may circulate, ม.86/4 / ม.86/12).
+const STRICT_ONE_ORIGINAL = new Set(['tax-invoices', 'credit-notes', 'debit-notes']);
 export function PrintMenu({
   docType,
   id,
@@ -33,22 +39,31 @@ export function PrintMenu({
   const isTracked = fiscal ?? tracked;
 
   function pdfPath(copy: boolean) {
-    return `${docType}/${id}/pdf${copy ? '?copy=1' : ''}`;
+    // The BE binds `bool? copy`, which only accepts true/false — never "1" (→ 400).
+    return `${docType}/${id}/pdf${copy ? '?copy=true' : ''}`;
   }
 
-  // Tracked: record first (audit), resolving the effective copy mode, then act.
+  // Tracked: record the print (audit) first, then render.
   async function trackedDoc(requestedCopy: boolean, action: 'print' | 'download') {
+    const strict = STRICT_ONE_ORIGINAL.has(docType);
     let copyMode = requestedCopy;
     try {
       const res = await mark.mutateAsync(requestedCopy);
       if (!requestedCopy && res.wasReprint) {
-        copyMode = true;
-        toast.warning('ต้นฉบับเคยถูกพิมพ์แล้ว — พิมพ์เป็นสำเนาแทน');
+        if (strict) {
+          // ม.86/4 / ม.86/12 — only one original TI/CN/DN; reprint = สำเนา.
+          copyMode = true;
+          toast.warning('ต้นฉบับเคยถูกพิมพ์แล้ว — พิมพ์เป็นสำเนาแทน');
+        } else {
+          // Q / SO / DO / Invoice / RC — original is re-printable; just warn.
+          toast.warning('เอกสารนี้เคยถูกพิมพ์ไปแล้ว');
+        }
       }
     } catch {
-      // Recording failed (permission/cross-tenant): never an unrecorded original.
-      copyMode = true;
-      toast.error('บันทึกการพิมพ์ไม่สำเร็จ — ออกเป็นสำเนา');
+      // Recording failed (permission/cross-tenant). For a strictly-fiscal doc never emit
+      // an unrecorded original → fall back to สำเนา; others may still print.
+      toast.error('บันทึกการพิมพ์ไม่สำเร็จ');
+      if (strict && !requestedCopy) copyMode = true;
     }
     await run(action, pdfPath(copyMode));
   }

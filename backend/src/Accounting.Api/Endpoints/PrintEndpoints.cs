@@ -21,6 +21,9 @@ public static class PrintEndpoints
         Map(app, "sales-orders", PrintDocType.SalesOrder, Permissions.Sales.SalesOrderManage);
         Map(app, "delivery-orders", PrintDocType.DeliveryOrder, Permissions.Sales.DeliveryOrderManage);
         Map(app, "billing-notes", PrintDocType.BillingNote, Permissions.Sales.BillingNoteRead);
+        // Sprint 13j-PURCH Phase C (D4) — Purchase docs that print as original/copy.
+        Map(app, "purchase-orders", PrintDocType.PurchaseOrder, Permissions.Purchase.PurchaseOrderRead);
+        Map(app, "payment-vouchers", PrintDocType.PaymentVoucher, Permissions.Purchase.PaymentVoucherRead);
     }
 
     private static void Map(IEndpointRouteBuilder app, string route, PrintDocType docType, string perm)

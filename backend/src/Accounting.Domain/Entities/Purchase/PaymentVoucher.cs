@@ -75,6 +75,11 @@ public class PaymentVoucher : ITenantOwned, IAuditable, IConcurrencyVersioned
     public long?  UpdatedBy { get; set; }
     public long   Version   { get; set; }
 
+    // Sprint 13j-PURCH — original/copy print tracking (parity with Sales TaxInvoice).
+    // OriginalPrintedAt stamped on the first original print; reprints are marked สำเนา.
+    public DateTimeOffset? OriginalPrintedAt { get; set; }
+    public int PrintCount { get; set; }
+
     public ICollection<PaymentVoucherLine> Lines { get; set; } = new List<PaymentVoucherLine>();
 
     /// <summary>

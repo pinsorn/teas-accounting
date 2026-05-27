@@ -42,11 +42,14 @@ public static class TestIds
     /// collide with a real registered company.</summary>
     public static string TaxId() => $"0000{Random.Shared.NextInt64(100_000_000, 999_999_999)}";
 
-    /// <summary>A yyyymm at least 12 months out + a random 1-99 month spread —
-    /// avoids finalize/lock/period collisions with prior runs.</summary>
+    /// <summary>A yyyymm at least 12 months out + a wide random month spread —
+    /// avoids finalize/lock/period collisions with prior runs. The spread is wide
+    /// (≈1000 months ≈ 80 yr) so the collision space dwarfs the count of periods a
+    /// long-lived shared DB ever finalizes; callers that finalize-then-assert on a
+    /// PERSISTENT DB should ALSO clear any prior row for the chosen period.</summary>
     public static int FuturePeriod()
     {
-        var months = 12 + Random.Shared.Next(1, 100);
+        var months = 12 + Random.Shared.Next(1, 1000);
         var d = DateTime.UtcNow.AddMonths(months);
         return d.Year * 100 + d.Month;
     }

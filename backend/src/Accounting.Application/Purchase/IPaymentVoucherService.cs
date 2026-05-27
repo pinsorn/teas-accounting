@@ -19,5 +19,5 @@ public interface IPaymentVoucherService
 
     Task<Sales.CursorPage<PaymentVoucherListItem>> ListAsync(long? cursor, int limit, CancellationToken ct);
     Task<PaymentVoucherDetail?> GetDetailAsync(long id, CancellationToken ct);
-    Task<byte[]> BuildPdfAsync(long id, CancellationToken ct);
+    Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false);
 }
