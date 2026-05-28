@@ -57,26 +57,24 @@ resolves PO→VI→PV→WHT from cross-refs on the detail DTOs (upward + the new
 
 ---
 
-## AFK-batch deferred (2026-05-28) — need Ham's decision, not safe to ship autonomous
+## AFK-batch deferred (2026-05-28) — SHIPPED 2026-05-28 (cont.72)
 
-These were authorized verbally but each carries a regression/compliance risk that shouldn't be
-shipped while the decision-maker is away. Done in the AFK batch: ap_clerk read perm + RBAC test
-(green), legacy-code retire, §17.3 WHT defaults (unambiguous ones), date-consistency check (no change).
+These three were the leftover AFK-batch items from the morning of 2026-05-28. Each shipped with
+its own commit on `main` + verification gates (see `progress.md` cont.72 for the full table). The
+section is kept for trace-back; do not re-open.
 
-- **C — Vendor Invoice mandatory vendor-file attachment.** Ham wants VI post to REQUIRE attaching
-  the vendor's file. The attachment infra exists, but enforcing at post **breaks** existing tests
-  that post a VI without an attachment (the `purchase-chain.spec.ts` E2E + any VI-post integration
-  test) and any already-posted VI on the dev DB. Needs: a post-time guard + updating every VI-post
-  test to attach first + a decision on existing posted-VI handling. Multi-file, regression-prone —
-  do with Ham present so the test-strategy is agreed.
-- **F — server-resolved Purchase chain (Question-Backend36).** Ham said yes. Touches the SHARED
-  `DocumentCrossRefService` (fixed 7-slot Sales DTO) → Sales-regression risk; needs a Purchase DTO
-  shape decision. The FE `PurchaseDocumentChain` already renders the full PO→VI→PV→WHT (Sana RV3
-  confirmed "badge 4"), so this is parity polish, not blocking. Decide DTO shape with Ham.
-- **WAGE / SAL WHT default** (from seed 450). WAGE "ค่าจ้างแรงงาน" 3% has no unambiguous wht_types
-  row (closest = CONTRACT "ค่าจ้างทำของ/รับเหมา" — labour ≠ piecework); SAL is payroll ภ.ง.ด.1 which
-  seed 220 intentionally excludes. Both left NULL. Ham to confirm the mapping (or accept null →
-  user picks per line).
+- **C — Vendor Invoice mandatory vendor-file attachment** — DONE in commit `19516e2`. Post throws
+  `vi.attachment_required` when no attachment, status stays Draft; FE detail page disables the Post
+  button + shows the Thai/English warning banner. All 5 BE VI-post test sites + 2 e2e specs updated
+  to seed/attach first; a new positive guard test pins the behavior.
+- **F — server-resolved Purchase chain (Question-Backend36)** — DONE in commits `59ae661` (BE) +
+  `378e4a4` (FE). New `IPurchaseChainService` + `GET /documents/purchase-chain` (own DTO, Sales
+  resolver and DTO untouched). FE `PurchaseDocumentChain` now uses one `usePurchaseChain` hook
+  instead of 4–N detail-DTO hydrations; testids + UX preserved.
+- **WAGE WHT default** — DONE in commit `3f7c981`. New SqlScript `460_seed_wage_wht_type.sql`
+  inserts the missing WAGE row (ม.40(2), ภ.ง.ด.3, 3%) and wires the WAGE expense-category default.
+  **SAL** stays NULL — payroll ภ.ง.ด.1 progressive withholding is a separate subsystem,
+  intentionally deferred to a future Payroll sprint ("ทำให้ Support ลองดูหน่อย").
 
 ## Lower-priority watch-items (from bugPurchase.md)
 - **BP-01** 🟡 — one-off `DbUpdateException` on `PurchaseAuditTests.Pv_post_with_wht_…` (~1/many runs);
