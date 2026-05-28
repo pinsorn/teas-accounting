@@ -1,4 +1,5 @@
 using Accounting.Api.Authorization;
+using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 
 namespace Accounting.Api.Endpoints;
@@ -39,6 +40,14 @@ public static class DocumentCrossRefEndpoints
         docs.MapGet("/chain", async (
             string type, long id, IDocumentCrossRefService svc, CancellationToken ct) =>
             await svc.GetChainAsync(type, id, ct) is { } d ? Results.Ok(d) : Results.NotFound())
+            .RequireAuthorization();
+
+        // F (Question-Backend36) — Purchase-side counterpart. Same rationale as /chain
+        // for the auth: the chain spans doc types whose per-type read permissions differ
+        // (PO vs VI vs PV vs WHT) and the query itself is tenant-scoped.
+        docs.MapGet("/purchase-chain", async (
+            string type, long id, IPurchaseChainService svc, CancellationToken ct) =>
+            await svc.GetAsync(type, id, ct) is { } d ? Results.Ok(d) : Results.NotFound())
             .RequireAuthorization();
     }
 }
