@@ -1041,11 +1041,23 @@ export function useCrossReferences(docType: CrossRefDocType, id: number | null) 
 }
 
 // cont.69 Phase 3 (D7) — unified full document chain for the <DocumentChain> rail.
-import type { ChainAnchorType, DocumentChain } from './types';
+import type { ChainAnchorType, DocumentChain, PurchaseChain, PurchaseChainAnchorType } from './types';
 export function useDocumentChain(type: ChainAnchorType, id: number | null) {
   return useQuery({
     queryKey: ['doc-chain', type, id],
     queryFn: () => apiGet<DocumentChain>(`documents/chain?type=${type}&id=${id}`),
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    staleTime: 30_000,
+  });
+}
+
+// F (Question-Backend36) — Purchase counterpart to useDocumentChain. One request,
+// PO→VI→PV→WHT walked server-side. Replaces the 4–N detail-DTO hydration chain in
+// PurchaseDocumentChain.tsx.
+export function usePurchaseChain(type: PurchaseChainAnchorType, id: number | null) {
+  return useQuery({
+    queryKey: ['purchase-chain', type, id],
+    queryFn: () => apiGet<PurchaseChain>(`documents/purchase-chain?type=${type}&id=${id}`),
     enabled: id != null && Number.isFinite(id) && id > 0,
     staleTime: 30_000,
   });

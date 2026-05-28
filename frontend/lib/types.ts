@@ -705,6 +705,17 @@ export interface DocumentChain {
   receipts: ChainNode[];
   adjustmentNotes: ChainNode[];
 }
+// F (Question-Backend36) — server-resolved Purchase chain. Different topology from Sales
+// (one PO root + three lists), so its own DTO; nodes reuse ChainNode for shape parity.
+export interface PurchaseChain {
+  purchaseOrder: ChainNode | null;
+  vendorInvoices: ChainNode[];
+  paymentVouchers: ChainNode[];
+  whtCertificates: ChainNode[];
+}
+export type PurchaseChainAnchorType =
+  'purchase-order' | 'vendor-invoice' | 'payment-voucher' | 'wht-certificate';
+
 // Anchor type passed to GET /documents/chain?type=…
 export type ChainAnchorType =
   | 'quotation' | 'sales-order' | 'delivery-order' | 'billing-note'

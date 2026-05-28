@@ -17,7 +17,7 @@ public sealed record PurchaseChainNode(
     string? DocNo,        // nullable on Draft (PO/VI/PV); WhtCertificate is always non-null
     DateOnly DocDate,
     string Status,
-    decimal Amount);
+    decimal Total);
 
 public sealed record PurchaseChainDto(
     PurchaseChainNode? PurchaseOrder,
