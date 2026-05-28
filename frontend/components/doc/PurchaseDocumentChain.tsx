@@ -5,32 +5,20 @@ import { useTranslations } from 'next-intl';
 import {
   Link2, ClipboardList, FileSpreadsheet, Banknote, FileBadge, type LucideIcon,
 } from 'lucide-react';
-import {
-  usePurchaseOrder, useVendorInvoice, usePaymentVoucher, useWhtCertificate,
-} from '@/lib/queries';
+import { usePurchaseChain } from '@/lib/queries';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import type { ChainNode } from '@/lib/types';
 
-// Sprint 13j-PURCH D-supplement (FE-only) — the Purchase document chain
-// (PO → VI → PV → WHT) rendered vertically on every Purchase detail page,
-// mirroring the Sales <DocumentChain> look. The current node is highlighted;
-// every other resolved node links to its detail page.
+// F (Question-Backend36) — vertical Purchase chain rail (PO → VI → PV → WHT)
+// rendered on every Purchase detail page. The current node is highlighted; every
+// other resolved node links to its detail page.
 //
-// RESOLUTION (no BE endpoint added): nodes are resolved purely from the
-// cross-refs ALREADY carried on each detail DTO. Sprint 13j-PURCH Flag-2 added
-// the missing DOWNWARD refs, so the chain now resolves in BOTH directions.
-//   UPWARD (child → parent):
-//     • WhtCertificateDetail.paymentVoucherId  → PV
-//     • PaymentVoucherDetail.vendorInvoiceId    → VI
-//     • VendorInvoiceDetail.purchaseOrderId     → PO
-//   DOWNWARD (parent → child):
-//     • PurchaseOrderDetail.linkedVis[]         → VI
-//     • VendorInvoiceDetail.settlingPvs[]       → PV   (Flag-2, new)
-//     • PaymentVoucherDetail.whtCertificates[]  → WHT  (Flag-2, new)
-// We hydrate each referenced doc with its own detail hook so we can show its
-// docNo + status. When several downward children exist we pick the FIRST
-// (lowest id, BE-ordered) as the chain's representative node — the chain shows a
-// single linear path, not a fan-out. Nodes with no resolvable ref are omitted
-// (no invented data).
+// Previously this resolved the chain client-side from each detail DTO's
+// cross-refs (4–N hooks: useVendorInvoice, usePaymentVoucher, useWhtCertificate,
+// usePurchaseOrder + parents). That worked but kept Purchase out of parity with
+// Sales tooling and fanned out network. The new GET /documents/purchase-chain
+// endpoint walks the same graph on the server in one shot — this component is
+// now a thin view over usePurchaseChain.
 
 export type PurchaseChainAnchor =
   | 'purchase-order' | 'vendor-invoice' | 'payment-voucher' | 'wht-certificate';
@@ -71,102 +59,35 @@ export interface PurchaseDocumentChainProps {
   id: number;
 }
 
+function toView(
+  anchor: PurchaseChainAnchor, n: ChainNode,
+): ChainNodeView {
+  return {
+    anchor,
+    id: n.id,
+    labelKey: LABEL_KEY[anchor],
+    route: ROUTE[anchor],
+    icon: ICON[anchor],
+    docNo: n.docNo,
+    status: n.status,
+  };
+}
+
 export function PurchaseDocumentChain({ type, id }: PurchaseDocumentChainProps) {
   const t = useTranslations('purchaseChain');
-
-  // Hydrate the open doc directly. Each hook is `enabled` only when its id is
-  // known (passing 0 disables it), so at most a short walk fires.
-  const po = usePurchaseOrder(type === 'purchase-order' ? id : 0);
-  const viDirect = useVendorInvoice(type === 'vendor-invoice' ? id : 0);
-  const pvDirect = usePaymentVoucher(type === 'payment-voucher' ? id : 0);
-  const whtDirect = useWhtCertificate(type === 'wht-certificate' ? id : 0);
-
-  // ── Upward parents (child → parent), resolved from the open doc's own DTO. ──
-  const upPvId = type === 'wht-certificate' ? whtDirect.data?.paymentVoucherId ?? 0 : 0;
-  const upPv = usePaymentVoucher(upPvId > 0 ? upPvId : 0);
-  const pvUpward = type === 'payment-voucher' ? pvDirect.data : upPv.data;
-
-  const upViId = pvUpward?.vendorInvoiceId ?? 0;
-  // VI may also be reached downward from a PO (linkedVis). Compute that first so
-  // a single useVendorInvoice covers both the upward and PO-downward cases.
-  const poDoc = po.data;
-  const poLinkedViId = poDoc?.linkedVis?.[0]?.vendorInvoiceId ?? 0;
-  const hubViId =
-    type === 'vendor-invoice' ? id
-      : upViId > 0 ? upViId
-        : poLinkedViId; // 0 if none
-  const hubVi = useVendorInvoice(type !== 'vendor-invoice' && hubViId > 0 ? hubViId : 0);
-  const vi = type === 'vendor-invoice' ? viDirect.data : hubVi.data;
-
-  const upPoId = vi?.purchaseOrderId ?? 0;
-  const upPo = usePurchaseOrder(type !== 'purchase-order' && upPoId > 0 ? upPoId : 0);
-  const poResolved = type === 'purchase-order' ? poDoc : upPo.data;
-
-  // ── Downward children (parent → child), using the Flag-2 refs. ──
-  // PV: upward from WHT, else downward from the resolved VI's settlingPvs[0].
-  const downPvId = vi?.settlingPvs?.[0]?.paymentVoucherId ?? 0;
-  const hubPvId =
-    type === 'payment-voucher' ? id
-      : upPvId > 0 ? upPvId
-        : downPvId;
-  // Hydrate the PV when we only know it via a downward ref (need its whtCertificates).
-  const downPv = usePaymentVoucher(
-    type !== 'payment-voucher' && upPvId === 0 && downPvId > 0 ? downPvId : 0,
-  );
-  const pv = type === 'payment-voucher' ? pvDirect.data
-    : upPvId > 0 ? upPv.data
-      : downPv.data;
-
-  // WHT: from the open doc, else downward from the resolved PV's whtCertificates[0].
-  const downWht = pv?.whtCertificates?.[0];
-  const resolvedWhtId = type === 'wht-certificate' ? id : downWht?.whtCertificateId ?? 0;
+  const { data: chain } = usePurchaseChain(type, id);
 
   const nodes: ChainNodeView[] = [];
-
-  // PO node
-  const resolvedPoId = poResolved?.purchaseOrderId ?? (type === 'purchase-order' ? id : upPoId);
-  if (resolvedPoId > 0) {
-    nodes.push({
-      anchor: 'purchase-order', id: resolvedPoId,
-      labelKey: LABEL_KEY['purchase-order'], route: ROUTE['purchase-order'],
-      icon: ICON['purchase-order'], docNo: poResolved?.docNo, status: poResolved?.status,
-    });
-  }
-
-  // VI node (upward from PV/VI, or downward from PO.linkedVis)
-  const poLinkedVi = poResolved?.linkedVis?.[0];
-  const resolvedViId =
-    (vi?.vendorInvoiceId ?? (type === 'vendor-invoice' ? id : hubViId)) || poLinkedVi?.vendorInvoiceId || 0;
-  if (resolvedViId > 0) {
-    nodes.push({
-      anchor: 'vendor-invoice', id: resolvedViId,
-      labelKey: LABEL_KEY['vendor-invoice'], route: ROUTE['vendor-invoice'],
-      icon: ICON['vendor-invoice'],
-      docNo: vi?.docNo ?? poLinkedVi?.docNo, status: vi?.status,
-    });
-  }
-
-  // PV node (upward from WHT, or downward from VI.settlingPvs)
-  const viDownPv = vi?.settlingPvs?.[0];
-  const resolvedPvId = pv?.paymentVoucherId ?? (type === 'payment-voucher' ? id : hubPvId);
-  if (resolvedPvId > 0) {
-    nodes.push({
-      anchor: 'payment-voucher', id: resolvedPvId,
-      labelKey: LABEL_KEY['payment-voucher'], route: ROUTE['payment-voucher'],
-      icon: ICON['payment-voucher'],
-      docNo: pv?.docNo ?? viDownPv?.docNo, status: pv?.status ?? viDownPv?.status,
-    });
-  }
-
-  // WHT node (the open cert, or downward from PV.whtCertificates)
-  if (resolvedWhtId > 0) {
-    nodes.push({
-      anchor: 'wht-certificate', id: resolvedWhtId,
-      labelKey: LABEL_KEY['wht-certificate'], route: ROUTE['wht-certificate'],
-      icon: ICON['wht-certificate'],
-      docNo: whtDirect.data?.docNo ?? downWht?.docNo,
-      status: whtDirect.data?.status ?? downWht?.status,
-    });
+  if (chain) {
+    if (chain.purchaseOrder) nodes.push(toView('purchase-order', chain.purchaseOrder));
+    // The chain rail shows a linear path, not the full fan-out — when the BE
+    // returns multiple VIs/PVs/WHTs (e.g. one PO settled by several VIs), pick
+    // the FIRST (lowest-id, BE-ordered) as representative. The detail pages of
+    // any sibling can still be reached by navigating; this component is a
+    // bread-crumb, not a tree view.
+    if (chain.vendorInvoices[0]) nodes.push(toView('vendor-invoice', chain.vendorInvoices[0]));
+    if (chain.paymentVouchers[0]) nodes.push(toView('payment-voucher', chain.paymentVouchers[0]));
+    if (chain.whtCertificates[0]) nodes.push(toView('wht-certificate', chain.whtCertificates[0]));
   }
 
   if (nodes.length === 0) return null;
