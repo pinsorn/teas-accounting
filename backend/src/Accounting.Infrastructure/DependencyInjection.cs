@@ -58,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Purchase.IVendorInvoiceService,  Purchase.VendorInvoiceService>();
         services.AddScoped<Application.Purchase.IPurchaseOrderService,  Purchase.PurchaseOrderService>();
         services.AddScoped<Application.Purchase.IWhtCertificateService,  Purchase.WhtCertificateService>();
+        services.AddScoped<Application.Purchase.IPurchaseChainService,   Purchase.PurchaseChainService>();
         services.AddScoped<Application.Reports.IApAgingService,           Reports.ApAgingService>();
         services.AddScoped<Application.Sales.IReceiptService,            Sales.ReceiptService>();
         services.AddScoped<Application.Sales.ITaxAdjustmentNoteService,  Sales.TaxAdjustmentNoteService>();
