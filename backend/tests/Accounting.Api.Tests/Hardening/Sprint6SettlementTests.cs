@@ -78,12 +78,14 @@ public sealed class Sprint6SettlementTests
     {
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var id = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
             DocDate: new DateOnly(2026, 5, 16), VendorId: vendorId,
             VendorTaxInvoiceNo: "VT-" + Guid.NewGuid().ToString("N")[..6],
             VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
             Lines: [new VendorInvoiceLineInput(catId, null, "vi line", amount, vatRate)]), default);
+        db.SeedViAttachment(id); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
         await svc.PostAsync(id, default);
         return id;
     }

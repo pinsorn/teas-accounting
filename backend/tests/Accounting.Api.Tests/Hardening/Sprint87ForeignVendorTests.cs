@@ -209,9 +209,10 @@ public sealed class Sprint87ForeignVendorTests
                 new DateOnly(2026, 5, 16), v, "VT-" + Sfx(),
                 new DateOnly(2026, 5, 10), null, "THB", 1m, null,
                 [new VendorInvoiceLineInput(cat, null, "x", 1000m, 0.07m)]), default);
-            var vi = await s.ServiceProvider.GetRequiredService<AccountingDbContext>()
-                .VendorInvoices.FirstAsync(x => x.VendorInvoiceId == viId);
+            var dbInner = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var vi = await dbInner.VendorInvoices.FirstAsync(x => x.VendorInvoiceId == viId);
             vi.HasInputVat.Should().BeFalse("non-VAT vendor → no claimable input VAT");
+            dbInner.SeedViAttachment(viId); await dbInner.SaveChangesAsync();   // VI Post requires the vendor-TI file
             await svc.PostAsync(viId, default);
         }
 

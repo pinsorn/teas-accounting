@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { login, logout } from './_helpers';
+import { attachVendorTaxInvoice } from './helpers/attachments';
 
 // Sprint 12 — internal Purchase Order end-to-end (Answer-Sana-Backend17 DoD).
 // Covers: create (ap_clerk) → approve by a DIFFERENT user (SoD, approver) →
@@ -95,6 +96,9 @@ test('PO lifecycle: create → SoD approve → linked VI auto-closes → outstan
   });
   expect(viCreate.status()).toBe(201);
   const viId = (await viCreate.json()).vendor_invoice_id;
+
+  // C — vendor's ใบกำกับภาษีซื้อ file is required for VI Post (audit evidence).
+  await attachVendorTaxInvoice(page.request, API, viId);
 
   const viPost = await page.request.post(`${API}/vendor-invoices/${viId}/post`);
   expect(viPost.status()).toBe(200);

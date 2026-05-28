@@ -298,7 +298,9 @@ public sealed class PurchaseAuditTests
         await using (var s = sp.CreateAsyncScope())
         {
             var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             viId = await svc.CreateDraftAsync(ViReq(vid, catId), default);
+            db.SeedViAttachment(viId); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
             await svc.PostAsync(viId, default);
         }
         await AssertOneLog(sp, "VendorInvoice", viId, "Posted",

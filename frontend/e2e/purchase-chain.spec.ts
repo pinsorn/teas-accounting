@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { login, logout } from './_helpers';
 import { TestIds } from './helpers/test-ids';
+import { attachVendorTaxInvoice } from './helpers/attachments';
 
 // Sprint 13j-PURCH Phase G — full Purchase chain end-to-end:
 //   PO (multi-line) → Approve (SoD) → MarkSent
@@ -117,6 +118,11 @@ test('purchase chain: PO (multi-line) → VI from PO → PV w/ WHT → 50ทว�
   const viBefore = await (await page.request.get(`${API}/vendor-invoices/${viId}`)).json();
   expect(viBefore.purchaseOrderId, 'VI links back to PO').toBe(poId);
   expect(viBefore.vatClaimPeriod, 'VI claim period set').toBe(claimPeriod);
+
+  // C — VendorInvoiceService.PostAsync now requires the vendor's ใบกำกับภาษีซื้อ
+  // file under (VendorInvoice, viId) before status can flip Draft → Posted
+  // (ม.86/4 + ม.82/4 audit evidence). Attach a stub PDF as the same admin role.
+  await attachVendorTaxInvoice(page.request, API, viId);
 
   const viPost = await page.request.post(`${API}/vendor-invoices/${viId}/post`);
   expect(viPost.status(), 'VI post').toBe(200);
