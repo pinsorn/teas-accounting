@@ -688,6 +688,8 @@
     "post": "Post",
     "settled": "Settled",
     "settleWithPv": "Settle with Payment Voucher",
+    "attachmentRequired": "Vendor tax-invoice file is required before posting",
+    "attachmentRequiredHint": "Upload the vendor's tax-invoice file in the Attachments section below before you can post (RD audit evidence — ม.86/4, ม.82/4).",
     "postWarn": "Posting books Dr Expense/Input-VAT, Cr AP and is irreversible",
     "nonRecWarn": "This category is non-recoverable VAT (ม.82/5) — VAT lumps into expense",
     "hasInputVat": "Has input VAT (claimable)",

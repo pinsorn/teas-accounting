@@ -83,12 +83,17 @@ public sealed class Sprint6VatRegisterTests
         var no = "VR-" + Guid.NewGuid().ToString("N")[..8];
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var id = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
             DocDate: docDate, VendorId: vendorId, VendorTaxInvoiceNo: no,
             VendorTaxInvoiceDate: vendorTiDate, VatClaimPeriod: claim,
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
             Lines: [new VendorInvoiceLineInput(catId, null, "l", amount, vatRate)]), default);
-        if (post) await svc.PostAsync(id, default);
+        if (post)
+        {
+            db.SeedViAttachment(id); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
+            await svc.PostAsync(id, default);
+        }
         return no;
     }
 

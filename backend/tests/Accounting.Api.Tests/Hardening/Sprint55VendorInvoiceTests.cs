@@ -102,7 +102,9 @@ public sealed class Sprint55VendorInvoiceTests
         await using (var s = sp.CreateAsyncScope())
         {
             var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             var id = await svc.CreateDraftAsync(Req(vendorId, catId, 1000m, 0.07m), default);
+            db.SeedViAttachment(id); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
             posted = await svc.PostAsync(id, default);
         }
         posted.DocNo.Should().StartWith("05-2026-VI-");
@@ -129,7 +131,9 @@ public sealed class Sprint55VendorInvoiceTests
         await using (var s = sp.CreateAsyncScope())
         {
             var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             viId = await svc.CreateDraftAsync(Req(vendorId, catId, 1000m, 0.07m), default);
+            db.SeedViAttachment(viId); await db.SaveChangesAsync();
             posted = await svc.PostAsync(viId, default);
         }
         posted.VatAmount.Should().Be(0m, "non-recoverable VAT is not claimable input VAT");
@@ -157,7 +161,9 @@ public sealed class Sprint55VendorInvoiceTests
         await using (var s = sp.CreateAsyncScope())
         {
             var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             var id = await svc.CreateDraftAsync(Req(vendorId, catId, 800m, 0m), default);
+            db.SeedViAttachment(id); await db.SaveChangesAsync();
             posted = await svc.PostAsync(id, default);
         }
         posted.VatAmount.Should().Be(0m);
@@ -226,12 +232,48 @@ public sealed class Sprint55VendorInvoiceTests
         var id = await svc.CreateDraftAsync(
             Req(vendorId, catId, 1000m, 0.07m, docDate: docDate,
                 vendorTiDate: tiDate, claim: closedClaim), default);
+        // Seed the required attachment so the closed-period check is what trips Post,
+        // not the (newer) vi.attachment_required guard. The test is about §5.
+        var db1 = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        db1.SeedViAttachment(id); await db1.SaveChangesAsync();
 
         var act = () => svc.PostAsync(id, default);
         var ex = (await act.Should().ThrowAsync<DomainException>()).Which;
         ex.Code.Should().Be("vi.claim_period_closed");
         ex.Message.Should().Contain((yr * 100 + 4).ToString(),
             "the error must name the next OPEN period within the ม.82/4 window");
+    }
+
+    // ── C — Post rejects when the vendor's ใบกำกับภาษีซื้อ file is not attached ──
+    // Same shape as the Sales-side WHT guard (rc.wht_type_invalid): the state
+    // transition is blocked, not the create; the doc stays Draft, the user uploads
+    // the file, then re-posts. ม.86/4 + ม.82/4 audit requires the source document.
+    [SkippableFact]
+    public async Task VendorInvoice_post_without_attachment_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var (vendorId, catId) = await SeedVendorAndCategory(sp, recoverableVat: true);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var id = await svc.CreateDraftAsync(Req(vendorId, catId, 500m, 0.07m), default);
+
+        // First attempt — no attachment → guard fires, status stays Draft.
+        var bad = () => svc.PostAsync(id, default);
+        (await bad.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("vi.attachment_required");
+        (await db.VendorInvoices.AsNoTracking().FirstAsync(v => v.VendorInvoiceId == id))
+            .Status.Should().Be(DocumentStatus.Draft, "guard must not flip status");
+
+        // After attaching the file, the same Post call succeeds.
+        db.SeedViAttachment(id);
+        await db.SaveChangesAsync();
+        var posted = await svc.PostAsync(id, default);
+        posted.DocNo.Should().StartWith("05-2026-VI-");
+        (await db.VendorInvoices.AsNoTracking().FirstAsync(v => v.VendorInvoiceId == id))
+            .Status.Should().Be(DocumentStatus.Posted);
     }
 
     // ── B2: PV approve SoD + post-after-approve ────────────────────────────────────

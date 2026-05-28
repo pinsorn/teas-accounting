@@ -213,6 +213,23 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         EnsureClaimInWindow(vi.VatClaimPeriod, vi.VendorTaxInvoiceDate);
         await EnsureClaimPeriodOpenAsync(vi, ct);   // §5
 
+        // The vendor's tax invoice (ใบกำกับภาษีซื้อ) is the primary documentary
+        // evidence supporting the input-VAT claim under ม.82/4 + ม.86/4; the Revenue
+        // Department audit (สรรพากร) requires the source document to be retrievable
+        // for every input-VAT claim. We do NOT issue our own tax invoice (no /pdf
+        // route) — we merely RECORD the vendor's, so requiring an attachment at Post
+        // is the gate that "Post" actually establishes audit evidence. Same shape as
+        // ReceiptService rejecting wht_amount > 0 without a wht_type — block the
+        // state transition, keep the doc in Draft.
+        var attachCount = await _db.Attachments.CountAsync(
+            a => a.ParentType == Domain.Enums.AttachmentParentType.VendorInvoice
+              && a.ParentId == id
+              && a.DeletedAt == null, ct);
+        if (attachCount == 0)
+            throw new DomainException("vi.attachment_required",
+                "ต้องแนบไฟล์ใบกำกับภาษีจากผู้ขายก่อนจึงจะโพสต์ใบกำกับภาษีซื้อได้ " +
+                "(Attach the vendor's tax-invoice file before posting.)");
+
         var docNo = await _numbers.NextAsync(
             vi.CompanyId, vi.BranchId, ViPrefix, subPrefix: null, vi.DocDate, ct);
 

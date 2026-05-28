@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
-import { useVendorInvoice, usePostVendorInvoice, useCompanyProfile } from '@/lib/queries';
+import { useVendorInvoice, usePostVendorInvoice, useCompanyProfile, useAttachments } from '@/lib/queries';
 import { formatTHB, formatDate } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
@@ -25,6 +25,11 @@ export default function VendorInvoiceDetailPage() {
   const tc = useTranslations('common');
   const { data: d, isLoading, isError } = useVendorInvoice(id);
   const { data: company } = useCompanyProfile();
+  // C — VendorInvoiceService.PostAsync now requires ≥1 non-deleted attachment under
+  // (VendorInvoice, id) before flipping Draft → Posted (ม.86/4 + ม.82/4 audit
+  // evidence). Reflect that gate in the UI so Post is disabled (with a banner
+  // explaining why) until the vendor's ใบกำกับภาษีซื้อ file has been attached.
+  const { data: attachments } = useAttachments('VENDOR_INVOICE', id);
   const post = usePostVendorInvoice();
   const [confirm, setConfirm] = useState(false);
 
@@ -33,6 +38,8 @@ export default function VendorInvoiceDetailPage() {
 
   const isDraft = d.status === 'Draft';
   const canSettle = d.status === 'Posted' && d.settlementStatus !== 'PAID';
+  const hasAttachment = (attachments?.items?.length ?? 0) > 0;
+  const postBlocked = isDraft && !hasAttachment;
   const pct = d.totalAmount > 0
     ? Math.min(100, Math.round((d.settledAmount / d.totalAmount) * 100)) : 0;
 
@@ -50,7 +57,9 @@ export default function VendorInvoiceDetailPage() {
         actions={
           <div className="flex gap-2">
             {isDraft && (
-              <button className="btn btn-primary btn-sm" disabled={post.isPending}
+              <button className="btn btn-primary btn-sm"
+                disabled={post.isPending || postBlocked}
+                title={postBlocked ? t('attachmentRequiredHint') : undefined}
                 onClick={() => setConfirm(true)}>
                 {t('post')}
               </button>
@@ -77,6 +86,18 @@ export default function VendorInvoiceDetailPage() {
         )}
         <span className="text-sm text-base-content/60">{formatDate(d.docDate)}</span>
       </div>
+
+      {postBlocked && (
+        <div role="alert"
+          data-testid="vi-attachment-required"
+          className="mb-4 flex items-start gap-3 rounded-card border border-warning/30 bg-warning/10 p-3 text-sm text-warning-content">
+          <span aria-hidden className="text-warning">⚠️</span>
+          <div className="flex-1">
+            <div className="font-medium">{t('attachmentRequired')}</div>
+            <div className="text-xs text-base-content/70">{t('attachmentRequiredHint')}</div>
+          </div>
+        </div>
+      )}
 
       <div className="detail-grid">
         <div className="paper-wrap">
