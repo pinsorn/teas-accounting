@@ -3,6 +3,17 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-05-29 (cont. 73) — tax cross-check vs Sana's `Tax-Reference-TH.md` + pre-push gate. No code touched · `next build` ✓ (54/54 pages, 0 err) · 2 commits (`58aa68d` + this log). Ham asleep ("ฝากด้วย"), full autonomy on safe items.
+
+**Context:** Ham dropped `docs/Tax-Reference-TH.md` (Sana's central Thai-tax fact reference — VAT/WHT/CIT/e-Tax/stamp/retention/penalties w/ ม.X + RD/ETDA/DBD citations) and said "ทำต่อ". Used it to cross-check the WHT seeds shipped in cont.72.
+
+**Done:**
+- **WAGE (seed 460) confirmed correct** against Tax-Reference §2.2: ค่าจ้างทั่วไป ม.40(2), ผู้รับบุคคลธรรมดา → 3% ภ.ง.ด.3. Rate + form verified, no change.
+- **Open question logged (NOT a defect)** in `Purchase-Followups.md`: `WhtType.IncomeTypeCode` is documented in the Domain entity as the ม.40 sub-section, but the seeded data (`PROF=2`, `ADS=4`, `COMM=3`, `AGRI=6`, …) doesn't follow that scheme. The value prints verbatim on the 50ทวิ, and the ภ.ง.ด.3/53 ใบแนบ have their own line-numbering distinct from ม.40 → the code could mean ม.40 sub-section / ภ.ง.ด. line / internal code, each giving a different "correct" value. **Deliberately did NOT touch any seed** — only the *label* is ambiguous (rates+forms match §2.2), and issued 50ทวิ are immune anyway because `PaymentVoucherService.cs:235` snapshots `IncomeTypeCode` onto the cert at PV-post. Needs Sana / a CPA / `whtsvs.rd.go.th` (§14.3 #4) to settle. Tracked the reference doc + the open question in commit `58aa68d`.
+- **Pre-push gate (cont.72 handoff item #1) cleared:** `next build` → ✓ Compiled 16s, Generating static pages 54/54, **0 errors**, 69 routes. (Was only `tsc`-checked before; now full prod build green.)
+
+**State:** BE :5080 + FE dev :3000 restarted (both up). Tree clean. **11 commits on `main` awaiting a remote URL to push** (9 from cont.72 + `58aa68d` + this log).
+
 ## 2026-05-28 (cont. 72) — Sprint **13j-PURCH** wrap-up: **WAGE WHT / C / F**. Three AFK-deferred items from cont.71 (Ham asleep; "ตัดสินใจได้เลย" — full autonomy on the safe options) all shipped + local-committed on `main` (3 commits, suite **178/178 ×2 consecutive** on teas_test, Domain.Tests 89/89, Purchase e2e ×2 green, FE tsc 0). No push (no git remote on this repo).
 
 **Shipped (3 commits on `main`):**
