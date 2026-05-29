@@ -23,17 +23,21 @@ public static class TestIds
     public static string ProductCode (string prefix = "PROD") => $"{prefix}-{Suffix()}";
     public static string BranchCode  (string prefix = "BR")   => $"{prefix}-{Suffix()}";
 
-    /// <summary>BU code: short uppercase (BUs are constrained ≤20, uppercase-ish).</summary>
+    // cont.75 — these used a truncated 3–4 char suffix (≈4K–65K space). On the long-lived
+    // shared teas_test DB that saturates after enough historical rows → 23505 unique-violation
+    // flakes (e.g. ix_expense_categories_company_id_category_code). Columns are all ≤20, so use
+    // the FULL 8-char suffix (16^8 ≈ 4.3B); "EXP-A1B2C3D4" (12) / "BUA1B2C3D4" (10) still fit.
+    /// <summary>BU code: uppercase, 20-char column.</summary>
     public static string BusinessUnitCode(string prefix = "BU") =>
-        $"{prefix}{Suffix()[..3].ToUpperInvariant()}";
+        $"{prefix}{Suffix().ToUpperInvariant()}";
 
-    /// <summary>Expense category code: short uppercase.</summary>
+    /// <summary>Expense category code: uppercase, 20-char column.</summary>
     public static string ExpenseCategoryCode(string prefix = "EXP") =>
-        $"{prefix}-{Suffix()[..4].ToUpperInvariant()}";
+        $"{prefix}-{Suffix().ToUpperInvariant()}";
 
-    /// <summary>WHT type code: short uppercase.</summary>
+    /// <summary>WHT type code: uppercase, 20-char column.</summary>
     public static string WhtTypeCode(string prefix = "WHT") =>
-        $"{prefix}-{Suffix()[..4].ToUpperInvariant()}";
+        $"{prefix}-{Suffix().ToUpperInvariant()}";
 
     /// <summary>Email with a deterministic domain for assertions.</summary>
     public static string Email(string prefix = "test") => $"{prefix}+{Suffix()}@example.com";

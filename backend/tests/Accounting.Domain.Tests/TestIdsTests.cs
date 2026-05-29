@@ -47,6 +47,6 @@ public sealed class TestIdsTests
     {
         var c = TestIds.BusinessUnitCode();
         c.Length.Should().BeLessThanOrEqualTo(20);
-        c.Should().MatchRegex("^BU[0-9A-F]{3}$");
+        c.Should().MatchRegex("^BU[0-9A-F]{8}$");   // cont.75 — widened 3→8 to kill shared-DB collisions
     }
 }

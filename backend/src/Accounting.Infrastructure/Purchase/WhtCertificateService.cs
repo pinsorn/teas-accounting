@@ -2,6 +2,7 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Tax;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -12,10 +13,14 @@ using QuestPDF.Infrastructure;
 namespace Accounting.Infrastructure.Purchase;
 
 /// <summary>
-/// Read + 50 ทวิ PDF render. Certificates are issued in
-/// <see cref="PaymentVoucherService.PostAsync"/> — this service never writes.
+/// Read + 50 ทวิ PDF render/serve. Certificates are issued in
+/// <see cref="PaymentVoucherService.PostAsync"/>; the only write here is the lazily
+/// materialized <see cref="WhtCertificate.PdfStoragePath"/> — on first render the PDF is
+/// persisted via <see cref="IFileStorageService"/> and frozen (the cert's source data is
+/// immutable, so the stored copy is the canonical issued document on every later download).
 /// </summary>
-public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext tenant)
+public sealed class WhtCertificateService(
+    AccountingDbContext db, ITenantContext tenant, IFileStorageService storage)
     : IWhtCertificateService
 {
     public async Task<CursorPage<WhtCertificateListItem>> ListAsync(
@@ -60,20 +65,48 @@ public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext
     /// </summary>
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct)
     {
-        var d = await GetDetailAsync(id, ct)
+        if (!tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        // Tracked load — BuildPdfAsync persists PdfStoragePath on first materialization.
+        var w = await db.WhtCertificates.FirstOrDefaultAsync(x => x.WhtCertificateId == id, ct)
             ?? throw new DomainException("wht.not_found", $"WHT certificate {id} not found.");
+
+        // Serve the frozen issued copy if it has already been materialized.
+        if (!string.IsNullOrEmpty(w.PdfStoragePath) && await storage.ExistsAsync(w.PdfStoragePath, ct))
+        {
+            await using var s = await storage.OpenReadAsync(w.PdfStoragePath, ct);
+            using var buf = new MemoryStream();
+            await s.CopyToAsync(buf, ct);
+            return buf.ToArray();
+        }
+
+        var bytes = RenderPdf(w);
+
+        // Persist + freeze: store via IFileStorageService and pin the path. The cert's source
+        // data is immutable (snapshotted at PV-post), so this becomes the canonical copy.
+        using (var src = new MemoryStream(bytes, writable: false))
+            w.PdfStoragePath = await storage.SaveAsync(
+                w.CompanyId, "WHT_CERTIFICATE", w.WhtCertificateId, src, $"{w.DocNo}.pdf", ct);
+        await db.SaveChangesAsync(ct);
+        return bytes;
+    }
+
+    private static byte[] RenderPdf(WhtCertificate w)
+    {
+        var formType = w.FormType.ToString();
 
         // Domestic certs → fill the official RD 50ทวิ AcroForm (Ham's requirement:
         // "fill ใส่ไฟล์นี้"). Foreign ภ.ง.ด.54 has no checkbox on this form, so it
         // keeps the QuestPDF layout below as a fallback.
-        if (d.FormType is "Pnd1" or "Pnd2" or "Pnd3" or "Pnd53")
-            return Wht50TawiFormFiller.Fill(new Wht50TawiData(
-                DocNo: d.DocNo, FormType: d.FormType,
-                PayerName: d.PayerName, PayerTaxId: d.PayerTaxId, PayerAddress: d.PayerAddress,
-                PayeeName: d.PayeeName, PayeeTaxId: d.PayeeTaxId, PayeeAddress: d.PayeeAddress,
-                IncomeTypeMa40: d.IncomeTypeCode, IncomeDescription: d.IncomeDescription,
-                PayDate: d.CertDate, IncomeAmount: d.IncomeAmount, WhtAmount: d.WhtAmount,
-                CopyLabel: "ฉบับที่ 1 (สำหรับผู้ถูกหักภาษี ณ ที่จ่าย ใช้แนบพร้อมกับแบบแสดงรายการ)"));
+        // RD 50ทวิ must be issued in 2 copies (ฉบับ1 แนบแบบ / ฉบับ2 เก็บหลักฐาน) →
+        // FillCopies emits a 2-page PDF (the form pre-prints both ฉบับ labels).
+        if (formType is "Pnd1" or "Pnd2" or "Pnd3" or "Pnd53")
+            return Wht50TawiFormFiller.FillCopies(new Wht50TawiData(
+                DocNo: w.DocNo, FormType: formType,
+                PayerName: w.PayerName, PayerTaxId: w.PayerTaxId, PayerAddress: w.PayerAddress,
+                PayeeName: w.PayeeName, PayeeTaxId: w.PayeeTaxId, PayeeAddress: w.PayeeAddress,
+                IncomeTypeMa40: w.IncomeTypeCode, IncomeDescription: w.IncomeDescription,
+                PayDate: w.CertDate, IncomeAmount: w.IncomeAmount, WhtAmount: w.WhtAmount));
 
         return Document.Create(doc => doc.Page(page =>
         {
@@ -86,7 +119,7 @@ public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext
                 h.Item().AlignCenter().Text("หนังสือรับรองการหักภาษี ณ ที่จ่าย").Bold().FontSize(14);
                 h.Item().AlignCenter().Text("ตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร / Withholding Tax Certificate")
                     .FontSize(9).FontColor(Colors.Grey.Darken1);
-                h.Item().AlignRight().Text($"เล่มที่/เลขที่ No.: {d.DocNo}").Bold();
+                h.Item().AlignRight().Text($"เล่มที่/เลขที่ No.: {w.DocNo}").Bold();
             });
 
             page.Content().PaddingVertical(10).Column(col =>
@@ -96,23 +129,23 @@ public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext
                 col.Item().Border(1).Padding(6).Column(payer =>
                 {
                     payer.Item().Text("ผู้มีหน้าที่หักภาษี ณ ที่จ่าย (Payer)").Bold();
-                    payer.Item().Text($"ชื่อ / Name: {d.PayerName}");
-                    payer.Item().Text($"เลขประจำตัวผู้เสียภาษี / Tax ID: {d.PayerTaxId}"
-                        + $"   สาขา / Branch: {d.PayerBranchCode}");
-                    payer.Item().Text($"ที่อยู่ / Address: {d.PayerAddress}");
+                    payer.Item().Text($"ชื่อ / Name: {w.PayerName}");
+                    payer.Item().Text($"เลขประจำตัวผู้เสียภาษี / Tax ID: {w.PayerTaxId}"
+                        + $"   สาขา / Branch: {w.PayerBranchCode}");
+                    payer.Item().Text($"ที่อยู่ / Address: {w.PayerAddress}");
                 });
 
                 col.Item().Border(1).Padding(6).Column(payee =>
                 {
                     payee.Item().Text("ผู้ถูกหักภาษี ณ ที่จ่าย (Payee)").Bold();
-                    payee.Item().Text($"ชื่อ / Name: {d.PayeeName}");
-                    payee.Item().Text($"เลขประจำตัวผู้เสียภาษี / Tax ID: {d.PayeeTaxId ?? "-"}");
-                    payee.Item().Text($"ที่อยู่ / Address: {d.PayeeAddress}");
-                    payee.Item().Text($"ประเภทผู้รับเงิน / Type: {d.PayeeType}");
+                    payee.Item().Text($"ชื่อ / Name: {w.PayeeName}");
+                    payee.Item().Text($"เลขประจำตัวผู้เสียภาษี / Tax ID: {w.PayeeTaxId ?? "-"}");
+                    payee.Item().Text($"ที่อยู่ / Address: {w.PayeeAddress}");
+                    payee.Item().Text($"ประเภทผู้รับเงิน / Type: {w.PayeeType}");
                 });
 
-                col.Item().Text($"แบบยื่นรายการ / Return type: {d.FormType}"
-                    + $"     ลงวันที่ / Date: {d.CertDate:dd/MM/yyyy}").Bold();
+                col.Item().Text($"แบบยื่นรายการ / Return type: {formType}"
+                    + $"     ลงวันที่ / Date: {w.CertDate:dd/MM/yyyy}").Bold();
 
                 col.Item().Table(t =>
                 {
@@ -136,16 +169,16 @@ public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext
                         // income_type_code IS the ม.40 sub-section (per the official
                         // ภ.ง.ด.3/53 income box). Render it as the legal section ref, not a
                         // bare number. A non-numeric/blank code degrades to just the desc.
-                        (d.IncomeTypeCode is { Length: > 0 } code && char.IsDigit(code[0])
-                            ? $"ตามมาตรา 40({code})" : d.IncomeTypeCode)
-                        + (string.IsNullOrEmpty(d.IncomeDescription) ? "" : $" — {d.IncomeDescription}")
-                        + $"  (อัตรา {d.WhtRate:P2})");
-                    t.Cell().Element(C).AlignRight().Text($"{d.IncomeAmount:N2}");
-                    t.Cell().Element(C).AlignRight().Text($"{d.WhtAmount:N2}");
+                        (w.IncomeTypeCode is { Length: > 0 } code && char.IsDigit(code[0])
+                            ? $"ตามมาตรา 40({code})" : w.IncomeTypeCode)
+                        + (string.IsNullOrEmpty(w.IncomeDescription) ? "" : $" — {w.IncomeDescription}")
+                        + $"  (อัตรา {w.WhtRate:P2})");
+                    t.Cell().Element(C).AlignRight().Text($"{w.IncomeAmount:N2}");
+                    t.Cell().Element(C).AlignRight().Text($"{w.WhtAmount:N2}");
 
                     t.Cell().Element(C).AlignRight().Text("รวม / Total").Bold();
-                    t.Cell().Element(C).AlignRight().Text($"{d.IncomeAmount:N2}").Bold();
-                    t.Cell().Element(C).AlignRight().Text($"{d.WhtAmount:N2}").Bold();
+                    t.Cell().Element(C).AlignRight().Text($"{w.IncomeAmount:N2}").Bold();
+                    t.Cell().Element(C).AlignRight().Text($"{w.WhtAmount:N2}").Bold();
                 });
 
                 col.Item().PaddingTop(8).Text(
@@ -155,7 +188,7 @@ public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext
             });
 
             page.Footer().AlignCenter()
-                .Text($"ออกโดยระบบ TEAS — อ้างอิงใบสำคัญจ่าย PV#{d.PaymentVoucherId}")
+                .Text($"ออกโดยระบบ TEAS — อ้างอิงใบสำคัญจ่าย PV#{w.PaymentVoucherId}")
                 .FontSize(8).FontColor(Colors.Grey.Medium);
         })).GeneratePdf();
     }
