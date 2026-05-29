@@ -2,6 +2,7 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
+using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
@@ -61,6 +62,18 @@ public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("wht.not_found", $"WHT certificate {id} not found.");
+
+        // Domestic certs → fill the official RD 50ทวิ AcroForm (Ham's requirement:
+        // "fill ใส่ไฟล์นี้"). Foreign ภ.ง.ด.54 has no checkbox on this form, so it
+        // keeps the QuestPDF layout below as a fallback.
+        if (d.FormType is "Pnd1" or "Pnd2" or "Pnd3" or "Pnd53")
+            return Wht50TawiFormFiller.Fill(new Wht50TawiData(
+                DocNo: d.DocNo, FormType: d.FormType,
+                PayerName: d.PayerName, PayerTaxId: d.PayerTaxId, PayerAddress: d.PayerAddress,
+                PayeeName: d.PayeeName, PayeeTaxId: d.PayeeTaxId, PayeeAddress: d.PayeeAddress,
+                IncomeTypeMa40: d.IncomeTypeCode, IncomeDescription: d.IncomeDescription,
+                PayDate: d.CertDate, IncomeAmount: d.IncomeAmount, WhtAmount: d.WhtAmount,
+                CopyLabel: "ฉบับที่ 1 (สำหรับผู้ถูกหักภาษี ณ ที่จ่าย ใช้แนบพร้อมกับแบบแสดงรายการ)"));
 
         return Document.Create(doc => doc.Page(page =>
         {
