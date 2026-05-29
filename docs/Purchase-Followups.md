@@ -76,12 +76,25 @@ section is kept for trace-back; do not re-open.
   **SAL** stays NULL — payroll ภ.ง.ด.1 progressive withholding is a separate subsystem,
   intentionally deferred to a future Payroll sprint ("ทำให้ Support ลองดูหน่อย").
 
-## Open question for Ham/Sana — `wht_types.income_type_code` semantics (2026-05-29)
+## RESOLVED 2026-05-29 — `wht_types.income_type_code` = ม.40 sub-section (fixed in `954ff89`)
+
+**Outcome:** Ham supplied the official RD ภ.ง.ด.3/53 booklet + the ภ.ง.ด.3 form. Both label the
+income box verbatim by **ม.40 sub-section** (box 1=40(1), 2=40(2), 3=40(3), 4(ก)=40(4)(ก),
+4(ข)=40(4)(ข); catch-all box = ทำของ/โฆษณา/เช่า/ขนส่ง/บริการ = 40(5)–(8)). So the Domain comment
+was right and the data was wrong. Fixed 9 rows at source (220/250/460 + MasterDataServices
+DefaultWhtTypes), added idempotent UPDATE seed `470` for existing DBs, and changed the 50ทวิ PDF
+to print `ตามมาตรา 40(X) — desc`. Issued certs are snapshotted (PaymentVoucherService :235) so
+unaffected. CPA-review judgment calls recorded in the `954ff89` commit body (WAGE/SVC-IND→40(8),
+CONTRACT→40(7)). Verified: build 0/0, suite 178/178 ×2, dev DB income codes confirmed.
+
+The original analysis is kept below for trace-back.
+
+---
 
 Surfaced while cross-checking the WHT seeds against `docs/Tax-Reference-TH.md` §2.1–2.2 (Sana's
-reference) after shipping the WAGE row (commit `3f7c981`). **This is an open question, not a defect
-— nothing is broken and no commit is blocked.** Needs the doc author / a CPA to settle the canonical
-meaning before anyone "corrects" the data.
+reference) after shipping the WAGE row (commit `3f7c981`). **This was an open question, not a defect
+— nothing was broken and no commit was blocked.** Needed the doc author / a CPA to settle the
+canonical meaning before "correcting" the data — which Ham then did with the RD source files.
 
 **The repo-verifiable fact (internal contradiction):** `WhtType.IncomeTypeCode` is documented in the
 Domain entity as the ม.40 sub-section number — its XML comment says *"RD income type code (1 = เงินเดือน,

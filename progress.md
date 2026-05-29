@@ -12,7 +12,22 @@
 - **Open question logged (NOT a defect)** in `Purchase-Followups.md`: `WhtType.IncomeTypeCode` is documented in the Domain entity as the ม.40 sub-section, but the seeded data (`PROF=2`, `ADS=4`, `COMM=3`, `AGRI=6`, …) doesn't follow that scheme. The value prints verbatim on the 50ทวิ, and the ภ.ง.ด.3/53 ใบแนบ have their own line-numbering distinct from ม.40 → the code could mean ม.40 sub-section / ภ.ง.ด. line / internal code, each giving a different "correct" value. **Deliberately did NOT touch any seed** — only the *label* is ambiguous (rates+forms match §2.2), and issued 50ทวิ are immune anyway because `PaymentVoucherService.cs:235` snapshots `IncomeTypeCode` onto the cert at PV-post. Needs Sana / a CPA / `whtsvs.rd.go.th` (§14.3 #4) to settle. Tracked the reference doc + the open question in commit `58aa68d`.
 - **Pre-push gate (cont.72 handoff item #1) cleared:** `next build` → ✓ Compiled 16s, Generating static pages 54/54, **0 errors**, 69 routes. (Was only `tsc`-checked before; now full prod build green.)
 
-**State:** BE :5080 + FE dev :3000 restarted (both up). Tree clean. **11 commits on `main` awaiting a remote URL to push** (9 from cont.72 + `58aa68d` + this log).
+**Then (same session, Ham awake + feeding RD sources):** the income_type_code open question got
+RESOLVED, not just logged. Ham supplied the official RD ภ.ง.ด.3/53 booklet PDF + the ภ.ง.ด.3 form
+image. Both label the income box verbatim by **ม.40 sub-section** (boxes 1–4 = 40(1)–(4); catch-all
+box = 40(5)–(8)) → the Domain comment was right, the seed data was wrong. Fixed in `954ff89`:
+9 rows corrected (PROF→6, SVC/SVC-IND/ADS/PRIZE/AGRI/WAGE/FOR-SVC→8, COMM→2) at source
+(220/250/460 + MasterDataServices.DefaultWhtTypes), new idempotent UPDATE seed `470` for
+already-seeded DBs (220's INSERT is ON CONFLICT DO NOTHING), and the 50ทวิ PDF now prints
+`ตามมาตรา 40(X) — desc` instead of a bare number. **WAGE was itself wrong** (`2`→`8`: ค่าจ้างแรงงาน =
+รับจ้างทำของ ม.40(8), not 40(2)) — caught by the advisor, confirmed by the booklet. CPA-review
+judgment calls (WAGE/SVC-IND→40(8), CONTRACT→40(7)) recorded in the commit body. Verified:
+build 0/0, Api.Tests 178/178 ×2, dev DB income codes confirmed via API. Issued 50ทวิ immune
+(snapshot at PV-post). Follow-up noted: `fill ภ.ง.ด.3` filing form generation (Ham hinted) is a
+future Phase — this fix is its prerequisite.
+
+**State:** BE :5080 + FE dev :3000 restarted (both up). Tree clean. **13 commits on `main` awaiting a
+remote URL to push** (9 cont.72 + `58aa68d` tax docs + cont.73 log + `954ff89` income fix + this log).
 
 ## 2026-05-28 (cont. 72) — Sprint **13j-PURCH** wrap-up: **WAGE WHT / C / F**. Three AFK-deferred items from cont.71 (Ham asleep; "ตัดสินใจได้เลย" — full autonomy on the safe options) all shipped + local-committed on `main` (3 commits, suite **178/178 ×2 consecutive** on teas_test, Domain.Tests 89/89, Purchase e2e ×2 green, FE tsc 0). No push (no git remote on this repo).
 
