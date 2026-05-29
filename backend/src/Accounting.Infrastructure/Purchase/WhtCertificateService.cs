@@ -120,7 +120,11 @@ public sealed class WhtCertificateService(AccountingDbContext db, ITenantContext
                         hr.Cell().Element(H).AlignRight().Text("ภาษีที่หัก / Tax").Bold();
                     });
                     t.Cell().Element(C).Text(
-                        $"{d.IncomeTypeCode}"
+                        // income_type_code IS the ม.40 sub-section (per the official
+                        // ภ.ง.ด.3/53 income box). Render it as the legal section ref, not a
+                        // bare number. A non-numeric/blank code degrades to just the desc.
+                        (d.IncomeTypeCode is { Length: > 0 } code && char.IsDigit(code[0])
+                            ? $"ตามมาตรา 40({code})" : d.IncomeTypeCode)
                         + (string.IsNullOrEmpty(d.IncomeDescription) ? "" : $" — {d.IncomeDescription}")
                         + $"  (อัตรา {d.WhtRate:P2})");
                     t.Cell().Element(C).AlignRight().Text($"{d.IncomeAmount:N2}");

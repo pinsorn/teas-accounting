@@ -13,16 +13,16 @@ INSERT INTO tax.wht_types
      is_active, effective_from, effective_to)
 VALUES
     (1, 'RENT',      'ค่าเช่า',                       'Rental',                '5', 'PND3',  0.05,   TRUE, DATE '2020-01-01', NULL),
-    (1, 'SVC',       'ค่าบริการ (นิติบุคคล)',          'Service (corporate)',   '3', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL),
-    (1, 'ADS',       'ค่าโฆษณา',                      'Advertising',           '4', 'PND53', 0.02,   TRUE, DATE '2020-01-01', NULL),
-    (1, 'SVC-IND',   'ค่าบริการ (บุคคลธรรมดา)',        'Service (individual)',  '3', 'PND3',  0.03,   TRUE, DATE '2020-01-01', NULL),
-    (1, 'PROF',      'ค่าวิชาชีพอิสระ',                'Professional fee',      '2', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL),
+    (1, 'SVC',       'ค่าบริการ (นิติบุคคล)',          'Service (corporate)',   '8', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL),
+    (1, 'ADS',       'ค่าโฆษณา',                      'Advertising',           '8', 'PND53', 0.02,   TRUE, DATE '2020-01-01', NULL),
+    (1, 'SVC-IND',   'ค่าบริการ (บุคคลธรรมดา)',        'Service (individual)',  '8', 'PND3',  0.03,   TRUE, DATE '2020-01-01', NULL),
+    (1, 'PROF',      'ค่าวิชาชีพอิสระ',                'Professional fee',      '6', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL),
     (1, 'TRANS',     'ค่าขนส่ง',                      'Transport',             '8', 'PND53', 0.01,   TRUE, DATE '2020-01-01', NULL),
-    (1, 'COMM',      'ค่านายหน้า / คอมมิชชั่น',         'Commission',            '3', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL),
+    (1, 'COMM',      'ค่านายหน้า / คอมมิชชั่น',         'Commission',            '2', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL),
     (1, 'ROYAL',     'ค่าสิทธิ',                      'Royalty',               '3', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL),
     (1, 'INT',       'ดอกเบี้ย',                      'Interest',              '4', 'PND53', 0.01,   TRUE, DATE '2020-01-01', NULL),
-    (1, 'PRIZE',     'รางวัล / ส่วนลดส่งเสริมการขาย',   'Prize / incentive',     '4', 'PND53', 0.05,   TRUE, DATE '2020-01-01', NULL),
-    (1, 'AGRI',      'ค่าซื้อพืชผลเกษตร',              'Agricultural produce',  '6', 'PND53', 0.0075, TRUE, DATE '2020-01-01', NULL),
+    (1, 'PRIZE',     'รางวัล / ส่วนลดส่งเสริมการขาย',   'Prize / incentive',     '8', 'PND53', 0.05,   TRUE, DATE '2020-01-01', NULL),
+    (1, 'AGRI',      'ค่าซื้อพืชผลเกษตร',              'Agricultural produce',  '8', 'PND53', 0.0075, TRUE, DATE '2020-01-01', NULL),
     (1, 'ENTERTAIN', 'ค่าจ้างนักแสดง / บันเทิง',        'Entertainer fee',       '8', 'PND53', 0.05,   TRUE, DATE '2020-01-01', NULL),
     (1, 'CONTRACT',  'ค่าจ้างทำของ / รับเหมา',          'Contract work',         '7', 'PND53', 0.03,   TRUE, DATE '2020-01-01', NULL)
 ON CONFLICT (company_id, code, effective_from) DO NOTHING;

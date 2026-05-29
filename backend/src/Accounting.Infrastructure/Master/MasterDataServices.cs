@@ -240,20 +240,20 @@ public sealed class CompanyService(AccountingDbContext db) : ICompanyService
         WhtFormType Form, decimal Rate)[] DefaultWhtTypes =
     [
         ("RENT",      "ค่าเช่า",                       "Rental",               "5", WhtFormType.Pnd3,  0.05m),
-        ("SVC",       "ค่าบริการ (นิติบุคคล)",          "Service (corporate)",  "3", WhtFormType.Pnd53, 0.03m),
-        ("ADS",       "ค่าโฆษณา",                      "Advertising",          "4", WhtFormType.Pnd53, 0.02m),
-        ("SVC-IND",   "ค่าบริการ (บุคคลธรรมดา)",        "Service (individual)", "3", WhtFormType.Pnd3,  0.03m),
-        ("PROF",      "ค่าวิชาชีพอิสระ",                "Professional fee",     "2", WhtFormType.Pnd53, 0.03m),
+        ("SVC",       "ค่าบริการ (นิติบุคคล)",          "Service (corporate)",  "8", WhtFormType.Pnd53, 0.03m),
+        ("ADS",       "ค่าโฆษณา",                      "Advertising",          "8", WhtFormType.Pnd53, 0.02m),
+        ("SVC-IND",   "ค่าบริการ (บุคคลธรรมดา)",        "Service (individual)", "8", WhtFormType.Pnd3,  0.03m),
+        ("PROF",      "ค่าวิชาชีพอิสระ",                "Professional fee",     "6", WhtFormType.Pnd53, 0.03m),
         ("TRANS",     "ค่าขนส่ง",                      "Transport",            "8", WhtFormType.Pnd53, 0.01m),
-        ("COMM",      "ค่านายหน้า / คอมมิชชั่น",         "Commission",           "3", WhtFormType.Pnd53, 0.03m),
+        ("COMM",      "ค่านายหน้า / คอมมิชชั่น",         "Commission",           "2", WhtFormType.Pnd53, 0.03m),
         ("ROYAL",     "ค่าสิทธิ",                      "Royalty",              "3", WhtFormType.Pnd53, 0.03m),
         ("INT",       "ดอกเบี้ย",                      "Interest",             "4", WhtFormType.Pnd53, 0.01m),
-        ("PRIZE",     "รางวัล / ส่วนลดส่งเสริมการขาย",   "Prize / incentive",    "4", WhtFormType.Pnd53, 0.05m),
-        ("AGRI",      "ค่าซื้อพืชผลเกษตร",              "Agricultural produce", "6", WhtFormType.Pnd53, 0.0075m),
+        ("PRIZE",     "รางวัล / ส่วนลดส่งเสริมการขาย",   "Prize / incentive",    "8", WhtFormType.Pnd53, 0.05m),
+        ("AGRI",      "ค่าซื้อพืชผลเกษตร",              "Agricultural produce", "8", WhtFormType.Pnd53, 0.0075m),
         ("ENTERTAIN", "ค่าจ้างนักแสดง / บันเทิง",        "Entertainer fee",      "8", WhtFormType.Pnd53, 0.05m),
         ("CONTRACT",  "ค่าจ้างทำของ / รับเหมา",          "Contract work",        "7", WhtFormType.Pnd53, 0.03m),
         // Sprint 9 C1 — foreign payee (ภ.ง.ด.54, 15%); kept in sync with seed 250.
-        ("FOR-SVC",   "ค่าบริการ ต่างประเทศ",            "Foreign service",      "6", WhtFormType.Pnd54, 0.15m),
+        ("FOR-SVC",   "ค่าบริการ ต่างประเทศ",            "Foreign service",      "8", WhtFormType.Pnd54, 0.15m),
         ("FOR-ROYAL", "ค่าสิทธิ ต่างประเทศ",             "Foreign royalty",      "3", WhtFormType.Pnd54, 0.15m),
     ];
 

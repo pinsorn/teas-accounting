@@ -108,7 +108,8 @@ public sealed class Bp01CategoryWhtDefaultsTests
         wage!.Rate.Should().Be(0.03m, "§17.3 ค่าจ้างแรงงาน 3%");
         wage.FormType.Should().Be(Accounting.Domain.Enums.WhtFormType.Pnd3,
             "non-employee individual payee → ภ.ง.ด.3");
-        wage.IncomeTypeCode.Should().Be("2",
-            "ม.40(2) ค่าจ้าง — matches the seed-220 form-line convention");
+        wage.IncomeTypeCode.Should().Be("8",
+            "ค่าจ้างแรงงาน = รับจ้างทำของ ม.40(8) per the official RD ภ.ง.ด.3 booklet (ลำดับ 8); " +
+            "income_type_code stores the ม.40 sub-section verbatim (the ภ.ง.ด.3/50ทวิ income box)");
     }
 }
