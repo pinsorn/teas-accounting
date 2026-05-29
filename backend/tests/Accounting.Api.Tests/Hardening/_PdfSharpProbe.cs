@@ -1,101 +1,75 @@
 using System.IO;
-using System.Linq;
 using PdfSharp.Pdf;
-using PdfSharp.Pdf.AcroForms;
+using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
+using Accounting.Infrastructure.Pdf;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace Accounting.Api.Tests.Hardening;
 
-// Mechanism guard for the 50ทวิ AcroForm fill approach. PdfSharp 6.2's typed
-// PdfTextField ctor THROWS on this RD form, so the production filler must use the
-// raw /Fields-dict path proven here (walk /Fields, match /T, set /V, drop /AP,
-// set /NeedAppearances). This test pins that the template still has the fields and
-// that Thai text round-trips. If PdfSharp is upgraded, run this first.
+// Tests the production 50ทวิ AcroForm filler end-to-end: fill a sample cert via
+// Wht50TawiFormFiller, then reopen and read back the raw /V values to prove the
+// fields are populated (Thai round-trips). The filler uses the raw /Fields-dict
+// path because PdfSharp 6.2's typed PdfTextField ctor throws on this RD form.
+// Field map + verification method: Pdf/Templates/wht_50tawi_fieldmap.md.
 public sealed class _PdfSharpProbe
 {
     private readonly ITestOutputHelper _o;
     public _PdfSharpProbe(ITestOutputHelper o) => _o = o;
 
-    private static string Template()
-    {
-        // tests/Accounting.Api.Tests/bin/.../  → up to repo, into Infrastructure templates
-        var dir = AppContext.BaseDirectory;
-        return Path.GetFullPath(Path.Combine(dir,
-            "..", "..", "..", "..", "..", "src", "Accounting.Infrastructure",
-            "Pdf", "Templates", "wht_50tawi.pdf"));
-    }
-
     [Fact]
-    public void Can_fill_thai_and_roundtrip()
+    public void Filler_populates_50tawi_fields_with_thai()
     {
-        var tpl = Template();
-        Assert.True(File.Exists(tpl), $"template missing: {tpl}");
+        var data = new Wht50TawiData(
+            DocNo: "WT-2569-000123",
+            FormType: "Pnd3",
+            PayerName: "บริษัท ทดสอบหักภาษี จำกัด",
+            PayerTaxId: "0105556123453",
+            PayerAddress: "1 ถนนทดสอบ กรุงเทพฯ 10110",
+            PayeeName: "นายผู้รับเงิน ทดสอบ",
+            PayeeTaxId: "1100200300400",
+            PayeeAddress: "99 ซอยทดสอบ นนทบุรี 11000",
+            IncomeTypeMa40: "8",                       // ม.40(8) → ช่อง 5 ม.3 เตรส
+            IncomeDescription: "ค่าจ้างแรงงาน",
+            PayDate: new DateOnly(2026, 1, 6),
+            IncomeAmount: 50000m,
+            WhtAmount: 1500m,
+            CopyLabel: "ฉบับที่ 1 (สำหรับผู้ถูกหักภาษี ณ ที่จ่าย ใช้แนบพร้อมกับแบบแสดงรายการ)");
 
-        PdfDocument doc = PdfReader.Open(tpl, PdfDocumentOpenMode.Modify);
-        var form = doc.AcroForm;
-        Assert.NotNull(form);
+        var bytes = Wht50TawiFormFiller.Fill(data);
+        Assert.True(bytes.Length > 5000, "expected a real PDF");
 
-        // List top-level field names so we know the API surface.
-        var names = form!.Fields.Names.ToList();
-        _o.WriteLine("FIELD COUNT (top-level): " + names.Count);
-        _o.WriteLine(string.Join(", ", names));
+        // Dump for visual render self-check (pypdfium2) outside the test.
+        var outPath = Path.Combine(Path.GetTempPath(), "50tawi-filled.pdf");
+        File.WriteAllBytes(outPath, bytes);
+        _o.WriteLine("OUT " + outPath + " size=" + bytes.Length);
 
-        // Make viewers regenerate appearance (Thai shows via the viewer's font).
-        if (!form.Elements.ContainsKey("/NeedAppearances"))
-            form.Elements.Add("/NeedAppearances", new PdfBoolean(true));
-        else
-            form.Elements["/NeedAppearances"] = new PdfBoolean(true);
-
-        // RAW approach — bypass PdfSharp's PdfTextField ctor (it throws on this RD form).
-        // Walk the /Fields array directly, match /T, set /V to a UTF-16 PdfString.
-        var fillTargets = new System.Collections.Generic.Dictionary<string, string>
+        // Reopen + read raw /V by full name.
+        using var ms = new MemoryStream(bytes);
+        var doc = PdfReader.Open(ms, PdfDocumentOpenMode.Modify);
+        var fields = doc.AcroForm!.Elements.GetArray("/Fields")!;
+        var map = new System.Collections.Generic.Dictionary<string, string>();
+        void Walk(PdfItem? it, string prefix)
         {
-            ["book_no"] = "ก123",
-            ["name1"]   = "บริษัท ผู้หักภาษี จำกัด",
-            ["tin1"]    = "0105556123453",
-            ["name2"]   = "นายผู้ถูกหักภาษี ทดสอบ",
-            ["total"]   = "1,234.56",
-        };
-        var fieldsArr = form.Elements.GetArray("/Fields");
-        int set = 0;
-        for (int i = 0; i < fieldsArr!.Elements.Count; i++)
-        {
-            if (fieldsArr.Elements.GetObject(i) is not PdfDictionary fd) continue;
-            var t = fd.Elements.GetString("/T");
-            if (t is { Length: > 0 } && fillTargets.TryGetValue(t, out var val))
-            {
-                fd.Elements.SetString("/V", val);          // value (UTF-16 auto by PdfSharp)
-                fd.Elements.Remove("/AP");                  // drop stale appearance → viewer regens
-                set++;
-            }
+            var dct = (it as PdfReference)?.Value as PdfDictionary ?? it as PdfDictionary;
+            if (dct is null) return;
+            var t = dct.Elements.GetString("/T");
+            var name = string.IsNullOrEmpty(t) ? prefix : prefix.Length == 0 ? t : $"{prefix}.{t}";
+            var kids = dct.Elements.GetArray("/Kids");
+            if (kids is { Elements.Count: > 0 }) { foreach (var k in kids) Walk(k, name); }
+            else if (!string.IsNullOrEmpty(name)) map[name] = dct.Elements.GetString("/V");
         }
-        _o.WriteLine("RAW SET fields: " + set);
+        foreach (var f in fields) Walk(f, "");
 
-        var outPath = Path.Combine(Path.GetTempPath(), "50tawi-probe.pdf");
-        doc.Save(outPath);
+        Assert.Equal("บริษัท ทดสอบหักภาษี จำกัด", map.GetValueOrDefault("name1"));
+        Assert.Equal("นายผู้รับเงิน ทดสอบ", map.GetValueOrDefault("name2"));
+        Assert.Equal("ค่าจ้างแรงงาน", map.GetValueOrDefault("spec3"));
+        Assert.Equal("50,000.00", map.GetValueOrDefault("pay1.13.0"));
+        Assert.Equal("1,500.00", map.GetValueOrDefault("tax1.13.0"));
+        Assert.Equal("1,500.00", map.GetValueOrDefault("total"));
+        Assert.Equal("/Yes", map.GetValueOrDefault("chk4"));   // ภ.ง.ด.3
+        Assert.Equal("/Yes", map.GetValueOrDefault("chk8"));   // หัก ณ ที่จ่าย
         doc.Close();
-
-        // Reopen raw + read back /V.
-        var re = PdfReader.Open(outPath, PdfDocumentOpenMode.Import);
-        var rfa = re.AcroForm!.Elements.GetArray("/Fields")!;
-        string Get(string n)
-        {
-            for (int i = 0; i < rfa.Elements.Count; i++)
-                if (rfa.Elements.GetObject(i) is PdfDictionary fd
-                    && fd.Elements.GetString("/T") == n)
-                    return fd.Elements.GetString("/V");
-            return "<none>";
-        }
-        _o.WriteLine("READBACK book_no=" + Get("book_no"));
-        _o.WriteLine("READBACK name1=" + Get("name1"));
-        _o.WriteLine("READBACK name2=" + Get("name2"));
-        _o.WriteLine("OUT SIZE=" + new FileInfo(outPath).Length);
-
-        Assert.Equal(5, set);
-        Assert.Equal("บริษัท ผู้หักภาษี จำกัด", Get("name1"));
-        Assert.Equal("นายผู้ถูกหักภาษี ทดสอบ", Get("name2"));
-        re.Close();
     }
 }
