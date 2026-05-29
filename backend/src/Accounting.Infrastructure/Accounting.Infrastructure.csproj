@@ -35,5 +35,9 @@
     </None>
     <!-- Official RD 50ทวิ AcroForm — embedded so the filler works in any deploy. -->
     <EmbeddedResource Include="Pdf\Templates\wht_50tawi.pdf" />
+    <!-- Sarabun (SIL OFL) — embedded so Wht50TawiFormFiller's QuestPDF overlay shapes +
+         embeds Thai independent of host fonts / Program.cs startup registration. -->
+    <EmbeddedResource Include="Pdf\Fonts\Sarabun-Regular.ttf" />
+    <EmbeddedResource Include="Pdf\Fonts\Sarabun-Bold.ttf" />
   </ItemGroup>
 </Project>

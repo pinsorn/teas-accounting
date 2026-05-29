@@ -44,11 +44,19 @@ public sealed class PurchasePdfTests
         System.Text.Encoding.ASCII.GetString(bytes, 0, 5).Should().Be("%PDF-");
     }
 
+    // Shared writable storage root so the WHT-cert PDF persistence (IFileStorageService)
+    // works in tests and the pinned path resolves across scopes/providers.
+    private static readonly string StorageRoot =
+        Path.Combine(Path.GetTempPath(), "teas-whtpdf-" + Guid.NewGuid().ToString("N")[..8]);
+
     private ServiceProvider Provider(int companyId = 1, long userId = 1)
     {
         var cfg = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
-            { ["ConnectionStrings:Postgres"] = _fx.ConnectionString }).Build();
+            {
+                ["ConnectionStrings:Postgres"] = _fx.ConnectionString,
+                ["FileStorage:StorageRoot"] = StorageRoot,
+            }).Build();
         var s = new ServiceCollection();
         s.AddLogging();
         return s.AddInfrastructure(cfg)
@@ -205,5 +213,60 @@ public sealed class PurchasePdfTests
             await svc.PostAsync(pvId, default);
             AssertPdf(await svc.BuildPdfAsync(pvId, default, copy: false)); // Posted
         }
+    }
+
+    // cont.75 — 50ทวิ PDF is materialized + persisted on first BuildPdfAsync, then served
+    // frozen (byte-identical) thereafter from IFileStorageService. PV-post auto-issues the cert.
+    [SkippableFact]
+    public async Task WhtCertificate_pdf_persists_then_serves_frozen_copy()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var creator = Provider(userId: 1);
+        var vid = await NewVendor(creator);
+        var (catId, expAcct) = await NewExpenseCategory(creator);
+        var whtTypeId = await NewWhtType(creator);   // Pnd53 → official RD 50ทวิ fill path
+
+        long pvId;
+        await using (var s = creator.CreateAsyncScope())
+            pvId = await s.ServiceProvider.GetRequiredService<IPaymentVoucherService>()
+                .CreateDraftAsync(PvReq(vid, catId, expAcct, false, whtTypeId, 0.03m), default);
+
+        await using var approver = Provider(userId: 2);
+        await using (var s = approver.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
+            await svc.ApproveAsync(pvId, default);
+            await svc.PostAsync(pvId, default);      // auto-issues the 50ทวิ certificate
+        }
+
+        long certId;
+        await using (var s = creator.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var cert = await db.WhtCertificates.AsNoTracking()
+                .FirstAsync(c => c.PaymentVoucherId == pvId);
+            certId = cert.WhtCertificateId;
+            Assert.Null(cert.PdfStoragePath);        // not materialized before first render
+        }
+
+        byte[] first, second;
+        await using (var s = creator.CreateAsyncScope())
+            first = await s.ServiceProvider.GetRequiredService<IWhtCertificateService>()
+                .BuildPdfAsync(certId, default);     // renders + persists + pins the path
+
+        await using (var s = creator.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var path = await db.WhtCertificates.Where(c => c.WhtCertificateId == certId)
+                .Select(c => c.PdfStoragePath).FirstAsync();
+            Assert.False(string.IsNullOrEmpty(path), "PdfStoragePath must be pinned after first render");
+        }
+
+        await using (var s = creator.CreateAsyncScope())
+            second = await s.ServiceProvider.GetRequiredService<IWhtCertificateService>()
+                .BuildPdfAsync(certId, default);     // served from storage
+
+        AssertPdf(first);
+        Assert.Equal(first, second);                 // frozen copy is byte-identical
     }
 }

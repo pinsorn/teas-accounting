@@ -55,4 +55,10 @@ public class WhtCertificate : ITenantOwned
     public DocumentStatus Status { get; set; } = DocumentStatus.Posted;
     public DateTimeOffset IssuedAt { get; set; }
     public long? IssuedBy { get; set; }
+
+    /// <summary>cont.75 — relative storage path (under IFileStorageService root) of the
+    /// rendered + frozen 50ทวิ PDF (Direction='P'). Materialized on first BuildPdfAsync call
+    /// and immutable thereafter — the cert's source data is itself immutable (snapshotted at
+    /// PV-post), so the persisted PDF is the canonical issued copy. NULL until first render.</summary>
+    public string? PdfStoragePath { get; set; }
 }

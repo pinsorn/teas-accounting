@@ -30,6 +30,7 @@ internal sealed class WhtCertificateConfiguration : IEntityTypeConfiguration<Wht
             .HasMaxLength(10);
         b.Property(w => w.IncomeTypeCode).HasMaxLength(20).IsRequired();
         b.Property(w => w.IncomeDescription).HasMaxLength(500);
+        b.Property(w => w.PdfStoragePath).HasMaxLength(500);
         b.Property(w => w.IncomeAmount).HasPrecision(19, 4);
         b.Property(w => w.WhtRate).HasPrecision(9, 6);
         b.Property(w => w.WhtAmount).HasPrecision(19, 4);
