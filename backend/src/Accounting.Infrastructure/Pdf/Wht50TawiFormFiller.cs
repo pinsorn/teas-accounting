@@ -42,15 +42,20 @@ public static class Wht50TawiFormFiller
 
     private static List<RdField> MapFields(Wht50TawiData d)
     {
+        var (book, no) = SplitDocNo(d.DocNo);
         var f = new List<RdField>
         {
             // ── Header ──────────────────────────────────────────────────────────
-            new("run_no", d.DocNo),
+            // เล่มที่ = month/Buddhist-year, เลขที่ = running number (split from DocNo MM-YYYY-WT-NNNN).
+            new("book_no", book),
+            new("run_no", no),
             new("name1", d.PayerName),
-            new("tin1", d.PayerTaxId ?? ""),
+            // 13-digit tax id → the "(13 หลัก)" comb (id1/id1_2, 17 cells incl. dashes); the filler
+            // auto-spaces one char per cell. tin1/tin1_2 are the legacy box, left blank.
+            new("id1", FormatTaxId13(d.PayerTaxId)),
             new("add1", d.PayerAddress ?? ""),
             new("name2", d.PayeeName),
-            new("tin1_2", d.PayeeTaxId ?? ""),
+            new("id1_2", FormatTaxId13(d.PayeeTaxId)),
             new("add2", d.PayeeAddress ?? ""),
             // ── Form-type checkbox ──────────────────────────────────────────────
             new(d.FormType switch
@@ -80,14 +85,39 @@ public static class Wht50TawiFormFiller
             && !string.IsNullOrWhiteSpace(d.IncomeDescription))
             f.Add(new("spec3", d.IncomeDescription!));
 
+        // ── Income-table totals row: pay1.14 = Σ income, tax1.14 = Σ tax. A TEAS cert carries
+        //    one aggregated income, so the totals equal that single row. ──────────────────────
+        f.Add(new("pay1.14", Money(d.IncomeAmount), Right: true));
+        f.Add(new("tax1.14", Money(d.WhtAmount), Right: true));
+
         // ── Footer ──────────────────────────────────────────────────────────────
-        f.Add(new("total", Money(d.WhtAmount), Right: true));
-        f.Add(new("Text1.0.0", BahtText.Of(d.WhtAmount)));
+        // `total` = รวมเงินภาษีที่หักนำส่ง **เป็นตัวอักษร** (Thai words). The Text1.* boxes are
+        // fund-contribution fields — Text1.0.0 กบข./กสจ./กองทุนสงเคราะห์ครูเอกชน, Text1.0.1
+        // ประกันสังคม, Text1.1.0 กองทุนสำรองเลี้ยงชีพ — N/A for a PV-sourced WHT cert → left blank.
+        f.Add(new("total", BahtText.Of(d.WhtAmount)));
         f.Add(new("chk8", "X", Check: true));   // (1) หักภาษี ณ ที่จ่าย — TEAS always withholds
         f.Add(new("date_pay", d.PayDate.Day.ToString()));
         f.Add(new("month_pay", ThaiMonth(d.PayDate.Month)));
         f.Add(new("year_pay", (d.PayDate.Year + 543).ToString()));
         return f;
+    }
+
+    // DocNo "MM-YYYY-WT-NNNN" → (เล่มที่ = "MM/พ.ศ.", เลขที่ = "NNNN"). Falls back to the
+    // whole DocNo as เลขที่ if the shape is unexpected.
+    private static (string Book, string No) SplitDocNo(string docNo)
+    {
+        var p = docNo.Split('-');
+        if (p.Length >= 4 && int.TryParse(p[0], out var mm) && int.TryParse(p[1], out var yyyy))
+            return ($"{mm:00}/{yyyy + 543}", p[^1]);
+        return ("", docNo);
+    }
+
+    // 13-digit Thai tax id → grouped "X-XXXX-XXXXX-XX-X" (17 chars) to fill the id1 comb's 17
+    // cells (digits in digit-cells, dashes in the printed separators). Non-13-digit → as-is.
+    private static string FormatTaxId13(string? taxId)
+    {
+        var d = new string((taxId ?? "").Where(char.IsDigit).ToArray());
+        return d.Length == 13 ? $"{d[0]}-{d[1..5]}-{d[5..10]}-{d[10..12]}-{d[12]}" : (taxId ?? "");
     }
 
     private static string Money(decimal n) => n.ToString("#,##0.00");

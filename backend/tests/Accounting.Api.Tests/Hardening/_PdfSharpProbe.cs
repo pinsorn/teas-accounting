@@ -1,5 +1,6 @@
 using System.IO;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
 using Accounting.Infrastructure.Pdf;
 using Xunit;
@@ -21,7 +22,7 @@ public sealed class _PdfSharpProbe
     public void Filler_populates_50tawi_fields_with_thai()
     {
         var data = new Wht50TawiData(
-            DocNo: "WT-2569-000123",
+            DocNo: "05-2026-WT-0012",
             FormType: "Pnd3",
             PayerName: "บริษัท ทดสอบหักภาษี จำกัด",
             PayerTaxId: "0105556123453",
@@ -53,12 +54,49 @@ public sealed class _PdfSharpProbe
         doc.Close();
     }
 
+    // Calibration: fill EVERY AcroForm field with its own name (checkboxes with ✕) so the
+    // field→box mapping can be verified visually. Throwaway diagnostic — dumps to TEMP.
+    [Fact]
+    public void Calibration_fill_all_fields()
+    {
+        var asm = typeof(Wht50TawiFormFiller).Assembly;
+        var resName = System.Array.Find(asm.GetManifestResourceNames(),
+            n => n.EndsWith("wht_50tawi.pdf", System.StringComparison.Ordinal))!;
+        byte[] tpl;
+        using (var rs = asm.GetManifestResourceStream(resName)!)
+        using (var ms0 = new MemoryStream()) { rs.CopyTo(ms0); tpl = ms0.ToArray(); }
+
+        using var probe = new MemoryStream(tpl);
+        var doc = PdfReader.Open(probe, PdfDocumentOpenMode.Modify);
+        var fieldsArr = doc.AcroForm!.Elements.GetArray("/Fields")!;
+        var rd = new System.Collections.Generic.List<RdField>();
+        void Walk(PdfItem? it, string prefix)
+        {
+            var dct = (it as PdfReference)?.Value as PdfDictionary ?? it as PdfDictionary;
+            if (dct is null) return;
+            var t = dct.Elements.GetString("/T");
+            var name = string.IsNullOrEmpty(t) ? prefix : prefix.Length == 0 ? t : $"{prefix}.{t}";
+            var kids = dct.Elements.GetArray("/Kids");
+            if (kids is { Elements.Count: > 0 }) { foreach (var k in kids) Walk(k, name); return; }
+            var ft = dct.Elements.GetName("/FT");
+            if (ft == "/Btn") rd.Add(new RdField(name, "X", Check: true));
+            else rd.Add(new RdField(name, name));
+        }
+        foreach (var f in fieldsArr) Walk(f, "");
+        doc.Close();
+
+        var bytes = RdAcroFormFiller.Render(tpl, rd, copies: 1);
+        var outPath = Path.Combine(Path.GetTempPath(), "50tawi-calib.pdf");
+        File.WriteAllBytes(outPath, bytes);
+        _o.WriteLine($"OUT {outPath} fields={rd.Count}");
+    }
+
     // RD requires 2 copies — FillCopies must emit a 2-page PDF, both flattened.
     [Fact]
     public void FillCopies_emits_two_pages()
     {
         var data = new Wht50TawiData(
-            DocNo: "WT-2569-000123", FormType: "Pnd53",
+            DocNo: "05-2026-WT-0012", FormType: "Pnd53",
             PayerName: "บริษัท ทดสอบหักภาษี จำกัด", PayerTaxId: "0105556123453",
             PayerAddress: "1 ถนนทดสอบ กรุงเทพฯ 10110",
             PayeeName: "นายผู้รับเงิน ทดสอบ", PayeeTaxId: "1100200300400",

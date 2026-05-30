@@ -66,56 +66,79 @@ public static class RdAcroFormFiller
         }
     }
 
-    // ── Geometry: full field name → /Rect (PDF user space, bottom-left origin) ──────
-    private static Dictionary<string, PdfRectangle> ReadFieldRects(byte[] template, out double pageW, out double pageH)
+    // Geometry + the AcroForm "comb" hint: a comb text field (Ff bit 25, 0x1000000) splits its
+    // box into <MaxLen> equal cells — RD forms use it for the 13-digit tax id (17 comb cells:
+    // 13 digits + 4 dashes). We read it so values land one-char-per-cell on the printed grid.
+    private const int CombFlag = 1 << 24;
+    private readonly record struct FieldInfo(PdfRectangle Rect, int MaxLen, bool Comb);
+
+    // ── Geometry: full field name → rect + comb info (PDF user space, bottom-left origin) ──
+    private static Dictionary<string, FieldInfo> ReadFieldRects(byte[] template, out double pageW, out double pageH)
     {
         using var input = new MemoryStream(template);
         var doc = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
         var pg = doc.Pages[0];
         pageW = pg.Width.Point;
         pageH = pg.Height.Point;
-        var map = new Dictionary<string, PdfRectangle>();
+        var map = new Dictionary<string, FieldInfo>();
         var fields = doc.AcroForm?.Elements.GetArray("/Fields")
             ?? throw new InvalidOperationException("Template has no AcroForm /Fields.");
-        void Walk(PdfItem? item, string prefix)
+        // /Ff and /MaxLen are inheritable: a widget kid takes them from its parent field.
+        void Walk(PdfItem? item, string prefix, int inhMaxLen, bool inhComb)
         {
             var dict = Resolve(item);
             if (dict is null) return;
             var t = dict.Elements.GetString("/T");
             var name = string.IsNullOrEmpty(t) ? prefix : prefix.Length == 0 ? t : $"{prefix}.{t}";
+            var maxLen = dict.Elements.ContainsKey("/MaxLen") ? dict.Elements.GetInteger("/MaxLen") : inhMaxLen;
+            var comb = inhComb || (dict.Elements.ContainsKey("/Ff") && (dict.Elements.GetInteger("/Ff") & CombFlag) != 0);
             var kids = dict.Elements.GetArray("/Kids");
             if (kids is { Elements.Count: > 0 })
-                foreach (var k in kids) Walk(k, name);
+                foreach (var k in kids) Walk(k, name, maxLen, comb);
             else if (!string.IsNullOrEmpty(name))
-                map[name] = dict.Elements.GetRectangle("/Rect");
+                map[name] = new FieldInfo(dict.Elements.GetRectangle("/Rect"), maxLen, comb);
         }
-        foreach (var f in fields) Walk(f, "");
+        foreach (var f in fields) Walk(f, "", 0, false);
         return map;
     }
 
     // One piece of text to lay onto the form, in PDF points (top-left origin for QuestPDF).
-    private readonly record struct Cell(double X, double Top, double Width, double FontSize, string Text, bool Right);
+    private readonly record struct Cell(double X, double Top, double Width, double FontSize, string Text, bool Right, bool Center = false);
 
-    private static List<Cell> BuildCells(IReadOnlyCollection<RdField> fields, Dictionary<string, PdfRectangle> rects, double pageH)
+    private static List<Cell> BuildCells(IReadOnlyCollection<RdField> fields, Dictionary<string, FieldInfo> rects, double pageH)
     {
         var cells = new List<Cell>();
         foreach (var f in fields)
         {
-            if (string.IsNullOrWhiteSpace(f.Text) || !rects.TryGetValue(f.Name, out var r)) continue;
+            if (string.IsNullOrWhiteSpace(f.Text) || !rects.TryGetValue(f.Name, out var fi)) continue;
+            var r = fi.Rect;
             double h = r.Y2 - r.Y1, boxW = r.X2 - r.X1;
             if (f.Check)
             {
                 double cfs = Math.Clamp(h, 8.0, 12.0);
-                // Center the mark: QuestPDF top-left; horizontal centering via the box width + AlignCenter is
-                // approximated by a small left inset since checkbox boxes are tiny and square.
-                cells.Add(new Cell(r.X1, pageH - r.Y2 + (h - cfs) * 0.10, boxW, cfs, "✕", false));
+                // Center the mark in the (small, square) checkbox.
+                cells.Add(new Cell(r.X1, pageH - r.Y2 + (h - cfs) * 0.10, boxW, cfs, "✕", false, Center: true));
+                continue;
+            }
+            // Comb field (e.g. the 13-digit tax id): one char per equal cell, centered, so digits
+            // and dashes land on the printed grid. Generic — works for any comb field on any RD form.
+            if (fi.Comb && fi.MaxLen > 0)
+            {
+                double cellW = boxW / fi.MaxLen;
+                double cfs = Math.Clamp(Math.Min(h - 2.0, cellW * 1.3), 7.0, 11.5);
+                double ctop = pageH - r.Y2 + (h - cfs) * 0.40;
+                var s = f.Text;
+                for (int i = 0; i < s.Length && i < fi.MaxLen; i++)
+                    cells.Add(new Cell(r.X1 + i * cellW, ctop, cellW, cfs, s[i].ToString(), false, Center: true));
                 continue;
             }
             double fs = Math.Clamp(h - 3.0, 7.5, 11.5);
-            // Shrink to fit a single line when wider than the box (≈0.52em/char) — chiefly short
-            // boxes like run_no; a no-op for fields that already fit.
-            double estW = f.Text.Length * fs * 0.52;
-            if (estW > boxW) fs = Math.Max(6.0, boxW / (f.Text.Length * 0.52));
+            // Shrink to fit a single line when wider than the box (≈0.55em/char, with a small
+            // margin so the glyphs don't kiss the box edge) — chiefly the short เล่มที่/เลขที่
+            // boxes; a no-op for fields that already fit.
+            double avail = boxW - 3.0;
+            double estW = f.Text.Length * fs * 0.55;
+            if (estW > avail) fs = Math.Max(6.0, avail / (f.Text.Length * 0.55));
             // Vertical placement: top of the box is (pageH − Y2); sink the text by ~40% of the
             // box's slack so the glyph body sits centered on the printed line for any form.
             double top = pageH - r.Y2 + (h - fs) * 0.40;
@@ -140,6 +163,7 @@ public static class RdAcroFormFiller
                         .PaddingTop((float)cell.Top).PaddingLeft((float)cell.X)
                         .Width((float)cell.Width);
                     if (cell.Right) box = box.AlignRight();
+                    else if (cell.Center) box = box.AlignCenter();
                     box.Text(cell.Text).FontSize((float)cell.FontSize).LineHeight(1f);
                 }
             });
