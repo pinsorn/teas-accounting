@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { ListFilters } from '@/components/ui/ListFilters';
+import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
+import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { applyListFilters } from '@/lib/list-filter';
 import { useVendorInvoices } from '@/lib/queries';
@@ -20,7 +21,8 @@ export default function VendorInvoiceListPage() {
   const t = useTranslations('vi');
   const tc = useTranslations('common');
   const params = useSearchParams();
-  const q = useVendorInvoices();
+  const incompleteOnly = params.get('incompleteOnly') === 'true';
+  const q = useVendorInvoices(incompleteOnly);
   const loaded = q.data?.pages.flatMap((p) => p.items) ?? [];
   const rows = applyListFilters(loaded, params, {
     status: (r) => r.status,
@@ -29,20 +31,15 @@ export default function VendorInvoiceListPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('title')}
-        actions={
-          <Link href="/vendor-invoices/new" className="btn btn-primary btn-sm gap-1">
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </Link>
-        }
-      />
+      {/* purchase-completeness D1 — anti-floating: NO "create floating VI" entry
+          point. VI creation is reached from the PV (PV→VI guided create). */}
+      <PageHeader title={t('title')} subtitle={t('createFromPvHint')} />
       <ListFilters statusOptions={VI_STATUSES} statusTestId="vi-filter-status" party="vendor" />
+      <IncompleteOnlyToggle />
       {q.isSuccess && rows.length === 0 ? (
         <EmptyState
           title={t('title')}
-          description={tc('empty')}
-          cta={{ label: t('create'), href: '/vendor-invoices/new' }}
+          description={t('createFromPvHint')}
         />
       ) : (
       <div className="overflow-x-auto rounded-lg border border-base-300">
@@ -62,9 +59,12 @@ export default function VendorInvoiceListPage() {
             {rows.map((r) => (
               <tr key={r.vendorInvoiceId} className="hover">
                 <td>
-                  <Link href={`/vendor-invoices/${r.vendorInvoiceId}`}>
-                    <DocumentNumberBadge value={r.docNo} />
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/vendor-invoices/${r.vendorInvoiceId}`}>
+                      <DocumentNumberBadge value={r.docNo} />
+                    </Link>
+                    {r.status === 'Posted' && <IncompleteFlag isComplete={r.isComplete} />}
+                  </div>
                 </td>
                 <td className="font-mono">{r.vendorTaxInvoiceNo}</td>
                 <td>{r.vendorName}</td>

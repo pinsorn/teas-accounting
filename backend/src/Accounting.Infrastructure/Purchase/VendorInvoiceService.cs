@@ -122,12 +122,19 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
             var net = Math.Round(input.Amount, 4, MidpointRounding.AwayFromZero);
             var vat = Math.Round(net * input.VatRate, 2, MidpointRounding.AwayFromZero);
 
+            // cont.76 — สินค้า/บริการ snapshot. Default-GOOD on missing; reject invalid non-null.
+            var productType = ProductTypeCodes.Normalize(input.ProductType, code =>
+                throw new DomainException("vi.product_type_invalid",
+                    $"Line {i + 1}: product_type '{code}' must be one of " +
+                    "GOOD | SERVICE | EXEMPT_GOOD | EXEMPT_SERVICE."));
+
             lines.Add(new VendorInvoiceLine
             {
                 LineNo            = i + 1,
                 ExpenseCategoryId = cat.CategoryId,
                 ExpenseAccountId  = expenseAccountId,
                 Description       = input.Description,
+                ProductType       = productType,
                 Amount            = net,
                 TaxCodeId         = cat.DefaultTaxCodeId,
                 VatRate           = input.VatRate,

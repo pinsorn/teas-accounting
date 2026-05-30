@@ -28,6 +28,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
     private readonly IGlPostingService       _gl;
     private readonly IPeriodCloseService     _period;
     private readonly IActivityRecorder       _activity;
+    private readonly IVendorInvoiceService   _viService;   // cont.76 — PV→VI guided create
 
     public PaymentVoucherService(
         AccountingDbContext db,
@@ -36,10 +37,62 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         INumberSequenceService numbers,
         IGlPostingService gl,
         IPeriodCloseService period,
-        IActivityRecorder activity)
+        IActivityRecorder activity,
+        IVendorInvoiceService viService)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
-        _gl = gl; _period = period; _activity = activity;
+        _gl = gl; _period = period; _activity = activity; _viService = viService;
+    }
+
+    /// <summary>
+    /// cont.76 — create a VendorInvoice pre-filled from this PV and link it back. Reuses the
+    /// VI draft pipeline (which owns the ม.82/4 VatClaimPeriod default + recoverable-VAT split),
+    /// so this method only maps PV → VI request and sets the link. doc_date = today Asia/Bangkok
+    /// (UTC+7, no DST), never user input (§10). Standalone VI create is intentionally left intact.
+    /// </summary>
+    public async Task<long> CreateVendorInvoiceFromPvAsync(
+        long paymentVoucherId, CreateViFromPvRequest req, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var pv = await _db.PaymentVouchers.Include(p => p.Lines)
+                .FirstOrDefaultAsync(p => p.PaymentVoucherId == paymentVoucherId, ct)
+            ?? throw new DomainException("pv.not_found", $"Payment Voucher {paymentVoucherId} not found.");
+
+        if (pv.VendorInvoiceId is not null)
+            throw new DomainException("pv.vi_exists",
+                $"Payment Voucher {paymentVoucherId} already has a linked Vendor Invoice " +
+                $"({pv.VendorInvoiceId}).");
+
+        var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime.AddHours(7));   // Asia/Bangkok = UTC+7
+        var viReq = new CreateVendorInvoiceRequest(
+            DocDate:              today,
+            VendorId:             pv.VendorId,
+            VendorTaxInvoiceNo:   req.VendorTaxInvoiceNo,
+            VendorTaxInvoiceDate: req.VendorTaxInvoiceDate,
+            VatClaimPeriod:       req.VatClaimPeriod,
+            CurrencyCode:         pv.CurrencyCode,
+            ExchangeRate:         pv.ExchangeRate,
+            Notes:                pv.Description,
+            Lines: pv.Lines.OrderBy(l => l.LineNo).Select(l => new VendorInvoiceLineInput(
+                ExpenseCategoryId: pv.ExpenseCategoryId,
+                ExpenseAccountId:  l.ExpenseAccountId,
+                Description:       l.Description,
+                Amount:            l.Amount,
+                VatRate:           l.VatRate,
+                ProductType:       l.ProductType)).ToList(),
+            HasInputVat:     req.HasInputVat,
+            PurchaseOrderId: null);
+
+        var viId = await _viService.CreateDraftAsync(viReq, ct);
+
+        pv.VendorInvoiceId = viId;
+        pv.UpdatedAt = _clock.UtcNow;
+        _activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId,
+            "LinkedVendorInvoice", note: $"vi:{viId}", module: "purchase");
+        await _db.SaveChangesAsync(ct);
+        return viId;
     }
 
     public async Task<long> CreateDraftAsync(CreatePaymentVoucherRequest req, CancellationToken ct)
@@ -69,11 +122,19 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 ?? throw new DomainException("pv.expense_account_missing",
                     $"Line {i + 1}: no expense account (category '{category.CategoryCode}' has no default).");
 
+            // cont.76 — สินค้า/บริการ snapshot. Default-GOOD on a missing value (existing
+            // call-sites omit it); reject only an explicitly-invalid non-null code.
+            var productType = ProductTypeCodes.Normalize(input.ProductType, code =>
+                throw new DomainException("pv.product_type_invalid",
+                    $"Line {i + 1}: product_type '{code}' must be one of " +
+                    "GOOD | SERVICE | EXEMPT_GOOD | EXEMPT_SERVICE."));
+
             lines.Add(new PaymentVoucherLine
             {
                 LineNo            = i + 1,
                 ExpenseAccountId  = expenseAccountId,
                 Description       = input.Description,
+                ProductType       = productType,
                 Amount            = net,
                 TaxCodeId         = input.TaxCodeId,
                 VatRate           = input.VatRate,

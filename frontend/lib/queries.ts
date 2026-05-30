@@ -61,6 +61,7 @@ import type {
   VendorInvoiceListItem,
   VendorInvoiceDetail,
   CreateVendorInvoiceRequest,
+  CreateViFromPvRequest,
   VendorInvoicePostedResult,
   PaymentVoucherApprovedResult,
   AttachmentItem,
@@ -287,13 +288,13 @@ export function useExpenseCategories() {
   });
 }
 
-export function usePaymentVouchers() {
+export function usePaymentVouchers(incompleteOnly = false) {
   return useInfiniteQuery({
-    queryKey: ['payment-vouchers'],
+    queryKey: ['payment-vouchers', { incompleteOnly }],
     initialPageParam: undefined as number | undefined,
     queryFn: ({ pageParam }) =>
       apiGet<CursorPage<PaymentVoucherListItem>>(
-        `payment-vouchers${qs({ cursor: pageParam, limit: 25 })}`),
+        `payment-vouchers${qs({ cursor: pageParam, limit: 25, incompleteOnly: incompleteOnly || undefined })}`),
     getNextPageParam: (l) => l.nextCursor ?? undefined,
   });
 }
@@ -324,13 +325,13 @@ export function useWhtCertificate(id: number) {
 }
 
 // ───────────────────────── Sprint 6: VendorInvoice + PV approve ─────────────
-export function useVendorInvoices() {
+export function useVendorInvoices(incompleteOnly = false) {
   return useInfiniteQuery({
-    queryKey: ['vendor-invoices'],
+    queryKey: ['vendor-invoices', { incompleteOnly }],
     initialPageParam: undefined as number | undefined,
     queryFn: ({ pageParam }) =>
       apiGet<CursorPage<VendorInvoiceListItem>>(
-        `vendor-invoices${qs({ cursor: pageParam, limit: 25 })}`),
+        `vendor-invoices${qs({ cursor: pageParam, limit: 25, incompleteOnly: incompleteOnly || undefined })}`),
     getNextPageParam: (l) => l.nextCursor ?? undefined,
   });
 }
@@ -347,6 +348,20 @@ export function useCreateVendorInvoice() {
     mutationFn: (req: CreateVendorInvoiceRequest) =>
       apiPost<{ vendor_invoice_id: number }>('vendor-invoices/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['vendor-invoices'] }),
+  });
+}
+// purchase-completeness Phase 2 — guided PV→VI create. Pre-fills a VI draft from
+// the PV + links PV.VendorInvoiceId. 409 (pv.vi_exists) if a VI is already linked.
+export function useCreateViFromPv() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ pvId, req }: { pvId: number; req: CreateViFromPvRequest }) =>
+      apiPost<{ vendor_invoice_id: number }>(`payment-vouchers/${pvId}/vendor-invoice`, req),
+    onSuccess: (_r, { pvId }) => {
+      qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
+      qc.invalidateQueries({ queryKey: ['payment-voucher', pvId] });
+      qc.invalidateQueries({ queryKey: ['vendor-invoices'] });
+    },
   });
 }
 export function usePostVendorInvoice() {

@@ -11,7 +11,11 @@ public sealed record PaymentVoucherLineInput(
     decimal VatRate,
     bool    IsRecoverableVat,
     int?    WhtTypeId,
-    decimal WhtRate);
+    decimal WhtRate,
+    // cont.76 — สินค้า/บริการ snapshot. UPPER_SNAKE ProductType code
+    // (GOOD/SERVICE/EXEMPT_GOOD/EXEMPT_SERVICE). Trailing-defaulted so existing
+    // positional call-sites keep compiling; null → defaults to "GOOD" in the service.
+    string? ProductType = null);
 
 public sealed record CreatePaymentVoucherRequest(
     DateOnly DocDate,

@@ -33,9 +33,25 @@ public static class PaymentVoucherEndpoints
             Results.Ok(await service.PostAsync(id, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherPost);
 
+        // cont.76 — guided "create บันทึกใบกำกับภาษีซื้อ off this PV" path: pre-fills a VI draft
+        // from the PV and links it back. Requires the VI-create permission (it creates a VI).
+        group.MapPost("/{id:long}/vendor-invoice", async (long id,
+            [FromBody] CreateViFromPvRequest req,
+            IValidator<CreateViFromPvRequest> validator,
+            IPaymentVoucherService service,
+            CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(req, ct);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+
+            var viId = await service.CreateVendorInvoiceFromPvAsync(id, req, ct);
+            return Results.Created($"/vendor-invoices/{viId}", new { vendor_invoice_id = viId });
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.VendorInvoiceCreate);
+
         group.MapGet("/", async ([FromQuery] long? cursor, [FromQuery] int? limit,
-            IPaymentVoucherService svc, CancellationToken ct) =>
-                Results.Ok(await svc.ListAsync(cursor, limit ?? 25, ct)))
+            [FromQuery] bool? incompleteOnly, IPaymentVoucherService svc, CancellationToken ct) =>
+                Results.Ok(await svc.ListAsync(cursor, limit ?? 25, ct, incompleteOnly ?? false)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherRead);
 
         group.MapGet("/{id:long}", async (long id, IPaymentVoucherService svc, CancellationToken ct) =>

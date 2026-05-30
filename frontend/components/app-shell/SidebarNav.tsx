@@ -43,10 +43,12 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
   {
     key: 'purchase',
     items: [
+      // Document flow order (Ham 2026-05-30): ผู้ขาย → ใบสั่งซื้อ → ใบสำคัญจ่าย →
+      // ใบกำกับภาษีซื้อ → หนังสือรับรองหัก ณ ที่จ่าย.
       { href: '/vendors', key: 'vendors', Icon: Building2 },
-      { href: '/vendor-invoices', key: 'vendorInvoices', Icon: FileInput },
       { href: '/purchase-orders', key: 'purchaseOrders', Icon: ListChecks },
       { href: '/payment-vouchers', key: 'paymentVouchers', Icon: Wallet },
+      { href: '/vendor-invoices', key: 'vendorInvoices', Icon: FileInput },
       { href: '/wht-certificates', key: 'whtCerts', Icon: FileSignature },
     ],
   },

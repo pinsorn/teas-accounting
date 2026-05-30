@@ -8,7 +8,10 @@ public sealed record VendorInvoiceLineInput(
     long?   ExpenseAccountId,   // null → resolve from category default at draft
     string  Description,
     decimal Amount,             // net, ex-VAT
-    decimal VatRate);
+    decimal VatRate,
+    // cont.76 — สินค้า/บริการ snapshot (UPPER_SNAKE ProductType code). Trailing-defaulted
+    // so existing positional call-sites keep compiling; null → "GOOD" in the service.
+    string? ProductType = null);
 
 public sealed record CreateVendorInvoiceRequest(
     DateOnly DocDate,
@@ -27,6 +30,24 @@ public sealed record CreateVendorInvoiceRequest(
 
 public sealed record SetClaimPeriodRequest(int VatClaimPeriod);
 
+// cont.76 — PV→VI convenience create (additive; the guided path off a PV). Pre-fills a VI
+// draft from the PV (vendor snapshot, lines incl. ProductType, currency); the caller supplies
+// the vendor's tax-invoice legal refs (ม.82/4). The service sets PaymentVoucher.VendorInvoiceId.
+// Standalone POST /vendor-invoices stays for the direct AP-accrual flow.
+public sealed record CreateViFromPvRequest(
+    string   VendorTaxInvoiceNo,
+    DateOnly VendorTaxInvoiceDate,
+    int?     VatClaimPeriod = null,   // null → period of VendorTaxInvoiceDate (ม.82/4 default)
+    bool?    HasInputVat = null);
+
+public sealed class CreateViFromPvValidator : AbstractValidator<CreateViFromPvRequest>
+{
+    public CreateViFromPvValidator()
+    {
+        RuleFor(x => x.VendorTaxInvoiceNo).NotEmpty().MaximumLength(50);
+    }
+}
+
 public sealed record VendorInvoicePostedResult(
     long VendorInvoiceId, string DocNo, System.DateTimeOffset PostedAt,
     decimal TotalAmount, decimal VatAmount, int VatClaimPeriod,
@@ -36,12 +57,14 @@ public sealed record VendorInvoiceListItem(
     long VendorInvoiceId, string? DocNo, DateOnly DocDate, string VendorName,
     string? VendorTaxId, string VendorTaxInvoiceNo, int VatClaimPeriod,
     decimal TotalAmount, decimal VatAmount, decimal SettledAmount,
-    string SettlementStatus, string Status, string CurrencyCode);
+    string SettlementStatus, string Status, string CurrencyCode,
+    bool IsComplete = true);   // cont.76 — advisory completeness (POSTED docs only; true for drafts)
 
 public sealed record VendorInvoiceLineView(
     int LineNo, int ExpenseCategoryId, long ExpenseAccountId, string Description,
     decimal Amount, decimal VatRate, decimal VatAmount,
-    bool IsRecoverableVat, bool IsCapex, bool IsCogs);
+    bool IsRecoverableVat, bool IsCapex, bool IsCogs,
+    string? ProductType = null);   // cont.76 — สินค้า/บริการ snapshot
 
 // Sprint 13j-PURCH Flag-2 — downward chain ref: the Payment Voucher(s) that
 // settle this Vendor Invoice. Lets the FE PurchaseDocumentChain resolve VI → PV
@@ -60,7 +83,8 @@ public sealed record VendorInvoiceDetail(
     string? Notes, System.DateTimeOffset? PostedAt,
     long? PurchaseOrderId, string? PurchaseOrderDocNo,   // Sprint 12 — linked PO
     IReadOnlyList<VendorInvoiceLineView> Lines,
-    IReadOnlyList<VendorInvoiceSettlingPv> SettlingPvs);   // Sprint 13j-PURCH Flag-2 — downward → PV
+    IReadOnlyList<VendorInvoiceSettlingPv> SettlingPvs,   // Sprint 13j-PURCH Flag-2 — downward → PV
+    CompletenessView Completeness);   // cont.76 — advisory completeness (POSTED only)
 
 public interface IVendorInvoiceService
 {
@@ -68,7 +92,9 @@ public interface IVendorInvoiceService
     Task UpdateDraftAsync(long id, CreateVendorInvoiceRequest req, CancellationToken ct);
     Task SetClaimPeriodAsync(long id, int vatClaimPeriod, CancellationToken ct);
     Task<VendorInvoicePostedResult> PostAsync(long id, CancellationToken ct);
-    Task<CursorPage<VendorInvoiceListItem>> ListAsync(long? cursor, int limit, CancellationToken ct);
+    // cont.76 — incompleteOnly=true returns only POSTED docs whose advisory completeness fails.
+    Task<CursorPage<VendorInvoiceListItem>> ListAsync(
+        long? cursor, int limit, CancellationToken ct, bool incompleteOnly = false);
     Task<VendorInvoiceDetail?> GetDetailAsync(long id, CancellationToken ct);
 }
 

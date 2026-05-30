@@ -88,6 +88,8 @@ internal sealed class PaymentVoucherLineConfiguration : IEntityTypeConfiguration
         b.HasKey(l => l.LineId);
 
         b.Property(l => l.Description).HasMaxLength(500).IsRequired();
+        // cont.76 — สินค้า/บริการ snapshot (ProductType enum codes, nullable for legacy rows).
+        b.Property(l => l.ProductType).HasMaxLength(20);
         b.Property(l => l.Amount).HasPrecision(19, 4);
         b.Property(l => l.VatRate).HasPrecision(9, 6);
         b.Property(l => l.VatAmount).HasPrecision(19, 4);

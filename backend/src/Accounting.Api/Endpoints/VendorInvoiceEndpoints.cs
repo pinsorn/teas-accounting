@@ -50,8 +50,8 @@ public static class VendorInvoiceEndpoints
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.VendorInvoicePost);
 
         group.MapGet("/", async ([FromQuery] long? cursor, [FromQuery] int? limit,
-            IVendorInvoiceService svc, CancellationToken ct) =>
-                Results.Ok(await svc.ListAsync(cursor, limit ?? 25, ct)))
+            [FromQuery] bool? incompleteOnly, IVendorInvoiceService svc, CancellationToken ct) =>
+                Results.Ok(await svc.ListAsync(cursor, limit ?? 25, ct, incompleteOnly ?? false)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.VendorInvoiceRead);
 
         group.MapGet("/{id:long}", async (long id, IVendorInvoiceService svc, CancellationToken ct) =>

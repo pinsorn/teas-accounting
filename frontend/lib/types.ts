@@ -405,15 +405,24 @@ export interface ExpenseCategoryLite {
   defaultIsRecoverableVat: boolean; isCapex: boolean; isCogs?: boolean; isActive?: boolean;
 }
 
+// Purchase completeness — advisory, POSTED docs only (purchase-completeness spec D2).
+export type CompletenessMissingCode =
+  | 'MISSING_VI' | 'MISSING_WHT_CERT' | 'MISSING_RECEIPT_FILE' | 'MISSING_TAX_INVOICE_FILE';
+export interface Completeness {
+  isComplete: boolean;
+  missing: CompletenessMissingCode[];
+}
 export interface PaymentVoucherListItem {
   paymentVoucherId: number; docNo: string | null; docDate: string;
   vendorName: string; vendorTaxId: string | null; subPrefix: string;
   totalPaid: number; whtAmount: number; status: DocStatus; currencyCode: string;
+  isComplete: boolean;
 }
 export interface PaymentVoucherLineView {
   lineNo: number; expenseAccountId: number; description: string; amount: number;
   vatRate: number; vatAmount: number; isRecoverableVat: boolean;
   whtTypeId: number | null; whtRate: number; whtAmount: number;
+  productType: ProductTypeStr | null;
 }
 export interface PaymentVoucherDetail {
   paymentVoucherId: number; docNo: string | null; status: DocStatus; docDate: string;
@@ -431,6 +440,8 @@ export interface PaymentVoucherDetail {
   lines: PaymentVoucherLineView[];
   // Sprint 13j-PURCH Flag-2 — downward chain ref: WHT cert(s) issued from this PV.
   whtCertificates: PaymentVoucherWhtCertificateRef[];
+  // purchase-completeness — advisory, populated for POSTED PVs only.
+  completeness?: Completeness;
 }
 export interface PaymentVoucherWhtCertificateRef {
   whtCertificateId: number; docNo: string; status: DocStatus;
@@ -446,11 +457,13 @@ export interface VendorInvoiceListItem {
   vatClaimPeriod: number; totalAmount: number; vatAmount: number;
   settledAmount: number; settlementStatus: string; status: DocStatus;
   currencyCode: string;
+  isComplete: boolean;
 }
 export interface VendorInvoiceLineView {
   lineNo: number; expenseCategoryId: number; expenseAccountId: number;
   description: string; amount: number; vatRate: number; vatAmount: number;
   isRecoverableVat: boolean; isCapex: boolean; isCogs: boolean;
+  productType: ProductTypeStr | null;
 }
 export interface VendorInvoiceDetail {
   vendorInvoiceId: number; docNo: string | null; status: DocStatus; docDate: string;
@@ -465,6 +478,8 @@ export interface VendorInvoiceDetail {
   lines: VendorInvoiceLineView[];
   // Sprint 13j-PURCH Flag-2 — downward chain ref: PV(s) settling this VI.
   settlingPvs: VendorInvoiceSettlingPvRef[];
+  // purchase-completeness — advisory, populated for POSTED VIs only.
+  completeness?: Completeness;
 }
 export interface VendorInvoiceSettlingPvRef {
   paymentVoucherId: number; docNo: string | null; status: DocStatus;
@@ -472,6 +487,14 @@ export interface VendorInvoiceSettlingPvRef {
 export interface CreateVendorInvoiceLineInput {
   expenseCategoryId: number; expenseAccountId: number | null;
   description: string; amount: number; vatRate: number;
+  productType?: ProductTypeStr;
+}
+// purchase-completeness Phase 2 — PV→VI guided create (pre-fills VI draft from PV).
+export interface CreateViFromPvRequest {
+  vendorTaxInvoiceNo: string;
+  vendorTaxInvoiceDate: string; // YYYY-MM-DD
+  vatClaimPeriod?: number | null;
+  hasInputVat?: boolean;
 }
 export interface CreateVendorInvoiceRequest {
   docDate: string; vendorId: number;
