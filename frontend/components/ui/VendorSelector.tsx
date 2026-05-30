@@ -1,50 +1,45 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { apiGet, qs } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { apiGet } from '@/lib/api';
+import { EntityPickerModal, type PickerRow } from '@/components/ui/EntityPickerModal';
 
-// Mirrors CustomerSelector (component-patterns.md §6): async combobox, 300ms
-// debounce, defensive shape parsing (backend list shape not contractually pinned).
-interface VendorLite {
-  vendorId: number;
-  nameTh: string;
-  taxId?: string | null;
-  vendorCode?: string;
-}
+// ITEM 2+3 — VendorSelector is now a trigger button that opens a shared search
+// MODAL (EntityPickerModal), replacing the old inline typeahead. Public props are
+// unchanged (`value` / `onChange`) so every call-site keeps working; an optional
+// `label` overrides/suppresses the canonical built-in label (null/"" = no label,
+// e.g. filter contexts — no required "*"). The lookup-on-mount effect is preserved
+// so a programmatically-prefilled `value` shows the vendor name, not "#id".
 
-function pickItems(raw: unknown): VendorLite[] {
-  const arr =
-    Array.isArray(raw) ? raw
-    : raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown }).items)
-      ? (raw as { items: unknown[] }).items
-      : [];
-  return arr
-    .map((x) => x as Record<string, unknown>)
-    .filter((x) => typeof x.vendorId === 'number' && typeof x.nameTh === 'string')
-    .map((x) => ({
-      vendorId: x.vendorId as number,
-      nameTh: x.nameTh as string,
-      taxId: (x.taxId as string | null | undefined) ?? null,
-      vendorCode: (x.vendorCode as string | undefined) ?? undefined,
-    }));
+const DEFAULT_LABEL = 'ผู้ขาย / Vendor *';
+
+function mapRow(x: Record<string, unknown>): PickerRow | null {
+  if (typeof x.vendorId !== 'number' || typeof x.nameTh !== 'string') return null;
+  const taxId = (x.taxId as string | null | undefined) ?? null;
+  const code = (x.vendorCode as string | undefined) ?? undefined;
+  return {
+    id: x.vendorId,
+    label: x.nameTh,
+    sub: code ?? taxId ?? null,
+  };
 }
 
 export function VendorSelector({
   value,
   onChange,
+  label,
 }: {
   value: number | null;
   onChange: (id: number, label: string) => void;
+  /** Override the built-in label. `null`/"" renders no label (e.g. filters). */
+  label?: string | null;
 }) {
-  const [term, setTerm] = useState('');
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<VendorLite[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState('');
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sprint 13i B3 (SR5) — lookup-on-mount, same fix as CustomerSelector. Resolve
-  // a programmatically-prefilled `value` to a display label instead of "#id".
+  // Resolve a prefilled `value` → display label via GET vendors/{id} (TI-from-PO
+  // / PO→PV prefill set the id programmatically and have no cached label).
   useEffect(() => {
     if (!value) {
       setSelectedLabel('');
@@ -57,9 +52,7 @@ export function VendorSelector({
         const raw = await apiGet<Record<string, unknown>>(`vendors/${value}`);
         if (cancelled) return;
         const name =
-          (raw.nameTh as string | undefined) ??
-          (raw.name as string | undefined) ??
-          `#${value}`;
+          (raw.nameTh as string | undefined) ?? (raw.name as string | undefined) ?? `#${value}`;
         const taxId = (raw.taxId as string | null | undefined) ?? null;
         setSelectedLabel(`${name}${taxId ? ` (${taxId})` : ''}`);
       } catch {
@@ -72,79 +65,37 @@ export function VendorSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  useEffect(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (term.trim().length < 1) {
-      setItems([]);
-      return;
-    }
-    timer.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const raw = await apiGet<unknown>(`vendors${qs({ search: term, pageSize: 10 })}`);
-        setItems(pickItems(raw));
-      } catch {
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [term]);
+  const showLabel = label !== null && label !== '';
+  const display = selectedLabel || (value ? `#${value}` : '');
 
   return (
-    <div className="form-control relative">
-      <span className="label-text">ผู้ขาย / Vendor *</span>
-      <input
-        className="input input-bordered"
-        placeholder="ค้นหาชื่อ หรือรหัสผู้ขาย"
-        value={open ? term : selectedLabel || (value ? `#${value}` : '')}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => {
-          setTerm(e.target.value);
-          setOpen(true);
-        }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+    <div className="form-control">
+      {showLabel && <span className="label-text">{label ?? DEFAULT_LABEL}</span>}
+      <button
+        type="button"
+        className="input input-bordered flex items-center justify-between text-left font-normal"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
         aria-expanded={open}
-        role="combobox"
-        aria-controls="vendor-listbox"
+      >
+        <span className={display ? 'truncate' : 'truncate text-base-content/40'}>
+          {display || 'ค้นหาชื่อ หรือรหัสผู้ขาย'}
+        </span>
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+      </button>
+      <EntityPickerModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onSelect={(id, name) => {
+          setSelectedLabel(name);
+          onChange(id, name);
+        }}
+        title="เลือกผู้ขาย / Select Vendor"
+        searchPlaceholder="ค้นหาชื่อ หรือรหัสผู้ขาย"
+        emptyText="ไม่พบผู้ขาย — สร้างใหม่ในเมนูผู้ขาย"
+        endpoint="vendors"
+        mapRow={mapRow}
       />
-      {open && term.trim().length >= 1 && (
-        <ul
-          id="vendor-listbox"
-          role="listbox"
-          className="menu absolute top-full z-10 mt-1 max-h-60 w-full overflow-auto rounded-box bg-base-100 shadow"
-        >
-          {loading && <li className="px-3 py-2 text-sm text-base-content/50">กำลังค้นหา…</li>}
-          {!loading && items.length === 0 && (
-            <li className="px-3 py-2 text-sm text-base-content/50">
-              ไม่พบผู้ขาย — สร้างใหม่ในเมนูผู้ขาย
-            </li>
-          )}
-          {items.map((v) => (
-            <li key={v.vendorId}>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  const label = `${v.nameTh}${v.taxId ? ` (${v.taxId})` : ''}`;
-                  setSelectedLabel(label);
-                  setOpen(false);
-                  setTerm('');
-                  onChange(v.vendorId, label);
-                }}
-              >
-                <span>{v.nameTh}</span>
-                {v.vendorCode && (
-                  <span className="ml-auto font-mono text-xs opacity-60">{v.vendorCode}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

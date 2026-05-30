@@ -49,12 +49,14 @@ export default function VendorInvoiceListPage() {
               <th>{t('docNo')}</th><th>{t('vendorTiNo')}</th><th>{t('vendor')}</th>
               <th>{t('claimPeriod')}</th>
               <th className="text-right">{t('total')}</th>
-              <th>{t('settled')}</th><th>{tc('status')}</th>
+              {/* ITEM 6 — settlement column dropped: vendor payments are full-amount,
+                  so settlement status is noise in the list (kept in the data only). */}
+              <th>{tc('status')}</th>
             </tr>
           </thead>
           <tbody>
             {q.isLoading && (
-              <tr><td colSpan={7} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>
             )}
             {rows.map((r) => (
               <tr key={r.vendorInvoiceId} className="hover">
@@ -70,7 +72,6 @@ export default function VendorInvoiceListPage() {
                 <td>{r.vendorName}</td>
                 <td className="tabular-nums">{r.vatClaimPeriod}</td>
                 <td className="text-right tabular-nums">{formatTHB(r.totalAmount)}</td>
-                <td><StatusBadge status={r.settlementStatus} /></td>
                 <td><StatusBadge status={r.status} /></td>
               </tr>
             ))}

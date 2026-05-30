@@ -58,6 +58,13 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         )}
         {d.status === 'Approved' && (
           <>
+            {/* ITEM 9 — convenience hand-off to the PV create form, pre-filled from
+                this PO (mirrors the VI→PV fromVendorInvoiceId pattern). No backend
+                PO→PV link; pure client-side pre-fill. */}
+            <Link href={`/payment-vouchers/new?fromPurchaseOrderId=${poId}`}
+              data-testid="po-create-pv" className="btn btn-primary btn-sm">
+              {t('createPv')}
+            </Link>
             <button data-testid="po-mark-sent" className="btn btn-outline btn-sm"
               disabled={act.isPending} onClick={() => run('mark-sent')}>{t('sentToVendor')}</button>
             <button data-testid="po-close" className="btn btn-secondary btn-sm"

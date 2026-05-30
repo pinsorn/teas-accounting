@@ -122,7 +122,7 @@ export default function PaymentVoucherDetailPage() {
             docNo={d.docNo ?? `#${d.paymentVoucherId}`}
             issueDate={d.docDate}
             seller={seller}
-            partyLabel={{ th: 'ผู้รับเงิน', en: 'Payee' }}
+            partyLabel={{ th: 'ผู้ขาย', en: 'Vendor' }}
             customer={{
               name: d.vendorName,
               taxId: d.vendorTaxId ? formatTaxId(d.vendorTaxId) : null,

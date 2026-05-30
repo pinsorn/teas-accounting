@@ -44,8 +44,6 @@ export default function VendorInvoiceDetailPage() {
   // cont.77 — Post no longer blocks on a missing vendor-TI file; posting without it is
   // allowed and the doc is flagged "incomplete" (advisory). Show a heads-up on a draft.
   const missingFileWarn = isDraft && !hasAttachment;
-  const pct = d.totalAmount > 0
-    ? Math.min(100, Math.round((d.settledAmount / d.totalAmount) * 100)) : 0;
 
   // Sprint 13j-PURCH Flag-1 (BP-09) — on-screen READ-ONLY PaperDocument. The
   // VENDOR issued this tax invoice, so the seller block = the vendor and the
@@ -80,7 +78,10 @@ export default function VendorInvoiceDetailPage() {
       <div className="mb-4 flex items-center gap-3">
         <DocumentNumberBadge value={d.docNo} />
         <StatusBadge status={d.status} />
-        <StatusBadge status={d.settlementStatus} />
+        {/* ITEM 6 — payments are full-amount, so the settlement-status badge is
+            noise on the detail. Keep `settlementStatus` in types/queries (AP-aging
+            still uses it) but only surface it once the doc is settled (PAID). */}
+        {d.settlementStatus === 'PAID' && <StatusBadge status={d.settlementStatus} />}
         {d.purchaseOrderId && (
           <Link href={`/purchase-orders/${d.purchaseOrderId}`}
             data-testid="vi-linked-po"
@@ -170,15 +171,10 @@ export default function VendorInvoiceDetailPage() {
               </ul>
             </div>
           )}
-          {d.status === 'Posted' && (
-            <div className="rounded-card border border-ink-100 bg-base-100 p-4 shadow-warm-sm">
-              <div className="mb-1 flex justify-between text-sm">
-                <span>{t('settled')}: {formatTHB(d.settledAmount)} / {formatTHB(d.totalAmount)}</span>
-                <span>{pct}%</span>
-              </div>
-              <progress className="progress progress-info w-full" value={pct} max={100} />
-            </div>
-          )}
+          {/* ITEM 6 — the "ชำระแล้ว x / total" settled-amount line is hidden here:
+              vendor payments are full-amount, so the settlement progress is noise on
+              the VI detail. `settledAmount`/`settlementStatus` stay in the types and
+              query (the AP-aging report still consumes them) — this is a UI-only hide. */}
           {/* BP-09 — activity history rail (parity with Sales detail pages). */}
           <ActivityLog docType="vendor-invoices" id={id} />
         </div>

@@ -76,7 +76,8 @@ export function FilterBar({
         </select>
       </label>
 
-      {/* BusinessUnitSelector + the party selector render their own <label>. */}
+      {/* BusinessUnitSelector renders its own label; the party selector is a
+          filter (label={null}) so it shows no label and no required "*". */}
       <div data-testid="filter-bu">
         <BusinessUnitSelector value={bu ? Number(bu) : null} onChange={(id) => setParam('bu', id ? String(id) : '')} />
       </div>
@@ -86,6 +87,7 @@ export function FilterBar({
           <VendorSelector
             value={partyId ? Number(partyId) : null}
             onChange={(id) => setParam('vendorId', id ? String(id) : '')}
+            label={null}
           />
         </div>
       ) : (
@@ -93,6 +95,7 @@ export function FilterBar({
           <CustomerSelector
             value={partyId ? Number(partyId) : null}
             onChange={(id) => setParam('customerId', id ? String(id) : '')}
+            label={null}
           />
         </div>
       )}

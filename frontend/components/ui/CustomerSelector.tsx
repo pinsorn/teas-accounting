@@ -1,53 +1,43 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { apiGet, qs } from '@/lib/api';
-import { FloatingListbox } from '@/components/ui/FloatingListbox';
+import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { apiGet } from '@/lib/api';
+import { EntityPickerModal, type PickerRow } from '@/components/ui/EntityPickerModal';
 
-// component-patterns.md §6 — async combobox, search name/taxId, 300ms debounce,
-// "Add new" hint when no match. Degrades to manual id entry if the list API shape
-// is unexpected (defensive — backend ListAsync shape not contractually pinned yet).
-interface CustomerLite {
-  customerId: number;
-  nameTh: string;
-  taxId?: string | null;
-}
+// ITEM 2+3 — CustomerSelector is now a trigger button that opens a shared search
+// MODAL (EntityPickerModal), replacing the old inline typeahead. Public props are
+// unchanged (`value` / `onChange`); an optional `label` overrides/suppresses the
+// canonical built-in label (null/"" = no label, e.g. filter contexts). The
+// lookup-on-mount effect is preserved so a programmatically-prefilled `value`
+// (e.g. TI created from a Quotation) shows the customer name, not "#id".
 
-function pickItems(raw: unknown): CustomerLite[] {
-  const arr =
-    Array.isArray(raw) ? raw
-    : raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown }).items)
-      ? (raw as { items: unknown[] }).items
-      : [];
-  return arr
-    .map((x) => x as Record<string, unknown>)
-    .filter((x) => typeof x.customerId === 'number' && typeof x.nameTh === 'string')
-    .map((x) => ({
-      customerId: x.customerId as number,
-      nameTh: x.nameTh as string,
-      taxId: (x.taxId as string | null | undefined) ?? null,
-    }));
+const DEFAULT_LABEL = 'ลูกค้า / Customer *';
+
+function mapRow(x: Record<string, unknown>): PickerRow | null {
+  if (typeof x.customerId !== 'number' || typeof x.nameTh !== 'string') return null;
+  const taxId = (x.taxId as string | null | undefined) ?? null;
+  return {
+    id: x.customerId,
+    label: x.nameTh,
+    sub: taxId,
+  };
 }
 
 export function CustomerSelector({
   value,
   onChange,
+  label,
 }: {
   value: number | null;
   onChange: (id: number, label: string) => void;
+  /** Override the built-in label. `null`/"" renders no label (e.g. filters). */
+  label?: string | null;
 }) {
-  const [term, setTerm] = useState('');
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<CustomerLite[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState('');
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sprint 13i B3 (SR5) — lookup-on-mount. When `value` is prefilled
-  // programmatically (e.g. TI created from a Quotation) the picker has no
-  // cached label and used to render the raw db id ("#5"). Resolve the id to a
-  // display label via GET /customers/{id}, matching TaxInvoicePicker's pattern.
+  // Resolve a prefilled `value` → display label via GET customers/{id}.
   useEffect(() => {
     if (!value) {
       setSelectedLabel('');
@@ -60,9 +50,7 @@ export function CustomerSelector({
         const raw = await apiGet<Record<string, unknown>>(`customers/${value}`);
         if (cancelled) return;
         const name =
-          (raw.nameTh as string | undefined) ??
-          (raw.name as string | undefined) ??
-          `#${value}`;
+          (raw.nameTh as string | undefined) ?? (raw.name as string | undefined) ?? `#${value}`;
         const taxId = (raw.taxId as string | null | undefined) ?? null;
         setSelectedLabel(`${name}${taxId ? ` (${taxId})` : ''}`);
       } catch {
@@ -75,76 +63,37 @@ export function CustomerSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  useEffect(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (term.trim().length < 1) {
-      setItems([]);
-      return;
-    }
-    timer.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const raw = await apiGet<unknown>(`customers${qs({ search: term, pageSize: 10 })}`);
-        setItems(pickItems(raw));
-      } catch {
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [term]);
+  const showLabel = label !== null && label !== '';
+  const display = selectedLabel || (value ? `#${value}` : '');
 
   return (
     <div className="form-control">
-      <span className="label-text">ลูกค้า / Customer *</span>
-      <input
-        ref={inputRef}
-        className="input input-bordered"
-        placeholder="ค้นหาชื่อ หรือเลขผู้เสียภาษี"
-        value={open ? term : selectedLabel || (value ? `#${value}` : '')}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => {
-          setTerm(e.target.value);
-          setOpen(true);
-        }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      {showLabel && <span className="label-text">{label ?? DEFAULT_LABEL}</span>}
+      <button
+        type="button"
+        className="input input-bordered flex items-center justify-between text-left font-normal"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
         aria-expanded={open}
-        role="combobox"
-        aria-controls="customer-listbox"
-      />
-      <FloatingListbox
-        anchorRef={inputRef}
-        open={open && term.trim().length >= 1}
-        listboxId="customer-listbox"
       >
-        {loading && <li className="px-3 py-2 text-sm text-base-content/50">กำลังค้นหา…</li>}
-        {!loading && items.length === 0 && (
-          <li className="px-3 py-2 text-sm text-base-content/50">
-            ไม่พบลูกค้า — สร้างใหม่ในเมนูลูกค้า
-          </li>
-        )}
-        {items.map((c) => (
-          <li key={c.customerId}>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const label = `${c.nameTh}${c.taxId ? ` (${c.taxId})` : ''}`;
-                setSelectedLabel(label);
-                setOpen(false);
-                setTerm('');
-                onChange(c.customerId, label);
-              }}
-            >
-              <span>{c.nameTh}</span>
-              {c.taxId && <span className="ml-auto font-mono text-xs opacity-60">{c.taxId}</span>}
-            </button>
-          </li>
-        ))}
-      </FloatingListbox>
+        <span className={display ? 'truncate' : 'truncate text-base-content/40'}>
+          {display || 'ค้นหาชื่อ หรือเลขผู้เสียภาษี'}
+        </span>
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+      </button>
+      <EntityPickerModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onSelect={(id, name) => {
+          setSelectedLabel(name);
+          onChange(id, name);
+        }}
+        title="เลือกลูกค้า / Select Customer"
+        searchPlaceholder="ค้นหาชื่อ หรือเลขผู้เสียภาษี"
+        emptyText="ไม่พบลูกค้า — สร้างใหม่ในเมนูลูกค้า"
+        endpoint="customers"
+        mapRow={mapRow}
+      />
     </div>
   );
 }

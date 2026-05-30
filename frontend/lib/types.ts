@@ -387,6 +387,9 @@ export interface VendorDetail extends VendorListItem {
   email: string | null; paymentTermDays: number; defaultCurrency: string;
   defaultWhtTypeCode: string | null;
   isForeign: boolean; hasThaiVatDReg: boolean; countryCode: string | null;
+  // ITEM 8 — vendor remittance details (all nullable; swiftCode = non-Thai banking).
+  bankName: string | null; bankAccountNo: string | null;
+  bankAccountName: string | null; swiftCode: string | null;
 }
 export interface CreateVendorRequest {
   vendorCode: string; vendorType: VendorType; nameTh: string; nameEn: string | null;
@@ -395,6 +398,9 @@ export interface CreateVendorRequest {
   phone: string | null; email: string | null; paymentTermDays: number;
   defaultCurrency: string; defaultWhtTypeCode: string | null;
   isForeign?: boolean; hasThaiVatDReg?: boolean; countryCode?: string | null;
+  // ITEM 8 — vendor remittance details (all nullable; swiftCode = non-Thai banking).
+  bankName?: string | null; bankAccountNo?: string | null;
+  bankAccountName?: string | null; swiftCode?: string | null;
 }
 
 // BP-02 — mirror the BE ExpenseCategoryDto JSON exactly. The list endpoint emits
