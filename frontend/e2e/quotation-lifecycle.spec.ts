@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login } from './_helpers';
+import { login, pickCustomer } from './_helpers';
 
 // Sprint 13h E2E (ckpt4) — Quotation lifecycle: Draft → Send → Accept → Convert.
 // Plus Draft delete (P4 BE Update/Delete shipped ckpt2; FE edit page deferred).
@@ -7,8 +7,7 @@ test('quotation: draft → send → accept → convert', async ({ page }) => {
   await login(page);
 
   await page.goto('/quotations/new');
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  await pickCustomer(page);
   await page.getByLabel('รายละเอียด 1').fill('e2e quotation');
   await page.getByLabel('จำนวน 1').fill('2');
   await page.getByLabel('ราคา/หน่วย 1').fill('1500');

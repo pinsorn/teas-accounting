@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login, createAndPostTaxInvoice } from './_helpers';
+import { login, createAndPostTaxInvoice, pickCustomer } from './_helpers';
 
 // Sprint 8.6 (R-B4) — customer withholds tax on a B2B service receipt. No
 // Product master, so the user overrides the WHT base manually to the service
@@ -9,8 +9,7 @@ test('receipt: customer withholds WHT (manual base override)', async ({ page }) 
   const tiId = await createAndPostTaxInvoice(page); // 1,000 net + 70 VAT = 1,070
 
   await page.goto('/receipts/new');
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  await pickCustomer(page);
   await page.getByLabel('taxInvoiceId 1').fill(String(tiId));
   await page.getByLabel('appliedAmount 1').fill('1070');
 
@@ -25,7 +24,7 @@ test('receipt: customer withholds WHT (manual base override)', async ({ page }) 
   await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  const confirmBtn = dialog.getByRole('button', { name: /Confirm Post|ยืนยัน Post/i });
+  const confirmBtn = dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i });
   // Retry the confirm click until the receipt POST actually fires (sonner
   // 'Draft saved' toast + dialog re-render race — gotcha §16 family).
   await expect(async () => {

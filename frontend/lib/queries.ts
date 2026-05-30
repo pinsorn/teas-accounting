@@ -21,6 +21,7 @@ import type {
   VendorListItem,
   VendorDetail,
   CreateVendorRequest,
+  UpdateVendorRequest,
   ExpenseCategoryLite,
   PaymentVoucherListItem,
   PaymentVoucherDetail,
@@ -278,6 +279,16 @@ export function useCreateVendor() {
   return useMutation({
     mutationFn: (req: CreateVendorRequest) => apiPost<unknown>('vendors/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['vendors'] }),
+  });
+}
+export function useUpdateVendor(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateVendorRequest) => apiPut<void>(`vendors/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vendors'] });
+      qc.invalidateQueries({ queryKey: ['vendor', id] });
+    },
   });
 }
 

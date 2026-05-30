@@ -38,7 +38,7 @@ test('capture sprint-6 screens', async ({ page }) => {
     .locator('xpath=following::input[1]').fill('1000');
   await page.getByRole('button', { name: /^บันทึกเอกสาร \(Post\)|^Post$/ }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: /Confirm Post|ยืนยัน Post/i }).click();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
   await page.waitForURL(/\/vendor-invoices\/\d+$/, { timeout: 15_000 });
   await page.waitForLoadState('networkidle');
   await page.screenshot({ path: `${DIR}/s6-04-vendor-invoice-detail.png`, fullPage: true });

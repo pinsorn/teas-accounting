@@ -25,7 +25,7 @@ test('record and post a vendor invoice', async ({ page }) => {
   await page.getByRole('button', { name: /^บันทึกเอกสาร \(Post\)|^Post$/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: /Confirm Post|ยืนยัน Post/i }).click();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
 
   await page.waitForURL(/\/vendor-invoices\/\d+$/, { timeout: 15_000 });
   await expect(page.locator('body')).toContainText(/-VI-\d{4}/);

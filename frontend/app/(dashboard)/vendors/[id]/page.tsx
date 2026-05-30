@@ -1,7 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useVendor } from '@/lib/queries';
 import { formatTaxId } from '@/lib/utils';
@@ -21,7 +23,13 @@ export default function VendorDetailPage() {
 
   return (
     <>
-      <PageHeader title={d.nameTh} subtitle={d.vendorCode} />
+      <PageHeader title={d.nameTh} subtitle={d.vendorCode}
+        actions={
+          <Link href={`/vendors/${id}/edit`} className="btn btn-sm btn-primary">
+            <Pencil className="h-4 w-4" aria-hidden /> {t('edit')}
+          </Link>
+        }
+      />
       <div className="card bg-base-100 shadow-sm">
         <div className="card-body grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
           <Row k={t('code')} v={d.vendorCode} />
