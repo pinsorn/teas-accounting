@@ -10,6 +10,7 @@ import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { ActivityLog } from '@/components/doc/ActivityLog';
+import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import {
   usePurchaseOrder, usePurchaseOrderAction, useVendor, useCompanyProfile,
 } from '@/lib/queries';
@@ -52,6 +53,11 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <span data-testid="po-status"><StatusBadge status={d.status} /></span>
         <span>{d.vendorName}</span>
+        <BusinessUnitBadge
+          businessUnitId={d.businessUnitId}
+          code={d.businessUnitCode}
+          name={d.businessUnitName}
+        />
         {d.status === 'Draft' && (
           <button data-testid="po-approve" className="btn btn-success btn-sm"
             disabled={act.isPending} onClick={() => run('approve')}>{t('approve')}</button>

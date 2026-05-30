@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
+import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { CompletenessChips } from '@/components/ui/CompletenessBadge';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { useVendorInvoice, usePostVendorInvoice, useCompanyProfile, useAttachments } from '@/lib/queries';
@@ -89,6 +90,11 @@ export default function VendorInvoiceDetailPage() {
             {t('linkedPo')}: {d.purchaseOrderDocNo ?? `#${d.purchaseOrderId}`}
           </Link>
         )}
+        <BusinessUnitBadge
+          businessUnitId={d.businessUnitId}
+          code={d.businessUnitCode}
+          name={d.businessUnitName}
+        />
         <span className="text-sm text-base-content/60">{formatDate(d.docDate)}</span>
       </div>
 

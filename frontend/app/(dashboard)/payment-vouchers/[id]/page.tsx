@@ -8,6 +8,7 @@ import { FilePlus2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
+import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { CompletenessChips } from '@/components/ui/CompletenessBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -101,6 +102,11 @@ export default function PaymentVoucherDetailPage() {
         {d.requiresPnd36ReverseCharge && (
           <span className="badge badge-outline">ภ.พ.36</span>
         )}
+        <BusinessUnitBadge
+          businessUnitId={d.businessUnitId}
+          code={d.businessUnitCode}
+          name={d.businessUnitName}
+        />
         <span className="text-sm text-base-content/60">{formatDate(d.docDate)}</span>
         {d.status === 'Draft' && (
           <span className="text-xs text-base-content/60">{t('postHint')} · {t('sodHint')}</span>
