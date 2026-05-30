@@ -9,8 +9,9 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { VendorSelector } from '@/components/ui/VendorSelector';
+import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
-import { useCreatePurchaseOrder, useSystemInfo, useVendor } from '@/lib/queries';
+import { useCreatePurchaseOrder, useSystemInfo, useVendor, useCompanyBuSetting } from '@/lib/queries';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { onInvalidSubmit } from '@/lib/forms';
 
@@ -45,6 +46,11 @@ export default function NewPurchaseOrderPage() {
   // Non-VAT companies (ม.86): LineItemsTable hides the VAT column; force the
   // effective rate to 0 so a stale default rate never leaks into totals/payload.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+
+  // Sprint BU-PURCH — business unit, optional unless the company opted in.
+  const buRequired = useCompanyBuSetting().data?.requiresBusinessUnit ?? false;
+  const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
+  const [buError, setBuError] = useState(false);
 
   const today = bangkokToday();
   const [docDate, setDocDate] = useState(today);
@@ -88,12 +94,19 @@ export default function NewPurchaseOrderPage() {
   );
 
   async function submit(v: FormValues) {
+    // Sprint BU-PURCH — block submit when the company requires a BU and none chosen.
+    if (buRequired && businessUnitId === null) {
+      setBuError(true);
+      toast.error(tt('validationFailed'));
+      return;
+    }
+    setBuError(false);
     try {
       const payload = {
         docDate,
         expectedDeliveryDate: expected || null,
         vendorId: v.vendorId,
-        businessUnitId: null,
+        businessUnitId,
         currencyCode: 'THB',
         exchangeRate: 1,
         notes: notes.trim() || null,
@@ -168,6 +181,12 @@ export default function NewPurchaseOrderPage() {
               />
             </label>
           </div>
+          <BusinessUnitSelector
+            value={businessUnitId}
+            onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
+            required={buRequired}
+            error={buError}
+          />
         </div>
 
         <Controller

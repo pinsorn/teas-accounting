@@ -435,6 +435,7 @@ export interface PaymentVoucherListItem {
   vendorName: string; vendorTaxId: string | null; subPrefix: string;
   totalPaid: number; whtAmount: number; status: DocStatus; currencyCode: string;
   isComplete: boolean;
+  businessUnitId: number | null;   // Sprint BU-PURCH
 }
 export interface PaymentVoucherLineView {
   lineNo: number; expenseAccountId: number; description: string; amount: number;
@@ -455,6 +456,9 @@ export interface PaymentVoucherDetail {
   approvedBy: number | null; approvedAt: string | null;
   postedAt: string | null;
   selfWithholdMode: boolean; requiresPnd36ReverseCharge: boolean;
+  businessUnitId: number | null;        // Sprint BU-PURCH
+  businessUnitCode: string | null;
+  businessUnitName: string | null;
   lines: PaymentVoucherLineView[];
   // Sprint 13j-PURCH Flag-2 — downward chain ref: WHT cert(s) issued from this PV.
   whtCertificates: PaymentVoucherWhtCertificateRef[];
@@ -476,6 +480,7 @@ export interface VendorInvoiceListItem {
   settledAmount: number; settlementStatus: string; status: DocStatus;
   currencyCode: string;
   isComplete: boolean;
+  businessUnitId: number | null;   // Sprint BU-PURCH
 }
 export interface VendorInvoiceLineView {
   lineNo: number; expenseCategoryId: number; expenseAccountId: number;
@@ -493,6 +498,9 @@ export interface VendorInvoiceDetail {
   settledAmount: number; settlementStatus: string; notes: string | null;
   postedAt: string | null;
   purchaseOrderId: number | null; purchaseOrderDocNo: string | null;
+  businessUnitId: number | null;        // Sprint BU-PURCH
+  businessUnitCode: string | null;
+  businessUnitName: string | null;
   lines: VendorInvoiceLineView[];
   // Sprint 13j-PURCH Flag-2 — downward chain ref: PV(s) settling this VI.
   settlingPvs: VendorInvoiceSettlingPvRef[];
@@ -521,6 +529,7 @@ export interface CreateVendorInvoiceRequest {
   notes: string | null; lines: CreateVendorInvoiceLineInput[];
   hasInputVat?: boolean;
   purchaseOrderId?: number | null;   // Sprint 12 — optional PO link
+  businessUnitId?: number | null;    // Sprint BU-PURCH
 }
 export interface VendorInvoicePostedResult {
   vendorInvoiceId: number; docNo: string; postedAt: string;
@@ -675,6 +684,7 @@ export interface PurchaseOrderDetail {
   purchaseOrderId: number; docNo: string | null; status: string;
   docDate: string; expectedDeliveryDate: string | null; vendorId: number;
   vendorName: string; businessUnitId: number | null; currencyCode: string;
+  businessUnitCode: string | null; businessUnitName: string | null;  // Sprint BU-PURCH
   subtotalAmount: number; vatAmount: number; totalAmount: number;
   notes: string | null; internalNotes: string | null;
   approvedAt: string | null; approvedBy: number | null;

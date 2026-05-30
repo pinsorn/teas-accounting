@@ -10,8 +10,9 @@ import { DateInput } from '@/components/ui/DateInput';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
+import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { apiPost } from '@/lib/api';
-import { useVendor, useWhtTypes, usePurchaseOrder } from '@/lib/queries';
+import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 
@@ -40,6 +41,12 @@ function PvForm() {
   const docDate = bangkokToday();
 
   const [vendorId, setVendorId] = useState<number | null>(null);
+  // Sprint BU-PURCH — business unit, optional unless the company opted in.
+  const buRequired = useCompanyBuSetting().data?.requiresBusinessUnit ?? false;
+  const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
+  const [buError, setBuError] = useState(false);
+  // PV→VI / PO→PV prefill: seed BU from the source doc if it carries one.
+  const vi = useVendorInvoice(fromVi ? Number(fromVi) : 0).data;
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [catRecoverable, setCatRecoverable] = useState(true);
   const [method, setMethod] = useState<'Cash' | 'Transfer' | 'Cheque'>('Transfer');
@@ -60,6 +67,7 @@ function PvForm() {
   useEffect(() => {
     if (!po || poPrefilled) return;
     setVendorId(po.vendorId);
+    if (po.businessUnitId != null) setBusinessUnitId(po.businessUnitId);
     setRows(
       po.lines.length
         ? po.lines.map((l, i) => ({
@@ -72,6 +80,11 @@ function PvForm() {
     );
     setPoPrefilled(true);
   }, [po, poPrefilled]);
+
+  // PV settling a VI: seed BU from the VI when present (vendor lines come from the VI link server-side).
+  useEffect(() => {
+    if (vi?.businessUnitId != null) setBusinessUnitId(vi.businessUnitId);
+  }, [vi]);
 
   // Sprint 8.7 — vendor flags drive self-withhold (auto/lock for foreign).
   const vendor = useVendor(vendorId ?? 0).data;
@@ -92,7 +105,8 @@ function PvForm() {
   const canSave =
     vendorId !== null && categoryId !== null &&
     rows.every((r) => r.description.trim() !== '' && r.amount > 0) &&
-    (method !== 'Cheque' || (chequeNo.trim() !== '' && chequeDate !== ''));
+    (method !== 'Cheque' || (chequeNo.trim() !== '' && chequeDate !== '')) &&
+    (!buRequired || businessUnitId !== null);   // Sprint BU-PURCH
 
   function setRow(key: number, patch: Partial<Row>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -104,6 +118,7 @@ function PvForm() {
       const res = await apiPost<{ payment_voucher_id: number }>('payment-vouchers/', {
         docDate,
         vendorId,
+        businessUnitId,
         expenseCategoryId: categoryId,
         paymentMethod: method,
         chequeNo: method === 'Cheque' ? chequeNo : null,
@@ -158,6 +173,12 @@ function PvForm() {
         <ExpenseCategorySelector
           value={categoryId}
           onChange={(id, cat) => { setCategoryId(id); setCatRecoverable(cat.defaultIsRecoverableVat); }}
+        />
+        <BusinessUnitSelector
+          value={businessUnitId}
+          onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); else setBuError(buRequired); }}
+          required={buRequired}
+          error={buError}
         />
         <label className="form-control">
           <span className="label-text">{t('method')}</span>

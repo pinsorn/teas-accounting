@@ -10,10 +10,11 @@ import { DateInput } from '@/components/ui/DateInput';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
+import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import {
   useCreateVendorInvoice, usePostVendorInvoice, useVendor,
-  usePurchaseOrders, usePurchaseOrder,
+  usePurchaseOrders, usePurchaseOrder, useCompanyBuSetting,
 } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
@@ -52,6 +53,10 @@ export default function VendorInvoiceNewPage() {
   const [rows, setRows] = useState<Row[]>([emptyRow(1)]);
   const [confirm, setConfirm] = useState<{ id: number } | null>(null);
   const [poId, setPoId] = useState<number | null>(null);
+  // Sprint BU-PURCH — business unit, optional unless the company opted in.
+  const buRequired = useCompanyBuSetting().data?.requiresBusinessUnit ?? false;
+  const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
+  const [buError, setBuError] = useState(false);
 
   // Sprint 12 — optional PO link: list Approved POs of the chosen vendor;
   // selecting one pulls its lines into the VI (category still picked by user).
@@ -59,6 +64,7 @@ export default function VendorInvoiceNewPage() {
   const poDetail = usePurchaseOrder(poId).data;
   useEffect(() => {
     if (!poDetail || poDetail.purchaseOrderId !== poId) return;
+    if (poDetail.businessUnitId != null) setBusinessUnitId(poDetail.businessUnitId);
     setRows(poDetail.lines.map((l, i) => ({
       key: i + 1, categoryId: null, recoverable: true,
       description: l.descriptionTh,
@@ -86,7 +92,8 @@ export default function VendorInvoiceNewPage() {
 
   const canSave =
     vendorId !== null && tiNo.trim() !== '' &&
-    rows.length > 0 && rows.every((r) => r.categoryId !== null && r.amount > 0 && r.description.trim() !== '');
+    rows.length > 0 && rows.every((r) => r.categoryId !== null && r.amount > 0 && r.description.trim() !== '') &&
+    (!buRequired || businessUnitId !== null);   // Sprint BU-PURCH
 
   function setRow(key: number, patch: Partial<Row>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -104,6 +111,7 @@ export default function VendorInvoiceNewPage() {
         exchangeRate: 1,
         notes: null,
         purchaseOrderId: poId,
+        businessUnitId,
         lines: rows.map((r) => ({
           expenseCategoryId: r.categoryId!,
           expenseAccountId: null,
@@ -134,6 +142,12 @@ export default function VendorInvoiceNewPage() {
           }}
         />
         <DateInput value={docDate} locked label={t('docDate')} />
+        <BusinessUnitSelector
+          value={businessUnitId}
+          onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); else setBuError(buRequired); }}
+          required={buRequired}
+          error={buError}
+        />
         {vendorId !== null && approvedPos.length > 0 && (
           <label className="form-control md:col-span-2">
             <span className="label-text">{t('linkPo')}</span>
