@@ -12,9 +12,11 @@ test('record and post a vendor invoice', async ({ page }) => {
   await page.getByText(/เลขที่ใบกำกับภาษีของผู้ขาย|Vendor's tax invoice no/)
     .locator('xpath=following::input[1]').fill('VTI-E2E-001');
 
-  // category select (ExpenseCategorySelector) — pick the seeded SVC.
-  await page.getByText(/หมวดค่าใช้จ่าย|Expense Category/)
-    .locator('xpath=following::select[1]')
+  // category select (ExpenseCategorySelector) — pick the seeded SVC. Target by
+  // testid: the label text "หมวดค่าใช้จ่าย" also matches the sidebar nav link, and
+  // the row now has a 2nd <select> (ProductType), so the old following::select[1]
+  // xpath was ambiguous (strict-mode 2-match).
+  await page.getByTestId('expense-category-select').first()
     .selectOption({ label: 'ค่าบริการ (SVC)' });
 
   await page.getByText(/^รายละเอียด|^Description/).first()
