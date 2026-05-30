@@ -55,8 +55,12 @@ function PvForm() {
   const selfWithholdLocked = !!vendor?.isForeign;
   const selfWithhold = foreignNoVatD ? true : foreignVatD ? false : manualSelfWithhold;
 
+  // cont.77 — input VAT only when the vendor is VAT-registered (a non-VAT vendor issues
+  // no tax invoice → nothing to claim). Default true until the vendor loads.
+  const vendorVat = vendor?.vatRegistered ?? true;
+
   const subtotal = rows.reduce((s, r) => s + r.amount, 0);
-  const vat = rows.reduce((s, r) => s + r.amount * r.vatRate, 0);
+  const vat = vendorVat ? rows.reduce((s, r) => s + r.amount * r.vatRate, 0) : 0;
   const wht = rows.reduce((s, r) => s + r.amount * r.whtRate, 0);
   const net = subtotal + vat - wht;
 
@@ -89,8 +93,8 @@ function PvForm() {
           description: r.description,
           amount: r.amount,
           taxCodeId: null,
-          vatRate: r.vatRate,
           isRecoverableVat: catRecoverable,
+          vatRate: vendorVat ? r.vatRate : 0,
           whtTypeId: r.whtTypeId,
           whtRate: r.whtRate,
           productType: r.productType,
@@ -174,7 +178,9 @@ function PvForm() {
               <label className="form-control">
                 <span className="label-text">VAT</span>
                 <input type="number" step="0.01" className="input input-bordered input-sm"
-                  value={r.vatRate}
+                  value={vendorVat ? r.vatRate : 0}
+                  disabled={!vendorVat}
+                  title={!vendorVat ? t('vendorNoVat') : undefined}
                   onChange={(e) => setRow(r.key, { vatRate: Number(e.target.value) || 0 })} />
               </label>
               <label className="form-control md:col-span-2">

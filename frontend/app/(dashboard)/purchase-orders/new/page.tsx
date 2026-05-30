@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
-import { useCreatePurchaseOrder, useSystemInfo } from '@/lib/queries';
+import { useCreatePurchaseOrder, useSystemInfo, useVendor } from '@/lib/queries';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { onInvalidSubmit } from '@/lib/forms';
 
@@ -63,13 +63,20 @@ export default function NewPurchaseOrderPage() {
     defaultValues: { vendorId: 0, lines: [{ ...EMPTY_LINE }] },
   });
 
+  // cont.77 — input VAT exists only when BOTH the company is VAT-registered (vatMode)
+  // AND the selected vendor is VAT-registered (a non-VAT vendor issues no tax invoice).
+  // Default true until the vendor loads so the column doesn't flicker.
+  const vendorId = watch('vendorId');
+  const vendor = useVendor(vendorId || 0).data;
+  const vendorVat = vatMode && (vendor?.vatRegistered ?? true);
+
   const lines = watch('lines') as LineItem[];
   const totals = lines.reduce(
     (acc, l) => {
       const gross = l.quantity * l.unitPrice;
       const disc = gross * ((l.discountPercent ?? 0) / 100);
       const net = gross - disc;
-      const vat = vatMode ? net * l.taxRate : 0;
+      const vat = vendorVat ? net * l.taxRate : 0;
       acc.subtotal += gross;
       acc.discount += disc;
       acc.vat += vat;
@@ -98,8 +105,8 @@ export default function NewPurchaseOrderPage() {
           unitPrice: l.unitPrice,
           discountPercent: l.discountPercent ?? 0,
           taxCodeId: 1,
-          taxCode: vatMode && l.taxRate > 0 ? 'VAT7' : 'VAT0',
-          taxRate: vatMode ? l.taxRate : 0,
+          taxCode: vendorVat && l.taxRate > 0 ? 'VAT7' : 'VAT0',
+          taxRate: vendorVat ? l.taxRate : 0,
           notes: null,
         })),
       };
@@ -172,6 +179,7 @@ export default function NewPurchaseOrderPage() {
                 value={field.value as LineItem[]}
                 onChange={field.onChange}
                 enableProduct
+                vatEnabled={vendorVat}
               />
               {fieldState.error && (
                 <span className="text-error text-sm" data-field-error="true">
@@ -203,7 +211,7 @@ export default function NewPurchaseOrderPage() {
               <dt className="text-base-content/60">{t('discount')}</dt>
               <dd className="tabular-nums">-{formatTHB(totals.discount)}</dd>
             </div>
-            {vatMode && (
+            {vendorVat && (
               <div className="flex justify-between">
                 <dt className="text-base-content/60">{t('vat')}</dt>
                 <dd className="tabular-nums">{formatTHB(totals.vat)}</dd>
