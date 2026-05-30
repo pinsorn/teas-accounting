@@ -41,7 +41,9 @@ export default function VendorInvoiceDetailPage() {
   const isDraft = d.status === 'Draft';
   const canSettle = d.status === 'Posted' && d.settlementStatus !== 'PAID';
   const hasAttachment = (attachments?.items?.length ?? 0) > 0;
-  const postBlocked = isDraft && !hasAttachment;
+  // cont.77 — Post no longer blocks on a missing vendor-TI file; posting without it is
+  // allowed and the doc is flagged "incomplete" (advisory). Show a heads-up on a draft.
+  const missingFileWarn = isDraft && !hasAttachment;
   const pct = d.totalAmount > 0
     ? Math.min(100, Math.round((d.settledAmount / d.totalAmount) * 100)) : 0;
 
@@ -60,8 +62,8 @@ export default function VendorInvoiceDetailPage() {
           <div className="flex gap-2">
             {isDraft && (
               <button className="btn btn-primary btn-sm"
-                disabled={post.isPending || postBlocked}
-                title={postBlocked ? t('attachmentRequiredHint') : undefined}
+                disabled={post.isPending}
+                title={missingFileWarn ? t('attachmentAdvisoryHint') : undefined}
                 onClick={() => setConfirm(true)}>
                 {t('post')}
               </button>
@@ -96,14 +98,14 @@ export default function VendorInvoiceDetailPage() {
         </div>
       )}
 
-      {postBlocked && (
+      {missingFileWarn && (
         <div role="alert"
-          data-testid="vi-attachment-required"
+          data-testid="vi-attachment-advisory"
           className="mb-4 flex items-start gap-3 rounded-card border border-warning/30 bg-warning/10 p-3 text-sm text-warning-content">
           <span aria-hidden className="text-warning">⚠️</span>
           <div className="flex-1">
-            <div className="font-medium">{t('attachmentRequired')}</div>
-            <div className="text-xs text-base-content/70">{t('attachmentRequiredHint')}</div>
+            <div className="font-medium">{t('attachmentAdvisory')}</div>
+            <div className="text-xs text-base-content/70">{t('attachmentAdvisoryHint')}</div>
           </div>
         </div>
       )}

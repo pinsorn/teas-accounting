@@ -25,7 +25,7 @@ Ham's spec (purchase flow hardening): lines specify สินค้า/บริ
 
 **Verification:** BE build 0/0 · Api.Tests **192/192 ×2** on teas_test · FE `tsc --noEmit` 0 · BE :5080 + FE :3000 up. **Not committed** (Ham commits). Files: see `git status` (15 BE modified + PurchaseCompleteness.cs/migration×2/test new; 11 FE modified + 4 FE components new; spec new).
 
-**🟠 Noted for Ham (not changed):** VI `PostAsync` already **blocks** post without the vendor-TI attachment (pre-existing Sprint compliance gate) — stricter than the spec's "เว้นได้". Left as-is; relaxing a post gate = a separate compliance decision.
+**Post-gate relaxed (Ham 2026-05-30, follow-up commit):** VI `PostAsync` previously **hard-blocked** post without the vendor-TI attachment (`vi.attachment_required`, Task 8). Ham confirmed the spec's "เว้นได้" intent — *"ให้ดราฟได้ แบบไม่สมบูรณ์"* — so the throw is **removed**: a VI now posts in an **incomplete** state when the file is absent, tracked by the advisory `MISSING_TAX_INVOICE_FILE` completeness flag (which is now a **live** signal, no longer near-vacuous). The legal evidence must still exist by the ภ.พ.30 filing — the warning is the tracking mechanism. `Sprint55VendorInvoiceTests` test inverted (`VendorInvoice_post_without_attachment_succeeds_but_is_incomplete`); FE VI detail: Post button no longer disabled, banner reworded to an advisory (`attachmentAdvisory`/`Hint`). Re-gated: BE build 0/0 · Api.Tests **192/192 ×2** · FE tsc 0.
 
 ## 2026-05-30 (cont. 76) — 50ทวิ field-fill corrections (3 review rounds with Ham) — **Ham verified the demo: "รอบนี้ดูดี ผ่าน"**. BE build 0/0 · Api.Tests **182/182 ×2** on teas_test.
 
