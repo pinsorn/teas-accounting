@@ -152,7 +152,9 @@
 }
 .paper-items tbody td:first-child { text-align: center; color: var(--ink-500); }
 .paper-items tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.paper-items tbody tr.empty-row td { border-bottom: 1px dashed var(--ink-100); height: 32px; background: var(--ink-50); }
+/* cont.80 — empty filler rows must NOT paint over the watermark: keep the dashed
+   guide + height but leave the cell transparent so the ลายน้ำ shows through. */
+.paper-items tbody tr.empty-row td { border-bottom: 1px dashed var(--ink-100); height: 32px; background: transparent; }
 
 .paper-foot {
   display: grid;
