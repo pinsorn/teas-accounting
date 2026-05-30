@@ -3,6 +3,21 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-05-30 (cont. 78) — Purchase UX batch (Ham): modal Vendor/Customer pickers · permission-based approval (SoD relaxed) · vendor bank fields · PO→PV · paper headers · misc. BE build 0/0 · Domain 89/89 · Api.Tests **192/192 ×2** · FE tsc 0. Commits `58d8166` (BE) + `81f71c6` (FE) [+ `ed315e1` vendor-VAT gate earlier].
+
+Ham reviewed live + sent a 10-item batch. **Answers given:** Q4 PO-approve = SoD by design (admin=creator can't self-approve; `approver`/`Admin@1234` seeded) → Ham chose **relax to permission-based**. Q5 multi-WHT = per-line WhtType (one 50ทวิ per income type) — already built. Q9 PO→PV = built (FE pre-fill). Q10 workflow = ร่าง→อนุมัติ(Posted)→เสร็จสมบูรณ์(=Posted+receipt via completeness) — no new status.
+
+**Backend (`58d8166`, mine):**
+- **SoD relaxed → permission-based (Ham §11 decision).** Dropped the creator≠approver rule in `PurchaseOrder`/`PaymentVoucher.MarkApproved` **and** the DB CHECKs `ck_po_sod`/`ck_pv_sod` (migration). The `.RequireAuthorization(*.approve)` permission gate stays; `ApprovedBy` still recorded (audit). The creator may now approve their own PO/PV (1-operator SME). SoD tests inverted (4 spots: domain state-machine, Sprint12 ×2, Sprint55).
+- **Vendor bank/remittance fields** — `BankName/BankAccountNo/BankAccountName/SwiftCode` (nullable; SwiftCode = non-Thai). Entity + config + Create/Update/Detail DTOs + `VendorService` mapping. Migration `20260530114440_AddVendorBankFieldsAndRelaxApprovalSod` (drops 2 checks + adds 4 cols; applied dev + teas_test via fixture).
+
+**Frontend (`81f71c6`, subagent + my gate):** new `EntityPickerModal.tsx` — Vendor/Customer selection is now a **search modal** (selectors keep value/onChange so all ~12 call-sites inherit; optional `label` prop, filters pass `null` → no `*`); fixed the **double label** (PO-new). PO-new **expected-date defaults today**. **Vendor bank fields** on the create form + detail (+ `types.ts`). **PO(Approved)→PV** button → `?fromPurchaseOrderId=` pre-fill (mirrors `fromVendorInvoiceId`; no endpoint/link). **PV paper** counterparty → "ผู้ขาย", header stays our company; **VI paper unchanged** (vendor = legal issuer). **VI** settled-amount line hidden + settlement badge PAID-only (model kept for AP-aging).
+
+**🟠 Flags for Ham:**
+- **e2e specs will fail until updated** — `e2e/_helpers.ts` + `login-and-create-tax-invoice.spec.ts` drive the OLD typeahead combobox; the modal needs new selectors. Not in the tsc/Api.Tests gate → known debt, not yet fixed.
+- **No vendor EDIT form exists** (FE has create + detail only) — bank fields wired to create + detail; an edit route would need `useUpdateVendor`/`UpdateVendorRequest` (backend Update DTO already carries the bank fields).
+- **VI list:** removed the whole "settled" column (Ham said settlement display "อาจไม่จำเป็น" — went with remove; say if you want muted instead).
+
 ## 2026-05-30 (cont. 77) — Purchase module: **completeness warnings + สินค้า/บริการ on lines + PV→VI guided create + sidebar reorder** (Ham directive). BE build 0/0 · Api.Tests **192/192 ×2** on teas_test · FE `tsc` 0. **NOT committed** (awaiting Ham's go).
 
 Ham's spec (purchase flow hardening): lines specify สินค้า/บริการ + VAT + WHT; a VAT-vendor PV must have a บันทึกใบกำกับภาษีซื้อ (VI) and a WHT PV must have a 50ทวิ, else **ไม่สมบูรณ์ + warn**; VI must attach the vendor tax-invoice file, PV the receipt (skippable); sidebar order ผู้ขาย→PO→PV→VI→ทวิ50; VI/ทวิ50 not created "floating". Spec: `docs/superpowers/specs/purchase-completeness-2026-05-30.md`.
