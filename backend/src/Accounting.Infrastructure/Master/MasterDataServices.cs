@@ -67,6 +67,8 @@ public sealed class VendorService(AccountingDbContext db, ITenantContext tenant)
             IsForeign = req.IsForeign, HasThaiVatDReg = req.HasThaiVatDReg,
             CountryCode = req.CountryCode,
             VatRegistered = req.IsForeign || req.VatRegistered,
+            BankName = req.BankName, BankAccountNo = req.BankAccountNo,
+            BankAccountName = req.BankAccountName, SwiftCode = req.SwiftCode,
         };
         db.Vendors.Add(e);
         await db.SaveChangesAsync(ct);
@@ -86,6 +88,8 @@ public sealed class VendorService(AccountingDbContext db, ITenantContext tenant)
         e.IsForeign = req.IsForeign; e.HasThaiVatDReg = req.HasThaiVatDReg;
         e.CountryCode = req.CountryCode;
         e.VatRegistered = req.IsForeign || req.VatRegistered;
+        e.BankName = req.BankName; e.BankAccountNo = req.BankAccountNo;
+        e.BankAccountName = req.BankAccountName; e.SwiftCode = req.SwiftCode;
         await db.SaveChangesAsync(ct);
     }
 
@@ -111,7 +115,8 @@ public sealed class VendorService(AccountingDbContext db, ITenantContext tenant)
                 v.BranchCode, v.BranchName, v.VatRegistered, v.Address, v.ContactPerson,
                 v.Phone, v.Email, v.PaymentTermDays, v.DefaultCurrency,
                 v.DefaultWhtTypeCode, v.IsActive,
-                v.IsForeign, v.HasThaiVatDReg, v.CountryCode))
+                v.IsForeign, v.HasThaiVatDReg, v.CountryCode,
+                v.BankName, v.BankAccountNo, v.BankAccountName, v.SwiftCode))
             .FirstOrDefaultAsync(ct);
 }
 

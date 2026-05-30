@@ -83,17 +83,15 @@ public class PaymentVoucher : ITenantOwned, IAuditable, IConcurrencyVersioned
     public ICollection<PaymentVoucherLine> Lines { get; set; } = new List<PaymentVoucherLine>();
 
     /// <summary>
-    /// B2 approval gate. Approver must differ from creator (SoD, CLAUDE.md §12.1) —
-    /// enforced here AND by DB CHECK <c>ck_pv_sod</c>. Approver MAY later be the poster
-    /// (2-person SME, Answer-Sana-Question-Backend5 §B2).
+    /// Approval gate. cont.77 (Ham 2026-05-30) — approval is now **permission-based only**:
+    /// any user holding <c>purchase.payment_voucher.approve</c> may approve, INCLUDING the
+    /// creator (single-operator SME). The previous creator≠approver SoD rule (app check +
+    /// DB CHECK ck_pv_sod) is removed; <c>ApprovedBy</c> is still recorded for the audit trail.
     /// </summary>
     public void MarkApproved(long approverUserId, DateTimeOffset approvedAt)
     {
         if (Status != DocumentStatus.Draft)
             throw new DomainException("pv.not_draft", $"Cannot approve PV in status {Status}.");
-        if (CreatedBy is { } creator && creator == approverUserId)
-            throw new DomainException("pv.sod_violation",
-                "Approver must differ from the creator (SoD, CLAUDE.md §12.1).");
 
         Status     = DocumentStatus.Approved;
         ApprovedBy = approverUserId;

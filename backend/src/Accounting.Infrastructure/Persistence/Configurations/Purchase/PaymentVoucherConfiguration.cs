@@ -64,13 +64,8 @@ internal sealed class PaymentVoucherConfiguration : IEntityTypeConfiguration<Pay
             .HasForeignKey(p => p.VendorInvoiceId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        b.ToTable(t =>
-        {
-            // B2 SoD — approver must differ from creator (CLAUDE.md §12.1). Belt-and-
-            // braces with the app-level guard in PaymentVoucher.MarkApproved.
-            t.HasCheckConstraint("ck_pv_sod",
-                "approved_by IS NULL OR approved_by <> created_by");
-        });
+        // cont.77 — the ck_pv_sod CHECK (approved_by <> created_by) is dropped: approval is
+        // now permission-based only and the creator may approve their own PV (Ham 2026-05-30).
 
         b.HasIndex(p => new { p.CompanyId, p.BranchId, p.DocNo })
             .IsUnique().HasFilter("doc_no IS NOT NULL");

@@ -8,17 +8,21 @@ public sealed record CreateVendorRequest(string VendorCode, CustomerType VendorT
     string? TaxId, string? BranchCode, string? BranchName, bool VatRegistered, string? Address,
     string? ContactPerson, string? Phone, string? Email, int PaymentTermDays, string DefaultCurrency,
     string? DefaultWhtTypeCode,
-    bool IsForeign = false, bool HasThaiVatDReg = false, string? CountryCode = null);
+    bool IsForeign = false, bool HasThaiVatDReg = false, string? CountryCode = null,
+    // cont.77 — payment/remittance details (SwiftCode for non-Thai banking).
+    string? BankName = null, string? BankAccountNo = null, string? BankAccountName = null, string? SwiftCode = null);
 public sealed record UpdateVendorRequest(string NameTh, string? NameEn, string? TaxId, string? BranchCode, string? BranchName,
     bool VatRegistered, string? Address, string? ContactPerson, string? Phone, string? Email,
     int PaymentTermDays, string DefaultCurrency, string? DefaultWhtTypeCode, bool IsActive,
-    bool IsForeign = false, bool HasThaiVatDReg = false, string? CountryCode = null);
+    bool IsForeign = false, bool HasThaiVatDReg = false, string? CountryCode = null,
+    string? BankName = null, string? BankAccountNo = null, string? BankAccountName = null, string? SwiftCode = null);
 public sealed record VendorDto(long VendorId, string VendorCode, CustomerType VendorType, string NameTh, string? TaxId, bool VatRegistered, bool IsActive);
 public sealed record VendorDetailDto(long VendorId, string VendorCode, CustomerType VendorType,
     string NameTh, string? NameEn, string? TaxId, string? BranchCode, string? BranchName,
     bool VatRegistered, string? Address, string? ContactPerson, string? Phone, string? Email,
     int PaymentTermDays, string DefaultCurrency, string? DefaultWhtTypeCode, bool IsActive,
-    bool IsForeign, bool HasThaiVatDReg, string? CountryCode);
+    bool IsForeign, bool HasThaiVatDReg, string? CountryCode,
+    string? BankName = null, string? BankAccountNo = null, string? BankAccountName = null, string? SwiftCode = null);
 
 /// <summary>Sprint 8.7 — small allowlist of common ISO 3166-1 alpha-2 codes
 /// (full DTA list is Phase 2). Validation only; storage is the 2-char code.</summary>

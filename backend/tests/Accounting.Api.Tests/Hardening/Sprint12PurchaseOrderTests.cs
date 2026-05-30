@@ -59,7 +59,7 @@ public sealed class Sprint12PurchaseOrderTests
             [new PurchaseOrderLineInput(null, "สินค้า", 10m, "ชิ้น", 100m, 0m, 1, "VAT7", 0.07m, null)]);
 
     [SkippableFact]
-    public async Task Approve_by_different_user_allocates_docno_same_user_is_sod()
+    public async Task Approve_allocates_docno_creator_may_approve_permission_based()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var creator = Provider(userId: 1);
@@ -69,18 +69,9 @@ public sealed class Sprint12PurchaseOrderTests
             poId = await s.ServiceProvider.GetRequiredService<IPurchaseOrderService>()
                 .CreateDraftAsync(Req(vid), default);
 
-        // Same user (creator) → SoD violation.
+        // cont.77 — SoD relaxed: the creator (same user) may approve their own PO,
+        // gated by the purchase_order.approve permission. doc_no allocated on approve.
         await using (var s = creator.CreateAsyncScope())
-        {
-            var act = () => s.ServiceProvider.GetRequiredService<IPurchaseOrderService>()
-                .ApproveAsync(poId, default);
-            (await act.Should().ThrowAsync<DomainException>())
-                .Which.Code.Should().Be("po.sod_violation");
-        }
-
-        // Different user → Approved + doc_no allocated.
-        await using var approver = Provider(userId: 2);
-        await using (var s = approver.CreateAsyncScope())
         {
             var r = await s.ServiceProvider.GetRequiredService<IPurchaseOrderService>()
                 .ApproveAsync(poId, default);
@@ -92,25 +83,25 @@ public sealed class Sprint12PurchaseOrderTests
     }
 
     [SkippableFact]
-    public async Task Ck_po_sod_db_check_blocks_self_approval_insert()
+    public async Task Self_approval_row_is_allowed_after_sod_check_dropped()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        // IAuditable interceptor sets CreatedBy = tenant.UserId on insert, so
-        // use userId 5 and ApprovedBy 5 → CreatedBy == ApprovedBy → ck_po_sod.
+        // cont.77 — ck_po_sod dropped: a row with approved_by == created_by now persists
+        // (approval is permission-based; the creator may approve their own PO).
         await using var sp = Provider(userId: 5);
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
-        db.PurchaseOrders.Add(new PurchaseOrder
+        var po = new PurchaseOrder
         {
             CompanyId = 1, BranchId = 1, Status = PurchaseOrderStatus.Approved,
             DocDate = new(2026, 5, 1), VendorName = "X",
             VendorType = CustomerType.Corporate,
-            ApprovedBy = 5,                          // == CreatedBy → violates ck_po_sod
+            ApprovedBy = 5,                          // == CreatedBy (set by interceptor)
             ApprovedAt = DateTimeOffset.UtcNow,
-        });
-        var act = () => db.SaveChangesAsync(default);
-        (await act.Should().ThrowAsync<DbUpdateException>())
-            .Which.InnerException!.Message.Should().Contain("ck_po_sod");
+        };
+        db.PurchaseOrders.Add(po);
+        await db.SaveChangesAsync(default);          // no longer throws
+        po.PurchaseOrderId.Should().BeGreaterThan(0);
     }
 
     [SkippableFact]

@@ -10,11 +10,9 @@ internal sealed class PurchaseOrderConfiguration : IEntityTypeConfiguration<Purc
 {
     public void Configure(EntityTypeBuilder<PurchaseOrder> b)
     {
-        b.ToTable("purchase_orders", "purchase", t =>
-            // Sprint 12 SoD — approver ≠ creator (mirror ck_pv_sod, Sprint 5.5
-            // B2). Belt-and-braces with PurchaseOrder.MarkApproved.
-            t.HasCheckConstraint("ck_po_sod",
-                "approved_by IS NULL OR approved_by <> created_by"));
+        b.ToTable("purchase_orders", "purchase");
+        // cont.77 — the ck_po_sod CHECK (approved_by <> created_by) is dropped: approval is
+        // now permission-based only and the creator may approve their own PO (Ham 2026-05-30).
         b.HasKey(x => x.PurchaseOrderId);
 
         b.Property(x => x.DocNo).HasMaxLength(40);
