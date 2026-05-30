@@ -244,12 +244,13 @@ public sealed class Sprint55VendorInvoiceTests
             "the error must name the next OPEN period within the ม.82/4 window");
     }
 
-    // ── C — Post rejects when the vendor's ใบกำกับภาษีซื้อ file is not attached ──
-    // Same shape as the Sales-side WHT guard (rc.wht_type_invalid): the state
-    // transition is blocked, not the create; the doc stays Draft, the user uploads
-    // the file, then re-posts. ม.86/4 + ม.82/4 audit requires the source document.
+    // ── C — cont.77 (Ham 2026-05-30): Post NO LONGER blocks on a missing vendor-TI file ──
+    // You often pay (and must record the AP + claim period) before the vendor returns the
+    // document, so the VI may be posted in an INCOMPLETE state; the advisory completeness
+    // flag MISSING_TAX_INVOICE_FILE (computed on read, non-blocking) tracks it until the file
+    // is attached. (Was: hard-block `vi.attachment_required`; reversed per Ham's directive.)
     [SkippableFact]
-    public async Task VendorInvoice_post_without_attachment_is_rejected()
+    public async Task VendorInvoice_post_without_attachment_succeeds_but_is_incomplete()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
@@ -260,20 +261,22 @@ public sealed class Sprint55VendorInvoiceTests
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var id = await svc.CreateDraftAsync(Req(vendorId, catId, 500m, 0.07m), default);
 
-        // First attempt — no attachment → guard fires, status stays Draft.
-        var bad = () => svc.PostAsync(id, default);
-        (await bad.Should().ThrowAsync<DomainException>())
-            .Which.Code.Should().Be("vi.attachment_required");
-        (await db.VendorInvoices.AsNoTracking().FirstAsync(v => v.VendorInvoiceId == id))
-            .Status.Should().Be(DocumentStatus.Draft, "guard must not flip status");
-
-        // After attaching the file, the same Post call succeeds.
-        db.SeedViAttachment(id);
-        await db.SaveChangesAsync();
+        // No attachment → Post now succeeds (no hard gate).
         var posted = await svc.PostAsync(id, default);
         posted.DocNo.Should().StartWith("05-2026-VI-");
         (await db.VendorInvoices.AsNoTracking().FirstAsync(v => v.VendorInvoiceId == id))
             .Status.Should().Be(DocumentStatus.Posted);
+
+        // …but the advisory completeness flag reports the missing source document.
+        var detail = await svc.GetDetailAsync(id, default);
+        detail!.Completeness.Missing.Should().Contain("MISSING_TAX_INVOICE_FILE");
+        detail.Completeness.IsComplete.Should().BeFalse();
+
+        // Attaching the vendor's tax-invoice file clears the flag.
+        db.SeedViAttachment(id, category: AttachmentCategory.TaxInvoice);
+        await db.SaveChangesAsync();
+        (await svc.GetDetailAsync(id, default))!.Completeness.Missing
+            .Should().NotContain("MISSING_TAX_INVOICE_FILE");
     }
 
     // ── B2: PV approve SoD + post-after-approve ────────────────────────────────────

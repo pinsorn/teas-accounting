@@ -220,22 +220,13 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         EnsureClaimInWindow(vi.VatClaimPeriod, vi.VendorTaxInvoiceDate);
         await EnsureClaimPeriodOpenAsync(vi, ct);   // §5
 
-        // The vendor's tax invoice (ใบกำกับภาษีซื้อ) is the primary documentary
-        // evidence supporting the input-VAT claim under ม.82/4 + ม.86/4; the Revenue
-        // Department audit (สรรพากร) requires the source document to be retrievable
-        // for every input-VAT claim. We do NOT issue our own tax invoice (no /pdf
-        // route) — we merely RECORD the vendor's, so requiring an attachment at Post
-        // is the gate that "Post" actually establishes audit evidence. Same shape as
-        // ReceiptService rejecting wht_amount > 0 without a wht_type — block the
-        // state transition, keep the doc in Draft.
-        var attachCount = await _db.Attachments.CountAsync(
-            a => a.ParentType == Domain.Enums.AttachmentParentType.VendorInvoice
-              && a.ParentId == id
-              && a.DeletedAt == null, ct);
-        if (attachCount == 0)
-            throw new DomainException("vi.attachment_required",
-                "ต้องแนบไฟล์ใบกำกับภาษีจากผู้ขายก่อนจึงจะโพสต์ใบกำกับภาษีซื้อได้ " +
-                "(Attach the vendor's tax-invoice file before posting.)");
+        // cont.77 (Ham 2026-05-30) — the vendor's tax-invoice file is the documentary
+        // evidence for the ม.82/4 input-VAT claim, but in practice you often pay (and must
+        // record the AP + claim period) BEFORE the vendor returns the document. So Post no
+        // longer HARD-BLOCKS on a missing attachment; the document posts in an **incomplete**
+        // state instead — surfaced by the advisory completeness flag MISSING_TAX_INVOICE_FILE
+        // (computed on read) until the file is attached. The legal evidence must still exist
+        // by the ภ.พ.30 filing; the completeness warning is the tracking mechanism.
 
         var docNo = await _numbers.NextAsync(
             vi.CompanyId, vi.BranchId, ViPrefix, subPrefix: null, vi.DocDate, ct);
