@@ -47,7 +47,9 @@ public sealed record PurchaseOrderDetail(
     DateTimeOffset? ClosedAt, string? CancellationReason,
     decimal LinkedViTotal, decimal Remaining,
     IReadOnlyList<PurchaseOrderLineDto> Lines,
-    IReadOnlyList<LinkedViDto> LinkedVis);
+    IReadOnlyList<LinkedViDto> LinkedVis,
+    string? BusinessUnitCode = null,   // cont.79 — BU display (id already present above)
+    string? BusinessUnitName = null);
 
 public sealed record OutstandingPoRow(
     long PoId, string? DocNo, string VendorName, DateOnly? ExpectedDeliveryDate,

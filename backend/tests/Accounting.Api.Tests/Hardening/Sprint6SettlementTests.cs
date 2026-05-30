@@ -235,6 +235,19 @@ public sealed class Sprint6SettlementTests
         // VI draft owned by company 2; PV under company 1 references its id.
         await using var spC2 = Provider(companyId: 2, userId: 9);
         var (v2, c2, _) = await Seed(spC2, companyId: 2);
+
+        // cont.79 — this test asserts TENANT isolation, not BU rules. Company 2 may carry
+        // RequiresBusinessUnit=true on the shared teas_test DB (now ENFORCED at VI draft),
+        // which would otherwise throw bu.required here. Make the test hermetic to ambient
+        // BU state: force company 2's flag off for the BU-less VI create (idempotent vs the
+        // false seed default — also self-cleans any stale contamination).
+        await using (var s = spC2.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var co2 = await db.Companies.FirstOrDefaultAsync(c => c.CompanyId == 2);
+            if (co2 is not null) { co2.RequiresBusinessUnit = false; await db.SaveChangesAsync(); }
+        }
+
         long viC2;
         await using (var s = spC2.CreateAsyncScope())
         {

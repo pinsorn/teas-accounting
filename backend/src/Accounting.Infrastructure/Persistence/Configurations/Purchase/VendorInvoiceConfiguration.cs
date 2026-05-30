@@ -72,6 +72,11 @@ internal sealed class VendorInvoiceConfiguration : IEntityTypeConfiguration<Vend
             .WithMany().HasForeignKey(v => v.PurchaseOrderId)
             .OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(v => v.PurchaseOrderId);
+
+        // cont.79 — Business Unit GL dimension.
+        b.HasOne<Accounting.Domain.Entities.Master.BusinessUnit>().WithMany()
+            .HasForeignKey(v => v.BusinessUnitId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(v => v.BusinessUnitId).HasFilter("business_unit_id IS NOT NULL");
     }
 }
 

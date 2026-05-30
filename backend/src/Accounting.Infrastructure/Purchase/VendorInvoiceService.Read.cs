@@ -26,6 +26,7 @@ public sealed partial class VendorInvoiceService
                 v.VendorInvoiceId, v.DocNo, v.DocDate, v.VendorName, v.VendorTaxId,
                 v.VendorTaxInvoiceNo, v.VatClaimPeriod, v.TotalAmount, v.VatAmount,
                 v.SettledAmount, v.SettlementStatus, v.Status, v.CurrencyCode,
+                v.BusinessUnitId,
             })
             .ToListAsync(ct);
 
@@ -55,7 +56,7 @@ public sealed partial class VendorInvoiceService
                 r.VendorInvoiceId, r.DocNo, r.DocDate, r.VendorName, r.VendorTaxId,
                 r.VendorTaxInvoiceNo, r.VatClaimPeriod, r.TotalAmount, r.VatAmount,
                 r.SettledAmount, r.SettlementStatus, r.Status.ToString(), r.CurrencyCode,
-                complete));
+                complete, r.BusinessUnitId));
         }
 
         return new CursorPage<VendorInvoiceListItem>(items, next, more);
@@ -93,6 +94,13 @@ public sealed partial class VendorInvoiceService
 
         var completeness = await ComputeCompletenessAsync(v, ct);
 
+        // cont.79 — resolve BU code/name for display (null when no BU on the VI).
+        var bu = v.BusinessUnitId is { } buId
+            ? await _db.BusinessUnits.AsNoTracking()
+                .Where(x => x.BusinessUnitId == buId)
+                .Select(x => new { x.Code, x.NameTh }).FirstOrDefaultAsync(ct)
+            : null;
+
         return new VendorInvoiceDetail(
             v.VendorInvoiceId, v.DocNo, v.Status.ToString(), v.DocDate,
             v.VendorTaxInvoiceNo, v.VendorTaxInvoiceDate, v.VatClaimPeriod,
@@ -105,7 +113,8 @@ public sealed partial class VendorInvoiceService
                 l.LineNo, l.ExpenseCategoryId, l.ExpenseAccountId, l.Description,
                 l.Amount, l.VatRate, l.VatAmount,
                 l.IsRecoverableVat, l.IsCapex, l.IsCogs, l.ProductType)).ToList(),
-            settlingPvs, completeness);
+            settlingPvs, completeness,
+            v.BusinessUnitId, bu?.Code, bu?.NameTh);   // cont.79 — BU id + display
     }
 
     /// <summary>

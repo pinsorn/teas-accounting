@@ -68,10 +68,22 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         var claim = req.VatClaimPeriod ?? PeriodOf(req.VendorTaxInvoiceDate);
         EnsureClaimInWindow(claim, req.VendorTaxInvoiceDate);
 
+        // cont.79 — BU (GL dimension). Required when the company opted in; if supplied
+        // it must be an active BU of this tenant (mirror TaxInvoiceService).
+        var requiresBu = await _db.Companies
+            .Where(c => c.CompanyId == _tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstOrDefaultAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+        if (req.BusinessUnitId is { } buId &&
+            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId && x.IsActive, ct))
+            throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
+
         var vi = new VendorInvoice
         {
             CompanyId = _tenant.CompanyId,
             BranchId  = _tenant.BranchId,
+            BusinessUnitId = req.BusinessUnitId,   // cont.79 — GL dimension snapshot
             DocDate              = req.DocDate,
             VendorTaxInvoiceNo   = req.VendorTaxInvoiceNo,
             VendorTaxInvoiceDate = req.VendorTaxInvoiceDate,
@@ -178,6 +190,7 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         vi.CurrencyCode         = req.CurrencyCode;
         vi.ExchangeRate         = req.ExchangeRate;
         vi.Notes                = req.Notes;
+        vi.BusinessUnitId       = req.BusinessUnitId;   // cont.79 — parity with PO UpdateDraft
 
         _db.VendorInvoiceLines.RemoveRange(vi.Lines);
         vi.Lines = await BuildLinesAsync(req.Lines, ct);
@@ -228,8 +241,14 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         // (computed on read) until the file is attached. The legal evidence must still exist
         // by the ภ.พ.30 filing; the completeness warning is the tracking mechanism.
 
+        // cont.79 — embed the BU code into the doc-number sub-prefix at POST:
+        // MM-YYYY-VI-{BU}-NNNN. No BU → unchanged (…-VI-NNNN).
+        var buCode = vi.BusinessUnitId is { } bid
+            ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == bid)
+                .Select(x => x.Code).FirstOrDefaultAsync(ct)
+            : null;
         var docNo = await _numbers.NextAsync(
-            vi.CompanyId, vi.BranchId, ViPrefix, subPrefix: null, vi.DocDate, ct);
+            vi.CompanyId, vi.BranchId, ViPrefix, subPrefix: buCode, vi.DocDate, ct);
 
         var now = _clock.UtcNow;
         vi.MarkPosted(docNo.Value, _tenant.UserId ?? 0, now);

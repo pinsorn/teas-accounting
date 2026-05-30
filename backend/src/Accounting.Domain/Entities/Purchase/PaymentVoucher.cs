@@ -13,6 +13,10 @@ public class PaymentVoucher : ITenantOwned, IAuditable, IConcurrencyVersioned
     public int  CompanyId { get; set; }
     public int  BranchId  { get; set; }
 
+    /// <summary>cont.79 — GL dimension: which Business Unit this spend belongs to. Required
+    /// when Company.RequiresBusinessUnit; embedded in the doc number; stamped onto journal lines.</summary>
+    public int? BusinessUnitId { get; set; }
+
     public string? DocNo { get; set; }
     public string  PrefixCode { get; set; } = "PV";
     public required string SubPrefix { get; set; }   // ExpenseCategory.CategoryCode

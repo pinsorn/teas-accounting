@@ -26,7 +26,7 @@ public sealed partial class PaymentVoucherService
             {
                 p.PaymentVoucherId, p.DocNo, p.DocDate, p.VendorName, p.VendorTaxId,
                 p.SubPrefix, p.TotalPaid, p.WhtAmount, p.Status, p.CurrencyCode,
-                p.VendorId, p.VendorInvoiceId,
+                p.VendorId, p.VendorInvoiceId, p.BusinessUnitId,
             })
             .ToListAsync(ct);
 
@@ -88,7 +88,7 @@ public sealed partial class PaymentVoucherService
             items.Add(new PaymentVoucherListItem(
                 r.PaymentVoucherId, r.DocNo, r.DocDate, r.VendorName, r.VendorTaxId,
                 r.SubPrefix, r.TotalPaid, r.WhtAmount, r.Status.ToString(), r.CurrencyCode,
-                complete));
+                complete, r.BusinessUnitId));
         }
 
         return new CursorPage<PaymentVoucherListItem>(items, next, more);
@@ -114,6 +114,13 @@ public sealed partial class PaymentVoucherService
 
         var completeness = await ComputeCompletenessAsync(p, ct);
 
+        // cont.79 — resolve BU code/name for display (null when no BU on the PV).
+        var bu = p.BusinessUnitId is { } buId
+            ? await _db.BusinessUnits.AsNoTracking()
+                .Where(x => x.BusinessUnitId == buId)
+                .Select(x => new { x.Code, x.NameTh }).FirstOrDefaultAsync(ct)
+            : null;
+
         return new PaymentVoucherDetail(
             p.PaymentVoucherId, p.DocNo, p.Status.ToString(), p.DocDate,
             p.VendorId, p.VendorName, p.VendorTaxId, p.VendorBranchCode, p.VendorAddress,
@@ -127,7 +134,8 @@ public sealed partial class PaymentVoucherService
                 l.LineNo, l.ExpenseAccountId, l.Description, l.Amount, l.VatRate,
                 l.VatAmount, l.IsRecoverableVat, l.WhtTypeId, l.WhtRate, l.WhtAmount,
                 l.ProductType)).ToList(),
-            whtCerts, completeness);
+            whtCerts, completeness,
+            p.BusinessUnitId, bu?.Code, bu?.NameTh);   // cont.79 — BU id + display
     }
 
     /// <summary>

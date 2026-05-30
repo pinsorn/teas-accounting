@@ -16,6 +16,10 @@ public class VendorInvoice : ITenantOwned, IAuditable, IConcurrencyVersioned
     public int  CompanyId { get; set; }
     public int  BranchId  { get; set; }
 
+    /// <summary>cont.79 — GL dimension: which Business Unit this purchase belongs to. Required
+    /// when Company.RequiresBusinessUnit; embedded in the doc number; stamped onto journal lines.</summary>
+    public int? BusinessUnitId { get; set; }
+
     /// <summary>NULL until posted. Allocated from NumberSequence(VI) on POST.</summary>
     public string? DocNo { get; set; }
 

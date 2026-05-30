@@ -12,7 +12,9 @@ internal sealed class NumberSequenceConfiguration : IEntityTypeConfiguration<Num
         b.HasKey(s => s.SequenceId);
 
         b.Property(s => s.PrefixCode).HasMaxLength(20).IsRequired();
-        b.Property(s => s.SubPrefix).HasMaxLength(20).HasDefaultValue("").IsRequired();
+        // cont.79 — widened 20→50: the PV sub_prefix now concatenates BU + category
+        // ("{BU}-{CATEGORY}") so two ≤20-char codes can exceed 20. 50 covers any real pair.
+        b.Property(s => s.SubPrefix).HasMaxLength(50).HasDefaultValue("").IsRequired();
         b.Property(s => s.BranchId).HasDefaultValue(0);
         b.Property(s => s.LastIssuedAt).HasColumnType("timestamptz(3)");
 

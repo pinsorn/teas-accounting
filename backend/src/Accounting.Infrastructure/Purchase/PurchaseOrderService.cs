@@ -32,6 +32,17 @@ public sealed class PurchaseOrderService(
             .FirstOrDefaultAsync(x => x.VendorId == req.VendorId, ct)
             ?? throw new DomainException("vendor.not_found", "Vendor not found.");
 
+        // cont.79 — BU (GL dimension). Required when the company opted in; if supplied
+        // it must be an active BU of this tenant (mirror TaxInvoiceService).
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstOrDefaultAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+        if (req.BusinessUnitId is { } buId &&
+            !await db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId && x.IsActive, ct))
+            throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
+
         var po = new PurchaseOrder
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
@@ -171,6 +182,12 @@ public sealed class PurchaseOrderService(
             .Select(v => new LinkedViDto(v.VendorInvoiceId, v.DocNo, v.TotalAmount))
             .ToListAsync(ct);
         var linked = vis.Sum(v => v.TotalAmount);
+        // cont.79 — resolve BU code/name for display (null when no BU on the PO).
+        var bu = po.BusinessUnitId is { } buId
+            ? await db.BusinessUnits.AsNoTracking()
+                .Where(x => x.BusinessUnitId == buId)
+                .Select(x => new { x.Code, x.NameTh }).FirstOrDefaultAsync(ct)
+            : null;
         return new PurchaseOrderDetail(
             po.PurchaseOrderId, po.DocNo, po.Status.ToString(), po.DocDate,
             po.ExpectedDeliveryDate, po.VendorId, po.VendorName, po.BusinessUnitId,
@@ -181,7 +198,7 @@ public sealed class PurchaseOrderService(
             po.Lines.OrderBy(l => l.LineNo).Select(l => new PurchaseOrderLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
                 l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
-            vis);
+            vis, bu?.Code, bu?.NameTh);   // cont.79 — BU display
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
