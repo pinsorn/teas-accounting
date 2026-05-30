@@ -3,6 +3,16 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-05-30 (cont. 79) — Business Unit on purchase docs (Ham). BE build 0/0 · Api.Tests **198/198 ×2** · FE tsc 0. Commits `a73dcd9` (BE) + `163504f` (FE). Spec `docs/superpowers/specs/purchase-business-unit-2026-05-30.md`.
+
+Ham: purchase docs need a BU so spend is attributable per BU, + the **doc number must embed BU**. Reused existing BU infra (entity/selector/`sub_prefix` numbering/`BuildAndPostAsync(businessUnitId:)` GL stamping/`Company.RequiresBusinessUnit`). **Decisions:** PV no = `MM-YYYY-PV-{BU}-{CAT}-NNNN`, PO/VI = `…-{PREFIX}-{BU}-NNNN`; BU **required when the company toggle is on** (extended the revenue toggle to expense docs).
+
+- **Schema (me):** `PaymentVoucher.BusinessUnitId` + `VendorInvoice.BusinessUnitId` (int? FK→business_units, Restrict+idx); PO already had it. Migration `20260530141624_AddBusinessUnitToPvVi`. Plus **widened `sys.number_sequences.sub_prefix` 20→50** (`20260530144429`) since PV's `{BU}-{CAT}` can exceed 20 (subagent-flagged latent overflow). Both applied dev + teas_test.
+- **Services (subagent):** PO/PV/VI CreateDraftAsync validate (`bu.required`/`bu.invalid`, mirror TaxInvoiceService) + capture; PV→VI carries the PV's BU; POST resolves BU code → `subPrefix` (PV `{bu}-{cat}`, PO/VI `{bu}`); GL PostPaymentVoucher/PostVendorInvoice stamp BU onto every journal_line (P&L-by-BU). DTOs: BU on create + read.
+- **FE (subagent):** BU selector on PO/PV/VI create (reuses sales picker + `requiresBusinessUnit` from `business-units/company-setting`), required-gate, prefill from source doc on PO→PV/VI→PV/PO→VI; new `BusinessUnitBadge` on detail; types updated.
+- **Tests:** `PurchaseBusinessUnitTests` (bu.required/bu.invalid/number-embeds-BU/GL-line-carries-BU). Fixed `Sprint6SettlementTests` hermeticity (company-2 `RequiresBusinessUnit` contamination on shared teas_test).
+- OpenAPI delta for Sana: `businessUnitId` on PO/PV/VI create + read (detail adds code/name).
+
 ## 2026-05-30 (cont. 78) — Purchase UX batch (Ham): modal Vendor/Customer pickers · permission-based approval (SoD relaxed) · vendor bank fields · PO→PV · paper headers · misc. BE build 0/0 · Domain 89/89 · Api.Tests **192/192 ×2** · FE tsc 0. Commits `58d8166` (BE) + `81f71c6` (FE) [+ `ed315e1` vendor-VAT gate earlier].
 
 Ham reviewed live + sent a 10-item batch. **Answers given:** Q4 PO-approve = SoD by design (admin=creator can't self-approve; `approver`/`Admin@1234` seeded) → Ham chose **relax to permission-based**. Q5 multi-WHT = per-line WhtType (one 50ทวิ per income type) — already built. Q9 PO→PV = built (FE pre-fill). Q10 workflow = ร่าง→อนุมัติ(Posted)→เสร็จสมบูรณ์(=Posted+receipt via completeness) — no new status.
