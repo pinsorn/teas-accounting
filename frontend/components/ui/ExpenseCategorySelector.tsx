@@ -63,6 +63,7 @@ export function ExpenseCategorySelector({
     <div className="form-control">
       <span className="label-text">หมวดค่าใช้จ่าย / Expense Category *</span>
       <select
+        data-testid="expense-category-select"
         className="select select-bordered"
         value={value ?? ''}
         disabled={loading}
