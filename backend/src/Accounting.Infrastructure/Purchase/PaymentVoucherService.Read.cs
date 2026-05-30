@@ -1,28 +1,97 @@
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
+using Accounting.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Purchase;
 
 public sealed partial class PaymentVoucherService
 {
-    public async Task<CursorPage<PaymentVoucherListItem>> ListAsync(long? cursor, int limit, CancellationToken ct)
+    public async Task<CursorPage<PaymentVoucherListItem>> ListAsync(
+        long? cursor, int limit, CancellationToken ct, bool incompleteOnly = false)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
         var lim = Math.Clamp(limit, 1, 100);
         var q = _db.PaymentVouchers.AsNoTracking().AsQueryable();
         if (cursor is { } c) q = q.Where(p => p.PaymentVoucherId < c);
-        var rows = await q.OrderByDescending(p => p.PaymentVoucherId).Take(lim + 1)
-            .Select(p => new PaymentVoucherListItem(
+
+        // Cursor paging is computed on the RAW query (Take(lim+1)) BEFORE the in-memory
+        // completeness filter, so the cursor stays stable. NOTE: with incompleteOnly the
+        // returned page may contain FEWER than `limit` items (even 0) while HasMore=true —
+        // completeness is a post-materialization filter (cont.76 D2, advisory-only).
+        var raw = await q.OrderByDescending(p => p.PaymentVoucherId).Take(lim + 1)
+            .Select(p => new
+            {
                 p.PaymentVoucherId, p.DocNo, p.DocDate, p.VendorName, p.VendorTaxId,
-                p.SubPrefix, p.TotalPaid, p.WhtAmount, p.Status.ToString(), p.CurrencyCode))
+                p.SubPrefix, p.TotalPaid, p.WhtAmount, p.Status, p.CurrencyCode,
+                p.VendorId, p.VendorInvoiceId,
+            })
             .ToListAsync(ct);
-        var more = rows.Count > lim;
-        if (more) rows.RemoveAt(rows.Count - 1);
-        return new CursorPage<PaymentVoucherListItem>(
-            rows, more ? rows[^1].PaymentVoucherId : null, more);
+
+        var more = raw.Count > lim;
+        if (more) raw.RemoveAt(raw.Count - 1);
+        long? next = more ? raw[^1].PaymentVoucherId : null;
+
+        // Batch-load the completeness inputs for the POSTED rows on this page (no N+1).
+        var posted = raw.Where(r => r.Status == DocumentStatus.Posted).ToList();
+        var pvIds       = posted.Select(r => r.PaymentVoucherId).ToList();
+        var vendorIds   = posted.Select(r => r.VendorId).Distinct().ToList();
+        var linkedViIds = posted.Where(r => r.VendorInvoiceId is not null)
+            .Select(r => r.VendorInvoiceId!.Value).Distinct().ToList();
+
+        var vatRegByVendor = vendorIds.Count == 0
+            ? new Dictionary<long, bool>()
+            : await _db.Vendors.AsNoTracking()
+                .Where(v => vendorIds.Contains(v.VendorId))
+                .ToDictionaryAsync(v => v.VendorId, v => v.VatRegistered, ct);
+
+        var postedViIds = linkedViIds.Count == 0
+            ? new HashSet<long>()
+            : (await _db.VendorInvoices.AsNoTracking()
+                .Where(v => linkedViIds.Contains(v.VendorInvoiceId)
+                         && v.Status == DocumentStatus.Posted)
+                .Select(v => v.VendorInvoiceId).ToListAsync(ct)).ToHashSet();
+
+        var pvWithCert = pvIds.Count == 0
+            ? new HashSet<long>()
+            : (await _db.WhtCertificates.AsNoTracking()
+                .Where(w => w.PaymentVoucherId != null
+                         && pvIds.Contains(w.PaymentVoucherId!.Value)
+                         && w.Direction == "P")
+                .Select(w => w.PaymentVoucherId!.Value).ToListAsync(ct)).ToHashSet();
+
+        var pvWithReceipt = pvIds.Count == 0
+            ? new HashSet<long>()
+            : (await _db.Attachments.AsNoTracking()
+                .Where(a => a.ParentType == AttachmentParentType.PaymentVoucher
+                         && a.Category == AttachmentCategory.Receipt
+                         && a.DeletedAt == null
+                         && pvIds.Contains(a.ParentId))
+                .Select(a => a.ParentId).ToListAsync(ct)).ToHashSet();
+
+        var items = new List<PaymentVoucherListItem>(raw.Count);
+        foreach (var r in raw)
+        {
+            var complete = true;
+            if (r.Status == DocumentStatus.Posted)
+            {
+                var vatReg     = vatRegByVendor.TryGetValue(r.VendorId, out var vr) && vr;
+                var hasPostedVi = r.VendorInvoiceId is { } vid && postedViIds.Contains(vid);
+                var missingVi      = vatReg && !hasPostedVi;
+                var missingCert    = r.WhtAmount > 0m && !pvWithCert.Contains(r.PaymentVoucherId);
+                var missingReceipt = !pvWithReceipt.Contains(r.PaymentVoucherId);
+                complete = !(missingVi || missingCert || missingReceipt);
+            }
+            if (incompleteOnly && complete) continue;
+            items.Add(new PaymentVoucherListItem(
+                r.PaymentVoucherId, r.DocNo, r.DocDate, r.VendorName, r.VendorTaxId,
+                r.SubPrefix, r.TotalPaid, r.WhtAmount, r.Status.ToString(), r.CurrencyCode,
+                complete));
+        }
+
+        return new CursorPage<PaymentVoucherListItem>(items, next, more);
     }
 
     public async Task<PaymentVoucherDetail?> GetDetailAsync(long id, CancellationToken ct)
@@ -43,6 +112,8 @@ public sealed partial class PaymentVoucherService
                 w.WhtCertificateId, w.DocNo, w.Status.ToString()))
             .ToListAsync(ct);
 
+        var completeness = await ComputeCompletenessAsync(p, ct);
+
         return new PaymentVoucherDetail(
             p.PaymentVoucherId, p.DocNo, p.Status.ToString(), p.DocDate,
             p.VendorId, p.VendorName, p.VendorTaxId, p.VendorBranchCode, p.VendorAddress,
@@ -54,8 +125,55 @@ public sealed partial class PaymentVoucherService
             p.SelfWithholdMode, p.RequiresPnd36ReverseCharge,
             p.Lines.OrderBy(l => l.LineNo).Select(l => new PaymentVoucherLineView(
                 l.LineNo, l.ExpenseAccountId, l.Description, l.Amount, l.VatRate,
-                l.VatAmount, l.IsRecoverableVat, l.WhtTypeId, l.WhtRate, l.WhtAmount)).ToList(),
-            whtCerts);
+                l.VatAmount, l.IsRecoverableVat, l.WhtTypeId, l.WhtRate, l.WhtAmount,
+                l.ProductType)).ToList(),
+            whtCerts, completeness);
+    }
+
+    /// <summary>
+    /// cont.76 — advisory completeness for a single PV. Evaluated ONLY for POSTED docs
+    /// (drafts return Complete — they are not nagged). Per-row EXISTS lookups; the list
+    /// path batches the same checks. NON-BLOCKING. Tenant filter via the ITenantOwned
+    /// global filters on Vendor/VendorInvoice/WhtCertificate/Attachment.
+    /// </summary>
+    private async Task<CompletenessView> ComputeCompletenessAsync(
+        Domain.Entities.Purchase.PaymentVoucher p, CancellationToken ct)
+    {
+        if (p.Status != DocumentStatus.Posted) return CompletenessView.Complete;
+
+        var missing = new List<string>();
+
+        // MISSING_VI — VAT-registered vendor must have a linked POSTED VI.
+        var vatRegistered = await _db.Vendors.AsNoTracking()
+            .Where(v => v.VendorId == p.VendorId)
+            .Select(v => (bool?)v.VatRegistered).FirstOrDefaultAsync(ct) ?? false;
+        if (vatRegistered)
+        {
+            var hasPostedVi = p.VendorInvoiceId is { } vid
+                && await _db.VendorInvoices.AsNoTracking()
+                    .AnyAsync(v => v.VendorInvoiceId == vid
+                                && v.Status == DocumentStatus.Posted, ct);
+            if (!hasPostedVi) missing.Add("MISSING_VI");
+        }
+
+        // MISSING_WHT_CERT — cheap invariant guard (cert auto-issues at post).
+        if (p.WhtAmount > 0m)
+        {
+            var hasCert = await _db.WhtCertificates.AsNoTracking()
+                .AnyAsync(w => w.PaymentVoucherId == p.PaymentVoucherId
+                            && w.Direction == "P", ct);
+            if (!hasCert) missing.Add("MISSING_WHT_CERT");
+        }
+
+        // MISSING_RECEIPT_FILE — soft; no non-deleted Receipt attachment on the PV.
+        var hasReceipt = await _db.Attachments.AsNoTracking()
+            .AnyAsync(a => a.ParentType == AttachmentParentType.PaymentVoucher
+                        && a.Category == AttachmentCategory.Receipt
+                        && a.ParentId == p.PaymentVoucherId
+                        && a.DeletedAt == null, ct);
+        if (!hasReceipt) missing.Add("MISSING_RECEIPT_FILE");
+
+        return CompletenessView.From(missing);
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)

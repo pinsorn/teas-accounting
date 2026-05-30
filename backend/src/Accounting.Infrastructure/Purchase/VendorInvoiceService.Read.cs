@@ -1,6 +1,7 @@
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
+using Accounting.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Purchase;
@@ -8,23 +9,56 @@ namespace Accounting.Infrastructure.Purchase;
 public sealed partial class VendorInvoiceService
 {
     public async Task<CursorPage<VendorInvoiceListItem>> ListAsync(
-        long? cursor, int limit, CancellationToken ct)
+        long? cursor, int limit, CancellationToken ct, bool incompleteOnly = false)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
         var lim = Math.Clamp(limit, 1, 100);
         var q = _db.VendorInvoices.AsNoTracking().AsQueryable();
         if (cursor is { } c) q = q.Where(v => v.VendorInvoiceId < c);
-        var rows = await q.OrderByDescending(v => v.VendorInvoiceId).Take(lim + 1)
-            .Select(v => new VendorInvoiceListItem(
+
+        // Cursor paging on the RAW query BEFORE the in-memory completeness filter (cursor
+        // stays stable). NOTE: with incompleteOnly a page may return FEWER than `limit`
+        // (even 0) while HasMore=true — completeness is post-materialization (cont.76 D2).
+        var raw = await q.OrderByDescending(v => v.VendorInvoiceId).Take(lim + 1)
+            .Select(v => new
+            {
                 v.VendorInvoiceId, v.DocNo, v.DocDate, v.VendorName, v.VendorTaxId,
                 v.VendorTaxInvoiceNo, v.VatClaimPeriod, v.TotalAmount, v.VatAmount,
-                v.SettledAmount, v.SettlementStatus, v.Status.ToString(), v.CurrencyCode))
+                v.SettledAmount, v.SettlementStatus, v.Status, v.CurrencyCode,
+            })
             .ToListAsync(ct);
-        var more = rows.Count > lim;
-        if (more) rows.RemoveAt(rows.Count - 1);
-        return new CursorPage<VendorInvoiceListItem>(
-            rows, more ? rows[^1].VendorInvoiceId : null, more);
+
+        var more = raw.Count > lim;
+        if (more) raw.RemoveAt(raw.Count - 1);
+        long? next = more ? raw[^1].VendorInvoiceId : null;
+
+        // Batch-load tax-invoice-file presence for the POSTED rows on this page (no N+1).
+        var postedIds = raw.Where(r => r.Status == DocumentStatus.Posted)
+            .Select(r => r.VendorInvoiceId).ToList();
+        var withTaxInvoiceFile = postedIds.Count == 0
+            ? new HashSet<long>()
+            : (await _db.Attachments.AsNoTracking()
+                .Where(a => a.ParentType == AttachmentParentType.VendorInvoice
+                         && a.Category == AttachmentCategory.TaxInvoice
+                         && a.DeletedAt == null
+                         && postedIds.Contains(a.ParentId))
+                .Select(a => a.ParentId).ToListAsync(ct)).ToHashSet();
+
+        var items = new List<VendorInvoiceListItem>(raw.Count);
+        foreach (var r in raw)
+        {
+            var complete = r.Status != DocumentStatus.Posted
+                || withTaxInvoiceFile.Contains(r.VendorInvoiceId);
+            if (incompleteOnly && complete) continue;
+            items.Add(new VendorInvoiceListItem(
+                r.VendorInvoiceId, r.DocNo, r.DocDate, r.VendorName, r.VendorTaxId,
+                r.VendorTaxInvoiceNo, r.VatClaimPeriod, r.TotalAmount, r.VatAmount,
+                r.SettledAmount, r.SettlementStatus, r.Status.ToString(), r.CurrencyCode,
+                complete));
+        }
+
+        return new CursorPage<VendorInvoiceListItem>(items, next, more);
     }
 
     public async Task<VendorInvoiceDetail?> GetDetailAsync(long id, CancellationToken ct)
@@ -57,6 +91,8 @@ public sealed partial class VendorInvoiceService
                 p.PaymentVoucherId, p.DocNo, p.Status.ToString()))
             .ToListAsync(ct);
 
+        var completeness = await ComputeCompletenessAsync(v, ct);
+
         return new VendorInvoiceDetail(
             v.VendorInvoiceId, v.DocNo, v.Status.ToString(), v.DocDate,
             v.VendorTaxInvoiceNo, v.VendorTaxInvoiceDate, v.VatClaimPeriod,
@@ -68,7 +104,29 @@ public sealed partial class VendorInvoiceService
             v.Lines.OrderBy(l => l.LineNo).Select(l => new VendorInvoiceLineView(
                 l.LineNo, l.ExpenseCategoryId, l.ExpenseAccountId, l.Description,
                 l.Amount, l.VatRate, l.VatAmount,
-                l.IsRecoverableVat, l.IsCapex, l.IsCogs)).ToList(),
-            settlingPvs);
+                l.IsRecoverableVat, l.IsCapex, l.IsCogs, l.ProductType)).ToList(),
+            settlingPvs, completeness);
+    }
+
+    /// <summary>
+    /// cont.76 — advisory completeness for a single VI. Evaluated ONLY for POSTED docs.
+    /// MISSING_TAX_INVOICE_FILE (soft) = no non-deleted (VendorInvoice, TaxInvoice)
+    /// attachment. NON-BLOCKING (the POSTED gate already required SOME attachment; this
+    /// flag is category-specific and advisory). Tenant-scoped via Attachment's global filter.
+    /// </summary>
+    private async Task<CompletenessView> ComputeCompletenessAsync(
+        Domain.Entities.Purchase.VendorInvoice v, CancellationToken ct)
+    {
+        if (v.Status != DocumentStatus.Posted) return CompletenessView.Complete;
+
+        var missing = new List<string>();
+        var hasTaxInvoiceFile = await _db.Attachments.AsNoTracking()
+            .AnyAsync(a => a.ParentType == AttachmentParentType.VendorInvoice
+                        && a.Category == AttachmentCategory.TaxInvoice
+                        && a.ParentId == v.VendorInvoiceId
+                        && a.DeletedAt == null, ct);
+        if (!hasTaxInvoiceFile) missing.Add("MISSING_TAX_INVOICE_FILE");
+
+        return CompletenessView.From(missing);
     }
 }

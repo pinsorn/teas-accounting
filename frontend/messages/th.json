@@ -192,6 +192,8 @@
     "subtotal": "มูลค่าก่อนภาษี",
     "vat": "ภาษีซื้อ",
     "wht": "หัก ณ ที่จ่าย",
+    "whtType": "ประเภทเงินได้ (50ทวิ)",
+    "whtTypeNone": "— ไม่หัก —",
     "netPaid": "จ่ายสุทธิ",
     "lines": "รายการ",
     "nonRecoverableVat": "ภาษีซื้อต้องห้าม",
@@ -210,6 +212,34 @@
       "autoLockedForeign": "⚠ Vendor ต่างประเทศ — Self-withhold WHT 15% (ภ.ง.ด.54) + ภ.พ.36 reverse charge",
       "vatDInfo": "ℹ Vendor จดทะเบียน VAT-D — flow ปกติ",
       "detailBadge": "Self-withhold"
+    },
+    "createVi": {
+      "action": "สร้างบันทึกใบกำกับภาษีซื้อ",
+      "title": "สร้างบันทึกใบกำกับภาษีซื้อ",
+      "hint": "ดึงข้อมูลร่างใบกำกับภาษีซื้อจากใบสำคัญจ่ายนี้ จากนั้นคุณแก้ไข แนบไฟล์ใบกำกับภาษีจากผู้ขาย แล้วบันทึก",
+      "tiNo": "เลขที่ใบกำกับภาษีของผู้ขาย",
+      "tiDate": "วันที่ใบกำกับภาษีของผู้ขาย",
+      "claimPeriod": "งวดเคลมภาษีซื้อ (ไม่บังคับ)",
+      "claimHint": "YYYYMM — หากเว้นว่างจะใช้เดือนของใบสำคัญจ่าย",
+      "required": "จำเป็น",
+      "alreadyLinked": "ใบสำคัญจ่ายนี้มีบันทึกใบกำกับภาษีซื้อเชื่อมอยู่แล้ว"
+    }
+  },
+  "productType": {
+    "label": "สินค้า / บริการ",
+    "GOOD": "สินค้า",
+    "SERVICE": "บริการ",
+    "EXEMPT_GOOD": "สินค้ายกเว้น VAT",
+    "EXEMPT_SERVICE": "บริการยกเว้น VAT"
+  },
+  "completeness": {
+    "incomplete": "ไม่สมบูรณ์",
+    "incompleteOnly": "เฉพาะที่ไม่สมบูรณ์",
+    "missing": {
+      "MISSING_VI": "ขาดบันทึกใบกำกับภาษีซื้อ",
+      "MISSING_WHT_CERT": "ขาดหนังสือรับรองหัก ณ ที่จ่าย (50ทวิ)",
+      "MISSING_RECEIPT_FILE": "ขาดไฟล์ใบเสร็จจากผู้ขาย",
+      "MISSING_TAX_INVOICE_FILE": "ขาดไฟล์ใบกำกับภาษีจากผู้ขาย"
     }
   },
   "wht": {
@@ -696,7 +726,8 @@
     "hasInputVat": "มีภาษีซื้อ (เคลมได้)",
     "noInputVatInfo": "ℹ Vendor non-VAT — เคลม Input VAT ไม่ได้ (VAT รวมเป็นค่าใช้จ่าย)",
     "pnd36Warning": "⚠ ภ.พ.36 reverse charge — ภาษีซื้อจะคำนวณอัตโนมัติเดือนถัดไป",
-    "vatDInfo": "ℹ Vendor จดทะเบียน VAT-D ในไทย — เคลม Input VAT ปกติ"
+    "vatDInfo": "ℹ Vendor จดทะเบียน VAT-D ในไทย — เคลม Input VAT ปกติ",
+    "createFromPvHint": "บันทึกใบกำกับภาษีซื้อสร้างจากใบสำคัญจ่าย (PV → บันทึก)"
   },
   "dashboard": {
     "title": "แดชบอร์ด",

@@ -9,19 +9,22 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { DateInput } from '@/components/ui/DateInput';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
+import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import {
   useCreateVendorInvoice, usePostVendorInvoice, useVendor,
   usePurchaseOrders, usePurchaseOrder,
 } from '@/lib/queries';
+import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 
 interface Row {
   key: number; categoryId: number | null; recoverable: boolean;
   description: string; amount: number; vatRate: number;
+  productType: ProductTypeStr;
 }
 const emptyRow = (k: number): Row =>
-  ({ key: k, categoryId: null, recoverable: true, description: '', amount: 0, vatRate: 0.07 });
+  ({ key: k, categoryId: null, recoverable: true, description: '', amount: 0, vatRate: 0.07, productType: 'GOOD' });
 
 // ม.82/4 — claim period options: vendor TI month .. +6 (yyyymm).
 function claimOptions(vendorTiDate: string): number[] {
@@ -61,6 +64,7 @@ export default function VendorInvoiceNewPage() {
       description: l.descriptionTh,
       amount: l.lineAmount,
       vatRate: l.lineAmount > 0 ? Math.round((l.taxAmount / l.lineAmount) * 100) / 100 : 0.07,
+      productType: 'GOOD' as ProductTypeStr,
     })));
   }, [poDetail, poId]);
 
@@ -106,6 +110,7 @@ export default function VendorInvoiceNewPage() {
           description: r.description,
           amount: r.amount,
           vatRate: r.vatRate,
+          productType: r.productType,
         })),
         hasInputVat,
       });
@@ -196,6 +201,11 @@ export default function VendorInvoiceNewPage() {
                   value={r.categoryId}
                   onChange={(id, cat) =>
                     setRow(r.key, { categoryId: id, recoverable: cat.defaultIsRecoverableVat })}
+                />
+                <ProductTypeSelect
+                  value={r.productType}
+                  onChange={(v) => setRow(r.key, { productType: v })}
+                  testId="vi-line-product-type"
                 />
                 <label className="form-control">
                   <span className="label-text">{t('description')} *</span>

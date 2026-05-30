@@ -9,12 +9,14 @@ namespace Accounting.Application.Purchase;
 public sealed record PaymentVoucherListItem(
     long PaymentVoucherId, string? DocNo, DateOnly DocDate, string VendorName,
     string? VendorTaxId, string SubPrefix, decimal TotalPaid, decimal WhtAmount,
-    string Status, string CurrencyCode);
+    string Status, string CurrencyCode,
+    bool IsComplete = true);   // cont.76 — advisory completeness (POSTED docs only; true for drafts)
 
 public sealed record PaymentVoucherLineView(
     int LineNo, long ExpenseAccountId, string Description, decimal Amount,
     decimal VatRate, decimal VatAmount, bool IsRecoverableVat,
-    int? WhtTypeId, decimal WhtRate, decimal WhtAmount);
+    int? WhtTypeId, decimal WhtRate, decimal WhtAmount,
+    string? ProductType = null);   // cont.76 — สินค้า/บริการ snapshot
 
 // Sprint 13j-PURCH Flag-2 — downward chain ref: the WHT certificate(s) (50ทวิ)
 // issued from this Payment Voucher. Lets the FE PurchaseDocumentChain resolve
@@ -37,7 +39,8 @@ public sealed record PaymentVoucherDetail(
     bool SelfWithholdMode,                 // Sprint 8.7 — drives the detail badge
     bool RequiresPnd36ReverseCharge,
     IReadOnlyList<PaymentVoucherLineView> Lines,
-    IReadOnlyList<PaymentVoucherWhtCertificate> WhtCertificates);   // Sprint 13j-PURCH Flag-2 — downward → WHT
+    IReadOnlyList<PaymentVoucherWhtCertificate> WhtCertificates,   // Sprint 13j-PURCH Flag-2 — downward → WHT
+    CompletenessView Completeness);   // cont.76 — advisory completeness (POSTED only)
 
 public sealed record WhtCertificateListItem(
     long WhtCertificateId, string DocNo, DateOnly CertDate, long? PaymentVoucherId,

@@ -192,6 +192,8 @@
     "subtotal": "Subtotal",
     "vat": "Input VAT",
     "wht": "WHT",
+    "whtType": "Income type (50ทวิ)",
+    "whtTypeNone": "— none —",
     "netPaid": "Net paid",
     "lines": "Lines",
     "nonRecoverableVat": "Non-recoverable VAT",
@@ -210,6 +212,34 @@
       "autoLockedForeign": "⚠ Foreign vendor — self-withhold WHT 15% (PND.54) + PND.36 reverse charge",
       "vatDInfo": "ℹ Vendor registered for VAT-D — normal flow",
       "detailBadge": "Self-withhold"
+    },
+    "createVi": {
+      "action": "Create purchase tax-invoice record",
+      "title": "Create purchase tax-invoice record",
+      "hint": "Pre-fills a vendor-invoice draft from this payment voucher. You then edit it, attach the vendor's tax invoice and post it.",
+      "tiNo": "Vendor's tax invoice no.",
+      "tiDate": "Vendor's tax invoice date",
+      "claimPeriod": "Input-VAT claim period (optional)",
+      "claimHint": "YYYYMM — defaults to the payment-voucher month if left blank.",
+      "required": "Required",
+      "alreadyLinked": "A purchase tax-invoice record is already linked to this voucher."
+    }
+  },
+  "productType": {
+    "label": "Goods / Service",
+    "GOOD": "Goods",
+    "SERVICE": "Service",
+    "EXEMPT_GOOD": "Exempt goods",
+    "EXEMPT_SERVICE": "Exempt service"
+  },
+  "completeness": {
+    "incomplete": "Incomplete",
+    "incompleteOnly": "Incomplete only",
+    "missing": {
+      "MISSING_VI": "Missing purchase tax-invoice record",
+      "MISSING_WHT_CERT": "Missing WHT certificate (50 ทวิ)",
+      "MISSING_RECEIPT_FILE": "Missing vendor receipt file",
+      "MISSING_TAX_INVOICE_FILE": "Missing vendor tax-invoice file"
     }
   },
   "wht": {
@@ -695,7 +725,8 @@
     "hasInputVat": "Has input VAT (claimable)",
     "noInputVatInfo": "ℹ Non-VAT vendor — Input VAT not claimable (VAT lumps into expense)",
     "pnd36Warning": "⚠ PND.36 reverse charge — input VAT auto-computed next month",
-    "vatDInfo": "ℹ Vendor registered for Thai VAT-D — claim Input VAT normally"
+    "vatDInfo": "ℹ Vendor registered for Thai VAT-D — claim Input VAT normally",
+    "createFromPvHint": "Purchase tax-invoice records are created from a payment voucher (PV → record)."
   },
   "dashboard": {
     "title": "Dashboard",

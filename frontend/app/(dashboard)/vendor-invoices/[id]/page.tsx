@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
+import { CompletenessChips } from '@/components/ui/CompletenessBadge';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { useVendorInvoice, usePostVendorInvoice, useCompanyProfile, useAttachments } from '@/lib/queries';
 import { formatTHB, formatDate } from '@/lib/utils';
@@ -23,6 +24,7 @@ export default function VendorInvoiceDetailPage() {
   const router = useRouter();
   const t = useTranslations('vi');
   const tc = useTranslations('common');
+  const tpt = useTranslations('productType');
   const { data: d, isLoading, isError } = useVendorInvoice(id);
   const { data: company } = useCompanyProfile();
   // C — VendorInvoiceService.PostAsync now requires ≥1 non-deleted attachment under
@@ -87,6 +89,13 @@ export default function VendorInvoiceDetailPage() {
         <span className="text-sm text-base-content/60">{formatDate(d.docDate)}</span>
       </div>
 
+      {/* purchase-completeness — advisory (non-blocking) flag, POSTED VIs only. */}
+      {d.status === 'Posted' && d.completeness && !d.completeness.isComplete && (
+        <div className="mb-4">
+          <CompletenessChips missing={d.completeness.missing} />
+        </div>
+      )}
+
       {postBlocked && (
         <div role="alert"
           data-testid="vi-attachment-required"
@@ -143,6 +152,22 @@ export default function VendorInvoiceDetailPage() {
         </div>
         <div className="detail-side space-y-4">
           <PurchaseDocumentChain type="vendor-invoice" id={id} />
+          {/* purchase-completeness — สินค้า/บริการ per line (read-only snapshot). */}
+          {d.lines.some((l) => l.productType) && (
+            <div className="rounded-card border border-ink-100 bg-base-100 p-4 shadow-warm-sm">
+              <div className="mb-2 text-sm font-semibold">{tpt('label')}</div>
+              <ul className="space-y-1 text-xs">
+                {d.lines.map((l) => (
+                  <li key={l.lineNo} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-base-content/70">{l.description}</span>
+                    {l.productType && (
+                      <span className="badge badge-outline badge-sm shrink-0">{tpt(l.productType)}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {d.status === 'Posted' && (
             <div className="rounded-card border border-ink-100 bg-base-100 p-4 shadow-warm-sm">
               <div className="mb-1 flex justify-between text-sm">

@@ -3,6 +3,30 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-05-30 (cont. 77) — Purchase module: **completeness warnings + สินค้า/บริการ on lines + PV→VI guided create + sidebar reorder** (Ham directive). BE build 0/0 · Api.Tests **192/192 ×2** on teas_test · FE `tsc` 0. **NOT committed** (awaiting Ham's go).
+
+Ham's spec (purchase flow hardening): lines specify สินค้า/บริการ + VAT + WHT; a VAT-vendor PV must have a บันทึกใบกำกับภาษีซื้อ (VI) and a WHT PV must have a 50ทวิ, else **ไม่สมบูรณ์ + warn**; VI must attach the vendor tax-invoice file, PV the receipt (skippable); sidebar order ผู้ขาย→PO→PV→VI→ทวิ50; VI/ทวิ50 not created "floating". Spec: `docs/superpowers/specs/purchase-completeness-2026-05-30.md`.
+
+**Two decisions (AskUserQuestion) + one reconciliation:**
+- **VI creation** — Ham first chose "VI from PV only / remove standalone create"; blast-radius check found VI is the **central AP-accrual doc** (~20 test files + settlement/AP-aging/VAT-register/foreign-vendor create it standalone). Re-asked → Ham: **"ซ่อนใน UX + เพิ่มปุ่ม PV→VI"**. So: **keep** `POST /vendor-invoices` (untouched), **add** a PV→VI guided create, FE hides the floating VI-create entry point. **Fully additive — zero test breakage.**
+- **Completeness** = **non-blocking warning, computed on-read, POSTED docs only** (drafts not nagged). No stored status, no post gate, no immutability impact.
+- Advisor-flagged: `MISSING_WHT_CERT` is near-vacuous (ทวิ50 auto-issues at PV post) and `MISSING_TAX_INVOICE_FILE` likewise (VI **PostAsync already hard-requires** the vendor-TI attachment, Task 8). Kept both as cheap invariant guards; the live signal is **`MISSING_VI`** + the receipt-file flag.
+
+**Schema (only DB change in the whole feature):** `purchase.payment_voucher_lines.product_type` + `purchase.vendor_invoice_lines.product_type` (`varchar(20)` NULL) — migration `20260530065259_AddPurchaseLineProductType`, applied to dev DB (teas_test via fixture). Mirrors the sales line `ProductType` **string** snapshot (GOOD/SERVICE/EXEMPT_GOOD/EXEMPT_SERVICE).
+
+**Backend (main agent + 1 subagent):**
+- Line `ProductType` write-path: PV/VI create/update accept + persist `productType`; **default-GOOD on missing, reject explicitly-invalid** (`ProductTypeCodes.Normalize`, new `PurchaseCompleteness.cs`). Surfaced on line read views.
+- `CompletenessView(IsComplete, Missing[])` computed in `PaymentVoucherService.Read` / `VendorInvoiceService.Read` (posted-only). PV codes `MISSING_VI` (vendor `VatRegistered` && no linked posted VI), `MISSING_WHT_CERT`, `MISSING_RECEIPT_FILE`; VI code `MISSING_TAX_INVOICE_FILE`. Attendance via the polymorphic `Attachment` (ParentType+Category). Tenant filters intact, list path batch-loads (no N+1).
+- `?incompleteOnly=true` on PV + VI list (post-materialization filter; documented paging caveat).
+- **New endpoint `POST /payment-vouchers/{id}/vendor-invoice`** (mine, §7.4): pre-fills a VI draft from the PV (vendor + lines incl. ProductType + currency), sets `PV.VendorInvoiceId`, reuses the compliance-correct VI draft pipeline (ม.82/4 VatClaimPeriod default). 409 `pv.vi_exists` if already linked. `PaymentVoucherService` now injects `IVendorInvoiceService` (no DI cycle). **OpenAPI delta for Sana: 1 new endpoint, nothing deprecated.**
+- Tests: `PurchaseCompletenessTests.cs` — 8 completeness/ProductType cases (subagent) + 2 PV→VI cases (mine: pre-fill+link, 409 guard). All `TestIds.*`-seeded (§8).
+
+**Frontend (subagent, `tsc` 0, browser-verified):** per-line สินค้า/บริการ selector on PV+VI new pages (default GOOD, sends `productType`); "ไม่สมบูรณ์" badge + reason chips on PV/VI detail (posted-gated) + per-row flag on lists + "เฉพาะที่ไม่สมบูรณ์" toggle (`incompleteOnly`); **PV→VI** primary action + RHF/Zod dialog (vendor-TI no/date) → navigates to the VI, 409-toast; **VI list create entry points removed** (anti-floating UX); attachments already wired on both detail pages (reused). i18n th+en (full parity). New: `CompletenessBadge.tsx`, `ProductTypeSelect.tsx`, `IncompleteOnlyToggle.tsx`, `CreateViFromPvDialog.tsx`. Sidebar reordered (`SidebarNav.tsx`).
+
+**Verification:** BE build 0/0 · Api.Tests **192/192 ×2** on teas_test · FE `tsc --noEmit` 0 · BE :5080 + FE :3000 up. **Not committed** (Ham commits). Files: see `git status` (15 BE modified + PurchaseCompleteness.cs/migration×2/test new; 11 FE modified + 4 FE components new; spec new).
+
+**🟠 Noted for Ham (not changed):** VI `PostAsync` already **blocks** post without the vendor-TI attachment (pre-existing Sprint compliance gate) — stricter than the spec's "เว้นได้". Left as-is; relaxing a post gate = a separate compliance decision.
+
 ## 2026-05-30 (cont. 76) — 50ทวิ field-fill corrections (3 review rounds with Ham) — **Ham verified the demo: "รอบนี้ดูดี ผ่าน"**. BE build 0/0 · Api.Tests **182/182 ×2** on teas_test.
 
 After cont.75's overlay render shipped (`4ee066a`), Ham reviewed the demo PDF (`Z:\temp\50tawi-filled.pdf`) over 3 rounds and pointed out field-mapping errors. Fixes (all in `Wht50TawiFormFiller.MapFields` + `RdAcroFormFiller`):

@@ -1,18 +1,22 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { FilePlus2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
+import { CompletenessChips } from '@/components/ui/CompletenessBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { ActivityLog } from '@/components/doc/ActivityLog';
+import { CreateViFromPvDialog } from '@/components/forms/CreateViFromPvDialog';
 import {
   usePaymentVoucher, useApprovePaymentVoucher, usePostPaymentVoucher,
-  useCompanyProfile,
+  useCompanyProfile, useVendor,
 } from '@/lib/queries';
 import { formatDate, formatTaxId } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
@@ -23,10 +27,16 @@ export default function PaymentVoucherDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
   const t = useTranslations('pv');
   const tc = useTranslations('common');
+  const tpt = useTranslations('productType');
   const { data: d, isLoading, isError } = usePaymentVoucher(id);
   const { data: company } = useCompanyProfile();
   const approve = useApprovePaymentVoucher();
   const post = usePostPaymentVoucher();
+  const [viDialog, setViDialog] = useState(false);
+  // PV→VI guided create is offered when the vendor is VAT-registered and there
+  // is no linked VI yet (purchase-completeness D1). Vendor VAT flag comes from
+  // the vendor master (advisory).
+  const vendor = useVendor(d?.vendorId ?? 0).data;
 
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
   if (isError || !d) return <p className="text-error">{tc('error')}</p>;
@@ -48,6 +58,8 @@ export default function PaymentVoucherDetailPage() {
   const cfg = PAPER_DOC['payment-voucher'];
   const seller = companyToSeller(company);
   const hasWht = d.whtAmount > 0;
+  // D1 — offer guided VI create when vendor is VAT-registered & no VI linked yet.
+  const canCreateVi = !!vendor?.vatRegistered && d.vendorInvoiceId === null;
 
   return (
     <>
@@ -66,6 +78,12 @@ export default function PaymentVoucherDetailPage() {
               <button className="btn btn-primary btn-sm" disabled={post.isPending}
                 onClick={doPost}>
                 {t('post')}
+              </button>
+            )}
+            {canCreateVi && (
+              <button className="btn btn-primary btn-sm gap-1" data-testid="pv-create-vi"
+                onClick={() => setViDialog(true)}>
+                <FilePlus2 className="h-4 w-4" aria-hidden /> {t('createVi.action')}
               </button>
             )}
             {/* Sprint 13j-PURCH D3 — tracked ต้นฉบับ/สำเนา print (Phase C added
@@ -88,6 +106,13 @@ export default function PaymentVoucherDetailPage() {
           <span className="text-xs text-base-content/60">{t('postHint')} · {t('sodHint')}</span>
         )}
       </div>
+
+      {/* purchase-completeness — advisory (non-blocking) flag, POSTED PVs only. */}
+      {d.status === 'Posted' && d.completeness && !d.completeness.isComplete && (
+        <div className="mb-4">
+          <CompletenessChips missing={d.completeness.missing} />
+        </div>
+      )}
 
       <div className="detail-grid">
         <div className="paper-wrap">
@@ -130,12 +155,35 @@ export default function PaymentVoucherDetailPage() {
         </div>
         <div className="detail-side space-y-4">
           <PurchaseDocumentChain type="payment-voucher" id={id} />
+          {/* purchase-completeness — สินค้า/บริการ per line (read-only snapshot). */}
+          {d.lines.some((l) => l.productType) && (
+            <div className="rounded-card border border-ink-100 bg-base-100 p-4 shadow-warm-sm">
+              <div className="mb-2 text-sm font-semibold">{tpt('label')}</div>
+              <ul className="space-y-1 text-xs">
+                {d.lines.map((l) => (
+                  <li key={l.lineNo} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-base-content/70">{l.description}</span>
+                    {l.productType && (
+                      <span className="badge badge-outline badge-sm shrink-0">{tpt(l.productType)}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {/* BP-09 — activity history rail (parity with Sales detail pages). */}
           <ActivityLog docType="payment-vouchers" id={id} />
         </div>
       </div>
 
       <AttachmentsSection parentType="PAYMENT_VOUCHER" parentId={id} />
+
+      <CreateViFromPvDialog
+        pvId={id}
+        open={viDialog}
+        defaultDate={d.docDate}
+        onClose={() => setViDialog(false)}
+      />
     </>
   );
 }

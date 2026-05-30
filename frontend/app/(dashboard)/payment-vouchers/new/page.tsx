@@ -9,16 +9,23 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { DateInput } from '@/components/ui/DateInput';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
+import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
 import { apiPost } from '@/lib/api';
-import { useVendor } from '@/lib/queries';
+import { useVendor, useWhtTypes } from '@/lib/queries';
+import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 
 interface Row {
   key: number; description: string; amount: number;
   vatRate: number; whtRate: number; recoverable: boolean;
+  productType: ProductTypeStr;
+  // cont.77 — the 50ทวิ income type (WhtType) for this line. Picking one auto-fills the
+  // WHT rate; null = no WHT (or fall back to the expense-category default at post).
+  whtTypeId: number | null;
 }
 const emptyRow = (k: number): Row =>
-  ({ key: k, description: '', amount: 0, vatRate: 0, whtRate: 0, recoverable: true });
+  ({ key: k, description: '', amount: 0, vatRate: 0, whtRate: 0, recoverable: true,
+     productType: 'GOOD', whtTypeId: null });
 
 function PvForm() {
   const t = useTranslations('pv');
@@ -37,6 +44,9 @@ function PvForm() {
   const [rows, setRows] = useState<Row[]>([emptyRow(1)]);
   const [busy, setBusy] = useState(false);
   const [manualSelfWithhold, setManualSelfWithhold] = useState(false);
+
+  // cont.77 — per-line WHT type (income type for the 50ทวิ).
+  const whtTypes = useWhtTypes().data ?? [];
 
   // Sprint 8.7 — vendor flags drive self-withhold (auto/lock for foreign).
   const vendor = useVendor(vendorId ?? 0).data;
@@ -81,8 +91,9 @@ function PvForm() {
           taxCodeId: null,
           vatRate: r.vatRate,
           isRecoverableVat: catRecoverable,
-          whtTypeId: null,
+          whtTypeId: r.whtTypeId,
           whtRate: r.whtRate,
+          productType: r.productType,
         })),
         vendorInvoiceId: fromVi ? Number(fromVi) : null,
         selfWithholdMode: fromVi ? null : selfWithhold,
@@ -150,6 +161,11 @@ function PvForm() {
                 <input className="input input-bordered input-sm" value={r.description}
                   onChange={(e) => setRow(r.key, { description: e.target.value })} />
               </label>
+              <ProductTypeSelect
+                value={r.productType}
+                onChange={(v) => setRow(r.key, { productType: v })}
+                testId="pv-line-product-type"
+              />
               <label className="form-control">
                 <span className="label-text">{t('subtotal')} *</span>
                 <input type="number" className="input input-bordered input-sm" value={r.amount}
@@ -161,8 +177,26 @@ function PvForm() {
                   value={r.vatRate}
                   onChange={(e) => setRow(r.key, { vatRate: Number(e.target.value) || 0 })} />
               </label>
+              <label className="form-control md:col-span-2">
+                <span className="label-text">{t('whtType')}</span>
+                <select className="select select-bordered select-sm" value={r.whtTypeId ?? ''}
+                  data-testid="pv-line-wht-type"
+                  onChange={(e) => {
+                    const tid = e.target.value ? Number(e.target.value) : null;
+                    // Picking a type auto-fills its rate; clearing zeroes the WHT.
+                    const picked = whtTypes.find((w) => w.whtTypeId === tid);
+                    setRow(r.key, { whtTypeId: tid, whtRate: picked ? picked.rate : 0 });
+                  }}>
+                  <option value="">{t('whtTypeNone')}</option>
+                  {whtTypes.map((w) => (
+                    <option key={w.whtTypeId} value={w.whtTypeId}>
+                      {w.nameTh} ({(w.rate * 100).toFixed(w.rate * 100 % 1 === 0 ? 0 : 2)}%)
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="form-control">
-                <span className="label-text">WHT</span>
+                <span className="label-text">{t('wht')} %</span>
                 <input type="number" step="0.01" className="input input-bordered input-sm"
                   value={r.whtRate}
                   onChange={(e) => setRow(r.key, { whtRate: Number(e.target.value) || 0 })} />

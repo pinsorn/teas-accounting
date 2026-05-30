@@ -16,6 +16,11 @@ public class VendorInvoiceLine
     public long ExpenseAccountId  { get; set; }   // resolved from category default at draft (overridable)
     public required string Description { get; set; }
 
+    /// <summary>cont.76 — สินค้า/บริการ snapshot (GOOD/SERVICE/EXEMPT_GOOD/EXEMPT_SERVICE).
+    /// Draft-time snapshot (immutable input to GL), mirroring the sales line string-snapshot.
+    /// Nullable for pre-existing rows.</summary>
+    public string? ProductType { get; set; }
+
     /// <summary>Net amount, exclusive of VAT.</summary>
     public decimal Amount { get; set; }
 

@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { ListFilters } from '@/components/ui/ListFilters';
+import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
+import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { applyListFilters } from '@/lib/list-filter';
 import { usePaymentVouchers } from '@/lib/queries';
@@ -20,7 +22,8 @@ export default function PaymentVoucherListPage() {
   const t = useTranslations('pv');
   const tc = useTranslations('common');
   const params = useSearchParams();
-  const q = usePaymentVouchers();
+  const incompleteOnly = params.get('incompleteOnly') === 'true';
+  const q = usePaymentVouchers(incompleteOnly);
   const loaded = q.data?.pages.flatMap((p) => p.items) ?? [];
   const rows = applyListFilters(loaded, params, {
     status: (r) => r.status,
@@ -38,6 +41,7 @@ export default function PaymentVoucherListPage() {
         }
       />
       <ListFilters statusOptions={PV_STATUSES} statusTestId="pv-filter-status" party="vendor" />
+      <IncompleteOnlyToggle />
       {q.isSuccess && rows.length === 0 ? (
         <EmptyState
           title={t('title')}
@@ -61,9 +65,12 @@ export default function PaymentVoucherListPage() {
             {rows.map((r) => (
               <tr key={r.paymentVoucherId} className="hover">
                 <td>
-                  <Link href={`/payment-vouchers/${r.paymentVoucherId}`}>
-                    <DocumentNumberBadge value={r.docNo} />
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/payment-vouchers/${r.paymentVoucherId}`}>
+                      <DocumentNumberBadge value={r.docNo} />
+                    </Link>
+                    {r.status === 'Posted' && <IncompleteFlag isComplete={r.isComplete} />}
+                  </div>
                 </td>
                 <td className="tabular-nums">{formatDate(r.docDate)}</td>
                 <td>{r.vendorName}</td>
