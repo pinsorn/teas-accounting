@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -11,7 +11,7 @@ import { VendorSelector } from '@/components/ui/VendorSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
 import { apiPost } from '@/lib/api';
-import { useVendor, useWhtTypes } from '@/lib/queries';
+import { useVendor, useWhtTypes, usePurchaseOrder } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 
@@ -33,6 +33,10 @@ function PvForm() {
   const router = useRouter();
   const params = useSearchParams();
   const fromVi = params.get('fromVendorInvoiceId');
+  // ITEM 9 — PO→PV convenience pre-fill (mirrors fromVendorInvoiceId). No backend
+  // PO→PV endpoint/link; we just fetch the PO and seed vendor + line rows.
+  const fromPo = params.get('fromPurchaseOrderId');
+  const po = usePurchaseOrder(fromPo ? Number(fromPo) : null).data;
   const docDate = bangkokToday();
 
   const [vendorId, setVendorId] = useState<number | null>(null);
@@ -47,6 +51,27 @@ function PvForm() {
 
   // cont.77 — per-line WHT type (income type for the 50ทวิ).
   const whtTypes = useWhtTypes().data ?? [];
+
+  // ITEM 9 — when arriving from a PO, seed the vendor + line rows once the PO
+  // detail has loaded (guard with a ref-via-state so user edits aren't clobbered
+  // on re-render). vatRate is reconstructed from the PO line (taxAmount/lineAmount,
+  // PoLineDto has no explicit rate); description ← line description, amount ← net.
+  const [poPrefilled, setPoPrefilled] = useState(false);
+  useEffect(() => {
+    if (!po || poPrefilled) return;
+    setVendorId(po.vendorId);
+    setRows(
+      po.lines.length
+        ? po.lines.map((l, i) => ({
+            ...emptyRow(i + 1),
+            description: l.descriptionTh,
+            amount: l.lineAmount,
+            vatRate: l.lineAmount > 0 ? Math.round((l.taxAmount / l.lineAmount) * 100) / 100 : 0,
+          }))
+        : [emptyRow(1)],
+    );
+    setPoPrefilled(true);
+  }, [po, poPrefilled]);
 
   // Sprint 8.7 — vendor flags drive self-withhold (auto/lock for foreign).
   const vendor = useVendor(vendorId ?? 0).data;
@@ -86,7 +111,11 @@ function PvForm() {
         bankAccountId: null,
         currencyCode: 'THB',
         exchangeRate: 1,
-        description: fromVi ? `${t('settlingVi')} #${fromVi}` : null,
+        description: fromVi
+          ? `${t('settlingVi')} #${fromVi}`
+          : fromPo
+            ? `${t('fromPo')} ${po?.docNo ?? `#${fromPo}`}`
+            : null,
         notes: null,
         lines: rows.map((r) => ({
           expenseAccountId: null,
@@ -115,7 +144,13 @@ function PvForm() {
     <>
       <PageHeader
         title={t('create')}
-        subtitle={fromVi ? `${t('settlingVi')} #${fromVi}` : `${docDate}`}
+        subtitle={
+          fromVi
+            ? `${t('settlingVi')} #${fromVi}`
+            : fromPo
+              ? `${t('fromPo')} ${po?.docNo ?? `#${fromPo}`}`
+              : `${docDate}`
+        }
       />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <VendorSelector value={vendorId} onChange={(id) => setVendorId(id)} />

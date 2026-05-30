@@ -42,6 +42,21 @@ export default function VendorDetailPage() {
           <p className="sm:col-span-2"><b>{t('address')}:</b> {d.address || '—'}</p>
         </div>
       </div>
+
+      {/* ITEM 8 — vendor remittance / payment details (rendered when any is set). */}
+      {(d.bankName || d.bankAccountNo || d.bankAccountName || d.swiftCode) && (
+        <div className="card mt-4 bg-base-100 shadow-sm">
+          <div className="card-body">
+            <h2 className="card-title text-base">{t('payment.group')}</h2>
+            <div className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
+              <Row k={t('payment.bankName')} v={d.bankName} />
+              <Row k={t('payment.bankAccountNo')} v={d.bankAccountNo} />
+              <Row k={t('payment.bankAccountName')} v={d.bankAccountName} />
+              <Row k={t('payment.swiftCode')} v={d.swiftCode} />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

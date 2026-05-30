@@ -180,6 +180,14 @@
       "vatDReg": "จดทะเบียน VAT-D ในไทยแล้ว",
       "noVatDWarning": "⚠ Vendor นี้ต้องหัก WHT 15% (ม.70) + self-assess VAT 7% (ภ.พ.36) — ระบบจะ default ตามนี้ตอนสร้าง PV/VI",
       "vatDInfo": "⭕ Vendor นี้จดทะเบียน VAT ในไทย — ไม่ต้องหัก WHT, เคลม Input VAT ได้ปกติ (Netflix/Spotify/Adobe/Microsoft)"
+    },
+    "payment": {
+      "group": "ข้อมูลการชำระเงิน",
+      "bankName": "ธนาคาร",
+      "bankAccountNo": "เลขที่บัญชี",
+      "bankAccountName": "ชื่อบัญชี",
+      "swiftCode": "SWIFT / BIC",
+      "swiftHint": "สำหรับธนาคารต่างประเทศ"
     }
   },
   "pv": {
@@ -206,6 +214,7 @@
     "sodHint": "ผู้อนุมัติต้องไม่ใช่ผู้สร้าง (SoD)",
     "postHint": "ต้องอนุมัติก่อนจึงจะ Post ได้",
     "settlingVi": "ชำระใบกำกับภาษีซื้อเลขที่",
+    "fromPo": "อ้างอิงใบสั่งซื้อเลขที่",
     "approveWarn": "การ Approve ทำให้เอกสารพร้อม Post — ผู้อนุมัติต้องไม่ใช่ผู้สร้าง",
     "selfWithhold": {
       "toggle": "Self-withhold mode",
@@ -635,6 +644,7 @@
     "total": "รวม", "lineDesc": "รายละเอียด", "qty": "จำนวน",
     "unitPrice": "ราคา/หน่วย", "pickVendor": "เลือกผู้ขายก่อน",
     "approve": "อนุมัติ", "sentToVendor": "ส่ง PO ให้ vendor", "close": "ปิด",
+    "createPv": "สร้างใบสำคัญจ่าย",
     "cancel": "ยกเลิก", "linkedTo": "VI ที่เชื่อม",
     "remaining": "ค้างเหลือ", "outstandingReport": "PO ค้าง",
     "overdueDays": "วันที่เลย", "aging": "อายุ", "overdueOnly": "เฉพาะที่เลยกำหนด",

@@ -48,7 +48,8 @@ export default function NewPurchaseOrderPage() {
 
   const today = bangkokToday();
   const [docDate, setDocDate] = useState(today);
-  const [expected, setExpected] = useState('');
+  // ITEM 1 — expected-delivery defaults to today (editable), same source as docDate.
+  const [expected, setExpected] = useState(today);
   const [notes, setNotes] = useState('');
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
@@ -133,7 +134,6 @@ export default function NewPurchaseOrderPage() {
             name="vendorId"
             render={({ field, fieldState }) => (
               <div>
-                <span className="label-text">{t('vendor')} *</span>
                 <VendorSelector
                   value={field.value || null}
                   onChange={(id) => field.onChange(id ?? 0)}

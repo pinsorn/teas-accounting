@@ -180,6 +180,14 @@
       "vatDReg": "Registered for Thai VAT-D",
       "noVatDWarning": "⚠ Must withhold WHT 15% (s.70) + self-assess VAT 7% (PND.36) — defaulted on PV/VI",
       "vatDInfo": "⭕ Registered for Thai VAT — no WHT, claim Input VAT normally (Netflix/Spotify/Adobe/Microsoft)"
+    },
+    "payment": {
+      "group": "Payment details",
+      "bankName": "Bank",
+      "bankAccountNo": "Account number",
+      "bankAccountName": "Account name",
+      "swiftCode": "SWIFT / BIC",
+      "swiftHint": "For non-Thai banks"
     }
   },
   "pv": {
@@ -206,6 +214,7 @@
     "sodHint": "Approver must differ from creator (SoD)",
     "postHint": "Must be approved before it can be posted",
     "settlingVi": "Settling Vendor Invoice",
+    "fromPo": "Referencing Purchase Order",
     "approveWarn": "Approving makes the document postable — the approver must not be the creator",
     "selfWithhold": {
       "toggle": "Self-withhold mode",
@@ -634,6 +643,7 @@
     "total": "Total", "lineDesc": "Description", "qty": "Qty",
     "unitPrice": "Unit price", "pickVendor": "Select a vendor first",
     "approve": "Approve", "sentToVendor": "Send to vendor", "close": "Close",
+    "createPv": "Create Payment Voucher",
     "cancel": "Cancel", "linkedTo": "Linked Vendor Invoices",
     "remaining": "Remaining", "outstandingReport": "Outstanding PO",
     "overdueDays": "Overdue (days)", "aging": "Aging", "overdueOnly": "Overdue only",

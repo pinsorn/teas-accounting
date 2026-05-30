@@ -15,6 +15,8 @@ const EMPTY: CreateVendorRequest = {
   contactPerson: null, phone: null, email: null, paymentTermDays: 30,
   defaultCurrency: 'THB', defaultWhtTypeCode: null,
   isForeign: false, hasThaiVatDReg: false, countryCode: null,
+  // ITEM 8 — vendor remittance details.
+  bankName: null, bankAccountNo: null, bankAccountName: null, swiftCode: null,
 };
 
 const COUNTRIES = ['US','SG','IE','JP','GB','DE','AU','CN','IN','NL','CA','FR',
@@ -46,6 +48,10 @@ export default function VendorNewPage() {
         phone: f.phone || null,
         email: f.email || null,
         defaultWhtTypeCode: f.defaultWhtTypeCode || null,
+        bankName: f.bankName || null,
+        bankAccountNo: f.bankAccountNo || null,
+        bankAccountName: f.bankAccountName || null,
+        swiftCode: f.swiftCode || null,
       });
       toast.success(t('save'));
       router.push('/vendors');
@@ -106,6 +112,35 @@ export default function VendorNewPage() {
           <textarea className="textarea textarea-bordered" value={f.address ?? ''}
             onChange={(e) => set('address', e.target.value)} />
         </label>
+
+        {/* ITEM 8 — vendor remittance / payment details (all optional). */}
+        <div className="sm:col-span-2 rounded-lg border border-base-300 p-3">
+          <div className="mb-2 text-sm font-semibold">{t('payment.group')}</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="form-control">
+              <span className="label-text">{t('payment.bankName')}</span>
+              <input className="input input-bordered" value={f.bankName ?? ''}
+                onChange={(e) => set('bankName', e.target.value || null)} />
+            </label>
+            <label className="form-control">
+              <span className="label-text">{t('payment.bankAccountNo')}</span>
+              <input className="input input-bordered" value={f.bankAccountNo ?? ''}
+                onChange={(e) => set('bankAccountNo', e.target.value || null)} />
+            </label>
+            <label className="form-control">
+              <span className="label-text">{t('payment.bankAccountName')}</span>
+              <input className="input input-bordered" value={f.bankAccountName ?? ''}
+                onChange={(e) => set('bankAccountName', e.target.value || null)} />
+            </label>
+            <label className="form-control">
+              <span className="label-text">{t('payment.swiftCode')}</span>
+              <input className="input input-bordered" value={f.swiftCode ?? ''}
+                placeholder={t('payment.swiftHint')}
+                onChange={(e) => set('swiftCode', e.target.value || null)} />
+            </label>
+          </div>
+        </div>
+
         <div className="sm:col-span-2 rounded-lg border border-base-300 p-3 space-y-2">
           <label className="label cursor-pointer justify-start gap-3">
             <input type="checkbox" className="checkbox checkbox-sm"

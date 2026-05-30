@@ -77,6 +77,7 @@ export default function ApAgingPage() {
           <VendorSelector
             value={vendorId}
             onChange={(id) => setVendorId(id)}
+            label={null}
           />
           {vendorId !== null && (
             <button type="button" className="btn btn-ghost btn-xs mt-1"
