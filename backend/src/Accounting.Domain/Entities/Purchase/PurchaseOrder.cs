@@ -55,15 +55,14 @@ public class PurchaseOrder : ITenantOwned, IAuditable, IConcurrencyVersioned
 
     public ICollection<PurchaseOrderLine> Lines { get; set; } = new List<PurchaseOrderLine>();
 
-    /// <summary>Draft → Approved with SoD (approver ≠ creator). Belt-and-braces
-    /// with DB CHECK ck_po_sod. doc_no allocated by the service.</summary>
+    /// <summary>Draft → Approved. cont.77 (Ham 2026-05-30) — approval is now permission-based
+    /// only (holder of <c>purchase.purchase_order.approve</c>), the creator may approve their
+    /// own PO; the creator≠approver SoD rule (+ DB CHECK ck_po_sod) is removed. doc_no allocated
+    /// by the service; ApprovedBy still recorded for the audit trail.</summary>
     public void MarkApproved(long approverUserId, string docNo, DateTimeOffset at)
     {
         if (Status != PurchaseOrderStatus.Draft)
             throw new DomainException("po.not_draft", $"Cannot approve PO in status {Status}.");
-        if (CreatedBy is { } creator && creator == approverUserId)
-            throw new DomainException("po.sod_violation",
-                "Approver must differ from the creator (segregation of duties).");
         DocNo = docNo;
         ApprovedBy = approverUserId;
         ApprovedAt = at;

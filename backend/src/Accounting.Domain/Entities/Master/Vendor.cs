@@ -32,6 +32,13 @@ public class Vendor : ITenantOwned
     public int PaymentTermDays { get; set; }
     public string DefaultCurrency { get; set; } = "THB";
 
+    // cont.77 — payment / remittance details (for transferring funds to the vendor).
+    // SwiftCode is for non-Thai banking (international wire). All nullable.
+    public string? BankName        { get; set; }
+    public string? BankAccountNo   { get; set; }
+    public string? BankAccountName { get; set; }
+    public string? SwiftCode       { get; set; }
+
     /// <summary>Default WHT type code applied when creating a Payment Voucher (overridable).</summary>
     public string? DefaultWhtTypeCode { get; set; }
 

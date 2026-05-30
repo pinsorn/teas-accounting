@@ -279,9 +279,9 @@ public sealed class Sprint55VendorInvoiceTests
             .Should().NotContain("MISSING_TAX_INVOICE_FILE");
     }
 
-    // ── B2: PV approve SoD + post-after-approve ────────────────────────────────────
+    // ── B2: PV approve (permission-based, SoD relaxed) + post-after-approve ─────────
     [SkippableFact]
-    public async Task PaymentVoucher_approve_sod_and_post_after_approve()
+    public async Task PaymentVoucher_creator_may_approve_then_post()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp1 = Provider(userId: 1);
@@ -301,26 +301,17 @@ public sealed class Sprint55VendorInvoiceTests
                 default);
         }
 
-        // Same user (creator) cannot approve — SoD.
+        // cont.77 — SoD relaxed: the creator may approve their own PV (permission-based).
         await using (var s = sp1.CreateAsyncScope())
         {
             var svc = s.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
-            var selfApprove = () => svc.ApproveAsync(pvId, default);
-            (await selfApprove.Should().ThrowAsync<DomainException>())
-                .Which.Code.Should().Be("pv.sod_violation");
-            // Cannot post a Draft (not yet Approved).
+            // Still cannot post a Draft (must be Approved first — state machine intact).
             var earlyPost = () => svc.PostAsync(pvId, default);
             (await earlyPost.Should().ThrowAsync<DomainException>())
                 .Which.Code.Should().Be("pv.not_approved");
-        }
 
-        // Different user approves, then posts.
-        await using var sp2 = Provider(userId: 2);
-        await using (var s = sp2.CreateAsyncScope())
-        {
-            var svc = s.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
-            var ap = await svc.ApproveAsync(pvId, default);
-            ap.ApprovedBy.Should().Be(2);
+            var ap = await svc.ApproveAsync(pvId, default);   // creator self-approves
+            ap.ApprovedBy.Should().Be(1);
             var posted = await svc.PostAsync(pvId, default);
             posted.PaymentVoucherId.Should().Be(pvId);
         }

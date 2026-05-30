@@ -29,11 +29,13 @@ public sealed class PurchaseOrderStateMachineTests
     }
 
     [Fact]
-    public void Approving_own_po_is_a_sod_violation()
+    public void Creator_may_approve_own_po_permission_based()
     {
-        var act = () => Po(createdBy: 7).MarkApproved(7, "PO-1", T);
-        act.Should().Throw<DomainException>()
-            .Which.Code.Should().Be("po.sod_violation");
+        // cont.77 — SoD relaxed to permission-based: the creator may approve their own PO.
+        var po = Po(createdBy: 7);
+        po.MarkApproved(7, "PO-1", T);
+        po.Status.Should().Be(PurchaseOrderStatus.Approved);
+        po.ApprovedBy.Should().Be(7);
     }
 
     [Fact]

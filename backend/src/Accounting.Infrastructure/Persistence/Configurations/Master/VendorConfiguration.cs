@@ -30,6 +30,11 @@ internal sealed class VendorConfiguration : IEntityTypeConfiguration<Vendor>
         b.Property(v => v.Email).HasMaxLength(255);
         b.Property(v => v.DefaultWhtTypeCode).HasMaxLength(20);
         b.Property(v => v.DefaultCurrency).IsFixedLength().HasMaxLength(3).HasDefaultValue("THB");
+        // cont.77 — vendor payment/remittance details.
+        b.Property(v => v.BankName).HasMaxLength(120);
+        b.Property(v => v.BankAccountNo).HasMaxLength(50);
+        b.Property(v => v.BankAccountName).HasMaxLength(255);
+        b.Property(v => v.SwiftCode).HasMaxLength(11);   // ISO 9362: 8 or 11 chars
         b.Property(v => v.CreatedAt).HasColumnType("timestamptz(3)");
 
         // Sprint 8.7 — foreign / VAT-D flags. is_vat_registered = the existing
