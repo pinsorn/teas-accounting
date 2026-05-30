@@ -1,5 +1,18 @@
 {
   "app": { "name": "TEAS", "tagline": "Thailand Enterprise Accounting System" },
+  "party": {
+    "selectCustomer": "Select customer",
+    "selectVendor": "Select vendor",
+    "change": "Change",
+    "taxId": "Tax ID",
+    "searchPlaceholder": "Search by name or tax ID",
+    "emptyCustomer": "No customer found — create one in the Customers menu",
+    "emptyVendor": "No vendor found — create one in the Vendors menu"
+  },
+  "create": {
+    "cancel": "Cancel",
+    "livePreview": "Live preview"
+  },
   "postConfirm": {
     "title": {
       "tax_invoice": "Confirm Tax Invoice posting",

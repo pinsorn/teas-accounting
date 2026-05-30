@@ -1,5 +1,18 @@
 {
   "app": { "name": "TEAS", "tagline": "ระบบบัญชีสำหรับองค์กรไทย" },
+  "party": {
+    "selectCustomer": "เลือกลูกค้า",
+    "selectVendor": "เลือกผู้ขาย",
+    "change": "เปลี่ยน",
+    "taxId": "เลขผู้เสียภาษี",
+    "searchPlaceholder": "ค้นหาชื่อ หรือเลขผู้เสียภาษี",
+    "emptyCustomer": "ไม่พบลูกค้า — สร้างใหม่ในเมนูลูกค้า",
+    "emptyVendor": "ไม่พบผู้ขาย — สร้างใหม่ในเมนูผู้ขาย"
+  },
+  "create": {
+    "cancel": "ยกเลิก",
+    "livePreview": "ตัวอย่างเอกสาร"
+  },
   "postConfirm": {
     "title": {
       "tax_invoice": "ยืนยันการบันทึกใบกำกับภาษี",

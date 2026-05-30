@@ -63,6 +63,7 @@ export function LineItemsTable({
   onChange,
   enableProduct = false,
   vatEnabled = true,
+  hideHeading = false,
 }: {
   value: LineItem[];
   onChange: (lines: LineItem[]) => void;
@@ -71,6 +72,9 @@ export function LineItemsTable({
   // the vendor's VAT-registration here: a non-VAT vendor issues no tax invoice, so
   // there is no input VAT to record → hide the column + drop VAT from the line total.
   vatEnabled?: boolean;
+  // cont.80 — when the caller already shows a section heading (SectionCard "③ รายการ"),
+  // suppress the table's own "รายการ" header to avoid a duplicate.
+  hideHeading?: boolean;
 }) {
   const t = useTranslations('ti.form');
   const tq = useTranslations('quotation');
@@ -86,16 +90,11 @@ export function LineItemsTable({
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-semibold text-ink-900">{t('lines')}</h2>
-        <button
-          type="button"
-          className="btn btn-outline btn-sm gap-1 border-peach-300 text-peach-700 hover:border-peach-400 hover:bg-peach-50"
-          onClick={() => onChange([...value, { ...EMPTY_LINE, taxRate: stdRate }])}
-        >
-          <Plus className="h-4 w-4" aria-hidden /> {t('addLine')}
-        </button>
-      </div>
+      {!hideHeading && (
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-semibold text-ink-900">{t('lines')}</h2>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-card border border-ink-100">
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
@@ -222,6 +221,14 @@ export function LineItemsTable({
           </tbody>
         </table>
       </div>
+      {/* cont.80 — full-width dashed "+ เพิ่มรายการ" below the table (mockup look). */}
+      <button
+        type="button"
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-card border border-dashed border-ink-200 py-2.5 text-sm font-semibold text-peach-700 transition-colors hover:border-peach-300 hover:bg-peach-50"
+        onClick={() => onChange([...value, { ...EMPTY_LINE, taxRate: stdRate }])}
+      >
+        <Plus className="h-4 w-4" aria-hidden /> {t('addLine')}
+      </button>
     </div>
   );
 }

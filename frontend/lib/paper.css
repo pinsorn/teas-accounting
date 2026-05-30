@@ -253,3 +253,16 @@
   .create-grid .preview-side { position: static; max-height: none; }
   .detail-grid { grid-template-columns: 1fr; }
 }
+
+/* cont.80 — the redesigned create layout (DocumentCreateLayout) uses a Tailwind
+   grid, not `.create-grid`, so the preview-scaling rules above no longer match.
+   Re-declare the same scaling keyed on `.preview-side` alone so the LivePreviewPane
+   renders the PaperDocument at the compact preview size regardless of ancestor. */
+.preview-side .paper { width: 100%; padding: 32px 36px; font-size: 13px; }
+.preview-side .paper-title .label-th { font-size: 22px; }
+.preview-side .paper-items thead th,
+.preview-side .paper-items tbody td { font-size: 13px; padding: 8px 10px; }
+.preview-side .paper-totals .row.total { font-size: 15px; padding: 8px 12px; }
+.preview-side .paper-meta { font-size: 13px; }
+.preview-side .paper-meta .block { padding: 10px 12px; }
+.preview-side .paper-meta .block .val { font-size: 13px; }
