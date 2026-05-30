@@ -62,18 +62,24 @@ export function LineItemsTable({
   value,
   onChange,
   enableProduct = false,
+  vatEnabled = true,
 }: {
   value: LineItem[];
   onChange: (lines: LineItem[]) => void;
   enableProduct?: boolean;
+  // cont.77 — caller-side VAT gate, ANDed with the company vatMode. Purchase passes
+  // the vendor's VAT-registration here: a non-VAT vendor issues no tax invoice, so
+  // there is no input VAT to record → hide the column + drop VAT from the line total.
+  vatEnabled?: boolean;
 }) {
   const t = useTranslations('ti.form');
   const tq = useTranslations('quotation');
   const sys = useSystemInfo().data;
   const stdRate = sys?.vatRate ?? FALLBACK_VAT;
   const options = vatOptions(stdRate);
-  // Non-VAT companies (ม.86): no VAT rate column at all (not merely 0%).
-  const showVat = sys?.vatMode ?? true;
+  // Non-VAT companies (ม.86): no VAT rate column at all (not merely 0%). Also off
+  // when the caller disables it (e.g. a purchase from a non-VAT-registered vendor).
+  const showVat = (sys?.vatMode ?? true) && vatEnabled;
 
   const set = (i: number, patch: Partial<LineItem>) =>
     onChange(value.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
