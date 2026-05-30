@@ -17,7 +17,9 @@ test('SO /new renders the real form, no NaN fetch', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /สร้างใบสั่งขาย/ })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี')).toBeVisible();
+  // CustomerSelector trigger button (modal opener) — its accessible name when empty
+  // is the placeholder span text; the modal <input> only exists once it's opened.
+  await expect(page.getByRole('button', { name: 'ค้นหาชื่อ หรือเลขผู้เสียภาษี' })).toBeVisible();
   await expect(page.getByText(/เกิดข้อผิดพลาด|Something went wrong/i)).toHaveCount(0);
   expect(bad, `unexpected NaN fetch: ${bad.join(', ')}`).toHaveLength(0);
 });
@@ -34,7 +36,9 @@ test('DO /new renders the real form, no NaN fetch', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /สร้างใบส่งของ/ })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี')).toBeVisible();
+  // CustomerSelector trigger button (modal opener) — its accessible name when empty
+  // is the placeholder span text; the modal <input> only exists once it's opened.
+  await expect(page.getByRole('button', { name: 'ค้นหาชื่อ หรือเลขผู้เสียภาษี' })).toBeVisible();
   await expect(page.getByText(/เกิดข้อผิดพลาด|Something went wrong/i)).toHaveCount(0);
   expect(bad, `unexpected NaN fetch: ${bad.join(', ')}`).toHaveLength(0);
 });

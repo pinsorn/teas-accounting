@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './_helpers';
+import { login, pickCustomer } from './_helpers';
 
 // Sprint 8 — a receipt that settles two TIs tagged to different Business Units
 // must post (no block) and surface the cross-BU warning on the detail page.
@@ -19,8 +19,7 @@ async function createBu(page: Page, code: string) {
 
 async function postTiWithBu(page: Page, code: string): Promise<number> {
   await page.goto('/tax-invoices/new');
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  await pickCustomer(page);
   // BU <select> — exact option label is "<code> — <nameTh>" (no regex per Playwright).
   await page.getByLabel('หน่วยธุรกิจ').selectOption({ label: `${code} — สาย ${code}` });
   await page.getByLabel('รายละเอียด 1').fill('cross-bu item');
@@ -29,7 +28,7 @@ async function postTiWithBu(page: Page, code: string): Promise<number> {
   await page.getByRole('button', { name: /^Post|บันทึกเอกสาร/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: /Confirm Post|ยืนยัน Post/i }).click();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
   await page.waitForURL(/\/tax-invoices\/\d+$/, { timeout: 15_000 });
   return Number(page.url().match(/\/tax-invoices\/(\d+)$/)![1]);
 }
@@ -46,8 +45,7 @@ test('cross-BU receipt posts and shows the cross-BU warning', async ({ page }) =
   const tiB = await postTiWithBu(page, codeB);
 
   await page.goto('/receipts/new');
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  await pickCustomer(page);
 
   await page.getByLabel('taxInvoiceId 1').fill(String(tiA));
   await page.getByLabel('appliedAmount 1').fill('1070');
@@ -58,7 +56,7 @@ test('cross-BU receipt posts and shows the cross-BU warning', async ({ page }) =
   await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: /Confirm Post|ยืนยัน Post/i }).click();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
 
   await page.waitForURL(/\/receipts\/\d+$/, { timeout: 15_000 });
   // Cross-BU warning alert (allowed, not blocked) lists both BU codes.

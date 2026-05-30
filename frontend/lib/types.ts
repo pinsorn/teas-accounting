@@ -402,6 +402,18 @@ export interface CreateVendorRequest {
   bankName?: string | null; bankAccountNo?: string | null;
   bankAccountName?: string | null; swiftCode?: string | null;
 }
+// Mirrors Application.Master.UpdateVendorRequest (PUT /vendors/{id}). vendorCode +
+// vendorType are immutable on update, so they are NOT part of this contract.
+export interface UpdateVendorRequest {
+  nameTh: string; nameEn: string | null;
+  taxId: string | null; branchCode: string | null; branchName: string | null;
+  vatRegistered: boolean; address: string | null; contactPerson: string | null;
+  phone: string | null; email: string | null; paymentTermDays: number;
+  defaultCurrency: string; defaultWhtTypeCode: string | null; isActive: boolean;
+  isForeign?: boolean; hasThaiVatDReg?: boolean; countryCode?: string | null;
+  bankName?: string | null; bankAccountNo?: string | null;
+  bankAccountName?: string | null; swiftCode?: string | null;
+}
 
 // BP-02 — mirror the BE ExpenseCategoryDto JSON exactly. The list endpoint emits
 // `defaultIsRecoverableVat` (NOT `isRecoverableVat`); the old field name read

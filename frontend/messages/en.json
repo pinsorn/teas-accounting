@@ -153,6 +153,8 @@
   "ven": {
     "title": "Vendors",
     "create": "Add vendor",
+    "editTitle": "Edit vendor",
+    "edit": "Edit",
     "code": "Vendor code",
     "type": "Type",
     "individual": "Individual",
@@ -161,6 +163,7 @@
     "nameEn": "Name (English)",
     "taxId": "Tax ID",
     "branchCode": "Branch code (5 digits)",
+    "branchName": "Branch name",
     "vatRegistered": "VAT registered",
     "address": "Address",
     "contact": "Contact person",

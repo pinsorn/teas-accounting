@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login } from './_helpers';
+import { login, pickCustomer } from './_helpers';
 
 // Sprint 10 Part B + Sprint 13e P2/P4 — full Q → SO → DO → TI happy path
 // through the rebuilt forms. "ออกใบเสนอราคา" (Issue) both creates the draft
@@ -8,9 +8,8 @@ test('quotation chain: Q (issue) → SO → DO (combined) → linked TI', async 
   await login(page);
 
   await page.goto('/quotations/new');
-  // Customer async combobox (unchanged selector).
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  // Customer MODAL pick (EntityPickerModal).
+  await pickCustomer(page);
 
   // One line via the shared LineItemsTable (product picker = free text here).
   await page.getByLabel('รายละเอียด 1').fill('e2e chain item');

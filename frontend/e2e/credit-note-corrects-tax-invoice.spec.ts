@@ -17,7 +17,7 @@ test('credit note corrects a posted tax invoice', async ({ page }) => {
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(/irreversible|ไม่สามารถแก้ไข|ยืนยันเหตุผล/i);
-  await dialog.getByRole('button', { name: /Confirm Post|ยืนยัน Post/i }).click();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
 
   await page.waitForURL(/\/credit-notes\/\d+$/, { timeout: 15_000 });
   await expect(page.locator('body')).toContainText(/-CN-\d{4}/);

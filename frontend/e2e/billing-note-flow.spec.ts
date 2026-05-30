@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login } from './_helpers';
+import { login, pickCustomer } from './_helpers';
 
 // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล) end-to-end.
 // "ออกใบแจ้งหนี้" (Issue) creates the draft and allocates doc_no, landing on
@@ -10,9 +10,8 @@ test('billing note: create → issue → mark settled', async ({ page }) => {
 
   await page.goto('/invoices/new');
 
-  // Customer async combobox.
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  // Customer MODAL pick.
+  await pickCustomer(page);
 
   // One line via the shared LineItemsTable.
   await page.getByLabel('รายละเอียด 1').fill('e2e billing note item');
@@ -43,8 +42,7 @@ test('billing note: group multiple tax invoices via join table', async ({ page }
   await login(page);
   await page.goto('/invoices/new');
 
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  await pickCustomer(page);
 
   // Open the multi-TI picker (customer-scoped, Posted-only).
   await page.getByLabel('ใบกำกับภาษีที่รวม').click();
@@ -73,8 +71,7 @@ test('billing note: create draft → delete', async ({ page }) => {
   await login(page);
 
   await page.goto('/invoices/new');
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  await pickCustomer(page);
   await page.getByLabel('รายละเอียด 1').fill('e2e bn to delete');
   await page.getByLabel('จำนวน 1').fill('1');
   await page.getByLabel('ราคา/หน่วย 1').fill('500');

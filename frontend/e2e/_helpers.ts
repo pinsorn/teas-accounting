@@ -14,20 +14,32 @@ export async function logout(page: Page) {
   await page.waitForURL('**/login', { timeout: 15_000 });
 }
 
+/**
+ * Pick a customer in the CustomerSelector MODAL (EntityPickerModal). The selector
+ * renders a trigger button whose accessible name (when empty) is the placeholder
+ * text "ค้นหาชื่อ หรือเลขผู้เสียภาษี" (the ChevronDown icon is aria-hidden); clicking
+ * it opens a role=dialog with a search input + a <ul> of result <button>s.
+ */
+export async function pickCustomer(page: Page, search = 'ลูกค้า', name: RegExp = /ลูกค้าทดสอบ/) {
+  await page.getByRole('button', { name: 'ค้นหาชื่อ หรือเลขผู้เสียภาษี' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox').fill(search);
+  await dialog.getByRole('button', { name }).click();
+}
+
 /** Create + post a Tax Invoice via the UI; returns its numeric id from the detail URL. */
 export async function createAndPostTaxInvoice(page: Page): Promise<number> {
   await page.goto('/tax-invoices/new');
-  // Customer input is role=combobox; the Sprint-8 BU <select> is also a combobox,
-  // so scope by the customer search placeholder to stay unambiguous.
-  await page.getByPlaceholder('ค้นหาชื่อ หรือเลขผู้เสียภาษี').fill('ลูกค้า');
-  await page.getByRole('listbox').getByRole('button', { name: /ลูกค้าทดสอบ/ }).click();
+  // Customer is the CustomerSelector MODAL — open it via the trigger button, then
+  // search + pick inside the dialog (replaced the old inline combobox/listbox).
+  await pickCustomer(page);
   await page.getByLabel('รายละเอียด 1').fill('e2e item');
   await page.getByLabel('จำนวน 1').fill('1');
   await page.getByLabel('ราคา/หน่วย 1').fill('1000');
   await page.getByRole('button', { name: /^Post|บันทึกเอกสาร/ }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: /Confirm Post|ยืนยัน Post/i }).click();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
   await page.waitForURL(/\/tax-invoices\/\d+$/, { timeout: 15_000 });
   const m = page.url().match(/\/tax-invoices\/(\d+)$/);
   return Number(m![1]);
@@ -46,10 +58,15 @@ export async function createVendor(page: Page): Promise<string> {
   return code;
 }
 
-/** Pick a vendor in the async VendorSelector combobox by its code/label fragment. */
+/**
+ * Pick a vendor in the VendorSelector MODAL (EntityPickerModal) by its code/label
+ * fragment. The selector is a trigger button whose accessible name (when empty) is
+ * "ค้นหาชื่อ หรือรหัสผู้ขาย"; clicking it opens a role=dialog with a search input +
+ * result <button>s. Search by the supplied fragment, then click the first result.
+ */
 export async function pickVendor(page: Page, query: string) {
-  const box = page.getByRole('combobox').first();
-  await box.click();
-  await box.fill(query);
-  await page.getByRole('listbox').getByRole('button').first().click();
+  await page.getByRole('button', { name: 'ค้นหาชื่อ หรือรหัสผู้ขาย' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox').fill(query);
+  await dialog.getByRole('button', { name: query }).first().click();
 }
