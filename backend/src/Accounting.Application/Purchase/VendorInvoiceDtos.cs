@@ -26,7 +26,10 @@ public sealed record CreateVendorInvoiceRequest(
     // Sprint 8.7 — null = auto-derive (foreign-no-VAT-D / non-VAT vendor → false).
     // false = receipt-only: VAT lumped into expense (ม.82/5 pattern).
     bool? HasInputVat = null,
-    long? PurchaseOrderId = null);   // Sprint 12 — optional retroactive PO link
+    long? PurchaseOrderId = null,   // Sprint 12 — optional retroactive PO link
+    // cont.79 — Business Unit (GL dimension). Required when Company.RequiresBusinessUnit;
+    // embedded in the VI doc number at POST (MM-YYYY-VI-{BU}-NNNN). Trailing-defaulted.
+    int? BusinessUnitId = null);
 
 public sealed record SetClaimPeriodRequest(int VatClaimPeriod);
 
@@ -58,7 +61,8 @@ public sealed record VendorInvoiceListItem(
     string? VendorTaxId, string VendorTaxInvoiceNo, int VatClaimPeriod,
     decimal TotalAmount, decimal VatAmount, decimal SettledAmount,
     string SettlementStatus, string Status, string CurrencyCode,
-    bool IsComplete = true);   // cont.76 — advisory completeness (POSTED docs only; true for drafts)
+    bool IsComplete = true,    // cont.76 — advisory completeness (POSTED docs only; true for drafts)
+    int? BusinessUnitId = null);   // cont.79 — BU GL dimension
 
 public sealed record VendorInvoiceLineView(
     int LineNo, int ExpenseCategoryId, long ExpenseAccountId, string Description,
@@ -84,7 +88,10 @@ public sealed record VendorInvoiceDetail(
     long? PurchaseOrderId, string? PurchaseOrderDocNo,   // Sprint 12 — linked PO
     IReadOnlyList<VendorInvoiceLineView> Lines,
     IReadOnlyList<VendorInvoiceSettlingPv> SettlingPvs,   // Sprint 13j-PURCH Flag-2 — downward → PV
-    CompletenessView Completeness);   // cont.76 — advisory completeness (POSTED only)
+    CompletenessView Completeness,   // cont.76 — advisory completeness (POSTED only)
+    int? BusinessUnitId = null,      // cont.79 — BU GL dimension
+    string? BusinessUnitCode = null,
+    string? BusinessUnitName = null);
 
 public interface IVendorInvoiceService
 {

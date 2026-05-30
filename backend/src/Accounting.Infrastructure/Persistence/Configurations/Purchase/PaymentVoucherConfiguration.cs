@@ -64,6 +64,12 @@ internal sealed class PaymentVoucherConfiguration : IEntityTypeConfiguration<Pay
             .HasForeignKey(p => p.VendorInvoiceId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // cont.79 — Business Unit GL dimension (Restrict so a BU can't be hard-deleted
+        // while PVs reference it).
+        b.HasOne<Accounting.Domain.Entities.Master.BusinessUnit>().WithMany()
+            .HasForeignKey(p => p.BusinessUnitId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(p => p.BusinessUnitId).HasFilter("business_unit_id IS NOT NULL");
+
         // cont.77 — the ck_pv_sod CHECK (approved_by <> created_by) is dropped: approval is
         // now permission-based only and the creator may approve their own PV (Ham 2026-05-30).
 

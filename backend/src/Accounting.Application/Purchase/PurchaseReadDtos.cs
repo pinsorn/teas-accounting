@@ -10,7 +10,8 @@ public sealed record PaymentVoucherListItem(
     long PaymentVoucherId, string? DocNo, DateOnly DocDate, string VendorName,
     string? VendorTaxId, string SubPrefix, decimal TotalPaid, decimal WhtAmount,
     string Status, string CurrencyCode,
-    bool IsComplete = true);   // cont.76 — advisory completeness (POSTED docs only; true for drafts)
+    bool IsComplete = true,    // cont.76 — advisory completeness (POSTED docs only; true for drafts)
+    int? BusinessUnitId = null);   // cont.79 — BU GL dimension
 
 public sealed record PaymentVoucherLineView(
     int LineNo, long ExpenseAccountId, string Description, decimal Amount,
@@ -40,7 +41,10 @@ public sealed record PaymentVoucherDetail(
     bool RequiresPnd36ReverseCharge,
     IReadOnlyList<PaymentVoucherLineView> Lines,
     IReadOnlyList<PaymentVoucherWhtCertificate> WhtCertificates,   // Sprint 13j-PURCH Flag-2 — downward → WHT
-    CompletenessView Completeness);   // cont.76 — advisory completeness (POSTED only)
+    CompletenessView Completeness,   // cont.76 — advisory completeness (POSTED only)
+    int? BusinessUnitId = null,      // cont.79 — BU GL dimension
+    string? BusinessUnitCode = null,
+    string? BusinessUnitName = null);
 
 public sealed record WhtCertificateListItem(
     long WhtCertificateId, string DocNo, DateOnly CertDate, long? PaymentVoucherId,

@@ -83,7 +83,8 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 VatRate:           l.VatRate,
                 ProductType:       l.ProductType)).ToList(),
             HasInputVat:     req.HasInputVat,
-            PurchaseOrderId: null);
+            PurchaseOrderId: null,
+            BusinessUnitId:  pv.BusinessUnitId);   // cont.79 — carry the PV's BU to the VI
 
         var viId = await _viService.CreateDraftAsync(viReq, ct);
 
@@ -109,6 +110,17 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 .FirstOrDefaultAsync(c => c.CategoryId == req.ExpenseCategoryId, ct)
             ?? throw new DomainException("pv.expense_category_missing",
                 $"Expense category {req.ExpenseCategoryId} not found.");
+
+        // cont.79 — BU (GL dimension). Required when the company opted in; if supplied
+        // it must be an active BU of this tenant (mirror TaxInvoiceService).
+        var requiresBu = await _db.Companies
+            .Where(c => c.CompanyId == _tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstOrDefaultAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+        if (req.BusinessUnitId is { } buId &&
+            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId && x.IsActive, ct))
+            throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
         var lines = new List<PaymentVoucherLine>();
         for (var i = 0; i < req.Lines.Count; i++)
@@ -168,6 +180,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         {
             CompanyId          = _tenant.CompanyId,
             BranchId           = _tenant.BranchId,
+            BusinessUnitId     = req.BusinessUnitId,   // cont.79 — GL dimension snapshot
             SubPrefix          = category.CategoryCode,
             DocDate            = req.DocDate,
             PostingDate        = req.DocDate,
@@ -239,8 +252,15 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
 
         await _period.EnsureOpenAsync(pv.DocDate, ct);
 
+        // cont.79 — embed the BU code into the doc-number sub-prefix at POST:
+        // MM-YYYY-PV-{BU}-{CATEGORY}-NNNN. No BU → unchanged (…-PV-{CATEGORY}-…).
+        var buCode = pv.BusinessUnitId is { } bid
+            ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == bid)
+                .Select(x => x.Code).FirstOrDefaultAsync(ct)
+            : null;
+        var subPrefix = buCode is null ? pv.SubPrefix : $"{buCode}-{pv.SubPrefix}";
         var pvNo = await _numbers.NextAsync(
-            pv.CompanyId, pv.BranchId, PvPrefix, pv.SubPrefix, pv.DocDate, ct);
+            pv.CompanyId, pv.BranchId, PvPrefix, subPrefix, pv.DocDate, ct);
 
         var now = _clock.UtcNow;
         pv.MarkPosted(pvNo, _tenant.UserId ?? 0, now);

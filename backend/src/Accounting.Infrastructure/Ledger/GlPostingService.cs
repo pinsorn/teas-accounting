@@ -220,7 +220,8 @@ public sealed class GlPostingService : IGlPostingService
         });
 
         return await BuildAndPostAsync(
-            pv.CompanyId, pv.BranchId, pv.DocDate, $"PV {pv.DocNo}", pv.DocNo, lines, ct);
+            pv.CompanyId, pv.BranchId, pv.DocDate, $"PV {pv.DocNo}", pv.DocNo, lines, ct,
+            businessUnitId: pv.BusinessUnitId);   // cont.79 — stamp BU on every PV journal line
     }
 
     public async Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct)
@@ -265,7 +266,8 @@ public sealed class GlPostingService : IGlPostingService
         });
 
         return await BuildAndPostAsync(
-            vi.CompanyId, vi.BranchId, vi.DocDate, $"VI {vi.DocNo}", vi.DocNo, lines, ct);
+            vi.CompanyId, vi.BranchId, vi.DocDate, $"VI {vi.DocNo}", vi.DocNo, lines, ct,
+            businessUnitId: vi.BusinessUnitId);   // cont.79 — stamp BU on every VI journal line
     }
 
     public async Task<long> PostTaxAdjustmentNoteAsync(long noteId, CancellationToken ct)

@@ -33,7 +33,11 @@ public sealed record CreatePaymentVoucherRequest(
     long? VendorInvoiceId = null,   // set → PV settles this posted Vendor Invoice (Dr AP)
     // Sprint 8.7 — null = auto-derive from vendor (foreign-no-VAT-D → true);
     // explicit value (manual Scenario A toggle) wins. Gross-up GL when true.
-    bool? SelfWithholdMode = null);
+    bool? SelfWithholdMode = null,
+    // cont.79 — Business Unit (GL dimension). Required when Company.RequiresBusinessUnit;
+    // embedded in the PV doc number at POST (MM-YYYY-PV-{BU}-{CATEGORY}-NNNN). Trailing-
+    // defaulted so positional call-sites compile.
+    int? BusinessUnitId = null);
 
 public sealed record PaymentVoucherApprovedResult(
     long PaymentVoucherId, long ApprovedBy, System.DateTimeOffset ApprovedAt);
