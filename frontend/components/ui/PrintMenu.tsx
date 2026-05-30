@@ -2,6 +2,7 @@
 
 import { Printer, Download, ChevronDown, FileText, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { useState } from 'react';
 import { useMarkPrinted } from '@/lib/queries';
 import { printPdf, downloadFile } from '@/lib/api';
 
@@ -18,9 +19,12 @@ import { printPdf, downloadFile } from '@/lib/api';
 // ม.86/12 rule: only ONE original exists, so a reprint is downgraded to a สำเนา.
 // The `fiscal` prop is kept for back-compat but `tracked` (default true) drives the menu.
 
-// Tax Invoice / Credit Note / Debit Note: a reprint of the original is forced to สำเนา
-// (only one physical original may circulate, ม.86/4 / ม.86/12).
-const STRICT_ONE_ORIGINAL = new Set(['tax-invoices', 'credit-notes', 'debit-notes']);
+// cont.80 (Ham) — a reprint of the ORIGINAL is now allowed for EVERY tracked document,
+// INCLUDING the fiscal TI / CN / DN. Rationale: a fail-safe for when a print physically
+// did not happen (paper jam, wrong printer) — forcing a สำเนา then was wrong. The reprint
+// is gated by an explicit confirm dialog ("พิมพ์ต้นฉบับซ้ำจริงหรือไม่") and EVERY print is
+// still recorded to the audit trail (PrintCount / activity), so the control is the
+// confirm + the audit, not a hard block. (Was: STRICT_ONE_ORIGINAL → auto-downgrade.)
 export function PrintMenu({
   docType,
   id,
@@ -37,6 +41,9 @@ export function PrintMenu({
   const mark = useMarkPrinted(docType, id);
   // Back-compat: an explicit fiscal=false from an old caller still disables tracking.
   const isTracked = fiscal ?? tracked;
+  // cont.80 — when a reprint of the original is detected, hold the action here and ask
+  // the user to confirm before emitting a 2nd original (null = no pending reprint).
+  const [confirmReprint, setConfirmReprint] = useState<null | 'print' | 'download'>(null);
 
   function pdfPath(copy: boolean) {
     // The BE binds `bool? copy`, which only accepts true/false — never "1" (→ 400).
@@ -45,27 +52,24 @@ export function PrintMenu({
 
   // Tracked: record the print (audit) first, then render.
   async function trackedDoc(requestedCopy: boolean, action: 'print' | 'download') {
-    const strict = STRICT_ONE_ORIGINAL.has(docType);
-    let copyMode = requestedCopy;
-    try {
-      const res = await mark.mutateAsync(requestedCopy);
-      if (!requestedCopy && res.wasReprint) {
-        if (strict) {
-          // ม.86/4 / ม.86/12 — only one original TI/CN/DN; reprint = สำเนา.
-          copyMode = true;
-          toast.warning('ต้นฉบับเคยถูกพิมพ์แล้ว — พิมพ์เป็นสำเนาแทน');
-        } else {
-          // Q / SO / DO / Invoice / RC — original is re-printable; just warn.
-          toast.warning('เอกสารนี้เคยถูกพิมพ์ไปแล้ว');
-        }
-      }
-    } catch {
-      // Recording failed (permission/cross-tenant). For a strictly-fiscal doc never emit
-      // an unrecorded original → fall back to สำเนา; others may still print.
-      toast.error('บันทึกการพิมพ์ไม่สำเร็จ');
-      if (strict && !requestedCopy) copyMode = true;
+    // สำเนา — always allowed, record + render.
+    if (requestedCopy) {
+      try { await mark.mutateAsync(true); }
+      catch { toast.error('บันทึกการพิมพ์ไม่สำเร็จ'); return; }
+      await run(action, pdfPath(true));
+      return;
     }
-    await run(action, pdfPath(copyMode));
+    // ต้นฉบับ — record + learn whether an original was already printed.
+    let wasReprint = false;
+    try { wasReprint = !!(await mark.mutateAsync(false)).wasReprint; }
+    catch { toast.error('บันทึกการพิมพ์ไม่สำเร็จ'); return; }
+    if (wasReprint) {
+      // cont.80 — already printed once: confirm before emitting another ORIGINAL
+      // (no longer auto-downgraded to สำเนา). The print runs from the modal's onConfirm.
+      setConfirmReprint(action);
+      return;
+    }
+    await run(action, pdfPath(false));
   }
 
   async function plainDoc(action: 'print' | 'download') {
@@ -121,6 +125,36 @@ export function PrintMenu({
           </>
         )}
       </ul>
+
+      {/* cont.80 — reprint-original confirm. Allowed for every doc as a fail-safe; the
+          warning + this confirm are the control (every print is still audited). */}
+      {confirmReprint && (
+        <div className="modal modal-open" role="dialog" aria-modal="true">
+          <div className="modal-backdrop" onClick={() => setConfirmReprint(null)} />
+          <div className="modal-box max-w-sm">
+            <h3 className="text-lg font-bold text-ink-900">พิมพ์ต้นฉบับซ้ำ?</h3>
+            <p className="mt-2 text-sm text-ink-600">
+              เอกสารนี้เคยพิมพ์ “ต้นฉบับ” ไปแล้ว — พิมพ์ต้นฉบับซ้ำได้ (ระบบบันทึกประวัติการพิมพ์ทุกครั้ง).
+              ยืนยันพิมพ์ต้นฉบับอีกครั้งหรือไม่?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn btn-ghost btn-sm" onClick={() => setConfirmReprint(null)}>
+                ยกเลิก
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  const a = confirmReprint;
+                  setConfirmReprint(null);
+                  if (a) void run(a, pdfPath(false));
+                }}
+              >
+                ยืนยันพิมพ์ต้นฉบับ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

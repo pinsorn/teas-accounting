@@ -1,6 +1,7 @@
 export function PaperSign({
   signRoles,
   sellerName,
+  counterpartyName,
   signatureImg,
 }: {
   // Sprint 13j-PURCH D-supplement — `middle` is optional. When present, render a
@@ -9,6 +10,9 @@ export function PaperSign({
   // byte-identical to every Sales caller.
   signRoles: { left: string; middle?: string; right: string };
   sellerName: string;
+  // cont.80 (Ham) — name the counterparty under the right signature box (the
+  // customer/vendor), so the printed signature line says who signs.
+  counterpartyName?: string;
   signatureImg?: string;
 }) {
   return (
@@ -34,6 +38,7 @@ export function PaperSign({
       <div className="box">
         <div style={{ height: 50 }} />
         <div className="role">{signRoles.right}</div>
+        {counterpartyName && <div className="sub">{counterpartyName}</div>}
         <div className="sub">วันที่ ___ / ___ / ______</div>
       </div>
     </div>

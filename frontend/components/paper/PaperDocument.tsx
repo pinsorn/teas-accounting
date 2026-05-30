@@ -59,7 +59,7 @@ export function PaperDocument({
       />
       <PaperItems items={items} />
       <PaperFoot summary={effectiveSummary} notes={notes} amountWords={amountWords} />
-      <PaperSign signRoles={signRoles} sellerName={seller.name} signatureImg={signatureImg} />
+      <PaperSign signRoles={signRoles} sellerName={seller.name} counterpartyName={customer.name} signatureImg={signatureImg} />
     </div>
   );
 }
