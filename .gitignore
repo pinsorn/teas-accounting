@@ -87,3 +87,8 @@ graphify-out/
 
 # Playwright MCP browser-test scratch output (snapshots/screenshots)
 .playwright-mcp/
+
+# cont.80 — create-form redesign reference (never commit)
+frontend/public/_mockup.html
+mockup-*.png
+pilot-*.png
