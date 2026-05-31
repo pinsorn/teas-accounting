@@ -51,6 +51,7 @@ public class AccountingDbContext : DbContext
     public DbSet<Vendor>          Vendors         => Set<Vendor>();
     public DbSet<BusinessUnit>    BusinessUnits   => Set<BusinessUnit>();
     public DbSet<Product>         Products        => Set<Product>();
+    public DbSet<Employee>        Employees       => Set<Employee>();
     public DbSet<CompanyProfile>  CompanyProfiles => Set<CompanyProfile>();
 
     // Tax
