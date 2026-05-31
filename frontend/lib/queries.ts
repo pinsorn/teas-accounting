@@ -712,11 +712,17 @@ export function useTaxFilings() {
 }
 
 // ───────────────────────── Sprint 10 Part A — Product master ───────────────
-export function useProducts(includeInactive = false, search?: string) {
+export function useProducts(
+  includeInactive = false, search?: string, purpose?: 'sale' | 'purchase',
+) {
   return useQuery({
-    queryKey: ['products', includeInactive, search ?? ''],
+    queryKey: ['products', includeInactive, search ?? '', purpose ?? ''],
     queryFn: () => apiGet<ProductListItem[]>(
-      `products${qs({ includeInactive: includeInactive || undefined, search: search || undefined })}`),
+      `products${qs({
+        includeInactive: includeInactive || undefined,
+        search: search || undefined,
+        purpose,
+      })}`),
   });
 }
 export function useProduct(id: number | null) {
