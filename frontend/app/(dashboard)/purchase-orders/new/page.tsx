@@ -289,6 +289,8 @@ export default function NewPurchaseOrderPage() {
                   enableProduct
                   vatEnabled={vendorVat}
                   hideHeading
+                  purpose="purchase"
+                  businessUnitId={businessUnitId}
                 />
                 {fieldState.error && (
                   <span className="block text-sm text-error" data-field-error="true">

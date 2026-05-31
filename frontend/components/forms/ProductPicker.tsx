@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Search } from 'lucide-react';
-import type { ProductTypeStr } from '@/lib/types';
+import type { ProductTypeStr, ProductPurpose } from '@/lib/types';
 import { ProductSearchModal } from '@/components/forms/ProductSearchModal';
 import { ProductQuickCreateModal } from '@/components/forms/ProductQuickCreateModal';
 
@@ -31,11 +31,17 @@ export function ProductPicker({
   onDescriptionChange,
   onSelectProduct,
   ariaLabel,
+  purpose,
+  businessUnitId,
 }: {
   description: string;
   onDescriptionChange: (text: string) => void;
   onSelectProduct: (p: ProductPick) => void;
   ariaLabel?: string;
+  // cont.81 — forwarded to the search + quick-create modals to filter/seed by
+  // sale-vs-purchase and the document's selected Business Unit.
+  purpose?: ProductPurpose;
+  businessUnitId?: number | null;
 }) {
   const t = useTranslations('quotation');
   const [pickOpen, setPickOpen] = useState(false);
@@ -71,6 +77,8 @@ export function ProductPicker({
           setCreateSeed(seed);
           setCreateOpen(true);
         }}
+        purpose={purpose}
+        businessUnitId={businessUnitId}
       />
       <ProductQuickCreateModal
         open={createOpen}
@@ -80,6 +88,8 @@ export function ProductPicker({
           setCreateOpen(false);
           onSelectProduct(p);
         }}
+        purpose={purpose}
+        businessUnitId={businessUnitId}
       />
     </div>
   );

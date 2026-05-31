@@ -443,6 +443,8 @@ export default function NewReceiptPage() {
                             unitPrice: p.defaultUnitPrice ?? l.unitPrice,
                             amount: (p.defaultUnitPrice ?? l.unitPrice) * (l.quantity || 1),
                           })}
+                          purpose="sale"
+                          businessUnitId={businessUnitId}
                         />
                       </td>
                       <td>

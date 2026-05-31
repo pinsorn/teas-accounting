@@ -29,8 +29,13 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
     public void Configure(EntityTypeBuilder<Product> b)
     {
         b.ToTable("products", "master", t =>
+        {
             t.HasCheckConstraint("ck_products_type",
-                "product_type IN ('GOOD','SERVICE','EXEMPT_GOOD','EXEMPT_SERVICE')"));
+                "product_type IN ('GOOD','SERVICE','EXEMPT_GOOD','EXEMPT_SERVICE')");
+            // cont.81 — a product must be usable somewhere (sale and/or purchase).
+            t.HasCheckConstraint("ck_products_purpose",
+                "is_saleable OR is_purchasable");
+        });
         b.HasKey(p => p.ProductId);
 
         b.Property(p => p.ProductCode).HasMaxLength(50).IsRequired();
@@ -39,6 +44,8 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         b.Property(p => p.ProductType)
             .HasConversion(v => ToDb(v), v => FromDb(v))
             .HasMaxLength(20);
+        b.Property(p => p.IsSaleable).HasDefaultValue(true);
+        b.Property(p => p.IsPurchasable).HasDefaultValue(false);
         b.Property(p => p.DefaultUomText).HasMaxLength(50);
         b.Property(p => p.DefaultUnitPrice).HasPrecision(19, 4);
         b.Property(p => p.DescriptionTh).HasMaxLength(1000);
@@ -62,5 +69,11 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         b.HasOne<Accounting.Domain.Entities.Tax.WhtType>()
             .WithMany().HasForeignKey(p => p.DefaultWhtTypeId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // cont.81 — optional owning Business Unit (null = shared across all BUs).
+        b.HasOne<BusinessUnit>()
+            .WithMany().HasForeignKey(p => p.BusinessUnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(p => p.BusinessUnitId);
     }
 }

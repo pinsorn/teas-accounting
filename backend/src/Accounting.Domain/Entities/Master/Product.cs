@@ -19,6 +19,16 @@ public class Product : ITenantOwned, IAuditable, IConcurrencyVersioned
 
     public ProductType ProductType { get; set; }
 
+    // cont.81 (Ham) — purchase/sale split + BU scoping. A product may be sold,
+    // purchased, or both (resale goods). The line-item picker filters on these:
+    // sale docs → IsSaleable, purchase docs → IsPurchasable.
+    public bool IsSaleable { get; set; } = true;
+    public bool IsPurchasable { get; set; }
+
+    // Optional owning Business Unit. null = shared (available to every BU). The
+    // picker shows products where BusinessUnitId == the doc's selected BU OR null.
+    public int? BusinessUnitId { get; set; }
+
     // Defaults (auto-fill on TI line — see A5)
     public string?  DefaultUomText { get; set; }
     public decimal? DefaultUnitPrice { get; set; }
@@ -50,5 +60,10 @@ public class Product : ITenantOwned, IAuditable, IConcurrencyVersioned
             throw new DomainException("product.wht_on_goods",
                 $"Product '{ProductCode}': default WHT type is only allowed on " +
                 "SERVICE / EXEMPT_SERVICE products.");
+
+        // cont.81 — a product with neither purpose can never appear in any picker.
+        if (!IsSaleable && !IsPurchasable)
+            throw new DomainException("product.no_purpose",
+                $"Product '{ProductCode}': must be saleable, purchasable, or both.");
     }
 }
