@@ -6,7 +6,7 @@ import { AmountInput } from './AmountInput';
 import { ProductPicker, taxRateForProductType } from '@/components/forms/ProductPicker';
 import { formatTHB } from '@/lib/utils';
 import { useSystemInfo } from '@/lib/queries';
-import type { ProductTypeStr } from '@/lib/types';
+import type { ProductTypeStr, ProductPurpose } from '@/lib/types';
 
 // component-patterns.md §8 — editable rows, add/remove, auto-recalc total per row.
 // Sprint 13j-FE — VAT rate is no longer a free-text field: it's a dropdown
@@ -64,6 +64,8 @@ export function LineItemsTable({
   enableProduct = false,
   vatEnabled = true,
   hideHeading = false,
+  purpose,
+  businessUnitId,
 }: {
   value: LineItem[];
   onChange: (lines: LineItem[]) => void;
@@ -75,6 +77,10 @@ export function LineItemsTable({
   // cont.80 — when the caller already shows a section heading (SectionCard "③ รายการ"),
   // suppress the table's own "รายการ" header to avoid a duplicate.
   hideHeading?: boolean;
+  // cont.81 — product-picker filter context: 'sale' | 'purchase' + the doc's BU.
+  // Forwarded to ProductPicker so the search list shows only the right products.
+  purpose?: ProductPurpose;
+  businessUnitId?: number | null;
 }) {
   const t = useTranslations('ti.form');
   const tq = useTranslations('quotation');
@@ -121,17 +127,22 @@ export function LineItemsTable({
                         set(i, { descriptionTh: text, productId: null, productCode: null, productType: 'GOOD' })
                       }
                       onSelectProduct={(p) =>
-                        // Product master drives TYPE + tax code only — NOT price.
-                        // Same product/service sells at a different price each time,
-                        // so price/discount stay user-entered per line (sprint plan #1).
+                        // cont.81 (Ham) — picking a product fills the unit price from
+                        // the master default (the field stays editable per line). Was:
+                        // price left blank by design; Ham wants it pre-filled.
                         set(i, {
                           productId: p.productId,
                           productCode: p.productCode,
                           productType: p.productType,
                           descriptionTh: p.nameTh,
                           taxRate: taxRateForProductType(p.productType),
+                          ...(p.defaultUnitPrice != null
+                            ? { unitPrice: p.defaultUnitPrice }
+                            : {}),
                         })
                       }
+                      purpose={purpose}
+                      businessUnitId={businessUnitId}
                     />
                   ) : (
                     <input

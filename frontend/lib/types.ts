@@ -573,6 +573,8 @@ export type ProductTypeStr = 'GOOD' | 'SERVICE' | 'EXEMPT_GOOD' | 'EXEMPT_SERVIC
 export interface ProductListItem {
   productId: number; productCode: string; nameTh: string; nameEn: string | null;
   productType: ProductTypeStr; defaultUnitPrice: number | null; isActive: boolean;
+  // cont.81 — purchase/sale split + BU scope.
+  isSaleable: boolean; isPurchasable: boolean; businessUnitId: number | null;
 }
 export interface ProductDetail {
   productId: number; productCode: string; nameTh: string; nameEn: string | null;
@@ -580,7 +582,10 @@ export interface ProductDetail {
   defaultUnitPrice: number | null; defaultOutputTaxCodeId: number | null;
   defaultInputTaxCodeId: number | null; defaultWhtTypeId: number | null;
   descriptionTh: string | null; notes: string | null; isActive: boolean;
+  isSaleable: boolean; isPurchasable: boolean; businessUnitId: number | null;
 }
+// cont.81 — line-item picker filter context: which side of the ledger.
+export type ProductPurpose = 'sale' | 'purchase';
 // Sprint 10 Part B — Q→SO→DO chain
 export interface ChainLineDto {
   lineNo: number; productId: number | null; productCode: string | null;

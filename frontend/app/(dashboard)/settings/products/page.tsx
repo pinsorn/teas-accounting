@@ -13,6 +13,7 @@ import type { ProductTypeStr, ProductDetail } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
 import { PermissionGate } from '@/components/PermissionGate';
 import { WhtTypeSelect } from '@/components/ui/WhtTypeSelect';
+import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 
 const SCOPE = 'master.product.manage';
 
@@ -26,11 +27,14 @@ interface Editing {
   productCode: string; nameTh: string; nameEn: string;
   productType: ProductTypeStr; defaultUomText: string;
   defaultUnitPrice: string; defaultWhtTypeId: number | null; isActive: boolean;
+  // cont.81 — purchase/sale split + BU scope.
+  isSaleable: boolean; isPurchasable: boolean; businessUnitId: number | null;
 }
 const EMPTY: Editing = {
   productId: null, productCode: '', nameTh: '', nameEn: '',
   productType: 'GOOD', defaultUomText: '', defaultUnitPrice: '',
   defaultWhtTypeId: null, isActive: true,
+  isSaleable: true, isPurchasable: false, businessUnitId: null,
 };
 const TYPES: ProductTypeStr[] = ['GOOD', 'SERVICE', 'EXEMPT_GOOD', 'EXEMPT_SERVICE'];
 
@@ -56,6 +60,8 @@ export default function ProductsSettingsPage() {
         productType: d.productType, defaultUomText: d.defaultUomText ?? '',
         defaultUnitPrice: String(d.defaultUnitPrice ?? ''),
         defaultWhtTypeId: d.defaultWhtTypeId ?? null, isActive: d.isActive,
+        isSaleable: d.isSaleable, isPurchasable: d.isPurchasable,
+        businessUnitId: d.businessUnitId ?? null,
       });
     } catch (e) {
       toast.error((e as { detail?: string })?.detail ?? tc('error'));
@@ -74,6 +80,8 @@ export default function ProductsSettingsPage() {
           defaultUomText: edit.defaultUomText || null, defaultUnitPrice: price,
           defaultOutputTaxCodeId: null, defaultInputTaxCodeId: null,
           defaultWhtTypeId: whtId, descriptionTh: null, notes: null,
+          isSaleable: edit.isSaleable, isPurchasable: edit.isPurchasable,
+          businessUnitId: edit.businessUnitId,
         });
       } else {
         await update.mutateAsync({
@@ -85,6 +93,8 @@ export default function ProductsSettingsPage() {
             defaultOutputTaxCodeId: null, defaultInputTaxCodeId: null,
             defaultWhtTypeId: whtId, descriptionTh: null, notes: null,
             isActive: edit.isActive,
+            isSaleable: edit.isSaleable, isPurchasable: edit.isPurchasable,
+            businessUnitId: edit.businessUnitId,
           },
         });
       }
@@ -168,6 +178,8 @@ export default function ProductsSettingsPage() {
                                 defaultWhtTypeId: d.defaultWhtTypeId ?? null,
                                 descriptionTh: d.descriptionTh ?? null, notes: d.notes ?? null,
                                 isActive: true,
+                                isSaleable: d.isSaleable, isPurchasable: d.isPurchasable,
+                                businessUnitId: d.businessUnitId ?? null,
                               },
                             });
                             toast.success(tc('restore'));
@@ -244,13 +256,43 @@ export default function ProductsSettingsPage() {
                   value={edit.defaultUnitPrice}
                   onChange={(e) => setEdit({ ...edit, defaultUnitPrice: e.target.value })} />
               </label>
+
+              {/* cont.81 — purchase/sale split: a product may be sold, purchased, or
+                  both. At least one must be on (Save disabled otherwise). */}
+              <div className="form-control">
+                <span className="label-text text-xs">{t('usage')}</span>
+                <div className="mt-1 flex gap-4">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input type="checkbox" className="checkbox checkbox-sm"
+                      checked={edit.isSaleable}
+                      onChange={(e) => setEdit({ ...edit, isSaleable: e.target.checked })} />
+                    {t('saleable')}
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input type="checkbox" className="checkbox checkbox-sm"
+                      checked={edit.isPurchasable}
+                      onChange={(e) => setEdit({ ...edit, isPurchasable: e.target.checked })} />
+                    {t('purchasable')}
+                  </label>
+                </div>
+                {!edit.isSaleable && !edit.isPurchasable && (
+                  <span className="mt-1 text-xs text-error">{t('usageRequired')}</span>
+                )}
+              </div>
+
+              {/* cont.81 — optional owning Business Unit (ว่าง = ใช้ได้ทุกหน่วย). */}
+              <BusinessUnitSelector
+                value={edit.businessUnitId}
+                onChange={(id) => setEdit({ ...edit, businessUnitId: id })}
+              />
             </div>
             <div className="modal-action">
               <button className="btn btn-ghost btn-sm" onClick={() => setEdit(null)}>
                 {tc('cancel')}
               </button>
               <button className="btn btn-primary btn-sm"
-                disabled={create.isPending || update.isPending} onClick={save}>
+                disabled={create.isPending || update.isPending
+                  || (!edit.isSaleable && !edit.isPurchasable)} onClick={save}>
                 {tc('save')}
               </button>
             </div>

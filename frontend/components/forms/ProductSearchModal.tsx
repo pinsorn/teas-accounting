@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus, Search, X } from 'lucide-react';
 import { apiGet, qs } from '@/lib/api';
-import type { ProductListItem, ProductTypeStr } from '@/lib/types';
+import type { ProductListItem, ProductTypeStr, ProductPurpose } from '@/lib/types';
 import type { ProductPick } from '@/components/forms/ProductPicker';
 import { formatTHB } from '@/lib/utils';
 
@@ -44,6 +44,8 @@ export function ProductSearchModal({
   onClose,
   onSelect,
   onCreateNew,
+  purpose,
+  businessUnitId,
 }: {
   open: boolean;
   initialQuery: string;
@@ -51,6 +53,10 @@ export function ProductSearchModal({
   onSelect: (p: ProductPick) => void;
   /** Open the quick-create modal, seeded with the current search text. */
   onCreateNew: (seedText: string) => void;
+  // cont.81 — filter the list to this side of the ledger + the doc's selected BU
+  // (BU filter also includes shared null-BU products, handled server-side).
+  purpose?: ProductPurpose;
+  businessUnitId?: number | null;
 }) {
   const t = useTranslations('quotation');
   const tc = useTranslations('common');
@@ -87,7 +93,11 @@ export function ProductSearchModal({
     timer.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const raw = await apiGet<ProductListItem[]>(`products${qs({ search: q.trim() || undefined })}`);
+        const raw = await apiGet<ProductListItem[]>(`products${qs({
+          search: q.trim() || undefined,
+          purpose,
+          businessUnitId: businessUnitId ?? undefined,
+        })}`);
         setItems(mapItems(raw));
       } catch {
         setItems([]);
@@ -96,7 +106,7 @@ export function ProductSearchModal({
       }
     }, 250);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [q, open]);
+  }, [q, open, purpose, businessUnitId]);
 
   if (!open) return null;
 

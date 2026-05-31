@@ -40,11 +40,14 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
             throw new DomainException("product.duplicate",
                 $"Product code '{code}' already exists (case-insensitive).");
 
+        await EnsureBuOwnedAsync(req.BusinessUnitId, ct);
         var e = new Product
         {
             CompanyId = tenant.CompanyId,
             ProductCode = code, NameTh = req.NameTh, NameEn = req.NameEn,
             ProductType = Parse(req.ProductType),
+            IsSaleable = req.IsSaleable, IsPurchasable = req.IsPurchasable,
+            BusinessUnitId = req.BusinessUnitId,
             DefaultUomText = req.DefaultUomText, DefaultUnitPrice = req.DefaultUnitPrice,
             DefaultOutputTaxCodeId = req.DefaultOutputTaxCodeId,
             DefaultInputTaxCodeId = req.DefaultInputTaxCodeId,
@@ -61,8 +64,11 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
     {
         var e = await db.Products.FirstOrDefaultAsync(p => p.ProductId == id, ct)
             ?? throw new DomainException("product.not_found", $"Product {id} not found.");
+        await EnsureBuOwnedAsync(req.BusinessUnitId, ct);
         e.NameTh = req.NameTh; e.NameEn = req.NameEn;
         e.ProductType = Parse(req.ProductType);
+        e.IsSaleable = req.IsSaleable; e.IsPurchasable = req.IsPurchasable;
+        e.BusinessUnitId = req.BusinessUnitId;
         e.DefaultUomText = req.DefaultUomText; e.DefaultUnitPrice = req.DefaultUnitPrice;
         e.DefaultOutputTaxCodeId = req.DefaultOutputTaxCodeId;
         e.DefaultInputTaxCodeId = req.DefaultInputTaxCodeId;
@@ -94,7 +100,8 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
     }
 
     public async Task<IReadOnlyList<ProductListItem>> ListAsync(
-        bool includeInactive, string? search, CancellationToken ct)
+        bool includeInactive, string? search, string? purpose, int? businessUnitId,
+        CancellationToken ct)
     {
         var q = db.Products.AsNoTracking().Where(p => includeInactive || p.IsActive);
         if (!string.IsNullOrWhiteSpace(search))
@@ -103,13 +110,24 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
             q = q.Where(p => EF.Functions.ILike(p.ProductCode, s)
                           || EF.Functions.ILike(p.NameTh, s));
         }
+        // cont.81 — purpose filter (sale docs → saleable, purchase docs → purchasable).
+        if (string.Equals(purpose, "sale", StringComparison.OrdinalIgnoreCase))
+            q = q.Where(p => p.IsSaleable);
+        else if (string.Equals(purpose, "purchase", StringComparison.OrdinalIgnoreCase))
+            q = q.Where(p => p.IsPurchasable);
+        // BU filter — products of the selected BU OR shared (null-BU) products.
+        if (businessUnitId is { } buId)
+            q = q.Where(p => p.BusinessUnitId == null || p.BusinessUnitId == buId);
+
         var rows = await q.OrderBy(p => p.ProductCode)
             .Select(p => new { p.ProductId, p.ProductCode, p.NameTh, p.NameEn,
-                               p.ProductType, p.DefaultUnitPrice, p.IsActive })
+                               p.ProductType, p.DefaultUnitPrice, p.IsActive,
+                               p.IsSaleable, p.IsPurchasable, p.BusinessUnitId })
             .ToListAsync(ct);
         return rows.Select(p => new ProductListItem(
             p.ProductId, p.ProductCode, p.NameTh, p.NameEn,
-            ToApi(p.ProductType), p.DefaultUnitPrice, p.IsActive)).ToList();
+            ToApi(p.ProductType), p.DefaultUnitPrice, p.IsActive,
+            p.IsSaleable, p.IsPurchasable, p.BusinessUnitId)).ToList();
     }
 
     public async Task<ProductDetail?> GetAsync(long id, CancellationToken ct)
@@ -120,6 +138,16 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
             p.ProductId, p.ProductCode, p.NameTh, p.NameEn, ToApi(p.ProductType),
             p.DefaultUomText, p.DefaultUnitPrice, p.DefaultOutputTaxCodeId,
             p.DefaultInputTaxCodeId, p.DefaultWhtTypeId, p.DescriptionTh,
-            p.Notes, p.IsActive);
+            p.Notes, p.IsActive, p.IsSaleable, p.IsPurchasable, p.BusinessUnitId);
+    }
+
+    // cont.81 — a product's BU must belong to this tenant (reject another company's id).
+    private async Task EnsureBuOwnedAsync(int? businessUnitId, CancellationToken ct)
+    {
+        if (businessUnitId is not { } buId) return;
+        var ok = await db.BusinessUnits.AsNoTracking().AnyAsync(b => b.BusinessUnitId == buId, ct);
+        if (!ok)
+            throw new DomainException("product.bu_invalid",
+                $"Business unit {buId} not found for this company.");
     }
 }

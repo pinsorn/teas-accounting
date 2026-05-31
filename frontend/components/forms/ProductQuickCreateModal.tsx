@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { useCreateProduct } from '@/lib/queries';
-import type { ProductTypeStr } from '@/lib/types';
+import type { ProductTypeStr, ProductPurpose } from '@/lib/types';
 import { WhtTypeSelect } from '@/components/ui/WhtTypeSelect';
 import type { ProductPick } from '@/components/forms/ProductPicker';
 
@@ -22,11 +22,17 @@ export function ProductQuickCreateModal({
   initialNameTh,
   onClose,
   onCreated,
+  purpose,
+  businessUnitId,
 }: {
   open: boolean;
   initialNameTh: string;
   onClose: () => void;
   onCreated: (p: ProductPick) => void;
+  // cont.81 — a product created from a purchase picker must be born purchasable
+  // (+ scoped to the doc's BU), or it won't appear in the picker that made it.
+  purpose?: ProductPurpose;
+  businessUnitId?: number | null;
 }) {
   const t = useTranslations('product');
   const tc = useTranslations('common');
@@ -71,6 +77,11 @@ export function ProductQuickCreateModal({
         defaultWhtTypeId: whtAllowed ? whtTypeId : null,
         descriptionTh: null,
         notes: null,
+        // cont.81 — born usable on the side that created it (+ scoped to the BU).
+        // A purchase-picker product is purchasable; everything else is saleable.
+        isSaleable: purpose !== 'purchase',
+        isPurchasable: purpose === 'purchase',
+        businessUnitId: businessUnitId ?? null,
       });
       onCreated({
         productId: res.product_id,

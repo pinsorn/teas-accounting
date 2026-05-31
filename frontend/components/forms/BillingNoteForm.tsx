@@ -336,6 +336,8 @@ export function BillingNoteForm() {
                   onChange={field.onChange}
                   enableProduct
                   hideHeading
+                  purpose="sale"
+                  businessUnitId={businessUnitId}
                 />
                 {fieldState.error && (
                   <span className="block text-sm text-error" data-field-error="true">

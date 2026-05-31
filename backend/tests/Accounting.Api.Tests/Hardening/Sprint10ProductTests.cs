@@ -49,13 +49,23 @@ public sealed class Sprint10ProductTests
     }
 
     private static async Task<long> NewProduct(
-        ServiceProvider sp, string type, decimal? price = null)
+        ServiceProvider sp, string type, decimal? price = null,
+        bool isSaleable = true, bool isPurchasable = false, int? businessUnitId = null)
     {
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IProductService>();
         return await svc.CreateAsync(new CreateProductRequest(
             "SKU-" + Sfx(), "สินค้า " + Sfx(), null, type,
-            "ชิ้น", price, null, null, null, null, null), default);
+            "ชิ้น", price, null, null, null, null, null,
+            IsSaleable: isSaleable, IsPurchasable: isPurchasable,
+            BusinessUnitId: businessUnitId), default);
+    }
+
+    private static async Task<int> AnyBusinessUnitId(ServiceProvider sp)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        return await db.BusinessUnits.Select(b => b.BusinessUnitId).FirstAsync();
     }
 
     private static async Task<long> PostTiWithProduct(
@@ -101,8 +111,77 @@ public sealed class Sprint10ProductTests
         (await svc.GetAsync(id, default))!.DefaultUnitPrice.Should().Be(1800m);
 
         await svc.DeactivateAsync(id, default);
-        var list = await svc.ListAsync(includeInactive: false, null, default);
+        var list = await svc.ListAsync(
+            includeInactive: false, search: null, purpose: null, businessUnitId: null, default);
         list.Should().NotContain(p => p.ProductId == id);
+    }
+
+    // cont.81 — purchase/sale split + BU scoping + price auto-fill.
+
+    [SkippableFact]
+    public async Task Product_with_no_purpose_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IProductService>();
+        var act = () => svc.CreateAsync(new CreateProductRequest(
+            "NP-" + Sfx(), "ไม่มีจุดประสงค์", null, "GOOD",
+            null, null, null, null, null, null, null,
+            IsSaleable: false, IsPurchasable: false), default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("product.no_purpose");
+    }
+
+    [SkippableFact]
+    public async Task Purpose_filter_separates_sale_and_purchase()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var saleId = await NewProduct(sp, "GOOD", 100m, isSaleable: true, isPurchasable: false);
+        var buyId  = await NewProduct(sp, "GOOD", 100m, isSaleable: false, isPurchasable: true);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IProductService>();
+
+        var sale = await svc.ListAsync(false, null, "sale", null, default);
+        sale.Should().Contain(p => p.ProductId == saleId);
+        sale.Should().NotContain(p => p.ProductId == buyId);
+
+        var purchase = await svc.ListAsync(false, null, "purchase", null, default);
+        purchase.Should().Contain(p => p.ProductId == buyId);
+        purchase.Should().NotContain(p => p.ProductId == saleId);
+    }
+
+    [SkippableFact]
+    public async Task Bu_filter_shows_selected_bu_and_shared_products()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var bu = await AnyBusinessUnitId(sp);
+        var sharedId = await NewProduct(sp, "GOOD", 100m, businessUnitId: null);
+        var buId     = await NewProduct(sp, "GOOD", 100m, businessUnitId: bu);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IProductService>();
+        var list = await svc.ListAsync(false, null, null, bu, default);
+        list.Should().Contain(p => p.ProductId == sharedId, "shared (null-BU) products show in every BU");
+        list.Should().Contain(p => p.ProductId == buId);
+    }
+
+    [SkippableFact]
+    public async Task Bu_of_another_company_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IProductService>();
+        var act = () => svc.CreateAsync(new CreateProductRequest(
+            "BU-" + Sfx(), "สินค้า", null, "GOOD",
+            null, null, null, null, null, null, null,
+            BusinessUnitId: 2_000_000_000), default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("product.bu_invalid");
     }
 
     [SkippableFact]
