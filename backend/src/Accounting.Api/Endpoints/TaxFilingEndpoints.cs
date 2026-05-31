@@ -76,6 +76,26 @@ public static class TaxFilingEndpoints
             return deny ?? Results.Ok(await svc.GeneratePnd54Async(period, m, ct));
         }).RequireAuthorization(preview);
 
+        // ── cont.82.1 P2 — RD batch-upload file (FORMAT กลาง) for ภ.ง.ด.53 / ภ.ง.ด.3.
+        // Emits the pipe-delimited UTF-8 .txt the user uploads to the RD e-Filing portal.
+        // Read-only export (no finalize) → gated on the same FilingPreview permission.
+        static async Task<IResult> BatchFileAsync(
+            string form, int period, IWhtBatchExportService svc, CancellationToken ct)
+        {
+            var file = await svc.BuildAsync(form, period, ct);
+            return Results.File(file.Content, "text/plain; charset=utf-8", file.FileName);
+        }
+
+        app.MapGet("/tax-filings/pnd53/batch-file", (
+            [FromQuery] int period, IWhtBatchExportService svc, CancellationToken ct) =>
+                BatchFileAsync("PND53", period, svc, ct))
+        .RequireAuthorization(preview);
+
+        app.MapGet("/tax-filings/pnd3/batch-file", (
+            [FromQuery] int period, IWhtBatchExportService svc, CancellationToken ct) =>
+                BatchFileAsync("PND3", period, svc, ct))
+        .RequireAuthorization(preview);
+
         // ── C5 ภ.พ.36 reverse-charge (+ auto-JV on finalize)
         app.MapPost("/tax-filings/pnd36", async (
             [FromQuery] int period, [FromQuery] string? mode,

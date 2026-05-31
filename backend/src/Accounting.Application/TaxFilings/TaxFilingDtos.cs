@@ -122,3 +122,19 @@ public interface IWhtFilingService
     Task<WhtFiling>   GeneratePnd54Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<Pnd36Filing> GeneratePnd36Async(int period, TaxFilingMode mode, CancellationToken ct);
 }
+
+// ── cont.82.1 P2 — WHT batch-upload file (RD โปรแกรมโอนย้ายข้อมูล / FORMAT กลาง V2.0) ──
+// Generates the official pipe-delimited UTF-8 text file (H header + D detail rows) the
+// user uploads to the RD e-Filing portal. See docs/superpowers/specs/wht-batch-export-2026-05-31.md.
+// MVP = ภ.ง.ด.53 (corporate payees; address optional → fully producible). ภ.ง.ด.3 is gated
+// on structured payee-address capture (Vendor stores a single free-text Address only).
+
+/// <summary>The generated batch file: RD-convention filename + UTF-8 bytes + the DETAIL row count.</summary>
+public sealed record WhtBatchFile(string FileName, byte[] Content, int RecordCount);
+
+public interface IWhtBatchExportService
+{
+    /// <param name="formType">"PND53" (MVP) or "PND3".</param>
+    /// <param name="period">yyyymm.</param>
+    Task<WhtBatchFile> BuildAsync(string formType, int period, CancellationToken ct);
+}
