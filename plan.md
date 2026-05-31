@@ -17,7 +17,11 @@
   audit on every transition (§4.8) + `IsActive` inclusion gate, migration `AddPayrollRun` + RLS/seed 480–482.
   Domain 8/8 · Api.Tests **218/218** (+5 payroll ×2) · build 0/0 · live smoke create→approve→post→pay POSTED+Paid
   (`03-2099-PR-0001`, balanced JV, 4 audit rows). **NOT committed — pending Ham.**
-- ☐ **P-D — outputs:** per-employee payment-evidence/payslip PDF (QuestPDF, Ham req) · ภ.ง.ด.1 monthly
+- ◐ **P-D — outputs:**
+  - ☑ **payslip / payment-evidence PDF** (cont.82.2) — `PayslipPdf` (QuestPDF, self-registers license+Sarabun)
+    + `PayslipPdfService` (per-employee + run-zip), endpoints `/payroll/runs/{id}/payslips/{employeeId}/pdf`
+    + `/payslips/pdf`. Api.Tests 219/219 ×2 · live PDF+zip smoke. Sample sent to Ham.
+  - ☐ ภ.ง.ด.1 monthly
   (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
   (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).
 - ☐ FE payroll run UI (list + create/approve/post/pay + payslip view) — not yet built.

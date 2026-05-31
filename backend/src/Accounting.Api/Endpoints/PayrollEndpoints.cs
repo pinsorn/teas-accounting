@@ -57,6 +57,21 @@ public static class PayrollEndpoints
             await svc.GetAsync(id, ct) is { } d ? Results.Ok(d) : Results.NotFound())
             .RequireAuthorization(p + Permissions.Payroll.RunManage);
 
+        // P-D — payment-evidence / payslip PDF (one per employee + a zip of the whole run).
+        g.MapGet("/{id:long}/payslips/{employeeId:long}/pdf",
+            async (long id, long employeeId, IPayslipPdfService pdf, CancellationToken ct) =>
+                Results.File(await pdf.BuildAsync(id, employeeId, ct), "application/pdf",
+                    $"payslip-{id}-{employeeId}.pdf"))
+            .RequireAuthorization(p + Permissions.Payroll.RunManage);
+
+        g.MapGet("/{id:long}/payslips/pdf",
+            async (long id, IPayslipPdfService pdf, CancellationToken ct) =>
+            {
+                var (content, fileName) = await pdf.BuildRunZipAsync(id, ct);
+                return Results.File(content, "application/zip", fileName);
+            })
+            .RequireAuthorization(p + Permissions.Payroll.RunManage);
+
         return app;
     }
 }
