@@ -45,6 +45,15 @@ public interface IPayrollRunService
     Task<PayrollRunDetail?> GetAsync(long id, CancellationToken ct);
 }
 
+/// <summary>P-D — per-employee payment-evidence / payslip PDF (QuestPDF).</summary>
+public interface IPayslipPdfService
+{
+    /// <summary>One payslip PDF for the given employee in the run.</summary>
+    Task<byte[]> BuildAsync(long runId, long employeeId, CancellationToken ct);
+    /// <summary>All payslips in the run, zipped (one PDF per employee). Returns the zip + a filename.</summary>
+    Task<(byte[] Content, string FileName)> BuildRunZipAsync(long runId, CancellationToken ct);
+}
+
 public sealed class CreatePayrollRunValidator : AbstractValidator<CreatePayrollRunRequest>
 {
     public CreatePayrollRunValidator()

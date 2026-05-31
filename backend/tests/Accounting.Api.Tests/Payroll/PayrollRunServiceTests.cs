@@ -171,6 +171,27 @@ public sealed class PayrollRunServiceTests
     }
 
     [SkippableFact]
+    public async Task Payslip_pdf_and_run_zip_render()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = Period(RandYear(), 6);
+        var emp = await AddEmployee(sp, 40_000m);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var pdfSvc = s.ServiceProvider.GetRequiredService<IPayslipPdfService>();
+
+        var pdf = await pdfSvc.BuildAsync(runId, emp, default);
+        pdf.Should().NotBeEmpty();
+        System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+
+        var (zip, name) = await pdfSvc.BuildRunZipAsync(runId, default);
+        zip.Should().NotBeEmpty();
+        name.Should().Contain(period);
+    }
+
+    [SkippableFact]
     public async Task Ytd_carries_so_constant_salary_withholds_evenly_across_two_months()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
