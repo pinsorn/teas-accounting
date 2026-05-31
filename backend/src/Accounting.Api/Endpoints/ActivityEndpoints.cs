@@ -27,6 +27,8 @@ public static class ActivityEndpoints
         ("vendor-invoices", "VendorInvoice"),
         ("payment-vouchers", "PaymentVoucher"),
         ("wht-certificates", "WhtCertificate"),
+        // Payroll (P-C) — run lifecycle audit trail.
+        ("payroll-runs", "PayrollRun"),
     };
 
     public static void MapActivityEndpoints(this IEndpointRouteBuilder app)

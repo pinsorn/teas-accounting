@@ -5,6 +5,26 @@
 
 ---
 
+## ▶ Payroll module (spec: `docs/superpowers/specs/payroll-module-design-2026-05-31.md` + `payroll-next-session-plan.md`)
+
+- ☑ **P-A — Employee master** (cont.82.1) — entity/CRUD/FE/RLS/perm, committed `f9e65ee`.
+- ☑ **P-B — PIT engine** (cont.82.1) — pure `ThaiPitCalculator` + `PitSchedule`, 12 golden, committed.
+- ☑ **P-C — PayrollRun → Payslip** (cont.82.2, 2026-05-31) — `PayrollRun`/`Payslip` entities (immutable
+  after Post, lifecycle Draft→Approved→Posted + Paid stamp), pure `PayrollMath` (allowances + SSO ม.33),
+  config `Payroll:Sso`/`Payroll:Allowances`, `PayrollRunService` (ม.50(1) months-remaining=13−month, YTD
+  from prior posted runs same calendar year), GL `PostPayrollRunAsync` (Dr salary+er-sso / Cr pit+sso+net,
+  accounts 5400/5410/2153/2160/2170), `/payroll/runs` endpoints + `payroll.run.manage/.post/.pay` SoD perms,
+  audit on every transition (§4.8) + `IsActive` inclusion gate, migration `AddPayrollRun` + RLS/seed 480–482.
+  Domain 8/8 · Api.Tests **218/218** (+5 payroll ×2) · build 0/0 · live smoke create→approve→post→pay POSTED+Paid
+  (`03-2099-PR-0001`, balanced JV, 4 audit rows). **NOT committed — pending Ham.**
+- ☐ **P-D — outputs:** per-employee payment-evidence/payslip PDF (QuestPDF, Ham req) · ภ.ง.ด.1 monthly
+  (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
+  (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).
+- ☐ FE payroll run UI (list + create/approve/post/pay + payslip view) — not yet built.
+- 🟠 **Confirm w/ Ham before go-live:** exact 2569 SSO `WageCeiling` (฿15,000 → ฿17,500 phased) — config-only.
+
+---
+
 ## ▶ Next focus (2026-05-27): Purchase Phase 1 ☑ — then E2E tail + Question-Backend36
 
 **Sales chain CLOSED** (cont.64–69): Q→SO→DO→Invoice→TI→RC + CN/DN, non-VAT mode, full

@@ -308,6 +308,41 @@ public sealed class GlPostingService : IGlPostingService
             businessUnitId: note.BusinessUnitId);
     }
 
+    public async Task<long> PostPayrollRunAsync(long payrollRunId, CancellationToken ct)
+    {
+        var run = await _db.PayrollRuns
+                .FirstOrDefaultAsync(r => r.PayrollRunId == payrollRunId, ct)
+            ?? throw new DomainException("gl.payroll_missing", $"Payroll run {payrollRunId} not found for GL posting.");
+
+        var salaryExp = await ResolveAccountIdAsync(run.CompanyId, _accounts.SalaryExpenseAccount, ct);
+        var erSsoExp  = await ResolveAccountIdAsync(run.CompanyId, _accounts.EmployerSsoExpenseAccount, ct);
+        var pitPay    = await ResolveAccountIdAsync(run.CompanyId, _accounts.PitPayableAccount, ct);
+        var ssoPay    = await ResolveAccountIdAsync(run.CompanyId, _accounts.SsoPayableAccount, ct);
+        var netPay    = await ResolveAccountIdAsync(run.CompanyId, _accounts.NetWagesPayableAccount, ct);
+
+        var gross = run.TotalGrossTaxable + run.TotalGrossNonTaxable;
+
+        // Dr salary expense (gross) + employer-SSO expense ; Cr PIT-payable (ภ.ง.ด.1) +
+        // SSO-payable (both halves) + net-wages-payable. Balances because
+        // net = gross − pit − ssoEmp (v1 has no other deductions; a nonzero ΣOther would
+        // unbalance here and BuildAndPostAsync rejects it until an other-deductions account is wired).
+        var lines = new List<JournalLine>
+        {
+            new() { LineNo = 1, AccountId = salaryExp, DebitAmount = gross,                CreditAmount = 0m, Description = $"Salaries {run.DocNo}" },
+        };
+        var ln = 2;
+        if (run.TotalSsoEmployer > 0m)
+            lines.Add(new JournalLine { LineNo = ln++, AccountId = erSsoExp, DebitAmount = run.TotalSsoEmployer, CreditAmount = 0m, Description = $"Employer SSO {run.DocNo}" });
+        if (run.TotalPit > 0m)
+            lines.Add(new JournalLine { LineNo = ln++, AccountId = pitPay, DebitAmount = 0m, CreditAmount = run.TotalPit, Description = $"PIT payable (ภ.ง.ด.1) {run.DocNo}" });
+        if (run.TotalSsoEmployee + run.TotalSsoEmployer > 0m)
+            lines.Add(new JournalLine { LineNo = ln++, AccountId = ssoPay, DebitAmount = 0m, CreditAmount = run.TotalSsoEmployee + run.TotalSsoEmployer, Description = $"SSO payable {run.DocNo}" });
+        lines.Add(new JournalLine { LineNo = ln, AccountId = netPay, DebitAmount = 0m, CreditAmount = run.TotalNet, Description = $"Net wages payable {run.DocNo}" });
+
+        return await BuildAndPostAsync(
+            run.CompanyId, run.BranchId, run.PayDate, $"PR {run.DocNo}", run.DocNo, lines, ct);
+    }
+
     private async Task<long> BuildAndPostAsync(
         int companyId, int branchId, DateOnly docDate,
         string description, string? reference, List<JournalLine> lines, CancellationToken ct,

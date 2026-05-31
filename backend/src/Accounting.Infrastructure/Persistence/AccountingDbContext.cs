@@ -6,6 +6,7 @@ using Accounting.Domain.Entities.ETax;
 using Accounting.Domain.Entities.Identity;
 using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
+using Accounting.Domain.Entities.Payroll;
 using Accounting.Domain.Entities.Purchase;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Entities.Sys;
@@ -69,6 +70,10 @@ public class AccountingDbContext : DbContext
     public DbSet<PurchaseOrder>      PurchaseOrders      => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderLine>  PurchaseOrderLines  => Set<PurchaseOrderLine>();
     public DbSet<PaymentVoucherApplication> PaymentVoucherApplications => Set<PaymentVoucherApplication>();
+
+    // Payroll (P-C)
+    public DbSet<PayrollRun> PayrollRuns => Set<PayrollRun>();
+    public DbSet<Payslip>    Payslips    => Set<Payslip>();
 
     // Ledger
     public DbSet<JournalEntry>     JournalEntries     => Set<JournalEntry>();

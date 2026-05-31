@@ -95,6 +95,14 @@ public static class Permissions
         public const string FilingRead      = "tax.filing.read";
     }
 
+    public static class Payroll
+    {
+        // Payroll P-C — run lifecycle (SoD split: manage = draft/edit · post = approve+post · pay).
+        public const string RunManage = "payroll.run.manage";
+        public const string RunPost   = "payroll.run.post";
+        public const string RunPay    = "payroll.run.pay";
+    }
+
     public static class Report
     {
         public const string TrialBalance = "report.trial_balance.read";
@@ -124,6 +132,7 @@ public static class Permissions
         Purchase.PurchaseOrderRead, Purchase.PurchaseOrderCancel,
         Tax.VatRegisterRead, Tax.Pnd30Read, Tax.Pnd3Read, Tax.Pnd53Read, Tax.WhtTypeManage,
         Tax.FilingPreview, Tax.FilingFinalize, Tax.FilingRead,
+        Payroll.RunManage, Payroll.RunPost, Payroll.RunPay,
         Report.TrialBalance, Report.ProfitLoss, Report.AuditRead,
     ];
 }
