@@ -91,6 +91,11 @@ public static class DependencyInjection
         services.AddOptions<Ledger.GlAccountsOptions>().Bind(cfg.GetSection("GlAccounts"));
         services.AddScoped<Application.Ledger.IGlPostingService,         Ledger.GlPostingService>();
 
+        // Payroll (P-C) — SSO + allowance rates are config-driven (§4.6); run service posts via GL.
+        services.AddOptions<Payroll.SsoOptions>().Bind(cfg.GetSection("Payroll:Sso"));
+        services.AddOptions<Payroll.PayrollAllowanceOptions>().Bind(cfg.GetSection("Payroll:Allowances"));
+        services.AddScoped<Application.Payroll.IPayrollRunService, Payroll.PayrollRunService>();
+
         // Sprint 8.5 — VAT-mode + non-VAT doc labels (bound from the same "Tax"
         // section as API TaxConfig; Infra can't reference the API assembly).
         services.AddOptions<VatModeOptions>().Bind(cfg.GetSection("Tax"));

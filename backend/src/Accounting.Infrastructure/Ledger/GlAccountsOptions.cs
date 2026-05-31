@@ -23,4 +23,11 @@ public sealed class GlAccountsOptions
     /// permanent sunk cost, so it is expensed here instead of debited to InputVat (1170).
     /// Must exist in the seeded chart of accounts.</summary>
     public string IrrecoverableVatExpenseAccount { get; init; } = "5350"; // ภาษีซื้อขอคืนไม่ได้
+
+    // ---- Payroll (P-C). Seeded by 482_seed_payroll_prefix_and_accounts.sql. ----
+    public string SalaryExpenseAccount      { get; init; } = "5400"; // เงินเดือนและค่าจ้าง (DR)
+    public string EmployerSsoExpenseAccount { get; init; } = "5410"; // เงินสมทบประกันสังคม-นายจ้าง (DR)
+    public string PitPayableAccount         { get; init; } = "2153"; // ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง (CR)
+    public string SsoPayableAccount         { get; init; } = "2160"; // เงินสมทบประกันสังคมค้างนำส่ง (CR)
+    public string NetWagesPayableAccount    { get; init; } = "2170"; // เงินเดือนค้างจ่าย (CR)
 }

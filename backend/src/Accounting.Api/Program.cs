@@ -145,6 +145,7 @@ app.MapCustomerEndpoints();
 app.MapMasterEndpoints();
 app.MapBusinessUnitEndpoints();
 app.MapEmployeeEndpoints();
+app.MapPayrollEndpoints();
 app.MapCompanyProfileEndpoints();
 app.MapMeEndpoints();
 app.MapProductEndpoints();

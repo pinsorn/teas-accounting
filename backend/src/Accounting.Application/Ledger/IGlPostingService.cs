@@ -12,4 +12,5 @@ public interface IGlPostingService
     Task<long> PostPaymentVoucherAsync(long paymentVoucherId, CancellationToken ct);
     Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct);
     Task<long> PostTaxAdjustmentNoteAsync(long noteId, CancellationToken ct);
+    Task<long> PostPayrollRunAsync(long payrollRunId, CancellationToken ct);
 }
