@@ -38,17 +38,21 @@ public static class Pnd1FormFiller
         var totalIncome = m.Lines.Sum(l => l.Income);
         var totalTax = m.Lines.Sum(l => l.Tax);
 
-        // Checkboxes (same-named radio groups, sorted top→bottom/left→right):
-        //  • month grid 4col×3row → row=(M-1)%3, col=(M-1)/3 → sorted index = row*4 + col.
-        //  • ยื่นปกติ = the first "Radio Button0" (vs (2) เพิ่มเติม).
+        // Checkbox widget indices = the engine's sort order (top asc, x asc), mapped from the
+        // template via _Pnd1RadioDump (NOT a visual guess — the boxes' tops are off by ~1pt so the
+        // sort order is non-obvious):
+        //  • month grid: idx = ((M-1)%3)*4 + (M-1)/3  (e.g. May→idx5 = x395,row1).
+        //  • ยื่นปกติ = Radio Button0 idx 1  (idx0 is (2) เพิ่มเติม — it sorts first, top 263 < 264).
+        //  • ใบแนบ ภ.ง.ด.1 attached-checkbox = Radio Button2 idx 0; sheet count = Text1.19.
         var monthIdx = ((m.PeriodMonth - 1) % 3) * 4 + (m.PeriodMonth - 1) / 3;
         var mainRadios = new List<RdRadio>
         {
-            new("Radio Button1", monthIdx),   // เดือนที่จ่าย
-            new("Radio Button0", 0),          // (1) ยื่นปกติ
+            new("Radio Button1", monthIdx),   // เดือนที่จ่ายเงินได้
+            new("Radio Button0", 1),          // (1) ยื่นปกติ
+            new("Radio Button2", 0),          // ☑ ใบแนบ ภ.ง.ด.1 ที่แนบมาพร้อมนี้
         };
-        // ใบแนบ: ประเภทเงินได้ (1) ม.40(1) กรณีทั่วไป = the first "Radio Button0".
-        var attachRadios = new List<RdRadio> { new("Radio Button0", 0) };
+        // ใบแนบ: ประเภทเงินได้ (1) ม.40(1) กรณีทั่วไป = Radio Button0 idx 1 (idx0 = (3), top sorts first).
+        var attachRadios = new List<RdRadio> { new("Radio Button0", 1) };
 
         var main = RdAcroFormFiller.Render(
             Template("pnd1_main.pdf"), MainFields(m, sheets, count, totalIncome, totalTax), mainRadios);
@@ -71,12 +75,14 @@ public static class Pnd1FormFiller
             new("Text1.1", m.BranchCode),
             new("Text1.18", m.PeriodYearBE.ToString()),
             new("Text1.2", m.EmployerName),
+            // Address row map (from /Rect dump): เลขที่=1.7 · ตำบล/แขวง=1.12 · อำเภอ/เขต=1.13 ·
+            // จังหวัด=1.14 · รหัสไปรษณีย์=1.15. (CompanyProfile keeps the building/street as one blob → เลขที่.)
             new("Text1.7", m.Address ?? ""),
-            new("Text1.11", m.SubDistrict ?? ""),
-            new("Text1.12", m.District ?? ""),
-            new("Text1.13", m.Province ?? ""),
+            new("Text1.12", m.SubDistrict ?? ""),
+            new("Text1.13", m.District ?? ""),
+            new("Text1.14", m.Province ?? ""),
             new("Text1.15", m.PostalCode ?? ""),
-            new("Text1.21", sheets.ToString()),
+            new("Text1.19", sheets.ToString()),   // จำนวนใบแนบ (next to the ใบแนบ checkbox)
             // Summary row 1 — ม.40(1) กรณีทั่วไป (salary).
             new("Text2.1", count.ToString(), Right: true),
             new("Text2.2", Money(income), Right: true),

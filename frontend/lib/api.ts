@@ -128,6 +128,16 @@ export async function printPdf(path: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/** Open a PDF in a new tab WITHOUT auto-triggering the print dialog (user prints from the viewer). */
+export async function openPdf(path: string): Promise<void> {
+  const res = await fetch(`${PROXY}/${path}`);
+  if (!res.ok) throw new ApiError(res.status, 'open_failed', res.statusText);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 /** A binary download (PDF/XML) via the proxy — returns a blob URL the caller revokes. */
 export async function downloadFile(path: string, filename: string) {
   const res = await fetch(`${PROXY}/${path}`);

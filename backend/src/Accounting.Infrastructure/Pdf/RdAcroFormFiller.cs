@@ -70,7 +70,7 @@ public static class RdAcroFormFiller
             var r = list[rc.WidgetIndex];
             double h = r.Y2 - r.Y1, w = r.X2 - r.X1;
             double fs = Math.Clamp(h, 8.0, 12.0);
-            yield return new Cell(r.X1, pageH - r.Y2 + (h - fs) * 0.10, w, fs, "✕", false, Center: true);
+            yield return new Cell(r.X1, pageH - r.Y2 + (h - fs) * 0.10, w, fs, "✓", false, Center: true);
         }
     }
 
