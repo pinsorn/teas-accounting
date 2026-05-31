@@ -17,9 +17,15 @@ Ham gave a mockup (`A _ Refined Sections.html`, served at `/_mockup.html`, gitig
 - **#3 watermark:** `paper.css` empty filler rows → `background: transparent` (was `--ink-50`) so the ลายน้ำ shows through the no-item space.
 - **#4 signature names counterparty:** `PaperSign`/`PaperDocument` print the customer/vendor name under the right signature box. PaperHead (seller) + PaperMeta (customer) already render full details when data is passed.
 
+**Backend QuestPDF mirror (cont.80 #2) — DONE, build 0/0, verified on real served PDF (uncommitted):**
+- `PaperDocumentPdf.Sign()` right box now prints `m.Customer.Name` (new `SignBox(..., name:)` param) above the date line — mirrors FE `PaperSign counterpartyName`. Verified: `GET /tax-invoices/8/pdf` renders ผู้ซื้อ = "ลูกค้าทดสอบ จำกัด" under the right box.
+- `PaperDocumentPdf.Items()` empty filler rows: removed `.Background(Ink50)` band → transparent, so the watermark shows through (mirrors paper.css #3 fix). Verified: "ต้นฉบับ" ลายน้ำ visible through the empty table area.
+- Head (seller name/taxId/branch/phone/email) + Meta (customer name/addr/taxId/branch/phone) already render full details — confirmed present in the rendered PDF.
+- Solution build 0/0; BE restarted on :5080 with the new build for the render check.
+
 **Remaining (cont.80):**
 1. Rollout subagent → verify + commit when done.
-2. **Backend QuestPDF (the real PDF):** mirror #4 (counterparty name in signature) + ensure full company/counterparty details — the C# paper renderer is separate from the FE PaperDocument; Ham wants PDF too.
+2. ~~Backend QuestPDF mirror~~ → DONE (above), pending commit.
 3. Ensure each create page's live preview feeds FULL counterparty detail (PartySelectBox fetches it) — part of rollout.
 - Reference shots (gitignored): `mockup-full.png`, `mockup-formcol.png`, `pilot-a4-preview.png`. Cleanup `frontend/public/_mockup.html` (7MB, gitignored) when fully done.
 

@@ -210,9 +210,11 @@ public static class PaperDocumentPdf
                     .Text("ยังไม่มีรายการ").FontColor(PaperColors.Ink400);
 
             // Min 3 rows — paper.css dashed fillers. QuestPDF has no dashed cell
-            // border, so a faint ink-50 band stands in.
+            // border, so a thin solid bottom border stands in. cont.80 (Ham): NO
+            // background fill — a band painted over the watermark (matches FE making
+            // .empty-row transparent so the ลายน้ำ shows through).
             for (int i = m.Items.Count; i < 3; i++)
-                table.Cell().ColumnSpan(7).Background(PaperColors.Ink50)
+                table.Cell().ColumnSpan(7)
                     .BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).Height(Px(32)).Text(string.Empty);
         });
     }
@@ -287,16 +289,20 @@ public static class PaperDocumentPdf
                 SignBox(row, mid, "วันที่ ___ / ___ / ______");
                 row.ConstantItem(Px(36));
             }
-            SignBox(row, m.SignRoles.Right, "วันที่ ___ / ___ / ______");
+            // cont.80 (Ham) — name the counterparty under the right sign box (mirrors
+            // FE PaperSign counterpartyName), so the printed line says who signs.
+            SignBox(row, m.SignRoles.Right, "วันที่ ___ / ___ / ______", name: m.Customer.Name);
         });
     }
 
-    private static void SignBox(RowDescriptor row, string role, string sub) =>
+    private static void SignBox(RowDescriptor row, string role, string sub, string? name = null) =>
         row.RelativeItem().Column(box =>
         {
             box.Item().Height(Px(50));
             box.Item().BorderTop(Px(1)).BorderColor(PaperColors.Ink900).PaddingTop(Px(8))
                 .AlignCenter().Text(role).Bold().FontSize(Px(14)).FontColor(PaperColors.Ink900);
+            if (!string.IsNullOrEmpty(name))
+                box.Item().AlignCenter().Text(name).FontSize(Px(13)).FontColor(PaperColors.Ink500);
             box.Item().AlignCenter().Text(sub).FontSize(Px(13)).FontColor(PaperColors.Ink500);
         });
 }
