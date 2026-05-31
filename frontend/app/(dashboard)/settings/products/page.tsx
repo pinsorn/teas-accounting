@@ -7,6 +7,7 @@ import { Plus, Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import {
   useProducts, useCreateProduct, useUpdateProduct, useDeactivateProduct,
+  useBusinessUnits,
 } from '@/lib/queries';
 import { apiGet } from '@/lib/api';
 import type { ProductTypeStr, ProductDetail } from '@/lib/types';
@@ -41,13 +42,22 @@ const TYPES: ProductTypeStr[] = ['GOOD', 'SERVICE', 'EXEMPT_GOOD', 'EXEMPT_SERVI
 export default function ProductsSettingsPage() {
   const t = useTranslations('product');
   const tc = useTranslations('common');
-  const q = useProducts(true);
+  // cont.81 — filter by the new usage attribute (sale / purchase / all).
+  const [purpose, setPurpose] = useState<'' | 'sale' | 'purchase'>('');
+  const q = useProducts(true, undefined, purpose || undefined);
   const create = useCreateProduct();
   const update = useUpdateProduct();
   const deactivate = useDeactivateProduct();
   const confirm = useConfirm();
   const [edit, setEdit] = useState<Editing | null>(null);
   const rows = q.data ?? [];
+  // BU id → "CODE — name" for the list badge (list row carries only the id).
+  const buList = useBusinessUnits().data ?? [];
+  const buName = (id: number | null) =>
+    id == null ? null : (() => {
+      const b = buList.find((u) => u.businessUnitId === id);
+      return b ? `${b.code} — ${b.nameTh}` : `#${id}`;
+    })();
 
   // Open the edit modal with the FULL product (the list row omits uom / nameEn /
   // WHT — building from it would silently wipe those on save).
@@ -119,27 +129,51 @@ export default function ProductsSettingsPage() {
         }
       />
 
+      {/* cont.81 — filter by the new usage attribute (ขาย/ซื้อ). */}
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-sm text-base-content/60">{t('usage')}</span>
+        <select
+          className="select select-bordered select-sm"
+          value={purpose}
+          aria-label={t('usage')}
+          data-testid="product-usage-filter"
+          onChange={(e) => setPurpose(e.target.value as '' | 'sale' | 'purchase')}
+        >
+          <option value="">{tc('all')}</option>
+          <option value="sale">{t('saleable')}</option>
+          <option value="purchase">{t('purchasable')}</option>
+        </select>
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-base-300">
         <table className="table table-zebra">
           <thead>
             <tr>
               <th>{t('code')}</th><th>{t('nameTh')}</th><th>{t('type')}</th>
+              <th>{t('usage')}</th><th>{t('businessUnit')}</th>
               <th className="text-right">{t('unitPrice')}</th>
               <th>{tc('status')}</th><th />
             </tr>
           </thead>
           <tbody>
             {q.isLoading && (
-              <tr><td colSpan={6} className="py-6 text-center text-base-content/50">{tc('loading')}</td></tr>
+              <tr><td colSpan={8} className="py-6 text-center text-base-content/50">{tc('loading')}</td></tr>
             )}
             {rows.length === 0 && !q.isLoading && (
-              <tr><td colSpan={6} className="py-6 text-center text-base-content/50">{tc('empty')}</td></tr>
+              <tr><td colSpan={8} className="py-6 text-center text-base-content/50">{tc('empty')}</td></tr>
             )}
             {rows.map((p) => (
               <tr key={p.productId} className={p.isActive ? '' : 'opacity-50'}>
                 <td className="font-mono">{p.productCode}</td>
                 <td>{p.nameTh}</td>
                 <td><span className="badge badge-ghost">{p.productType}</span></td>
+                <td>
+                  <div className="flex flex-wrap gap-1">
+                    {p.isSaleable && <span className="badge badge-sm bg-sky-100 text-sky-700">{t('saleable')}</span>}
+                    {p.isPurchasable && <span className="badge badge-sm bg-emerald-100 text-emerald-700">{t('purchasable')}</span>}
+                  </div>
+                </td>
+                <td className="text-sm text-base-content/70">{buName(p.businessUnitId) ?? '—'}</td>
                 <td className="text-right tabular-nums">
                   {p.defaultUnitPrice == null ? '—' : p.defaultUnitPrice.toLocaleString()}
                 </td>
