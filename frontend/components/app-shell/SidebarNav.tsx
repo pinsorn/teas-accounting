@@ -72,6 +72,7 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/settings/company', key: 'company', Icon: Building2 },
       { href: '/settings/products', key: 'products', Icon: Package },
       { href: '/settings/business-units', key: 'businessUnits', Icon: Layers },
+      { href: '/settings/employees', key: 'employees', Icon: Users },
       { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent },
       { href: '/settings/expense-categories', key: 'expenseCategories', Icon: FolderTree },
       { href: '/settings/api-keys', key: 'apiKeys', Icon: KeyRound },

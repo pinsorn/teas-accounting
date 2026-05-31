@@ -144,6 +144,7 @@ app.MapAuthEndpoints();
 app.MapCustomerEndpoints();
 app.MapMasterEndpoints();
 app.MapBusinessUnitEndpoints();
+app.MapEmployeeEndpoints();
 app.MapCompanyProfileEndpoints();
 app.MapMeEndpoints();
 app.MapProductEndpoints();
