@@ -5,19 +5,24 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { DateInput } from '@/components/ui/DateInput';
-import { VendorSelector } from '@/components/ui/VendorSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import {
   useCreateVendorInvoice, usePostVendorInvoice, useVendor,
-  usePurchaseOrders, usePurchaseOrder, useCompanyBuSetting,
+  usePurchaseOrders, usePurchaseOrder, useCompanyBuSetting, useCompanyProfile,
 } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { PAPER_DOC, companyToCustomer } from '@/lib/paper-doc-config';
+import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
+import { SectionCard } from '@/components/create/SectionCard';
+import { PartySelectBox } from '@/components/create/PartySelectBox';
+import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
+import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
 interface Row {
   key: number; categoryId: number | null; recoverable: boolean;
@@ -40,9 +45,11 @@ function claimOptions(vendorTiDate: string): number[] {
 export default function VendorInvoiceNewPage() {
   const t = useTranslations('vi');
   const tc = useTranslations('common');
+  const tcr = useTranslations('create');
   const router = useRouter();
   const create = useCreateVendorInvoice();
   const post = usePostVendorInvoice();
+  const company = useCompanyProfile();
   const docDate = bangkokToday(); // locked (CLAUDE.md §10)
 
   const [vendorId, setVendorId] = useState<number | null>(null);
@@ -130,42 +137,81 @@ export default function VendorInvoiceNewPage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader title={t('create')} subtitle={`${t('docDate')}: ${docDate}`} />
+  const cfg = PAPER_DOC['vendor-invoice'];
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <VendorSelector
-          value={vendorId}
-          onChange={(id, label) => {
-            setVendorId(id); setVendorLabel(label); setPoId(null);
-          }}
+  const totalRows: TotalRow[] = [
+    { label: t('subtotal'), value: subtotal },
+    { label: t('vat'), value: vatRec },
+    { label: t('nonRecVat'), value: vatNon, muted: true },
+  ];
+
+  return (
+    <DocumentCreateLayout
+      title={t('create')}
+      docMeta={`${t('docDate')}: ${docDate}`}
+      actions={
+        <>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => router.push('/vendor-invoices')}
+            disabled={create.isPending}
+          >
+            {tcr('cancel')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm border-ink-200 text-ink-700 hover:bg-ink-75"
+            disabled={!canSave || create.isPending}
+            onClick={async () => { const id = await saveDraft(); if (id) router.push('/vendor-invoices'); }}
+          >
+            {t('saveDraft')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={!canSave || create.isPending}
+            onClick={async () => { const id = await saveDraft(); if (id) setConfirm({ id }); }}
+          >
+            {t('post')}
+          </button>
+        </>
+      }
+      preview={
+        <LivePreviewPane>
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo={tiNo || '(ฉบับร่าง)'}
+            issueDate={tiDate}
+            seller={{
+              name: vendorLabel || '—',
+              taxId: vendor?.taxId ?? '',
+              branchCode: vendor?.branchCode ?? '00000',
+              address: vendor?.address ?? '',
+            }}
+            customer={companyToCustomer(company.data)}
+            items={rows.map((r) => ({ description: r.description, amount: r.amount }))}
+            summary={{
+              subtotal,
+              beforeVat: subtotal,
+              vat: vatRec + vatNon,
+              total,
+            }}
+            signRoles={cfg.signRoles}
+          />
+        </LivePreviewPane>
+      }
+    >
+      {/* ① ผู้ขาย */}
+      <SectionCard number={1} title={t('vendor')}>
+        <PartySelectBox
+          kind="vendor"
+          party={vendorId}
+          onChange={(id, label) => { setVendorId(id); setVendorLabel(label); setPoId(null); }}
         />
-        <DateInput value={docDate} locked label={t('docDate')} />
-        <BusinessUnitSelector
-          value={businessUnitId}
-          onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); else setBuError(buRequired); }}
-          required={buRequired}
-          error={buError}
-        />
-        {vendorId !== null && approvedPos.length > 0 && (
-          <label className="form-control md:col-span-2">
-            <span className="label-text">{t('linkPo')}</span>
-            <select className="select select-bordered" data-testid="vi-po-select"
-              value={poId ?? ''}
-              onChange={(e) => setPoId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">{t('noPo')}</option>
-              {approvedPos.map((p) => (
-                <option key={p.purchaseOrderId} value={p.purchaseOrderId}>
-                  {p.docNo ?? `#${p.purchaseOrderId}`} — {formatTHB(p.totalAmount)}
-                </option>
-              ))}
-            </select>
-            <span className="label-text-alt text-base-content/50">{t('linkPoHint')}</span>
-          </label>
-        )}
         {vendor && (
-          <div className="md:col-span-2 text-xs">
+          <div className="mt-2 text-xs">
             {foreignNoVatD
               ? <span className="text-warning">{t('pnd36Warning')}</span>
               : autoNoInputVat
@@ -175,38 +221,61 @@ export default function VendorInvoiceNewPage() {
                   : null}
           </div>
         )}
-        <label className="form-control">
-          <span className="label-text">{t('vendorTiNo')} *</span>
-          <input className="input input-bordered" value={tiNo}
-            onChange={(e) => setTiNo(e.target.value)} />
-        </label>
-        <label className="form-control">
-          <span className="label-text">{t('vendorTiDate')} *</span>
-          <input type="date" className="input input-bordered" value={tiDate}
-            max={docDate} onChange={(e) => { setTiDate(e.target.value); setClaim(null); }} />
-        </label>
-        <label className="form-control">
-          <span className="label-text">{t('claimPeriod')}</span>
-          <select className="select select-bordered" value={effClaim ?? ''}
-            onChange={(e) => setClaim(Number(e.target.value))}>
-            {options.map((o) => (
-              <option key={o} value={o}>
-                {String(o).slice(0, 4)}-{String(o).slice(4)}
-              </option>
-            ))}
-          </select>
-          <span className="label-text-alt text-base-content/50">{t('claimHint')}</span>
-        </label>
-      </div>
+      </SectionCard>
 
-      <div className="mt-6">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-semibold">{t('lines')}</h3>
-          <button className="btn btn-ghost btn-xs gap-1"
-            onClick={() => setRows((rs) => [...rs, emptyRow(Date.now())])}>
-            <Plus className="h-3 w-3" /> {t('addLine')}
-          </button>
+      {/* ② ข้อมูลเอกสาร */}
+      <SectionCard number={2} title={tcr('docInfo')}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DateInput value={docDate} locked label={t('docDate')} />
+          <BusinessUnitSelector
+            value={businessUnitId}
+            onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); else setBuError(buRequired); }}
+            required={buRequired}
+            error={buError}
+          />
+          {vendorId !== null && approvedPos.length > 0 && (
+            <label className="form-control sm:col-span-2">
+              <span className="label-text">{t('linkPo')}</span>
+              <select className="select select-bordered" data-testid="vi-po-select"
+                value={poId ?? ''}
+                onChange={(e) => setPoId(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">{t('noPo')}</option>
+                {approvedPos.map((p) => (
+                  <option key={p.purchaseOrderId} value={p.purchaseOrderId}>
+                    {p.docNo ?? `#${p.purchaseOrderId}`} — {formatTHB(p.totalAmount)}
+                  </option>
+                ))}
+              </select>
+              <span className="label-text-alt text-base-content/50">{t('linkPoHint')}</span>
+            </label>
+          )}
+          <label className="form-control">
+            <span className="label-text">{t('vendorTiNo')} *</span>
+            <input className="input input-bordered" value={tiNo}
+              onChange={(e) => setTiNo(e.target.value)} />
+          </label>
+          <label className="form-control">
+            <span className="label-text">{t('vendorTiDate')} *</span>
+            <input type="date" className="input input-bordered" value={tiDate}
+              max={docDate} onChange={(e) => { setTiDate(e.target.value); setClaim(null); }} />
+          </label>
+          <label className="form-control sm:col-span-2">
+            <span className="label-text">{t('claimPeriod')}</span>
+            <select className="select select-bordered" value={effClaim ?? ''}
+              onChange={(e) => setClaim(Number(e.target.value))}>
+              {options.map((o) => (
+                <option key={o} value={o}>
+                  {String(o).slice(0, 4)}-{String(o).slice(4)}
+                </option>
+              ))}
+            </select>
+            <span className="label-text-alt text-base-content/50">{t('claimHint')}</span>
+          </label>
         </div>
+      </SectionCard>
+
+      {/* ③ รายการ + totals */}
+      <SectionCard number={3} title={t('lines')} rightMeta={tcr('lineCount', { n: rows.length })}>
         <div className="space-y-3">
           {rows.map((r) => (
             <div key={r.key} className="rounded-lg border border-base-300 p-3">
@@ -250,30 +319,21 @@ export default function VendorInvoiceNewPage() {
             </div>
           ))}
         </div>
-      </div>
+        <button
+          type="button"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-field border border-dashed border-ink-200 bg-base-100 py-3 text-sm font-medium text-peach-700 hover:border-peach-300 hover:bg-peach-50"
+          onClick={() => setRows((rs) => [...rs, emptyRow(Date.now())])}>
+          <Plus className="h-4 w-4" aria-hidden /> {t('addLine')}
+        </button>
 
-      <div className="mt-6 flex items-end justify-between">
-        <dl className="w-72 space-y-1 text-sm">
-          <div className="flex justify-between"><dt className="text-base-content/60">{t('subtotal')}</dt>
-            <dd className="tabular-nums">{formatTHB(subtotal)}</dd></div>
-          <div className="flex justify-between"><dt className="text-base-content/60">{t('vat')}</dt>
-            <dd className="tabular-nums">{formatTHB(vatRec)}</dd></div>
-          <div className="flex justify-between"><dt className="text-base-content/60">{t('nonRecVat')}</dt>
-            <dd className="tabular-nums">{formatTHB(vatNon)}</dd></div>
-          <div className="flex justify-between border-t pt-1 font-bold"><dt>{t('total')}</dt>
-            <dd className="tabular-nums">{formatTHB(total)}</dd></div>
-        </dl>
-        <div className="flex gap-2">
-          <button className="btn btn-ghost" disabled={!canSave || create.isPending}
-            onClick={async () => { const id = await saveDraft(); if (id) router.push('/vendor-invoices'); }}>
-            {t('saveDraft')}
-          </button>
-          <button className="btn btn-primary" disabled={!canSave || create.isPending}
-            onClick={async () => { const id = await saveDraft(); if (id) setConfirm({ id }); }}>
-            {t('post')}
-          </button>
+        <div className="mt-4">
+          <TotalsSummaryBox
+            rows={totalRows}
+            grandLabel={t('total')}
+            grandValue={total}
+          />
         </div>
-      </div>
+      </SectionCard>
 
       <PostConfirmDialog
         docType="vendor_invoice"
@@ -297,6 +357,6 @@ export default function VendorInvoiceNewPage() {
           }
         }}
       />
-    </>
+    </DocumentCreateLayout>
   );
 }

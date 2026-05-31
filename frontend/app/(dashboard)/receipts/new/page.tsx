@@ -9,9 +9,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
-import { CustomerSelector } from '@/components/ui/CustomerSelector';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { DateInput } from '@/components/ui/DateInput';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
@@ -29,6 +27,11 @@ import { bangkokToday, formatTHB } from '@/lib/utils';
 import { scrollToFirstError } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
+import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
+import { SectionCard } from '@/components/create/SectionCard';
+import { PartySelectBox } from '@/components/create/PartySelectBox';
+import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
+import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
 // Receipt billing modes (cont. 68 → Phase 2a — non-VAT support):
 //   ti          — apply to one or more Tax Invoices (VAT path; the only mode when vatMode=true).
@@ -63,7 +66,9 @@ export default function NewReceiptPage() {
   const t = useTranslations('rc');
   const tc = useTranslations('common');
   const tt = useTranslations('toast');
+  const tcr = useTranslations('create');
   const tw = useTranslations('rc.wht');
+  const [customerLabel, setCustomerLabel] = useState('');
   const docDate = bangkokToday();
   const create = useCreateReceipt();
   const post = usePostReceipt();
@@ -298,55 +303,124 @@ export default function NewReceiptPage() {
           ? derivedItems
           : apps.map((a) => ({ description: `ใบกำกับภาษี #${a.docId || '—'}`, amount: a.appliedAmount || 0 }));
 
+  const totalRows: TotalRow[] = whtOn && whtAmount > 0
+    ? [
+        { label: t('amount'), value: total },
+        { label: tw('amount'), value: -whtAmount, muted: true },
+      ]
+    : [];
+
   return (
     <>
-      <PageHeader title={t('create')} subtitle={docDate} />
-      <div className="create-grid">
+      <DocumentCreateLayout
+        title={t('create')}
+        docMeta={docDate}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => router.push('/receipts')}
+              disabled={isSubmitting}
+            >
+              {tcr('cancel')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm border-ink-200 text-ink-700 hover:bg-ink-75"
+              disabled={isSubmitting}
+              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) router.push('/receipts'); })}
+            >
+              {tc('save')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={isSubmitting}
+              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) setConfirm({ id }); })}
+            >
+              {t('post')}
+            </button>
+          </>
+        }
+        preview={
+          <LivePreviewPane>
+            <PaperDocument
+              docType={rcCfg.docType}
+              docTypeEn={rcCfg.docTypeEn}
+              docNo="(ฉบับร่าง)"
+              issueDate={docDate}
+              seller={companyToSeller(company.data)}
+              customer={{ name: customerLabel || '—' }}
+              items={previewItems}
+              summary={{ subtotal: total, vat: 0, total, showVat: vatMode }}
+              signRoles={rcCfg.signRoles}
+              extraMetaBlock={
+                <>
+                  <dt>วิธีชำระ</dt>
+                  <dd>Transfer</dd>
+                  {whtOn && whtAmount > 0 && (
+                    <>
+                      <dt>{tw('amount')}</dt>
+                      <dd>({formatTHB(whtAmount)})</dd>
+                    </>
+                  )}
+                </>
+              }
+            />
+          </LivePreviewPane>
+        }
+      >
       <form className="space-y-6" onSubmit={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) router.push('/receipts'); })}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Controller control={control} name="customerId" render={({ field, fieldState }) => (
-            <div>
-              <CustomerSelector value={field.value || null} onChange={(id) => field.onChange(id)} />
-              {fieldState.error && <span className="text-error text-sm" data-field-error="true">เลือกลูกค้า</span>}
-            </div>
-          )} />
-          <DateInput value={docDate} locked label={t('date')} />
-          <BusinessUnitSelector
-            value={businessUnitId}
-            onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
-            required={buRequired}
-            error={buError}
-          />
-        </div>
+        {/* ① ลูกค้า */}
+        <Controller control={control} name="customerId" render={({ field, fieldState }) => (
+          <SectionCard number={1} title={tc('customer')}>
+            <PartySelectBox
+              kind="customer"
+              party={field.value || null}
+              onChange={(id, label) => { field.onChange(id); setCustomerLabel(label); }}
+            />
+            {fieldState.error && <span className="mt-2 block text-sm text-error" data-field-error="true">เลือกลูกค้า</span>}
+          </SectionCard>
+        )} />
 
-        {/* Mode selector — only meaningful for a non-VAT company (no TI to apply to).
-            In VAT mode the receipt always settles a Tax Invoice, so the selector is hidden. */}
-        {!vatMode && !preTi && (
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('nonVat.modeLabel')}>
-            {(['standalone', 'invoice'] as ReceiptMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                role="tab"
-                aria-selected={mode === m}
-                className={`btn btn-sm ${mode === m ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setMode(m)}
-              >
-                {m === 'standalone' ? t('nonVat.modeStandalone') : t('nonVat.modeApplyInvoice')}
-              </button>
-            ))}
+        {/* ② ข้อมูลเอกสาร */}
+        <SectionCard number={2} title={tcr('docInfo')}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <DateInput value={docDate} locked label={t('date')} />
+            <BusinessUnitSelector
+              value={businessUnitId}
+              onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
+              required={buRequired}
+              error={buError}
+            />
           </div>
-        )}
+          {/* Mode selector — only meaningful for a non-VAT company (no TI to apply to).
+              In VAT mode the receipt always settles a Tax Invoice, so the selector is hidden. */}
+          {!vatMode && !preTi && (
+            <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label={t('nonVat.modeLabel')}>
+              {(['standalone', 'invoice'] as ReceiptMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === m}
+                  className={`btn btn-sm ${mode === m ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setMode(m)}
+                >
+                  {m === 'standalone' ? t('nonVat.modeStandalone') : t('nonVat.modeApplyInvoice')}
+                </button>
+              ))}
+            </div>
+          )}
+        </SectionCard>
 
+        {/* ③ แหล่งที่มา / รายการ */}
+        <SectionCard number={3} title={mode === 'standalone' ? t('nonVat.lineItems') : mode === 'invoice' ? t('nonVat.applyInvoiceHeader') : t('applyTo')}>
+          <div className="space-y-4">
         {/* ── Source: standalone cash-bill line items (non-VAT) ── */}
         {mode === 'standalone' && (
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="font-semibold">{t('nonVat.lineItems')}</h2>
-              <button type="button" className="btn btn-ghost btn-sm gap-1" onClick={() => setLines((ls) => [...ls, emptyLine()])}>
-                <Plus className="h-4 w-4" aria-hidden /> {t('nonVat.addLine')}
-              </button>
-            </div>
             <div className="overflow-x-auto rounded-lg border border-base-300">
               <table className="table table-sm">
                 <thead><tr>
@@ -394,18 +468,17 @@ export default function NewReceiptPage() {
                 </tbody>
               </table>
             </div>
+            <button type="button"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-field border border-dashed border-ink-200 bg-base-100 py-3 text-sm font-medium text-peach-700 hover:border-peach-300 hover:bg-peach-50"
+              onClick={() => setLines((ls) => [...ls, emptyLine()])}>
+              <Plus className="h-4 w-4" aria-hidden /> {t('nonVat.addLine')}
+            </button>
           </div>
         )}
 
         {/* ── Source: apply to a Tax Invoice (VAT) or Invoice/ใบแจ้งหนี้ (non-VAT credit) ── */}
         {mode !== 'standalone' && (
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="font-semibold">{mode === 'invoice' ? t('nonVat.applyInvoiceHeader') : t('applyTo')}</h2>
-              <button type="button" className="btn btn-ghost btn-sm gap-1" onClick={() => setApps((rs) => [...rs, { docId: 0, appliedAmount: 0 }])}>
-                <Plus className="h-4 w-4" aria-hidden /> {t('addApply')}
-              </button>
-            </div>
             <div className="overflow-x-auto rounded-lg border border-base-300">
               <table className="table">
                 <thead><tr>
@@ -451,11 +524,24 @@ export default function NewReceiptPage() {
                 </tbody>
               </table>
             </div>
+            <button type="button"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-field border border-dashed border-ink-200 bg-base-100 py-3 text-sm font-medium text-peach-700 hover:border-peach-300 hover:bg-peach-50"
+              onClick={() => setApps((rs) => [...rs, { docId: 0, appliedAmount: 0 }])}>
+              <Plus className="h-4 w-4" aria-hidden /> {t('addApply')}
+            </button>
           </div>
         )}
 
-        {/* AR-side WHT (collapsible). */}
-        <div className="rounded-lg border border-base-300 p-4">
+            <TotalsSummaryBox
+              rows={totalRows}
+              grandLabel={whtOn && whtAmount > 0 ? tw('cashReceived') : t('amount')}
+              grandValue={whtOn && whtAmount > 0 ? cashReceived : total}
+            />
+          </div>
+        </SectionCard>
+
+        {/* ④ AR-side WHT (collapsible). */}
+        <SectionCard number={4} title={tcr('whtSection')}>
           <label className="label cursor-pointer justify-start gap-3">
             <input type="checkbox" className="toggle toggle-primary" checked={whtOn}
               onChange={(e) => setWhtOn(e.target.checked)} />
@@ -544,46 +630,9 @@ export default function NewReceiptPage() {
               <p className="text-xs text-warning">{tw('multiCatExplain')}</p>
             </div>
           )}
-        </div>
-
-        <div className="flex items-end justify-between">
-          <div className="text-lg font-bold tabular-nums">{t('amount')}: {formatTHB(total)}</div>
-          <div className="flex gap-2">
-            <button type="submit" className="btn btn-ghost" disabled={isSubmitting}>{tc('save')}</button>
-            <button type="button" className="btn btn-primary" disabled={isSubmitting}
-              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) setConfirm({ id }); })}>
-              {t('post')}
-            </button>
-          </div>
-        </div>
+        </SectionCard>
       </form>
-
-      <div className="preview-side">
-        <PaperDocument
-          docType={rcCfg.docType}
-          docTypeEn={rcCfg.docTypeEn}
-          docNo="(ฉบับร่าง)"
-          issueDate={docDate}
-          seller={companyToSeller(company.data)}
-          customer={{ name: '—' }}
-          items={previewItems}
-          summary={{ subtotal: total, vat: 0, total, showVat: vatMode }}
-          signRoles={rcCfg.signRoles}
-          extraMetaBlock={
-            <>
-              <dt>วิธีชำระ</dt>
-              <dd>Transfer</dd>
-              {whtOn && whtAmount > 0 && (
-                <>
-                  <dt>{tw('amount')}</dt>
-                  <dd>({formatTHB(whtAmount)})</dd>
-                </>
-              )}
-            </>
-          }
-        />
-      </div>
-      </div>
+      </DocumentCreateLayout>
 
       <PostConfirmDialog
         docType="receipt"

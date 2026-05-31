@@ -3,6 +3,26 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-05-30 (cont. 80) — Create-page redesign rolled out to ALL docs + paper/print fixes (Ham). FE tsc 0, i18n th/en parity 0/0. Commits `72065ea` (foundation+pilot) · `37a8c33` (paper/print) · `<rollout>` (all create pages). Rollout subagent was cut by a session limit but left the tree green (tsc 0) — overseer verified + committed.
+
+Ham gave a mockup (`A _ Refined Sections.html`, served at `/_mockup.html`, gitignored) → restyle EVERY document **create** page into a 2-column layout (form cards left + live A4 preview right), KEEPING current fields, REUSING the existing PaperDocument for preview. Spec: `docs/superpowers/specs/create-form-redesign-2026-05-30.md`.
+
+**Approved direction (locked):** form 60% / preview 40% (`lg:grid-cols-[3fr_2fr]`); preview = **fixed A4 ratio, scales down** (LivePreviewPane ResizeObserver, A4 794×1123); line "+ เพิ่มรายการ" = **full-width dashed** below the table (global `LineItemsTable` change + `hideHeading` prop); section ④ Notes only where the page has the field.
+- **Shared components** (`frontend/components/create/`, committed `72065ea`): `DocumentCreateLayout`, `SectionCard` (numbered), `PartySelectBox` (party box reusing the picker modal), `TotalsSummaryBox` (dark charcoal, grand total peach), `LivePreviewPane` (A4 scale). Tokens = existing ink/peach/cream theme.
+- **Pilot:** `tax-invoices/new` redesigned + committed (`72065ea`). All fields/payload preserved.
+- **Rollout (cont.80 #1) — DONE + committed:** all remaining create forms redesigned into the shell: `QuotationForm`, `SalesOrderForm`, `DeliveryOrderForm`, `BillingNoteForm`, `AdjustmentNoteForm` (CN/DN), `receipts/new`, `purchase-orders/new`, `payment-vouchers/new`, `vendor-invoices/new`. tsc 0 + i18n parity. **Not yet visually spot-checked page-by-page** (subagent was cut before its screenshot pass) → recommend a quick Playwright walk of each /new to confirm layout + that the live preview feeds full counterparty detail.
+
+**Paper/print fixes (committed `37a8c33`):**
+- **#2 print-original (Ham, 2nd ask):** reprint of the ORIGINAL now allowed for **every** tracked doc incl. fiscal TI/CN/DN (was auto-downgraded to สำเนา on 2nd press) — fail-safe for prints that didn't physically happen. Gated by a **confirm modal** in `PrintMenu`; every print still audited. Removed `STRICT_ONE_ORIGINAL` downgrade. **🟠 relaxes ม.86/4 one-original — Ham's explicit decision (confirm + audit = the control).**
+- **#3 watermark:** `paper.css` empty filler rows → `background: transparent` (was `--ink-50`) so the ลายน้ำ shows through the no-item space.
+- **#4 signature names counterparty:** `PaperSign`/`PaperDocument` print the customer/vendor name under the right signature box. PaperHead (seller) + PaperMeta (customer) already render full details when data is passed.
+
+**Remaining (cont.80):**
+1. Rollout subagent → verify + commit when done.
+2. **Backend QuestPDF (the real PDF):** mirror #4 (counterparty name in signature) + ensure full company/counterparty details — the C# paper renderer is separate from the FE PaperDocument; Ham wants PDF too.
+3. Ensure each create page's live preview feeds FULL counterparty detail (PartySelectBox fetches it) — part of rollout.
+- Reference shots (gitignored): `mockup-full.png`, `mockup-formcol.png`, `pilot-a4-preview.png`. Cleanup `frontend/public/_mockup.html` (7MB, gitignored) when fully done.
+
 ## 2026-05-30 (cont. 79) — Business Unit on purchase docs (Ham). BE build 0/0 · Api.Tests **198/198 ×2** · FE tsc 0. Commits `a73dcd9` (BE) + `163504f` (FE). Spec `docs/superpowers/specs/purchase-business-unit-2026-05-30.md`.
 
 Ham: purchase docs need a BU so spend is attributable per BU, + the **doc number must embed BU**. Reused existing BU infra (entity/selector/`sub_prefix` numbering/`BuildAndPostAsync(businessUnitId:)` GL stamping/`Company.RequiresBusinessUnit`). **Decisions:** PV no = `MM-YYYY-PV-{BU}-{CAT}-NNNN`, PO/VI = `…-{PREFIX}-{BU}-NNNN`; BU **required when the company toggle is on** (extended the revenue toggle to expense docs).

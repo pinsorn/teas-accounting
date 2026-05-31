@@ -7,16 +7,20 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { CustomerSelector } from '@/components/ui/CustomerSelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { useCreateQuotation, useUpdateQuotation, useQuotationAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
 import type { QuotationDetail } from '@/lib/types';
-import { bangkokToday, formatTHB } from '@/lib/utils';
+import { bangkokToday } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
+import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
+import { SectionCard } from '@/components/create/SectionCard';
+import { PartySelectBox } from '@/components/create/PartySelectBox';
+import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
+import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
 const lineSchema = z.object({
   descriptionTh: z.string().min(1),
@@ -40,15 +44,20 @@ function plusDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+const FORM_ID = 'quotation-create-form';
+
 // Sprint 13e P2 — full Quotation create form (replaces the 1-line MVP stub).
 // Multi-line + product picker + VAT/discount preview + Draft/Issue workflow.
 // Sprint 13i C1 — `edit` prop reuses this form for /quotations/[id]/edit
 // (Draft-only edit; saves via PUT and returns to the detail page).
+// cont.80 — restyled into the shared DocumentCreateLayout (2-col + live A4 preview),
+// fields/validation/payload unchanged.
 export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
   const router = useRouter();
   const t = useTranslations('quotation');
   const tc = useTranslations('common');
   const tt = useTranslations('toast');
+  const tcr = useTranslations('create');
   const isEdit = edit != null;
   const create = useCreateQuotation();
   const update = useUpdateQuotation();
@@ -67,6 +76,7 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(edit?.businessUnitId ?? null);
   const [buError, setBuError] = useState(false);
   const [notes, setNotes] = useState(edit?.notes ?? '');
+  const [customerLabel, setCustomerLabel] = useState(edit?.customerName ?? '');
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 
@@ -101,6 +111,7 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
     setValidUntil(edit.validUntilDate);
     setBusinessUnitId(edit.businessUnitId ?? null);
     setNotes(edit.notes ?? '');
+    setCustomerLabel(edit.customerName ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit?.quotationId]);
 
@@ -164,180 +175,206 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
 
   const cfg = PAPER_DOC.quotation;
 
-  return (
-    <>
-      <PageHeader title={isEdit ? t('editTitle') : t('create')} subtitle={edit?.docNo ?? docDate} />
-      <div className="create-grid">
-      <form
-        className="space-y-6"
-        onSubmit={handleSubmit(async (v) => {
-          const id = await createQuotation(v);
-          if (id) {
-            toast.success(tc('save'));
-            router.push(isEdit ? `/quotations/${id}` : '/quotations');
-          }
-        }, invalid)}
-      >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Controller
-            control={control}
-            name="customerId"
-            render={({ field, fieldState }) => (
-              <div>
-                <CustomerSelector
-                  value={field.value || null}
-                  onChange={(id) => field.onChange(id)}
-                />
-                {fieldState.error && (
-                  <span className="text-error text-sm" data-field-error="true">
-                    {t('pickCustomer')}
-                  </span>
-                )}
-              </div>
-            )}
-          />
-          <BusinessUnitSelector
-            value={businessUnitId}
-            onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
-            required={buRequired}
-            error={buError}
-          />
-          <label className="form-control">
-            <span className="label-text">{t('docDate')} *</span>
-            <input
-              type="date"
-              className="input input-bordered"
-              value={docDate}
-              onChange={(e) => setDocDate(e.target.value)}
-              aria-label={t('docDate')}
-            />
-          </label>
-          <label className="form-control">
-            <span className="label-text">{t('validUntil')} *</span>
-            <input
-              type="date"
-              className="input input-bordered"
-              value={validUntil}
-              onChange={(e) => setValidUntil(e.target.value)}
-              aria-label={t('validUntil')}
-            />
-          </label>
-        </div>
+  // Submit handlers — all live in the header (outside <form>). Each fires
+  // handleSubmit() so RHF validation + the exact payload are preserved.
+  const submitSave = handleSubmit(async (v) => {
+    const id = await createQuotation(v);
+    if (id) {
+      toast.success(tc('save'));
+      router.push(isEdit ? `/quotations/${id}` : '/quotations');
+    }
+  }, invalid);
+  const submitIssue = handleSubmit(async (v) => {
+    const id = await createQuotation(v);
+    if (!id) return;
+    try {
+      await action.mutateAsync({ id, action: 'send' });
+      toast.success(t('issued'));
+      router.push(`/quotations/${id}`);
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }, invalid);
 
+  const totalRows: TotalRow[] = [
+    { label: t('subtotal'), value: totals.subtotal },
+    { label: t('discount'), value: -totals.discount, muted: true },
+    ...(vatMode ? [{ label: t('vat'), value: totals.vat }] : []),
+  ];
+
+  return (
+    <DocumentCreateLayout
+      title={isEdit ? t('editTitle') : t('create')}
+      docMeta={edit?.docNo ?? docDate}
+      actions={
+        <>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => router.push(isEdit && edit ? `/quotations/${edit.quotationId}` : '/quotations')}
+            disabled={isSubmitting}
+          >
+            {tcr('cancel')}
+          </button>
+          {isEdit ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={submitSave}
+              disabled={isSubmitting}
+            >
+              {tc('save')}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm border-ink-200 text-ink-700 hover:bg-ink-75"
+                onClick={submitSave}
+                disabled={isSubmitting}
+              >
+                {t('saveDraft')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={submitIssue}
+                disabled={isSubmitting}
+              >
+                {t('issue')}
+              </button>
+            </>
+          )}
+        </>
+      }
+      preview={
+        <LivePreviewPane>
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo={edit?.docNo ?? '(ฉบับร่าง)'}
+            issueDate={docDate}
+            validUntil={validUntil}
+            validUntilLabel={cfg.validUntilLabel}
+            seller={companyToSeller(company.data)}
+            customer={{ name: customerLabel || '—' }}
+            items={lines.map((l) => ({
+              description: l.descriptionTh,
+              quantity: l.quantity,
+              unit: l.uomText,
+              unitPrice: l.unitPrice,
+              discountPercent: l.discountPercent,
+              amount: l.quantity * l.unitPrice * (1 - (l.discountPercent ?? 0) / 100),
+            }))}
+            summary={{
+              subtotal: totals.subtotal,
+              discount: totals.discount,
+              vat: totals.vat,
+              total: totals.total,
+            }}
+            notes={notes || null}
+            signRoles={cfg.signRoles}
+          />
+        </LivePreviewPane>
+      }
+    >
+      <form id={FORM_ID} onSubmit={submitSave} className="space-y-6">
+        {/* ① ลูกค้า */}
         <Controller
           control={control}
-          name="lines"
+          name="customerId"
           render={({ field, fieldState }) => (
-            <div>
-              <LineItemsTable
-                value={field.value as LineItem[]}
-                onChange={field.onChange}
-                enableProduct
+            <SectionCard number={1} title={t('customer')}>
+              <PartySelectBox
+                kind="customer"
+                party={field.value || null}
+                onChange={(id, label) => {
+                  field.onChange(id);
+                  setCustomerLabel(label);
+                }}
               />
               {fieldState.error && (
-                <span className="text-error text-sm" data-field-error="true">
-                  {tt('lineRequired')}
+                <span className="mt-2 block text-sm text-error" data-field-error="true">
+                  {t('pickCustomer')}
                 </span>
               )}
-            </div>
+            </SectionCard>
           )}
         />
 
-        <label className="form-control">
-          <span className="label-text">{t('notes')}</span>
+        {/* ② ข้อมูลเอกสาร */}
+        <SectionCard number={2} title={tcr('docInfo')}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="form-control">
+              <span className="label-text">{t('docDate')} *</span>
+              <input
+                type="date"
+                className="input input-bordered"
+                value={docDate}
+                onChange={(e) => setDocDate(e.target.value)}
+                aria-label={t('docDate')}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">{t('validUntil')} *</span>
+              <input
+                type="date"
+                className="input input-bordered"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+                aria-label={t('validUntil')}
+              />
+            </label>
+            <div className="sm:col-span-2">
+              <BusinessUnitSelector
+                value={businessUnitId}
+                onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
+                required={buRequired}
+                error={buError}
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ③ รายการ + totals */}
+        <SectionCard number={3} title={tcr('lines')} rightMeta={tcr('lineCount', { n: lines.length })}>
+          <Controller
+            control={control}
+            name="lines"
+            render={({ field, fieldState }) => (
+              <div className="space-y-4">
+                <LineItemsTable
+                  value={field.value as LineItem[]}
+                  onChange={field.onChange}
+                  enableProduct
+                  hideHeading
+                />
+                {fieldState.error && (
+                  <span className="block text-sm text-error" data-field-error="true">
+                    {tt('lineRequired')}
+                  </span>
+                )}
+                <TotalsSummaryBox
+                  rows={totalRows}
+                  grandLabel={t('grandTotal')}
+                  grandValue={totals.total}
+                />
+              </div>
+            )}
+          />
+        </SectionCard>
+
+        {/* ④ หมายเหตุ */}
+        <SectionCard number={4} title={t('notes')}>
           <textarea
-            className="textarea textarea-bordered"
+            className="textarea textarea-bordered w-full"
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             aria-label={t('notes')}
           />
-        </label>
-
-        <div className="flex items-end justify-between">
-          <dl className="w-64 space-y-1 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-base-content/60">{t('subtotal')}</dt>
-              <dd className="tabular-nums">{formatTHB(totals.subtotal)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-base-content/60">{t('discount')}</dt>
-              <dd className="tabular-nums">-{formatTHB(totals.discount)}</dd>
-            </div>
-            {vatMode && (
-              <div className="flex justify-between">
-                <dt className="text-base-content/60">{t('vat')}</dt>
-                <dd className="tabular-nums">{formatTHB(totals.vat)}</dd>
-              </div>
-            )}
-            <div className="flex justify-between font-bold">
-              <dt>{t('grandTotal')}</dt>
-              <dd className="tabular-nums">{formatTHB(totals.total)}</dd>
-            </div>
-          </dl>
-          <div className="flex gap-2">
-            {isEdit ? (
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                {tc('save')}
-              </button>
-            ) : (
-              <>
-                <button type="submit" className="btn btn-ghost" disabled={isSubmitting}>
-                  {t('saveDraft')}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={isSubmitting}
-                  onClick={handleSubmit(async (v) => {
-                    const id = await createQuotation(v);
-                    if (!id) return;
-                    try {
-                      await action.mutateAsync({ id, action: 'send' });
-                      toast.success(t('issued'));
-                      router.push(`/quotations/${id}`);
-                    } catch (e) {
-                      toast.error((e as { detail?: string })?.detail ?? tc('error'));
-                    }
-                  }, invalid)}
-                >
-                  {t('issue')}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        </SectionCard>
       </form>
-
-      <div className="preview-side">
-        <PaperDocument
-          docType={cfg.docType}
-          docTypeEn={cfg.docTypeEn}
-          docNo={edit?.docNo ?? '(ฉบับร่าง)'}
-          issueDate={docDate}
-          validUntil={validUntil}
-          validUntilLabel={cfg.validUntilLabel}
-          seller={companyToSeller(company.data)}
-          customer={{ name: '—' }}
-          items={lines.map((l) => ({
-            description: l.descriptionTh,
-            quantity: l.quantity,
-            unit: l.uomText,
-            unitPrice: l.unitPrice,
-            discountPercent: l.discountPercent,
-            amount: l.quantity * l.unitPrice * (1 - (l.discountPercent ?? 0) / 100),
-          }))}
-          summary={{
-            subtotal: totals.subtotal,
-            discount: totals.discount,
-            vat: totals.vat,
-            total: totals.total,
-          }}
-          notes={notes || null}
-          signRoles={cfg.signRoles}
-        />
-      </div>
-      </div>
-    </>
+    </DocumentCreateLayout>
   );
 }
