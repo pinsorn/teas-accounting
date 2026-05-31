@@ -20,10 +20,20 @@ public class CompanyProfile
     public required string LegalName { get; set; }
     public required string TaxId { get; set; }                 // 13-digit
     public string? RegistrationNumber { get; set; }            // 13-digit (usually == TaxId)
-    public required string RegisteredAddressLine1 { get; set; }
+    public required string RegisteredAddressLine1 { get; set; }   // legacy free-text (kept for Tax Invoice / e-Tax)
     public string? RegisteredAddressLine2 { get; set; }
-    public string? RegisteredSubdistrict { get; set; }
-    public string? RegisteredDistrict { get; set; }
+    // Structured registered address — the RD forms (ภ.ง.ด.1 ฯลฯ) need each part in its own box.
+    // Additive (nullable) alongside Line1/Line2 so existing TI/e-Tax rendering is unaffected.
+    public string? RegBuilding   { get; set; }   // อาคาร
+    public string? RegRoomNo     { get; set; }   // ห้องเลขที่
+    public string? RegFloor      { get; set; }   // ชั้นที่
+    public string? RegVillage    { get; set; }   // หมู่บ้าน
+    public string? RegHouseNo    { get; set; }   // เลขที่
+    public string? RegMoo        { get; set; }   // หมู่ที่
+    public string? RegSoi        { get; set; }   // ตรอก/ซอย
+    public string? RegStreet     { get; set; }   // ถนน
+    public string? RegisteredSubdistrict { get; set; }   // ตำบล/แขวง
+    public string? RegisteredDistrict { get; set; }      // อำเภอ/เขต
     public required string RegisteredProvince { get; set; }
     public required string RegisteredPostalCode { get; set; }  // 5-digit
     public DateOnly? VatRegistrationDate { get; set; }
