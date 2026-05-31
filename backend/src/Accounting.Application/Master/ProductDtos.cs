@@ -55,10 +55,12 @@ public interface IProductService
     Task UpdateAsync(long id, UpdateProductRequest req, CancellationToken ct);
     Task DeactivateAsync(long id, CancellationToken ct);
     // cont.81 — purpose = "sale" | "purchase" | null (any); businessUnitId filters
-    // to that BU + shared (null-BU) products.
+    // to that BU + shared (null-BU) products. cont.81 follow-up: productType filters
+    // to one GOOD/SERVICE/EXEMPT_* (null = any); isActive null = any (overrides
+    // includeInactive when set: true = active only, false = inactive only).
     Task<IReadOnlyList<ProductListItem>> ListAsync(
         bool includeInactive, string? search, string? purpose, int? businessUnitId,
-        CancellationToken ct);
+        string? productType, bool? isActive, CancellationToken ct);
     Task<ProductDetail?> GetAsync(long id, CancellationToken ct);
 }
 

@@ -42,9 +42,17 @@ const TYPES: ProductTypeStr[] = ['GOOD', 'SERVICE', 'EXEMPT_GOOD', 'EXEMPT_SERVI
 export default function ProductsSettingsPage() {
   const t = useTranslations('product');
   const tc = useTranslations('common');
-  // cont.81 — filter by the new usage attribute (sale / purchase / all).
+  // cont.81 follow-up — full filter set: search (sku/name), type, usage, BU, status.
+  const [search, setSearch] = useState('');
+  const [productType, setProductType] = useState<'' | ProductTypeStr>('');
   const [purpose, setPurpose] = useState<'' | 'sale' | 'purchase'>('');
-  const q = useProducts(true, undefined, purpose || undefined);
+  const [buFilter, setBuFilter] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('');
+  const isActiveFilter =
+    statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined;
+  const q = useProducts(
+    true, search || undefined, purpose || undefined,
+    productType || undefined, isActiveFilter, buFilter);
   const create = useCreateProduct();
   const update = useUpdateProduct();
   const deactivate = useDeactivateProduct();
@@ -129,20 +137,63 @@ export default function ProductsSettingsPage() {
         }
       />
 
-      {/* cont.81 — filter by the new usage attribute (ขาย/ซื้อ). */}
-      <div className="mb-3 flex items-center gap-2">
-        <span className="text-sm text-base-content/60">{t('usage')}</span>
-        <select
-          className="select select-bordered select-sm"
-          value={purpose}
-          aria-label={t('usage')}
-          data-testid="product-usage-filter"
-          onChange={(e) => setPurpose(e.target.value as '' | 'sale' | 'purchase')}
-        >
-          <option value="">{tc('all')}</option>
-          <option value="sale">{t('saleable')}</option>
-          <option value="purchase">{t('purchasable')}</option>
-        </select>
+      {/* cont.81 follow-up — multi-filter bar: ชื่อ/SKU · ประเภท · การใช้งาน · BU · สถานะ. */}
+      <div className="mb-4 grid grid-cols-1 items-end gap-3 rounded-card border border-ink-100 bg-base-100 p-4 shadow-warm-sm md:grid-cols-2 lg:grid-cols-5">
+        <label className="form-control">
+          <span className="label-text text-ink-600">{t('searchLabel')}</span>
+          <input
+            className="input input-bordered"
+            value={search}
+            placeholder={t('searchPlaceholder')}
+            aria-label={t('searchLabel')}
+            data-testid="product-search"
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <label className="form-control">
+          <span className="label-text text-ink-600">{t('type')}</span>
+          <select
+            className="select select-bordered"
+            value={productType}
+            aria-label={t('type')}
+            data-testid="product-type-filter"
+            onChange={(e) => setProductType(e.target.value as '' | ProductTypeStr)}
+          >
+            <option value="">{tc('all')}</option>
+            {TYPES.map((ty) => <option key={ty} value={ty}>{t(`typeLabel.${ty}`)}</option>)}
+          </select>
+        </label>
+        <label className="form-control">
+          <span className="label-text text-ink-600">{t('usage')}</span>
+          <select
+            className="select select-bordered"
+            value={purpose}
+            aria-label={t('usage')}
+            data-testid="product-usage-filter"
+            onChange={(e) => setPurpose(e.target.value as '' | 'sale' | 'purchase')}
+          >
+            <option value="">{tc('all')}</option>
+            <option value="sale">{t('saleable')}</option>
+            <option value="purchase">{t('purchasable')}</option>
+          </select>
+        </label>
+        <div data-testid="product-bu-filter">
+          <BusinessUnitSelector value={buFilter} onChange={setBuFilter} />
+        </div>
+        <label className="form-control">
+          <span className="label-text text-ink-600">{tc('status')}</span>
+          <select
+            className="select select-bordered"
+            value={statusFilter}
+            aria-label={tc('status')}
+            data-testid="product-status-filter"
+            onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'inactive')}
+          >
+            <option value="">{tc('all')}</option>
+            <option value="active">{tc('active')}</option>
+            <option value="inactive">{tc('inactive')}</option>
+          </select>
+        </label>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-base-300">

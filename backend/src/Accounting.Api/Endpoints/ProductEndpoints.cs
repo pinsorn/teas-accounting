@@ -43,9 +43,11 @@ public static class ProductEndpoints
         g.MapGet("/", async (
             [FromQuery] bool? includeInactive, [FromQuery] string? search,
             [FromQuery] string? purpose, [FromQuery] int? businessUnitId,
+            [FromQuery] string? productType, [FromQuery] bool? isActive,
             IProductService svc, CancellationToken ct) =>
                 Results.Ok(await svc.ListAsync(
-                    includeInactive ?? false, search, purpose, businessUnitId, ct)))
+                    includeInactive ?? false, search, purpose, businessUnitId,
+                    productType, isActive, ct)))
         .RequireAuthorization(read);
 
         g.MapGet("/{id:long}", async (
