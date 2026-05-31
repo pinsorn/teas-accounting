@@ -3,6 +3,12 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-05-31 (cont. 82.1) — RD/DBD filing-forms gap review (Ham). Review doc: `docs/RD-Forms/TEAS-FORM-GAP-REVIEW.md` (+ Sana's `INDEX.md`/`REPORT.md`, 75 RD PDFs). No code yet — review + decisions only.
+
+Found: TEAS already computes/stores/submits-via-mock-API ภ.พ.30 + ภ.ง.ด.3/53/54 + ภ.พ.36 + VAT registers, and 50ทวิ already emits a PDF. **Gap = no fileable OUTPUT for the returns** (no RD-layout PDF, no Excel/text upload). No payroll module (only `User` entity) → ภ.ง.ด.1/1ก/2 blocked. No CIT ภ.ง.ด.50/51, no DBD F/S.
+- **LOCKED (Ham):** start **P2 = RD batch-upload file (โปรแกรมโอนย้ายข้อมูล) for ภ.ง.ด.3/53/54** (one row/payee → portal upload) + **plan Payroll** module (unlocks ภ.ง.ด.1/1ก/2) in parallel.
+- **NEXT-SESSION kickoff:** (1) research the exact RD โปรแกรมโอนย้ายข้อมูล layout FIRST (field order, delimiter, **TIS-620 encoding?**, header/trailer) — NOT in the PDFs; (2) `WhtBatchExportService` + `/tax-filings/pnd{3,53,54}/batch-file` + FE download; (3) payroll spec. Details in the review doc §F.1.
+
 ## 2026-05-31 (cont. 82) — Unified TanStack DataTable across all list pages (Ham). FE tsc 0 · i18n th/en 0/0 · 3 pages spot-checked (TI/products/receipts). Spec `docs/superpowers/specs/datatable-tanstack-2026-05-31.md`. Foundation+pilot committed `<foundation>`; rollout `<rollout>`.
 
 Ham: ทุก list page → ตารางสไตล์เดียว, ใช้ `@tanstack/react-table`, filter ละเอียดต่อหน้า, ชื่อ/เลขเอกสารกดได้→detail. **Decisions (AskUserQuestion):** scope = ~18 entity/doc/master lists (NOT aggregate report pages); cursor-paginated lists → fetch-all client-side filter.
