@@ -33,6 +33,19 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
         _ => "GOOD",
     };
 
+    // cont.81 follow-up — safe parse for the list filter (unknown → false, ignored).
+    private static bool TryParseType(string v, out ProductType t)
+    {
+        switch (v.ToUpperInvariant())
+        {
+            case "GOOD": t = ProductType.Good; return true;
+            case "SERVICE": t = ProductType.Service; return true;
+            case "EXEMPT_GOOD": t = ProductType.ExemptGood; return true;
+            case "EXEMPT_SERVICE": t = ProductType.ExemptService; return true;
+            default: t = default; return false;
+        }
+    }
+
     public async Task<long> CreateAsync(CreateProductRequest req, CancellationToken ct)
     {
         var code = req.ProductCode.Trim();
@@ -101,7 +114,7 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
 
     public async Task<IReadOnlyList<ProductListItem>> ListAsync(
         bool includeInactive, string? search, string? purpose, int? businessUnitId,
-        CancellationToken ct)
+        string? productType, bool? isActive, CancellationToken ct)
     {
         var q = db.Products.AsNoTracking().Where(p => includeInactive || p.IsActive);
         if (!string.IsNullOrWhiteSpace(search))
@@ -118,6 +131,12 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
         // BU filter — products of the selected BU OR shared (null-BU) products.
         if (businessUnitId is { } buId)
             q = q.Where(p => p.BusinessUnitId == null || p.BusinessUnitId == buId);
+        // cont.81 follow-up — product-type + explicit active/inactive filters. Ignore an
+        // unknown productType string rather than throw (it just narrows to nothing).
+        if (!string.IsNullOrWhiteSpace(productType) && TryParseType(productType, out var pt))
+            q = q.Where(p => p.ProductType == pt);
+        if (isActive is { } act)
+            q = q.Where(p => p.IsActive == act);
 
         var rows = await q.OrderBy(p => p.ProductCode)
             .Select(p => new { p.ProductId, p.ProductCode, p.NameTh, p.NameEn,

@@ -576,6 +576,8 @@
     "saleable": "Saleable",
     "purchasable": "Purchasable",
     "businessUnit": "Business Unit",
+    "searchLabel": "Name / SKU",
+    "searchPlaceholder": "Search name or code",
     "usageRequired": "Pick at least one (sale / purchase)",
     "wht": "WHT category (service)",
     "whtNone": "— none —",

@@ -576,6 +576,8 @@
     "saleable": "ขายได้",
     "purchasable": "ซื้อได้",
     "businessUnit": "หน่วยธุรกิจ",
+    "searchLabel": "ชื่อ / SKU",
+    "searchPlaceholder": "ค้นหาชื่อหรือรหัส",
     "usageRequired": "ต้องเลือกอย่างน้อย 1 อย่าง (ขาย/ซื้อ)",
     "wht": "ประเภทหัก ณ ที่จ่าย (บริการ)",
     "whtNone": "— ไม่หัก —",

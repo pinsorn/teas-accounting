@@ -112,7 +112,8 @@ public sealed class Sprint10ProductTests
 
         await svc.DeactivateAsync(id, default);
         var list = await svc.ListAsync(
-            includeInactive: false, search: null, purpose: null, businessUnitId: null, default);
+            includeInactive: false, search: null, purpose: null, businessUnitId: null,
+            productType: null, isActive: null, default);
         list.Should().NotContain(p => p.ProductId == id);
     }
 
@@ -144,11 +145,11 @@ public sealed class Sprint10ProductTests
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IProductService>();
 
-        var sale = await svc.ListAsync(false, null, "sale", null, default);
+        var sale = await svc.ListAsync(false, null, "sale", null, null, null, default);
         sale.Should().Contain(p => p.ProductId == saleId);
         sale.Should().NotContain(p => p.ProductId == buyId);
 
-        var purchase = await svc.ListAsync(false, null, "purchase", null, default);
+        var purchase = await svc.ListAsync(false, null, "purchase", null, null, null, default);
         purchase.Should().Contain(p => p.ProductId == buyId);
         purchase.Should().NotContain(p => p.ProductId == saleId);
     }
@@ -164,9 +165,32 @@ public sealed class Sprint10ProductTests
 
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IProductService>();
-        var list = await svc.ListAsync(false, null, null, bu, default);
+        var list = await svc.ListAsync(false, null, null, bu, null, null, default);
         list.Should().Contain(p => p.ProductId == sharedId, "shared (null-BU) products show in every BU");
         list.Should().Contain(p => p.ProductId == buId);
+    }
+
+    [SkippableFact]
+    public async Task Type_and_active_filters_narrow_the_list()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var goodId = await NewProduct(sp, "GOOD", 100m);
+        var svcId  = await NewProduct(sp, "SERVICE", 100m);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IProductService>();
+
+        // productType filter
+        var services = await svc.ListAsync(true, null, null, null, "SERVICE", null, default);
+        services.Should().Contain(p => p.ProductId == svcId);
+        services.Should().NotContain(p => p.ProductId == goodId);
+
+        // isActive=false → inactive only (after deactivating the goods product)
+        await svc.DeactivateAsync(goodId, default);
+        var inactive = await svc.ListAsync(true, null, null, null, null, false, default);
+        inactive.Should().Contain(p => p.ProductId == goodId);
+        inactive.Should().NotContain(p => p.ProductId == svcId);
     }
 
     [SkippableFact]
