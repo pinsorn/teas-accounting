@@ -11,7 +11,14 @@
   },
   "create": {
     "cancel": "ยกเลิก",
-    "livePreview": "ตัวอย่างเอกสาร"
+    "livePreview": "ตัวอย่างเอกสาร",
+    "docInfo": "ข้อมูลเอกสาร",
+    "lines": "รายการ",
+    "notes": "หมายเหตุ",
+    "lineCount": "{n} รายการ",
+    "source": "แหล่งที่มา",
+    "whtSection": "หัก ณ ที่จ่าย",
+    "payment": "การชำระเงิน"
   },
   "postConfirm": {
     "title": {

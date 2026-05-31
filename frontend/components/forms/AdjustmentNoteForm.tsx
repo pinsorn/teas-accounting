@@ -7,7 +7,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { DateInput } from '@/components/ui/DateInput';
@@ -16,10 +15,14 @@ import { TaxInvoicePicker } from '@/components/forms/TaxInvoicePicker';
 import { useCreateAdjustmentNote, usePostAdjustmentNote, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { CREDIT_NOTE_REASONS, DEBIT_NOTE_REASONS, type AdjustmentNoteType } from '@/lib/types';
-import { bangkokToday, formatTHB } from '@/lib/utils';
+import { bangkokToday } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
+import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
+import { SectionCard } from '@/components/create/SectionCard';
+import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
+import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
 const schema = z.object({
   originalTaxInvoiceId: z.number().int().positive(),
@@ -39,6 +42,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
   const t = useTranslations('note');
   const tc = useTranslations('common');
   const tt = useTranslations('toast');
+  const tcr = useTranslations('create');
   const docDate = bangkokToday();
   const isCredit = noteType === 'Credit';
   const reasons = isCredit ? CREDIT_NOTE_REASONS : DEBIT_NOTE_REASONS;
@@ -101,103 +105,142 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
 
   if (!vatMode) return <NonVatGuard title={isCredit ? t('cnTitle') : t('dnTitle')} />;
 
+  const totalRows: TotalRow[] = [
+    { label: t('subtotal'), value: sub },
+    { label: 'ภาษีมูลค่าเพิ่ม', value: vat },
+  ];
+
   return (
     <>
-      <PageHeader title={isCredit ? t('cnTitle') : t('dnTitle')} subtitle={docDate} />
-      <div className="create-grid">
-      <form className="space-y-4"
-        onSubmit={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) router.push(basePath); }, invalid)}>
-        <Controller control={control} name="originalTaxInvoiceId" render={({ field, fieldState }) => (
-          <label className="form-control">
-            <span className="label-text">{t('originalTi')} *</span>
-            <TaxInvoicePicker
-              value={field.value || null}
-              status="Posted"
-              ariaLabel="originalTaxInvoiceId"
-              onChange={(ti) => field.onChange(ti.taxInvoiceId)}
-            />
-            {fieldState.error && <span className="text-error text-sm" data-field-error="true">ระบุใบกำกับภาษีเดิม</span>}
-          </label>
-        )} />
-
-        <Controller control={control} name="reasonCode" render={({ field }) => (
-          <label className="form-control">
-            <span className="label-text">{t('reasonCode')} *</span>
-            <select className="select select-bordered" {...field}>
-              {reasons.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </label>
-        )} />
-
-        <Controller control={control} name="reason" render={({ field, fieldState }) => (
-          <label className="form-control">
-            <span className="label-text">{t('reasonText')} *</span>
-            <textarea className="textarea textarea-bordered" rows={3} {...field} />
-            {fieldState.error && <span className="text-error text-sm" data-field-error="true">{fieldState.error.message}</span>}
-          </label>
-        )} />
-
-        <BusinessUnitSelector
-          value={businessUnitId}
-          onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
-          required={buRequired}
-          error={buError}
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <Controller control={control} name="adjustmentSubtotal" render={({ field }) => (
-            <label className="form-control">
-              <span className="label-text">{t('subtotal')} *</span>
-              <AmountInput value={field.value} onValueChange={field.onChange} aria-label="adjustmentSubtotal" />
-            </label>
-          )} />
-          <Controller control={control} name="taxRate" render={({ field }) => (
-            <label className="form-control">
-              <span className="label-text">{t('taxRate')}</span>
-              {/* Sprint 13i C2 — locked to the referenced Posted TI's VAT rate. */}
-              {watch('originalTaxInvoiceId') > 0 ? (
-                <input
-                  className="input input-bordered bg-base-200 tabular-nums"
-                  value={field.value}
-                  readOnly
-                  disabled
-                  aria-label="taxRate"
-                />
-              ) : (
-                <AmountInput value={field.value} step={0.01} onValueChange={field.onChange} aria-label="taxRate" />
-              )}
-            </label>
-          )} />
-        </div>
-
-        <div className="flex items-end justify-between border-t border-base-300 pt-4">
-          <div className="text-sm tabular-nums">
-            VAT {formatTHB(vat)} · Total <b>{formatTHB(sub + vat)}</b>
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" className="btn btn-ghost" disabled={isSubmitting}>{tc('save')}</button>
-            <button type="button" className="btn btn-primary" disabled={isSubmitting}
-              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) setConfirm({ id }); }, invalid)}>
+      <DocumentCreateLayout
+        title={isCredit ? t('cnTitle') : t('dnTitle')}
+        docMeta={docDate}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => router.push(basePath)}
+              disabled={isSubmitting}
+            >
+              {tcr('cancel')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm border-ink-200 text-ink-700 hover:bg-ink-75"
+              disabled={isSubmitting}
+              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) router.push(basePath); }, invalid)}
+            >
+              {tc('save')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={isSubmitting}
+              onClick={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) setConfirm({ id }); }, invalid)}
+            >
               {t('post')}
             </button>
-          </div>
-        </div>
-      </form>
+          </>
+        }
+        preview={
+          <LivePreviewPane>
+            <PaperDocument
+              docType={cfg.docType}
+              docTypeEn={cfg.docTypeEn}
+              docNo="(ฉบับร่าง)"
+              issueDate={docDate}
+              seller={companyToSeller(company.data)}
+              customer={{ name: '—' }}
+              items={[{ description: reasonText?.trim() || t('reasonText'), amount: sub }]}
+              summary={{ subtotal: sub, vat, total: sub + vat, vatRate: rate * 100 }}
+              signRoles={cfg.signRoles}
+            />
+          </LivePreviewPane>
+        }
+      >
+      <form className="space-y-6"
+        onSubmit={handleSubmit(async (v) => { const id = await saveDraft(v); if (id) router.push(basePath); }, invalid)}>
+        {/* ① อ้างอิงใบกำกับภาษีเดิม */}
+        <SectionCard number={1} title={t('originalTi')}>
+          <Controller control={control} name="originalTaxInvoiceId" render={({ field, fieldState }) => (
+            <div>
+              <TaxInvoicePicker
+                value={field.value || null}
+                status="Posted"
+                ariaLabel="originalTaxInvoiceId"
+                onChange={(ti) => field.onChange(ti.taxInvoiceId)}
+              />
+              {fieldState.error && <span className="mt-2 block text-sm text-error" data-field-error="true">ระบุใบกำกับภาษีเดิม</span>}
+            </div>
+          )} />
+        </SectionCard>
 
-      <div className="preview-side">
-        <PaperDocument
-          docType={cfg.docType}
-          docTypeEn={cfg.docTypeEn}
-          docNo="(ฉบับร่าง)"
-          issueDate={docDate}
-          seller={companyToSeller(company.data)}
-          customer={{ name: '—' }}
-          items={[{ description: reasonText?.trim() || t('reasonText'), amount: sub }]}
-          summary={{ subtotal: sub, vat, total: sub + vat, vatRate: rate * 100 }}
-          signRoles={cfg.signRoles}
-        />
-      </div>
-      </div>
+        {/* ② ข้อมูลเอกสาร — เหตุผล + BU + วันที่ */}
+        <SectionCard number={2} title={tcr('docInfo')}>
+          <div className="space-y-4">
+            <DateInput value={docDate} locked label={tc('date')} />
+            <Controller control={control} name="reasonCode" render={({ field }) => (
+              <label className="form-control">
+                <span className="label-text">{t('reasonCode')} *</span>
+                <select className="select select-bordered" {...field}>
+                  {reasons.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+            )} />
+            <Controller control={control} name="reason" render={({ field, fieldState }) => (
+              <label className="form-control">
+                <span className="label-text">{t('reasonText')} *</span>
+                <textarea className="textarea textarea-bordered" rows={3} {...field} />
+                {fieldState.error && <span className="text-error text-sm" data-field-error="true">{fieldState.error.message}</span>}
+              </label>
+            )} />
+            <BusinessUnitSelector
+              value={businessUnitId}
+              onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
+              required={buRequired}
+              error={buError}
+            />
+          </div>
+        </SectionCard>
+
+        {/* ③ มูลค่าที่ปรับ + totals */}
+        <SectionCard number={3} title={t('subtotal')}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Controller control={control} name="adjustmentSubtotal" render={({ field }) => (
+                <label className="form-control">
+                  <span className="label-text">{t('subtotal')} *</span>
+                  <AmountInput value={field.value} onValueChange={field.onChange} aria-label="adjustmentSubtotal" />
+                </label>
+              )} />
+              <Controller control={control} name="taxRate" render={({ field }) => (
+                <label className="form-control">
+                  <span className="label-text">{t('taxRate')}</span>
+                  {/* Sprint 13i C2 — locked to the referenced Posted TI's VAT rate. */}
+                  {watch('originalTaxInvoiceId') > 0 ? (
+                    <input
+                      className="input input-bordered bg-base-200 tabular-nums"
+                      value={field.value}
+                      readOnly
+                      disabled
+                      aria-label="taxRate"
+                    />
+                  ) : (
+                    <AmountInput value={field.value} step={0.01} onValueChange={field.onChange} aria-label="taxRate" />
+                  )}
+                </label>
+              )} />
+            </div>
+            <TotalsSummaryBox
+              rows={totalRows}
+              grandLabel="รวมทั้งสิ้น"
+              grandValue={sub + vat}
+            />
+          </div>
+        </SectionCard>
+      </form>
+      </DocumentCreateLayout>
 
       <PostConfirmDialog
         docType={isCredit ? 'credit_note' : 'debit_note'}

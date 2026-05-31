@@ -5,16 +5,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { DateInput } from '@/components/ui/DateInput';
-import { VendorSelector } from '@/components/ui/VendorSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { apiPost } from '@/lib/api';
-import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting } from '@/lib/queries';
+import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
-import { bangkokToday, formatTHB } from '@/lib/utils';
+import { bangkokToday, formatTaxId } from '@/lib/utils';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
+import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
+import { SectionCard } from '@/components/create/SectionCard';
+import { PartySelectBox } from '@/components/create/PartySelectBox';
+import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
+import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
 interface Row {
   key: number; description: string; amount: number;
@@ -31,6 +36,7 @@ const emptyRow = (k: number): Row =>
 function PvForm() {
   const t = useTranslations('pv');
   const tc = useTranslations('common');
+  const tcr = useTranslations('create');
   const router = useRouter();
   const params = useSearchParams();
   const fromVi = params.get('fromVendorInvoiceId');
@@ -39,8 +45,10 @@ function PvForm() {
   const fromPo = params.get('fromPurchaseOrderId');
   const po = usePurchaseOrder(fromPo ? Number(fromPo) : null).data;
   const docDate = bangkokToday();
+  const company = useCompanyProfile();
 
   const [vendorId, setVendorId] = useState<number | null>(null);
+  const [vendorLabel, setVendorLabel] = useState('');
   // Sprint BU-PURCH — business unit, optional unless the company opted in.
   const buRequired = useCompanyBuSetting().data?.requiresBusinessUnit ?? false;
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
@@ -155,64 +163,130 @@ function PvForm() {
     }
   }
 
-  return (
-    <>
-      <PageHeader
-        title={t('create')}
-        subtitle={
-          fromVi
-            ? `${t('settlingVi')} #${fromVi}`
-            : fromPo
-              ? `${t('fromPo')} ${po?.docNo ?? `#${fromPo}`}`
-              : `${docDate}`
-        }
-      />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <VendorSelector value={vendorId} onChange={(id) => setVendorId(id)} />
-        <DateInput value={docDate} locked label="วันที่" />
-        <ExpenseCategorySelector
-          value={categoryId}
-          onChange={(id, cat) => { setCategoryId(id); setCatRecoverable(cat.defaultIsRecoverableVat); }}
-        />
-        <BusinessUnitSelector
-          value={businessUnitId}
-          onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); else setBuError(buRequired); }}
-          required={buRequired}
-          error={buError}
-        />
-        <label className="form-control">
-          <span className="label-text">{t('method')}</span>
-          <select className="select select-bordered" value={method}
-            onChange={(e) => setMethod(e.target.value as 'Cash' | 'Transfer' | 'Cheque')}>
-            <option value="Cash">Cash</option>
-            <option value="Transfer">Transfer</option>
-            <option value="Cheque">Cheque</option>
-          </select>
-        </label>
-        {method === 'Cheque' && (
-          <>
-            <label className="form-control">
-              <span className="label-text">Cheque No. *</span>
-              <input className="input input-bordered" value={chequeNo}
-                onChange={(e) => setChequeNo(e.target.value)} />
-            </label>
-            <label className="form-control">
-              <span className="label-text">Cheque Date *</span>
-              <input type="date" className="input input-bordered" value={chequeDate}
-                onChange={(e) => setChequeDate(e.target.value)} />
-            </label>
-          </>
-        )}
-      </div>
+  const cfg = PAPER_DOC['payment-voucher'];
+  const hasWht = wht > 0;
 
-      <div className="mt-6">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-semibold">{t('lines')}</h3>
-          <button className="btn btn-ghost btn-xs gap-1"
-            onClick={() => setRows((rs) => [...rs, emptyRow(Date.now())])}>
-            <Plus className="h-3 w-3" /> เพิ่มรายการ
+  const totalRows: TotalRow[] = [
+    { label: t('subtotal'), value: subtotal },
+    { label: t('vat'), value: vat },
+    { label: t('wht'), value: -wht, muted: true },
+  ];
+
+  const docMeta = fromVi
+    ? `${t('settlingVi')} #${fromVi}`
+    : fromPo
+      ? `${t('fromPo')} ${po?.docNo ?? `#${fromPo}`}`
+      : docDate;
+
+  return (
+    <DocumentCreateLayout
+      title={t('create')}
+      docMeta={docMeta}
+      actions={
+        <>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => router.push('/payment-vouchers')}
+            disabled={busy}
+          >
+            {tcr('cancel')}
           </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={!canSave || busy}
+            onClick={saveDraft}
+          >
+            {tc('save')}
+          </button>
+        </>
+      }
+      preview={
+        <LivePreviewPane>
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo="(ฉบับร่าง)"
+            issueDate={docDate}
+            seller={companyToSeller(company.data)}
+            partyLabel={{ th: 'ผู้ขาย', en: 'Vendor' }}
+            customer={{
+              name: vendorLabel || '—',
+              taxId: vendor?.taxId ? formatTaxId(vendor.taxId) : null,
+              branchCode: vendor?.branchCode ?? null,
+              address: vendor?.address ?? null,
+            }}
+            items={rows.map((r) => ({ description: r.description, amount: r.amount }))}
+            summary={{
+              subtotal,
+              beforeVat: subtotal,
+              vat,
+              total: subtotal + vat,
+              wht: hasWht ? wht : null,
+            }}
+            signRoles={cfg.signRoles}
+            extraMetaBlock={
+              <div className="text-[12px] leading-relaxed text-ink-700">
+                <div><b>{t('method')}:</b> {method}
+                  {method === 'Cheque' && chequeNo ? ` (${chequeNo}${chequeDate ? ` / ${chequeDate}` : ''})` : ''}</div>
+              </div>
+            }
+          />
+        </LivePreviewPane>
+      }
+    >
+      {/* ① ผู้ขาย */}
+      <SectionCard number={1} title={t('vendor')}>
+        <PartySelectBox
+          kind="vendor"
+          party={vendorId}
+          onChange={(id, label) => { setVendorId(id); setVendorLabel(label); }}
+        />
+      </SectionCard>
+
+      {/* ② ข้อมูลเอกสาร + การชำระเงิน */}
+      <SectionCard number={2} title={tcr('docInfo')}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DateInput value={docDate} locked label="วันที่" />
+          <ExpenseCategorySelector
+            value={categoryId}
+            onChange={(id, cat) => { setCategoryId(id); setCatRecoverable(cat.defaultIsRecoverableVat); }}
+          />
+          <BusinessUnitSelector
+            value={businessUnitId}
+            onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); else setBuError(buRequired); }}
+            required={buRequired}
+            error={buError}
+          />
+          <label className="form-control">
+            <span className="label-text">{t('method')}</span>
+            <select className="select select-bordered" value={method}
+              onChange={(e) => setMethod(e.target.value as 'Cash' | 'Transfer' | 'Cheque')}>
+              <option value="Cash">Cash</option>
+              <option value="Transfer">Transfer</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+          </label>
+          {method === 'Cheque' && (
+            <>
+              <label className="form-control">
+                <span className="label-text">Cheque No. *</span>
+                <input className="input input-bordered" value={chequeNo}
+                  onChange={(e) => setChequeNo(e.target.value)} />
+              </label>
+              <label className="form-control">
+                <span className="label-text">Cheque Date *</span>
+                <input type="date" className="input input-bordered" value={chequeDate}
+                  onChange={(e) => setChequeDate(e.target.value)} />
+              </label>
+            </>
+          )}
         </div>
+      </SectionCard>
+
+      {/* ③ รายการ + self-withhold + totals */}
+      <SectionCard number={3} title={t('lines')} rightMeta={tcr('lineCount', { n: rows.length })}>
         <div className="space-y-3">
           {rows.map((r) => (
             <div key={r.key} className="grid grid-cols-1 gap-3 rounded-lg border border-base-300 p-3 md:grid-cols-4">
@@ -270,44 +344,42 @@ function PvForm() {
             </div>
           ))}
         </div>
-      </div>
-
-      {!fromVi && (
-        <div className="mt-4 rounded-lg border border-base-300 p-3">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" className="toggle toggle-warning toggle-sm"
-              checked={selfWithhold} disabled={selfWithholdLocked}
-              onChange={(e) => setManualSelfWithhold(e.target.checked)} />
-            <span className="font-semibold">{t('selfWithhold.toggle')}</span>
-          </label>
-          {foreignNoVatD && (
-            <p className="mt-1 text-xs text-warning">{t('selfWithhold.autoLockedForeign')}</p>
-          )}
-          {foreignVatD && (
-            <p className="mt-1 text-xs text-info">{t('selfWithhold.vatDInfo')}</p>
-          )}
-          {!selfWithholdLocked && selfWithhold && (
-            <p className="mt-1 text-xs text-base-content/60">{t('selfWithhold.explanation')}</p>
-          )}
-        </div>
-      )}
-
-      <div className="mt-6 flex items-end justify-between">
-        <dl className="w-72 space-y-1 text-sm">
-          <div className="flex justify-between"><dt className="text-base-content/60">{t('subtotal')}</dt>
-            <dd className="tabular-nums">{formatTHB(subtotal)}</dd></div>
-          <div className="flex justify-between"><dt className="text-base-content/60">{t('vat')}</dt>
-            <dd className="tabular-nums">{formatTHB(vat)}</dd></div>
-          <div className="flex justify-between"><dt className="text-base-content/60">{t('wht')}</dt>
-            <dd className="tabular-nums">−{formatTHB(wht)}</dd></div>
-          <div className="flex justify-between border-t pt-1 font-bold"><dt>{t('netPaid')}</dt>
-            <dd className="tabular-nums">{formatTHB(net)}</dd></div>
-        </dl>
-        <button className="btn btn-primary" disabled={!canSave || busy} onClick={saveDraft}>
-          {tc('save')}
+        <button
+          type="button"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-field border border-dashed border-ink-200 bg-base-100 py-3 text-sm font-medium text-peach-700 hover:border-peach-300 hover:bg-peach-50"
+          onClick={() => setRows((rs) => [...rs, emptyRow(Date.now())])}>
+          <Plus className="h-4 w-4" aria-hidden /> เพิ่มรายการ
         </button>
-      </div>
-    </>
+
+        {!fromVi && (
+          <div className="mt-4 rounded-lg border border-base-300 p-3">
+            <label className="label cursor-pointer justify-start gap-3">
+              <input type="checkbox" className="toggle toggle-warning toggle-sm"
+                checked={selfWithhold} disabled={selfWithholdLocked}
+                onChange={(e) => setManualSelfWithhold(e.target.checked)} />
+              <span className="font-semibold">{t('selfWithhold.toggle')}</span>
+            </label>
+            {foreignNoVatD && (
+              <p className="mt-1 text-xs text-warning">{t('selfWithhold.autoLockedForeign')}</p>
+            )}
+            {foreignVatD && (
+              <p className="mt-1 text-xs text-info">{t('selfWithhold.vatDInfo')}</p>
+            )}
+            {!selfWithholdLocked && selfWithhold && (
+              <p className="mt-1 text-xs text-base-content/60">{t('selfWithhold.explanation')}</p>
+            )}
+          </div>
+        )}
+
+        <div className="mt-4">
+          <TotalsSummaryBox
+            rows={totalRows}
+            grandLabel={t('netPaid')}
+            grandValue={net}
+          />
+        </div>
+      </SectionCard>
+    </DocumentCreateLayout>
   );
 }
 

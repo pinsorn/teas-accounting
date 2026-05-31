@@ -7,13 +7,18 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { VendorSelector } from '@/components/ui/VendorSelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
-import { useCreatePurchaseOrder, useSystemInfo, useVendor, useCompanyBuSetting } from '@/lib/queries';
-import { bangkokToday, formatTHB } from '@/lib/utils';
+import { useCreatePurchaseOrder, useSystemInfo, useVendor, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
+import { bangkokToday, formatTaxId } from '@/lib/utils';
 import { onInvalidSubmit } from '@/lib/forms';
+import { PaperDocument } from '@/components/paper/PaperDocument';
+import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
+import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
+import { SectionCard } from '@/components/create/SectionCard';
+import { PartySelectBox } from '@/components/create/PartySelectBox';
+import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
+import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
 // Sprint 13j-PURCH Phase F — full PO create form (replaces the 1-line MVP stub
 // that hardcoded taxCodeId:1/VAT7/0.07 on a single line). Lifts to "VI quality":
@@ -21,6 +26,9 @@ import { onInvalidSubmit } from '@/lib/forms';
 // per Plan §7), real VAT-rate selector (std rate from /system/info, never
 // hardcoded — CLAUDE.md §4.6) + per-line discount %, RHF+Zod, specific Thai
 // toast errors (no generic-only fallback — BUG #SR9). Submit→detail redirect kept.
+// cont.80 — restyled into the shared DocumentCreateLayout + added a live A4 preview
+// (PO prints as a buyer-issued doc: seller=our company, customer slot=the vendor),
+// mirroring the PO detail page. Fields/validation/payload unchanged.
 const lineSchema = z.object({
   descriptionTh: z.string().min(1),
   quantity: z.number().positive(),
@@ -37,12 +45,16 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+const FORM_ID = 'purchase-order-create-form';
+
 export default function NewPurchaseOrderPage() {
   const t = useTranslations('purchaseOrder');
   const tc = useTranslations('common');
   const tt = useTranslations('toast');
+  const tcr = useTranslations('create');
   const router = useRouter();
   const create = useCreatePurchaseOrder();
+  const company = useCompanyProfile();
   // Non-VAT companies (ม.86): LineItemsTable hides the VAT column; force the
   // effective rate to 0 so a stale default rate never leaks into totals/payload.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
@@ -57,6 +69,7 @@ export default function NewPurchaseOrderPage() {
   // ITEM 1 — expected-delivery defaults to today (editable), same source as docDate.
   const [expected, setExpected] = useState(today);
   const [notes, setNotes] = useState('');
+  const [vendorLabel, setVendorLabel] = useState('');
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 
@@ -136,30 +149,102 @@ export default function NewPurchaseOrderPage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader title={t('create')} subtitle={docDate} />
+  const cfg = PAPER_DOC['purchase-order'];
+  const submitSave = handleSubmit(submit, invalid);
 
-      <form onSubmit={handleSubmit(submit, invalid)} className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Controller
-            control={control}
-            name="vendorId"
-            render={({ field, fieldState }) => (
-              <div>
-                <VendorSelector
-                  value={field.value || null}
-                  onChange={(id) => field.onChange(id ?? 0)}
-                />
-                {fieldState.error && (
-                  <span className="text-error text-sm" data-field-error="true">
-                    {t('pickVendor')}
-                  </span>
-                )}
-              </div>
-            )}
+  const totalRows: TotalRow[] = [
+    { label: t('subtotal'), value: totals.subtotal },
+    { label: t('discount'), value: -totals.discount, muted: true },
+    ...(vendorVat ? [{ label: t('vat'), value: totals.vat }] : []),
+  ];
+
+  return (
+    <DocumentCreateLayout
+      title={t('create')}
+      docMeta={docDate}
+      actions={
+        <>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => router.push('/purchase-orders')}
+            disabled={isSubmitting || create.isPending}
+          >
+            {tcr('cancel')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={isSubmitting || create.isPending}
+            onClick={submitSave}
+          >
+            {tc('save')}
+          </button>
+        </>
+      }
+      preview={
+        <LivePreviewPane>
+          <PaperDocument
+            docType={cfg.docType}
+            docTypeEn={cfg.docTypeEn}
+            docNo="(ฉบับร่าง)"
+            issueDate={docDate}
+            validUntil={expected || undefined}
+            validUntilLabel={cfg.validUntilLabel}
+            seller={companyToSeller(company.data)}
+            partyLabel={{ th: 'ผู้ขาย', en: 'Vendor' }}
+            customer={{
+              name: vendorLabel || '—',
+              taxId: vendor?.taxId ? formatTaxId(vendor.taxId) : null,
+              branchCode: vendor?.branchCode ?? null,
+              address: vendor?.address ?? null,
+              contact: vendor?.contactPerson ?? null,
+              phone: vendor?.phone ?? null,
+            }}
+            items={lines.map((l) => ({
+              description: l.descriptionTh,
+              quantity: l.quantity,
+              unit: l.uomText,
+              unitPrice: l.unitPrice,
+              discountPercent: l.discountPercent,
+              amount: l.quantity * l.unitPrice * (1 - (l.discountPercent ?? 0) / 100),
+            }))}
+            summary={{
+              subtotal: totals.subtotal,
+              discount: totals.discount,
+              vat: totals.vat,
+              total: totals.total,
+            }}
+            notes={notes || null}
+            signRoles={cfg.signRoles}
           />
-          <div className="grid grid-cols-2 gap-3">
+        </LivePreviewPane>
+      }
+    >
+      <form id={FORM_ID} onSubmit={submitSave} className="space-y-6">
+        {/* ① ผู้ขาย */}
+        <Controller
+          control={control}
+          name="vendorId"
+          render={({ field, fieldState }) => (
+            <SectionCard number={1} title={t('vendor')}>
+              <PartySelectBox
+                kind="vendor"
+                party={field.value || null}
+                onChange={(id, label) => { field.onChange(id ?? 0); setVendorLabel(label); }}
+              />
+              {fieldState.error && (
+                <span className="mt-2 block text-sm text-error" data-field-error="true">
+                  {t('pickVendor')}
+                </span>
+              )}
+            </SectionCard>
+          )}
+        />
+
+        {/* ② ข้อมูลเอกสาร */}
+        <SectionCard number={2} title={tcr('docInfo')}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="form-control">
               <span className="label-text">{t('docDate')}</span>
               <input
@@ -180,76 +265,57 @@ export default function NewPurchaseOrderPage() {
                 aria-label={t('expectedDelivery')}
               />
             </label>
-          </div>
-          <BusinessUnitSelector
-            value={businessUnitId}
-            onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
-            required={buRequired}
-            error={buError}
-          />
-        </div>
-
-        <Controller
-          control={control}
-          name="lines"
-          render={({ field, fieldState }) => (
-            <div>
-              <LineItemsTable
-                value={field.value as LineItem[]}
-                onChange={field.onChange}
-                enableProduct
-                vatEnabled={vendorVat}
+            <div className="sm:col-span-2">
+              <BusinessUnitSelector
+                value={businessUnitId}
+                onChange={(id) => { setBusinessUnitId(id); if (id) setBuError(false); }}
+                required={buRequired}
+                error={buError}
               />
-              {fieldState.error && (
-                <span className="text-error text-sm" data-field-error="true">
-                  {tt('lineRequired')}
-                </span>
-              )}
             </div>
-          )}
-        />
+          </div>
+        </SectionCard>
 
-        <label className="form-control">
-          <span className="label-text">{t('notes')}</span>
+        {/* ③ รายการ + totals */}
+        <SectionCard number={3} title={tcr('lines')} rightMeta={tcr('lineCount', { n: lines.length })}>
+          <Controller
+            control={control}
+            name="lines"
+            render={({ field, fieldState }) => (
+              <div className="space-y-4">
+                <LineItemsTable
+                  value={field.value as LineItem[]}
+                  onChange={field.onChange}
+                  enableProduct
+                  vatEnabled={vendorVat}
+                  hideHeading
+                />
+                {fieldState.error && (
+                  <span className="block text-sm text-error" data-field-error="true">
+                    {tt('lineRequired')}
+                  </span>
+                )}
+                <TotalsSummaryBox
+                  rows={totalRows}
+                  grandLabel={t('total')}
+                  grandValue={totals.total}
+                />
+              </div>
+            )}
+          />
+        </SectionCard>
+
+        {/* ④ หมายเหตุ */}
+        <SectionCard number={4} title={t('notes')}>
           <textarea
-            className="textarea textarea-bordered"
+            className="textarea textarea-bordered w-full"
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             aria-label={t('notes')}
           />
-        </label>
-
-        <div className="flex items-end justify-between">
-          <dl className="w-64 space-y-1 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-base-content/60">{t('subtotal')}</dt>
-              <dd className="tabular-nums">{formatTHB(totals.subtotal)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-base-content/60">{t('discount')}</dt>
-              <dd className="tabular-nums">-{formatTHB(totals.discount)}</dd>
-            </div>
-            {vendorVat && (
-              <div className="flex justify-between">
-                <dt className="text-base-content/60">{t('vat')}</dt>
-                <dd className="tabular-nums">{formatTHB(totals.vat)}</dd>
-              </div>
-            )}
-            <div className="flex justify-between border-t pt-1 font-bold">
-              <dt>{t('total')}</dt>
-              <dd className="tabular-nums">{formatTHB(totals.total)}</dd>
-            </div>
-          </dl>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={isSubmitting || create.isPending}
-          >
-            {tc('save')}
-          </button>
-        </div>
+        </SectionCard>
       </form>
-    </>
+    </DocumentCreateLayout>
   );
 }

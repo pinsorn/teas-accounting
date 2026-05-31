@@ -11,7 +11,14 @@
   },
   "create": {
     "cancel": "Cancel",
-    "livePreview": "Live preview"
+    "livePreview": "Live preview",
+    "docInfo": "Document info",
+    "lines": "Items",
+    "notes": "Notes",
+    "lineCount": "{n} items",
+    "source": "Source",
+    "whtSection": "Withholding tax",
+    "payment": "Payment"
   },
   "postConfirm": {
     "title": {
