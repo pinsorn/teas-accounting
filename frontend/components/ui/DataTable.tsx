@@ -139,7 +139,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-base-300">
+      <div className="overflow-x-auto rounded-lg border border-base-300 bg-base-100">
         <table className="table table-zebra">
           <thead>
             {table.getHeaderGroups().map((hg) => (
