@@ -1,22 +1,75 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus, Search } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { useCustomers } from '@/lib/queries';
+import type { CustomerListItem } from '@/lib/types';
 import { formatTaxId } from '@/lib/utils';
 
-// Sprint 13j-FE — Customer master list (sales). Mirrors /vendors, restyled with
-// peach/ink tokens + mascot empty state. BE: GET /customers (CustomerEndpoints).
+// Sprint 13j-FE — Customer master list (sales). cont.82 — table rebuilt on the
+// shared <DataTable>; existing server search (useCustomers) stays, DataTable's own
+// global search is off to avoid a second box; mascot EmptyState kept for no-data.
 export default function CustomerListPage() {
   const t = useTranslations('cust');
   const tc = useTranslations('common');
   const [search, setSearch] = useState('');
   const q = useCustomers(search.trim() || undefined);
   const rows = q.data ?? [];
+
+  const columns = useMemo<ColumnDef<CustomerListItem>[]>(() => [
+    {
+      accessorKey: 'customerCode', header: t('code'),
+      cell: ({ row }) => (
+        <RowLink href={`/customers/${row.original.customerId}`} mono>
+          {row.original.customerCode}
+        </RowLink>
+      ),
+    },
+    {
+      accessorKey: 'nameTh', header: t('nameTh'),
+      cell: ({ row }) => (
+        <Link href={`/customers/${row.original.customerId}`} className="font-medium text-ink-900 hover:text-peach-700 hover:underline">
+          {row.original.nameTh}
+          {row.original.nameEn && <span className="ml-2 text-xs text-ink-400">{row.original.nameEn}</span>}
+        </Link>
+      ),
+    },
+    {
+      accessorKey: 'taxId', header: t('taxId'),
+      cell: ({ getValue }) => <span className="font-mono tabular-nums text-ink-600">{formatTaxId(getValue<string | null>())}</span>,
+    },
+    {
+      accessorFn: (c) => (c.customerType === 'Individual' ? t('individual') : t('corporate')),
+      id: 'customerType', header: t('type'), meta: { filter: 'select', filterLabel: t('type') },
+    },
+    {
+      accessorKey: 'vatRegistered', header: 'VAT', enableSorting: false,
+      cell: ({ getValue }) => getValue<boolean>()
+        ? <span className="rounded-full bg-status-success-bg px-2 py-0.5 text-xs font-semibold text-status-success">VAT</span>
+        : <span className="text-ink-300">—</span>,
+    },
+    {
+      accessorFn: (c) => (c.isActive ? tc('active') : tc('inactive')),
+      id: 'isActive', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ row }) => row.original.isActive
+        ? <span className="inline-flex items-center gap-1.5 rounded-full bg-status-success-bg px-2.5 py-0.5 text-xs font-semibold text-status-success"><span className="h-1.5 w-1.5 rounded-full bg-current" />{tc('active')}</span>
+        : <span className="inline-flex items-center gap-1.5 rounded-full bg-status-draft-bg px-2.5 py-0.5 text-xs font-semibold text-status-draft"><span className="h-1.5 w-1.5 rounded-full bg-current" />{tc('inactive')}</span>,
+    },
+    {
+      id: 'actions', header: '', enableSorting: false, meta: { align: 'right' },
+      cell: ({ row }) => (
+        <Link href={`/customers/${row.original.customerId}`} className="btn btn-ghost btn-xs gap-1 text-peach-700">
+          {tc('view')}
+        </Link>
+      ),
+    },
+  ], [t, tc]);
 
   return (
     <>
@@ -48,66 +101,13 @@ export default function CustomerListPage() {
           cta={{ label: t('create'), href: '/customers/new' }}
         />
       ) : (
-        <div className="overflow-x-auto rounded-card border border-ink-100 bg-base-100 shadow-warm-sm">
-          <table className="table">
-            <thead>
-              <tr className="border-ink-100 text-ink-500">
-                <th>{t('code')}</th>
-                <th>{t('nameTh')}</th>
-                <th>{t('taxId')}</th>
-                <th>{t('type')}</th>
-                <th>VAT</th>
-                <th>{tc('status')}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {q.isLoading && (
-                <tr><td colSpan={7} className="py-8 text-center text-ink-400">{tc('loading')}</td></tr>
-              )}
-              {rows.map((c) => (
-                <tr key={c.customerId} className="hover:bg-base-200">
-                  <td>
-                    <Link href={`/customers/${c.customerId}`} className="font-mono font-semibold text-peach-700 hover:underline">
-                      {c.customerCode}
-                    </Link>
-                  </td>
-                  <td className="font-medium text-ink-900">
-                    <Link href={`/customers/${c.customerId}`} className="hover:text-peach-700 hover:underline">
-                      {c.nameTh}
-                      {c.nameEn && <span className="ml-2 text-xs text-ink-400">{c.nameEn}</span>}
-                    </Link>
-                  </td>
-                  <td className="font-mono tabular-nums text-ink-600">{formatTaxId(c.taxId)}</td>
-                  <td className="text-ink-600">{c.customerType === 'Individual' ? t('individual') : t('corporate')}</td>
-                  <td>
-                    {c.vatRegistered ? (
-                      <span className="rounded-full bg-status-success-bg px-2 py-0.5 text-xs font-semibold text-status-success">VAT</span>
-                    ) : (
-                      <span className="text-ink-300">—</span>
-                    )}
-                  </td>
-                  <td>
-                    {c.isActive ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-success-bg px-2.5 py-0.5 text-xs font-semibold text-status-success">
-                        <span className="h-1.5 w-1.5 rounded-full bg-current" />{tc('active')}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-draft-bg px-2.5 py-0.5 text-xs font-semibold text-status-draft">
-                        <span className="h-1.5 w-1.5 rounded-full bg-current" />{tc('inactive')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="text-right">
-                    <Link href={`/customers/${c.customerId}`} className="btn btn-ghost btn-xs gap-1 text-peach-700">
-                      {tc('view')}
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={rows}
+          columns={columns}
+          isLoading={q.isLoading}
+          getRowId={(r) => String(r.customerId)}
+          globalSearch={false}
+        />
       )}
     </>
   );

@@ -1,92 +1,74 @@
 'use client';
 
-import Link from 'next/link';
+import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
-import { ListFilters } from '@/components/ui/ListFilters';
+import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
 import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { applyListFilters } from '@/lib/list-filter';
 import { useVendorInvoices } from '@/lib/queries';
-import { formatTHB, formatDate } from '@/lib/utils';
+import type { VendorInvoiceListItem } from '@/lib/types';
+import { formatTHB } from '@/lib/utils';
 
-// Sprint 13j-PURCH D5 — VI statuses for the status filter chip.
-const VI_STATUSES = ['Draft', 'Posted', 'Cancelled'] as const;
-
+// cont.82 — VI list rebuilt on the shared <DataTable> (TanStack). The server-side
+// incompleteOnly flag stays wired through the hook (toggle above the table); client-side
+// global search + per-column filters (status / vendor), sortable headers, docNo → detail.
 export default function VendorInvoiceListPage() {
   const t = useTranslations('vi');
   const tc = useTranslations('common');
   const params = useSearchParams();
   const incompleteOnly = params.get('incompleteOnly') === 'true';
   const q = useVendorInvoices(incompleteOnly);
-  const loaded = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const rows = applyListFilters(loaded, params, {
-    status: (r) => r.status,
-    docDate: (r) => r.docDate,
-  });
+
+  const columns = useMemo<ColumnDef<VendorInvoiceListItem>[]>(() => [
+    {
+      accessorKey: 'docNo',
+      header: t('docNo'),
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <RowLink href={`/vendor-invoices/${row.original.vendorInvoiceId}`} mono>
+            {row.original.docNo ?? `#${row.original.vendorInvoiceId}`}
+          </RowLink>
+          {row.original.status === 'Posted' && <IncompleteFlag isComplete={row.original.isComplete} />}
+        </div>
+      ),
+    },
+    { accessorKey: 'vendorTaxInvoiceNo', header: t('vendorTiNo'),
+      cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
+    },
+    { accessorKey: 'vendorName', header: t('vendor'), meta: { filter: 'text', filterLabel: t('vendor') } },
+    {
+      accessorKey: 'vatClaimPeriod', header: t('claimPeriod'),
+      cell: ({ getValue }) => <span className="tabular-nums">{getValue<number>()}</span>,
+    },
+    {
+      accessorKey: 'totalAmount', header: t('total'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
+    },
+    {
+      accessorKey: 'status', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+    },
+  ], [t, tc]);
 
   return (
     <>
       {/* purchase-completeness D1 — anti-floating: NO "create floating VI" entry
           point. VI creation is reached from the PV (PV→VI guided create). */}
       <PageHeader title={t('title')} subtitle={t('createFromPvHint')} />
-      <ListFilters statusOptions={VI_STATUSES} statusTestId="vi-filter-status" party="vendor" />
       <IncompleteOnlyToggle />
-      {q.isSuccess && rows.length === 0 ? (
-        <EmptyState
-          title={t('title')}
-          description={t('createFromPvHint')}
-        />
-      ) : (
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead>
-            <tr>
-              <th>{t('docNo')}</th><th>{t('vendorTiNo')}</th><th>{t('vendor')}</th>
-              <th>{t('claimPeriod')}</th>
-              <th className="text-right">{t('total')}</th>
-              {/* ITEM 6 — settlement column dropped: vendor payments are full-amount,
-                  so settlement status is noise in the list (kept in the data only). */}
-              <th>{tc('status')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.isLoading && (
-              <tr><td colSpan={6} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.vendorInvoiceId} className="hover">
-                <td>
-                  <div className="flex items-center gap-2">
-                    <Link href={`/vendor-invoices/${r.vendorInvoiceId}`}>
-                      <DocumentNumberBadge value={r.docNo} />
-                    </Link>
-                    {r.status === 'Posted' && <IncompleteFlag isComplete={r.isComplete} />}
-                  </div>
-                </td>
-                <td className="font-mono">{r.vendorTaxInvoiceNo}</td>
-                <td>{r.vendorName}</td>
-                <td className="tabular-nums">{r.vatClaimPeriod}</td>
-                <td className="text-right tabular-nums">{formatTHB(r.totalAmount)}</td>
-                <td><StatusBadge status={r.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-      {q.hasNextPage && (
-        <div className="mt-4 text-center">
-          <button className="btn btn-ghost btn-sm" onClick={() => q.fetchNextPage()}
-            disabled={q.isFetchingNextPage}>
-            {tc('loadMore')}
-          </button>
-        </div>
-      )}
+      <DataTable
+        data={q.data ?? []}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.vendorInvoiceId)}
+        searchPlaceholder={t('docNo')}
+        initialSorting={[{ id: 'docNo', desc: true }]}
+        emptyContent={t('createFromPvHint')}
+      />
     </>
   );
 }

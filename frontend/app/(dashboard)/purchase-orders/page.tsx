@@ -1,29 +1,60 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { ListFilters } from '@/components/ui/ListFilters';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { applyListFilters } from '@/lib/list-filter';
+import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { usePurchaseOrders } from '@/lib/queries';
+import type { PurchaseOrderListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
-// Sprint 13j-PURCH D5 — PO statuses for the status filter chip.
-const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Closed', 'Cancelled'] as const;
-
+// cont.82 — PO list rebuilt on the shared <DataTable> (TanStack): client-side global
+// search, per-column filters (status / vendor), sortable headers, clickable docNo → detail.
 export default function PurchaseOrdersPage() {
   const t = useTranslations('purchaseOrder');
   const tc = useTranslations('common');
-  const params = useSearchParams();
   const q = usePurchaseOrders();
-  const rows = applyListFilters(q.data ?? [], params, {
-    status: (r) => r.status,
-    docDate: (r) => r.docDate,
-  });
+
+  const columns = useMemo<ColumnDef<PurchaseOrderListItem>[]>(() => [
+    {
+      accessorKey: 'docNo',
+      header: t('docNo'),
+      cell: ({ row }) => (
+        <RowLink href={`/purchase-orders/${row.original.purchaseOrderId}`} mono>
+          {row.original.docNo ?? `#${row.original.purchaseOrderId}`}
+        </RowLink>
+      ),
+    },
+    {
+      accessorKey: 'status', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+    },
+    { accessorKey: 'vendorName', header: t('vendor'), meta: { filter: 'text', filterLabel: t('vendor') } },
+    {
+      accessorKey: 'docDate', header: tc('date'),
+      cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
+    },
+    {
+      accessorKey: 'expectedDeliveryDate', header: t('expectedDelivery'),
+      cell: ({ getValue }) => <span className="tabular-nums">{getValue<string | null>() ? formatDate(getValue<string>()) : '—'}</span>,
+    },
+    {
+      accessorKey: 'totalAmount', header: t('total'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
+    },
+    {
+      id: 'actions', header: '', enableSorting: false, meta: { align: 'right' },
+      cell: ({ row }) => (
+        <Link href={`/purchase-orders/${row.original.purchaseOrderId}`} className="btn btn-ghost btn-xs">
+          {tc('view')}
+        </Link>
+      ),
+    },
+  ], [t, tc]);
 
   return (
     <>
@@ -32,40 +63,14 @@ export default function PurchaseOrdersPage() {
           <Plus className="h-4 w-4" aria-hidden /> {t('create')}
         </Link>
       } />
-      <ListFilters statusOptions={PO_STATUSES} statusTestId="po-filter-status" party="vendor" />
-      {q.isSuccess && rows.length === 0 ? (
-        <EmptyState
-          title={t('listTitle')}
-          description={tc('empty')}
-          cta={{ label: t('create'), href: '/purchase-orders/new' }}
-        />
-      ) : (
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead><tr>
-            <th>{t('docNo')}</th><th>{tc('status')}</th><th>{t('vendor')}</th>
-            <th>{t('expectedDelivery')}</th><th className="text-right">{t('total')}</th><th />
-          </tr></thead>
-          <tbody>
-            {q.isLoading && (<tr><td colSpan={6} className="py-6 text-center text-base-content/50">{tc('loading')}</td></tr>)}
-            {rows.map((r) => (
-              <tr key={r.purchaseOrderId}>
-                <td className="font-mono">{r.docNo ?? `#${r.purchaseOrderId}`}</td>
-                <td><StatusBadge status={r.status} /></td>
-                <td>{r.vendorName}</td>
-                <td className="tabular-nums">{r.expectedDeliveryDate ? formatDate(r.expectedDeliveryDate) : '—'}</td>
-                <td className="text-right tabular-nums">{formatTHB(r.totalAmount)}</td>
-                <td className="text-right">
-                  <Link href={`/purchase-orders/${r.purchaseOrderId}`} className="btn btn-ghost btn-xs">
-                    {tc('view')}
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
+      <DataTable
+        data={q.data ?? []}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.purchaseOrderId)}
+        searchPlaceholder={t('docNo')}
+        initialSorting={[{ id: 'docDate', desc: true }]}
+      />
     </>
   );
 }

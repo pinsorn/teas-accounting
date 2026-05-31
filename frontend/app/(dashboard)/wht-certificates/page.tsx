@@ -1,76 +1,63 @@
 'use client';
 
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { ListFilters } from '@/components/ui/ListFilters';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { applyListFilters } from '@/lib/list-filter';
+import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { useWhtCertificates } from '@/lib/queries';
+import type { WhtCertificateListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
-// Sprint 13j-PURCH D5 — WHT cert statuses for the status filter chip.
-const WHT_STATUSES = ['Draft', 'Posted', 'Cancelled'] as const;
-
+// cont.82 — WHT cert list rebuilt on the shared <DataTable> (TanStack): client-side
+// global search + per-column filters (status / payee), sortable headers, docNo → detail.
 export default function WhtCertificateListPage() {
   const t = useTranslations('wht');
   const tc = useTranslations('common');
-  const params = useSearchParams();
   const q = useWhtCertificates();
-  const loaded = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const rows = applyListFilters(loaded, params, {
-    status: (r) => r.status,
-    docDate: (r) => r.certDate, // WHT uses certDate; dateFrom/dateTo filter on it
-  });
+
+  const columns = useMemo<ColumnDef<WhtCertificateListItem>[]>(() => [
+    {
+      accessorKey: 'docNo',
+      header: t('docNo'),
+      cell: ({ row }) => (
+        <RowLink href={`/wht-certificates/${row.original.whtCertificateId}`} mono>
+          {row.original.docNo ?? `#${row.original.whtCertificateId}`}
+        </RowLink>
+      ),
+    },
+    {
+      accessorKey: 'certDate', header: tc('date'),
+      cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
+    },
+    { accessorKey: 'payeeName', header: t('payee'), meta: { filter: 'text', filterLabel: t('payee') } },
+    { accessorKey: 'formType', header: t('formType') },
+    {
+      accessorKey: 'incomeTypeCode', header: t('incomeType'),
+      cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
+    },
+    {
+      accessorKey: 'whtAmount', header: t('whtAmount'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
+    },
+    {
+      accessorKey: 'status', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+    },
+  ], [t, tc]);
 
   return (
     <>
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
-      <ListFilters statusOptions={WHT_STATUSES} statusTestId="wht-filter-status" party="vendor" />
-      {q.isSuccess && rows.length === 0 ? (
-        <EmptyState title={t('title')} description={tc('empty')} />
-      ) : (
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead>
-            <tr>
-              <th>{t('docNo')}</th><th>{tc('date')}</th><th>{t('payee')}</th>
-              <th>{t('formType')}</th><th>{t('incomeType')}</th>
-              <th className="text-right">{t('whtAmount')}</th><th>{tc('status')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.isLoading && (
-              <tr><td colSpan={7} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.whtCertificateId} className="hover">
-                <td>
-                  <Link href={`/wht-certificates/${r.whtCertificateId}`}
-                    className="link link-primary font-mono">{r.docNo}</Link>
-                </td>
-                <td className="tabular-nums">{formatDate(r.certDate)}</td>
-                <td>{r.payeeName}</td>
-                <td>{r.formType}</td>
-                <td className="font-mono">{r.incomeTypeCode}</td>
-                <td className="text-right tabular-nums">{formatTHB(r.whtAmount)}</td>
-                <td><StatusBadge status={r.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-      {q.hasNextPage && (
-        <div className="mt-4 text-center">
-          <button className="btn btn-ghost btn-sm" onClick={() => q.fetchNextPage()}
-            disabled={q.isFetchingNextPage}>
-            {tc('loadMore')}
-          </button>
-        </div>
-      )}
+      <DataTable
+        data={q.data ?? []}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.whtCertificateId)}
+        searchPlaceholder={t('docNo')}
+        initialSorting={[{ id: 'certDate', desc: true }]}
+      />
     </>
   );
 }

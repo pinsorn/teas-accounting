@@ -1,34 +1,61 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
-import { ListFilters } from '@/components/ui/ListFilters';
+import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
 import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { applyListFilters } from '@/lib/list-filter';
 import { usePaymentVouchers } from '@/lib/queries';
+import type { PaymentVoucherListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
-// Sprint 13j-PURCH D5 — PV statuses for the status filter chip.
-const PV_STATUSES = ['Draft', 'Approved', 'Posted', 'Cancelled'] as const;
-
+// cont.82 — PV list rebuilt on the shared <DataTable> (TanStack). The server-side
+// incompleteOnly flag stays wired through the hook (toggle above the table); client-side
+// global search + per-column filters (status / vendor), sortable headers, docNo → detail.
 export default function PaymentVoucherListPage() {
   const t = useTranslations('pv');
   const tc = useTranslations('common');
   const params = useSearchParams();
   const incompleteOnly = params.get('incompleteOnly') === 'true';
   const q = usePaymentVouchers(incompleteOnly);
-  const loaded = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const rows = applyListFilters(loaded, params, {
-    status: (r) => r.status,
-    docDate: (r) => r.docDate,
-  });
+
+  const columns = useMemo<ColumnDef<PaymentVoucherListItem>[]>(() => [
+    {
+      accessorKey: 'docNo',
+      header: t('docNo'),
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <RowLink href={`/payment-vouchers/${row.original.paymentVoucherId}`} mono>
+            {row.original.docNo ?? `#${row.original.paymentVoucherId}`}
+          </RowLink>
+          {row.original.status === 'Posted' && <IncompleteFlag isComplete={row.original.isComplete} />}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'docDate', header: tc('date'),
+      cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
+    },
+    { accessorKey: 'vendorName', header: t('vendor'), meta: { filter: 'text', filterLabel: t('vendor') } },
+    {
+      accessorKey: 'whtAmount', header: t('wht'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
+    },
+    {
+      accessorKey: 'totalPaid', header: t('netPaid'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
+    },
+    {
+      accessorKey: 'status', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+    },
+  ], [t, tc]);
 
   return (
     <>
@@ -40,57 +67,15 @@ export default function PaymentVoucherListPage() {
           </Link>
         }
       />
-      <ListFilters statusOptions={PV_STATUSES} statusTestId="pv-filter-status" party="vendor" />
       <IncompleteOnlyToggle />
-      {q.isSuccess && rows.length === 0 ? (
-        <EmptyState
-          title={t('title')}
-          description={tc('empty')}
-          cta={{ label: t('create'), href: '/payment-vouchers/new' }}
-        />
-      ) : (
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead>
-            <tr>
-              <th>{t('docNo')}</th><th>{tc('date')}</th><th>{t('vendor')}</th>
-              <th className="text-right">{t('wht')}</th>
-              <th className="text-right">{t('netPaid')}</th><th>{tc('status')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.isLoading && (
-              <tr><td colSpan={6} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.paymentVoucherId} className="hover">
-                <td>
-                  <div className="flex items-center gap-2">
-                    <Link href={`/payment-vouchers/${r.paymentVoucherId}`}>
-                      <DocumentNumberBadge value={r.docNo} />
-                    </Link>
-                    {r.status === 'Posted' && <IncompleteFlag isComplete={r.isComplete} />}
-                  </div>
-                </td>
-                <td className="tabular-nums">{formatDate(r.docDate)}</td>
-                <td>{r.vendorName}</td>
-                <td className="text-right tabular-nums">{formatTHB(r.whtAmount)}</td>
-                <td className="text-right tabular-nums">{formatTHB(r.totalPaid)}</td>
-                <td><StatusBadge status={r.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-      {q.hasNextPage && (
-        <div className="mt-4 text-center">
-          <button className="btn btn-ghost btn-sm" onClick={() => q.fetchNextPage()}
-            disabled={q.isFetchingNextPage}>
-            {tc('loadMore')}
-          </button>
-        </div>
-      )}
+      <DataTable
+        data={q.data ?? []}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.paymentVoucherId)}
+        searchPlaceholder={t('docNo')}
+        initialSorting={[{ id: 'docDate', desc: true }]}
+      />
     </>
   );
 }

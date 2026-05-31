@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Pencil, Percent } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { DataTable } from '@/components/ui/DataTable';
 import {
   useWhtTypes, useCreateWhtType, useUpdateWhtType,
   useDeactivateWhtType, useReactivateWhtType, useChangeWhtRate,
@@ -42,6 +44,82 @@ export default function WhtTypesSettingsPage() {
   const [effFrom, setEffFrom] = useState('');
 
   const rows = q.data ?? [];
+
+  const columns = useMemo<ColumnDef<WhtTypeListItem>[]>(() => [
+    {
+      accessorKey: 'code', header: t('code'),
+      cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
+    },
+    { accessorKey: 'nameTh', header: t('nameTh') },
+    {
+      accessorKey: 'rate', header: t('rate'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{(getValue<number>() * 100).toFixed(2)}%</span>,
+    },
+    {
+      accessorKey: 'formType', header: t('formType'),
+      meta: { filter: 'select', filterLabel: t('formType') },
+    },
+    { accessorKey: 'incomeTypeCode', header: t('incomeTypeCode') },
+    {
+      accessorKey: 'effectiveFrom', header: t('effectiveFrom'),
+      cell: ({ getValue }) => <span className="tabular-nums">{getValue<string>()}</span>,
+    },
+    {
+      accessorKey: 'effectiveTo', header: t('effectiveTo'),
+      cell: ({ getValue }) => {
+        const v = getValue<string | null>();
+        return v ? <span className="tabular-nums">{v}</span>
+          : <span className="badge badge-ghost badge-sm">{t('current')}</span>;
+      },
+    },
+    {
+      accessorFn: (w) => (w.isActive ? tc('active') : tc('inactive')),
+      id: 'isActive', header: t('isActive'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ row }) => <span>{row.original.isActive ? '✓' : '—'}</span>,
+    },
+    {
+      id: 'actions', header: '', enableSorting: false,
+      cell: ({ row }) => {
+        const w = row.original;
+        return (
+          <span className="flex gap-1">
+            <PermissionGate scope={SCOPE}>
+              <button className="btn btn-ghost btn-xs" aria-label={t('edit')}
+                onClick={() => setEdit({
+                  whtTypeId: w.whtTypeId, code: w.code, nameTh: w.nameTh,
+                  nameEn: w.nameEn ?? '', incomeTypeCode: w.incomeTypeCode,
+                  formType: w.formType, rate: String(w.rate * 100),
+                })}>
+                <Pencil className="h-3 w-3" aria-hidden />
+              </button>
+              <button className="btn btn-ghost btn-xs" aria-label={t('changeRate')}
+                onClick={() => { setRateChange({ id: w.whtTypeId, code: w.code }); setNewRate(String(w.rate * 100)); }}>
+                <Percent className="h-3 w-3" aria-hidden />
+              </button>
+              {w.isActive ? (
+                <button className="btn btn-ghost btn-xs text-error"
+                  onClick={async () => {
+                    try { await deactivate.mutateAsync(w.whtTypeId); toast.success(t('deactivate')); }
+                    catch { toast.error(tc('error')); }
+                  }}>
+                  {t('deactivate')}
+                </button>
+              ) : (
+                <button className="btn btn-ghost btn-xs text-success"
+                  data-testid="row-restore"
+                  onClick={async () => {
+                    try { await reactivate.mutateAsync(w.whtTypeId); toast.success(tc('restore')); }
+                    catch { toast.error(tc('error')); }
+                  }}>
+                  ↺ {tc('restore')}
+                </button>
+              )}
+            </PermissionGate>
+          </span>
+        );
+      },
+    },
+  ], [t, tc, deactivate, reactivate]);
 
   async function save() {
     if (!edit) return;
@@ -95,66 +173,13 @@ export default function WhtTypesSettingsPage() {
       />
 
       <QueryState query={q} isEmpty={!q.isLoading && rows.length === 0}>
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead>
-            <tr>
-              <th>{t('code')}</th><th>{t('nameTh')}</th><th>{t('rate')}</th>
-              <th>{t('formType')}</th><th>{t('incomeTypeCode')}</th>
-              <th>{t('effectiveFrom')}</th><th>{t('effectiveTo')}</th>
-              <th>{t('isActive')}</th><th className="w-32" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((w: WhtTypeListItem) => (
-              <tr key={w.whtTypeId} className="hover">
-                <td className="font-mono">{w.code}</td>
-                <td>{w.nameTh}</td>
-                <td className="tabular-nums">{(w.rate * 100).toFixed(2)}%</td>
-                <td>{w.formType}</td>
-                <td>{w.incomeTypeCode}</td>
-                <td className="tabular-nums">{w.effectiveFrom}</td>
-                <td className="tabular-nums">{w.effectiveTo ?? <span className="badge badge-ghost badge-sm">{t('current')}</span>}</td>
-                <td>{w.isActive ? '✓' : '—'}</td>
-                <td className="flex gap-1">
-                  <PermissionGate scope={SCOPE}>
-                    <button className="btn btn-ghost btn-xs" aria-label={t('edit')}
-                      onClick={() => setEdit({
-                        whtTypeId: w.whtTypeId, code: w.code, nameTh: w.nameTh,
-                        nameEn: w.nameEn ?? '', incomeTypeCode: w.incomeTypeCode,
-                        formType: w.formType, rate: String(w.rate * 100),
-                      })}>
-                      <Pencil className="h-3 w-3" aria-hidden />
-                    </button>
-                    <button className="btn btn-ghost btn-xs" aria-label={t('changeRate')}
-                      onClick={() => { setRateChange({ id: w.whtTypeId, code: w.code }); setNewRate(String(w.rate * 100)); }}>
-                      <Percent className="h-3 w-3" aria-hidden />
-                    </button>
-                    {w.isActive ? (
-                      <button className="btn btn-ghost btn-xs text-error"
-                        onClick={async () => {
-                          try { await deactivate.mutateAsync(w.whtTypeId); toast.success(t('deactivate')); }
-                          catch { toast.error(tc('error')); }
-                        }}>
-                        {t('deactivate')}
-                      </button>
-                    ) : (
-                      <button className="btn btn-ghost btn-xs text-success"
-                        data-testid="row-restore"
-                        onClick={async () => {
-                          try { await reactivate.mutateAsync(w.whtTypeId); toast.success(tc('restore')); }
-                          catch { toast.error(tc('error')); }
-                        }}>
-                        ↺ {tc('restore')}
-                      </button>
-                    )}
-                  </PermissionGate>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <DataTable
+          data={rows}
+          columns={columns}
+          isLoading={q.isLoading}
+          getRowId={(r) => String(r.whtTypeId)}
+          searchPlaceholder={t('code')}
+        />
       </QueryState>
 
       {edit && (

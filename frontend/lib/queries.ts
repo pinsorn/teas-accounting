@@ -1,14 +1,12 @@
 'use client';
 
 import {
-  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut, apiDelete, apiUploadFile, qs, fetchAllPages } from './api';
 import type {
-  CursorPage,
   CreateTaxInvoiceRequest,
   NumberGapReport,
   TaxInvoiceDetail,
@@ -135,16 +133,13 @@ export function useNumberGaps(year?: number, month?: number, docType?: string) {
 
 // ───────────────────────── Sprint 4: Receipt + CN/DN ─────────────────────────
 
+// cont.82 — fetch-all for the unified client-side DataTable.
 export function useReceipts(businessUnitId?: number, includeUnspecified?: boolean) {
-  return useInfiniteQuery({
-    queryKey: ['receipts', businessUnitId, includeUnspecified],
-    initialPageParam: undefined as number | undefined,
-    queryFn: ({ pageParam }) =>
-      apiGet<CursorPage<ReceiptListItem>>(`receipts${qs({
-        cursor: pageParam, limit: 25, businessUnitId,
-        includeUnspecified: includeUnspecified || undefined,
-      })}`),
-    getNextPageParam: (l) => l.nextCursor ?? undefined,
+  return useQuery({
+    queryKey: ['receipts', 'all', businessUnitId, includeUnspecified],
+    queryFn: () => fetchAllPages<ReceiptListItem>('receipts', {
+      businessUnitId, includeUnspecified: includeUnspecified || undefined,
+    }),
   });
 }
 export function useReceipt(id: number) {
@@ -172,16 +167,11 @@ export function usePostReceipt() {
 export function useAdjustmentNotes(
   noteType?: 'CREDIT' | 'DEBIT', businessUnitId?: number, includeUnspecified?: boolean,
 ) {
-  return useInfiniteQuery({
-    queryKey: ['adjustment-notes', noteType, businessUnitId, includeUnspecified],
-    initialPageParam: undefined as number | undefined,
-    queryFn: ({ pageParam }) =>
-      apiGet<CursorPage<AdjustmentNoteListItem>>(
-        `tax-adjustment-notes${qs({
-          noteType, cursor: pageParam, limit: 25, businessUnitId,
-          includeUnspecified: includeUnspecified || undefined,
-        })}`),
-    getNextPageParam: (l) => l.nextCursor ?? undefined,
+  return useQuery({
+    queryKey: ['adjustment-notes', 'all', noteType, businessUnitId, includeUnspecified],
+    queryFn: () => fetchAllPages<AdjustmentNoteListItem>('tax-adjustment-notes', {
+      noteType, businessUnitId, includeUnspecified: includeUnspecified || undefined,
+    }),
   });
 }
 export function useAdjustmentNote(id: number) {
@@ -298,13 +288,11 @@ export function useExpenseCategories() {
 }
 
 export function usePaymentVouchers(incompleteOnly = false) {
-  return useInfiniteQuery({
-    queryKey: ['payment-vouchers', { incompleteOnly }],
-    initialPageParam: undefined as number | undefined,
-    queryFn: ({ pageParam }) =>
-      apiGet<CursorPage<PaymentVoucherListItem>>(
-        `payment-vouchers${qs({ cursor: pageParam, limit: 25, incompleteOnly: incompleteOnly || undefined })}`),
-    getNextPageParam: (l) => l.nextCursor ?? undefined,
+  return useQuery({
+    queryKey: ['payment-vouchers', 'all', { incompleteOnly }],
+    queryFn: () => fetchAllPages<PaymentVoucherListItem>('payment-vouchers', {
+      incompleteOnly: incompleteOnly || undefined,
+    }),
   });
 }
 export function usePaymentVoucher(id: number) {
@@ -316,13 +304,9 @@ export function usePaymentVoucher(id: number) {
 }
 
 export function useWhtCertificates() {
-  return useInfiniteQuery({
-    queryKey: ['wht-certificates'],
-    initialPageParam: undefined as number | undefined,
-    queryFn: ({ pageParam }) =>
-      apiGet<CursorPage<WhtCertificateListItem>>(
-        `wht-certificates${qs({ cursor: pageParam, limit: 25 })}`),
-    getNextPageParam: (l) => l.nextCursor ?? undefined,
+  return useQuery({
+    queryKey: ['wht-certificates', 'all'],
+    queryFn: () => fetchAllPages<WhtCertificateListItem>('wht-certificates'),
   });
 }
 export function useWhtCertificate(id: number) {
@@ -335,13 +319,11 @@ export function useWhtCertificate(id: number) {
 
 // ───────────────────────── Sprint 6: VendorInvoice + PV approve ─────────────
 export function useVendorInvoices(incompleteOnly = false) {
-  return useInfiniteQuery({
-    queryKey: ['vendor-invoices', { incompleteOnly }],
-    initialPageParam: undefined as number | undefined,
-    queryFn: ({ pageParam }) =>
-      apiGet<CursorPage<VendorInvoiceListItem>>(
-        `vendor-invoices${qs({ cursor: pageParam, limit: 25, incompleteOnly: incompleteOnly || undefined })}`),
-    getNextPageParam: (l) => l.nextCursor ?? undefined,
+  return useQuery({
+    queryKey: ['vendor-invoices', 'all', { incompleteOnly }],
+    queryFn: () => fetchAllPages<VendorInvoiceListItem>('vendor-invoices', {
+      incompleteOnly: incompleteOnly || undefined,
+    }),
   });
 }
 export function useVendorInvoice(id: number) {
