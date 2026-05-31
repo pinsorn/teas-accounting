@@ -7,8 +7,8 @@ import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
-import { usePurchaseOrders } from '@/lib/queries';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
+import { usePurchaseOrders, useBusinessUnitName } from '@/lib/queries';
 import type { PurchaseOrderListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
@@ -18,6 +18,7 @@ export default function PurchaseOrdersPage() {
   const t = useTranslations('purchaseOrder');
   const tc = useTranslations('common');
   const q = usePurchaseOrders();
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<PurchaseOrderListItem>[]>(() => [
     {
@@ -35,7 +36,16 @@ export default function PurchaseOrdersPage() {
     },
     { accessorKey: 'vendorName', header: t('vendor'), meta: { filter: 'text', filterLabel: t('vendor') } },
     {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
+    {
       accessorKey: 'docDate', header: tc('date'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     {
@@ -54,6 +64,7 @@ export default function PurchaseOrdersPage() {
         </Link>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   return (

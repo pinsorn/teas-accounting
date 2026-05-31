@@ -8,10 +8,10 @@ import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
 import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
-import { usePaymentVouchers } from '@/lib/queries';
+import { usePaymentVouchers, useBusinessUnitName } from '@/lib/queries';
 import type { PaymentVoucherListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
@@ -24,6 +24,7 @@ export default function PaymentVoucherListPage() {
   const params = useSearchParams();
   const incompleteOnly = params.get('incompleteOnly') === 'true';
   const q = usePaymentVouchers(incompleteOnly);
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<PaymentVoucherListItem>[]>(() => [
     {
@@ -40,9 +41,18 @@ export default function PaymentVoucherListPage() {
     },
     {
       accessorKey: 'docDate', header: tc('date'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     { accessorKey: 'vendorName', header: t('vendor'), meta: { filter: 'text', filterLabel: t('vendor') } },
+    {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
     {
       accessorKey: 'whtAmount', header: t('wht'), meta: { align: 'right' },
       cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
@@ -55,6 +65,7 @@ export default function PaymentVoucherListPage() {
       accessorKey: 'status', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
       cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   return (

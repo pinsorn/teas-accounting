@@ -6,12 +6,12 @@ import { useTranslations } from 'next-intl';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
 import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
-import { useVendorInvoices } from '@/lib/queries';
+import { useVendorInvoices, useBusinessUnitName } from '@/lib/queries';
 import type { VendorInvoiceListItem } from '@/lib/types';
-import { formatTHB } from '@/lib/utils';
+import { formatTHB, formatDate } from '@/lib/utils';
 
 // cont.82 — VI list rebuilt on the shared <DataTable> (TanStack). The server-side
 // incompleteOnly flag stays wired through the hook (toggle above the table); client-side
@@ -22,6 +22,7 @@ export default function VendorInvoiceListPage() {
   const params = useSearchParams();
   const incompleteOnly = params.get('incompleteOnly') === 'true';
   const q = useVendorInvoices(incompleteOnly);
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<VendorInvoiceListItem>[]>(() => [
     {
@@ -36,10 +37,22 @@ export default function VendorInvoiceListPage() {
         </div>
       ),
     },
+    {
+      accessorKey: 'docDate', header: tc('date'),
+      meta: { filter: 'dateRange' }, filterFn: dateRangeFilter,
+      cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
+    },
     { accessorKey: 'vendorTaxInvoiceNo', header: t('vendorTiNo'),
       cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
     },
     { accessorKey: 'vendorName', header: t('vendor'), meta: { filter: 'text', filterLabel: t('vendor') } },
+    {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
     {
       accessorKey: 'vatClaimPeriod', header: t('claimPeriod'),
       cell: ({ getValue }) => <span className="tabular-nums">{getValue<number>()}</span>,
@@ -52,6 +65,7 @@ export default function VendorInvoiceListPage() {
       accessorKey: 'status', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
       cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   return (

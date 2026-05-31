@@ -8,8 +8,8 @@ import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
-import { useReceipts } from '@/lib/queries';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
+import { useReceipts, useBusinessUnitName } from '@/lib/queries';
 import type { ReceiptListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
@@ -22,6 +22,7 @@ export default function ReceiptListPage() {
   const params = useSearchParams();
   const buId = params.get('bu') ? Number(params.get('bu')) : undefined;
   const q = useReceipts(buId);
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<ReceiptListItem>[]>(() => [
     {
@@ -36,9 +37,18 @@ export default function ReceiptListPage() {
     {
       accessorKey: 'docDate',
       header: t('date'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     { accessorKey: 'customerName', header: t('customer'), meta: { filter: 'text', filterLabel: t('customer') } },
+    {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
     {
       accessorKey: 'amount', header: t('amount'), meta: { align: 'right' },
       cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
@@ -62,6 +72,7 @@ export default function ReceiptListPage() {
         </Link>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   return (

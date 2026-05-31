@@ -397,6 +397,18 @@ export function useBusinessUnits(includeInactive = false) {
       `business-units${qs({ includeInactive: includeInactive ? 'true' : undefined })}`),
   });
 }
+
+// cont.82 — shared BU id → "CODE — name" resolver for DataTable BU columns/filters
+// (list rows carry only businessUnitId). Returns "—" when unset so a faceted select
+// groups the no-BU rows under one option.
+export function useBusinessUnitName() {
+  const { data = [] } = useBusinessUnits(true);
+  return (id: number | null | undefined): string => {
+    if (id == null) return '—';
+    const b = data.find((u) => u.businessUnitId === id);
+    return b ? `${b.code} — ${b.nameTh}` : `#${id}`;
+  };
+}
 export function useBusinessUnit(id: number) {
   return useQuery({
     queryKey: ['business-unit', id],

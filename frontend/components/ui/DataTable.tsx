@@ -35,13 +35,26 @@ declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     align?: 'right' | 'center';
-    filter?: 'text' | 'select';
+    filter?: 'text' | 'select' | 'dateRange';
     filterLabel?: string;
   }
 }
 
 const alignClass = (a?: 'right' | 'center') =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : '';
+
+// cont.82 — filterFn for a `dateRange` column. The cell value is an ISO date string
+// (YYYY-MM-DD, which compares lexicographically); filterValue = [from, to] (either
+// side optional). Set `filterFn: dateRangeFilter` on the column that uses it.
+export function dateRangeFilter<T>(row: Row<T>, columnId: string, value: unknown): boolean {
+  const [from, to] = (value as [string, string] | undefined) ?? ['', ''];
+  if (!from && !to) return true;
+  const v = String(row.getValue(columnId) ?? '').slice(0, 10);
+  if (!v) return false;
+  if (from && v < from) return false;
+  if (to && v > to) return false;
+  return true;
+}
 
 /** cont.81 — the clickable primary cell (docNo / name) every list row carries. */
 export function RowLink({ href, children, mono = false }: { href: string; children: ReactNode; mono?: boolean }) {
@@ -201,6 +214,25 @@ function ColumnFilter<T>({ column, allLabel }: { column: Column<T, unknown>; all
   const variant = column.columnDef.meta?.filter;
   const label = column.columnDef.meta?.filterLabel
     ?? (typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id);
+
+  if (variant === 'dateRange') {
+    const [from, to] = (column.getFilterValue() as [string, string] | undefined) ?? ['', ''];
+    const set = (next: [string, string]) =>
+      column.setFilterValue(next[0] || next[1] ? next : undefined);
+    return (
+      <label className="form-control">
+        <span className="label-text text-ink-600">{label}</span>
+        <span className="flex items-center gap-1">
+          <input type="date" className="input input-bordered" value={from}
+            onChange={(e) => set([e.target.value, to])} aria-label={`${label} from`} />
+          <span className="text-ink-400">–</span>
+          <input type="date" className="input input-bordered" value={to}
+            onChange={(e) => set([from, e.target.value])} aria-label={`${label} to`} />
+        </span>
+      </label>
+    );
+  }
+
   const value = (column.getFilterValue() ?? '') as string;
 
   if (variant === 'select') {

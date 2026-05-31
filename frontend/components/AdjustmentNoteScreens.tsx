@@ -8,13 +8,13 @@ import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useAdjustmentNotes, useAdjustmentNote, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useAdjustmentNotes, useAdjustmentNote, useCompanyProfile, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
 import type { AdjustmentNoteListItem } from '@/lib/types';
 import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
 import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
@@ -38,6 +38,7 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
   // clickable docNo → detail. BU scope stays server-side via the `bu` URL param.
   const q = useAdjustmentNotes(c.api, buId);
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<AdjustmentNoteListItem>[]>(() => [
     {
@@ -52,9 +53,18 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
     {
       accessorKey: 'docDate',
       header: t('colDate'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     { accessorKey: 'customerName', header: t('colCustomer'), meta: { filter: 'text', filterLabel: t('colCustomer') } },
+    {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
     {
       accessorKey: 'totalAmount', header: t('colTotal'), meta: { align: 'right' },
       cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
@@ -75,6 +85,7 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
         </Link>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc, c.base]);
 
   // CN/DN adjust a Tax Invoice's VAT (ม.86/10) — non-VAT issues none → hidden.

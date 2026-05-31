@@ -7,8 +7,8 @@ import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
-import { useQuotations } from '@/lib/queries';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
+import { useQuotations, useBusinessUnitName } from '@/lib/queries';
 import type { QuotationListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
@@ -19,6 +19,7 @@ export default function QuotationsPage() {
   const t = useTranslations('quotation');
   const tc = useTranslations('common');
   const q = useQuotations();
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<QuotationListItem>[]>(() => [
     {
@@ -36,7 +37,16 @@ export default function QuotationsPage() {
     },
     { accessorKey: 'customerName', header: t('customer'), meta: { filter: 'text', filterLabel: t('customer') } },
     {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
+    {
       accessorKey: 'docDate', header: t('docDate'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     {
@@ -56,6 +66,7 @@ export default function QuotationsPage() {
         )
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   return (
