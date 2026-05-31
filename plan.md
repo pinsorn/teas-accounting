@@ -25,11 +25,12 @@
     `/payroll/[id]` detail (totals, approve/post/pay/delete gated by SoD perms, payslip table +
     per-row PDF + run-zip download) · nav section + i18n th/en (35-key parity) · FE tsc 0.
     (Not visually spot-checked — tsc gate per §6; mirrors the employee/DataTable patterns.)
-  - ◐ **ภ.ง.ด.1 / ภ.ง.ด.1ก** — **AcroForm fill** (Ham: PDFs are fillable → like 50ทวิ via `RdAcroFormFiller`,
-    NOT bespoke QuestPDF). Groundwork done (cont.82.2): 4 templates embedded + spec
-    `docs/superpowers/specs/pnd1-acroform-fill-2026-05-31.md` (field dumps + marker-render mapping method).
-    **Next:** marker-render → `pnd1_fieldmap.md` → `Pnd1FormFiller`/`Pnd1FilingService` + endpoints + FE,
-    validate visually w/ Ham. Monthly = from a PayrollRun; 1ก annual = aggregate posted runs/year + address.
+  - ◐ **ภ.ง.ด.1 / ภ.ง.ด.1ก** — **AcroForm fill** (Ham: fillable → via `RdAcroFormFiller`, not bespoke).
+    - ☑ **ภ.ง.ด.1 monthly** (cont.82.2) — field map (`Pdf/Templates/pnd1_fieldmap.md`, decoded from /Rect) →
+      `Pnd1FormFiller` (main + ใบแนบ, comb taxid, 8/sheet, PdfSharp merge) + `Pnd1FilingService` +
+      `GET /payroll/runs/{id}/pnd1/pdf` + FE button. Api.Tests 220/220 ×2 · live 3-page render + sample sent.
+      **Ham visual-validation pending** · WIP: name split, month/ปกติ radio (same-name → needs abs-rect overlay), address.
+    - ☐ **ภ.ง.ด.1ก annual** — decode `pnd1a_*` (adds address col) + aggregate posted runs/year.
   (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
   (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).
 - ☐ FE payroll run UI (list + create/approve/post/pay + payslip view) — not yet built.

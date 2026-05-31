@@ -96,6 +96,7 @@ public static class DependencyInjection
         services.AddOptions<Payroll.PayrollAllowanceOptions>().Bind(cfg.GetSection("Payroll:Allowances"));
         services.AddScoped<Application.Payroll.IPayrollRunService, Payroll.PayrollRunService>();
         services.AddScoped<Application.Payroll.IPayslipPdfService, Payroll.PayslipPdfService>();
+        services.AddScoped<Application.Payroll.IPnd1FilingService, Payroll.Pnd1FilingService>();
 
         // Sprint 8.5 — VAT-mode + non-VAT doc labels (bound from the same "Tax"
         // section as API TaxConfig; Infra can't reference the API assembly).
