@@ -1,21 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { QueryStateRow } from '@/components/states/QueryState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
-import { ListFilters } from '@/components/ui/ListFilters';
+import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { applyListFilters } from '@/lib/list-filter';
 import { useAdjustmentNotes, useAdjustmentNote, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import type { AdjustmentNoteListItem } from '@/lib/types';
 import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
 import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
@@ -33,15 +33,49 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
   const tc = useTranslations('common');
   const params = useSearchParams();
   const buId = params.get('bu') ? Number(params.get('bu')) : undefined;
-  // Sprint 13i C3 — BU stays server-side (paginated); status + customer + date
-  // filter the loaded rows client-side. All URL-persisted.
+  // cont.82 — CN/DN list rebuilt on the shared <DataTable>: fetch-all + client
+  // global search, per-column filters (status / customer), sortable headers,
+  // clickable docNo → detail. BU scope stays server-side via the `bu` URL param.
   const q = useAdjustmentNotes(c.api, buId);
   const vatMode = useSystemInfo().data?.vatMode ?? true;
-  const rows = applyListFilters(q.data?.pages.flatMap((p) => p.items) ?? [], params, {
-    status: (r) => r.status,
-    customerId: (r) => r.customerId,
-    docDate: (r) => r.docDate,
-  });
+
+  const columns = useMemo<ColumnDef<AdjustmentNoteListItem>[]>(() => [
+    {
+      accessorKey: 'docNo',
+      header: t('colNo'),
+      cell: ({ row }) => (
+        <RowLink href={`${c.base}/${row.original.noteId}`} mono>
+          {row.original.docNo ?? `#${row.original.noteId}`}
+        </RowLink>
+      ),
+    },
+    {
+      accessorKey: 'docDate',
+      header: t('colDate'),
+      cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
+    },
+    { accessorKey: 'customerName', header: t('colCustomer'), meta: { filter: 'text', filterLabel: t('colCustomer') } },
+    {
+      accessorKey: 'totalAmount', header: t('colTotal'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
+    },
+    {
+      accessorKey: 'originalTaxInvoiceId', header: t('colOrigTi'),
+      cell: ({ getValue }) => <span className="font-mono">#{getValue<number>()}</span>,
+    },
+    {
+      accessorKey: 'status', header: t('colStatus'), meta: { filter: 'select', filterLabel: t('colStatus') },
+      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+    },
+    {
+      id: 'actions', header: '', enableSorting: false, meta: { align: 'right' },
+      cell: ({ row }) => (
+        <Link href={`${c.base}/${row.original.noteId}`} className="link link-primary text-sm">
+          {tc('view')}
+        </Link>
+      ),
+    },
+  ], [t, tc, c.base]);
 
   // CN/DN adjust a Tax Invoice's VAT (ม.86/10) — non-VAT issues none → hidden.
   if (!vatMode) return <NonVatGuard title={t(c.titleKey)} />;
@@ -56,37 +90,14 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
           </Link>
         }
       />
-      <ListFilters statusOptions={['Draft', 'Posted', 'Voided']} statusTestId="note-filter-status" />
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead><tr><th>{t('colNo')}</th><th>{t('colDate')}</th><th>{t('colCustomer')}</th><th className="text-right">{t('colTotal')}</th><th>{t('colOrigTi')}</th><th>{t('colStatus')}</th><th className="text-right" /></tr></thead>
-          <tbody>
-            <QueryStateRow query={q} colSpan={7} isEmpty={rows.length === 0} />
-            {rows.map((r) => (
-              <tr key={r.noteId} className="hover">
-                <td><Link href={`${c.base}/${r.noteId}`}><DocumentNumberBadge value={r.docNo} /></Link></td>
-                <td className="tabular-nums">{formatDate(r.docDate)}</td>
-                <td>{r.customerName}</td>
-                <td className="text-right tabular-nums">{formatTHB(r.totalAmount)}</td>
-                <td className="font-mono">#{r.originalTaxInvoiceId}</td>
-                <td><StatusBadge status={r.status} /></td>
-                <td className="text-right">
-                  <Link href={`${c.base}/${r.noteId}`} className="link link-primary text-sm">
-                    {tc('view')}
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {q.hasNextPage && (
-        <div className="mt-4 text-center">
-          <button className="btn btn-ghost btn-sm" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
-            {tc('loadMore')}
-          </button>
-        </div>
-      )}
+      <DataTable
+        data={q.data ?? []}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.noteId)}
+        searchPlaceholder={t('colNo')}
+        initialSorting={[{ id: 'docDate', desc: true }]}
+      />
     </>
   );
 }

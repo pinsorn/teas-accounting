@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Pencil } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { DataTable } from '@/components/ui/DataTable';
 import {
   useProducts, useCreateProduct, useUpdateProduct, useDeactivateProduct,
   useBusinessUnits,
 } from '@/lib/queries';
 import { apiGet } from '@/lib/api';
-import type { ProductTypeStr, ProductDetail } from '@/lib/types';
+import type { ProductTypeStr, ProductDetail, ProductListItem } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
 import { PermissionGate } from '@/components/PermissionGate';
 import { WhtTypeSelect } from '@/components/ui/WhtTypeSelect';
@@ -69,6 +71,100 @@ export default function ProductsSettingsPage() {
       const b = buList.find((u) => u.businessUnitId === id);
       return b ? `${b.code} — ${b.nameTh}` : `#${id}`;
     })();
+
+  // cont.82 — list rebuilt on the shared <DataTable>. The page's own filter bar
+  // (search/type/usage/BU/status) still feeds the server hook + exact-BU filter
+  // UNCHANGED, so DataTable's global search is OFF; columns just render `rows`.
+  const columns = useMemo<ColumnDef<ProductListItem>[]>(() => [
+    {
+      accessorKey: 'productCode', header: t('code'),
+      cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
+    },
+    { accessorKey: 'nameTh', header: t('nameTh') },
+    {
+      accessorKey: 'productType', header: t('type'),
+      cell: ({ getValue }) => <span className="badge badge-ghost">{getValue<string>()}</span>,
+    },
+    {
+      id: 'usage', header: t('usage'), enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.isSaleable && <span className="badge badge-sm bg-sky-100 text-sky-700">{t('saleable')}</span>}
+          {row.original.isPurchasable && <span className="badge badge-sm bg-emerald-100 text-emerald-700">{t('purchasable')}</span>}
+        </div>
+      ),
+    },
+    {
+      accessorFn: (p) => buName(p.businessUnitId) ?? '—',
+      id: 'businessUnit', header: t('businessUnit'),
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
+    {
+      accessorKey: 'defaultUnitPrice', header: t('unitPrice'), meta: { align: 'right' },
+      cell: ({ getValue }) => {
+        const v = getValue<number | null>();
+        return <span className="tabular-nums">{v == null ? '—' : v.toLocaleString()}</span>;
+      },
+    },
+    {
+      accessorFn: (p) => (p.isActive ? tc('active') : tc('inactive')),
+      id: 'status', header: tc('status'),
+      cell: ({ row }) => <span>{row.original.isActive ? tc('active') : tc('inactive')}</span>,
+    },
+    {
+      id: 'actions', header: '', enableSorting: false, meta: { align: 'right' },
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <PermissionGate scope={SCOPE}>
+            <button className="btn btn-ghost btn-xs gap-1" onClick={() => openEdit(p.productId)}>
+              <Pencil className="h-3 w-3" aria-hidden /> {tc('edit')}
+            </button>
+            {p.isActive ? (
+              <button className="btn btn-ghost btn-xs text-error"
+                onClick={async () => {
+                  if (!(await confirm({ description: t('deactivateConfirm'), variant: 'destructive' }))) return;
+                  try { await deactivate.mutateAsync(p.productId); toast.success(tc('save')); }
+                  catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+                }}>
+                {tc('deactivate')}
+              </button>
+            ) : (
+              <button className="btn btn-ghost btn-xs text-success"
+                data-testid="row-restore"
+                onClick={async () => {
+                  try {
+                    // Fetch full detail so reactivation preserves uom / WHT
+                    // category instead of nulling them out.
+                    const d = await apiGet<ProductDetail>(`products/${p.productId}`);
+                    await update.mutateAsync({
+                      id: p.productId,
+                      req: {
+                        nameTh: d.nameTh, nameEn: d.nameEn ?? null,
+                        productType: d.productType,
+                        defaultUomText: d.defaultUomText ?? null,
+                        defaultUnitPrice: d.defaultUnitPrice ?? null,
+                        defaultOutputTaxCodeId: d.defaultOutputTaxCodeId ?? null,
+                        defaultInputTaxCodeId: d.defaultInputTaxCodeId ?? null,
+                        defaultWhtTypeId: d.defaultWhtTypeId ?? null,
+                        descriptionTh: d.descriptionTh ?? null, notes: d.notes ?? null,
+                        isActive: true,
+                        isSaleable: d.isSaleable, isPurchasable: d.isPurchasable,
+                        businessUnitId: d.businessUnitId ?? null,
+                      },
+                    });
+                    toast.success(tc('restore'));
+                  } catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+                }}>
+                ↺ {tc('restore')}
+              </button>
+            )}
+          </PermissionGate>
+        );
+      },
+    },
+    // buName depends on buList; refresh columns when that loads so BU names render.
+  ], [t, tc, confirm, deactivate, update, buList]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open the edit modal with the FULL product (the list row omits uom / nameEn /
   // WHT — building from it would silently wipe those on save).
@@ -199,90 +295,13 @@ export default function ProductsSettingsPage() {
         </label>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead>
-            <tr>
-              <th>{t('code')}</th><th>{t('nameTh')}</th><th>{t('type')}</th>
-              <th>{t('usage')}</th><th>{t('businessUnit')}</th>
-              <th className="text-right">{t('unitPrice')}</th>
-              <th>{tc('status')}</th><th />
-            </tr>
-          </thead>
-          <tbody>
-            {q.isLoading && (
-              <tr><td colSpan={8} className="py-6 text-center text-base-content/50">{tc('loading')}</td></tr>
-            )}
-            {rows.length === 0 && !q.isLoading && (
-              <tr><td colSpan={8} className="py-6 text-center text-base-content/50">{tc('empty')}</td></tr>
-            )}
-            {rows.map((p) => (
-              <tr key={p.productId} className={p.isActive ? '' : 'opacity-50'}>
-                <td className="font-mono">{p.productCode}</td>
-                <td>{p.nameTh}</td>
-                <td><span className="badge badge-ghost">{p.productType}</span></td>
-                <td>
-                  <div className="flex flex-wrap gap-1">
-                    {p.isSaleable && <span className="badge badge-sm bg-sky-100 text-sky-700">{t('saleable')}</span>}
-                    {p.isPurchasable && <span className="badge badge-sm bg-emerald-100 text-emerald-700">{t('purchasable')}</span>}
-                  </div>
-                </td>
-                <td className="text-sm text-base-content/70">{buName(p.businessUnitId) ?? '—'}</td>
-                <td className="text-right tabular-nums">
-                  {p.defaultUnitPrice == null ? '—' : p.defaultUnitPrice.toLocaleString()}
-                </td>
-                <td>{p.isActive ? tc('active') : tc('inactive')}</td>
-                <td className="text-right">
-                  <PermissionGate scope={SCOPE}>
-                    <button className="btn btn-ghost btn-xs gap-1" onClick={() => openEdit(p.productId)}>
-                      <Pencil className="h-3 w-3" aria-hidden /> {tc('edit')}
-                    </button>
-                    {p.isActive ? (
-                      <button className="btn btn-ghost btn-xs text-error"
-                        onClick={async () => {
-                          if (!(await confirm({ description: t('deactivateConfirm'), variant: 'destructive' }))) return;
-                          try { await deactivate.mutateAsync(p.productId); toast.success(tc('save')); }
-                          catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
-                        }}>
-                        {tc('deactivate')}
-                      </button>
-                    ) : (
-                      <button className="btn btn-ghost btn-xs text-success"
-                        data-testid="row-restore"
-                        onClick={async () => {
-                          try {
-                            // Fetch full detail so reactivation preserves uom / WHT
-                            // category instead of nulling them out.
-                            const d = await apiGet<ProductDetail>(`products/${p.productId}`);
-                            await update.mutateAsync({
-                              id: p.productId,
-                              req: {
-                                nameTh: d.nameTh, nameEn: d.nameEn ?? null,
-                                productType: d.productType,
-                                defaultUomText: d.defaultUomText ?? null,
-                                defaultUnitPrice: d.defaultUnitPrice ?? null,
-                                defaultOutputTaxCodeId: d.defaultOutputTaxCodeId ?? null,
-                                defaultInputTaxCodeId: d.defaultInputTaxCodeId ?? null,
-                                defaultWhtTypeId: d.defaultWhtTypeId ?? null,
-                                descriptionTh: d.descriptionTh ?? null, notes: d.notes ?? null,
-                                isActive: true,
-                                isSaleable: d.isSaleable, isPurchasable: d.isPurchasable,
-                                businessUnitId: d.businessUnitId ?? null,
-                              },
-                            });
-                            toast.success(tc('restore'));
-                          } catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
-                        }}>
-                        ↺ {tc('restore')}
-                      </button>
-                    )}
-                  </PermissionGate>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={rows}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.productId)}
+        globalSearch={false}
+      />
 
       {edit && (
         <div className="modal modal-open">

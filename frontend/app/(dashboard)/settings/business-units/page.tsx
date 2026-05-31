@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Pencil } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { DataTable } from '@/components/ui/DataTable';
 import {
   useBusinessUnits, useCreateBusinessUnit, useUpdateBusinessUnit,
   useDeactivateBusinessUnit, useCompanyBuSetting, useSetCompanyBuSetting,
@@ -35,6 +37,67 @@ export default function BusinessUnitsSettingsPage() {
   const [edit, setEdit] = useState<Editing | null>(null);
 
   const rows = q.data ?? [];
+
+  const columns = useMemo<ColumnDef<BusinessUnitListItem>[]>(() => [
+    {
+      accessorKey: 'code', header: t('code'),
+      cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
+    },
+    { accessorKey: 'nameTh', header: t('nameTh') },
+    {
+      accessorKey: 'nameEn', header: t('nameEn'),
+      cell: ({ getValue }) => <span>{getValue<string | null>() ?? '—'}</span>,
+    },
+    {
+      accessorFn: (u) => (u.isActive ? tc('active') : tc('inactive')),
+      id: 'isActive', header: t('isActive'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ row }) => <span>{row.original.isActive ? '✓' : '—'}</span>,
+    },
+    {
+      id: 'actions', header: '', enableSorting: false,
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <span className="flex gap-1">
+            <PermissionGate scope={SCOPE}>
+              <button className="btn btn-ghost btn-xs"
+                onClick={() => setEdit({
+                  businessUnitId: u.businessUnitId, code: u.code, nameTh: u.nameTh,
+                  nameEn: u.nameEn ?? '', isActive: u.isActive,
+                })}>
+                <Pencil className="h-3 w-3" aria-hidden />
+              </button>
+              {u.isActive ? (
+                <button className="btn btn-ghost btn-xs text-error"
+                  onClick={async () => {
+                    if (!(await confirm({ description: t('deactivateConfirm'), variant: 'destructive' }))) return;
+                    try { await deactivate.mutateAsync(u.businessUnitId); toast.success(t('deactivate')); }
+                    catch { toast.error(tc('error')); }
+                  }}>
+                  {t('deactivate')}
+                </button>
+              ) : (
+                <button className="btn btn-ghost btn-xs text-success"
+                  data-testid="row-restore"
+                  onClick={async () => {
+                    try {
+                      await update.mutateAsync({
+                        id: u.businessUnitId,
+                        req: { nameTh: u.nameTh, nameEn: u.nameEn ?? null,
+                               defaultRevenueAccountId: null, isActive: true },
+                      });
+                      toast.success(tc('restore'));
+                    } catch { toast.error(tc('error')); }
+                  }}>
+                  ↺ {tc('restore')}
+                </button>
+              )}
+            </PermissionGate>
+          </span>
+        );
+      },
+    },
+  ], [t, tc, confirm, deactivate, update]);
 
   async function save() {
     if (!edit) return;
@@ -94,68 +157,13 @@ export default function BusinessUnitsSettingsPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead>
-            <tr>
-              <th>{t('code')}</th><th>{t('nameTh')}</th><th>{t('nameEn')}</th>
-              <th>{t('isActive')}</th><th className="w-24" />
-            </tr>
-          </thead>
-          <tbody>
-            {q.isLoading && (
-              <tr><td colSpan={5} className="py-8 text-center text-base-content/50">{tc('loading')}</td></tr>
-            )}
-            {!q.isLoading && rows.length === 0 && (
-              <tr><td colSpan={5} className="py-8 text-center text-base-content/50">{tc('empty')}</td></tr>
-            )}
-            {rows.map((u: BusinessUnitListItem) => (
-              <tr key={u.businessUnitId} className="hover">
-                <td className="font-mono">{u.code}</td>
-                <td>{u.nameTh}</td>
-                <td>{u.nameEn ?? '—'}</td>
-                <td>{u.isActive ? '✓' : '—'}</td>
-                <td className="flex gap-1">
-                  <PermissionGate scope={SCOPE}>
-                    <button className="btn btn-ghost btn-xs"
-                      onClick={() => setEdit({
-                        businessUnitId: u.businessUnitId, code: u.code, nameTh: u.nameTh,
-                        nameEn: u.nameEn ?? '', isActive: u.isActive,
-                      })}>
-                      <Pencil className="h-3 w-3" aria-hidden />
-                    </button>
-                    {u.isActive ? (
-                      <button className="btn btn-ghost btn-xs text-error"
-                        onClick={async () => {
-                          if (!(await confirm({ description: t('deactivateConfirm'), variant: 'destructive' }))) return;
-                          try { await deactivate.mutateAsync(u.businessUnitId); toast.success(t('deactivate')); }
-                          catch { toast.error(tc('error')); }
-                        }}>
-                        {t('deactivate')}
-                      </button>
-                    ) : (
-                      <button className="btn btn-ghost btn-xs text-success"
-                        data-testid="row-restore"
-                        onClick={async () => {
-                          try {
-                            await update.mutateAsync({
-                              id: u.businessUnitId,
-                              req: { nameTh: u.nameTh, nameEn: u.nameEn ?? null,
-                                     defaultRevenueAccountId: null, isActive: true },
-                            });
-                            toast.success(tc('restore'));
-                          } catch { toast.error(tc('error')); }
-                        }}>
-                        ↺ {tc('restore')}
-                      </button>
-                    )}
-                  </PermissionGate>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={rows}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.businessUnitId)}
+        searchPlaceholder={t('nameTh')}
+      />
 
       {edit && (
         <div className="modal modal-open" role="dialog" aria-modal="true">

@@ -1,32 +1,59 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { QueryStateRow } from '@/components/states/QueryState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { ListFilters } from '@/components/ui/ListFilters';
-import { applyListFilters } from '@/lib/list-filter';
+import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { useBillingNotes } from '@/lib/queries';
+import type { BillingNoteListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
-// Sprint 13h P6.2 / 13i C3 — Billing Note list with status + BU + customer +
-// date-range filters, URL-persisted (refresh + share-link safe).
-const BN_STATUSES = ['Draft', 'Issued', 'Settled', 'Cancelled'] as const;
-
+// cont.82 — Billing Note (ใบแจ้งหนี้/ใบวางบิล) list rebuilt on the shared <DataTable>
+// (TanStack): fetch-all + client-side global search, per-column filters
+// (status / customer), sortable headers, clickable docNo → detail.
 export default function BillingNotesPage() {
   const t = useTranslations('billingNote');
   const tc = useTranslations('common');
-  const params = useSearchParams();
   const q = useBillingNotes();
-  const rows = applyListFilters(q.data ?? [], params, {
-    status: (r) => r.status,
-    businessUnitId: (r) => r.businessUnitId,
-    customerId: (r) => r.customerId,
-    docDate: (r) => r.docDate,
-  });
+
+  const columns = useMemo<ColumnDef<BillingNoteListItem>[]>(() => [
+    {
+      accessorKey: 'docNo',
+      header: t('docNo'),
+      cell: ({ row }) => (
+        <RowLink href={`/invoices/${row.original.billingNoteId}`} mono>
+          {row.original.docNo ?? `#${row.original.billingNoteId}`}
+        </RowLink>
+      ),
+    },
+    {
+      accessorKey: 'status', header: tc('status'), meta: { filter: 'select', filterLabel: tc('status') },
+      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+    },
+    { accessorKey: 'customerName', header: t('customer'), meta: { filter: 'text', filterLabel: t('customer') } },
+    {
+      accessorKey: 'docDate', header: t('docDate'),
+      cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
+    },
+    {
+      accessorKey: 'dueDate', header: t('dueDate'),
+      cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
+    },
+    {
+      accessorKey: 'totalAmount', header: t('total'), meta: { align: 'right' },
+      cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
+    },
+    {
+      id: 'actions', header: '', enableSorting: false, meta: { align: 'right' },
+      cell: ({ row }) => (
+        <Link href={`/invoices/${row.original.billingNoteId}`} className="btn btn-ghost btn-xs">{tc('view')}</Link>
+      ),
+    },
+  ], [t, tc]);
 
   return (
     <>
@@ -35,34 +62,14 @@ export default function BillingNotesPage() {
           <Plus className="h-4 w-4" aria-hidden /> {t('create')}
         </Link>
       } />
-      <ListFilters statusOptions={BN_STATUSES} statusTestId="bn-filter-status" />
-      <div className="overflow-x-auto rounded-lg border border-base-300">
-        <table className="table table-zebra">
-          <thead><tr>
-            <th>{t('docNo')}</th><th>{tc('status')}</th><th>{t('customer')}</th>
-            <th>{t('docDate')}</th><th>{t('dueDate')}</th>
-            <th className="text-right">{t('total')}</th><th />
-          </tr></thead>
-          <tbody>
-            <QueryStateRow query={q} colSpan={7} isEmpty={rows.length === 0} />
-            {rows.map((r) => (
-              <tr key={r.billingNoteId}>
-                <td className="font-mono">{r.docNo ?? `#${r.billingNoteId}`}</td>
-                <td><StatusBadge status={r.status} /></td>
-                <td>{r.customerName}</td>
-                <td className="tabular-nums">{formatDate(r.docDate)}</td>
-                <td className="tabular-nums">{formatDate(r.dueDate)}</td>
-                <td className="text-right tabular-nums">{formatTHB(r.totalAmount)}</td>
-                <td className="text-right">
-                  <Link href={`/invoices/${r.billingNoteId}`} className="btn btn-ghost btn-xs">
-                    {tc('view')}
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        data={q.data ?? []}
+        columns={columns}
+        isLoading={q.isLoading}
+        getRowId={(r) => String(r.billingNoteId)}
+        searchPlaceholder={t('docNo')}
+        initialSorting={[{ id: 'docDate', desc: true }]}
+      />
     </>
   );
 }
