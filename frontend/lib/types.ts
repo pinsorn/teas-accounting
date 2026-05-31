@@ -591,6 +591,28 @@ export interface CreateEmployeeRequest {
 }
 export type UpdateEmployeeRequest = Omit<CreateEmployeeRequest, 'employeeCode'> & { isActive: boolean };
 
+// ───────────────────────── Payroll P-C/P-D: Runs + Payslips ─────────────────────────
+export interface PayslipDto {
+  payslipId: number; employeeId: number; employeeCode: string; employeeName: string; nationalId: string;
+  grossTaxable: number; grossNonTaxable: number; pitWithheld: number;
+  ssoEmployee: number; ssoEmployer: number; otherDeductions: number; netPay: number;
+  ytdIncome: number; ytdPit: number;
+}
+export interface PayrollRunListItem {
+  payrollRunId: number; periodYearMonth: string; payDate: string; status: string; docNo: string | null;
+  employeeCount: number; totalNet: number; isPaid: boolean;
+}
+export interface PayrollRunDetail {
+  payrollRunId: number; periodYearMonth: string; payDate: string; status: string; docNo: string | null;
+  totalGrossTaxable: number; totalGrossNonTaxable: number; totalPit: number;
+  totalSsoEmployee: number; totalSsoEmployer: number; totalOtherDeductions: number; totalNet: number;
+  journalId: number | null;
+  approvedAt: string | null; postedAt: string | null; paidAt: string | null;
+  notes: string | null;
+  payslips: PayslipDto[];
+}
+export interface CreatePayrollRunRequest { periodYearMonth: string; payDate: string; notes: string | null; }
+
 export interface WhtCertificateListItem {
   whtCertificateId: number; docNo: string; certDate: string; paymentVoucherId: number | null;
   payeeName: string; payeeTaxId: string | null; incomeTypeCode: string;
