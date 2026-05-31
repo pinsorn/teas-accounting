@@ -35,6 +35,11 @@
     </None>
     <!-- Official RD 50ทวิ AcroForm — embedded so the filler works in any deploy. -->
     <EmbeddedResource Include="Pdf\Templates\wht_50tawi.pdf" />
+    <!-- Official RD ภ.ง.ด.1 / ภ.ง.ด.1ก AcroForms (P-D #2/#3 — fill + flatten via RdAcroFormFiller). -->
+    <EmbeddedResource Include="Pdf\Templates\pnd1_main.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\pnd1_attach.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\pnd1a_main.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\pnd1a_attach.pdf" />
     <!-- Sarabun (SIL OFL) — embedded so Wht50TawiFormFiller's QuestPDF overlay shapes +
          embeds Thai independent of host fonts / Program.cs startup registration. -->
     <EmbeddedResource Include="Pdf\Fonts\Sarabun-Regular.ttf" />
