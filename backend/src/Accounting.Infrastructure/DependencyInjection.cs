@@ -83,6 +83,7 @@ public static class DependencyInjection
         services.AddScoped<Application.TaxFilings.IProportionalInputVatService, TaxFilings.ProportionalInputVatService>();
         services.AddScoped<Application.TaxFilings.ITaxFilingService,         TaxFilings.TaxFilingService>();
         services.AddScoped<Application.TaxFilings.IWhtFilingService,         TaxFilings.WhtFilingService>();
+        services.AddScoped<Application.TaxFilings.IWhtBatchExportService,    TaxFilings.WhtBatchExportService>();
         services.AddScoped<Application.Ledger.IPeriodCloseService,       Ledger.PeriodCloseService>();
 
         // GL auto-posting — bind account-code map then register the poster.

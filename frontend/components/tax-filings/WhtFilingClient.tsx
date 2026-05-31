@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { usePnd3, usePnd53, usePnd54 } from '@/lib/queries';
+import { downloadFile } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 import type { WhtFiling } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -27,6 +28,26 @@ export function WhtFilingClient({
   const [filing, setFiling] = useState<WhtFiling | null>(null);
   const mut = HOOKS[form]();
   const confirm = useConfirm();
+  const [downloading, setDownloading] = useState(false);
+
+  // cont.82.1 P2 — RD batch-upload file (FORMAT กลาง). Only ภ.ง.ด.3 / 53 have a central
+  // text format; ภ.ง.ด.54 (จ่ายต่างประเทศ ม.70) is not in scope.
+  const canBatch = form === 'pnd3' || form === 'pnd53';
+
+  async function downloadBatch() {
+    setDownloading(true);
+    try {
+      const period = ym.replace('-', '');
+      await downloadFile(
+        `tax-filings/${form}/batch-file?period=${period}`,
+        `${form.toUpperCase()}_${period}.txt`,
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : t('batchFileError'));
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   async function run(mode: 'preview' | 'finalize') {
     if (mode === 'finalize'
@@ -61,6 +82,12 @@ export function WhtFilingClient({
           disabled={mut.isPending || !filing} onClick={() => run('finalize')}>
           {t('finalize')}
         </button>
+        {canBatch && (
+          <button className="btn btn-sm btn-outline" data-testid="tf-batch-file"
+            disabled={downloading} onClick={downloadBatch} title={t('batchFileHint')}>
+            {downloading ? t('downloading') : t('downloadBatchFile')}
+          </button>
+        )}
         {filing && (
           <span data-testid="tf-status"
             className={`badge ${filing.status === 'Preview' ? 'badge-ghost' : 'badge-success'}`}>
