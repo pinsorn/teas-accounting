@@ -14,6 +14,7 @@ public static class Permissions
         public const string BusinessUnitManage = "master.business_unit.manage";
         public const string ProductManage      = "master.product.manage";  // Sprint 10
         public const string ProductRead        = "master.product.read";    // Sprint 10
+        public const string EmployeeManage     = "master.employee.manage"; // Payroll P-A
     }
 
     public static class Sys
@@ -106,7 +107,7 @@ public static class Permissions
     [
         Master.CompanyManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead, Master.VendorManage,
         Master.CoaManage, Master.BusinessUnitManage,
-        Master.ProductManage, Master.ProductRead,
+        Master.ProductManage, Master.ProductRead, Master.EmployeeManage,
         Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage, Sys.ExpenseCatRead,
         Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete, Sys.ApiKeyManage,
         Gl.JournalCreate, Gl.JournalPost, Gl.JournalRead, Gl.PeriodClose,

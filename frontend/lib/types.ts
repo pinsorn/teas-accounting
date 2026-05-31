@@ -555,6 +555,42 @@ export interface UpdateBusinessUnitRequest {
 }
 export interface CompanyBuSetting { requiresBusinessUnit: boolean; }
 
+// ───────────────────────── Payroll P-A: Employees ─────────────────────────
+export interface EmployeeAddress {
+  addressNo: string | null; moo: string | null; soi: string | null; street: string | null;
+  subDistrict: string | null; district: string | null; province: string | null; postalCode: string | null;
+}
+export interface EmployeeListItem {
+  employeeId: number; employeeCode: string; fullNameTh: string;
+  nationalId: string; baseSalary: number; ssoApplicable: boolean; isActive: boolean;
+}
+export interface EmployeeDetail {
+  employeeId: number; employeeCode: string;
+  titleTh: string | null; firstNameTh: string; lastNameTh: string;
+  titleEn: string | null; firstNameEn: string | null; lastNameEn: string | null;
+  nationalId: string; taxId: string | null;
+  address: EmployeeAddress;
+  hireDate: string; terminationDate: string | null;
+  baseSalary: number;
+  bankName: string | null; bankAccountNo: string | null; bankAccountName: string | null;
+  ssoApplicable: boolean; ssoNumber: string | null;
+  maritalStatus: string; spouseHasIncome: boolean; childrenCount: number;
+  isActive: boolean;
+}
+export interface CreateEmployeeRequest {
+  employeeCode: string;
+  titleTh: string | null; firstNameTh: string; lastNameTh: string;
+  titleEn: string | null; firstNameEn: string | null; lastNameEn: string | null;
+  nationalId: string; taxId: string | null;
+  address: EmployeeAddress | null;
+  hireDate: string; terminationDate: string | null;
+  baseSalary: number;
+  bankName: string | null; bankAccountNo: string | null; bankAccountName: string | null;
+  ssoApplicable: boolean; ssoNumber: string | null;
+  maritalStatus: string; spouseHasIncome: boolean; childrenCount: number;
+}
+export type UpdateEmployeeRequest = Omit<CreateEmployeeRequest, 'employeeCode'> & { isActive: boolean };
+
 export interface WhtCertificateListItem {
   whtCertificateId: number; docNo: string; certDate: string; paymentVoucherId: number | null;
   payeeName: string; payeeTaxId: string | null; incomeTypeCode: string;

@@ -44,6 +44,10 @@ import type {
   CreateBusinessUnitRequest,
   UpdateBusinessUnitRequest,
   CompanyBuSetting,
+  EmployeeListItem,
+  EmployeeDetail,
+  CreateEmployeeRequest,
+  UpdateEmployeeRequest,
   CompanyProfile,
   UpdateCompanyProfileSoftRequest,
   MePermissions,
@@ -436,6 +440,44 @@ export function useDeactivateBusinessUnit() {
   return useMutation({
     mutationFn: (id: number) => apiDelete(`business-units/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['business-units'] }),
+  });
+}
+
+// ───────────────────────── Payroll P-A: Employees ─────────────────────────
+export function useEmployees(includeInactive = false) {
+  return useQuery({
+    queryKey: ['employees', includeInactive],
+    queryFn: () => apiGet<EmployeeListItem[]>(
+      `employees${qs({ includeInactive: includeInactive ? 'true' : undefined })}`),
+  });
+}
+export function useEmployee(id: number) {
+  return useQuery({
+    queryKey: ['employee', id],
+    queryFn: () => apiGet<EmployeeDetail>(`employees/${id}`),
+    enabled: id > 0,
+  });
+}
+export function useCreateEmployee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateEmployeeRequest) => apiPost<unknown>('employees/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
+  });
+}
+export function useUpdateEmployee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: UpdateEmployeeRequest }) =>
+      apiPut<unknown>(`employees/${v.id}`, v.req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
+  });
+}
+export function useDeactivateEmployee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`employees/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
   });
 }
 // ───────────────────────── Sprint 13d P3: Permissions ─────────────────────────

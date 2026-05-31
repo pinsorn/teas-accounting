@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Master.IBranchService,           Master.BranchService>();
         services.AddScoped<Application.Master.IVendorService,           Master.VendorService>();
         services.AddScoped<Application.Master.IBusinessUnitService,      Master.BusinessUnitService>();
+        services.AddScoped<Application.Master.IEmployeeService,           Master.EmployeeService>();
         services.AddScoped<Application.Master.IProductService,           Master.ProductService>();
         services.AddScoped<Application.Master.ICompanyProfileService,    Master.CompanyProfileService>();
         services.AddScoped<Application.Tax.IWhtTypeService,              Tax.WhtTypeService>();
