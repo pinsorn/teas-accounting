@@ -7,8 +7,8 @@ import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
-import { useTaxInvoices, useSystemInfo } from '@/lib/queries';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
+import { useTaxInvoices, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import type { TaxInvoiceListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
@@ -21,6 +21,7 @@ export default function TaxInvoiceListPage() {
   const tc = useTranslations('common');
   const q = useTaxInvoices();
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<TaxInvoiceListItem>[]>(() => [
     {
@@ -35,9 +36,18 @@ export default function TaxInvoiceListPage() {
     {
       accessorKey: 'docDate',
       header: t('list.docDate'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     { accessorKey: 'customerName', header: t('list.customer'), meta: { filter: 'text', filterLabel: t('list.customer') } },
+    {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
     {
       accessorKey: 'totalAmount', header: t('list.total'), meta: { align: 'right' },
       cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
@@ -62,6 +72,7 @@ export default function TaxInvoiceListPage() {
         </Link>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   // ม.86/4 — a non-VAT company cannot issue Tax Invoices; guard direct URL access.

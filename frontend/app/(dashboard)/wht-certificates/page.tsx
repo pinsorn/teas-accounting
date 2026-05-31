@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { useWhtCertificates } from '@/lib/queries';
 import type { WhtCertificateListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
@@ -29,6 +29,8 @@ export default function WhtCertificateListPage() {
     },
     {
       accessorKey: 'certDate', header: tc('date'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     { accessorKey: 'payeeName', header: t('payee'), meta: { filter: 'text', filterLabel: t('payee') } },

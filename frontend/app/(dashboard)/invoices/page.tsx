@@ -7,8 +7,8 @@ import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
-import { useBillingNotes } from '@/lib/queries';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
+import { useBillingNotes, useBusinessUnitName } from '@/lib/queries';
 import type { BillingNoteListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
@@ -19,6 +19,7 @@ export default function BillingNotesPage() {
   const t = useTranslations('billingNote');
   const tc = useTranslations('common');
   const q = useBillingNotes();
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<BillingNoteListItem>[]>(() => [
     {
@@ -36,7 +37,16 @@ export default function BillingNotesPage() {
     },
     { accessorKey: 'customerName', header: t('customer'), meta: { filter: 'text', filterLabel: t('customer') } },
     {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
+    {
       accessorKey: 'docDate', header: t('docDate'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     {
@@ -53,6 +63,7 @@ export default function BillingNotesPage() {
         <Link href={`/invoices/${row.original.billingNoteId}`} className="btn btn-ghost btn-xs">{tc('view')}</Link>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   return (

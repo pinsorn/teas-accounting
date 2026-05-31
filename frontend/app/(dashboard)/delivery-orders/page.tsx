@@ -6,8 +6,8 @@ import { useTranslations } from 'next-intl';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { DataTable, RowLink } from '@/components/ui/DataTable';
-import { useDeliveryOrders } from '@/lib/queries';
+import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
+import { useDeliveryOrders, useBusinessUnitName } from '@/lib/queries';
 import type { DeliveryOrderListItem } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 
@@ -18,6 +18,7 @@ export default function DeliveryOrdersPage() {
   const t = useTranslations('deliveryOrder');
   const tc = useTranslations('common');
   const q = useDeliveryOrders();
+  const buName = useBusinessUnitName();
 
   const columns = useMemo<ColumnDef<DeliveryOrderListItem>[]>(() => [
     {
@@ -35,7 +36,16 @@ export default function DeliveryOrdersPage() {
     },
     { accessorKey: 'customerName', header: t('customer'), meta: { filter: 'text', filterLabel: t('customer') } },
     {
+      id: 'businessUnit',
+      accessorFn: (r) => buName(r.businessUnitId),
+      header: tc('businessUnit'),
+      meta: { filter: 'select' },
+      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+    },
+    {
       accessorKey: 'docDate', header: t('docDate'),
+      meta: { filter: 'dateRange' },
+      filterFn: dateRangeFilter,
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     {
@@ -48,6 +58,7 @@ export default function DeliveryOrdersPage() {
         <Link href={`/delivery-orders/${row.original.deliveryOrderId}`} className="btn btn-ghost btn-xs">{tc('view')}</Link>
       ),
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
 
   return (

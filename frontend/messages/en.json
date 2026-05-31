@@ -526,6 +526,8 @@
     "prev": "Previous",
     "next": "Next",
     "rowsTotal": "{count} rows",
+    "businessUnit": "Business Unit",
+    "dateRange": "Date range",
     "nonVatUnavailable": "This feature is for VAT-registered businesses only — your company is set to non-VAT and cannot issue Tax Invoices / Credit-Debit Notes (ม.86/4).",
     "error": "Something went wrong",
     "retry": "Retry",
