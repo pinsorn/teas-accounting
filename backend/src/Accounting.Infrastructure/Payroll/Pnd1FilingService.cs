@@ -27,20 +27,29 @@ public sealed class Pnd1FilingService(AccountingDbContext db) : IPnd1FilingServi
         var yearBe = int.Parse(run.PeriodYearMonth[..4]) + 543;
         var payDate = $"{run.PayDate.Day:00}/{run.PayDate.Month:00}/{(run.PayDate.Year + 543) % 100:00}";
 
-        var addr = prof is null ? null
-            : string.Join(" ", new[] { prof.RegisteredAddressLine1, prof.RegisteredAddressLine2 }
-                .Where(s => !string.IsNullOrWhiteSpace(s)));
-
         var lines = run.Payslips
             .OrderBy(p => p.EmployeeCode)
             .Select(p => new Pnd1Line(p.NationalId, p.EmployeeName, "", payDate, p.GrossTaxable, p.PitWithheld))
             .ToList();
 
+        // Prefer the structured registered-address fields; if a tenant has only the legacy
+        // free-text Line1, fall back to dropping it in เลขที่ so the form isn't blank.
+        var hasStructured = prof is not null && new[]
+        {
+            prof.RegBuilding, prof.RegRoomNo, prof.RegFloor, prof.RegVillage,
+            prof.RegHouseNo, prof.RegMoo, prof.RegSoi, prof.RegStreet,
+        }.Any(s => !string.IsNullOrWhiteSpace(s));
+        var houseNo = hasStructured ? prof!.RegHouseNo
+            : string.Join(" ", new[] { prof?.RegisteredAddressLine1, prof?.RegisteredAddressLine2 }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+
         var model = new Pnd1MonthlyModel(
             EmployerTaxId: prof?.TaxId ?? c?.TaxId ?? "",
             BranchCode: prof?.BranchCode ?? "00000",
             EmployerName: prof?.LegalName ?? c?.NameTh ?? "",
-            Address: string.IsNullOrWhiteSpace(addr) ? null : addr,
+            Building: prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor, Village: prof?.RegVillage,
+            HouseNo: string.IsNullOrWhiteSpace(houseNo) ? null : houseNo,
+            Moo: prof?.RegMoo, Soi: prof?.RegSoi, Street: prof?.RegStreet,
             SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
             Province: prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
             PeriodMonth: month, PeriodYearBE: yearBe,

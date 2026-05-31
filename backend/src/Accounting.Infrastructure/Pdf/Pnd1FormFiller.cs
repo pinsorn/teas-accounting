@@ -11,7 +11,10 @@ public sealed record Pnd1Line(string TaxId, string FirstName, string LastName, s
 
 /// <summary>Data for a monthly ภ.ง.ด.1 (return + ใบแนบ). Salary = ม.40(1) กรณีทั่วไป (summary row 1).</summary>
 public sealed record Pnd1MonthlyModel(
-    string EmployerTaxId, string BranchCode, string EmployerName, string? Address,
+    string EmployerTaxId, string BranchCode, string EmployerName,
+    // Structured registered address (each part → its own box on the form).
+    string? Building, string? RoomNo, string? Floor, string? Village,
+    string? HouseNo, string? Moo, string? Soi, string? Street,
     string? SubDistrict, string? District, string? Province, string? PostalCode,
     int PeriodMonth, int PeriodYearBE,
     IReadOnlyList<Pnd1Line> Lines);
@@ -75,9 +78,17 @@ public static class Pnd1FormFiller
             new("Text1.1", m.BranchCode),
             new("Text1.18", m.PeriodYearBE.ToString()),
             new("Text1.2", m.EmployerName),
-            // Address row map (from /Rect dump): เลขที่=1.7 · ตำบล/แขวง=1.12 · อำเภอ/เขต=1.13 ·
-            // จังหวัด=1.14 · รหัสไปรษณีย์=1.15. (CompanyProfile keeps the building/street as one blob → เลขที่.)
-            new("Text1.7", m.Address ?? ""),
+            // Structured address row map (from /Rect dump): อาคาร=1.3 · ห้อง=1.4 · ชั้น=1.5 ·
+            // หมู่บ้าน=1.6 · เลขที่=1.7 · หมู่ที่=1.8 · ตรอก/ซอย=1.9 · ถนน=1.11 · ตำบล=1.12 ·
+            // อำเภอ=1.13 · จังหวัด=1.14 · รหัสไปรษณีย์=1.15.
+            new("Text1.3", m.Building ?? ""),
+            new("Text1.4", m.RoomNo ?? ""),
+            new("Text1.5", m.Floor ?? ""),
+            new("Text1.6", m.Village ?? ""),
+            new("Text1.7", m.HouseNo ?? ""),
+            new("Text1.8", m.Moo ?? ""),
+            new("Text1.9", m.Soi ?? ""),
+            new("Text1.11", m.Street ?? ""),
             new("Text1.12", m.SubDistrict ?? ""),
             new("Text1.13", m.District ?? ""),
             new("Text1.14", m.Province ?? ""),

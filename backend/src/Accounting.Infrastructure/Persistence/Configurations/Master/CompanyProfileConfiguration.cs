@@ -24,6 +24,14 @@ internal sealed class CompanyProfileConfiguration : IEntityTypeConfiguration<Com
         b.Property(x => x.RegistrationNumber).IsFixedLength().HasMaxLength(13);
         b.Property(x => x.RegisteredAddressLine1).HasMaxLength(200).IsRequired();
         b.Property(x => x.RegisteredAddressLine2).HasMaxLength(200);
+        b.Property(x => x.RegBuilding).HasMaxLength(150);
+        b.Property(x => x.RegRoomNo).HasMaxLength(50);
+        b.Property(x => x.RegFloor).HasMaxLength(50);
+        b.Property(x => x.RegVillage).HasMaxLength(150);
+        b.Property(x => x.RegHouseNo).HasMaxLength(50);
+        b.Property(x => x.RegMoo).HasMaxLength(50);
+        b.Property(x => x.RegSoi).HasMaxLength(150);
+        b.Property(x => x.RegStreet).HasMaxLength(150);
         b.Property(x => x.RegisteredSubdistrict).HasMaxLength(100);
         b.Property(x => x.RegisteredDistrict).HasMaxLength(100);
         b.Property(x => x.RegisteredProvince).HasMaxLength(100).IsRequired();
