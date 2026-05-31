@@ -38,13 +38,26 @@ public static class Pnd1FormFiller
         var totalIncome = m.Lines.Sum(l => l.Income);
         var totalTax = m.Lines.Sum(l => l.Tax);
 
-        var main = RdAcroFormFiller.Render(Template("pnd1_main.pdf"), MainFields(m, sheets, count, totalIncome, totalTax));
+        // Checkboxes (same-named radio groups, sorted top→bottom/left→right):
+        //  • month grid 4col×3row → row=(M-1)%3, col=(M-1)/3 → sorted index = row*4 + col.
+        //  • ยื่นปกติ = the first "Radio Button0" (vs (2) เพิ่มเติม).
+        var monthIdx = ((m.PeriodMonth - 1) % 3) * 4 + (m.PeriodMonth - 1) / 3;
+        var mainRadios = new List<RdRadio>
+        {
+            new("Radio Button1", monthIdx),   // เดือนที่จ่าย
+            new("Radio Button0", 0),          // (1) ยื่นปกติ
+        };
+        // ใบแนบ: ประเภทเงินได้ (1) ม.40(1) กรณีทั่วไป = the first "Radio Button0".
+        var attachRadios = new List<RdRadio> { new("Radio Button0", 0) };
+
+        var main = RdAcroFormFiller.Render(
+            Template("pnd1_main.pdf"), MainFields(m, sheets, count, totalIncome, totalTax), mainRadios);
 
         var pages = new List<byte[]> { main };
         for (var s = 0; s < sheets; s++)
             pages.Add(RdAcroFormFiller.Render(
                 Template("pnd1_attach.pdf"),
-                AttachFields(m, s, sheets, totalIncome, totalTax)));
+                AttachFields(m, s, sheets, totalIncome, totalTax), attachRadios));
 
         return Merge(pages);
     }

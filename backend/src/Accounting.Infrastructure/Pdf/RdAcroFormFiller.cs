@@ -15,6 +15,11 @@ namespace Accounting.Infrastructure.Pdf;
 /// <param name="Check">Render a check mark centered in the box (checkbox fields).</param>
 public readonly record struct RdField(string Name, string Text, bool Right = false, bool Check = false);
 
+/// <summary>Marks an ✕ in the <paramref name="WidgetIndex"/>-th widget of a same-named radio/checkbox
+/// group (widgets sorted top→bottom, left→right). Lets us tick one box of a group whose widgets all
+/// share one field name (e.g. the 12 month boxes on ภ.ง.ด.1), which <see cref="RdField"/> can't target.</summary>
+public readonly record struct RdRadio(string Name, int WidgetIndex);
+
 /// <summary>
 /// Generic filler for any official Thai Revenue Department (RD) AcroForm template. It is
 /// fully /Rect-driven — every value is placed at the position defined by its own field
@@ -41,12 +46,32 @@ public static class RdAcroFormFiller
     /// an RD AcroForm), flatten, and emit <paramref name="copies"/> identical pages.
     /// </summary>
     public static byte[] Render(byte[] template, IReadOnlyCollection<RdField> fields, int copies = 1)
+        => Render(template, fields, Array.Empty<RdRadio>(), copies);
+
+    public static byte[] Render(
+        byte[] template, IReadOnlyCollection<RdField> fields, IReadOnlyCollection<RdRadio> radios, int copies = 1)
     {
         EnsureFont();
-        var rects = ReadFieldRects(template, out double pageW, out double pageH);
+        var rects = ReadFieldRects(template, out double pageW, out double pageH, out var allRects);
         var cells = BuildCells(fields, rects, pageH);
+        cells.AddRange(BuildRadioCells(radios, allRects, pageH));
         var overlay = BuildOverlay(cells, pageW, pageH);
         return Composite(template, overlay, copies);
+    }
+
+    // ✕ in a specific widget of a same-named group (widgets pre-sorted top→bottom, left→right).
+    private static IEnumerable<Cell> BuildRadioCells(
+        IReadOnlyCollection<RdRadio> radios, Dictionary<string, List<PdfRectangle>> allRects, double pageH)
+    {
+        foreach (var rc in radios)
+        {
+            if (!allRects.TryGetValue(rc.Name, out var list) || rc.WidgetIndex < 0 || rc.WidgetIndex >= list.Count)
+                continue;
+            var r = list[rc.WidgetIndex];
+            double h = r.Y2 - r.Y1, w = r.X2 - r.X1;
+            double fs = Math.Clamp(h, 8.0, 12.0);
+            yield return new Cell(r.X1, pageH - r.Y2 + (h - fs) * 0.10, w, fs, "✕", false, Center: true);
+        }
     }
 
     // Register the embedded Sarabun weights with QuestPDF exactly once, so overlays render
@@ -73,7 +98,8 @@ public static class RdAcroFormFiller
     private readonly record struct FieldInfo(PdfRectangle Rect, int MaxLen, bool Comb);
 
     // ── Geometry: full field name → rect + comb info (PDF user space, bottom-left origin) ──
-    private static Dictionary<string, FieldInfo> ReadFieldRects(byte[] template, out double pageW, out double pageH)
+    private static Dictionary<string, FieldInfo> ReadFieldRects(
+        byte[] template, out double pageW, out double pageH, out Dictionary<string, List<PdfRectangle>> allRects)
     {
         using var input = new MemoryStream(template);
         var doc = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
@@ -81,6 +107,7 @@ public static class RdAcroFormFiller
         pageW = pg.Width.Point;
         pageH = pg.Height.Point;
         var map = new Dictionary<string, FieldInfo>();
+        var all = new List<(string Name, PdfRectangle Rect)>();   // every widget (incl. same-named radio kids)
         var fields = doc.AcroForm?.Elements.GetArray("/Fields")
             ?? throw new InvalidOperationException("Template has no AcroForm /Fields.");
         // /Ff and /MaxLen are inheritable: a widget kid takes them from its parent field.
@@ -95,10 +122,19 @@ public static class RdAcroFormFiller
             var kids = dict.Elements.GetArray("/Kids");
             if (kids is { Elements.Count: > 0 })
                 foreach (var k in kids) Walk(k, name, maxLen, comb);
-            else if (!string.IsNullOrEmpty(name))
-                map[name] = new FieldInfo(dict.Elements.GetRectangle("/Rect"), maxLen, comb);
+            else if (!string.IsNullOrEmpty(name) && dict.Elements.ContainsKey("/Rect"))
+            {
+                var rect = dict.Elements.GetRectangle("/Rect");
+                map[name] = new FieldInfo(rect, maxLen, comb);   // single-rect map (last wins) for text fields
+                all.Add((name, rect));
+            }
         }
         foreach (var f in fields) Walk(f, "", 0, false);
+
+        var h = pageH;
+        allRects = all.GroupBy(x => x.Name).ToDictionary(
+            g => g.Key,
+            g => g.Select(x => x.Rect).OrderBy(r => h - r.Y2).ThenBy(r => r.X1).ToList());
         return map;
     }
 

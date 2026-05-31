@@ -19,11 +19,17 @@ public sealed class Pnd1FilingService(AccountingDbContext db) : IPnd1FilingServi
         if (run.Payslips.Count == 0)
             throw new DomainException("payroll.no_employees", "Run has no payslips.");
 
+        // The registered address lives on master.company_profile (CompanyProfile), NOT master.companies.
         var c = await db.Companies.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == run.CompanyId, ct);
+        var prof = await db.CompanyProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == run.CompanyId, ct);
 
         var month = int.Parse(run.PeriodYearMonth[4..]);
         var yearBe = int.Parse(run.PeriodYearMonth[..4]) + 543;
         var payDate = $"{run.PayDate.Day:00}/{run.PayDate.Month:00}/{(run.PayDate.Year + 543) % 100:00}";
+
+        var addr = prof is null ? null
+            : string.Join(" ", new[] { prof.RegisteredAddressLine1, prof.RegisteredAddressLine2 }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
 
         var lines = run.Payslips
             .OrderBy(p => p.EmployeeCode)
@@ -31,11 +37,12 @@ public sealed class Pnd1FilingService(AccountingDbContext db) : IPnd1FilingServi
             .ToList();
 
         var model = new Pnd1MonthlyModel(
-            EmployerTaxId: c?.TaxId ?? "",
-            BranchCode: "00000",
-            EmployerName: c?.NameTh ?? "",
-            Address: c?.AddressTh,
-            SubDistrict: c?.SubDistrict, District: c?.District, Province: c?.Province, PostalCode: c?.PostalCode,
+            EmployerTaxId: prof?.TaxId ?? c?.TaxId ?? "",
+            BranchCode: prof?.BranchCode ?? "00000",
+            EmployerName: prof?.LegalName ?? c?.NameTh ?? "",
+            Address: string.IsNullOrWhiteSpace(addr) ? null : addr,
+            SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
+            Province: prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
             PeriodMonth: month, PeriodYearBE: yearBe,
             Lines: lines);
 

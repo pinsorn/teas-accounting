@@ -600,6 +600,7 @@
   "common": {
     "loading": "Loading…",
     "notFound": "Not found",
+    "print": "Print",
     "empty": "No data",
     "prev": "Previous",
     "next": "Next",

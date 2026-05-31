@@ -3,14 +3,14 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Download, FileDown, Trash2 } from 'lucide-react';
+import { FileDown, Printer, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
 import {
   usePayrollRun, useApprovePayrollRun, usePostPayrollRun, usePayPayrollRun, useDeletePayrollRun,
 } from '@/lib/queries';
-import { downloadFile } from '@/lib/api';
+import { downloadFile, printPdf } from '@/lib/api';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB } from '@/lib/utils';
 import { PayrollStatusBadge, formatPeriod } from '../_status';
@@ -37,6 +37,9 @@ export default function PayrollRunDetailPage() {
 
   async function dl(path: string, filename: string) {
     try { await downloadFile(path, filename); } catch (e) { toast.error(errorToToast(e)); }
+  }
+  async function pr(path: string) {
+    try { await printPdf(path); } catch (e) { toast.error(errorToToast(e)); }
   }
 
   if (q.isLoading) return <div className="p-6 text-ink-500">{tc('loading')}</div>;
@@ -95,8 +98,8 @@ export default function PayrollRunDetailPage() {
         <div className="flex gap-2">
           {run.status === 'POSTED' && (
             <button className="btn btn-outline btn-sm gap-1"
-              onClick={() => dl(`payroll/runs/${id}/pnd1/pdf`, `pnd1-${run.periodYearMonth}.pdf`)}>
-              <FileDown className="h-4 w-4" aria-hidden /> {t('pnd1')}
+              onClick={() => pr(`payroll/runs/${id}/pnd1/pdf`)}>
+              <Printer className="h-4 w-4" aria-hidden /> {t('pnd1')}
             </button>
           )}
           <button className="btn btn-outline btn-sm gap-1"
@@ -131,8 +134,8 @@ export default function PayrollRunDetailPage() {
                 <td className="text-right font-medium tabular-nums">{formatTHB(p.netPay)}</td>
                 <td className="text-right">
                   <button className="btn btn-ghost btn-xs gap-1"
-                    onClick={() => dl(`payroll/runs/${id}/payslips/${p.employeeId}/pdf`, `payslip-${p.employeeCode}.pdf`)}>
-                    <Download className="h-3 w-3" aria-hidden /> PDF
+                    onClick={() => pr(`payroll/runs/${id}/payslips/${p.employeeId}/pdf`)}>
+                    <Printer className="h-3 w-3" aria-hidden /> {tc('print')}
                   </button>
                 </td>
               </tr>
