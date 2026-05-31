@@ -52,13 +52,16 @@ export default function ProductsSettingsPage() {
     statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined;
   const q = useProducts(
     true, search || undefined, purpose || undefined,
-    productType || undefined, isActiveFilter, buFilter);
+    productType || undefined, isActiveFilter);
   const create = useCreateProduct();
   const update = useUpdateProduct();
   const deactivate = useDeactivateProduct();
   const confirm = useConfirm();
   const [edit, setEdit] = useState<Editing | null>(null);
-  const rows = q.data ?? [];
+  // BU filter is EXACT on the management list (Ham): selecting "Lab" shows only
+  // Lab's products, NOT the shared (null-BU) ones. (The doc-create picker keeps the
+  // OR-null semantics server-side, since a shared product is usable in any BU.)
+  const rows = (q.data ?? []).filter((p) => buFilter == null || p.businessUnitId === buFilter);
   // BU id → "CODE — name" for the list badge (list row carries only the id).
   const buList = useBusinessUnits().data ?? [];
   const buName = (id: number | null) =>

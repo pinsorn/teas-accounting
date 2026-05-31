@@ -141,12 +141,13 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
         var rows = await q.OrderBy(p => p.ProductCode)
             .Select(p => new { p.ProductId, p.ProductCode, p.NameTh, p.NameEn,
                                p.ProductType, p.DefaultUnitPrice, p.IsActive,
-                               p.IsSaleable, p.IsPurchasable, p.BusinessUnitId })
+                               p.IsSaleable, p.IsPurchasable, p.BusinessUnitId,
+                               p.DefaultUomText })
             .ToListAsync(ct);
         return rows.Select(p => new ProductListItem(
             p.ProductId, p.ProductCode, p.NameTh, p.NameEn,
             ToApi(p.ProductType), p.DefaultUnitPrice, p.IsActive,
-            p.IsSaleable, p.IsPurchasable, p.BusinessUnitId)).ToList();
+            p.IsSaleable, p.IsPurchasable, p.BusinessUnitId, p.DefaultUomText)).ToList();
     }
 
     public async Task<ProductDetail?> GetAsync(long id, CancellationToken ct)

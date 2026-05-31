@@ -139,6 +139,8 @@ export function LineItemsTable({
                           ...(p.defaultUnitPrice != null
                             ? { unitPrice: p.defaultUnitPrice }
                             : {}),
+                          // cont.81 — pull the product's default UoM onto the line.
+                          ...(p.defaultUomText ? { uomText: p.defaultUomText } : {}),
                         })
                       }
                       purpose={purpose}

@@ -19,6 +19,8 @@ export interface ProductPick {
   nameTh: string;
   productType: ProductTypeStr;
   defaultUnitPrice: number | null;
+  // cont.81 follow-up — default UoM, filled onto the line on select.
+  defaultUomText: string | null;
 }
 
 /** EXEMPT_* products carry no output VAT (ม.81); everything else is 7%. */
