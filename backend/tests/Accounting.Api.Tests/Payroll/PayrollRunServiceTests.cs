@@ -192,6 +192,26 @@ public sealed class PayrollRunServiceTests
     }
 
     [SkippableFact]
+    public async Task Pnd1_monthly_fills_the_official_acroform()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = Period(RandYear(), 7);
+        await AddEmployee(sp, 45_000m);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var pdf = await svc.BuildPnd1MonthlyAsync(runId, default);
+
+        pdf.Should().NotBeEmpty();
+        System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+        using var ms = new System.IO.MemoryStream(pdf);
+        var doc = PdfSharp.Pdf.IO.PdfReader.Open(ms, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        doc.PageCount.Should().BeGreaterThanOrEqualTo(3);   // main (2) + ≥1 ใบแนบ
+    }
+
+    [SkippableFact]
     public async Task Ytd_carries_so_constant_salary_withholds_evenly_across_two_months()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);

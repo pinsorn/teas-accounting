@@ -92,10 +92,18 @@ export default function PayrollRunDetailPage() {
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold">{t('payslips')} ({run.payslips.length})</h2>
-        <button className="btn btn-outline btn-sm gap-1"
-          onClick={() => dl(`payroll/runs/${id}/payslips/pdf`, `payslips-${run.periodYearMonth}.zip`)}>
-          <FileDown className="h-4 w-4" aria-hidden /> {t('downloadAll')}
-        </button>
+        <div className="flex gap-2">
+          {run.status === 'POSTED' && (
+            <button className="btn btn-outline btn-sm gap-1"
+              onClick={() => dl(`payroll/runs/${id}/pnd1/pdf`, `pnd1-${run.periodYearMonth}.pdf`)}>
+              <FileDown className="h-4 w-4" aria-hidden /> {t('pnd1')}
+            </button>
+          )}
+          <button className="btn btn-outline btn-sm gap-1"
+            onClick={() => dl(`payroll/runs/${id}/payslips/pdf`, `payslips-${run.periodYearMonth}.zip`)}>
+            <FileDown className="h-4 w-4" aria-hidden /> {t('downloadAll')}
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-box bg-base-100">

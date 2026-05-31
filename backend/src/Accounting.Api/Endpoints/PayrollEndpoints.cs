@@ -72,6 +72,12 @@ public static class PayrollEndpoints
             })
             .RequireAuthorization(p + Permissions.Payroll.RunManage);
 
+        // P-D #2 — official ภ.ง.ด.1 (monthly WHT return + ใบแนบ) filled from the run.
+        g.MapGet("/{id:long}/pnd1/pdf",
+            async (long id, IPnd1FilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildPnd1MonthlyAsync(id, ct), "application/pdf", $"pnd1-{id}.pdf"))
+            .RequireAuthorization(p + Permissions.Payroll.RunManage);
+
         return app;
     }
 }
