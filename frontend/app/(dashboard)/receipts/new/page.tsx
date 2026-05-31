@@ -442,6 +442,7 @@ export default function NewReceiptPage() {
                             description: p.nameTh, productId: p.productId, productType: p.productType,
                             unitPrice: p.defaultUnitPrice ?? l.unitPrice,
                             amount: (p.defaultUnitPrice ?? l.unitPrice) * (l.quantity || 1),
+                            uomText: p.defaultUomText ?? l.uomText,
                           })}
                           purpose="sale"
                           businessUnitId={businessUnitId}

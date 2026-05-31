@@ -35,6 +35,8 @@ function mapItems(raw: unknown): ProductPick[] {
       productType: (x.productType as ProductTypeStr | undefined) ?? 'GOOD',
       defaultUnitPrice:
         typeof x.defaultUnitPrice === 'number' ? (x.defaultUnitPrice as number) : null,
+      defaultUomText:
+        typeof x.defaultUomText === 'string' ? (x.defaultUomText as string) : null,
     }));
 }
 

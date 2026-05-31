@@ -573,8 +573,9 @@ export type ProductTypeStr = 'GOOD' | 'SERVICE' | 'EXEMPT_GOOD' | 'EXEMPT_SERVIC
 export interface ProductListItem {
   productId: number; productCode: string; nameTh: string; nameEn: string | null;
   productType: ProductTypeStr; defaultUnitPrice: number | null; isActive: boolean;
-  // cont.81 — purchase/sale split + BU scope.
+  // cont.81 — purchase/sale split + BU scope + default UoM (for picker auto-fill).
   isSaleable: boolean; isPurchasable: boolean; businessUnitId: number | null;
+  defaultUomText: string | null;
 }
 export interface ProductDetail {
   productId: number; productCode: string; nameTh: string; nameEn: string | null;

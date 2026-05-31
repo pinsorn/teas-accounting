@@ -40,7 +40,10 @@ public sealed record UpdateProductRequest(
 public sealed record ProductListItem(
     long ProductId, string ProductCode, string NameTh, string? NameEn,
     string ProductType, decimal? DefaultUnitPrice, bool IsActive,
-    bool IsSaleable, bool IsPurchasable, int? BusinessUnitId);
+    bool IsSaleable, bool IsPurchasable, int? BusinessUnitId,
+    // cont.81 follow-up — carry the default UoM so the line-item picker can fill
+    // the unit on select (was missing → lines defaulted to the literal "หน่วย").
+    string? DefaultUomText);
 
 public sealed record ProductDetail(
     long ProductId, string ProductCode, string NameTh, string? NameEn,

@@ -89,6 +89,7 @@ export function ProductQuickCreateModal({
         nameTh: nameTh.trim(),
         productType: type,
         defaultUnitPrice: null,
+        defaultUomText: null,
       });
       toast.success(tc('save'));
       onClose();
