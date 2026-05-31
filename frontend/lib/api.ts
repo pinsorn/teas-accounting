@@ -65,6 +65,31 @@ export function qs(params: Record<string, string | number | boolean | null | und
   return s ? `?${s}` : '';
 }
 
+/**
+ * cont.81 (DataTable) — fetch EVERY page of a cursor-paginated endpoint and return
+ * the flattened items, so the unified client-side TanStack table filters/sorts the
+ * whole dataset (not just the first page). Loops `cursor` until the server reports
+ * no more. SME-scale lists; safe cap to avoid an accidental infinite loop.
+ */
+export async function fetchAllPages<T>(
+  path: string,
+  params: Record<string, string | number | boolean | null | undefined> = {},
+  pageSize = 100,
+): Promise<T[]> {
+  const out: T[] = [];
+  let cursor: number | undefined;
+  for (let guard = 0; guard < 1000; guard++) {
+    const page = await request<{ items: T[]; nextCursor: number | null; hasMore: boolean }>(
+      `${path}${qs({ ...params, cursor, limit: pageSize })}`,
+      { method: 'GET' },
+    );
+    out.push(...page.items);
+    if (!page.hasMore || page.nextCursor == null) break;
+    cursor = page.nextCursor;
+  }
+  return out;
+}
+
 /** Sprint 13h P10 — multipart upload helper. Lets the browser set the
  * multipart boundary itself (no fixed Content-Type override). */
 export async function apiUploadFile<T>(path: string, file: File): Promise<T> {

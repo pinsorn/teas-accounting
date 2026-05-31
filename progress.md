@@ -3,6 +3,13 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-05-31 (cont. 82) — Unified TanStack DataTable across all list pages (Ham). IN PROGRESS. Spec `docs/superpowers/specs/datatable-tanstack-2026-05-31.md`.
+
+Ham: ทุก list page → ตารางสไตล์เดียว, ใช้ `@tanstack/react-table`, filter ละเอียดต่อหน้า, ชื่อ/เลขเอกสารกดได้→detail. **Decisions (AskUserQuestion):** scope = ~18 entity/doc/master lists (NOT aggregate report pages); cursor-paginated lists → fetch-all client-side filter.
+- **Foundation + pilot — DONE, committed:** `pnpm add @tanstack/react-table@8.21.3`. `lib/api.ts fetchAllPages<T>` (cursor loop → flat T[]). `components/ui/DataTable.tsx` — generic `<DataTable<T>>`: global search + per-column filter (text/select, faceted) + sortable headers + client pagination + `RowLink` (clickable primary cell); style = existing `table table-zebra` in rounded card. i18n common.prev/next/rowsTotal. **Pilot = tax-invoices** (the hard cursor case): `useTaxInvoices`→fetch-all, page rebuilt on DataTable (docNo link, status/payment/customer filters, date-desc sort). tsc 0. Ham approved → rollout.
+- **Rollout (in progress):** convert remaining cursor hooks (receipts/CN-DN/PV/VI/WHT-cert) to fetch-all in `lib/queries.ts` (I own the shared file), then rewrite each page.tsx onto DataTable. Sales: quotations/sales-orders/delivery-orders/invoices/receipts/credit-notes/debit-notes. Purchase: purchase-orders/payment-vouchers/vendor-invoices/wht-certificates. Masters: customers/vendors/products/business-units/expense-categories/wht-types.
+- Note: non-VAT env toggle reverted to VatMode:true (was a transient test; TI page is NonVatGuard-blocked under non-VAT).
+
 ## 2026-05-31 (cont. 81) — Product master: Purchase/Sale split + Business Unit + price auto-fill on pick (Ham). BE build 0/0 · Api.Tests **202/202 ×2** on teas_test (was 198 +4 new) · FE tsc 0 · i18n th/en 0/0. Spec `docs/superpowers/specs/product-purchase-sale-bu-2026-05-31.md`. Migration `20260531021505_AddProductPurchaseSaleAndBusinessUnit` (dev applied; teas_test via fixture). **Uncommitted at time of writing → commit pending.**
 
 Ham: สินค้า/บริการ แยก ซื้อ/ขาย + แยกตามหน่วยธุรกิจ; picker filter ตาม purpose + BU ที่เลือก; เลือกสินค้า → เติมราคา (ยัง editable). **Locked (AskUserQuestion):** 2 flags `IsSaleable`+`IsPurchasable` (both ได้) · BU = single nullable, null=ทุกหน่วย, picker shows `bu==sel OR bu==null` · single `DefaultUnitPrice` filled both ways, editable.

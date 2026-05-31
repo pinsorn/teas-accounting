@@ -6,7 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPut, apiDelete, apiUploadFile, qs } from './api';
+import { apiGet, apiPost, apiPut, apiDelete, apiUploadFile, qs, fetchAllPages } from './api';
 import type {
   CursorPage,
   CreateTaxInvoiceRequest,
@@ -84,15 +84,13 @@ export interface TaxInvoiceFilters {
   includeUnspecified?: boolean;
 }
 
-export function useTaxInvoices(filters: TaxInvoiceFilters) {
-  return useInfiniteQuery({
-    queryKey: ['tax-invoices', filters],
-    initialPageParam: undefined as number | undefined,
-    queryFn: ({ pageParam }) =>
-      apiGet<CursorPage<TaxInvoiceListItem>>(
-        `tax-invoices${qs({ ...filters, cursor: pageParam, limit: 25 })}`,
-      ),
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
+// cont.81 (DataTable) — fetch-all so the unified client-side table filters/sorts the
+// whole set. Server-side filter params are no longer needed (TanStack does it on the
+// client); kept the optional arg for back-compat but it is ignored.
+export function useTaxInvoices(_filters?: TaxInvoiceFilters) {
+  return useQuery({
+    queryKey: ['tax-invoices', 'all'],
+    queryFn: () => fetchAllPages<TaxInvoiceListItem>('tax-invoices'),
   });
 }
 
