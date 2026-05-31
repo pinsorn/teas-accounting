@@ -53,6 +53,12 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
     ],
   },
   {
+    key: 'payroll',
+    items: [
+      { href: '/payroll', key: 'payroll', Icon: Coins },
+    ],
+  },
+  {
     key: 'reports',
     items: [
       { href: '/reports/trial-balance', key: 'trialBalance', Icon: Scale },

@@ -21,6 +21,10 @@
   - ☑ **payslip / payment-evidence PDF** (cont.82.2) — `PayslipPdf` (QuestPDF, self-registers license+Sarabun)
     + `PayslipPdfService` (per-employee + run-zip), endpoints `/payroll/runs/{id}/payslips/{employeeId}/pdf`
     + `/payslips/pdf`. Api.Tests 219/219 ×2 · live PDF+zip smoke. Sample sent to Ham.
+  - ☑ **FE payroll UI** (cont.82.2) — `/payroll` list (DataTable, status badge, create modal) +
+    `/payroll/[id]` detail (totals, approve/post/pay/delete gated by SoD perms, payslip table +
+    per-row PDF + run-zip download) · nav section + i18n th/en (35-key parity) · FE tsc 0.
+    (Not visually spot-checked — tsc gate per §6; mirrors the employee/DataTable patterns.)
   - ☐ ภ.ง.ด.1 monthly
   (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
   (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).

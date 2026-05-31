@@ -48,6 +48,9 @@ import type {
   EmployeeDetail,
   CreateEmployeeRequest,
   UpdateEmployeeRequest,
+  PayrollRunListItem,
+  PayrollRunDetail,
+  CreatePayrollRunRequest,
   CompanyProfile,
   UpdateCompanyProfileSoftRequest,
   MePermissions,
@@ -480,6 +483,48 @@ export function useDeactivateEmployee() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
   });
 }
+// ───────────────────────── Payroll P-C/P-D: Runs ─────────────────────────
+export function usePayrollRuns() {
+  return useQuery({
+    queryKey: ['payroll-runs'],
+    queryFn: () => apiGet<PayrollRunListItem[]>('payroll/runs'),
+  });
+}
+export function usePayrollRun(id: number) {
+  return useQuery({
+    queryKey: ['payroll-run', id],
+    queryFn: () => apiGet<PayrollRunDetail>(`payroll/runs/${id}`),
+    enabled: id > 0,
+  });
+}
+export function useCreatePayrollRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreatePayrollRunRequest) => apiPost<unknown>('payroll/runs', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs'] }),
+  });
+}
+function useRunTransition(action: 'approve' | 'post' | 'pay') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<unknown>(`payroll/runs/${id}/${action}`),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-run', id] });
+    },
+  });
+}
+export const useApprovePayrollRun = () => useRunTransition('approve');
+export const usePostPayrollRun = () => useRunTransition('post');
+export const usePayPayrollRun = () => useRunTransition('pay');
+export function useDeletePayrollRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`payroll/runs/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs'] }),
+  });
+}
+
 // ───────────────────────── Sprint 13d P3: Permissions ─────────────────────────
 export function useMePermissions() {
   return useQuery({
