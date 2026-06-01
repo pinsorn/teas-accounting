@@ -123,6 +123,8 @@
     "payslips": "Payslips",
     "downloadAll": "Download all (zip)",
     "pnd1": "PND1 (PDF)",
+    "pnd1a": "PND1ก (year)",
+    "annualYear": "Tax year (CE)",
     "employee": "Employee",
     "gross": "Gross",
     "pit": "PIT",

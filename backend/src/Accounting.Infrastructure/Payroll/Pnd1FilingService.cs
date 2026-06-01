@@ -1,15 +1,17 @@
+using Accounting.Application.Abstractions;
 using Accounting.Application.Payroll;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Payroll;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Payroll;
 
-/// <summary>Builds the monthly ภ.ง.ด.1 (return + ใบแนบ) from a posted payroll run's payslips +
-/// the employer (Company) header. Salary = ม.40(1) กรณีทั่วไป. Tenant-scoped via the EF filter.</summary>
-public sealed class Pnd1FilingService(AccountingDbContext db) : IPnd1FilingService
+/// <summary>Builds ภ.ง.ด.1 (monthly, from a run) + ภ.ง.ด.1ก (annual, aggregating posted runs in a tax
+/// year) + their ใบแนบ from payslips + the employer profile header. Salary = ม.40(1) กรณีทั่วไป.</summary>
+public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext tenant) : IPnd1FilingService
 {
     public async Task<byte[]> BuildPnd1MonthlyAsync(long runId, CancellationToken ct)
     {
@@ -56,5 +58,43 @@ public sealed class Pnd1FilingService(AccountingDbContext db) : IPnd1FilingServi
             Lines: lines);
 
         return Pnd1FormFiller.FillMonthly(model);
+    }
+
+    public async Task<byte[]> BuildPnd1aAnnualAsync(int year, CancellationToken ct)
+    {
+        var prof = await db.CompanyProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+        var c = await db.Companies.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+
+        // Every POSTED run in the CE tax year, aggregated per employee (whole-year income + tax).
+        var prefix = year.ToString("0000");
+        var slips = await db.Payslips.AsNoTracking()
+            .Where(p => p.Run!.Status == DocumentStatus.Posted && p.Run.PeriodYearMonth.StartsWith(prefix))
+            .Select(p => new { p.EmployeeId, p.NationalId, p.EmployeeName, p.AddressText, p.GrossTaxable, p.PitWithheld })
+            .ToListAsync(ct);
+        if (slips.Count == 0)
+            throw new DomainException("payroll.no_data", $"No posted payroll runs in tax year {year}.");
+
+        var lines = slips
+            .GroupBy(s => s.EmployeeId)
+            .Select(g =>
+            {
+                var first = g.First();
+                return new Pnd1aLine(first.NationalId, first.EmployeeName, first.AddressText,
+                    g.Sum(x => x.GrossTaxable), g.Sum(x => x.PitWithheld));
+            })
+            .OrderBy(l => l.FullName)
+            .ToList();
+
+        var model = new Pnd1aModel(
+            EmployerTaxId: prof?.TaxId ?? c?.TaxId ?? "",
+            BranchCode: prof?.BranchCode ?? "00000",
+            EmployerName: prof?.LegalName ?? c?.NameTh ?? "",
+            Building: prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor, Village: prof?.RegVillage,
+            HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo, Soi: prof?.RegSoi, Street: prof?.RegStreet,
+            SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
+            Province: prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
+            YearBE: year + 543, Lines: lines);
+
+        return Pnd1aFormFiller.FillAnnual(model);
     }
 }

@@ -78,6 +78,13 @@ public static class PayrollEndpoints
                 Results.File(await svc.BuildPnd1MonthlyAsync(id, ct), "application/pdf", $"pnd1-{id}.pdf"))
             .RequireAuthorization(p + Permissions.Payroll.RunManage);
 
+        // P-D #3 — ภ.ง.ด.1ก (annual, ม.58(1)) — aggregates all posted runs in the CE tax year.
+        app.MapGet("/payroll/pnd1a/pdf",
+            async ([FromQuery] int year, IPnd1FilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildPnd1aAnnualAsync(year, ct), "application/pdf", $"pnd1a-{year}.pdf"))
+            .WithTags("Payroll")
+            .RequireAuthorization(p + Permissions.Payroll.RunManage);
+
         return app;
     }
 }
