@@ -29,9 +29,14 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         var yearBe = int.Parse(run.PeriodYearMonth[..4]) + 543;
         var payDate = $"{run.PayDate.Day:00}/{run.PayDate.Month:00}/{(run.PayDate.Year + 543) % 100:00}";
 
+        var names = await NameMapAsync(run.Payslips.Select(p => p.EmployeeId), ct);
         var lines = run.Payslips
             .OrderBy(p => p.EmployeeCode)
-            .Select(p => new Pnd1Line(p.NationalId, p.EmployeeName, "", payDate, p.GrossTaxable, p.PitWithheld))
+            .Select(p =>
+            {
+                var (first, last) = ResolveName(names, p.EmployeeId, p.EmployeeName);
+                return new Pnd1Line(p.NationalId, first, last, payDate, p.GrossTaxable, p.PitWithheld);
+            })
             .ToList();
 
         // Prefer the structured registered-address fields; if a tenant has only the legacy
@@ -74,15 +79,17 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         if (slips.Count == 0)
             throw new DomainException("payroll.no_data", $"No posted payroll runs in tax year {year}.");
 
+        var names = await NameMapAsync(slips.Select(s => s.EmployeeId), ct);
         var lines = slips
             .GroupBy(s => s.EmployeeId)
             .Select(g =>
             {
-                var first = g.First();
-                return new Pnd1aLine(first.NationalId, first.EmployeeName, first.AddressText,
+                var s0 = g.First();
+                var (first, last) = ResolveName(names, g.Key, s0.EmployeeName);
+                return new Pnd1aLine(s0.NationalId, first, last, s0.AddressText,
                     g.Sum(x => x.GrossTaxable), g.Sum(x => x.PitWithheld));
             })
-            .OrderBy(l => l.FullName)
+            .OrderBy(l => l.LastName).ThenBy(l => l.FirstName)
             .ToList();
 
         var model = new Pnd1aModel(
@@ -96,5 +103,28 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
             YearBE: year + 543, Lines: lines);
 
         return Pnd1aFormFiller.FillAnnual(model);
+    }
+
+    // EmployeeId → (ชื่อ = title + first name, ชื่อสกุล = last name) for the form's split name boxes.
+    private async Task<Dictionary<long, (string First, string Last)>> NameMapAsync(
+        IEnumerable<long> employeeIds, CancellationToken ct)
+    {
+        var ids = employeeIds.Distinct().ToList();
+        return await db.Employees.AsNoTracking()
+            .Where(e => ids.Contains(e.EmployeeId))
+            .ToDictionaryAsync(
+                e => e.EmployeeId,
+                e => (((e.TitleTh ?? "") + " " + e.FirstNameTh).Trim(), e.LastNameTh),
+                ct);
+    }
+
+    // Use the master split when available; else split the frozen snapshot name on its last space.
+    private static (string First, string Last) ResolveName(
+        Dictionary<long, (string First, string Last)> map, long employeeId, string snapshotFullName)
+    {
+        if (map.TryGetValue(employeeId, out var n)) return n;
+        var full = (snapshotFullName ?? "").Trim();
+        var i = full.LastIndexOf(' ');
+        return i <= 0 ? (full, "") : (full[..i].Trim(), full[(i + 1)..].Trim());
     }
 }

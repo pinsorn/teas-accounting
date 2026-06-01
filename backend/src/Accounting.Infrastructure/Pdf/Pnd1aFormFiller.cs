@@ -5,8 +5,9 @@ using PdfSharp.Pdf.IO;
 
 namespace Accounting.Infrastructure.Pdf;
 
-/// <summary>One employee row on the annual ใบแนบ ภ.ง.ด.1ก (whole-year totals + address).</summary>
-public sealed record Pnd1aLine(string TaxId, string FullName, string? Address, decimal Income, decimal Tax);
+/// <summary>One employee row on the annual ใบแนบ ภ.ง.ด.1ก (whole-year totals + address). Name is
+/// split: <paramref name="FirstName"/> (with title) → ชื่อ box, <paramref name="LastName"/> → ชื่อสกุล box.</summary>
+public sealed record Pnd1aLine(string TaxId, string FirstName, string LastName, string? Address, decimal Income, decimal Tax);
 
 /// <summary>Data for the annual ภ.ง.ด.1ก (return + ใบแนบ). Salary = ม.40(1) กรณีทั่วไป.</summary>
 public sealed record Pnd1aModel(
@@ -80,20 +81,21 @@ public static class Pnd1aFormFiller
         {
             var l = slice[i];
             var seq = (s * RowsPerSheet + i + 1).ToString();
+            // Columns: ชื่อ | ชื่อสกุล | เงินได้ | ภาษี | เงื่อนไข ; ที่อยู่ on the line below (.8).
             if (i == 0)   // row 1 uses the special Text1.* block
             {
                 f.Add(new("Text1.4", seq)); f.Add(new("Text1.5", FormatTaxId(l.TaxId)));
-                f.Add(new("Text1.6", l.FullName)); f.Add(new("Text1.7", l.Address ?? ""));
+                f.Add(new("Text1.6", l.FirstName)); f.Add(new("Text1.7", l.LastName));
                 f.Add(new("Text1.8", Money(l.Income), Right: true)); f.Add(new("Text1.9", Money(l.Tax), Right: true));
-                f.Add(new("Text1.10", "1"));
+                f.Add(new("Text1.10", "1")); f.Add(new("Text1.11", l.Address ?? ""));
             }
             else
             {
                 var r = i + 1;   // blocks 2..7
                 f.Add(new($"Text{r}.1", seq)); f.Add(new($"Text{r}.2", FormatTaxId(l.TaxId)));
-                f.Add(new($"Text{r}.3", l.FullName)); f.Add(new($"Text{r}.4", l.Address ?? ""));
+                f.Add(new($"Text{r}.3", l.FirstName)); f.Add(new($"Text{r}.4", l.LastName));
                 f.Add(new($"Text{r}.5", Money(l.Income), Right: true)); f.Add(new($"Text{r}.6", Money(l.Tax), Right: true));
-                f.Add(new($"Text{r}.7", "1"));
+                f.Add(new($"Text{r}.7", "1")); f.Add(new($"Text{r}.8", l.Address ?? ""));
             }
         }
         f.Add(new("Text8.6", Money(slice.Sum(l => l.Income)), Right: true));
