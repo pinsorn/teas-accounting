@@ -30,7 +30,8 @@ public sealed class CompanyProfileService(
                 p.RegisteredProvince, p.RegisteredPostalCode,
                 p.VatRegistrationDate, p.BranchCode,
                 p.TradeName, p.LogoUrl, p.Phone, p.Email, p.Website,
-                p.ContactName, p.BankName, p.BankAccountNo, p.BankAccountName))
+                p.ContactName, p.BankName, p.BankAccountNo, p.BankAccountName,
+                p.SsoEmployerAccountNo))
             .FirstOrDefaultAsync(ct);
 
     public async Task UpdateSoftAsync(UpdateCompanyProfileSoftRequest req, CancellationToken ct)
@@ -54,6 +55,7 @@ public sealed class CompanyProfileService(
         e.BankName = req.BankName;
         e.BankAccountNo = req.BankAccountNo;
         e.BankAccountName = req.BankAccountName;
+        e.SsoEmployerAccountNo = req.SsoEmployerAccountNo;
         e.UpdatedAt = DateTimeOffset.UtcNow;
         e.UpdatedByUserId = tenant.UserId;
 

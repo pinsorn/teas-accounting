@@ -123,6 +123,7 @@
     "payslips": "Payslips",
     "downloadAll": "Download all (zip)",
     "pnd1": "PND1 (PDF)",
+    "ssoFile": "SSO file (สปส.1-10)",
     "pnd1a": "PND1ก (year)",
     "annualYear": "Tax year (CE)",
     "employee": "Employee",
@@ -284,6 +285,7 @@
       "bankName": "Bank",
       "bankAccountNo": "Account number",
       "bankAccountName": "Account name",
+      "ssoEmployerAccountNo": "SSO employer account no.",
       "swiftCode": "SWIFT / BIC",
       "swiftHint": "For non-Thai banks"
     }

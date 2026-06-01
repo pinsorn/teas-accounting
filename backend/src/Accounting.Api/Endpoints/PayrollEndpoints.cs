@@ -78,6 +78,15 @@ public static class PayrollEndpoints
                 Results.File(await svc.BuildPnd1MonthlyAsync(id, ct), "application/pdf", $"pnd1-{id}.pdf"))
             .RequireAuthorization(p + Permissions.Payroll.RunManage);
 
+        // P-D #4 — SSO สปส.1-10 monthly contribution e-Service upload file (TIS-620 fixed-width).
+        g.MapGet("/{id:long}/sso/file",
+            async (long id, ISsoFilingService svc, CancellationToken ct) =>
+            {
+                var (content, fileName) = await svc.BuildMonthlyFileAsync(id, ct);
+                return Results.File(content, "text/plain", fileName);
+            })
+            .RequireAuthorization(p + Permissions.Payroll.RunManage);
+
         // P-D #3 — ภ.ง.ด.1ก (annual, ม.58(1)) — aggregates all posted runs in the CE tax year.
         app.MapGet("/payroll/pnd1a/pdf",
             async ([FromQuery] int year, IPnd1FilingService svc, CancellationToken ct) =>

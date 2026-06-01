@@ -3,14 +3,14 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Printer, Trash2 } from 'lucide-react';
+import { Printer, Trash2, FileText } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
 import {
   usePayrollRun, useApprovePayrollRun, usePostPayrollRun, usePayPayrollRun, useDeletePayrollRun,
 } from '@/lib/queries';
-import { openPdf } from '@/lib/api';
+import { openPdf, downloadFile } from '@/lib/api';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB } from '@/lib/utils';
 import { PayrollStatusBadge, formatPeriod } from '../_status';
@@ -37,6 +37,10 @@ export default function PayrollRunDetailPage() {
 
   async function pr(path: string) {
     try { await openPdf(path); } catch (e) { toast.error(errorToToast(e)); }
+  }
+
+  async function dl(path: string, filename: string) {
+    try { await downloadFile(path, filename); } catch (e) { toast.error(errorToToast(e)); }
   }
 
   if (q.isLoading) return <div className="p-6 text-ink-500">{tc('loading')}</div>;
@@ -93,10 +97,16 @@ export default function PayrollRunDetailPage() {
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold">{t('payslips')} ({run.payslips.length})</h2>
         {run.status === 'POSTED' && (
-          <button className="btn btn-outline btn-sm gap-1"
-            onClick={() => pr(`payroll/runs/${id}/pnd1/pdf`)}>
-            <Printer className="h-4 w-4" aria-hidden /> {t('pnd1')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-outline btn-sm gap-1"
+              onClick={() => pr(`payroll/runs/${id}/pnd1/pdf`)}>
+              <Printer className="h-4 w-4" aria-hidden /> {t('pnd1')}
+            </button>
+            <button className="btn btn-outline btn-sm gap-1"
+              onClick={() => dl(`payroll/runs/${id}/sso/file`, `sps1-10_${run.periodYearMonth}.txt`)}>
+              <FileText className="h-4 w-4" aria-hidden /> {t('ssoFile')}
+            </button>
+          </div>
         )}
       </div>
 

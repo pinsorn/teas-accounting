@@ -123,6 +123,7 @@
     "payslips": "รายการพนักงาน",
     "downloadAll": "ดาวน์โหลดทั้งหมด (zip)",
     "pnd1": "ภ.ง.ด.1 (PDF)",
+    "ssoFile": "สปส.1-10 (ไฟล์)",
     "pnd1a": "ภ.ง.ด.1ก (ปี)",
     "annualYear": "ปีภาษี (ค.ศ.)",
     "employee": "พนักงาน",
@@ -284,6 +285,7 @@
       "bankName": "ธนาคาร",
       "bankAccountNo": "เลขที่บัญชี",
       "bankAccountName": "ชื่อบัญชี",
+      "ssoEmployerAccountNo": "เลขที่บัญชีนายจ้าง (ประกันสังคม)",
       "swiftCode": "SWIFT / BIC",
       "swiftHint": "สำหรับธนาคารต่างประเทศ"
     }

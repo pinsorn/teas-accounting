@@ -212,6 +212,46 @@ public sealed class PayrollRunServiceTests
     }
 
     [SkippableFact]
+    public async Task Sso_monthly_aggregates_insured_employees_with_clamped_contributory_wage()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = Period(RandYear(), 8);
+        var e50k   = await AddEmployee(sp, 50_000m);              // sso 750 → contributory wage clamped 15,000
+        var e10k   = await AddEmployee(sp, 10_000m);              // sso 500 → contributory wage 10,000
+        var eNoSso = await AddEmployee(sp, 30_000m, sso: false);  // excluded — no contribution
+        var runId  = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var run = (await s.ServiceProvider.GetRequiredService<IPayrollRunService>().GetAsync(runId, default))!;
+        var nid50    = run.Payslips.Single(p => p.EmployeeId == e50k).NationalId;
+        var nid10    = run.Payslips.Single(p => p.EmployeeId == e10k).NationalId;
+        var nidNoSso = run.Payslips.Single(p => p.EmployeeId == eNoSso).NationalId;
+
+        var model = await s.ServiceProvider.GetRequiredService<ISsoFilingService>().BuildMonthlyAsync(runId, default);
+
+        model.PeriodMonth.Should().Be(8);
+        model.PeriodYearBE.Should().Be(model.PeriodYearCE + 543);
+
+        var l50 = model.Lines.Single(l => l.NationalId == nid50);
+        l50.EmployeeContribution.Should().Be(750m);              // 5% of the ฿15,000 ceiling
+        l50.EmployerContribution.Should().Be(750m);              // equal 5% legs
+        l50.Wage.Should().Be(50_000m);                           // ACTUAL wage (un-capped) — not the contributory base
+
+        var l10 = model.Lines.Single(l => l.NationalId == nid10);
+        l10.EmployeeContribution.Should().Be(500m);              // 5% of 10,000 (under the ceiling)
+        l10.Wage.Should().Be(10_000m);
+
+        model.Lines.Should().NotContain(l => l.NationalId == nidNoSso);   // SsoApplicable=false ⇒ no row
+
+        // Run-level invariants robust to other tests' employees pooled into the same run.
+        model.TotalEmployeeContribution.Should().Be(model.TotalEmployerContribution);
+        model.GrandTotalContribution.Should().Be(model.TotalEmployeeContribution + model.TotalEmployerContribution);
+        model.EmployeeCount.Should().Be(model.Lines.Count);
+        model.Lines.Should().OnlyContain(l => l.EmployeeContribution > 0m);
+    }
+
+    [SkippableFact]
     public async Task Ytd_carries_so_constant_salary_withholds_evenly_across_two_months()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);

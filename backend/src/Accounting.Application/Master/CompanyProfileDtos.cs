@@ -36,7 +36,8 @@ public sealed record CompanyProfileDto(
     string? ContactName,
     string? BankName,
     string? BankAccountNo,
-    string? BankAccountName);
+    string? BankAccountName,
+    string? SsoEmployerAccountNo);
 
 // Only soft fields are accepted. Hard fields are never in this request —
 // editing them is rejected by the /hard endpoint (501, Phase 2).
@@ -49,7 +50,8 @@ public sealed record UpdateCompanyProfileSoftRequest(
     string? ContactName,
     string? BankName,
     string? BankAccountNo,
-    string? BankAccountName);
+    string? BankAccountName,
+    string? SsoEmployerAccountNo);
 
 // Registered address (HARD) edit — allowed only after the user confirms (FE modal) that the
 // change has been filed with DBD (บอจ.1 + บอจ.4) and, for a VAT registrant, สรรพากร (ภ.พ.09).
@@ -97,5 +99,6 @@ public sealed class UpdateCompanyProfileSoftValidator
         RuleFor(x => x.BankName).MaximumLength(100).WithMessage("validation.maxLength");
         RuleFor(x => x.BankAccountNo).MaximumLength(50).WithMessage("validation.maxLength");
         RuleFor(x => x.BankAccountName).MaximumLength(200).WithMessage("validation.maxLength");
+        RuleFor(x => x.SsoEmployerAccountNo).MaximumLength(10).WithMessage("validation.maxLength");
     }
 }

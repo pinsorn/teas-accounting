@@ -48,6 +48,7 @@ internal sealed class CompanyProfileConfiguration : IEntityTypeConfiguration<Com
         b.Property(x => x.BankName).HasMaxLength(100);
         b.Property(x => x.BankAccountNo).HasMaxLength(50);
         b.Property(x => x.BankAccountName).HasMaxLength(200);
+        b.Property(x => x.SsoEmployerAccountNo).HasMaxLength(10);
 
         // ---- Audit ----
         b.Property(x => x.CreatedAt).HasColumnType("timestamptz(3)");

@@ -49,6 +49,8 @@ public class CompanyProfile
     public string? BankName { get; set; }
     public string? BankAccountNo { get; set; }
     public string? BankAccountName { get; set; }
+    // เลขที่บัญชีนายจ้าง — 10-digit SSO employer registration number (สปส.1-10 file header).
+    public string? SsoEmployerAccountNo { get; set; }
 
     // ---- Audit ----
     public DateTimeOffset CreatedAt { get; set; }
