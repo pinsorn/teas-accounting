@@ -22,6 +22,8 @@ public sealed class CompanyProfileService(
                 p.CompanyId,
                 p.LegalName, p.TaxId, p.RegistrationNumber,
                 p.RegisteredAddressLine1, p.RegisteredAddressLine2,
+                p.RegBuilding, p.RegRoomNo, p.RegFloor, p.RegVillage,
+                p.RegHouseNo, p.RegMoo, p.RegSoi, p.RegStreet,
                 p.RegisteredSubdistrict, p.RegisteredDistrict,
                 p.RegisteredProvince, p.RegisteredPostalCode,
                 p.VatRegistrationDate, p.BranchCode,
