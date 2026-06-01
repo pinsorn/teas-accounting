@@ -4,12 +4,13 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Plus, Printer } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DataTable } from '@/components/ui/DataTable';
 import { PermissionGate } from '@/components/PermissionGate';
 import { usePayrollRuns, useCreatePayrollRun } from '@/lib/queries';
+import { openPdf } from '@/lib/api';
 import type { PayrollRunListItem } from '@/lib/types';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB } from '@/lib/utils';
@@ -35,6 +36,12 @@ export default function PayrollRunsPage() {
   const [period, setPeriod] = useState(thisPeriod());
   const [payDate, setPayDate] = useState(lastDayIso(thisPeriod()));
   const [notes, setNotes] = useState('');
+  const [annualYear, setAnnualYear] = useState(new Date().getFullYear());
+
+  async function printAnnual() {
+    try { await openPdf(`payroll/pnd1a/pdf?year=${annualYear}`); }
+    catch (e) { toast.error(errorToToast(e)); }
+  }
 
   const rows = q.data ?? [];
   const periodOk = /^\d{6}$/.test(period) && Number(period.slice(4)) >= 1 && Number(period.slice(4)) <= 12;
@@ -76,9 +83,17 @@ export default function PayrollRunsPage() {
         title={t('title')} subtitle={t('subtitle')}
         actions={
           <PermissionGate scope={SCOPE}>
-            <button className="btn btn-primary btn-sm gap-1" onClick={() => { const p = thisPeriod(); setPeriod(p); setPayDate(lastDayIso(p)); setOpen(true); }}>
-              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-            </button>
+            <div className="flex items-center gap-2">
+              <input type="number" className="input input-bordered input-sm w-24 tabular-nums"
+                value={annualYear} onChange={(e) => setAnnualYear(Number(e.target.value) || annualYear)}
+                title={t('annualYear')} />
+              <button className="btn btn-outline btn-sm gap-1" onClick={printAnnual}>
+                <Printer className="h-4 w-4" aria-hidden /> {t('pnd1a')}
+              </button>
+              <button className="btn btn-primary btn-sm gap-1" onClick={() => { const p = thisPeriod(); setPeriod(p); setPayDate(lastDayIso(p)); setOpen(true); }}>
+                <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+              </button>
+            </div>
           </PermissionGate>
         }
       />

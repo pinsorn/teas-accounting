@@ -30,7 +30,10 @@
       `Pnd1FormFiller` (main + ใบแนบ, comb taxid, 8/sheet, PdfSharp merge) + `Pnd1FilingService` +
       `GET /payroll/runs/{id}/pnd1/pdf` + FE button. Api.Tests 220/220 ×2 · live 3-page render + sample sent.
       **Ham visual-validation pending** · WIP: name split, month/ปกติ radio (same-name → needs abs-rect overlay), address.
-    - ☐ **ภ.ง.ด.1ก annual** — decode `pnd1a_*` (adds address col) + aggregate posted runs/year.
+    - ☑ **ภ.ง.ด.1ก annual** (cont.82.2) — `Pnd1aFormFiller` (landscape ใบแนบ + address col) +
+      `BuildPnd1aAnnualAsync(year)` (aggregate posted runs/year/employee) + `GET /payroll/pnd1a/pdf?year` +
+      FE button. Live render 2099 OK. Also: registered address now editable (DBD/ภ.พ.09 warning gate).
+    - ☐ SSO contribution file (separate e-service format).
   (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
   (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).
 - ☐ FE payroll run UI (list + create/approve/post/pay + payslip view) — not yet built.
