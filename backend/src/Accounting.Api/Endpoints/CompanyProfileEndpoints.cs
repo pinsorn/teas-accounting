@@ -43,6 +43,16 @@ public static class CompanyProfileEndpoints
         }).RequireAuthorization(
             PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage);
 
+        // Registered-address (HARD) update — allowed after the admin confirms (FE warning modal)
+        // that the change is filed with DBD (บอจ.1/บอจ.4) + ภ.พ.09. Audited in the service.
+        g.MapPut("/registered-address", async ([FromBody] UpdateRegisteredAddressRequest req,
+            ICompanyProfileService svc, CancellationToken ct) =>
+        {
+            await svc.UpdateRegisteredAddressAsync(req, ct);
+            return Results.NoContent();
+        }).RequireAuthorization(
+            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage);
+
         // Hard update — Phase-1 not implemented (ภ.พ.20-bound, see body).
         g.MapPut("/hard", () => Results.Json(new
         {

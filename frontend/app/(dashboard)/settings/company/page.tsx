@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Lock, AlertTriangle } from 'lucide-react';
+import { Lock, AlertTriangle, Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo } from '@/lib/queries';
-import type { UpdateCompanyProfileSoftRequest } from '@/lib/types';
+import { PermissionGate } from '@/components/PermissionGate';
+import {
+  useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo, useUpdateRegisteredAddress,
+} from '@/lib/queries';
+import type { UpdateCompanyProfileSoftRequest, UpdateRegisteredAddressRequest } from '@/lib/types';
 
 type SoftForm = UpdateCompanyProfileSoftRequest;
 
@@ -21,9 +24,39 @@ export default function CompanyProfilePage() {
   const q = useCompanyProfile();
   const save = useUpdateCompanyProfileSoft();
   const upload = useUploadCompanyLogo();
+  const saveAddr = useUpdateRegisteredAddress();
   const [form, setForm] = useState<SoftForm>(EMPTY_SOFT);
+  const [addr, setAddr] = useState<UpdateRegisteredAddressRequest | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const p = q.data;
+
+  function openAddr() {
+    if (!p) return;
+    setAddr({
+      building: p.regBuilding ?? '', roomNo: p.regRoomNo ?? '', floor: p.regFloor ?? '',
+      village: p.regVillage ?? '', houseNo: p.regHouseNo ?? '', moo: p.regMoo ?? '',
+      soi: p.regSoi ?? '', street: p.regStreet ?? '',
+      subdistrict: p.registeredSubdistrict ?? '', district: p.registeredDistrict ?? '',
+      province: p.registeredProvince ?? '', postalCode: p.registeredPostalCode ?? '',
+    });
+  }
+  const setA = (patch: Partial<UpdateRegisteredAddressRequest>) =>
+    setAddr((a) => (a ? { ...a, ...patch } : a));
+
+  async function commitAddr() {
+    if (!addr) return;
+    try {
+      const payload = Object.fromEntries(
+        Object.entries(addr).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v]),
+      ) as unknown as UpdateRegisteredAddressRequest;
+      await saveAddr.mutateAsync(payload);
+      toast.success(t('saved'));
+      setConfirming(false); setAddr(null);
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
 
   useEffect(() => {
     if (!p) return;
@@ -115,9 +148,16 @@ export default function CompanyProfilePage() {
           {/* ── HARD (read-only, Phase 1) ── */}
           <section className="card bg-base-100 shadow-sm">
             <div className="card-body">
-              <h2 className="card-title flex items-center gap-2 text-base">
-                <Lock className="h-4 w-4" aria-hidden /> {t('legalSection')}
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="card-title flex items-center gap-2 text-base">
+                  <Lock className="h-4 w-4" aria-hidden /> {t('legalSection')}
+                </h2>
+                <PermissionGate scope="master.company.manage">
+                  <button className="btn btn-ghost btn-xs gap-1" onClick={openAddr}>
+                    <Pencil className="h-3 w-3" aria-hidden /> {t('editRegisteredAddress')}
+                  </button>
+                </PermissionGate>
+              </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <HardField label={t('legalName')} value={p.legalName} />
                 <HardField label={t('taxId')} value={p.taxId} />
@@ -142,6 +182,54 @@ export default function CompanyProfilePage() {
               </div>
             </div>
           </section>
+
+          {/* ── Edit registered address (HARD) modal ── */}
+          {addr && !confirming && (
+            <div className="modal modal-open" role="dialog" aria-modal="true">
+              <div className="modal-box max-w-2xl">
+                <h3 className="text-lg font-bold">{t('editRegisteredAddress')}</h3>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {([
+                    ['building', t('building')], ['roomNo', t('roomNo')], ['floor', t('floor')],
+                    ['village', t('village')], ['houseNo', t('houseNo')], ['moo', t('moo')],
+                    ['soi', t('soi')], ['street', t('street')], ['subdistrict', t('subdistrict')],
+                    ['district', t('district')], ['province', t('province')], ['postalCode', t('postalCode')],
+                  ] as [keyof UpdateRegisteredAddressRequest, string][]).map(([k, label]) => (
+                    <label className="form-control" key={k}>
+                      <span className="label-text">{label}</span>
+                      <input className="input input-bordered" value={addr[k] ?? ''}
+                        onChange={(e) => setA({ [k]: e.target.value })} />
+                    </label>
+                  ))}
+                </div>
+                <div className="modal-action">
+                  <button className="btn btn-ghost" onClick={() => setAddr(null)}>{tc('cancel')}</button>
+                  <button className="btn btn-primary"
+                    disabled={!addr.province.trim() || !addr.postalCode.trim()}
+                    onClick={() => setConfirming(true)}>{tc('save')}</button>
+                </div>
+              </div>
+              <button className="modal-backdrop" aria-label="close" onClick={() => setAddr(null)} />
+            </div>
+          )}
+
+          {/* ── DBD/ภ.พ.09 warning before committing a HARD address change ── */}
+          {addr && confirming && (
+            <div className="modal modal-open" role="dialog" aria-modal="true">
+              <div className="modal-box border-2 border-warning">
+                <h3 className="flex items-center gap-2 text-lg font-bold text-warning">
+                  <AlertTriangle className="h-6 w-6" aria-hidden /> {t('addrWarnTitle')}
+                </h3>
+                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">{t('addrWarnBody')}</p>
+                <div className="modal-action">
+                  <button className="btn btn-ghost" onClick={() => setConfirming(false)}>{tc('cancel')}</button>
+                  <button className="btn btn-warning" disabled={saveAddr.isPending} onClick={commitAddr}>
+                    {t('addrWarnConfirm')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── SOFT (admin-editable) ── */}
           <section className="card bg-base-100 shadow-sm">

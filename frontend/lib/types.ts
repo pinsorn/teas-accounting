@@ -57,6 +57,12 @@ export interface CompanyProfile {
   bankAccountName: string | null;
 }
 
+export interface UpdateRegisteredAddressRequest {
+  building: string | null; roomNo: string | null; floor: string | null; village: string | null;
+  houseNo: string | null; moo: string | null; soi: string | null; street: string | null;
+  subdistrict: string | null; district: string | null; province: string; postalCode: string;
+}
+
 // Sprint 13d P3 — current user's effective scopes (drives PermissionGate).
 export interface MePermissions {
   permissions: string[];

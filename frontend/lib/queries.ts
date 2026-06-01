@@ -53,6 +53,7 @@ import type {
   CreatePayrollRunRequest,
   CompanyProfile,
   UpdateCompanyProfileSoftRequest,
+  UpdateRegisteredAddressRequest,
   MePermissions,
   ProductListItem,
   ProductDetail,
@@ -546,6 +547,16 @@ export function useUpdateCompanyProfileSoft() {
   return useMutation({
     mutationFn: (req: UpdateCompanyProfileSoftRequest) =>
       apiPut<unknown>('company-profile/soft', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+  });
+}
+
+// Registered address (HARD) edit — admin confirmed the DBD/ภ.พ.09 filing in the UI.
+export function useUpdateRegisteredAddress() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateRegisteredAddressRequest) =>
+      apiPut<unknown>('company-profile/registered-address', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
   });
 }
