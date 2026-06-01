@@ -51,6 +51,14 @@ public sealed record UpdateCompanyProfileSoftRequest(
     string? BankAccountNo,
     string? BankAccountName);
 
+// Registered address (HARD) edit — allowed only after the user confirms (FE modal) that the
+// change has been filed with DBD (บอจ.1 + บอจ.4) and, for a VAT registrant, สรรพากร (ภ.พ.09).
+// Every change is audited. Building/street are the structured RD-form parts; Line1 is kept in sync.
+public sealed record UpdateRegisteredAddressRequest(
+    string? Building, string? RoomNo, string? Floor, string? Village,
+    string? HouseNo, string? Moo, string? Soi, string? Street,
+    string? Subdistrict, string? District, string Province, string PostalCode);
+
 public interface ICompanyProfileService
 {
     /// <summary>Profile for the current tenant's company. Any authenticated
@@ -59,6 +67,9 @@ public interface ICompanyProfileService
 
     /// <summary>Update SOFT fields only (admin / master.company.manage).</summary>
     Task UpdateSoftAsync(UpdateCompanyProfileSoftRequest req, CancellationToken ct);
+
+    /// <summary>Update the HARD registered address (admin-confirmed DBD/ภ.พ.09 filing). Audited.</summary>
+    Task UpdateRegisteredAddressAsync(UpdateRegisteredAddressRequest req, CancellationToken ct);
 
     /// <summary>Sprint 13h P10 — upload a company logo. Stores the file via
     /// the polymorphic attachment service (parent_type=COMPANY_PROFILE) and
