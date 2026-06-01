@@ -32,6 +32,14 @@ export interface CompanyProfile {
   registrationNumber: string | null;
   registeredAddressLine1: string;
   registeredAddressLine2: string | null;
+  regBuilding: string | null;
+  regRoomNo: string | null;
+  regFloor: string | null;
+  regVillage: string | null;
+  regHouseNo: string | null;
+  regMoo: string | null;
+  regSoi: string | null;
+  regStreet: string | null;
   registeredSubdistrict: string | null;
   registeredDistrict: string | null;
   registeredProvince: string;

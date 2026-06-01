@@ -125,6 +125,15 @@ export default function CompanyProfilePage() {
                 <HardField label={t('branchCode')} value={p.branchCode} />
                 <HardField label={t('registeredAddress')} value={p.registeredAddressLine1} />
                 <HardField label={t('addressLine2')} value={p.registeredAddressLine2} />
+                {/* Structured registered address (RD forms — ภ.ง.ด.1 ฯลฯ). */}
+                <HardField label={t('building')} value={p.regBuilding} />
+                <HardField label={t('roomNo')} value={p.regRoomNo} />
+                <HardField label={t('floor')} value={p.regFloor} />
+                <HardField label={t('village')} value={p.regVillage} />
+                <HardField label={t('houseNo')} value={p.regHouseNo} />
+                <HardField label={t('moo')} value={p.regMoo} />
+                <HardField label={t('soi')} value={p.regSoi} />
+                <HardField label={t('street')} value={p.regStreet} />
                 <HardField label={t('subdistrict')} value={p.registeredSubdistrict} />
                 <HardField label={t('district')} value={p.registeredDistrict} />
                 <HardField label={t('province')} value={p.registeredProvince} />
