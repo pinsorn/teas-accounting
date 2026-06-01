@@ -33,7 +33,7 @@
     - ☑ **ภ.ง.ด.1ก annual** (cont.82.2) — `Pnd1aFormFiller` (landscape ใบแนบ + address col) +
       `BuildPnd1aAnnualAsync(year)` (aggregate posted runs/year/employee) + `GET /payroll/pnd1a/pdf?year` +
       FE button. Live render 2099 OK. Also: registered address now editable (DBD/ภ.พ.09 warning gate).
-    - ☐ SSO contribution file (separate e-service format).
+    - ☐ SSO contribution file (สปส.1-10 + 1-10/1). Kickoff: `docs/superpowers/specs/sso-contribution-next-session.md`.
   (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
   (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).
 - ☐ FE payroll run UI (list + create/approve/post/pay + payslip view) — not yet built.
