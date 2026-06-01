@@ -33,7 +33,13 @@
     - ☑ **ภ.ง.ด.1ก annual** (cont.82.2) — `Pnd1aFormFiller` (landscape ใบแนบ + address col) +
       `BuildPnd1aAnnualAsync(year)` (aggregate posted runs/year/employee) + `GET /payroll/pnd1a/pdf?year` +
       FE button. Live render 2099 OK. Also: registered address now editable (DBD/ภ.พ.09 warning gate).
-    - ☐ SSO contribution file (สปส.1-10 + 1-10/1). Kickoff: `docs/superpowers/specs/sso-contribution-next-session.md`.
+    - ☑ **SSO contribution file (สปส.1-10)** (cont.82.3) — **BUILT end-to-end + live-verified.** Official PDF is FLAT
+      (RdAcroFormFiller can't reuse) → Ham chose the **e-Service TEXT file**. `ISsoFilingService`→`SsoMonthlyModel` +
+      `SsoFilingService` + `SpsBatchFormat` (135-char fixed-width, TIS-620, header"1"/detail"2") + endpoint
+      `GET /payroll/runs/{id}/sso/file` + FE button + i18n. Verified vs Ham's `docs/SSO-Forms/` spec: ค่าจ้าง=actual
+      (un-capped), BE dates, 10-digit SSO reg no, numeric prefix codes. Api.Tests **226/226 ×2** · build 0/0 · FE tsc 0
+      · live smoke run 2 (50k wage / 750+750). ⚠️ verify by a real e-Service upload (encoding/amount/prefix/rate consts);
+      `EmployerAccountNo` config stopgap → CompanyProfile column later. Spec: `docs/superpowers/specs/sps-1-10-fileformat.md`.
   (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
   (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).
 - ☐ FE payroll run UI (list + create/approve/post/pay + payslip view) — not yet built.

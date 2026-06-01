@@ -13,6 +13,11 @@ public sealed class SsoOptions
     public decimal WageCeiling { get; init; } = 15_000m;   // contributory-wage maximum → ฿750 @ 5%
     /// <summary>ม.47(1)(ช) — the SSO contribution is a PIT allowance, capped at ฿9,000/yr.</summary>
     public decimal MaxAllowanceForPit { get; init; } = 9_000m;
+
+    /// <summary>เลขที่บัญชีนายจ้าง — the 10-digit SSO employer registration number (issued by SSO, NOT
+    /// the RD tax id) printed on the สปส.1-10 file header. Currently a config stopgap; per-tenant this
+    /// belongs on CompanyProfile (move there once the file format is verified by a real upload).</summary>
+    public string? EmployerAccountNo { get; init; }
 }
 
 /// <summary>PIT ค่าลดหย่อน amounts — bound from <c>Payroll:Allowances</c> (config/seed, §4.6).

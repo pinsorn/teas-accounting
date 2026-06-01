@@ -60,8 +60,12 @@ public sealed class NonVatBillingTests
     // Draw from a wide far-future space so two tests in a run, and many runs, never clash.
     private static int UniquePeriod()
     {
+        // PND36 Finalize aggregates EVERY foreign PV in the period, so two tests landing on the same
+        // far-future period (data persists on the shared teas_test DB across runs) makes the input-VAT
+        // line a sum and breaks the exact-amount assertion. Widen the space (years 2200–9998 → ~94k
+        // periods) so collisions are negligible as the shared DB accumulates.
         var g = Math.Abs(Guid.NewGuid().GetHashCode());
-        return (2200 + g % 700) * 100 + (g % 12 + 1);   // year 2200–2899, month 1–12
+        return (2200 + g % 6799) * 100 + (g % 12 + 1);
     }
 
     private static async Task<long> AccountId(ServiceProvider sp, string code)

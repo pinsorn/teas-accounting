@@ -16,6 +16,7 @@ type SoftForm = UpdateCompanyProfileSoftRequest;
 const EMPTY_SOFT: SoftForm = {
   tradeName: '', logoUrl: '', phone: '', email: '', website: '',
   contactName: '', bankName: '', bankAccountNo: '', bankAccountName: '',
+  ssoEmployerAccountNo: '',
 };
 
 export default function CompanyProfilePage() {
@@ -65,6 +66,7 @@ export default function CompanyProfilePage() {
       phone: p.phone ?? '', email: p.email ?? '', website: p.website ?? '',
       contactName: p.contactName ?? '', bankName: p.bankName ?? '',
       bankAccountNo: p.bankAccountNo ?? '', bankAccountName: p.bankAccountName ?? '',
+      ssoEmployerAccountNo: p.ssoEmployerAccountNo ?? '',
     });
   }, [p]);
 
@@ -245,6 +247,7 @@ export default function CompanyProfilePage() {
                 <SoftField k="bankName" label={t('bankName')} />
                 <SoftField k="bankAccountNo" label={t('bankAccountNo')} />
                 <SoftField k="bankAccountName" label={t('bankAccountName')} />
+                <SoftField k="ssoEmployerAccountNo" label={t('ssoEmployerAccountNo')} />
               </div>
 
               {/* Sprint 13h P10 — logo upload (multipart). 1 MB max,

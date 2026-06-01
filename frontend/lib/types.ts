@@ -55,6 +55,7 @@ export interface CompanyProfile {
   bankName: string | null;
   bankAccountNo: string | null;
   bankAccountName: string | null;
+  ssoEmployerAccountNo: string | null;
 }
 
 export interface UpdateRegisteredAddressRequest {
@@ -80,6 +81,7 @@ export interface UpdateCompanyProfileSoftRequest {
   bankName: string | null;
   bankAccountNo: string | null;
   bankAccountName: string | null;
+  ssoEmployerAccountNo: string | null;
 }
 
 export interface TaxInvoiceDetailLine {
