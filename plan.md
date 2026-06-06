@@ -47,6 +47,32 @@
 
 ---
 
+## ▶ Corporate Income Tax — ภ.ง.ด.50 + ภ.ง.ด.51 (kickoff: `docs/superpowers/specs/pnd50-51-cit-next-session.md`)
+
+- ☑ **8 decisions LOCKED w/ Ham (2026-06-01, cont.83)** — see spec §"LOCKED DECISIONS": manual adjustment-entry
+  UI · order ภ.ง.ด.51→50→ใบแนบ · build real `BalanceSheetAsync` · add `Company` paid-up-capital + auto-SME ·
+  loss c/f = per-year override-able store · ภ.ง.ด.51 method A only · PDF-fill only v1 · audited FS/DBD out of scope.
+- ☑ **Phase C-A — pure engine (cont.83):** `Domain/Tax/CitRateSchedule` (`General()` 20% flat / `Sme()` 0-15-20,
+  legal cite, §4.6) + `CitComputation` (ladder record + `RefundDue`, `LossApplied` exposed for roll-forward) +
+  `CitCalculator` (`TaxOnProfit`/`Compute` [statutory order: loss→base, credits→tax] / `HalfYearPrepayment` ม.67ทวิ /
+  `UnderEstimatePenalty` ม.67ตรี). Golden `CitCalculatorTests` **18/18** (+2 for 51 prepay/penalty). Domain 0/0. **Committed cont.84.**
+  ⚠️ owed: a worked-example anchor from `pnd50/51_instructions.pdf` (rates currently trace to `_meta.md`).
+- ☑ **Phase C-B — ภ.ง.ด.51** (ম.67ทวิ mid-year prepay, do FIRST): probe `pnd51_020768.pdf` `/Fields` → `Pnd51FormFiller`
+  + `Pnd51FilingService` (P&L H1 + Company header + SME classify) + endpoint `GET /tax-filings/pnd51/pdf?year=YYYY`
+  + FE button; store the estimate for the year-end penalty check. Source PDF fillable (probed in kickoff).
+  **BUILT + committed cont.84 (2026-06-06):** `IPnd51FilingService` + `Pnd51FilingService` (fiscal-year H1 estimate ×2,
+  caller override, `isSme` picks SME/General schedule, header from CompanyProfile) + `Pnd51FormFiller` (RdAcroFormFiller,
+  embedded `pnd51_main.pdf`) + endpoint `GET /tax-filings/pnd51/pdf?year&estimatedProfit&whtH1&isSme` (FilingPreview) +
+  FE `tax-filings/pnd51` page + i18n. Build 0/0 · Domain 18/18 · Api Pnd51 2/2. ⚠️ Ham visual-validation of render pending;
+  auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate (ม.67ตรี year-end penalty) not yet wired.
+- ☐ **Phase C-C — ภ.ง.ด.50 main:** adjustment-entry model (ม.65ตรี, manual) + `Company` paid-up-capital field (+migration)
+  + loss-c/f store (override-able) + `BalanceSheetAsync` + `Pnd50FormFiller` + service (P&L FY + WHT credit + 51 prepay
+  + loss) + endpoint + FE. Reuses `RdAcroFormFiller` + `FinancialReportService` + `IWhtReceivableReportService`
+  + `Company.FiscalYearStartMonth`.
+- ☐ **Phase C-D — ภ.ง.ด.50 attachments** (5 ใบแนบ) + disclosure (ม.71ทวิ) + balance-sheet section. Largest; do last.
+
+---
+
 ## ▶ Next focus (2026-05-27): Purchase Phase 1 ☑ — then E2E tail + Question-Backend36
 
 **Sales chain CLOSED** (cont.64–69): Q→SO→DO→Invoice→TI→RC + CN/DN, non-VAT mode, full

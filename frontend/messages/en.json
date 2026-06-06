@@ -545,7 +545,16 @@
     "customer": "Customer",
     "customerTaxId": "Tax ID",
     "missingCertEmpty": "No receipts missing a 50ทวิ certificate in this period.",
-    "missingCertCount": "{count} item(s)"
+    "missingCertCount": "{count} item(s)",
+    "pnd51Title": "ภ.ง.ด.51 (ม.67ทวิ — mid-year CIT prepayment)",
+    "pnd51Year": "CE year",
+    "pnd51EstimatedProfit": "Estimated full-year taxable profit (THB)",
+    "pnd51EstimatedProfitHint": "blank = H1 net profit × 2 (auto)",
+    "pnd51WhtH1": "WHT suffered H1 (THB)",
+    "pnd51Sme": "SME schedule (0/15/20%)",
+    "pnd51Generate": "Generate PDF",
+    "pnd51Hint": "Due 31 Aug (ม.67ทวิ) · Missing/understating by >25% → surcharge (ม.67ตรี)",
+    "pnd51Error": "Could not generate ภ.ง.ด.51 PDF"
   },
   "note": {
     "cnTitle": "Credit Note (ม.86/10)",
