@@ -13,6 +13,7 @@ const FORMS = [
   { href: '/tax-filings/pnd53', code: 'PND53' },
   { href: '/tax-filings/pnd54', code: 'PND54' },
   { href: '/tax-filings/pnd36', code: 'PND36' },
+  { href: '/tax-filings/pnd51', code: 'PND51' },
 ] as const;
 
 export default function TaxFilingsIndexPage() {

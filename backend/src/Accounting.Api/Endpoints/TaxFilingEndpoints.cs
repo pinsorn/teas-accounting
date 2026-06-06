@@ -1,6 +1,7 @@
 using Accounting.Api.Authorization;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Identity;
+using Accounting.Application.Tax;
 using Accounting.Application.TaxFilings;
 using Microsoft.AspNetCore.Mvc;
 
@@ -106,6 +107,21 @@ public static class TaxFilingEndpoints
             var deny = await GuardFinalizeAsync(m, tenant, perms, ct);
             return deny ?? Results.Ok(await svc.GeneratePnd36Async(period, m, ct));
         }).RequireAuthorization(preview);
+
+        // ── Phase C-B ภ.ง.ด.51 (ม.67ทวิ method A — mid-year CIT prepayment)
+        // estimatedProfit: taxpayer's full-year estimate (null → H1 net profit × 2 from P&L).
+        // whtH1: WHT suffered in first half (default 0). isSme: SME 0/15/20 vs General 20%.
+        app.MapGet("/tax-filings/pnd51/pdf", async (
+            [FromQuery] int year,
+            [FromQuery] decimal? estimatedProfit,
+            [FromQuery] decimal? whtH1,
+            [FromQuery] bool? isSme,
+            IPnd51FilingService svc, CancellationToken ct) =>
+            Results.File(
+                await svc.BuildPnd51Async(year, estimatedProfit, whtH1 ?? 0m, isSme ?? false, ct),
+                "application/pdf", $"pnd51-{year}.pdf"))
+        .WithTags("TaxFilings")
+        .RequireAuthorization(preview);
 
         // ── C8 immutable filing history (for /tax-filings index)
         app.MapGet("/tax-filings", async (
