@@ -20,13 +20,6 @@ public readonly record struct RdField(string Name, string Text, bool Right = fal
 /// share one field name (e.g. the 12 month boxes on ภ.ง.ด.1), which <see cref="RdField"/> can't target.</summary>
 public readonly record struct RdRadio(string Name, int WidgetIndex);
 
-/// <summary>Places each character of <paramref name="Text"/> centered at an EXPLICIT cell-centre X
-/// (in PDF user-space points) inside a named field's box. For comb grids whose printed cells are
-/// NON-uniform (e.g. ภ.ง.ด.51's 13-digit tax-id box, grouped 1-2-1-3-5-1 with dash gaps) — the default
-/// equal-division comb drifts there. The centres are extracted once from the template's printed
-/// dividers; the field's /Rect still supplies the vertical placement + cell height.</summary>
-public readonly record struct RdCombFixed(string Name, string Text, IReadOnlyList<double> CentersX);
-
 /// <summary>
 /// Generic filler for any official Thai Revenue Department (RD) AcroForm template. It is
 /// fully /Rect-driven — every value is placed at the position defined by its own field
@@ -53,42 +46,46 @@ public static class RdAcroFormFiller
     /// an RD AcroForm), flatten, and emit <paramref name="copies"/> identical pages.
     /// </summary>
     public static byte[] Render(byte[] template, IReadOnlyCollection<RdField> fields, int copies = 1)
-        => Render(template, fields, Array.Empty<RdRadio>(), copies);
+        => Render(template, fields, Array.Empty<RdRadio>(), null, copies);
 
     public static byte[] Render(
         byte[] template, IReadOnlyCollection<RdField> fields, IReadOnlyCollection<RdRadio> radios, int copies = 1)
-        => Render(template, fields, radios, Array.Empty<RdCombFixed>(), copies);
+        => Render(template, fields, radios, null, copies);
 
+    /// <summary>
+    /// <paramref name="cellCenters"/> (optional, field-name → printed cell-centre X in PDF points) overrides
+    /// the equal-division comb for fields whose printed grid is NON-uniform (grouped cells + dash gaps — e.g.
+    /// every box on ภ.ง.ด.51). When a filled field has an entry, each char is placed at the real cell centre,
+    /// right-justified for amounts (<see cref="RdField.Right"/>) or left for fixed-width ids; the field /Rect
+    /// still supplies the vertical placement. Forms with no map keep the generic equal-division behaviour.
+    /// </summary>
     public static byte[] Render(
         byte[] template, IReadOnlyCollection<RdField> fields, IReadOnlyCollection<RdRadio> radios,
-        IReadOnlyCollection<RdCombFixed> fixedCombs, int copies = 1)
+        IReadOnlyDictionary<string, IReadOnlyList<double>>? cellCenters, int copies = 1)
     {
         EnsureFont();
         var rects = ReadFieldRects(template, out double pageW, out double pageH, out var allRects);
-        var cells = BuildCells(fields, rects, pageH);
+        var cells = BuildCells(fields, rects, pageH, cellCenters);
         cells.AddRange(BuildRadioCells(radios, allRects, pageH));
-        cells.AddRange(BuildFixedCombCells(fixedCombs, rects, pageH));
         var overlay = BuildOverlay(cells, pageW, pageH);
         return Composite(template, overlay, copies);
     }
 
-    // Place each char centred at an explicit cell-centre X; vertical placement + size come from the
-    // field's /Rect (same logic as the comb branch). For non-uniform printed grids the equal-division
-    // comb can't handle.
-    private static IEnumerable<Cell> BuildFixedCombCells(
-        IReadOnlyCollection<RdCombFixed> fixedCombs, Dictionary<string, FieldInfo> rects, double pageH)
+    // Place each char centred at an explicit printed cell-centre X (vertical placement + size from the
+    // field /Rect). Used when a non-uniform comb has a cellCenters override.
+    private static void AddCellCentreText(
+        List<Cell> cells, RdField f, IReadOnlyList<double> centers, FieldInfo fi, double pageH)
     {
-        foreach (var fc in fixedCombs)
-        {
-            if (string.IsNullOrEmpty(fc.Text) || fc.CentersX is null || !rects.TryGetValue(fc.Name, out var fi))
-                continue;
-            var r = fi.Rect;
-            double h = r.Y2 - r.Y1;
-            double fs = Math.Clamp(h - 3.0, 7.5, 11.5);
-            double top = pageH - r.Y2 + (h - fs) * 0.40;
-            for (int i = 0; i < fc.Text.Length && i < fc.CentersX.Count; i++)
-                yield return new Cell(fc.CentersX[i] - fs / 2.0, top, fs, fs, fc.Text[i].ToString(), false, Center: true);
-        }
+        var s = f.Text;
+        var n = centers.Count;
+        if (s.Length > n) s = f.Right ? s[^n..] : s[..n];
+        var start = f.Right ? n - s.Length : 0;
+        var r = fi.Rect;
+        double h = r.Y2 - r.Y1;
+        double fs = Math.Clamp(h - 3.0, 7.5, 11.5);
+        double top = pageH - r.Y2 + (h - fs) * 0.40;
+        for (var i = 0; i < s.Length; i++)
+            cells.Add(new Cell(centers[start + i] - fs / 2.0, top, fs, fs, s[i].ToString(), false, Center: true));
     }
 
     // ✕ in a specific widget of a same-named group (widgets pre-sorted top→bottom, left→right).
@@ -173,7 +170,9 @@ public static class RdAcroFormFiller
     // One piece of text to lay onto the form, in PDF points (top-left origin for QuestPDF).
     private readonly record struct Cell(double X, double Top, double Width, double FontSize, string Text, bool Right, bool Center = false);
 
-    private static List<Cell> BuildCells(IReadOnlyCollection<RdField> fields, Dictionary<string, FieldInfo> rects, double pageH)
+    private static List<Cell> BuildCells(
+        IReadOnlyCollection<RdField> fields, Dictionary<string, FieldInfo> rects, double pageH,
+        IReadOnlyDictionary<string, IReadOnlyList<double>>? cellCenters = null)
     {
         var cells = new List<Cell>();
         foreach (var f in fields)
@@ -186,6 +185,12 @@ public static class RdAcroFormFiller
                 double cfs = Math.Clamp(h, 8.0, 12.0);
                 // Center the mark in the (small, square) checkbox.
                 cells.Add(new Cell(r.X1, pageH - r.Y2 + (h - cfs) * 0.10, boxW, cfs, "✕", false, Center: true));
+                continue;
+            }
+            // Non-uniform printed grid → place each char at the real printed cell centre (overrides equal comb).
+            if (cellCenters is not null && cellCenters.TryGetValue(f.Name, out var centers) && centers.Count > 0)
+            {
+                AddCellCentreText(cells, f, centers, fi, pageH);
                 continue;
             }
             // Comb field (e.g. the 13-digit tax id): one char per equal cell, centered, so digits
