@@ -44,6 +44,8 @@ public static class Pnd51FormFiller
 
         var fields = new List<RdField>
         {
+            // เลขประจำตัวผู้เสียภาษีอากร — 13 digits; placed at the real cell-centres via cellCenters geometry.
+            new("Text1.1",  new string((m.EmployerTaxId ?? "").Where(char.IsDigit).ToArray())),
             new("Text1.2",  m.EmployerName),
             // รอบระยะเวลาบัญชี — full fiscal year (not just H1)
             new("Text1.18", m.PeriodStart.Day.ToString("00")),
@@ -87,21 +89,24 @@ public static class Pnd51FormFiller
             // map them when page 2 is wired (see _Pnd51Diag page-2 dump).
         };
 
-        // เลขประจำตัวผู้เสียภาษีอากร (Text1.1): its printed grid is NON-uniform — 13 digit cells grouped
-        // 1-2-1-3-5-1 with dash gaps — so the equal-division comb drifts. Place each digit at the actual
-        // printed cell-centre instead. Centres (PDF user-space X) were extracted once from the dividers of
-        // pnd51_020768.pdf via pymupdf; the dashes are pre-printed on the form, so we emit digits only.
-        var fixedCombs = new List<RdCombFixed>();
-        var taxDigits = new string((m.EmployerTaxId ?? "").Where(char.IsDigit).ToArray());
-        if (taxDigits.Length > 0)
-            fixedCombs.Add(new("Text1.1", taxDigits, TaxIdCellCentersX));
-
-        return RdAcroFormFiller.Render(Template("pnd51_main.pdf"), fields, radios, fixedCombs);
+        // Every box on ภ.ง.ด.51 has a NON-uniform printed grid (grouped cells + dash gaps), so the generic
+        // equal-division comb drifts. The filler places each char at the real printed cell-centre, taken from
+        // the embedded pnd51_cells.json (field name → cell-centre X, extracted once from the template dividers).
+        return RdAcroFormFiller.Render(Template("pnd51_main.pdf"), fields, radios, CellCenters.Value);
     }
 
-    // 13 printed digit-cell centres (X, PDF points) of the tax-id box on ภ.ง.ด.51 (grouped 1-2-1-3-5-1).
-    private static readonly double[] TaxIdCellCentersX =
-        [146.8, 163.4, 175.0, 191.5, 208.5, 220.4, 232.3, 251.0, 262.7, 274.5, 286.3, 298.1, 316.2];
+    // field name → printed cell-centre X (PDF points), loaded once from the embedded geometry resource.
+    private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlyList<double>>> CellCenters = new(LoadCellCenters);
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<double>> LoadCellCenters()
+    {
+        var asm = typeof(Pnd51FormFiller).Assembly;
+        using var s = asm.GetManifestResourceStream("Accounting.Infrastructure.Pdf.Templates.pnd51_cells.json")
+            ?? throw new InvalidOperationException("Embedded pnd51_cells.json not found.");
+        var raw = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, double[]>>(s)
+            ?? new Dictionary<string, double[]>();
+        return raw.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<double>)kv.Value);
+    }
 
     private static byte[] Template(string file)
     {

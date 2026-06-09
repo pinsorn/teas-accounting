@@ -42,6 +42,9 @@
     <EmbeddedResource Include="Pdf\Templates\pnd1a_attach.pdf" />
     <!-- Official RD ภ.ง.ด.51 AcroForm (Phase C-B — fill + flatten via RdAcroFormFiller). -->
     <EmbeddedResource Include="Pdf\Templates\pnd51_main.pdf" />
+    <!-- ภ.ง.ด.51 printed box-cell centres (extracted from the template's grid dividers). The form's
+         combs are non-uniform (grouped cells + dash gaps) so equal-division drifts; we place at real centres. -->
+    <EmbeddedResource Include="Pdf\Templates\pnd51_cells.json" />
     <!-- Sarabun (SIL OFL) — embedded so Wht50TawiFormFiller's QuestPDF overlay shapes +
          embeds Thai independent of host fonts / Program.cs startup registration. -->
     <EmbeddedResource Include="Pdf\Fonts\Sarabun-Regular.ttf" />

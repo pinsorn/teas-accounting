@@ -61,7 +61,19 @@ This session = housekeeping: the C-A engine (cont.83) + the C-B ภ.ง.ด.51 f
     **Self-verified via pymupdf:** all 13 digits centred in their printed cells (grouped 1-2-1-3-5-1), no drift / no empty
     box; full page-1 re-checked (taxid/name/period/address/☑ยื่นปกติ/amount/date all correct). Removed throwaway
     `_Pnd51Diag.cs` + `_Pnd51DiagTest.cs`. Build 0/0 · Api.Tests Pnd51 **2/2**. **COMMITTED.** Page 2 (worksheet) still
-    deferred to Phase C-C. NB: ภ.ง.ด.1/50ทวิ tax-id boxes likely have their own grids → apply `RdCombFixed` there when reviewed.
+    deferred to Phase C-C. NB: ภ.ง.ด.1/50ทวิ tax-id boxes likely have their own grids → apply the same geometry when reviewed.
+  - **Geometry-driven cell placement — GENERAL (resume 2026-06-09, Ham "ลุยต่อ"):** Ham 0-filled every box for detailed
+    inspection → confirmed ALMOST EVERY box on the form is non-uniform (grouped cells + dash gaps), not just the taxid.
+    Generalised the one-off hardcode: wrote a pymupdf extractor (`_pnd51_geo.py`) that reads each box field's printed
+    cell-centres from the template's grid dividers (qualifies a field as a box by left+right borders → catches comb AND
+    non-comb decimal/satang boxes; 58 fields, 31 non-uniform) → embedded resource `Pdf/Templates/pnd51_cells.json`
+    (field name → cell-centre X). `RdAcroFormFiller.Render` gained an optional `cellCenters` map: a filled field with an
+    entry places each char at the real printed centre (right-justified for `Right` amounts, left for ids); fields/forms
+    without a map keep the generic equal-division comb (ภ.ง.ด.1/1ก/50ทวิ unaffected). Removed the one-off `RdCombFixed` +
+    `TaxIdCellCentersX`; Text1.1 is now a plain field placed via geometry. **Self-verified (pymupdf, QuestPDF overlay):**
+    taxid 13 cells centred, amount right-just + satang, period/postal/address/date/☑ all correct; the 0-fill diagnostic
+    shows all 58 boxes (both pages, incl page-2 / auditor / foreign-currency) sitting in their cells. Build 0/0 · Pnd51
+    **2/2**. **COMMITTED.** Bonus: page-2 + auditor + foreign-currency boxes will align automatically when Phase C-C maps them.
   - ⚠️ **Page 2 NOT filled yet** — computation worksheet (`Text4.1–4.25` amounts + `Radio Button10–29` case/option
     checkboxes; rect dump `pnd51_diag_p2.txt`; labels extracted to `pnd51_p2_labels.txt` via pymupdf, 412 spans).
     Page-2 fill = the granular CIT computation (revenue/expense/adjustments beyond the simplified `CitComputation`
