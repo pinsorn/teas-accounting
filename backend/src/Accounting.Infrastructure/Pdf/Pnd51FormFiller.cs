@@ -16,7 +16,24 @@ public sealed record Pnd51Model(
     string? HouseNo, string? Moo, string? Soi, string? Road,
     string? SubDistrict, string? District, string? Province, string? PostalCode,
     decimal HalfYearTax,
-    DateOnly FilingDate);
+    DateOnly FilingDate,
+    // ── page-2 การคำนวณภาษี worksheet (Method A); null ⇒ leave page 2 blank ──
+    Pnd51Worksheet? Worksheet = null);
+
+/// <summary>
+/// Method-A page-2 worksheet values, all derived by <c>Pnd51FilingService</c> from the CIT engine + H1 P&amp;L.
+/// <paramref name="RevenueFullYear"/>/<paramref name="ExpenseFullYear"/> are null on the caller-override
+/// estimate path (only the net figure exists → boxes 51/52/53-54 stay blank, the worksheet starts at 57-58).
+/// Emitted only for a footing, clean, general-rate case (see <c>Pnd51FilingService.BuildWorksheet</c>).
+/// </summary>
+public sealed record Pnd51Worksheet(
+    decimal? RevenueFullYear, decimal? ExpenseFullYear,   // boxes 51 / 52 (default path only)
+    decimal EstimatedNetProfit,                            // box 53-54 = 57-58 (no c/f, no exempt)
+    decimal HalfEstimatedProfit,                           // box 59-60 / 28-29
+    decimal TaxComputed,                                   // box 32
+    decimal WhtH1,                                         // box 33 / รวม 35
+    decimal NetPayable,                                    // box 36-37 / 39-40
+    bool IsSme);                                           // selects the rate radio (Task 5)
 
 /// <summary>
 /// Fills the official RD ภ.ง.ด.51 AcroForm (single page + worksheet page 2) from CIT data

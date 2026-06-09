@@ -118,7 +118,8 @@ public static class TaxFilingEndpoints
             [FromQuery] bool? isSme,
             IPnd51FilingService svc, CancellationToken ct) =>
             Results.File(
-                await svc.BuildPnd51Async(year, estimatedProfit, whtH1 ?? 0m, isSme ?? false, ct),
+                await svc.BuildPnd51Async(year, estimatedProfit, whtH1 ?? 0m, isSme ?? false,
+                    fillWorksheet: false, attest: null, ct),
                 "application/pdf", $"pnd51-{year}.pdf"))
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);

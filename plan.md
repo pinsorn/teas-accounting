@@ -65,10 +65,16 @@
   embedded `pnd51_main.pdf`) + endpoint `GET /tax-filings/pnd51/pdf?year&estimatedProfit&whtH1&isSme` (FilingPreview) +
   FE `tax-filings/pnd51` page + i18n. Build 0/0 · Domain 18/18 · Api Pnd51 2/2. ⚠️ Ham visual-validation of render pending;
   auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate (ম.67ตรี year-end penalty) not yet wired.
-  - ☑ **page-2 prerequisite (cont.85, 2026-06-09, uncommitted):** page-aware multi-page `RdAcroFormFiller.Render` (overlay
-    each field onto its own widget's page; per-page sizes + `/Annots`→page map; flatten all pages; `copies` = full set).
-    No new API / no pnd51 branch — single-page output pixel-identical (50ทวิ + ภ.ง.ด.1 crops + pnd51 p1 raster). New
-    `RdAcroFormFillerMultiPageTests` 2/2 · suite 62/62 · build 0/0. Enables page-2 fill (Tasks 3-6, `specs/pnd51-page2-map.md`).
+  - ☑ **page-2 Task 2 — page-aware Render (cont.85, committed `bf45143`):** overlay each field onto its own widget's
+    page; per-page sizes + `/Annots`→page map; flatten all pages; `copies` = full set. No new API / no pnd51 branch —
+    single-page output pixel-identical (50ทวิ + ภ.ง.ด.1 crops + pnd51 p1). `RdAcroFormFillerMultiPageTests` 2/2 · suite 62/62.
+  - ☑ **page-2 Tasks 3+4 — worksheet model + attestation guard (cont.86, 2026-06-10):** `Pnd51Worksheet` record + `Pnd51Attestation`
+    (5 flags) + `BuildPnd51Async(…, fillWorksheet, attest)`; pure `Pnd51FilingService.BuildWorksheet` computes Method-A boxes and
+    **throws unless clean + footing** (added `estimate>0` & `tax≥WHT` over the plan's 5 flags — `HalfYearPrepayment` clamps, so
+    WHT>tax would non-foot; general-rate only in v1). `Pnd51WorksheetTests` 12/12 (pure) · `Pnd51` 14/14 ×2. **Page 2 not rendered yet.**
+  - ☐ **page-2 Task 1 — confirm page-2 radio index map** (visual rasterise; `docs/RD-Forms/pnd51/pnd51_p2_radiomap.md`). Before Task 5.
+  - ☐ **page-2 Task 5 — render page-2 boxes + radios** in `Pnd51FormFiller` (uses Task 2 page-aware Render + confirmed radio map).
+  - ☐ **page-2 Task 6 — endpoint params + FE attestation gate** (5 checkboxes; openapi). Then full verify + Ham render review.
 - ☐ **Phase C-C — ภ.ง.ด.50 main:** adjustment-entry model (ม.65ตรี, manual) + `Company` paid-up-capital field (+migration)
   + loss-c/f store (override-able) + `BalanceSheetAsync` + `Pnd50FormFiller` + service (P&L FY + WHT credit + 51 prepay
   + loss) + endpoint + FE. Reuses `RdAcroFormFiller` + `FinancialReportService` + `IWhtReceivableReportService`
