@@ -64,7 +64,11 @@
   caller override, `isSme` picks SME/General schedule, header from CompanyProfile) + `Pnd51FormFiller` (RdAcroFormFiller,
   embedded `pnd51_main.pdf`) + endpoint `GET /tax-filings/pnd51/pdf?year&estimatedProfit&whtH1&isSme` (FilingPreview) +
   FE `tax-filings/pnd51` page + i18n. Build 0/0 · Domain 18/18 · Api Pnd51 2/2. ⚠️ Ham visual-validation of render pending;
-  auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate (ม.67ตรี year-end penalty) not yet wired.
+  auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate (ম.67ตรี year-end penalty) not yet wired.
+  - ☑ **page-2 prerequisite (cont.85, 2026-06-09, uncommitted):** page-aware multi-page `RdAcroFormFiller.Render` (overlay
+    each field onto its own widget's page; per-page sizes + `/Annots`→page map; flatten all pages; `copies` = full set).
+    No new API / no pnd51 branch — single-page output pixel-identical (50ทวิ + ภ.ง.ด.1 crops + pnd51 p1 raster). New
+    `RdAcroFormFillerMultiPageTests` 2/2 · suite 62/62 · build 0/0. Enables page-2 fill (Tasks 3-6, `specs/pnd51-page2-map.md`).
 - ☐ **Phase C-C — ภ.ง.ด.50 main:** adjustment-entry model (ม.65ตรี, manual) + `Company` paid-up-capital field (+migration)
   + loss-c/f store (override-able) + `BalanceSheetAsync` + `Pnd50FormFiller` + service (P&L FY + WHT credit + 51 prepay
   + loss) + endpoint + FE. Reuses `RdAcroFormFiller` + `FinancialReportService` + `IWhtReceivableReportService`

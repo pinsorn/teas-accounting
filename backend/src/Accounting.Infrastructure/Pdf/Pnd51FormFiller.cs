@@ -98,6 +98,9 @@ public static class Pnd51FormFiller
     // field name → printed cell-centre X (PDF points), loaded once from the embedded geometry resource.
     private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlyList<double>>> CellCenters = new(LoadCellCenters);
 
+    /// <summary>Test-visible view of the embedded page cell-centre geometry.</summary>
+    public static IReadOnlyDictionary<string, IReadOnlyList<double>> Cells => CellCenters.Value;
+
     private static IReadOnlyDictionary<string, IReadOnlyList<double>> LoadCellCenters()
     {
         var asm = typeof(Pnd51FormFiller).Assembly;
