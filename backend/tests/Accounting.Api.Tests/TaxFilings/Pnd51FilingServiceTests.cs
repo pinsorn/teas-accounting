@@ -48,6 +48,8 @@ public sealed class Pnd51FilingServiceTests
             estimatedAnnualProfit: 1_000_000m,
             whtSufferedH1: 0m,
             isSme: false,
+            fillWorksheet: false,
+            attest: null,
             ct: default);
 
         pdf.Should().NotBeEmpty();
@@ -62,11 +64,11 @@ public sealed class Pnd51FilingServiceTests
 
         await using var s1 = sp.CreateAsyncScope();
         var svc1 = s1.ServiceProvider.GetRequiredService<IPnd51FilingService>();
-        var general = await svc1.BuildPnd51Async(3099, 500_000m, 0m, isSme: false, default);
+        var general = await svc1.BuildPnd51Async(3099, 500_000m, 0m, isSme: false, false, null, default);
 
         await using var s2 = sp.CreateAsyncScope();
         var svc2 = s2.ServiceProvider.GetRequiredService<IPnd51FilingService>();
-        var sme = await svc2.BuildPnd51Async(3099, 500_000m, 0m, isSme: true, default);
+        var sme = await svc2.BuildPnd51Async(3099, 500_000m, 0m, isSme: true, false, null, default);
 
         // SME: 0% on first 300k → half-year prepayment is lower than general 20% flat.
         // Both must be valid PDFs.
