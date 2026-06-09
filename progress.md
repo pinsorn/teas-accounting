@@ -11,6 +11,64 @@ This session = housekeeping: the C-A engine (cont.83) + the C-B ภ.ง.ด.51 f
 - **Gates this session:** `dotnet build W:\Accounting.sln` 0 warn / 0 err · Domain CIT 18/18 · Api Pnd51 2/2 (teas_test). subst U:/W: recreated (lost on resume); :5080 not running (no exe lock).
 - **NOT in this commit (left untracked for Ham):** the bulk RD-Forms reference PDF dump (pnd90/91/94/95, pp01, pt40, popor, os4, 50tawi, _english/_misc), `docs/SSO-Forms/`, `_review/`, and scratch screenshots (`pnd51_pw_*.png`, `nonvat-quotation.png`). Committed only the CIT C-A/C-B code + tests + FE + the pnd50/pnd51 source+instructions PDFs + the kickoff spec.
 - ⚠️ **Still owed (carried from C-A):** worked-example anchor from `pnd51_instructions.pdf` to prove code≡law (rates trace to `_meta.md`, a secondary source). **Ham visual-validation of the rendered ภ.ง.ด.51 PDF** not yet done — recommend a render+screenshot pass before C-C builds on the layout.
+- **Field-map FIX (post-commit, Ham AFK review):** Ham flagged the ภ.ง.ด.51 fill as wrong. Built a throwaway
+  all-pages field-label diagnostic (`Infrastructure/Pdf/_Pnd51Diag` + `Api.Tests/.../_Pnd51DiagTest` →
+  `pnd51_diag_all.pdf` both pages labelled red + per-page rect dumps), then **label-joined page-1 fields against
+  the surviving `Z:/temp/pnd51_labels.txt`** (convert PDF bottom-left Y → label top-left: `topY = 841.9 − Y2`).
+  Finding: **the whole ที่ตั้งสำนักงาน address block was shifted ~1 field** → remapped in `Pnd51FormFiller`
+  (building=Text1.3 room=1.4 floor=1.5 village=1.6 houseNo=1.7 moo=1.8 soi=1.9 road=1.11 subDistrict=1.12
+  district=1.13 province=1.14 postal=1.15; was 1.6…1.17). **Confirmed CORRECT** (so left as-is): taxid=1.1,
+  name=1.2, period 1.18–1.23, amount=**Text1.25**(+satang 1.26, right-aligned — Ham's hint), filing date 3.5/6/7,
+  ยื่นปกติ=Radio Button1 idx0 / เพิ่มเติม=idx1. Removed dead `Radio Button14/15` refs (not page-1 widgets → were
+  no-ops). Text2.1–2.13 = the foreign-currency conversion block (blank for THB). Build 0/0 · Pnd51 tests **3/3**.
+  Re-rendered `pnd51_fixed.pdf` (demo company structured address now lands in the right boxes) — sent to Ham.
+  - **Comb amount fix (autonomous, Ham asleep — self-verified via pymupdf render + Read):** Ham flagged จำนวนเงิน:
+    must be RIGHT-justified, NO comma, satang aligned to its decimal cells. `RdAcroFormFiller` comb branch now
+    **right-justifies when `RdField.Right`** (tax-id `Right==false` stays left-filled and fills every cell anyway →
+    unchanged; this is systemic for every RD-form money comb). `Pnd51FormFiller`: baht `"0"` (no thousands comma) +
+    satang `Right:true`. Diag dump confirms Text1.25 = comb MaxLen 12 (Right), Text1.26 satang = MaxLen 2 non-comb
+    (Right), Text1.1 taxid = comb 18 (left-fill). **Rasterised the render with pymupdf + viewed it:** address now in
+    the correct boxes (อาคารเดโม/ชั้น1/เลขที่1/สาทร/ทุ่งมหาเมฆ/เขตสาทร/กรุงเทพ/10120); amount `100000` right-justified
+    into the printed comma grid (reads 100,000, NO added comma) + satang `00`. Build 0/0 · Pnd51 3/3. Sent
+    pnd51_fixed.pdf + amt/addr zoom crops. (pymupdf/fitz IS available here → can self-verify renders without a server.)
+    **Regression check (advisor-prompted, shared component):** rendered ภ.ง.ด.1 (run 2) + rasterised — its amount
+    fields are **non-comb plain text** ("50,000.00" with comma+decimal in one box), so they take the non-comb branch
+    and are **provably unaffected**; taxid comb left-fill unchanged. Only comb+`Right` fields change → in this filler
+    family that is just the pnd51 amount. 50ทวิ uses the same non-comb text pattern (not re-rendered; eyeball if worried).
+    Overflow path also gated (`Right` → last N chars, else first N) so it stays a no-op for the full tax-id comb.
+  - **Full box-check (resume 2026-06-07, Ham AFK→sleep):** rasterised pnd51_fixed.pdf with pymupdf and zoomed EVERY
+    page-1 box. **✓ correct:** address block, รหัสไปรษณีย์ (5 uniform cells), period ตั้งแต่/ถึง (วัน/เดือน/พ.ศ.),
+    amount Text1.25 (right-just, no comma) + satang Text1.26, วันที่ยื่น Text3.5-3.7. **✗ Text1.1 เลขประจำตัวผู้เสียภาษีอากร
+    MISALIGNED** — its printed grid is **NON-uniform**: 13 digit-cells (~11.5pt) + 5 dash-gaps (~5-7pt), extracted from
+    the template's vector dividers (boundaries x = 141.3 152.3 157.6 169.2 180.7 185.9 197.0 202.5 214.5 226.3 238.3
+    245.2 256.8 268.6 280.3 292.3 303.8 310.9 321.5). The comb divides the /Rect into 18 **EQUAL** (~10pt) cells →
+    cumulative drift + empty trailing box, and the dashed FormatTaxId dash positions don't line up with the printed gaps.
+    **Pre-existing** (same FormatTaxId + equal-comb in committed d37d545; shared by ภ.ง.ด.1/50ทวิ → likely affects them too).
+    **Proper fix = place each digit at the ACTUAL printed cell centre (absolute placement).** PdfSharp can't easily read the
+    template's vector dividers (pymupdf did it, but that's the Python analysis tool, not the .NET runtime) → can't be done
+    safely/verified tonight. Options for next session: (a) hardcode the 13 cell-centres per form (fragile), (b) add an
+    absolute-placement input to RdAcroFormFiller fed by a one-time pymupdf-extracted geometry table, (c) accept equal-comb
+    for uniform grids only and special-case taxid.
+  - **DID NOT COMMIT** — Ham gated the commit on "ทุกช่องเรียบร้อย"; the taxid box fails, so per instruction the working
+    tree stays uncommitted. The address-shift fix + comb amount fix (this session) are **verified-good and ready to commit**
+    once the taxid comb is resolved. Throwaway `_Pnd51Diag.cs`/`_Pnd51DiagTest.cs` + scratch PNG/PDF still in tree (remove
+    before any commit). PC put to sleep per Ham's request at end of this session.
+  - **TAXID FIXED + COMMITTED (resume 2026-06-09, Ham "ลุยเลย"):** added `RdCombFixed` to RdAcroFormFiller — places each
+    char at an EXPLICIT printed cell-centre X (vertical placement still from the field /Rect), for the non-uniform combs the
+    equal-division can't handle. `Pnd51FormFiller` now renders Text1.1 via `RdCombFixed` with the 13 tax-id cell-centres
+    (X = 146.8 163.4 175.0 191.5 208.5 220.4 232.3 251.0 262.7 274.5 286.3 298.1 316.2, extracted from the template
+    dividers via pymupdf; the dashes are pre-printed so we emit digits only) and dropped the dashed FormatTaxId comb.
+    **Self-verified via pymupdf:** all 13 digits centred in their printed cells (grouped 1-2-1-3-5-1), no drift / no empty
+    box; full page-1 re-checked (taxid/name/period/address/☑ยื่นปกติ/amount/date all correct). Removed throwaway
+    `_Pnd51Diag.cs` + `_Pnd51DiagTest.cs`. Build 0/0 · Api.Tests Pnd51 **2/2**. **COMMITTED.** Page 2 (worksheet) still
+    deferred to Phase C-C. NB: ภ.ง.ด.1/50ทวิ tax-id boxes likely have their own grids → apply `RdCombFixed` there when reviewed.
+  - ⚠️ **Page 2 NOT filled yet** — computation worksheet (`Text4.1–4.25` amounts + `Radio Button10–29` case/option
+    checkboxes; rect dump `pnd51_diag_p2.txt`; labels extracted to `pnd51_p2_labels.txt` via pymupdf, 412 spans).
+    Page-2 fill = the granular CIT computation (revenue/expense/adjustments beyond the simplified `CitComputation`
+    ladder) → **fold into Phase C-C with Ham** (confirm line→field map + which checkbox = กรณีที่1 method A). NOT
+    guessed (compliance §11). Also needs `RdAcroFormFiller` multi-page support (it currently overlays page 0 only).
+  - ⚠️ Throwaway diag files (`_Pnd51Diag.cs`, `_Pnd51DiagTest.cs`) + scratch PDFs in repo root **must be removed
+    before any commit**. Address fix is **uncommitted — pending Ham visual confirm** of `pnd51_fixed.pdf`.
 - **Next = Phase C-C (ภ.ง.ด.50 main):** adjustment-entry model (ম.65ตรี manual) + `Company.PaidUpCapital` field (+migration, unlocks auto-SME) + override-able loss-c/f store + `BalanceSheetAsync` + `Pnd50FormFiller` + service + endpoint + FE. Then C-D (5 ใบแนบ + disclosure).
 
 ## 2026-06-01 (cont. 83) — CIT Phase C-A: pure `CitCalculator` + `CitRateSchedule` (ภ.ง.ด.50/51 engine) — BUILT + golden-tested. Domain build 0/0 · Domain.Tests **CitCalculatorTests 16/16** (deterministic, no DB). **Committed cont.84 (2026-06-06).**

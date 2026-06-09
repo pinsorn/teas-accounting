@@ -44,7 +44,6 @@ public static class Pnd51FormFiller
 
         var fields = new List<RdField>
         {
-            new("Text1.1",  FormatTaxId(m.EmployerTaxId)),
             new("Text1.2",  m.EmployerName),
             // รอบระยะเวลาบัญชี — full fiscal year (not just H1)
             new("Text1.18", m.PeriodStart.Day.ToString("00")),
@@ -54,21 +53,25 @@ public static class Pnd51FormFiller
             new("Text1.22", m.PeriodEnd.Month.ToString("00")),
             new("Text1.23", (m.PeriodEnd.Year + 543).ToString()),
             // ที่ตั้งสำนักงาน
-            new("Text1.6",  m.Building    ?? ""),
-            new("Text1.7",  m.RoomNo      ?? ""),
-            new("Text1.8",  m.Floor       ?? ""),
-            new("Text1.9",  m.Village     ?? ""),
-            new("Text1.10", m.HouseNo     ?? ""),
-            new("Text1.11", m.Moo         ?? ""),
-            new("Text1.12", m.Soi         ?? ""),
-            new("Text1.13", m.Road        ?? ""),
-            new("Text1.14", m.SubDistrict ?? ""),
-            new("Text1.15", m.District    ?? ""),
-            new("Text1.16", m.Province    ?? ""),
-            new("Text1.17", m.PostalCode  ?? ""),
+            // Address remapped after a label-join (Z:/temp/pnd51_labels.txt; topY = pageH - Y2):
+            // the whole block was off by ~one field. building=1.3 room=1.4 floor=1.5 village=1.6
+            // houseNo=1.7 moo=1.8 soi=1.9 (yaek=1.10 unused) road=1.11 subDistrict=1.12
+            // district=1.13 province=1.14 postal=1.15 (phone=1.16 website=1.17 unused).
+            new("Text1.3",  m.Building    ?? ""),
+            new("Text1.4",  m.RoomNo      ?? ""),
+            new("Text1.5",  m.Floor       ?? ""),
+            new("Text1.6",  m.Village     ?? ""),
+            new("Text1.7",  m.HouseNo     ?? ""),
+            new("Text1.8",  m.Moo         ?? ""),
+            new("Text1.9",  m.Soi         ?? ""),
+            new("Text1.11", m.Road        ?? ""),
+            new("Text1.12", m.SubDistrict ?? ""),
+            new("Text1.13", m.District    ?? ""),
+            new("Text1.14", m.Province    ?? ""),
+            new("Text1.15", m.PostalCode  ?? ""),
             // Row 75 จำนวนเงิน — ภาษีที่ชำระเพิ่มเติม (ม.67ทวิ method A)
-            new("Text1.25", baht.ToString("#,##0", Th),   Right: true),
-            new("Text1.26", satang.ToString("00")),
+            new("Text1.25", baht.ToString("0", Th), Right: true),    // comb: digits only, RIGHT-justified, NO comma
+            new("Text1.26", satang.ToString("00"), Right: true),     // satang aligned to its decimal cells
             // วันที่ยื่น
             new("Text3.5", m.FilingDate.Day.ToString("00")),
             new("Text3.6", m.FilingDate.Month.ToString("00")),
@@ -79,21 +82,26 @@ public static class Pnd51FormFiller
         {
             // Radio Button1: idx0=ยื่นปกติ (x≈372) idx1=ยื่นเพิ่มเติม (x≈437) — sort: y desc, x asc
             new("Radio Button1",  0),
-            // Radio Button15: idx0=กรณีที่ 1 เสียภาษีจากกำไรสุทธิ
-            new("Radio Button15", 0),
-            // Radio Button14: idx0=เงินตราไทย (THB)
-            new("Radio Button14", 0),
+            // NOTE: the old "Radio Button15" (กรณีที่1) / "Radio Button14" (THB) are NOT page-1
+            // widgets — they were silent no-ops. The กรณีที่1/2 + currency selectors live on page 2;
+            // map them when page 2 is wired (see _Pnd51Diag page-2 dump).
         };
 
-        return RdAcroFormFiller.Render(Template("pnd51_main.pdf"), fields, radios);
+        // เลขประจำตัวผู้เสียภาษีอากร (Text1.1): its printed grid is NON-uniform — 13 digit cells grouped
+        // 1-2-1-3-5-1 with dash gaps — so the equal-division comb drifts. Place each digit at the actual
+        // printed cell-centre instead. Centres (PDF user-space X) were extracted once from the dividers of
+        // pnd51_020768.pdf via pymupdf; the dashes are pre-printed on the form, so we emit digits only.
+        var fixedCombs = new List<RdCombFixed>();
+        var taxDigits = new string((m.EmployerTaxId ?? "").Where(char.IsDigit).ToArray());
+        if (taxDigits.Length > 0)
+            fixedCombs.Add(new("Text1.1", taxDigits, TaxIdCellCentersX));
+
+        return RdAcroFormFiller.Render(Template("pnd51_main.pdf"), fields, radios, fixedCombs);
     }
 
-    private static string FormatTaxId(string raw)
-    {
-        var d = new string((raw ?? "").Where(char.IsDigit).ToArray());
-        if (d.Length != 13) return d;
-        return $"{d[0]}-{d.Substring(1, 4)}-{d.Substring(5, 5)}-{d.Substring(10, 2)}-{d[12]}";
-    }
+    // 13 printed digit-cell centres (X, PDF points) of the tax-id box on ภ.ง.ด.51 (grouped 1-2-1-3-5-1).
+    private static readonly double[] TaxIdCellCentersX =
+        [146.8, 163.4, 175.0, 191.5, 208.5, 220.4, 232.3, 251.0, 262.7, 274.5, 286.3, 298.1, 316.2];
 
     private static byte[] Template(string file)
     {
