@@ -3,6 +3,16 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-09 (cont. 85) — ภ.ง.ด.51 page-2 prerequisite: page-aware multi-page `RdAcroFormFiller.Render` — BUILT + GATED, **uncommitted (awaiting Ham review)**. Build **0/0** · new `RdAcroFormFillerMultiPageTests` **2/2** · full PDF/form suite **62/62** (teas_test) · visual regression PASS.
+
+Executed the standalone Task-2 plan (`docs/superpowers/plans/2026-06-09-pnd51-page2-task2-page-aware-render.md`) so a 2-page template (ภ.ง.ด.51) can fill page 2. **Riskiest slice** (every RD form uses `Render`) → shipped alone behind a regression gate, no commit yet.
+- **What changed (`Infrastructure/Pdf/RdAcroFormFiller.cs`):** `Render` now overlays each field/radio onto **its own widget's page** instead of page 0 only. `FieldInfo`/`Cell` gain an `int Page`; `ReadFieldRects` returns **per-page sizes** + a widget-object-number→page map built by scanning each page's `/Annots` (fallback page 0 for inline widgets — RD forms use indirect widgets so this never bites); `BuildCells`/`AddCellCentreText`/`BuildRadioCells` use `pageSizes[fi.Page].H` for the vertical flip and tag every cell's page; `Composite` builds **one QuestPDF overlay per page that has cells**, composites each, then flattens (`/AcroForm` once + strip `/Annots` from **all** pages). `copies` now duplicates the **full** page set (was page-0 only; identical for the 1-page callers). **No new public API, no pnd51-only branch** — single-page templates degenerate to today's exact code path (the safety property).
+- **One deviation from plan code:** plan used `dict.ObjectID.ObjectNumber` (not accessible on `PdfDictionary` in this PdfSharp) → used `dict.Reference?.ObjectID.ObjectNumber ?? 0` (indirect objects carry `.Reference`; direct/inline → page 0). Test `InformationOnly` (obsolete→error under warnings-as-errors) → `Import`.
+- **Test (`tests/Accounting.Api.Tests/Pdf/RdAcroFormFillerMultiPageTests.cs` + `Templates.cs`):** TDD red→green. Red: page-2 field `Text4.3` added 0 bytes to page 2 (old Composite = page-0 only, p2b==p2a==134286). Green after edit. 2nd test: 50ทวิ stays 1 page. Exposed `Pnd51FormFiller.Cells` (test-visible view of embedded geometry).
+- **Visual regression gate (load-bearing — froze `_base_*` from CURRENT code BEFORE editing, advisor-caught):** 50ทวิ + ภ.ง.ด.1 tax-id crops **pixel-identical**; ภ.ง.ด.51 page-1 full raster **pixel-identical**; ภ.ง.ด.51 **page-2 content stream byte-identical** (134286==134286) — the only page-2 change is flattening its 62 *borderless* interactive widgets (now stripped on un-overlaid pages too). Diff heatmap = hollow box-edge/margin-digit anti-aliasing only (removed ink = **228px / 0.01%**), NOT filled blocks → no worksheet box lost; page-2 is identical-or-cleaner, exactly as the plan's behaviour note predicted. Before/after + heatmap sent to Ham.
+- **Gates:** `dotnet build W:\Accounting.sln` 0 warn / 0 err · `RdAcroFormFillerMultiPageTests` 2/2 · `Pdf|Pnd1|Pnd51|50tawi|PdfSharpProbe|Wht` filter **62/62** (incl. 50ทวิ `FillCopies` 2-page, the other behavioural edit). subst U:/W: present; :5080 killed for the full build (not restarted).
+- **Files (review then commit):** M `RdAcroFormFiller.cs`, M `Pnd51FormFiller.cs` (+`Cells` prop), ?? `tests/.../Pdf/RdAcroFormFillerMultiPageTests.cs`, ?? `tests/.../Pdf/Templates.cs`. Throwaway render-dump test + scratch baselines removed. pnd1a (also reuses `Render`) is structurally green but was **not** visually regression-tested (out of scope, single-page-equivalent path). **Next:** Tasks 3-6 — actually fill ภ.ง.ด.51 page-2 computation worksheet (`docs/superpowers/specs/pnd51-page2-map.md`).
+
 ## 2026-06-06 (cont. 84) — CIT Phase C-B: ภ.ง.ด.51 (ม.67ทวิ method A) AcroForm fill — RECORDED + COMMITTED (with the cont.83 C-A engine). Build **0/0** · Domain.Tests **CitCalculatorTests 18/18** · Api.Tests **Pnd51FilingServiceTests 2/2** on teas_test. Ham chose "commit + record C-B first" (AskUserQuestion).
 
 This session = housekeeping: the C-A engine (cont.83) + the C-B ภ.ง.ด.51 filler (built Jun 3, never recorded — memory obs 5103–5115) were sitting **uncommitted/unrecorded**. Re-ran gates, wrote this entry, committed the pile.
@@ -81,7 +91,49 @@ This session = housekeeping: the C-A engine (cont.83) + the C-B ภ.ง.ด.51 f
     guessed (compliance §11). Also needs `RdAcroFormFiller` multi-page support (it currently overlays page 0 only).
   - ⚠️ Throwaway diag files (`_Pnd51Diag.cs`, `_Pnd51DiagTest.cs`) + scratch PDFs in repo root **must be removed
     before any commit**. Address fix is **uncommitted — pending Ham visual confirm** of `pnd51_fixed.pdf`.
-- **Next = Phase C-C (ภ.ง.ด.50 main):** adjustment-entry model (ম.65ตรี manual) + `Company.PaidUpCapital` field (+migration, unlocks auto-SME) + override-able loss-c/f store + `BalanceSheetAsync` + `Pnd50FormFiller` + service + endpoint + FE. Then C-D (5 ใบแนบ + disclosure).
+  - **Autonomous session (resume 2026-06-09, Ham AFK "ฝากทำยาว เลย") — DOCS + INVESTIGATION only, NO code changed, NOT committed:**
+    advisor-steered to safe, non-compliance work while Ham away (page-2 fill stays gated on his sign-off, §11).
+    1. **ภ.ง.ด.51 page-2 map spec** → `docs/superpowers/specs/pnd51-page2-map.md`. Dumped the page-2 worksheet
+       (`_pnd51_p2text.py`) + joined every `Text4.x` AcroForm field to its worksheet line + RD box code (รายการ1
+       = tax base, 3 methods: ม.67ทวิ(1) half-estimate boxes 51–60, ม.67ทวิ(2) actual-H1 61–66, gross-receipts 66.1;
+       รายการ2 = tax calc boxes 28–41). **Data-gap analysis (corrected mid-write):** `ProfitLossAsync().Totals` is a
+       **flat** `ProfitLossGroup(Revenue,Expense,NetProfit)` — so boxes 51/52/53-54 ARE derivable in the default
+       (H1×2) path (null in the caller-override path); box 32 SME brackets ARE handled (`CitRateSchedule.Sme()`).
+       Genuine gaps (legitimately 0 for a clean first filing, but unprovable → §11 forbids blind emit): 55 loss-c/f,
+       56 exempt, 34 rate-reduction, 35 prior-paid, 38 ม.27/67ตรี surcharge. Decision: don't auto-fill page 2 yet;
+       two paths (minimal-honest-fill behind a guard / full Phase C-C), **both need Ham sign-off**.
+    2. **Multi-page render — DEFERRED (not built).** Established the shipped multi-page pattern is **separate
+       single-page templates + `Merge(pages)`** (ภ.ง.ด.1 = `pnd1_main`+`pnd1_attach`); `RdAcroFormFiller.Render`
+       only overlays page 0. So filling pnd51 page 2 is better done by split-template+`Merge` (zero change to the
+       Ham-reviewed `Render`) than by refactoring shared infra. Recorded both options in spec §5; left for Ham to pick.
+    3. **Tax-id comb drift — does pnd51's problem generalize? → NO (negative result)** →
+       `docs/RD-Forms/taxid-comb-alignment-findings.md`. Measured every template's comb cell-gaps
+       (`_comb_uniformity.py`) + rendered faithful before/after placement crops (`_taxid_crops.py` → `_taxid_pnd1_*`,
+       `_taxid_pnd1a_*`, `_taxid_50tawi_before.png`). **ภ.ง.ด.1/1ก/50ทวิ all feed a 17-char dash-formatted id to a
+       17-cell comb on the standard 1-4-5-2-1 grid → equal-division lands digits in digit-cells, ~1–2pt drift, glyph
+       stays in cell (Ham-accepted).** pnd51 was the **outlier** (maxLen **18**, irregular 1-2-1-3-5-1). Caught + fixed
+       a mistake: 50ทวิ fills `id1` not `tin1` (tin1 is the legacy blank box). Forward rule: any future form whose
+       taxid grid ≠ 1-4-5-2-1 needs a geometry table. **No change recommended;** geometry fix drops in cleanly later.
+       **Verified with the REAL renderer** (Ham asked "ทำแล้วแคปมา"): throwaway test rendered ภ.ง.ด.1
+       (`FillMonthly`) + 50ทวิ (`Fill`) with id 1234567890123 → rasterised taxid region (`_real_pnd1_taxid.png`,
+       `_real_50tawi_taxid.png`) → **every digit inside its cell on both**. Build **0/0**, test passed, throwaway removed.
+    - **Verification:** docs/analysis + one throwaway render test (built + passed, then removed); **no production code
+      touched, nothing committed** (§10: commit only when Ham asks). Killed/restarted :5080 for the build (per §6).
+      Scratch `_*.py` + `_taxid_*.png` + `_real_*_taxid.png` + `*_p2*.txt` + `comb_uniformity.txt` in repo root
+      (remove before any commit). Deliverables = the 2 docs + the real crops.
+  - **Page-2 build kicked off (Ham "ทำต่อ, ตรวจ FE BE ทุกครั้ง" → picked ภ.ง.ด.51 page-2 fill):** locked 2 decisions
+    via AskUserQuestion — **path 1 (minimal honest fill)** + **Attestation guard** (advisor caught: guard is vacuous
+    for 55/56/34 since engine has no data → omission asserts 0 = §11; resolved by user attestation: first filing · no
+    loss c/f · no exemption · no rate-reduction · no surcharge → else throw). Architecture = **(a) page-aware Render**
+    (general; single-page forms provably unaffected), box-32 rate via existing `schedule`. **Wrote the plan**
+    `docs/superpowers/plans/2026-06-09-pnd51-page2-fill.md` (6 tasks, TDD, per-slice FE/BE gates). **Task 1 DONE:**
+    deterministically mapped page-2 radios (right-of-box join `_pnd51_p2radio_right.py` + index-labelled raster) →
+    `docs/RD-Forms/pnd51/pnd51_p2_radiomap.md`. Confirmed ticks (Method-A clean profit, THB, general): Button10#1 บาท ·
+    Button11#0 กึ่งหนึ่งประมาณการ · Button12/13/14#0 กำไรสุทธิ · Button17#0 · Button19#3 กรณีทั่วไป · Button22/23#0
+    ชำระเพิ่มเติม (net≥0). SME-rate radio (Button19#2+Button20%) gated → v1 general-rate only (guard also throws on isSme).
+    **Next = Task 2** (page-aware multi-page Render + regression gate vs the `_real_*` baselines), then 3-6. Nothing
+    committed yet; no production code touched this turn (Task 1 = docs only).
+- **Next = Phase C-C (ภ.ง.ด.50 main):** adjustment-entry model (ম.65ตรี manual) + `Company.PaidUpCapital` field (+migration, unlocks auto-SME) + override-able loss-c/f store + `BalanceSheetAsync` + `Pnd50FormFiller` + service + endpoint + FE. Then C-D (5 ใบแนบ + disclosure). **Page-2 of ภ.ง.ด.51:** decide §4 path + §5 split-vs-refactor (see `pnd51-page2-map.md`) with Ham before building.
 
 ## 2026-06-01 (cont. 83) — CIT Phase C-A: pure `CitCalculator` + `CitRateSchedule` (ภ.ง.ด.50/51 engine) — BUILT + golden-tested. Domain build 0/0 · Domain.Tests **CitCalculatorTests 16/16** (deterministic, no DB). **Committed cont.84 (2026-06-06).**
 

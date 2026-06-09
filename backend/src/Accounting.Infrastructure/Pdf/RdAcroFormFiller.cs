@@ -64,11 +64,10 @@ public static class RdAcroFormFiller
         IReadOnlyDictionary<string, IReadOnlyList<double>>? cellCenters, int copies = 1)
     {
         EnsureFont();
-        var rects = ReadFieldRects(template, out double pageW, out double pageH, out var allRects);
-        var cells = BuildCells(fields, rects, pageH, cellCenters);
-        cells.AddRange(BuildRadioCells(radios, allRects, pageH));
-        var overlay = BuildOverlay(cells, pageW, pageH);
-        return Composite(template, overlay, copies);
+        var rects = ReadFieldRects(template, out var pageSizes, out var allRects);
+        var cells = BuildCells(fields, rects, pageSizes, cellCenters);
+        cells.AddRange(BuildRadioCells(radios, allRects, pageSizes));
+        return Composite(template, cells, pageSizes, copies);
     }
 
     // Place each char centred at an explicit printed cell-centre X (vertical placement + size from the
@@ -85,21 +84,24 @@ public static class RdAcroFormFiller
         double fs = Math.Clamp(h - 3.0, 7.5, 11.5);
         double top = pageH - r.Y2 + (h - fs) * 0.40;
         for (var i = 0; i < s.Length; i++)
-            cells.Add(new Cell(centers[start + i] - fs / 2.0, top, fs, fs, s[i].ToString(), false, Center: true));
+            cells.Add(new Cell(centers[start + i] - fs / 2.0, top, fs, fs, s[i].ToString(), false, Center: true, Page: fi.Page));
     }
 
     // ✕ in a specific widget of a same-named group (widgets pre-sorted top→bottom, left→right).
     private static IEnumerable<Cell> BuildRadioCells(
-        IReadOnlyCollection<RdRadio> radios, Dictionary<string, List<PdfRectangle>> allRects, double pageH)
+        IReadOnlyCollection<RdRadio> radios,
+        Dictionary<string, List<(PdfRectangle Rect, int Page)>> allRects,
+        IReadOnlyList<(double W, double H)> pageSizes)
     {
         foreach (var rc in radios)
         {
             if (!allRects.TryGetValue(rc.Name, out var list) || rc.WidgetIndex < 0 || rc.WidgetIndex >= list.Count)
                 continue;
-            var r = list[rc.WidgetIndex];
+            var (r, page) = list[rc.WidgetIndex];
+            double pageH = pageSizes[page].H;
             double h = r.Y2 - r.Y1, w = r.X2 - r.X1;
             double fs = Math.Clamp(h, 8.0, 12.0);
-            yield return new Cell(r.X1, pageH - r.Y2 + (h - fs) * 0.10, w, fs, "✓", false, Center: true);
+            yield return new Cell(r.X1, pageH - r.Y2 + (h - fs) * 0.10, w, fs, "✓", false, Center: true, Page: page);
         }
     }
 
@@ -124,19 +126,34 @@ public static class RdAcroFormFiller
     // box into <MaxLen> equal cells — RD forms use it for the 13-digit tax id (17 comb cells:
     // 13 digits + 4 dashes). We read it so values land one-char-per-cell on the printed grid.
     private const int CombFlag = 1 << 24;
-    private readonly record struct FieldInfo(PdfRectangle Rect, int MaxLen, bool Comb);
+    private readonly record struct FieldInfo(PdfRectangle Rect, int MaxLen, bool Comb, int Page);
 
-    // ── Geometry: full field name → rect + comb info (PDF user space, bottom-left origin) ──
+    // ── Geometry: full field name → rect + comb info + page (PDF user space, bottom-left origin) ──
     private static Dictionary<string, FieldInfo> ReadFieldRects(
-        byte[] template, out double pageW, out double pageH, out Dictionary<string, List<PdfRectangle>> allRects)
+        byte[] template, out IReadOnlyList<(double W, double H)> pageSizes,
+        out Dictionary<string, List<(PdfRectangle Rect, int Page)>> allRects)
     {
         using var input = new MemoryStream(template);
         var doc = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
-        var pg = doc.Pages[0];
-        pageW = pg.Width.Point;
-        pageH = pg.Height.Point;
+
+        // Per-page sizes + a widget-object-number → page-index map, scanned from each page's /Annots.
+        // (Built from /Annots, not /AcroForm/Fields: a field can be an indirect parent on no page, but
+        // every terminal widget's /Rect belongs to exactly one page's annot array.)
+        var sizes = new List<(double W, double H)>();
+        var pageByObjNum = new Dictionary<int, int>();
+        for (var i = 0; i < doc.Pages.Count; i++)
+        {
+            var pg = doc.Pages[i];
+            sizes.Add((pg.Width.Point, pg.Height.Point));
+            var annots = pg.Elements.GetArray("/Annots");
+            if (annots is null) continue;
+            foreach (var a in annots)
+                if (a is PdfReference r) pageByObjNum[r.ObjectID.ObjectNumber] = i;
+        }
+        pageSizes = sizes;
+
         var map = new Dictionary<string, FieldInfo>();
-        var all = new List<(string Name, PdfRectangle Rect)>();   // every widget (incl. same-named radio kids)
+        var all = new List<(string Name, PdfRectangle Rect, int Page)>();   // every widget (incl. same-named radio kids)
         var fields = doc.AcroForm?.Elements.GetArray("/Fields")
             ?? throw new InvalidOperationException("Template has no AcroForm /Fields.");
         // /Ff and /MaxLen are inheritable: a widget kid takes them from its parent field.
@@ -154,37 +171,42 @@ public static class RdAcroFormFiller
             else if (!string.IsNullOrEmpty(name) && dict.Elements.ContainsKey("/Rect"))
             {
                 var rect = dict.Elements.GetRectangle("/Rect");
-                map[name] = new FieldInfo(rect, maxLen, comb);   // single-rect map (last wins) for text fields
-                all.Add((name, rect));
+                // Direct (inline) widgets have no indirect Reference and aren't in any /Annots → fall back to page 0.
+                var objNum = dict.Reference?.ObjectID.ObjectNumber ?? 0;
+                var page = pageByObjNum.TryGetValue(objNum, out var pp) ? pp : 0;
+                map[name] = new FieldInfo(rect, maxLen, comb, page);   // single-rect map (last wins) for text fields
+                all.Add((name, rect, page));
             }
         }
         foreach (var f in fields) Walk(f, "", 0, false);
 
-        var h = pageH;
         allRects = all.GroupBy(x => x.Name).ToDictionary(
             g => g.Key,
-            g => g.Select(x => x.Rect).OrderBy(r => h - r.Y2).ThenBy(r => r.X1).ToList());
+            g => g.Select(x => (x.Rect, x.Page))
+                  .OrderBy(x => sizes[x.Page].H - x.Rect.Y2).ThenBy(x => x.Rect.X1).ToList());
         return map;
     }
 
     // One piece of text to lay onto the form, in PDF points (top-left origin for QuestPDF).
-    private readonly record struct Cell(double X, double Top, double Width, double FontSize, string Text, bool Right, bool Center = false);
+    private readonly record struct Cell(double X, double Top, double Width, double FontSize, string Text, bool Right, bool Center = false, int Page = 0);
 
     private static List<Cell> BuildCells(
-        IReadOnlyCollection<RdField> fields, Dictionary<string, FieldInfo> rects, double pageH,
+        IReadOnlyCollection<RdField> fields, Dictionary<string, FieldInfo> rects,
+        IReadOnlyList<(double W, double H)> pageSizes,
         IReadOnlyDictionary<string, IReadOnlyList<double>>? cellCenters = null)
     {
         var cells = new List<Cell>();
         foreach (var f in fields)
         {
             if (string.IsNullOrWhiteSpace(f.Text) || !rects.TryGetValue(f.Name, out var fi)) continue;
+            var pageH = pageSizes[fi.Page].H;
             var r = fi.Rect;
             double h = r.Y2 - r.Y1, boxW = r.X2 - r.X1;
             if (f.Check)
             {
                 double cfs = Math.Clamp(h, 8.0, 12.0);
                 // Center the mark in the (small, square) checkbox.
-                cells.Add(new Cell(r.X1, pageH - r.Y2 + (h - cfs) * 0.10, boxW, cfs, "✕", false, Center: true));
+                cells.Add(new Cell(r.X1, pageH - r.Y2 + (h - cfs) * 0.10, boxW, cfs, "✕", false, Center: true, Page: fi.Page));
                 continue;
             }
             // Non-uniform printed grid → place each char at the real printed cell centre (overrides equal comb).
@@ -208,7 +230,7 @@ public static class RdAcroFormFiller
                 // stay left-filled and fill every cell anyway, so start==0 leaves them unchanged.
                 int start = f.Right ? fi.MaxLen - s.Length : 0;
                 for (int i = 0; i < s.Length; i++)
-                    cells.Add(new Cell(r.X1 + (start + i) * cellW, ctop, cellW, cfs, s[i].ToString(), false, Center: true));
+                    cells.Add(new Cell(r.X1 + (start + i) * cellW, ctop, cellW, cfs, s[i].ToString(), false, Center: true, Page: fi.Page));
                 continue;
             }
             double fs = Math.Clamp(h - 3.0, 7.5, 11.5);
@@ -221,7 +243,7 @@ public static class RdAcroFormFiller
             // Vertical placement: top of the box is (pageH − Y2); sink the text by ~40% of the
             // box's slack so the glyph body sits centered on the printed line for any form.
             double top = pageH - r.Y2 + (h - fs) * 0.40;
-            cells.Add(new Cell(r.X1 + 1.0, top, boxW, fs, f.Text, f.Right));
+            cells.Add(new Cell(r.X1 + 1.0, top, boxW, fs, f.Text, f.Right, Page: fi.Page));
         }
         return cells;
     }
@@ -248,24 +270,31 @@ public static class RdAcroFormFiller
             });
         })).GeneratePdf();
 
-    // ── Composite overlay onto the form, flatten, emit `copies` identical pages ──────
-    private static byte[] Composite(byte[] template, byte[] overlay, int copies)
+    // ── Composite per-page overlays onto the form, flatten every page, emit `copies` of the full set ──
+    private static byte[] Composite(
+        byte[] template, List<Cell> cells, IReadOnlyList<(double W, double H)> pageSizes, int copies)
     {
         using var input = new MemoryStream(template);
         var doc = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
-        var page = doc.Pages[0];
 
-        using (var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append))
-        using (var os = new MemoryStream(overlay))
+        // One QuestPDF overlay per page that actually has cells; pages with no cells are untouched.
+        foreach (var grp in cells.GroupBy(c => c.Page))
         {
+            var idx = grp.Key;
+            if (idx < 0 || idx >= doc.Pages.Count) continue;
+            var (w, hh) = pageSizes[idx];
+            var overlay = BuildOverlay(grp.ToList(), w, hh);
+            var page = doc.Pages[idx];
+            using var gfx = XGraphics.FromPdfPage(page, XGraphicsPdfPageOptions.Append);
+            using var os = new MemoryStream(overlay);
             var form = XPdfForm.FromStream(os);
             gfx.DrawImage(form, 0, 0, page.Width.Point, page.Height.Point);
         }
 
-        // Flatten: the data is baked into the page content now, so drop the interactive
-        // AcroForm and the field widget annotations (else empty boxes/borders linger).
+        // Flatten: the data is baked into the page content now, so drop the interactive AcroForm
+        // and EVERY page's widget annotations (else empty boxes/borders linger on un-overlaid pages).
         doc.Internals.Catalog.Elements.Remove("/AcroForm");
-        page.Elements.Remove("/Annots");
+        foreach (var page in doc.Pages) page.Elements.Remove("/Annots");
 
         if (copies > 1)
         {
@@ -273,7 +302,9 @@ public static class RdAcroFormFiller
                 ?? throw new InvalidOperationException("Template has no /Pages node.");
             var kids = pages.Elements.GetArray("/Kids")
                 ?? throw new InvalidOperationException("Template /Pages has no /Kids.");
-            for (var i = 1; i < copies; i++) kids.Elements.Add(kids.Elements[0]);
+            var original = kids.Elements.Count;
+            for (var c = 1; c < copies; c++)
+                for (var i = 0; i < original; i++) kids.Elements.Add(kids.Elements[i]);
             pages.Elements.SetInteger("/Count", kids.Elements.Count);
         }
 
