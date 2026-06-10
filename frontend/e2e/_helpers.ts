@@ -71,5 +71,45 @@ export async function pickVendor(page: Page, query: string) {
   await page.getByRole('button', { name: /^เลือกผู้ขาย$|ค้นหาชื่อ หรือรหัสผู้ขาย/ }).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill(query);
-  await dialog.getByRole('button', { name: query }).first().click();
+  // Design-swap: result buttons are named by the vendor NAME only (the code no
+  // longer appears in the accessible name), so after searching by the unique
+  // code wait for the single filtered result and click it.
+  const results = dialog.getByRole('listitem').getByRole('button');
+  await expect(results).toHaveCount(1, { timeout: 10_000 });
+  await results.first().click();
+}
+
+/**
+ * Scrape the allocated doc number (e.g. 06-2026-TI-0007 or 06-2026-TI-LAB-0001)
+ * from the detail page currently shown. Needed because the redesigned
+ * TaxInvoicePicker searches by doc_no/customer name — the numeric id no longer
+ * works as a search term.
+ */
+export async function detailDocNo(page: Page, type = 'TI'): Promise<string> {
+  const re = new RegExp(`\\d{2}-\\d{4}-${type}(?:-[A-Z0-9]+)?-\\d{4}`);
+  // Detail data loads async after waitForURL — poll until the number renders.
+  await expect(page.locator('main')).toContainText(re, { timeout: 15_000 });
+  const text = await page.locator('main').innerText();
+  const m = text.match(re);
+  if (!m) throw new Error(`doc number (${type}) not found on ${page.url()}`);
+  return m[0];
+}
+
+/**
+ * Pick a Tax Invoice in the redesigned TaxInvoicePicker typeahead: the field is
+ * an <input role=combobox aria-label="taxInvoiceId N">; typing searches by
+ * doc_no / customer name and options render in #taxinvoice-listbox as
+ * <li><button> whose name starts with the doc no.
+ */
+export async function pickTaxInvoice(page: Page, index: number, docNo: string) {
+  const box = page.getByRole('combobox', { name: `taxInvoiceId ${index}` });
+  await box.click();
+  await box.fill(docNo);
+  // The portal-positioned FloatingListbox can land outside the viewport
+  // (Playwright refuses to click), and the option commits on onMouseDown —
+  // dispatch the event directly once the option is attached.
+  const option = page.locator('#taxinvoice-listbox')
+    .getByRole('button', { name: new RegExp(docNo) }).first();
+  await option.waitFor({ state: 'attached', timeout: 10_000 });
+  await option.dispatchEvent('mousedown');
 }

@@ -1,25 +1,33 @@
 import { test, expect } from '@playwright/test';
-import { login, createAndPostTaxInvoice, pickCustomer } from './_helpers';
+import { login, createAndPostTaxInvoice, pickCustomer, pickTaxInvoice, detailDocNo } from './_helpers';
 
 // Sprint 8.6 (R-B4) — customer withholds tax on a B2B service receipt. No
 // Product master, so the user overrides the WHT base manually to the service
 // portion (here the whole 1,000 net). cash = 1,070 − 30 = 1,040.
 test('receipt: customer withholds WHT (manual base override)', async ({ page }) => {
   await login(page);
-  const tiId = await createAndPostTaxInvoice(page); // 1,000 net + 70 VAT = 1,070
+  await createAndPostTaxInvoice(page); // 1,000 net + 70 VAT = 1,070
+  const tiDocNo = await detailDocNo(page, 'TI');
 
   await page.goto('/receipts/new');
   await pickCustomer(page);
-  await page.getByLabel('taxInvoiceId 1').fill(String(tiId));
+  // Redesign: taxInvoiceId is a typeahead picker keyed by doc_no, not id.
+  await pickTaxInvoice(page, 1, tiDocNo);
   await page.getByLabel('appliedAmount 1').fill('1070');
 
-  // Toggle WHT on, pick the SVC type (rate auto-fills 3%), override base to
-  // the 1,000 service portion → WHT 30, cash 1,040.
-  await page.getByText('ลูกค้าหัก ภาษี ณ ที่จ่าย').click();
-  await page.getByLabel('ประเภทเงินได้').selectOption({ label: 'SVC — ค่าบริการ (3.00%)' });
-  const whtBox = page.locator('div.rounded-lg.border').filter({ hasText: 'WHT' });
-  await whtBox.locator('input[type="number"]').nth(1).fill('1000');  // base
-  await page.getByLabel(/50ทวิ|50tawi no\./i).first().fill('WHT-2026-E2E');
+  // Toggle WHT on. Redesign: the WHT section is now PER-LINE — a WhtTypeSelect
+  // (custom listbox, aria-label "ประเภทเงินได้ N") + base input ("ฐาน WHT N")
+  // per TI line, replacing the old single select + box.
+  await page.getByRole('checkbox', { name: 'ลูกค้าหัก ภาษี ณ ที่จ่าย' }).check();
+  // (aria-haspopup="listbox" maps the trigger button to role=combobox)
+  await page.getByRole('combobox', { name: 'ประเภทเงินได้ 1' }).click();
+  // Options commit on onMouseDown inside the portal-positioned FloatingListbox
+  // (can sit outside the viewport) — dispatch the event directly.
+  const svc = page.locator('#wht-type-listbox').getByRole('button', { name: /SVC/ }).first();
+  await svc.waitFor({ state: 'attached', timeout: 10_000 });
+  await svc.dispatchEvent('mousedown');
+  await page.getByLabel('ฐาน WHT 1').fill('1000'); // base override
+  await page.getByLabel(/เลขที่ใบ 50ทวิ/).first().fill('WHT-2026-E2E');
 
   await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();
   const dialog = page.getByRole('dialog');

@@ -17,6 +17,8 @@ async function createForeignVendor(page: Page, code: string) {
 }
 
 test('foreign vendor (AWS) — auto self-withhold 15% gross-up + PND.36', async ({ page }) => {
+  // Redesigned create pages are slower — the old 30s default is too tight.
+  test.setTimeout(120_000);
   await login(page, 'admin');
   const code = `AWS${Date.now().toString().slice(-6)}`;
   await createForeignVendor(page, code);

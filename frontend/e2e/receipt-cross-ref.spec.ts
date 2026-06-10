@@ -13,10 +13,10 @@ test('receipt cross-ref: RC detail shows linked TI chip', async ({ page }) => {
   if (rows > 0) {
     await page.locator('tbody tr').first().getByRole('link').first().click();
     await page.waitForURL(/\/receipts\/\d+$/, { timeout: 15_000 });
-    // Cross-ref row renders only when references exist; smoke-check that
-    // the page itself does not crash + at least surfaces the applied table.
-    await expect(page.getByText(/ชำระสำหรับ|Applied to/i).first())
-      .toBeVisible({ timeout: 10_000 });
+    // Redesign: the "ชำระสำหรับ" header is gone — applied docs now render as
+    // PaperDocument line rows plus the DocumentChain card ("เอกสารอ้างอิง",
+    // data-testid="document-chain") that carries the linked TI/IV references.
+    await expect(page.getByTestId('document-chain')).toBeVisible({ timeout: 10_000 });
   }
 });
 

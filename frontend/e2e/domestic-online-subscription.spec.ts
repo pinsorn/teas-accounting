@@ -4,6 +4,8 @@ import { login, logout, createVendor, pickVendor } from './_helpers';
 // Sprint 8.7 — domestic auto-charge (Scenario A): manual self-withhold toggle.
 // Gross-up: expense = subtotal + vat + wht, bank = subtotal + vat.
 test('domestic online subscription — manual self-withhold gross-up', async ({ page }) => {
+  // Redesigned create pages are slower — the old 30s default is too tight.
+  test.setTimeout(120_000);
   await login(page, 'admin');
   const code = await createVendor(page);   // domestic VAT-registered vendor
 

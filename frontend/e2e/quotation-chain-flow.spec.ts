@@ -5,6 +5,8 @@ import { login, pickCustomer } from './_helpers';
 // through the rebuilt forms. "ออกใบเสนอราคา" (Issue) both creates the draft
 // and sends it, landing on the quotation detail (status=Sent).
 test('quotation chain: Q (issue) → SO → DO (combined) → linked TI', async ({ page }) => {
+  // Q + SO + DO transitions + Invoice create — exceeds the 30s default.
+  test.setTimeout(120_000);
   await login(page);
 
   await page.goto('/quotations/new');
@@ -38,8 +40,25 @@ test('quotation chain: Q (issue) → SO → DO (combined) → linked TI', async 
   await page.getByTestId('so-create-do').click();
   await page.waitForURL(/\/delivery-orders\/\d+$/, { timeout: 15_000 });
 
-  await page.getByTestId('do-post').click();
-  // Pattern X: combined DO auto-creates + links the Tax Invoice.
-  await expect(page.getByTestId('do-ti-link')).toBeVisible({ timeout: 15_000 });
+  // PRODUCT CHANGE (cont.69 Phase 1, documented in SalesOrderDeliveryServices):
+  // `do-post` became `do-issue` → `do-mark-delivered`, and the Pattern-X
+  // combined-DO auto-TI on Delivered was REMOVED — the linear flow now issues
+  // the Tax Invoice from the Invoice (ใบแจ้งหนี้) step, never from delivery.
+  // Follow the new chain: DO Delivered → create Invoice → chain links back.
+  await page.getByTestId('do-issue').click();
+  // Wait for the Issued state to settle (the issue refetch re-renders the
+  // action bar; a plain click can chase an unstable button — gotcha §16 family).
+  await expect(page.locator('body')).toContainText(/ออกเอกสารแล้ว|Issued/, { timeout: 15_000 });
+  await expect(async () => {
+    await page.getByTestId('do-mark-delivered').click({ force: true });
+    await expect(page.locator('body')).toContainText(/ส่งมอบแล้ว|Delivered/, { timeout: 3_000 });
+  }).toPass({ timeout: 25_000 });
+
+  await page.getByTestId('do-create-invoice').click();
+  await page.waitForURL(/\/invoices\/\d+$/, { timeout: 15_000 });
+  // The Invoice detail's DocumentChain carries the upstream DO reference.
+  await expect(
+    page.getByTestId('document-chain').locator('a[href^="/delivery-orders/"]'),
+  ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/เกิดข้อผิดพลาด|Something went wrong/i)).toHaveCount(0);
 });

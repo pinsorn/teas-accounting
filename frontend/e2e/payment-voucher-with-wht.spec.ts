@@ -4,6 +4,10 @@ import { login, logout, createVendor, pickVendor } from './_helpers';
 // admin creates a PV (WHT 3%) draft → approver (different user) approves + posts →
 // PV Posted, 50 ทวิ issued + its PDF downloads (200).
 test('payment voucher with WHT: SoD create→approve→post + 50 tawi', async ({ page }) => {
+  // Vendor create + PV form + user switch + approve/post — the redesigned
+  // pages need more than the 30s default (approver's PV detail was still on
+  // "กำลังโหลด…" when the old budget ran out).
+  test.setTimeout(120_000);
   await login(page, 'admin');
   const code = await createVendor(page);
 
