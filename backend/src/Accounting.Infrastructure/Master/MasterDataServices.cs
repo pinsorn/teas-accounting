@@ -177,6 +177,7 @@ public sealed class CompanyService(AccountingDbContext db) : ICompanyService
             AddressTh = req.AddressTh, SubDistrict = req.SubDistrict, District = req.District,
             Province = req.Province, PostalCode = req.PostalCode,
             Phone = req.Phone, Email = req.Email,
+            PaidUpCapital = req.PaidUpCapital,
         };
         db.Companies.Add(e);
         await db.SaveChangesAsync(ct);
@@ -271,13 +272,14 @@ public sealed class CompanyService(AccountingDbContext db) : ICompanyService
         e.AddressTh = req.AddressTh; e.SubDistrict = req.SubDistrict; e.District = req.District;
         e.Province = req.Province; e.PostalCode = req.PostalCode;
         e.Phone = req.Phone; e.Email = req.Email; e.IsActive = req.IsActive;
+        e.PaidUpCapital = req.PaidUpCapital;
         await db.SaveChangesAsync(ct);
     }
 
     public Task<IReadOnlyList<CompanyDto>> ListAsync(CancellationToken ct) =>
         db.Companies.IgnoreQueryFilters().OrderBy(c => c.NameTh)
             .Select(c => new CompanyDto(c.CompanyId, c.TaxId, c.NameTh, c.NameEn, c.LegalEntityType,
-                c.VatRegistered, c.BaseCurrency, c.IsActive))
+                c.VatRegistered, c.BaseCurrency, c.IsActive, c.PaidUpCapital))
             .ToListAsync(ct).ContinueWith<IReadOnlyList<CompanyDto>>(t => t.Result, TaskContinuationOptions.OnlyOnRanToCompletion);
 }
 

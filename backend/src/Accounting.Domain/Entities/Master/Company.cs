@@ -33,6 +33,11 @@ public class Company
     /// <summary>Accounting standard: TFRS / TFRS_NPAE / IFRS.</summary>
     public string ReportingStandard { get; set; } = "TFRS_NPAE";
 
+    /// <summary>Paid-up / registered capital (฿). Drives auto-SME CIT classification
+    /// (SME = paid-up ≤ ฿5M AND revenue ≤ ฿30M — ภ.ง.ด.50 rate schedule, plan §4.6).
+    /// Null = unknown → classified as General (never silently SME).</summary>
+    public decimal? PaidUpCapital { get; set; }
+
     public string? AddressTh { get; set; }
     public string? SubDistrict { get; set; }
     public string? District { get; set; }

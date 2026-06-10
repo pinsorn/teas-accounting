@@ -19,6 +19,7 @@ const FORMS = [
 export default function TaxFilingsIndexPage() {
   const t = useTranslations('tf');
   const tc = useTranslations('common');
+  const tcit = useTranslations('cit');
   const hist = useTaxFilings();
   const vatMode = useSystemInfo().data?.vatMode ?? true;
 
@@ -31,6 +32,8 @@ export default function TaxFilingsIndexPage() {
           <Link key={f.code} href={f.href}
             className="btn btn-sm btn-outline">{f.code}</Link>
         ))}
+        {/* Phase C-C — CIT yearly data (SME profile, ม.65ทวิ/65ตรี adjustments, loss c/f) */}
+        <Link href="/tax-filings/cit" className="btn btn-sm btn-outline">{tcit('indexLink')}</Link>
       </div>
 
       <h2 className="mb-2 font-semibold">{t('history')}</h2>

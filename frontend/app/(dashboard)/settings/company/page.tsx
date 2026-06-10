@@ -9,7 +9,11 @@ import { PermissionGate } from '@/components/PermissionGate';
 import {
   useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo, useUpdateRegisteredAddress,
 } from '@/lib/queries';
-import type { UpdateCompanyProfileSoftRequest, UpdateRegisteredAddressRequest } from '@/lib/types';
+import { apiGet, apiPut } from '@/lib/api';
+import type {
+  CompanyDto, CompanyProfile, UpdateCompanyProfileSoftRequest,
+  UpdateCompanyRequest, UpdateRegisteredAddressRequest,
+} from '@/lib/types';
 
 type SoftForm = UpdateCompanyProfileSoftRequest;
 
@@ -303,8 +307,108 @@ export default function CompanyProfilePage() {
               </div>
             </div>
           </section>
+
+          {/* ── Phase C-C: paid-up capital (CIT SME classification, super-admin) ── */}
+          <PermissionGate scope="master.company.manage">
+            <PaidUpCapitalCard profile={p} />
+          </PermissionGate>
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Phase C-C — Company.PaidUpCapital lives on the master `companies` table (NOT
+ * company_profiles), so it is read via GET /companies and saved via the
+ * super-admin full-overwrite PUT /companies/{id}. CompanyDto omits the address/
+ * phone/email/vatRegisterDate columns, so the PUT body reconstructs them from
+ * the company-profile (registered address Line1 is kept in sync with the
+ * structured parts; nothing renders from companies.address_th — documents use
+ * company_profiles). Hidden entirely when GET /companies is forbidden (403).
+ */
+function PaidUpCapitalCard({ profile }: { profile: CompanyProfile }) {
+  const t = useTranslations('companyProfile');
+  const tc = useTranslations('common');
+  const [row, setRow] = useState<CompanyDto | null>(null);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    apiGet<CompanyDto[]>('companies')
+      .then((list) => {
+        if (!alive) return;
+        const c = list.find((x) => x.companyId === profile.companyId) ?? null;
+        setRow(c);
+        setValue(c?.paidUpCapital != null ? String(c.paidUpCapital) : '');
+      })
+      .catch(() => { /* no master.company.manage on BE or load failure → keep hidden */ });
+    return () => { alive = false; };
+  }, [profile.companyId]);
+
+  if (!row) return null;
+
+  const parsed = value.trim() === '' ? null : Number(value);
+  const invalid = parsed !== null && (!Number.isFinite(parsed) || parsed < 0);
+
+  async function onSave() {
+    if (!row || invalid) return;
+    setSaving(true);
+    try {
+      const payload: UpdateCompanyRequest = {
+        nameTh: row.nameTh,
+        nameEn: row.nameEn,
+        vatRegistered: row.vatRegistered,
+        vatRegisterDate: profile.vatRegistrationDate,
+        addressTh: profile.registeredAddressLine1,
+        subDistrict: profile.registeredSubdistrict,
+        district: profile.registeredDistrict,
+        province: profile.registeredProvince,
+        postalCode: profile.registeredPostalCode,
+        phone: profile.phone,
+        email: profile.email,
+        isActive: row.isActive,
+        paidUpCapital: parsed,
+      };
+      await apiPut<unknown>(`companies/${row.companyId}`, payload);
+      setRow({ ...row, paidUpCapital: parsed });
+      toast.success(t('paidUpCapitalSaved'));
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="card bg-base-100 shadow-sm">
+      <div className="card-body">
+        <h2 className="card-title text-base">{t('paidUpCapital')}</h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="form-control">
+            <span className="label-text">{t('paidUpCapital')}</span>
+            <input
+              type="number"
+              min={0}
+              className="input input-bordered w-56"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              data-testid="cp-paid-up-capital"
+            />
+          </label>
+          <button
+            className="btn btn-primary"
+            onClick={onSave}
+            disabled={saving || invalid}
+            data-testid="cp-paid-up-capital-save"
+          >
+            {saving && <span className="loading loading-spinner loading-sm" />}
+            {tc('save')}
+          </button>
+        </div>
+        <p className="text-xs text-base-content/60">{t('paidUpCapitalHelp')}</p>
+      </div>
+    </section>
   );
 }

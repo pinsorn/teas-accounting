@@ -159,6 +159,7 @@ app.MapReceiptEndpoints();
 app.MapTaxAdjustmentNoteEndpoints();
 app.MapReportEndpoints();
 app.MapTaxFilingEndpoints();
+app.MapCitEndpoints();
 app.MapSalesChainEndpoints();
 app.MapBillingNoteEndpoints();
 app.MapDocumentCrossRefEndpoints();

@@ -60,4 +60,10 @@ public static class TestIds
 
     /// <summary>Random user / API-key style name.</summary>
     public static string Name(string prefix = "Test") => $"{prefix} {Suffix()}";
+
+    /// <summary>A fiscal-year label far in the future with a wide random spread —
+    /// tax.cit_year_summaries is unique per (company, fiscal_year) on the shared
+    /// teas_test DB. Callers that upsert-then-assert should still tolerate (or
+    /// delete) a pre-existing row for the chosen year.</summary>
+    public static int FutureFiscalYear() => 2200 + Random.Shared.Next(0, 5000);
 }
