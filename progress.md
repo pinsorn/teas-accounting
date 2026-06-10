@@ -3,6 +3,15 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-10 (cont. 87b) — ภ.ง.ด.50 FORM-FILL **RECON** (Auto Pilot): probed `pnd50_050369.pdf` = **7 pages / 478 widgets**, draft field map + v1 scope written, checkpointed BEFORE building the filler (compliance-critical mapping needs the 0-fill visual pass first).
+
+Auto Pilot session continuation after the C-C foundations commit (`3f760e2`). Deliberately STOPPED at the recon checkpoint rather than building `Pnd50FormFiller` half-rigorously — the radio-map lesson says every field/radio must be render-confirmed, and that visual pass is a full session of its own.
+- **Probe (pymupdf label-join, same method as pnd51):** per-page dumps → `docs/RD-Forms/pnd50/fieldmap/_pnd50_fields_p{1..7}.txt` (+ `probe.py` kept for re-runs). Structure: p1 header+radios+คำรับรอง+auditor (76w) · **p2 รายการที่ 1 การคำนวณภาษี (44w) ← v1 core** · p3 รายการที่ 2 (ม.65ทวิ/ตรี ladder)+รายได้ (95w) · p4 ต้นทุน (88w) · p5 ขายบริหาร (94w) · p6 งบฐานะ (42w — `BalanceSheetAsync` feeds) · p7 แบบแจ้งกรรมการ (39w). Field names messy (bare numerics/dots) — rect+label is the only map.
+- **Draft map + v1 scope:** `docs/superpowers/specs/pnd50-fieldmap-recon.md` — p2 boxes 662 (ภาษีคำนวณ) / 665 (หัก WHT [54]) / 666 (หัก ภ.ง.ด.51 [55] ← `cit_year_summaries.pnd51_prepaid`) / 669 รวม / 670 คงเหลือ [58-59] / 671 เงินเพิ่ม [60] / 672 รวม [61-62]; radios Group4 (สกุลเงิน) / Group5 (กำไร/ขาดทุน/รายรับ) / Group21+6 (อัตรา: ทั่วไป/ลดอัตรา-SMEs) / Group7/8 (ชำระเพิ่มเติม↔ไว้เกิน same-row pairs — pnd51 flip hazard). p1 header mirrors pnd51 (taxid grid → needs `pnd50_cells.json` geometry via the generalised extractor; `RdAcroFormFiller.cellCenters` already supports it).
+- ❗ **Open question (blocks filler, resolve FIRST):** กำไรสุทธิ amount box [46-47] has NO widget on its row in the dump — either off-row or the form carries it from รายการที่ 2 21. only. Resolve via 0-fill raster of p1+p2.
+- **Next session = C-C FORM FILL build** (plan ticked ◐ in plan.md): 0-fill raster → confirm all radios → geometry json → `Pnd50FormFiller` (p1+p2, THB only, refuse-on-unrenderable guard เหมือน pnd51 §4) → visual gate → service (engine + store ครบแล้วจาก cont.87) + endpoint + FE.
+- Committed docs-only (no code change; backend/FE untouched since `3f760e2`, all gates as recorded there). API :5080 left RUNNING.
+
 ## 2026-06-10 (cont. 87) — ภ.ง.ด.50 **Phase C-C FOUNDATIONS** shipped: loss-c/f engine+store, ม.65ตรี adjustments, `Company.PaidUpCapital`+auto-SME, real Balance Sheet, ภ.ง.ด.51 estimate persisted (ম→ม note: all new code uses Thai ม). Build **0/0** · Domain **137/137** (+12 golden) · Api `CitYearData|BalanceSheet|Pnd51` **23/23 ×2** (teas_test) · FE tsc **0**.
 
 Plan `docs/superpowers/plans/2026-06-10-pnd50-cc-foundations.md` (written+executed this session; subagent-driven per CLAUDE.md §7 — main agent did Domain law engine + EF migration, 2 subagents did BE services/endpoints + FE). Everything `Pnd50FormFiller` (next plan) consumes is now in place.
