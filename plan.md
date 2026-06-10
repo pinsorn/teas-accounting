@@ -87,9 +87,17 @@
     · `Company.PaidUpCapital` (+migration `AddCitYearStoresAndPaidUpCapital`) · auto-SME `ProfileAsync` (≤5M ∧ ≤30M,
     null→General) · **real `BalanceSheetAsync`** + `GET /reports/balance-sheet` · `CitEndpoints` + FE `/tax-filings/cit`
     + settings paid-up-capital + i18n. Build 0/0 · Domain 137/137 · Api 23/23 ×2 · tsc 0. openapi +9 paths.
-  - ☐ **C-C FORM FILL:** probe `pnd50_050369.pdf` (192 widgets) field map → `Pnd50FormFiller` + `Pnd50FilingService`
-    (P&L FY + adjustments + loss c/f + WHT credit + 51 prepay from the store) + ม.67ตรี under-estimate check
-    + endpoint + FE. Reuses `RdAcroFormFiller` page-aware + visual gate discipline.
+  - ◐ **C-C FORM FILL:**
+    - ☑ recon (cont.87b): `pnd50_050369.pdf` = **7 pages, 478 widgets** (not 120/192 — those were
+      main-p1/attach probes); per-page label-joined dumps in `docs/RD-Forms/pnd50/fieldmap/` + draft map
+      + v1 scope in `docs/superpowers/specs/pnd50-fieldmap-recon.md`. p2 = รายการที่ 1 คำนวณภาษี
+      (662/665/666/670/672 + Group4/5/21/6/7/8); p6 = งบฐานะ (`BalanceSheetAsync` ready).
+      ❗Open: กำไรสุทธิ box 46-47 widget not found on its row — resolve with 0-fill raster FIRST.
+    - ☐ build: 0-fill raster p1+p2 (resolve open Qs, render-confirm every radio) → `pnd50_cells.json`
+      geometry → `Pnd50FormFiller` (p1 header + p2 รายการที่ 1, THB only, refuse-on-unrenderable guard
+      like pnd51 §4) → visual gate → `Pnd50FilingService` (P&L FY + Σ`cit_adjustments` + loss c/f +
+      WHT credit + 51 prepay from store + `CitCalculator.Compute`/`UnderEstimatePenalty`) + endpoint + FE.
+      DEFER p3-5/p7 detail pages.
 - ☐ **Phase C-D — ภ.ง.ด.50 attachments** (5 ใบแนบ) + disclosure (ม.71ทวิ) + balance-sheet section. Largest; do last.
 
 ---
