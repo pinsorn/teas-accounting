@@ -90,8 +90,8 @@ or refuse; exact guard rules to be decided in the plan).
 ## Next-session method (proven on pnd51 — reuse verbatim)
 
 1. ☑ 0-fill diagnostic of p1+p2 done (`fieldmap/zfill.py`; box-role questions resolved above).
-   STILL OPEN for the build session: **radio choice↔option order** for Group1/5/21/6/7/8 and
-   Group00-06 — render each choice ticked + raster (pnd51 flip hazard; never guess).
+   ☑ **Radio map p1+p2 RENDER-CONFIRMED** (`fieldmap/radio_confirm.py`, all choices ticked+rastered)
+   → `docs/RD-Forms/pnd50/pnd50_radiomap.md`. p1+p2 mapping is now COMPLETE for the v1 scope.
 2. Extract printed cell-centres for box fields (generalised `_pnd51_geo.py`) → `pnd50_cells.json`.
 3. Write `Pnd50FormFiller` (embed template, `RdAcroFormFiller` page-aware) + TDD structural tests.
 4. Visual gate: clean worked case rendered → every tick/box confirmed by raster + Read → crops to Ham.
