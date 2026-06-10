@@ -15,13 +15,14 @@ export async function logout(page: Page) {
 }
 
 /**
- * Pick a customer in the CustomerSelector MODAL (EntityPickerModal). The selector
- * renders a trigger button whose accessible name (when empty) is the placeholder
- * text "ค้นหาชื่อ หรือเลขผู้เสียภาษี" (the ChevronDown icon is aria-hidden); clicking
- * it opens a role=dialog with a search input + a <ul> of result <button>s.
+ * Pick a customer via EntityPickerModal. Two trigger generations exist:
+ * the create-form redesign's PartySelectBox renders an empty-state dashed
+ * "เลือกลูกค้า" button, while older pages still use CustomerSelector whose
+ * trigger's accessible name is its placeholder "ค้นหาชื่อ หรือเลขผู้เสียภาษี".
+ * Both open the same role=dialog with a search input + result <button>s.
  */
 export async function pickCustomer(page: Page, search = 'ลูกค้า', name: RegExp = /ลูกค้าทดสอบ/) {
-  await page.getByRole('button', { name: 'ค้นหาชื่อ หรือเลขผู้เสียภาษี' }).click();
+  await page.getByRole('button', { name: /^เลือกลูกค้า$|ค้นหาชื่อ หรือเลขผู้เสียภาษี/ }).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill(search);
   await dialog.getByRole('button', { name }).click();
@@ -65,7 +66,9 @@ export async function createVendor(page: Page): Promise<string> {
  * result <button>s. Search by the supplied fragment, then click the first result.
  */
 export async function pickVendor(page: Page, query: string) {
-  await page.getByRole('button', { name: 'ค้นหาชื่อ หรือรหัสผู้ขาย' }).click();
+  // Same two-generation trigger as pickCustomer: PartySelectBox "เลือกผู้ขาย"
+  // (create-form redesign) OR the legacy VendorSelector placeholder name.
+  await page.getByRole('button', { name: /^เลือกผู้ขาย$|ค้นหาชื่อ หรือรหัสผู้ขาย/ }).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill(query);
   await dialog.getByRole('button', { name: query }).first().click();
