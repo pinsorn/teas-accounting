@@ -106,6 +106,46 @@ public static class Pnd51FormFiller
             // map them when page 2 is wired (see _Pnd51Diag page-2 dump).
         };
 
+        // ── page-2 การคำนวณภาษี worksheet (Method A) — present ONLY when the filing service attested a
+        // clean, footing case (Pnd51FilingService.BuildWorksheet). Field→box map: specs/pnd51-page2-map.md §2;
+        // radio indices: docs/RD-Forms/pnd51/pnd51_p2_radiomap.md (C# BuildRadioCells order, render-confirmed).
+        if (m.Worksheet is { } w)
+        {
+            // page-2 amounts are single 14-cell combs (baht + satang in the last 2 cells), right-justified.
+            void Amt(string name, decimal? v)
+            {
+                if (v is not { } d) return;
+                var b = Math.Truncate(d);
+                var s = Math.Round((d - b) * 100m);
+                fields.Add(new(name, $"{b:0}{s:00}", Right: true));
+            }
+            fields.Add(new("Text4.2", "01"));            // currency code: 01 = THB
+            Amt("Text4.3",  w.RevenueFullYear);          // 51    ประมาณการรายรับ (default path only)
+            Amt("Text4.4",  w.ExpenseFullYear);          // 52    ประมาณการรายจ่าย (default path only)
+            Amt("Text4.5",  w.RevenueFullYear is null ? null : w.EstimatedNetProfit); // 53-54 คงเหลือ
+            Amt("Text4.8",  w.EstimatedNetProfit);       // 57-58 กำไรสุทธิที่ต้องคำนวณภาษี
+            Amt("Text4.9",  w.HalfEstimatedProfit);      // 59-60 กึ่งหนึ่ง
+            Amt("Text4.15", w.HalfEstimatedProfit);      // 28-29 ฐานภาษี (รายการ2)
+            Amt("Text4.18", w.TaxComputed);              // 32    ภาษีที่คำนวณได้
+            Amt("Text4.19", w.WhtH1);                    // 33    หัก WHT + ภาษีที่ผู้อื่นเสียแทน
+            Amt("Text4.22", w.WhtH1);                    // 35    รวมเครดิต (= 33 when 34 / prior-paid = 0)
+            Amt("Text4.23", w.NetPayable);               // 36-37 คงเหลือ ชำระเพิ่มเติม
+            Amt("Text4.25", w.NetPayable);               // 39-40 รวม ชำระเพิ่มเติม
+
+            // Radios in C# BuildRadioCells order (top→bottom, left→right) — same-row pairs put the
+            // ขาดทุน/ไว้เกิน box at #0, so the wanted กำไร/เพิ่มเติม box is #1. Method-A, THB, general rate.
+            var payMore = w.NetPayable >= 0m;            // always true in v1 (guard ⇒ net ≥ 0)
+            radios.Add(new("Radio Button10", 0));               // บาท (THB)
+            radios.Add(new("Radio Button11", 1));               // 1. กึ่งหนึ่งของประมาณการ (ม.67ทวิ(1) = Method A)
+            radios.Add(new("Radio Button12", 1));               // (3) คงเหลือ = กำไรสุทธิ
+            radios.Add(new("Radio Button13", 1));               // (6) ประมาณการ = กำไรสุทธิที่ต้องคำนวณภาษี
+            radios.Add(new("Radio Button14", 1));               // (7) กึ่งหนึ่ง = กำไรสุทธิที่ต้องเสียภาษี
+            radios.Add(new("Radio Button17", 1));               // รายการ2 1.(1) กำไรสุทธิที่ต้องเสียภาษี
+            radios.Add(new("Radio Button19", 0));               // รายการ2 4.(1) กรณีทั่วไป (general 20%; v1 = !IsSme)
+            radios.Add(new("Radio Button22", payMore ? 1 : 0)); // 6. ชำระเพิ่มเติม / ชำระไว้เกิน
+            radios.Add(new("Radio Button23", payMore ? 1 : 0)); // 8. ชำระเพิ่มเติม / ชำระไว้เกิน
+        }
+
         // Every box on ภ.ง.ด.51 has a NON-uniform printed grid (grouped cells + dash gaps), so the generic
         // equal-division comb drifts. The filler places each char at the real printed cell-centre, taken from
         // the embedded pnd51_cells.json (field name → cell-centre X, extracted once from the template dividers).

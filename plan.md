@@ -72,8 +72,10 @@
     (5 flags) + `BuildPnd51Async(…, fillWorksheet, attest)`; pure `Pnd51FilingService.BuildWorksheet` computes Method-A boxes and
     **throws unless clean + footing** (added `estimate>0` & `tax≥WHT` over the plan's 5 flags — `HalfYearPrepayment` clamps, so
     WHT>tax would non-foot; general-rate only in v1). `Pnd51WorksheetTests` 12/12 (pure) · `Pnd51` 14/14 ×2. **Page 2 not rendered yet.**
-  - ☐ **page-2 Task 1 — confirm page-2 radio index map** (visual rasterise; `docs/RD-Forms/pnd51/pnd51_p2_radiomap.md`). Before Task 5.
-  - ☐ **page-2 Task 5 — render page-2 boxes + radios** in `Pnd51FormFiller` (uses Task 2 page-aware Render + confirmed radio map).
+  - ☑ **page-2 Tasks 1+5 — radio map + render (cont.86b, 2026-06-10):** draft radio map was sorted bottom→top (REVERSE of
+    `BuildRadioCells`) → rebuilt C#-true (`pnd51_p2radio_cs.txt`), corrected `pnd51_p2_radiomap.md`, render-confirmed every tick.
+    `Fill` now renders worksheet boxes (51/52/53-54/57-58/59-60/28-29/32/33/35/36-37/39-40) + 9 radios when attested.
+    `Pnd51` 15/15 ×2 · visual gate passed (foots end-to-end), crops sent to Ham.
   - ☐ **page-2 Task 6 — endpoint params + FE attestation gate** (5 checkboxes; openapi). Then full verify + Ham render review.
 - ☐ **Phase C-C — ภ.ง.ด.50 main:** adjustment-entry model (ม.65ตรี, manual) + `Company` paid-up-capital field (+migration)
   + loss-c/f store (override-able) + `BalanceSheetAsync` + `Pnd50FormFiller` + service (P&L FY + WHT credit + 51 prepay

@@ -1,8 +1,13 @@
+using System;
+using System.IO;
 using Accounting.Application.Tax;
 using Accounting.Domain.Common;
 using Accounting.Domain.Tax;
+using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Tax;
 using FluentAssertions;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
 using Xunit;
 
 namespace Accounting.Api.Tests.TaxFilings;
@@ -99,6 +104,46 @@ public sealed class Pnd51WorksheetTests
         w.TaxComputed.Should().Be(100_000m);                         // 1,000,000 × 20% × ½
         w.NetPayable.Should().Be(70_000m);                           // 100,000 − 30,000 (foots, positive)
         (w.TaxComputed - w.WhtH1).Should().Be(w.NetPayable);
+    }
+
+    // ── Task 5 wiring: Pnd51FormFiller.Fill must actually render the worksheet onto page 2 ──
+
+    [Fact] // guards against the page-2 fill block being dropped (existing tests wouldn't catch it)
+    public void Fill_with_worksheet_draws_more_on_page2_than_without()
+    {
+        var w = Pnd51FilingService.BuildWorksheet(
+            true, Clean, isSme: false,
+            estimate: 2_500_000m, revenueFullYear: 12_000_000m, expenseFullYear: 9_500_000m,
+            whtSufferedH1: 30_000m, schedule: General)!;
+
+        var with = Render(w);
+        var without = Render(null);
+
+        PageCount(with).Should().Be(2);
+        Page2Len(with).Should().BeGreaterThan(Page2Len(without) + 50,
+            "the attested worksheet must draw onto page 2");
+    }
+
+    private static byte[] Render(Pnd51Worksheet? w) => Pnd51FormFiller.Fill(new Pnd51Model(
+        EmployerTaxId: "0105556789012", EmployerName: "บริษัท ทดสอบ จำกัด",
+        PeriodStart: new DateOnly(2026, 1, 1), PeriodEnd: new DateOnly(2026, 12, 31),
+        Building: null, RoomNo: null, Floor: null, Village: null,
+        HouseNo: "1", Moo: null, Soi: null, Road: "ถนนทดสอบ",
+        SubDistrict: null, District: null, Province: "กรุงเทพมหานคร", PostalCode: "10110",
+        HalfYearTax: w?.NetPayable ?? 0m, FilingDate: new DateOnly(2026, 8, 31), Worksheet: w));
+
+    private static int PageCount(byte[] pdf)
+    { using var ms = new MemoryStream(pdf); return PdfReader.Open(ms, PdfDocumentOpenMode.Import).PageCount; }
+
+    private static int Page2Len(byte[] pdf)
+    {
+        using var ms = new MemoryStream(pdf);
+        var doc = PdfReader.Open(ms, PdfDocumentOpenMode.Modify);
+        var pg = doc.Pages[1];
+        var total = 0;
+        for (var i = 0; i < pg.Contents.Elements.Count; i++)
+            if (pg.Contents.Elements.GetObject(i) is PdfDictionary d && d.Stream != null) total += d.Stream.Value.Length;
+        return total;
     }
 
     private static void ThrowsNotAttestable(Action act)
