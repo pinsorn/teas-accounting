@@ -49,11 +49,13 @@ Radios (choices verified from widget states):
 - `Group7`: คงเหลือภาษี — Choice1 ชำระเพิ่มเติม / Choice2 ชำระไว้เกิน (same-row pair — pnd51 lesson)
 - `Group8`: รวมภาษี — Choice1 ชำระเพิ่มเติม / Choice2 ชำระไว้เกิน
 
-### ❗ Open question (blocks the filler — resolve FIRST next session)
-Row 1.(1) กำไรสุทธิ [boxes 46-47]: **no Text widget found on that row** (y≈330; nearest is
-`Text661` y≈348 which belongs to 1.(3)). Either the กำไรสุทธิ amount box widget sits off-row
-(check raster), or the form expects the figure only via รายการที่ 2 21. (p3) and 1.(1) truly has no
-input box. Resolve by 0-filling ALL p2 widgets + raster (the proven `_pnd51_zfill.py` approach).
+### ✅ RESOLVED by 0-fill raster (cont.87b, `fieldmap/zfill.py` — marker #N = dump line N)
+**`Text661` is the ONE shared base-amount box [48-49]** sitting between the Group5 radio rows —
+it serves whichever base is ticked (กำไรสุทธิ / ขาดทุนสุทธิ / รายรับก่อนหักรายจ่าย). There is no
+separate กำไรสุทธิ box; the margin numbering on this form revision is 48-49 only.
+Raster-confirmed margin numbers: #18=`Text661`[48-49] · #30=`662`[50-51] · #31-36=`663-668`[52-57]
+· #37=`669`(รวม) · #38=`670`[58-59] · #41=`671`[60] · #42=`672`[61-62]. All are 14-cell comb grids
+(baht|satang) like pnd51 → geometry extraction required.
 
 ## Page 1 — header (v1 target, draft hints)
 
@@ -69,8 +71,9 @@ input box. Resolve by 0-filling ALL p2 widgets + raster (the proven `_pnd51_zfil
 - `Group00-05`: ประเภทนิติบุคคล (1) กฎหมายไทย … (6) อื่นๆ — six separate single-choice groups
   (Choice1/Off each), not one group — tick = set the right GROUP
 - `Group06/07`: ม.71ทวิ related-party มี/ไม่มี (two separate groups)
-- `Text2000-1`/`Text3`, `Text2000`/`Text3-2` (y498/y547) = จำนวนเงิน boxes [30-31] in the คำรับรอง
-  block (ภาษีที่ชำระ + satang?) — **role not certain, render-confirm**
+- ✅ จำนวนเงิน boxes (raster-confirmed): **ภาษีที่ชำระเพิ่มเติม** baht=`Text2000-1` + satang=`Text3`
+  [30-31] · **ภาษีที่ชำระไว้เกิน** baht=`Text2000` + satang=`Text3-2` (fill exactly ONE pair per the
+  p2 box-58/59 sign — mirrors pnd51 ชำระเพิ่มเติม/ไว้เกิน semantics)
 - `29-42` signatures/dates · `43-49` auditor name/number/report date · `44-2/50/52` bottom row
 
 ## v1 scope decision (proposed — matches locked decisions + C-C foundations)
@@ -86,7 +89,9 @@ or refuse; exact guard rules to be decided in the plan).
 
 ## Next-session method (proven on pnd51 — reuse verbatim)
 
-1. 0-fill diagnostic of p1+p2 via pymupdf → raster both pages → resolve every "render-confirm" above.
+1. ☑ 0-fill diagnostic of p1+p2 done (`fieldmap/zfill.py`; box-role questions resolved above).
+   STILL OPEN for the build session: **radio choice↔option order** for Group1/5/21/6/7/8 and
+   Group00-06 — render each choice ticked + raster (pnd51 flip hazard; never guess).
 2. Extract printed cell-centres for box fields (generalised `_pnd51_geo.py`) → `pnd50_cells.json`.
 3. Write `Pnd50FormFiller` (embed template, `RdAcroFormFiller` page-aware) + TDD structural tests.
 4. Visual gate: clean worked case rendered → every tick/box confirmed by raster + Read → crops to Ham.
