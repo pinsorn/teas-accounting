@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { login } from './_helpers';
+import { TestIds } from './helpers/test-ids';
 
 // Sprint 11 — upload → list → delete an attachment on a posted VI detail.
 // Backend round-trip/validation is covered by the Api integration tests; this
 // drives the polymorphic UI section end-to-end through the BFF proxy.
 test('attachment upload + soft-delete on a Vendor Invoice', async ({ page }) => {
+  // Unique per run — a previously failed run can leave an undeleted
+  // "vendor-bill.pdf" row on the same first-VI detail (§14: no teardown),
+  // which would break the toHaveCount(0) assertion below.
+  const fileName = `vendor-bill-${TestIds.suffix()}.pdf`;
   await login(page);
 
   await page.goto('/vendor-invoices');
@@ -19,7 +24,7 @@ test('attachment upload + soft-delete on a Vendor Invoice', async ({ page }) => 
 
   await page.getByTestId('att-upload-open').click();
   await page.getByTestId('att-file').setInputFiles({
-    name: 'vendor-bill.pdf',
+    name: fileName,
     mimeType: 'application/pdf',
     buffer: Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF'),
   });
@@ -28,14 +33,15 @@ test('attachment upload + soft-delete on a Vendor Invoice', async ({ page }) => 
   await page.getByTestId('att-submit').click();
 
   // Row appears + count ≥ 1.
-  await expect(page.getByTestId('att-row').filter({ hasText: 'vendor-bill.pdf' }))
+  await expect(page.getByTestId('att-row').filter({ hasText: fileName }))
     .toBeVisible({ timeout: 15_000 });
 
-  // Soft-delete (confirm dialog auto-accept).
-  page.once('dialog', (d) => d.accept());
-  await page.getByTestId('att-row').filter({ hasText: 'vendor-bill.pdf' })
+  // Soft-delete. Redesign: window.confirm() was replaced by the useConfirm()
+  // in-page alertdialog ("ยืนยันการทำรายการ" with ยกเลิก/ยืนยัน buttons).
+  await page.getByTestId('att-row').filter({ hasText: fileName })
     .getByTestId('att-delete').click();
-  await expect(page.getByTestId('att-row').filter({ hasText: 'vendor-bill.pdf' }))
+  await page.getByRole('alertdialog').getByRole('button', { name: 'ยืนยัน', exact: true }).click();
+  await expect(page.getByTestId('att-row').filter({ hasText: fileName }))
     .toHaveCount(0, { timeout: 15_000 });
 
   await expect(page.getByText(/เกิดข้อผิดพลาด|Something went wrong/i)).toHaveCount(0);

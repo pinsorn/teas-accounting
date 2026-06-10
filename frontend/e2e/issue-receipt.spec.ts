@@ -1,14 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { login, createAndPostTaxInvoice, pickCustomer } from './_helpers';
+import { login, createAndPostTaxInvoice, pickCustomer, pickTaxInvoice, detailDocNo } from './_helpers';
 
 // login → post a TI → issue a Receipt applied to it → post → see it in the list.
 test('issue a receipt against a posted tax invoice', async ({ page }) => {
   await login(page);
-  const tiId = await createAndPostTaxInvoice(page);
+  await createAndPostTaxInvoice(page);
+  // Redesign: taxInvoiceId is now a typeahead picker that searches by doc_no
+  // (filling the numeric id leaves no TI selected → draft create 422 → no
+  // confirm dialog). Scrape the doc no off the detail page we just landed on.
+  const tiDocNo = await detailDocNo(page, 'TI');
 
   await page.goto('/receipts/new');
   await pickCustomer(page);
-  await page.getByLabel('taxInvoiceId 1').fill(String(tiId));
+  await pickTaxInvoice(page, 1, tiDocNo);
   await page.getByLabel('appliedAmount 1').fill('1070'); // 1000 + 7% VAT
 
   await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();

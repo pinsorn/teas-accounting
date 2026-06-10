@@ -85,8 +85,9 @@ test('billing note: create draft → delete', async ({ page }) => {
   await page.waitForURL(/\/invoices\/\d+$/, { timeout: 15_000 });
   await expect(page.getByTestId('bn-status')).toContainText(/Draft|ร่าง/);
 
-  // Confirm dialog auto-accepts.
-  page.on('dialog', (d) => d.accept());
+  // Redesign: window.confirm() was replaced by the useConfirm() in-page
+  // alertdialog ("ยืนยันการทำรายการ" with ยกเลิก/ยืนยัน buttons).
   await page.getByTestId('bn-delete').click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'ยืนยัน', exact: true }).click();
   await page.waitForURL(/\/invoices(\?.*)?$/, { timeout: 15_000 });
 });

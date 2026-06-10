@@ -4,6 +4,15 @@ import { login, createVendor, pickVendor } from './_helpers';
 // The creator cannot approve their own PV (SoD, CLAUDE.md §12.1). The attempt
 // fails and the document stays Draft.
 test('creator self-approve is blocked; PV stays Draft', async ({ page }) => {
+  // PRODUCT CHANGE: self-approve is now ALLOWED — PaymentVoucher.MarkApproved's
+  // doc comment says "creator (single-operator SME). The previous
+  // creator≠approver SoD rule (app check + DB CHECK ck_pv_sod) is removed;
+  // ApprovedBy is still recorded for the audit trail." Verified live: admin's
+  // self-approve succeeded (PV → อนุมัติแล้ว, Post button shown). This spec's
+  // contract no longer exists; flagging instead of asserting the old rule.
+  // NOTE for Ham: this touches the §12.1 SoD compliance rule — please confirm
+  // the relaxation was approved.
+  test.skip(true, 'PV creator≠approver SoD rule deliberately removed (see PaymentVoucher.MarkApproved doc comment) — old contract gone');
   await login(page, 'admin');
   const code = await createVendor(page);
 

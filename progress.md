@@ -3,6 +3,17 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-10 (cont. 87d) — **FULL-PROJECT TEST REVIEW** (Ham สั่ง "review ทั้งโปรเจกต์"): BE เขียวหมด, e2e suite ซ่อมจาก stale-UI 28 fails → **48 passed / 2 failed / 7 skipped**. Flaky 1 + helper เก่า 20+ spec แก้แล้ว. Suspected regressions คัดกรองแล้ว 1 ปลอม (SoD = มติ Ham) เหลือ 2 ต้องตาม.
+
+- **BE:** Domain **137/137** · Api เต็ม suite **251/251** (run1 เจอ flaky `Ytd_carries…` → root cause = RandYear ชน payroll run สะสมใน teas_test → `FreshYearAsync` เช็ค DB ก่อนเลือกปี, 8 call sites, commit `2abe050`) · FE tsc 0.
+- **e2e (Playwright 57 tests):** baseline แรก **28 failed** — ทั้งหมด stale จาก create-form redesign + Claude Design swap (ไม่ใช่ bug ระบบ): trigger picker เปลี่ยนเป็น `PartySelectBox` "เลือกลูกค้า/เลือกผู้ขาย" (`cb07699` แก้ helpers), topbar search ใหม่ชน selector `ค้นหา` (strict-mode), TaxInvoicePicker เป็น typeahead ค้นด้วย doc_no (helper `pickTaxInvoice`/`detailDocNo` ใหม่), dialog flows เปลี่ยน. Subagent ซ่อม 20+ spec files → final **48/2/7**.
+- **Suspected regressions (จาก e2e triage):**
+  - ❌ ปลอม: `pv-sod-violations` — PV creator≠approver ถูกถอด **โดยมติ Ham cont.77 2026-05-30** (permission-based, single-operator SME; doc บน `PaymentVoucher.MarkApproved`, ApprovedBy ยังลง audit). Test เก่า stale → skip ถูกต้อง; ควรลบ/เขียนใหม่เป็น permission test.
+  - ⚠️ จริง-ต้องตาม 1: SO/DO list **status filter ไม่ persist ลง URL** หลัง DataTable redesign (2 specs skipped พร้อม note) — UX feature หาย, FE-side.
+  - ⚠️ จริง-ต้องตาม 2: `external-api-microservice` — API-key path ตอบ `bu.invalid` 422 (BU auto-fill REPT ไม่ resolve) — สงสัย BE/seed regression ของ M13. ต้อง investigate.
+  - ☐ ค้าง 2 specs ยังแดง: `issue-receipt` (timeout + toContainText), `record-vendor-invoice` — น่าจะ test-side ต่อ, ยังไม่ได้เจาะ.
+- **Review เชิงลึกที่ยังค้าง = Sprint 13k ตามแผน** (RBAC Cartesian + security scan + perf + a11y) — เกิน scope เซสชันนี้; ทางเลือกเสริม: `/code-review ultra` (cloud multi-agent, billed, Ham trigger เอง).
+
 ## 2026-06-10 (cont. 87c) — **GIT REMOTE ตั้งแล้ว** (M15 ความเสี่ยงอันดับ 1 ปิด): `github.com/pinsorn/teas-accounting` **PRIVATE**, push main ครบทุก commit (verify: visibility=PRIVATE, HEAD=`276c7d2`, tracking origin/main).
 
 Ham login `gh` เอง (user pinsorn) → `gh repo create teas-accounting --private --source . --remote origin --push`. นโยบายต่อไป: **push หลังทุก commit ทุกเซสชัน**. ⚠️ ห้ามเปลี่ยน public โดยไม่ล้าง history + หมุน key — dev creds (`accounting_dev_password`) + MFA dev key (`MfaAesKeyBase64` ใน appsettings.Development.json) อยู่ใน history; untracked scratch/PDF กองใหญ่ยังไม่ขึ้น (คัดทีหลัง). เหลือของ M15-backup: ☐ DB dump `accounting_dev` อัตโนมัติ.

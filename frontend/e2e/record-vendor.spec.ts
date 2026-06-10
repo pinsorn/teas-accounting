@@ -30,7 +30,9 @@ test('record a vendor and see it in the list', async ({ page }) => {
   // integration DB has no teardown (runtime-gotchas §14): after many gate runs
   // the new E2EVEND-* row is off page 1. Filter by the unique code so the
   // assertion is robust to data accumulation (§14 family — Phase-2 cleanup).
-  await page.getByPlaceholder(/ค้นหา|Search/i).fill(code);
+  // Exact placeholder — the global topbar search ("ค้นหาเอกสาร, ลูกค้า, เลขที่...")
+  // added by the design swap also matches /ค้นหา/ and trips strict mode.
+  await page.getByPlaceholder('ค้นหา', { exact: true }).fill(code);
   await expect(page.getByRole('cell', { name: code, exact: true }))
     .toBeVisible({ timeout: 15_000 });
 });

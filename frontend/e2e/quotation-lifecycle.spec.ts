@@ -17,13 +17,15 @@ test('quotation: draft → send → accept → convert', async ({ page }) => {
 
   await page.locator('tbody tr').first().getByRole('link').first().click();
   await page.waitForURL(/\/quotations\/\d+$/, { timeout: 15_000 });
-  await expect(page.getByText(/Draft|ร่าง/i)).toBeVisible();
+  // Scope to the DocActionBar status badge (testid q-status) — the design swap
+  // also surfaces "ส่งแล้ว"/"ร่าง" in the activity log, tripping strict mode.
+  await expect(page.getByTestId('q-status')).toContainText(/Draft|ร่าง/i);
 
   // Send → status moves to Sent.
   const sendBtn = page.getByRole('button', { name: /Send|ส่ง/i }).first();
   if (await sendBtn.isVisible().catch(() => false)) {
     await sendBtn.click();
-    await expect(page.getByText(/Sent|ส่งแล้ว/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('q-status')).toContainText(/Sent|ส่งแล้ว/i, { timeout: 10_000 });
   }
 });
 

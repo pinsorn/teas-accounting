@@ -26,6 +26,9 @@ const now = new Date();
 const claimPeriod = now.getFullYear() * 100 + (now.getMonth() + 1);
 
 test('purchase chain: PO (multi-line) → VI from PO → PV w/ WHT → 50ทวิ → AP-aging zero → detail pages', async ({ page }) => {
+  // Long chain + 3 detail-page visits — the redesigned detail pages (paper
+  // preview + chain + activity) load slower than the 30s default allows.
+  test.setTimeout(120_000);
   // ── admin seeds a VAT vendor, resolves the SVC category + a WHT type ───────
   await login(page, 'admin');
   const vendorCode = TestIds.vendorCode('PCHAIN');
