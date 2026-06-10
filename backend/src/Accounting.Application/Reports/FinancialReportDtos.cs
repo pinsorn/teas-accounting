@@ -36,9 +36,23 @@ public sealed record SalesSummary(
     IReadOnlyList<SalesSummaryRow> Rows,
     SalesSummaryRow Totals);
 
+// ── C-C Balance Sheet (งบแสดงฐานะการเงิน) — assets / liabilities / equity as-of date.
+public sealed record BalanceSheetRow(string AccountCode, string AccountNameTh, decimal Balance);
+
+public sealed record BalanceSheetSection(IReadOnlyList<BalanceSheetRow> Rows, decimal Total);
+
+public sealed record BalanceSheetReport(
+    DateOnly AsOfDate, int CompanyId,
+    BalanceSheetSection Assets, BalanceSheetSection Liabilities, BalanceSheetSection Equity,
+    decimal CurrentPeriodEarnings,          // cumulative un-closed Revenue − Expense up to as-of
+    decimal LiabilitiesAndEquityTotal,      // Liabilities.Total + Equity.Total + CurrentPeriodEarnings
+    bool Balanced,                          // Assets.Total == LiabilitiesAndEquityTotal
+    string Note);
+
 public interface IFinancialReportService
 {
     Task<TrialBalanceReport> TrialBalanceAsync(DateOnly asOfDate, bool includeInactive, CancellationToken ct);
+    Task<BalanceSheetReport> BalanceSheetAsync(DateOnly asOfDate, CancellationToken ct);
     Task<ProfitLossReport> ProfitLossAsync(
         DateOnly from, DateOnly to, int? businessUnitId, bool includeUnspecified, CancellationToken ct);
     /// <summary><paramref name="groupBy"/> = "customer" | "business_unit".

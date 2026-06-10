@@ -563,7 +563,40 @@
     "pnd51AttestNoLossCf": "No loss carried forward (≤5 years) (box 55 = 0)",
     "pnd51AttestNoExemption": "No legally exempt net profit (box 56 = 0)",
     "pnd51AttestNoRateReduction": "No rate-reduction tax portion (box 34 = 0)",
-    "pnd51AttestNoSurcharge": "No ม.27 / ม.67ตรี surcharge (box 38 = 0)"
+    "pnd51AttestNoSurcharge": "No ม.27 / ม.67ตรี surcharge (box 38 = 0)",
+    "pnd51SaveEstimate": "Save estimate (ม.67ตรี)",
+    "pnd51EstimateSaved": "Estimate saved for the year-end ม.67ตรี check",
+    "pnd51EstimateError": "Failed to save the estimate"
+  },
+  "cit": {
+    "title": "Corporate income tax (yearly data)",
+    "indexLink": "Corporate income tax (yearly data)",
+    "year": "Year (CE)",
+    "profileTitle": "Company profile (SME criteria)",
+    "paidUpCapital": "Paid-up capital",
+    "revenue": "Full-year revenue",
+    "smeBadge": "SME-qualified",
+    "generalBadge": "General rate",
+    "lossCarryIn": "Loss carried in (ม.65ตรี(12))",
+    "adjustmentsTotal": "Adjustments total",
+    "accountingNetProfit": "Accounting net profit",
+    "summaryTitle": "Annual net-profit summary",
+    "computedNetProfit": "Computed net profit (from books)",
+    "overrideNetProfit": "Override net profit",
+    "effectiveNetProfit": "Effective net profit",
+    "pnd51Estimate": "ภ.ง.ด.51 estimated profit",
+    "pnd51Prepaid": "Half-year prepaid tax (ภ.ง.ด.51)",
+    "compute": "Compute from books",
+    "note": "Note",
+    "adjustmentsTitle": "Net-profit adjustments (ม.65ทวิ/65ตรี)",
+    "adjustmentsHint": "Add-back = positive · deduction/exemption = negative",
+    "legalRefCode": "Legal ref.",
+    "label": "Description",
+    "amount": "Amount (THB)",
+    "add": "Add item",
+    "loadError": "Failed to load data",
+    "saveError": "Save failed",
+    "saved": "Saved"
   },
   "note": {
     "cnTitle": "Credit Note (ม.86/10)",
@@ -629,7 +662,10 @@
     "bankAccountNo": "Account no.",
     "bankAccountName": "Account name",
     "saved": "Contact information saved",
-    "loadError": "Failed to load company profile"
+    "loadError": "Failed to load company profile",
+    "paidUpCapital": "Paid-up capital (THB)",
+    "paidUpCapitalHelp": "Used for SME classification for corporate income tax (capital ≤ 5M and revenue ≤ 30M)",
+    "paidUpCapitalSaved": "Paid-up capital saved"
   },
   "common": {
     "loading": "Loading…",

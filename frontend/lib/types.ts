@@ -84,6 +84,37 @@ export interface UpdateCompanyProfileSoftRequest {
   ssoEmployerAccountNo: string | null;
 }
 
+// Phase C-C — master `companies` row (super-admin GET /companies). Carries
+// PaidUpCapital for the CIT SME test (ทุน ≤ 5 ล้าน ∧ รายได้ ≤ 30 ล้าน).
+export interface CompanyDto {
+  companyId: number;
+  taxId: string;
+  nameTh: string;
+  nameEn: string | null;
+  vatRegistered: boolean;
+  baseCurrency: string;
+  isActive: boolean;
+  paidUpCapital: number | null;
+}
+
+// Full-overwrite body of PUT /companies/{id} — every field must be supplied
+// (the backend assigns all of them unconditionally; omitting one nulls it).
+export interface UpdateCompanyRequest {
+  nameTh: string;
+  nameEn: string | null;
+  vatRegistered: boolean;
+  vatRegisterDate: string | null;
+  addressTh: string | null;
+  subDistrict: string | null;
+  district: string | null;
+  province: string | null;
+  postalCode: string | null;
+  phone: string | null;
+  email: string | null;
+  isActive: boolean;
+  paidUpCapital: number | null;
+}
+
 export interface TaxInvoiceDetailLine {
   lineNo: number;
   productCode: string | null;

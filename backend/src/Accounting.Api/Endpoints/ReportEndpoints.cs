@@ -51,6 +51,13 @@ public static class ReportEndpoints
                     includeInactive ?? false, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.TrialBalance);
 
+        // C-C — งบแสดงฐานะการเงิน (feeds ภ.ง.ด.50 + DBD; locked decision #3).
+        group.MapGet("/balance-sheet", async (
+            [FromQuery] DateOnly? asOfDate, IFinancialReportService svc, CancellationToken ct) =>
+                Results.Ok(await svc.BalanceSheetAsync(
+                    asOfDate ?? DateOnly.FromDateTime(DateTime.UtcNow), ct)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.TrialBalance);
+
         group.MapGet("/profit-loss", async (
             [FromQuery] DateOnly from, [FromQuery] DateOnly to,
             [FromQuery] int? businessUnitId, [FromQuery] bool? includeUnspecified,

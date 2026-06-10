@@ -80,10 +80,16 @@
     → `Pnd51Attestation`; openapi `/tax-filings/pnd51/pdf` added (rest of `/tax-filings/*` still undocumented — Sana delta);
     FE toggle + 5 checkboxes (download gated; SME blocked). Live e2e 4/4 (200/422/200/422) · FE tsc 0 · Pnd51 15/15 ×2.
     **PAGE-2 PLAN COMPLETE.** Deferred: SME % radio (ask Ham), Method B, ชำระไว้เกิน, store-estimate ม.67ตรี.
-- ☐ **Phase C-C — ภ.ง.ด.50 main:** adjustment-entry model (ม.65ตรี, manual) + `Company` paid-up-capital field (+migration)
-  + loss-c/f store (override-able) + `BalanceSheetAsync` + `Pnd50FormFiller` + service (P&L FY + WHT credit + 51 prepay
-  + loss) + endpoint + FE. Reuses `RdAcroFormFiller` + `FinancialReportService` + `IWhtReceivableReportService`
-  + `Company.FiscalYearStartMonth`.
+- ◐ **Phase C-C — ภ.ง.ด.50 main:**
+  - ☑ **C-C FOUNDATIONS (cont.87, 2026-06-10 — plan `2026-06-10-pnd50-cc-foundations.md`):** `CitLossCarryForward`
+    ม.65ตรี(12) golden 12/12 · `tax.cit_year_summaries` (per-FY override-able store + ภ.ง.ด.51 estimate/prepaid,
+    persisted via `POST /tax-filings/pnd51/estimate`) + `tax.cit_adjustments` (signed ม.65ตรี lines) + RLS
+    · `Company.PaidUpCapital` (+migration `AddCitYearStoresAndPaidUpCapital`) · auto-SME `ProfileAsync` (≤5M ∧ ≤30M,
+    null→General) · **real `BalanceSheetAsync`** + `GET /reports/balance-sheet` · `CitEndpoints` + FE `/tax-filings/cit`
+    + settings paid-up-capital + i18n. Build 0/0 · Domain 137/137 · Api 23/23 ×2 · tsc 0. openapi +9 paths.
+  - ☐ **C-C FORM FILL:** probe `pnd50_050369.pdf` (192 widgets) field map → `Pnd50FormFiller` + `Pnd50FilingService`
+    (P&L FY + adjustments + loss c/f + WHT credit + 51 prepay from the store) + ม.67ตรี under-estimate check
+    + endpoint + FE. Reuses `RdAcroFormFiller` page-aware + visual gate discipline.
 - ☐ **Phase C-D — ภ.ง.ด.50 attachments** (5 ใบแนบ) + disclosure (ม.71ทวิ) + balance-sheet section. Largest; do last.
 
 ---

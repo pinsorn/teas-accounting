@@ -61,6 +61,8 @@ public class AccountingDbContext : DbContext
     public DbSet<WhtType>         WhtTypes        => Set<WhtType>();
     public DbSet<WhtCertificate>  WhtCertificates => Set<WhtCertificate>();
     public DbSet<TaxFiling>       TaxFilings      => Set<TaxFiling>();
+    public DbSet<CitYearSummary>  CitYearSummaries => Set<CitYearSummary>();
+    public DbSet<CitAdjustment>   CitAdjustments  => Set<CitAdjustment>();
 
     // Purchase
     public DbSet<PaymentVoucher>     PaymentVouchers     => Set<PaymentVoucher>();

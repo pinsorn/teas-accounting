@@ -1016,6 +1016,217 @@ paths:
         '422':
           description: pnd51.worksheet_not_attestable — worksheet requested but not attestable/footing
 
+  /tax-filings/pnd51/estimate:
+    post:
+      summary: บันทึกประมาณการ ภ.ง.ด.51 (ม.67ตรี) — persist the method-A estimate + prepaid
+      description: >
+        Stores the full-year profit estimate and the computed ม.67ทวิ prepayment on the per-FY CIT store
+        (tax.cit_year_summaries) so the year-end ภ.ง.ด.50 can run the ม.67ตรี under-estimate
+        (>25% → 20% penalty) check. Upserts per (company, fiscalYear).
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: estimatedProfit
+          in: query
+          required: true
+          schema: { type: number }
+        - name: whtH1
+          in: query
+          schema: { type: number, default: 0 }
+        - name: isSme
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Updated CIT year summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CitYearSummary' }
+
+  /tax-filings/cit/years:
+    get:
+      summary: CIT per-fiscal-year summaries (loss-c/f store + ภ.ง.ด.51 estimate)
+      tags: [Tax Filings]
+      responses:
+        '200':
+          description: All CIT year summaries of the tenant
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CitYearSummary' }
+
+  /tax-filings/cit/years/{year}:
+    put:
+      summary: Set/clear the manual override of a fiscal year's net taxable profit (ม.65ตรี(12) store)
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                overrideNetProfit: { type: number, nullable: true }
+                note: { type: string, nullable: true, maxLength: 500 }
+      responses:
+        '200':
+          description: Updated CIT year summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CitYearSummary' }
+
+  /tax-filings/cit/years/{year}/compute:
+    post:
+      summary: Snapshot ComputedNetProfit = P&L FY net profit + Σ adjustments(FY)
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated CIT year summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CitYearSummary' }
+
+  /tax-filings/cit/adjustments:
+    get:
+      summary: List ม.65ทวิ/65ตรี manual tax-adjustment lines for a fiscal year
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Adjustment lines (signed — add-back > 0, deduction/exempt < 0)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CitAdjustment' }
+    post:
+      summary: Add an adjustment line
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpsertCitAdjustment' }
+      responses:
+        '200':
+          description: Created line
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CitAdjustment' }
+
+  /tax-filings/cit/adjustments/{id}:
+    put:
+      summary: Update an adjustment line
+      tags: [Tax Filings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpsertCitAdjustment' }
+      responses:
+        '200':
+          description: Updated line
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CitAdjustment' }
+    delete:
+      summary: Delete an adjustment line
+      tags: [Tax Filings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204': { description: Deleted }
+
+  /tax-filings/cit/profile:
+    get:
+      summary: CIT profile for a fiscal year — auto-SME test + ภ.ง.ด.50 inputs
+      description: >
+        SME = paid-up capital ≤ ฿5M AND revenue ≤ ฿30M (null capital → General, never silently SME).
+        lossCarryIn = loss carry-forward per ม.65ตรี(12) over the per-FY store (5-period expiry,
+        oldest-first consumption).
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: CIT profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fiscalYear: { type: integer }
+                  paidUpCapital: { type: number, nullable: true }
+                  revenueFullYear: { type: number }
+                  isSme: { type: boolean }
+                  adjustmentsTotal: { type: number }
+                  lossCarryIn: { type: number }
+                  accountingNetProfit: { type: number }
+
+  /reports/balance-sheet:
+    get:
+      summary: งบแสดงฐานะการเงิน (Balance Sheet) as-of date
+      description: >
+        Assets / Liabilities / Equity from posted GL by account class; current-period earnings shown
+        as one computed line (cumulative un-closed Revenue − Expense). Feeds ภ.ง.ด.50 + DBD.
+      tags: [Reports]
+      parameters:
+        - name: asOfDate
+          in: query
+          schema: { type: string, format: date }
+          description: Defaults to today
+      responses:
+        '200':
+          description: Balance sheet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asOfDate: { type: string, format: date }
+                  companyId: { type: integer }
+                  assets: { $ref: '#/components/schemas/BalanceSheetSection' }
+                  liabilities: { $ref: '#/components/schemas/BalanceSheetSection' }
+                  equity: { $ref: '#/components/schemas/BalanceSheetSection' }
+                  currentPeriodEarnings: { type: number }
+                  liabilitiesAndEquityTotal: { type: number }
+                  balanced: { type: boolean }
+                  note: { type: string }
+
   /reports/pnd30/file:
     get:
       summary: Generate ภ.พ.30 file (Manual mode — download for portal upload)
@@ -1322,7 +1533,7 @@ paths:
                   items: { type: object }
       responses:
         '201':
-          description: Created (or replayed via Idempotency-Key match — see `Idempotency-Replayed: true` header)
+          description: 'Created (or replayed via Idempotency-Key match — see `Idempotency-Replayed: true` header)'
         '400': { description: 'Validation error or idempotency.required (missing Idempotency-Key header on mutation)' }
         '401': { description: 'auth.* (missing/invalid/expired/revoked API key)' }
         '403': { description: 'auth.scope_required (key lacks sales.tax_invoice.create scope)' }
@@ -1487,6 +1698,46 @@ components:
             $ref: '#/components/schemas/ErrorEnvelopeV1'
 
   schemas:
+    # === CIT Phase C-C (ภ.ง.ด.50 foundations) ===
+    CitYearSummary:
+      type: object
+      description: Per-fiscal-year CIT store — loss c/f (ม.65ตรี(12), override-able) + ภ.ง.ด.51 estimate (ม.67ตรี).
+      properties:
+        fiscalYear: { type: integer, description: CE year the FY starts in }
+        computedNetProfit: { type: number, nullable: true }
+        overrideNetProfit: { type: number, nullable: true }
+        effectiveNetProfit: { type: number, nullable: true, description: 'override ?? computed; loss < 0' }
+        pnd51EstimatedProfit: { type: number, nullable: true }
+        pnd51Prepaid: { type: number, nullable: true }
+        note: { type: string, nullable: true }
+    CitAdjustment:
+      type: object
+      properties:
+        citAdjustmentId: { type: integer, format: int64 }
+        fiscalYear: { type: integer }
+        legalRefCode: { type: string, maxLength: 50, description: 'e.g. ม.65ตรี(3)' }
+        label: { type: string, maxLength: 255 }
+        amount: { type: number, description: 'signed — add-back > 0, deduction/exempt < 0' }
+    UpsertCitAdjustment:
+      type: object
+      required: [legalRefCode, label, amount]
+      properties:
+        legalRefCode: { type: string, maxLength: 50 }
+        label: { type: string, maxLength: 255 }
+        amount: { type: number }
+    BalanceSheetSection:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              accountCode: { type: string }
+              accountNameTh: { type: string }
+              balance: { type: number }
+        total: { type: number }
+
     # === Reports (Sprint 13j-PURCH Phase B) ===
     ApAgingRow:
       type: object
@@ -1828,11 +2079,11 @@ components:
         docNo:        { type: string, example: 05-2026-TI-0001 }
         docDate:      { type: string, format: date }
         customerName: { type: string }
-        customerTaxId:{ type: string, nullable: true }
+        customerTaxId: { type: string, nullable: true }
         totalAmount:  { type: number }
         taxAmount:    { type: number }
         status:       { type: string, enum: [Draft, Posted] }
-        paymentStatus:{ type: string, enum: [UNPAID, PARTIAL, PAID] }
+        paymentStatus: { type: string, enum: [UNPAID, PARTIAL, PAID] }
         currencyCode: { type: string, example: THB }
 
     TaxInvoiceListResponse:

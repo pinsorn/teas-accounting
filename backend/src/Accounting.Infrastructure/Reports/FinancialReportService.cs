@@ -64,6 +64,87 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
             new TrialBalanceTotals(td, tc, td == tc));
     }
 
+    /// <summary>
+    /// C-C — งบแสดงฐานะการเงิน as-of date (locked decision #3; feeds ภ.ง.ด.50 + DBD).
+    /// Same query shape as <see cref="TrialBalanceAsync"/>: Posted journals on/before the
+    /// as-of date, grouped per account. Asset = Dr−Cr; Liability/Equity = Cr−Dr;
+    /// CurrentPeriodEarnings = Σ Revenue(Cr−Dr) − Σ Expense(Dr−Cr) cumulative (period-close
+    /// journals already in GL net themselves out, so this is correct whether or not closes ran).
+    /// Zero-balance rows are dropped; rows ordered by AccountCode.
+    /// </summary>
+    public async Task<BalanceSheetReport> BalanceSheetAsync(DateOnly asOfDate, CancellationToken ct)
+    {
+        EnsureAuth();
+
+        var sums = await (
+            from l in db.JournalLines.AsNoTracking()
+            join j in db.JournalEntries.AsNoTracking() on l.JournalId equals j.JournalId
+            where j.Status == DocumentStatus.Posted && j.DocDate <= asOfDate
+            group l by l.AccountId into g
+            select new { AccountId = g.Key,
+                          Debit = g.Sum(x => x.DebitAmount),
+                          Credit = g.Sum(x => x.CreditAmount) })
+            .ToDictionaryAsync(x => x.AccountId, x => x, ct);
+
+        // All accounts (active or not) — an inactive account with a balance must
+        // still appear or the sheet won't balance; zero rows are dropped below.
+        var accounts = await db.ChartOfAccounts.AsNoTracking()
+            .OrderBy(a => a.AccountCode)
+            .Select(a => new { a.AccountId, a.AccountCode, a.AccountNameTh, a.AccountType })
+            .ToListAsync(ct);
+
+        var assets = new List<BalanceSheetRow>();
+        var liabilities = new List<BalanceSheetRow>();
+        var equity = new List<BalanceSheetRow>();
+        decimal assetTotal = 0m, liabTotal = 0m, equityTotal = 0m, earnings = 0m;
+
+        static void Add(List<BalanceSheetRow> rows, string code, string name, decimal bal)
+        {
+            if (bal != 0m) rows.Add(new BalanceSheetRow(code, name, bal));
+        }
+
+        foreach (var a in accounts)
+        {
+            var s = sums.GetValueOrDefault(a.AccountId);
+            if (s is null) continue;
+            switch (a.AccountType)
+            {
+                case AccountType.Asset:
+                    var ab = s.Debit - s.Credit;
+                    assetTotal += ab;
+                    Add(assets, a.AccountCode, a.AccountNameTh, ab);
+                    break;
+                case AccountType.Liability:
+                    var lb = s.Credit - s.Debit;
+                    liabTotal += lb;
+                    Add(liabilities, a.AccountCode, a.AccountNameTh, lb);
+                    break;
+                case AccountType.Equity:
+                    var eb = s.Credit - s.Debit;
+                    equityTotal += eb;
+                    Add(equity, a.AccountCode, a.AccountNameTh, eb);
+                    break;
+                case AccountType.Revenue:
+                    earnings += s.Credit - s.Debit;
+                    break;
+                case AccountType.Expense:
+                    earnings -= s.Debit - s.Credit;
+                    break;
+            }
+        }
+
+        var liabAndEquity = liabTotal + equityTotal + earnings;
+        return new BalanceSheetReport(
+            asOfDate, tenant.CompanyId,
+            new BalanceSheetSection(assets, assetTotal),
+            new BalanceSheetSection(liabilities, liabTotal),
+            new BalanceSheetSection(equity, equityTotal),
+            earnings, liabAndEquity, assetTotal == liabAndEquity,
+            "Current-period earnings (กำไร(ขาดทุน)สะสมยังไม่ปิดงวด) appear as a single " +
+            "computed line — cumulative Revenue − Expense up to the as-of date — not " +
+            "per-account, until period-close maturity (Phase 2).");
+    }
+
     public async Task<ProfitLossReport> ProfitLossAsync(
         DateOnly fromDate, DateOnly toDate, int? businessUnitId,
         bool includeUnspecified, CancellationToken ct)

@@ -7,12 +7,12 @@ namespace Accounting.Application.Master;
 public sealed record CreateCompanyRequest(string TaxId, string NameTh, string? NameEn, LegalEntityType LegalEntityType,
     DateOnly? RegistrationDate, bool VatRegistered, DateOnly? VatRegisterDate, short FiscalYearStartMonth,
     string? AddressTh, string? SubDistrict, string? District, string? Province, string? PostalCode,
-    string? Phone, string? Email);
+    string? Phone, string? Email, decimal? PaidUpCapital = null);
 public sealed record UpdateCompanyRequest(string NameTh, string? NameEn, bool VatRegistered, DateOnly? VatRegisterDate,
     string? AddressTh, string? SubDistrict, string? District, string? Province, string? PostalCode,
-    string? Phone, string? Email, bool IsActive);
+    string? Phone, string? Email, bool IsActive, decimal? PaidUpCapital = null);
 public sealed record CompanyDto(int CompanyId, string TaxId, string NameTh, string? NameEn, LegalEntityType LegalEntityType,
-    bool VatRegistered, string BaseCurrency, bool IsActive);
+    bool VatRegistered, string BaseCurrency, bool IsActive, decimal? PaidUpCapital = null);
 
 public sealed class CreateCompanyValidator : AbstractValidator<CreateCompanyRequest>
 {
@@ -22,6 +22,7 @@ public sealed class CreateCompanyValidator : AbstractValidator<CreateCompanyRequ
             .WithMessage("TaxId must be 13 digits with valid checksum.");
         RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
         RuleFor(x => x.FiscalYearStartMonth).InclusiveBetween((short)1, (short)12);
+        RuleFor(x => x.PaidUpCapital).GreaterThanOrEqualTo(0m).When(x => x.PaidUpCapital.HasValue);
     }
 }
 

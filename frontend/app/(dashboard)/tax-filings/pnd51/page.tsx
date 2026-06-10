@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { openPdf } from '@/lib/api';
+import { apiPost, openPdf } from '@/lib/api';
 
 const ATTEST_KEYS = [
   'attestFirstFiling',
@@ -22,6 +22,7 @@ export default function Pnd51Page() {
   const [whtH1, setWhtH1] = useState('');
   const [isSme, setIsSme] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [savingEstimate, setSavingEstimate] = useState(false);
   // Page-2 worksheet: ALL five attestations must be checked or the download stays disabled
   // (the backend additionally throws 422 pnd51.worksheet_not_attestable — this gate is UX, not the guard).
   const [fillWorksheet, setFillWorksheet] = useState(false);
@@ -54,6 +55,27 @@ export default function Pnd51Page() {
       toast.error(t('pnd51Error'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  // C-C — persist the filed method-A estimate so the year-end ม.67ตรี ±25% check
+  // compares against exactly what was filed. Requires an explicit estimatedProfit
+  // (the H1×2 auto-default is a preview convenience, not a filed figure).
+  async function saveEstimate() {
+    setSavingEstimate(true);
+    try {
+      const params = new URLSearchParams({
+        year: String(year),
+        estimatedProfit,
+        whtH1: whtH1 || '0',
+        isSme: String(isSme),
+      });
+      await apiPost(`tax-filings/pnd51/estimate?${params}`);
+      toast.success(t('pnd51EstimateSaved'));
+    } catch {
+      toast.error(t('pnd51EstimateError'));
+    } finally {
+      setSavingEstimate(false);
     }
   }
 
@@ -107,6 +129,14 @@ export default function Pnd51Page() {
           onClick={generate}
         >
           {loading ? t('downloading') : t('pnd51Generate')}
+        </button>
+        <button
+          className="btn btn-sm btn-outline self-end"
+          disabled={savingEstimate || !estimatedProfit}
+          onClick={saveEstimate}
+        >
+          {savingEstimate && <span className="loading loading-spinner loading-xs" />}
+          {t('pnd51SaveEstimate')}
         </button>
       </div>
 

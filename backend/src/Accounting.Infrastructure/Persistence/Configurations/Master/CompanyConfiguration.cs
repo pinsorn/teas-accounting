@@ -28,6 +28,7 @@ internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
         b.Property(c => c.Email).HasMaxLength(255);
 
         b.Property(c => c.RequiresBusinessUnit).HasDefaultValue(false);
+        b.Property(c => c.PaidUpCapital).HasPrecision(19, 4);
 
         b.Property(c => c.CreatedAt).HasColumnType("timestamptz(3)");
 

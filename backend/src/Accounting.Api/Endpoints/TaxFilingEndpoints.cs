@@ -144,6 +144,16 @@ public static class TaxFilingEndpoints
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);
 
+        // C-C — persist the method-A estimate at filing time (ม.67ตรี year-end check).
+        app.MapPost("/tax-filings/pnd51/estimate", async (
+            [FromQuery] int year, [FromQuery] decimal estimatedProfit,
+            [FromQuery] decimal? whtH1, [FromQuery] bool? isSme,
+            ICitYearDataService svc, CancellationToken ct) =>
+                Results.Ok(await svc.RecordPnd51EstimateAsync(
+                    year, estimatedProfit, whtH1 ?? 0m, isSme ?? false, ct)))
+        .WithTags("TaxFilings")
+        .RequireAuthorization(preview);
+
         // ── C8 immutable filing history (for /tax-filings index)
         app.MapGet("/tax-filings", async (
             ITaxFilingService svc, CancellationToken ct) =>
