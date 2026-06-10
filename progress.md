@@ -3,6 +3,10 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-10 (cont. 87c) — **GIT REMOTE ตั้งแล้ว** (M15 ความเสี่ยงอันดับ 1 ปิด): `github.com/pinsorn/teas-accounting` **PRIVATE**, push main ครบทุก commit (verify: visibility=PRIVATE, HEAD=`276c7d2`, tracking origin/main).
+
+Ham login `gh` เอง (user pinsorn) → `gh repo create teas-accounting --private --source . --remote origin --push`. นโยบายต่อไป: **push หลังทุก commit ทุกเซสชัน**. ⚠️ ห้ามเปลี่ยน public โดยไม่ล้าง history + หมุน key — dev creds (`accounting_dev_password`) + MFA dev key (`MfaAesKeyBase64` ใน appsettings.Development.json) อยู่ใน history; untracked scratch/PDF กองใหญ่ยังไม่ขึ้น (คัดทีหลัง). เหลือของ M15-backup: ☐ DB dump `accounting_dev` อัตโนมัติ.
+
 ## 2026-06-10 (cont. 87b) — ภ.ง.ด.50 FORM-FILL **RECON** (Auto Pilot): probed `pnd50_050369.pdf` = **7 pages / 478 widgets**, draft field map + v1 scope written, checkpointed BEFORE building the filler (compliance-critical mapping needs the 0-fill visual pass first).
 
 Auto Pilot session continuation after the C-C foundations commit (`3f760e2`). Deliberately STOPPED at the recon checkpoint rather than building `Pnd50FormFiller` half-rigorously — the radio-map lesson says every field/radio must be render-confirmed, and that visual pass is a full session of its own.
