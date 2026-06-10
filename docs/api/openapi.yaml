@@ -960,6 +960,62 @@ paths:
                   vat_payable: { type: number }
                   payment_qr_url: { type: string }
 
+  /tax-filings/pnd51/pdf:
+    get:
+      summary: ภ.ง.ด.51 (ม.67ทวิ method A) — mid-year CIT prepayment PDF
+      description: >
+        Fills the official RD ภ.ง.ด.51 AcroForm. estimatedProfit = taxpayer's full-year estimate
+        (omit → H1 net profit × 2 from P&L). fillWorksheet=true additionally fills the page-2
+        การคำนวณภาษี worksheet; ALL five attest* flags must then be true and the figures must foot
+        (clean, general-rate, first filing) or the service returns 422
+        `pnd51.worksheet_not_attestable` — a blank box on this form asserts zero (ภ.ง.ด.51 §4).
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+          description: CE fiscal year (start year of the accounting period)
+        - name: estimatedProfit
+          in: query
+          schema: { type: number }
+        - name: whtH1
+          in: query
+          schema: { type: number, default: 0 }
+        - name: isSme
+          in: query
+          schema: { type: boolean, default: false }
+        - name: fillWorksheet
+          in: query
+          schema: { type: boolean, default: false }
+        - name: attestFirstFiling
+          in: query
+          schema: { type: boolean, default: false }
+          description: ยื่นปกติ ไม่ใช่ยื่นเพิ่มเติม (page-2 prior-paid box = 0)
+        - name: attestNoLossCf
+          in: query
+          schema: { type: boolean, default: false }
+          description: ไม่มีขาดทุนสุทธิยกมา (box 55 = 0)
+        - name: attestNoExemption
+          in: query
+          schema: { type: boolean, default: false }
+          description: ไม่มีกำไรที่ได้รับยกเว้น (box 56 = 0)
+        - name: attestNoRateReduction
+          in: query
+          schema: { type: boolean, default: false }
+          description: ไม่มีภาษีส่วนลดอัตรา (box 34 = 0)
+        - name: attestNoSurcharge
+          in: query
+          schema: { type: boolean, default: false }
+          description: ไม่มีเงินเพิ่ม ม.27/ม.67ตรี (box 38 = 0)
+      responses:
+        '200':
+          description: PDF (2 pages; page 2 filled only when attested)
+          content:
+            application/pdf: {}
+        '422':
+          description: pnd51.worksheet_not_attestable — worksheet requested but not attestable/footing
+
   /reports/pnd30/file:
     get:
       summary: Generate ภ.พ.30 file (Manual mode — download for portal upload)

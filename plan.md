@@ -76,7 +76,10 @@
     `BuildRadioCells`) → rebuilt C#-true (`pnd51_p2radio_cs.txt`), corrected `pnd51_p2_radiomap.md`, render-confirmed every tick.
     `Fill` now renders worksheet boxes (51/52/53-54/57-58/59-60/28-29/32/33/35/36-37/39-40) + 9 radios when attested.
     `Pnd51` 15/15 ×2 · visual gate passed (foots end-to-end), crops sent to Ham.
-  - ☐ **page-2 Task 6 — endpoint params + FE attestation gate** (5 checkboxes; openapi). Then full verify + Ham render review.
+  - ☑ **page-2 Task 6 — endpoint params + FE attestation gate (cont.86c, 2026-06-10):** `fillWorksheet`+5 attest query params
+    → `Pnd51Attestation`; openapi `/tax-filings/pnd51/pdf` added (rest of `/tax-filings/*` still undocumented — Sana delta);
+    FE toggle + 5 checkboxes (download gated; SME blocked). Live e2e 4/4 (200/422/200/422) · FE tsc 0 · Pnd51 15/15 ×2.
+    **PAGE-2 PLAN COMPLETE.** Deferred: SME % radio (ask Ham), Method B, ชำระไว้เกิน, store-estimate ม.67ตรี.
 - ☐ **Phase C-C — ภ.ง.ด.50 main:** adjustment-entry model (ม.65ตรี, manual) + `Company` paid-up-capital field (+migration)
   + loss-c/f store (override-able) + `BalanceSheetAsync` + `Pnd50FormFiller` + service (P&L FY + WHT credit + 51 prepay
   + loss) + endpoint + FE. Reuses `RdAcroFormFiller` + `FinancialReportService` + `IWhtReceivableReportService`

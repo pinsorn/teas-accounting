@@ -111,16 +111,36 @@ public static class TaxFilingEndpoints
         // ── Phase C-B ภ.ง.ด.51 (ม.67ทวิ method A — mid-year CIT prepayment)
         // estimatedProfit: taxpayer's full-year estimate (null → H1 net profit × 2 from P&L).
         // whtH1: WHT suffered in first half (default 0). isSme: SME 0/15/20 vs General 20%.
+        // fillWorksheet + attest*: page-2 การคำนวณภาษี worksheet — the service THROWS unless the
+        // attestation is clean and the figures foot (ภ.ง.ด.51 §4 — a blank box asserts zero), so
+        // unchecked flags simply surface as a 422; no defaulting happens here.
         app.MapGet("/tax-filings/pnd51/pdf", async (
             [FromQuery] int year,
             [FromQuery] decimal? estimatedProfit,
             [FromQuery] decimal? whtH1,
             [FromQuery] bool? isSme,
+            [FromQuery] bool? fillWorksheet,
+            [FromQuery] bool? attestFirstFiling,
+            [FromQuery] bool? attestNoLossCf,
+            [FromQuery] bool? attestNoExemption,
+            [FromQuery] bool? attestNoRateReduction,
+            [FromQuery] bool? attestNoSurcharge,
             IPnd51FilingService svc, CancellationToken ct) =>
-            Results.File(
+        {
+            var fill = fillWorksheet ?? false;
+            var attest = fill
+                ? new Pnd51Attestation(
+                    FirstFiling:        attestFirstFiling     ?? false,
+                    NoLossCarryForward: attestNoLossCf        ?? false,
+                    NoExemption:        attestNoExemption     ?? false,
+                    NoRateReduction:    attestNoRateReduction ?? false,
+                    NoSurcharge:        attestNoSurcharge     ?? false)
+                : null;
+            return Results.File(
                 await svc.BuildPnd51Async(year, estimatedProfit, whtH1 ?? 0m, isSme ?? false,
-                    fillWorksheet: false, attest: null, ct),
-                "application/pdf", $"pnd51-{year}.pdf"))
+                    fill, attest, ct),
+                "application/pdf", $"pnd51-{year}.pdf");
+        })
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);
 
