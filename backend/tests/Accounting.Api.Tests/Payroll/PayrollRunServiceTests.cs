@@ -46,6 +46,25 @@ public sealed class PayrollRunServiceTests
     private static int RandYear() => 3000 + Random.Shared.Next(0, 6000);
     private static string Period(int year, int month) => $"{year:0000}{month:00}";
 
+    // §8 isolation: the shared teas_test DB accumulates posted runs across historical sessions, so a
+    // bare RandYear() can collide with a prior run of the same (company, period) — duplicate create OR
+    // polluted YTD. Only a year with NO existing company-1 run is safe (YTD sums the whole year).
+    private static async Task<int> FreshYearAsync(ServiceProvider sp)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        while (true)
+        {
+            var y = RandYear();
+            var prefix = $"{y:0000}";
+            if (!await db.PayrollRuns.AnyAsync(r => r.PeriodYearMonth.StartsWith(prefix), default))
+                return y;
+        }
+    }
+
+    private static async Task<string> FreshPeriodAsync(ServiceProvider sp, int month) =>
+        Period(await FreshYearAsync(sp), month);
+
     private static async Task<long> AddEmployee(
         ServiceProvider sp, decimal salary, MaritalStatus marital = MaritalStatus.Single,
         bool spouseHasIncome = false, int children = 0, bool sso = true, bool isActive = true)
@@ -83,7 +102,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var period = Period(RandYear(), 1);   // January → 12 months remaining
+        var period = await FreshPeriodAsync(sp, 1);   // January → 12 months remaining
 
         var e50k = await AddEmployee(sp, 50_000m);                       // pit 1,716.67 · sso 750
         var e10k = await AddEmployee(sp, 10_000m);                       // pit 0 · sso 500 (below ceiling)
@@ -123,7 +142,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var period = Period(RandYear(), 1);
+        var period = await FreshPeriodAsync(sp, 1);
         await AddEmployee(sp, 30_000m);
         var runId = await RunThroughPost(sp, period);
 
@@ -141,7 +160,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var period = Period(RandYear(), 3);
+        var period = await FreshPeriodAsync(sp, 3);
         await AddEmployee(sp, 25_000m);
         await RunThroughPost(sp, period);
 
@@ -157,7 +176,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var period = Period(RandYear(), 5);
+        var period = await FreshPeriodAsync(sp, 5);
         var active   = await AddEmployee(sp, 20_000m);
         var inactive = await AddEmployee(sp, 20_000m, isActive: false);   // soft-deactivated, no term date
 
@@ -175,7 +194,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var period = Period(RandYear(), 6);
+        var period = await FreshPeriodAsync(sp, 6);
         var emp = await AddEmployee(sp, 40_000m);
         var runId = await RunThroughPost(sp, period);
 
@@ -196,7 +215,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var period = Period(RandYear(), 7);
+        var period = await FreshPeriodAsync(sp, 7);
         await AddEmployee(sp, 45_000m);
         var runId = await RunThroughPost(sp, period);
 
@@ -216,7 +235,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var period = Period(RandYear(), 8);
+        var period = await FreshPeriodAsync(sp, 8);
         var e50k   = await AddEmployee(sp, 50_000m);              // sso 750 → contributory wage clamped 15,000
         var e10k   = await AddEmployee(sp, 10_000m);              // sso 500 → contributory wage 10,000
         var eNoSso = await AddEmployee(sp, 30_000m, sso: false);  // excluded — no contribution
@@ -256,7 +275,7 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var year = RandYear();
+        var year = await FreshYearAsync(sp);
         var empId = await AddEmployee(sp, 50_000m);   // the only employee we assert on (YTD is per-employee)
 
         // Month 1 (Jan): 12 months remaining → 1,716.67.
