@@ -3,6 +3,17 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-10 (cont. 86c) — ภ.ง.ด.51 page-2 SHIPPED end-to-end: endpoint attestation params + FE 5-checkbox gate (Task 6 — page-2-fill plan COMPLETE). Build **0/0** · `Pnd51` **15/15 ×2** · FE tsc **0** · live e2e **4/4** (200/422/200/422).
+
+Task 6 (final) of `docs/superpowers/plans/2026-06-09-pnd51-page2-fill.md`. The whole page-2 plan (Tasks 1-6) is now shipped: page-aware Render (`bf45143`) → worksheet+guard (`518eb7a`) → radio map+render (`8380730`) → this.
+- **Endpoint** (`TaxFilingEndpoints` pnd51): binds `fillWorksheet` + `attestFirstFiling/attestNoLossCf/attestNoExemption/attestNoRateReduction/attestNoSurcharge` (all default false). Builds `Pnd51Attestation` only when `fillWorksheet`; no defaulting — unclean flags surface as the service's 422 `pnd51.worksheet_not_attestable`.
+- **openapi.yaml**: added `/tax-filings/pnd51/pdf` (was missing entirely — cont.84 debt; **flag delta for Sana**: the whole `/tax-filings/*` group is otherwise still undocumented, only this path added).
+- **FE** (`tax-filings/pnd51/page.tsx`): "กรอกหน้า 2 (ตารางการคำนวณภาษี)" toggle → 5 attestation checkboxes; download disabled until all 5 checked (UX gate — the BE guard is the enforcement). SME → toggle disabled + warning (v1 general-rate only). Kept the page's existing `useState` idiom (plan said RHF/Zod, but the page predates that pattern; matching surrounding code). i18n th+en (+10 keys each).
+- **Live e2e on :5080** (admin login, year 3099, est 2.5M, WHT 30k): no-worksheet → **200** (278,576 B) · partial attest → **422** · full attest → **200** (280,884 B; page-2 raster verified — override path: 51/52/53-54 blank [audit-honest per spec self-review], 57-58=2,500,000 → 39-40=220,000, all radios ✓) · full attest + isSme → **422**. Contract exactly as designed.
+- **Gates:** build 0/0 · `Pnd51` 15/15 ×2 (teas_test) · FE `tsc --noEmit` 0 · `/tax-filings/pnd51` renders 200. **FE screenshot NOT taken** — browser MCPs disconnected mid-session; FE+BE both left RUNNING (localhost:3000, login admin/Admin@1234) for Ham to eyeball the checkbox gate.
+- **Env gotcha (new, for §6):** `next dev` MUST run from the **real** path, not `U:` — pnpm symlinks resolve node_modules to `C:\…`, and webpack from `U:\frontend` then computes an unresolvable cross-drive relative (`./C:/Users/...` → Module not found → every route 500s with an empty body). Symptom: clean compile, 500 everywhere. Fix: kill node, `rm -rf .next`, start with `-WorkingDirectory <real path>\frontend`. (`dotnet` is the opposite — must run from `W:`.)
+- **Remaining (deferred, by design):** SME-rate worksheet (Button20 % tick — needs Ham), Method B / gross-receipts / ชำระไว้เกิน, store-the-estimate (ম.67ตรี), worked-example anchor from `pnd51_instructions.pdf` (code≡law debt from cont.84).
+
 ## 2026-06-10 (cont. 86b) — ภ.ง.ด.51 page-2 RENDERED: radio map corrected + worksheet boxes/radios filled (Tasks 1+5). Build **0/0** · `Pnd51` **15/15 ×2** on teas_test · page-2 render visually verified (both bands) + sent to Ham.
 
 Tasks 1 (radio map) + 5 (render) of the page-2-fill plan. **Page 2 now actually renders** when the service emits a `Pnd51Worksheet` (clean attested Method-A only).

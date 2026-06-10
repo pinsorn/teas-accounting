@@ -554,7 +554,16 @@
     "pnd51Sme": "SME schedule (0/15/20%)",
     "pnd51Generate": "Generate PDF",
     "pnd51Hint": "Due 31 Aug (ม.67ทวิ) · Missing/understating by >25% → surcharge (ม.67ตรี)",
-    "pnd51Error": "Could not generate ภ.ง.ด.51 PDF"
+    "pnd51Error": "Could not generate ภ.ง.ด.51 PDF",
+    "pnd51Worksheet": "Fill page 2 (tax computation worksheet)",
+    "pnd51WorksheetHint": "Page 2 can be filled only for a simple normal filing (Method 1, ม.67ทวิ(1), general rate) — all attestations are required because a blank box on this form asserts zero",
+    "pnd51WorksheetSme": "Page 2 does not support the SME schedule yet — page 1 only (a separate computation sheet may be attached)",
+    "pnd51WorksheetIncomplete": "All 5 attestations must be checked before generating",
+    "pnd51AttestFirstFiling": "Normal filing (not an amended ยื่นเพิ่มเติม)",
+    "pnd51AttestNoLossCf": "No loss carried forward (≤5 years) (box 55 = 0)",
+    "pnd51AttestNoExemption": "No legally exempt net profit (box 56 = 0)",
+    "pnd51AttestNoRateReduction": "No rate-reduction tax portion (box 34 = 0)",
+    "pnd51AttestNoSurcharge": "No ม.27 / ม.67ตรี surcharge (box 38 = 0)"
   },
   "note": {
     "cnTitle": "Credit Note (ม.86/10)",
