@@ -2,7 +2,10 @@ import { test, expect } from '@playwright/test';
 import { login, createVendor, pickVendor } from './_helpers';
 
 // login → create vendor → record a Vendor Invoice → post → VI-NNNN + Posted.
+// Heavy flow (vendor create + VI post) near the 30s cap on `next dev` — see
+// issue-receipt.spec.ts; both flake only in full-suite runs, pass alone.
 test('record and post a vendor invoice', async ({ page }) => {
+  test.setTimeout(60_000);
   await login(page);
   const code = await createVendor(page);
 

@@ -2,7 +2,10 @@ import { test, expect } from '@playwright/test';
 import { login, createAndPostTaxInvoice, pickCustomer, pickTaxInvoice, detailDocNo } from './_helpers';
 
 // login → post a TI → issue a Receipt applied to it → post → see it in the list.
+// Heavy multi-document flow: ~18s warm on `next dev` (the suite's 30s default
+// assumes `next start`) — give it headroom so route-compile jitter can't tip it.
 test('issue a receipt against a posted tax invoice', async ({ page }) => {
+  test.setTimeout(60_000);
   await login(page);
   await createAndPostTaxInvoice(page);
   // Redesign: taxInvoiceId is now a typeahead picker that searches by doc_no
