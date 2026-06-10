@@ -59,7 +59,8 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
         // Sprint 8 — BU defaults to the original TI's BU unless overridden.
         var buId = req.BusinessUnitId ?? ti.BusinessUnitId;
         if (req.BusinessUnitId is { } reqBu &&
-            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == reqBu && x.IsActive, ct))
+            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == reqBu
+                && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {reqBu} not found or inactive.");
         var requiresBu = await _db.Companies
             .Where(c => c.CompanyId == _tenant.CompanyId)

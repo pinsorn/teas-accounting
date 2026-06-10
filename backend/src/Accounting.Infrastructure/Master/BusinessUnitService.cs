@@ -14,7 +14,10 @@ public sealed class BusinessUnitService(AccountingDbContext db, ITenantContext t
     {
         if (!tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
-        if (await db.BusinessUnits.AnyAsync(x => x.Code == req.Code, ct))
+        // M13 — company-explicit (unique ix is (company_id, code)); the EF tenant
+        // filter alone is bypassed for super admins and would see other companies.
+        if (await db.BusinessUnits.AnyAsync(
+                x => x.CompanyId == tenant.CompanyId && x.Code == req.Code, ct))
             throw new DomainException("bu.duplicate", $"Business Unit code '{req.Code}' already exists.");
 
         var e = new BusinessUnit
@@ -30,7 +33,8 @@ public sealed class BusinessUnitService(AccountingDbContext db, ITenantContext t
 
     public async Task UpdateAsync(int id, UpdateBusinessUnitRequest req, CancellationToken ct)
     {
-        var e = await db.BusinessUnits.FirstOrDefaultAsync(x => x.BusinessUnitId == id, ct)
+        var e = await db.BusinessUnits.FirstOrDefaultAsync(
+                x => x.BusinessUnitId == id && x.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("bu.not_found", $"Business Unit {id} not found.");
         e.NameTh = req.NameTh;
         e.NameEn = req.NameEn;
@@ -41,7 +45,8 @@ public sealed class BusinessUnitService(AccountingDbContext db, ITenantContext t
 
     public async Task DeactivateAsync(int id, CancellationToken ct)
     {
-        var e = await db.BusinessUnits.FirstOrDefaultAsync(x => x.BusinessUnitId == id, ct)
+        var e = await db.BusinessUnits.FirstOrDefaultAsync(
+                x => x.BusinessUnitId == id && x.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("bu.not_found", $"Business Unit {id} not found.");
         e.IsActive = false;   // soft — keeps it referencable on historical docs
         await db.SaveChangesAsync(ct);
@@ -50,7 +55,8 @@ public sealed class BusinessUnitService(AccountingDbContext db, ITenantContext t
     public async Task<IReadOnlyList<BusinessUnitListItem>> ListAsync(
         bool includeInactive, CancellationToken ct)
     {
-        var q = db.BusinessUnits.AsNoTracking().AsQueryable();
+        var q = db.BusinessUnits.AsNoTracking()
+            .Where(x => x.CompanyId == tenant.CompanyId);
         if (!includeInactive) q = q.Where(x => x.IsActive);
         return await q.OrderBy(x => x.Code)
             .Select(x => new BusinessUnitListItem(
@@ -60,7 +66,7 @@ public sealed class BusinessUnitService(AccountingDbContext db, ITenantContext t
 
     public async Task<BusinessUnitDetail?> GetAsync(int id, CancellationToken ct) =>
         await db.BusinessUnits.AsNoTracking()
-            .Where(x => x.BusinessUnitId == id)
+            .Where(x => x.BusinessUnitId == id && x.CompanyId == tenant.CompanyId)
             .Select(x => new BusinessUnitDetail(
                 x.BusinessUnitId, x.Code, x.NameTh, x.NameEn,
                 x.DefaultRevenueAccountId, x.IsActive))

@@ -13,7 +13,16 @@
 
 ## คิวงาน (เรียงตามที่ตกลง)
 
-### 1. 🔴 M13 bug: API-key path มองไม่เห็น business_units (`bu.invalid` 422)
+### 1. ☑ DONE (cont.88) — M13 bug: API-key path มองไม่เห็น business_units (`bu.invalid` 422)
+
+> **ปิดแล้ว 2026-06-11.** Root cause ไม่ใช่ RLS/FORCE — สาเหตุจริง: (1) EF tenant filter มี
+> super-admin bypass → admin (company 1) mint key ผูก BU 3 (REPT ของ company 2) ได้ →
+> key principal (non-super) มองไม่เห็น BU นั้น = enforce ถูกต้อง; (2) ApiKey principal ไม่มี
+> Branch claim → BranchId=0 → JE numbering ชน ix_journal_entries. แก้: BU validation/list/mint
+> เป็น company-explicit ทุกจุด + principal ถือ head-office branch. ดู progress cont.88.
+> **หมายเหตุถึง Ham:** role `accounting` บน dev มี BYPASSRLS → RLS ทั้งระบบไม่ทำงานจริง (§4.7) —
+> ต้องตัดสินใจระดับ infra; และ dev keys เก่า (id 2,3,4 "Reptify Shopify"/dbg, company 1 + BU 3
+> ข้าม company) ยังค้างใน DB — ควร revoke/remint ภายใต้ company ที่ถูก.
 
 **อาการ (reproduce แล้วสด 2026-06-10, ดู progress cont.87d):**
 - POST `/api/v1/tax-invoices` + `X-Api-Key` + `businessUnitId` ใด ๆ → 422 `bu.invalid`

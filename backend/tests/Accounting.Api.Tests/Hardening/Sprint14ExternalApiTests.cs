@@ -75,6 +75,29 @@ public sealed class Sprint14ExternalApiTests
     }
 
     [SkippableFact]
+    public async Task Resolver_carries_head_office_branch_for_numbering()
+    {
+        // M13 — the ApiKey principal had no branch claim → tenant.BranchId = 0 →
+        // JE numbering allocated from a fresh (branch-0) sequence whose values
+        // collide with the head office's on ix_journal_entries_company_id_doc_no.
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        string plaintext;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IApiKeyService>();
+            plaintext = (await svc.CreateAsync(
+                new CreateApiKeyRequest("hq-branch", ["x"]), default)).Plaintext;
+        }
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var res = await s.ServiceProvider.GetRequiredService<IApiKeyResolver>()
+                .AuthenticateAsync(plaintext, default);
+            res.Key!.HeadOfficeBranchId.Should().Be(1);   // company 1's seeded head office
+        }
+    }
+
+    [SkippableFact]
     public async Task Revoked_key_fails_with_revoked_code()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);

@@ -165,7 +165,8 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
     private async Task EnsureBuOwnedAsync(int? businessUnitId, CancellationToken ct)
     {
         if (businessUnitId is not { } buId) return;
-        var ok = await db.BusinessUnits.AsNoTracking().AnyAsync(b => b.BusinessUnitId == buId, ct);
+        var ok = await db.BusinessUnits.AsNoTracking()
+            .AnyAsync(b => b.BusinessUnitId == buId && b.CompanyId == tenant.CompanyId, ct);
         if (!ok)
             throw new DomainException("product.bu_invalid",
                 $"Business unit {buId} not found for this company.");

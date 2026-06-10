@@ -40,10 +40,19 @@ public sealed class ApiKeyResolver : IApiKeyResolver
 
         await TouchLastUsedAsync(key.ApiKeyId, ct);
 
+        // M13 — the principal must carry a real branch (numbering + JE rows are
+        // branch-keyed); the external surface acts as the company's head office.
+        var hqBranchId = await _db.Branches.IgnoreQueryFilters()
+            .Where(b => b.CompanyId == key.CompanyId)
+            .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)
+            .Select(b => b.BranchId)
+            .FirstOrDefaultAsync(ct);
+
         return ApiKeyAuthResult.Ok(new ResolvedApiKey(
             key.ApiKeyId, key.CompanyId, key.Name,
             ScopesCsv: ScopesToCsv(key.ScopesJson),
-            DefaultBusinessUnitId: key.DefaultBusinessUnitId));
+            DefaultBusinessUnitId: key.DefaultBusinessUnitId,
+            HeadOfficeBranchId: hqBranchId));
     }
 
     private async Task TouchLastUsedAsync(long apiKeyId, CancellationToken ct)

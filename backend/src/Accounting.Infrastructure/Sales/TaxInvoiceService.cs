@@ -138,11 +138,13 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                 "VAT-registered customer requires Tax ID + branch_code (ม.86/4 #3).");
 
         // Sprint 8 — BU. Required when the company opted in; if supplied it must
-        // be an active BU of this tenant (query filter scopes to the company).
+        // be an active BU of this tenant. Company match is EXPLICIT (M13): the EF
+        // tenant filter is bypassed for super admins and accepted a foreign BU.
         if (company.RequiresBusinessUnit && req.BusinessUnitId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
         if (req.BusinessUnitId is { } buId &&
-            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId && x.IsActive, ct))
+            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId
+                && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
         // cont.69 — snapshot ProductType from the product when a line references a
