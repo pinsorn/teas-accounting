@@ -17,8 +17,15 @@ public readonly record struct RdField(string Name, string Text, bool Right = fal
 
 /// <summary>Marks an ✕ in the <paramref name="WidgetIndex"/>-th widget of a same-named radio/checkbox
 /// group (widgets sorted top→bottom, left→right). Lets us tick one box of a group whose widgets all
-/// share one field name (e.g. the 12 month boxes on ภ.ง.ด.1), which <see cref="RdField"/> can't target.</summary>
-public readonly record struct RdRadio(string Name, int WidgetIndex);
+/// share one field name (e.g. the 12 month boxes on ภ.ง.ด.1), which <see cref="RdField"/> can't target.
+/// When <paramref name="OnState"/> is given the widget is selected by its AcroForm appearance
+/// on-state name instead (e.g. "Choice2" on ภ.ง.ด.50 — render-confirmed in the form's radio map),
+/// which is immune to positional-order ambiguity; <paramref name="WidgetIndex"/> is ignored then,
+/// and an unknown on-state THROWS (refuse &gt; silently mis-tick a tax form).</summary>
+public readonly record struct RdRadio(string Name, int WidgetIndex, string? OnState = null)
+{
+    public RdRadio(string name, string onState) : this(name, -1, onState) { }
+}
 
 /// <summary>
 /// Generic filler for any official Thai Revenue Department (RD) AcroForm template. It is
@@ -90,14 +97,34 @@ public static class RdAcroFormFiller
     // ✕ in a specific widget of a same-named group (widgets pre-sorted top→bottom, left→right).
     private static IEnumerable<Cell> BuildRadioCells(
         IReadOnlyCollection<RdRadio> radios,
-        Dictionary<string, List<(PdfRectangle Rect, int Page)>> allRects,
+        Dictionary<string, List<(PdfRectangle Rect, int Page, string? OnState)>> allRects,
         IReadOnlyList<(double W, double H)> pageSizes)
     {
         foreach (var rc in radios)
         {
-            if (!allRects.TryGetValue(rc.Name, out var list) || rc.WidgetIndex < 0 || rc.WidgetIndex >= list.Count)
+            if (!allRects.TryGetValue(rc.Name, out var list))
+            {
+                if (rc.OnState is not null)
+                    throw new InvalidOperationException($"Radio group '{rc.Name}' not found in template.");
                 continue;
-            var (r, page) = list[rc.WidgetIndex];
+            }
+            (PdfRectangle Rect, int Page, string? OnState) hit;
+            if (rc.OnState is { } want)
+            {
+                // On-state selection: exact match against the widget's /AP /N appearance key.
+                var idx = list.FindIndex(w => string.Equals(w.OnState, want, StringComparison.Ordinal));
+                if (idx < 0)
+                    throw new InvalidOperationException(
+                        $"Radio '{rc.Name}' has no widget with on-state '{want}' " +
+                        $"(available: {string.Join(", ", list.Select(w => w.OnState ?? "?"))}).");
+                hit = list[idx];
+            }
+            else
+            {
+                if (rc.WidgetIndex < 0 || rc.WidgetIndex >= list.Count) continue;
+                hit = list[rc.WidgetIndex];
+            }
+            var (r, page, _) = hit;
             double pageH = pageSizes[page].H;
             double h = r.Y2 - r.Y1, w = r.X2 - r.X1;
             double fs = Math.Clamp(h, 8.0, 12.0);
@@ -131,7 +158,7 @@ public static class RdAcroFormFiller
     // ── Geometry: full field name → rect + comb info + page (PDF user space, bottom-left origin) ──
     private static Dictionary<string, FieldInfo> ReadFieldRects(
         byte[] template, out IReadOnlyList<(double W, double H)> pageSizes,
-        out Dictionary<string, List<(PdfRectangle Rect, int Page)>> allRects)
+        out Dictionary<string, List<(PdfRectangle Rect, int Page, string? OnState)>> allRects)
     {
         using var input = new MemoryStream(template);
         var doc = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
@@ -153,7 +180,7 @@ public static class RdAcroFormFiller
         pageSizes = sizes;
 
         var map = new Dictionary<string, FieldInfo>();
-        var all = new List<(string Name, PdfRectangle Rect, int Page)>();   // every widget (incl. same-named radio kids)
+        var all = new List<(string Name, PdfRectangle Rect, int Page, string? OnState)>();   // every widget (incl. same-named radio kids)
         var fields = doc.AcroForm?.Elements.GetArray("/Fields")
             ?? throw new InvalidOperationException("Template has no AcroForm /Fields.");
         // /Ff and /MaxLen are inheritable: a widget kid takes them from its parent field.
@@ -174,15 +201,23 @@ public static class RdAcroFormFiller
                 // Direct (inline) widgets have no indirect Reference and aren't in any /Annots → fall back to page 0.
                 var objNum = dict.Reference?.ObjectID.ObjectNumber ?? 0;
                 var page = pageByObjNum.TryGetValue(objNum, out var pp) ? pp : 0;
+                // The widget's appearance on-state ("/AP" → "/N" → the single non-Off key), e.g.
+                // "Choice1". Lets RdRadio select a radio kid by its render-confirmed state name.
+                string? onState = null;
+                if (Resolve(dict.Elements.ContainsKey("/AP") ? dict.Elements["/AP"] : null) is { } ap &&
+                    Resolve(ap.Elements.ContainsKey("/N") ? ap.Elements["/N"] : null) is { } nDict)
+                    onState = nDict.Elements.Keys
+                        .Select(k => k.TrimStart('/'))
+                        .FirstOrDefault(k => !string.Equals(k, "Off", StringComparison.OrdinalIgnoreCase));
                 map[name] = new FieldInfo(rect, maxLen, comb, page);   // single-rect map (last wins) for text fields
-                all.Add((name, rect, page));
+                all.Add((name, rect, page, onState));
             }
         }
         foreach (var f in fields) Walk(f, "", 0, false);
 
         allRects = all.GroupBy(x => x.Name).ToDictionary(
             g => g.Key,
-            g => g.Select(x => (x.Rect, x.Page))
+            g => g.Select(x => (x.Rect, x.Page, x.OnState))
                   .OrderBy(x => sizes[x.Page].H - x.Rect.Y2).ThenBy(x => x.Rect.X1).ToList());
         return map;
     }
