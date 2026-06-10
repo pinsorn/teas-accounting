@@ -49,6 +49,9 @@ public sealed class ApiKeyAuthenticationHandler
         var claims = new List<Claim>
         {
             new(TenantClaims.CompanyId,    k.CompanyId.ToString()),
+            // M13 — without a branch claim the tenant resolved BranchId=0 and JE
+            // numbering allocated from a fresh branch-0 sequence → duplicate doc_no.
+            new(TenantClaims.BranchId,     k.HeadOfficeBranchId.ToString()),
             new(TenantClaims.ApiKeyId,     k.ApiKeyId.ToString()),
             new(TenantClaims.ApiKeyName,   k.Name),
             new(TenantClaims.IsApiKey,     "true"),

@@ -1,12 +1,21 @@
 namespace Accounting.Application.Abstractions;
 
 /// <summary>A successfully-resolved external API key (no human user).</summary>
+/// <remarks>
+/// <see cref="HeadOfficeBranchId"/>: keys are company-scoped, but doc numbering
+/// (<c>sys.number_sequences</c>) and JournalEntry rows are branch-keyed. Without a
+/// branch claim the principal resolved BranchId=0, allocating from a fresh
+/// (branch-0) sequence whose numbers collide with the head office's on the
+/// company-wide <c>ix_journal_entries_company_id_doc_no</c> (M13). The external
+/// surface acts as the company's head office.
+/// </remarks>
 public sealed record ResolvedApiKey(
     long ApiKeyId,
     int  CompanyId,
     string Name,
     string ScopesCsv,                 // comma-joined permission strings
-    int? DefaultBusinessUnitId);
+    int? DefaultBusinessUnitId,
+    int  HeadOfficeBranchId);
 
 /// <summary>
 /// Sprint 14 — resolve a presented <c>X-Api-Key</c> to a tenant principal.

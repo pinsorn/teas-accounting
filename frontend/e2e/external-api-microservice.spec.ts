@@ -54,17 +54,13 @@ function tiBody(customerId: number, extra: Record<string, unknown> = {}) {
 }
 
 test('Reptify API key: BU auto-fill REPT + idempotency replay/mismatch + lock', async ({ page }) => {
-  // SUSPECTED BACKEND REGRESSION (verified live 2026-06-10, outside this test):
-  // on the X-Api-Key surface, POST /api/v1/tax-invoices succeeds (201) with NO
-  // businessUnitId, but ANY businessUnitId — explicit in the body OR auto-filled
-  // from the key's DefaultBusinessUnitId — 422s `bu.invalid "Business Unit 3
-  // not found or inactive"` even though BU 3 (REPT) is active and the same BU
-  // posts fine via the JWT surface (receipt-cross-bu-warning passes). The BU
-  // lookup in TaxInvoiceService (AnyAsync IsActive, company via global filter/
-  // RLS) appears to see no business_units rows under an ApiKey principal.
-  // This spec's core contract (per-key BU auto-fill/lock + REPT numbering)
-  // cannot pass until the BE path is fixed.
-  test.skip(true, 'external API-key path cannot resolve any business unit (bu.invalid 422) — suspected BE regression, see report');
+  // M13 RESOLVED (2026-06-11): the 422 was NOT an ApiKey-path regression. The
+  // long-lived dev DB held REPT under company 2; the super-admin EF-filter
+  // bypass let the admin (company 1) list + bind that foreign BU to a
+  // company-1 key, whose own (non-super) principal then correctly failed
+  // bu.invalid. BU validation/list/mint are now company-explicit (see
+  // CrossCompanyBuIsolationTests), so ensureBu below resolves/creates REPT
+  // under the admin's own company and the key binds consistently.
   await login(page, 'admin');
 
   const reptId = await ensureBu(page, 'REPT');

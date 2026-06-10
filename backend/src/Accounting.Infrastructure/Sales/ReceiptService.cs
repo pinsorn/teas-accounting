@@ -147,7 +147,8 @@ public sealed partial class ReceiptService : IReceiptService
         if (requiresBu && req.BusinessUnitId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
         if (req.BusinessUnitId is { } buId &&
-            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId && x.IsActive, ct))
+            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId
+                && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
         // Amount = sum of applications (apply path) OR sum of own lines (standalone non-VAT).

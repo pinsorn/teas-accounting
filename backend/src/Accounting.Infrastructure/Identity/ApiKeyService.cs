@@ -121,8 +121,13 @@ public sealed class ApiKeyService : IApiKeyService
     private async Task ValidateBuAsync(int? buId, CancellationToken ct)
     {
         if (buId is null) return;
+        // M13 — company-explicit: the key is minted for _tenant.CompanyId, so its
+        // DefaultBusinessUnitId must belong to that company. The EF tenant filter
+        // alone is bypassed for super admins and accepted a foreign company's BU,
+        // minting a key that then failed bu.invalid on every request.
         var ok = await _db.BusinessUnits
-            .AnyAsync(b => b.BusinessUnitId == buId && b.IsActive, ct);
+            .AnyAsync(b => b.BusinessUnitId == buId
+                           && b.CompanyId == _tenant.CompanyId && b.IsActive, ct);
         if (!ok)
             throw new DomainException("api_key.invalid_business_unit",
                 $"Business Unit {buId} not found or inactive for this company.");

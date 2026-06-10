@@ -40,7 +40,8 @@ public sealed class PurchaseOrderService(
         if (requiresBu && req.BusinessUnitId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
         if (req.BusinessUnitId is { } buId &&
-            !await db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId && x.IsActive, ct))
+            !await db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId
+                && x.CompanyId == tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
         var po = new PurchaseOrder
