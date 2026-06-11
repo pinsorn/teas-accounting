@@ -78,10 +78,11 @@ compliance §4.7 → **ถาม Ham ก่อน**.
 
 ### 5. 🆕 คิวใหม่ (มติ Ham 2026-06-11 เช้า — spec: `docs/superpowers/specs/pnd50-v2-dashboard.md`)
 
-1. **ภ.ง.ด.50 v2 = default + CIT filing dashboard** — render p3 รายการที่ 2 ladder + p6 งบฐานะ
-   (⚠️ ต้อง recon 0-fill/radio-confirm p3+p6 ก่อน เหมือน p1/p2) + `GET /tax-filings/pnd50/preview`
-   + dashboard บน `/tax-filings/cit` แสดงทุกตัวเลขที่จะลงแบบ 50/51 (ladder, WHT รายใบ, 51 prepaid,
-   งบฐานะ) ก่อนกด generate. v1 guard adjustments/loss หายไป (ladder render จริงแล้ว).
+1. ☑ **DONE (cont.89) — ภ.ง.ด.50 v2 = default + CIT filing dashboard.** recon p3/p6 + ladder/งบฐานะ
+   render จริง + `GET /tax-filings/pnd50/preview` (single-source) + dashboard บน `/tax-filings/cit`
+   (ladder/WHT-cert/งบฐานะ cards + refusal warnings). v1 adjustments/loss guard หายไป; แก้ double-count
+   (`AccountingNetProfit` ไม่ใช่ `EffectiveNetProfit`). Visual gate ผ่าน — crops ส่ง Ham, **รอยืนยันยื่นจริง**.
+   Api 294/294 ×2 · Domain 137/137 · tsc 0. plan `2026-06-11-pnd50-v2-dashboard.md`.
 2. **หน้าเว็บรวมเอกสาร `/documents`** — ตารางฟอร์ม RD จาก docs/RD-Forms (commit แล้ว 21574b1)
    + กำหนดยื่น + ปุ่มเปิด PDF.
 3. **Dev DB ล้างบาง** ("หลอนหมดแล้ว"): pg_dump backup → drop/recreate accounting_dev →

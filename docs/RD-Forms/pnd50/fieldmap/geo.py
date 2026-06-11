@@ -10,11 +10,25 @@ import fitz, json, collections, os
 os.chdir(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 src = "docs/RD-Forms/pnd50/pnd50_050369.pdf"
 OUT = "docs/RD-Forms/pnd50/fieldmap/pnd50_cells.json"
-PAGES = (0, 1)  # v1 fills p1+p2 only
+PAGES = (0, 1, 2, 5)  # v2: p1, p2, p3 (รายการที่ 2+3 col ③), p6 (งบฐานะ)
 WANT = {"1",                                            # p1 taxid 13-cell grid
         "Text2000-1", "Text3", "Text2000", "Text3-2",   # p1 amount pairs
         "Text661", "662", "663", "664", "665", "666", "667", "668",
-        "669", "670", "671", "672"}                     # p2 รายการที่ 1 combs
+        "669", "670", "671", "672",                     # p2 รายการที่ 1 combs
+        # p3 รายการที่ 2 ladder — column ③ (รวม) only (กรณีทั่วไป/ลดอัตรา per form rubric)
+        "Text17.4", "Text17.7", "Text17.10", "Text17.13", "Text17.16",
+        "Text17.19", "Text17.22", "Text17.25", "Text17.28", "Text17.31",
+        "Text17.34", "Text17.37", "Text17.40", "Text17.43",
+        "Text20", "Text23", "Text26", "Text29", "Text32", "Text35.1", "Text35.2",
+        # p3 รายการที่ 3 ต้นทุนขาย — column ③
+        "Text35.5", "Text35.8", "Text35.11", "Text35.14", "Text35.17",
+        "Text35.20", "Text35.23", "Text35.26", "Text35.29",
+        # p6 งบฐานะ
+        "Text35.210", "Text35.211", "Text35.212", "Text35.213", "Text35.214",
+        "Text35.215", "Text35.216", "Text35.217", "Text35.218", "Text35.219",
+        "Text35.220", "Text35.221", "Text35.222", "Text35.223", "Text35.224",
+        "Text35.225", "Text35.226", "Text35.227",
+        "Text35.2241", "Text35.2251", "Text35.2261", "Text35.2242", "Text35.2252"}
 
 
 def vbounds(page, rect):
@@ -68,6 +82,9 @@ for pi in PAGES:
             continue
         c = centers(b)
         if not c:
+            continue
+        if len(c) < 2:  # plain bordered box, not a comb — per-char placement would stack chars
+            print("plain field (skipped from cell map):", w.field_name, c)
             continue
         dupes[w.field_name] += 1
         flat[w.field_name] = c

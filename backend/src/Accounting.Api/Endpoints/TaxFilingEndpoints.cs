@@ -144,12 +144,13 @@ public static class TaxFilingEndpoints
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);
 
-        // ── Phase C-C ภ.ง.ด.50 v1 (annual CIT return — p1 header + p2 รายการที่ 1).
-        // isSme: null → auto from CitProfile (paid-up ≤5M ∧ revenue ≤30M). hasRelatedParty:
-        // ม.71ทวิ related-party radio (รายได้ >200M → annual disclosure report). attest*: the
-        // service THROWS pnd50.not_attestable unless the year is honestly renderable in the v1
-        // scope (first filing; รายการที่ 2–9 blank acknowledged; zero adjustments / loss c/f) —
-        // a blank box on this form asserts zero, so no defaulting happens here (ภ.ง.ด.50 §4).
+        // ── Phase C-C ภ.ง.ด.50 v2 (annual CIT return — p1 + p2 รายการที่ 1 + p3 รายการที่ 2/3
+        // ladder + p6 งบฐานะ, always from real data). isSme: null → auto from CitProfile (paid-up
+        // ≤5M ∧ revenue ≤30M). hasRelatedParty: ม.71ทวิ radio (รายได้ >200M → annual disclosure
+        // report). attest*: pages 4–5 + 7 + ใบแนบ still print blank → the service THROWS
+        // pnd50.not_attestable without the attestation, and pnd50.not_renderable when the year
+        // carries refusal conditions (override-breaks-ladder, ladder sign-flip,
+        // surcharge-with-overpaid) — a blank box asserts zero, no silent defaulting (ภ.ง.ด.50 §4).
         app.MapGet("/tax-filings/pnd50/pdf", async (
             [FromQuery] int year,
             [FromQuery] bool? isSme,
@@ -167,6 +168,17 @@ public static class TaxFilingEndpoints
                 await svc.BuildPnd50Async(year, isSme, hasRelatedParty ?? false, attest, ct),
                 "application/pdf", $"pnd50-{year}.pdf");
         })
+        .WithTags("TaxFilings")
+        .RequireAuthorization(preview);
+
+        // ── v2 dashboard dry-run: every figure the ภ.ง.ด.50 filler will print, derived from the
+        // SAME composition (single source) + refusal codes instead of a 422 — the CIT dashboard
+        // shows these before the filer hits generate.
+        app.MapGet("/tax-filings/pnd50/preview", async (
+            [FromQuery] int year,
+            [FromQuery] bool? isSme,
+            IPnd50FilingService svc, CancellationToken ct) =>
+                Results.Ok(await svc.PreviewAsync(year, isSme, ct)))
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);
 

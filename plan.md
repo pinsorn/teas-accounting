@@ -101,8 +101,15 @@
       `Pnd50FilingService` (CitProfile + store estimate/prepaid + FY WHT register +
       `CitCalculator.Compute`/`UnderEstimatePenalty`) + `GET /tax-filings/pnd50/pdf` + openapi +
       FE card on `/tax-filings/cit`. Api 277/277 ×2 · tsc 0 · live smoke 200/422.
-    - ☐ v2: รายการที่ 2 ladder (`cit_adjustments` → p3) + loss c/f rendering + p6 งบฐานะ
-      (`BalanceSheetAsync` ready) + ยื่นเพิ่มเติม path. DEFER p4-5/p7 detail pages.
+    - ☑ **v2 = default (cont.89, 2026-06-11 — plan `2026-06-11-pnd50-v2-dashboard.md`):** p3 รายการที่ 2
+      ladder (col ③ only, `BuildLadder` pure + sign-flip refusal) + p3 รายการที่ 3 zeros + p6 งบฐานะ
+      (`MapBalanceSheet` account-code classifier) rendered from real data; v1 adjustments/loss refusals
+      DROPPED. Fixed latent double-count (feed `AccountingNetProfit` not `EffectiveNetProfit`). New
+      refusals: override-breaks-ladder, ladder sign-flip, surcharge+overpaid → `pnd50.not_renderable`.
+      `ComposeAsync` single-source → `GET /tax-filings/pnd50/preview` + CIT dashboard on `/tax-filings/cit`
+      (ladder/WHT-cert/balance-sheet cards + refusal warnings). p3/p6 radiomap render-confirmed. Visual
+      gate passed (profit+loss crops to Ham). Api 294/294 ×2 · Domain 137/137 · tsc 0 · build 0/0.
+      DEFER ยื่นเพิ่มเติม path + p4-5/p7 detail.
 - ☐ **Phase C-D — ภ.ง.ด.50 attachments** (5 ใบแนบ) + disclosure (ม.71ทวิ) + balance-sheet section. Largest; do last.
 
 ---

@@ -1,4 +1,4 @@
-# ภ.ง.ด.50 (`pnd50_050369.pdf`) — radio map p1+p2 (RENDER-CONFIRMED, cont.87b 2026-06-10)
+# ภ.ง.ด.50 (`pnd50_050369.pdf`) — radio map p1+p2+p3+p6 (RENDER-CONFIRMED; p1/p2 cont.87b 2026-06-10, p3/p6 cont.89 2026-06-11)
 
 > Every choice below was ticked via `fieldmap/radio_confirm.py <Choice>` and verified on the raster
 > (pnd51 flip lesson: never guess a radio). Choice value = the AcroForm on-state string to set.
@@ -50,3 +50,35 @@ Group00-05 และ Group06/07 เป็นกลุ่มแยกกันค
 v1 filler defaults (THB, locked decisions): `Group4=Choice1` · `Group5` จาก sign ของ taxable
 (กำไร C1 / ขาดทุน C2) · `Group21=Choice1` ทั่วไป หรือ `Choice2`+`Group6=Choice1` SMEs (จาก
 `ProfileAsync`) · `Group7`/`Group8` จาก sign ของ box 58-59 / 61-62.
+
+## Page 3 — รายการที่ 2 (confirmed `radio_confirm.py <choice> 3 6`, cont.89)
+
+⚠️ on-states ของ p3 เป็นเลขดิบ `0`/`1` ไม่ใช่ `ChoiceN`.
+
+| Group | Choice | Option |
+|---|---|---|
+| `Group100` | `0` | ข้อ 3. **กำไรขั้นต้น** |
+| | `1` | ข้อ 3. **ขาดทุนขั้นต้น** |
+| `Group101` | `0` | ข้อ 9. **กำไรสุทธิ** ตามบัญชีกำไรขาดทุน |
+| | `1` | ข้อ 9. **ขาดทุนสุทธิ** ตามบัญชีกำไรขาดทุน |
+| `Group9` | `Choice1` | ข้อ 21. **กำไรสุทธิที่ต้องเสียภาษี** |
+| | `Choice2` | ข้อ 21. **ขาดทุนสุทธิ** |
+
+คอลัมน์ ladder p3: ① กิจการได้รับยกเว้นภาษี · ② กิจการต้องเสียภาษี · ③ รวม.
+**กรณีทั่วไป/ลดอัตรา (TEAS): กรอกช่อง ③ ช่องเดียว** (bullet กติกาบนหัวกระดาษ confirm จาก raster).
+
+## Page 6 — งบฐานะ + เอกสารแนบ (confirmed cont.89)
+
+| Group | Choice | Option |
+|---|---|---|
+| `Group91` | `Choice1` | ส่วนผู้ถือหุ้น (3) **กำไรสะสม** |
+| | `Choice2` | ส่วนผู้ถือหุ้น (3) **ขาดทุนสะสม** |
+| `Group92` | `Choice1` | ความเห็นผู้สอบบัญชี (1) ไม่มีเงื่อนไข |
+| | `Choice2` | (2) มีเงื่อนไข |
+| | `Choice3` | (3) ไม่แสดงความเห็น |
+| | `Choice4` | (4) ไม่ถูกต้อง |
+| `Group93` | `Choice1` | รายงานตรวจสอบ (5) ไม่มีข้อยกเว้น |
+| | `Choice2` | (6) มีข้อยกเว้น |
+
+v2 filler: `Group91` จาก sign กำไรสะสมปลายงวด. `Group92`/`Group93` = ความเห็นผู้สอบบัญชี — ระบบ
+ไม่รู้ → **ไม่ tick** (ปล่อยให้ผู้ยื่นกรอกเอง เช่นเดียวกับช่องจำนวนแผ่นเอกสารแนบ 162.x).
