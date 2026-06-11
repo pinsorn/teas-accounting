@@ -3,6 +3,30 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 91b, overnight ต่อ — Ham: "SSO env ได้มั้ย + ส่วนที่เหลือทำเลย แล้วนอน") — **SSO ceiling 2569 = 17,500 (ราชกิจจาฯ ยืนยัน) · employee 50ทวิ annual ship · 50ทวิ regen DECIDED · ภ.พ.01/09 recon · C-D kickoff spec.** Api **302/0/1**.
+
+- **SSO WageCeiling (commit `f84ccd5`):** ตั้งผ่าน env ได้อยู่แล้ว (`Payroll__Sso__WageCeiling` —
+  ASP.NET config binding ปกติ) แต่ research พบ**กฎกระทรวงประกาศแล้ว** (ราชกิจจาฯ 12 ธ.ค. 2568,
+  มีผล 1 ม.ค. 2569): เพดาน 17,500 (2569-71) → 20,000 (2572-74) → 23,000 (2575+) → defaults +
+  appsettings อัพเป็น 17,500 + ลดหย่อน PIT ตามจ่ายจริง 10,500/ปี. Tests pin ค่าเก่า explicit
+  (ทดสอบคณิต clamp ไม่ใช่ค่ากฎหมาย — phase ถัดไปแก้ config อย่างเดียว). Sources:
+  thaipost.net/general-news/914119, gcc.go.th 14 ธ.ค. 2568.
+- **employee 50ทวิ annual (P-D #4, commit `f66f57c`):** `GET /payroll/employees/{id}/wht50tawi/pdf?year`
+  — รวม posted slips ตามปีที่**จ่าย** (ฐานเดียวกับ ภ.ง.ด.1/1ก) เป็นแถว ม.40(1) เดียว, 2 ฉบับ,
+  ช่องกองทุนประกันสังคม (`Text1.0.1`) เติมยอดทั้งปี (field ใหม่ optional ใน `Wht50TawiData` —
+  vendor cert ไม่กระทบ), cert ref ไม่ใช่เลขเอกสาร fiscal (§4.3 ไม่ครอบ, regen ได้). FE: ปุ่มต่อแถว
+  payslip บน run ที่ POSTED. Test 2-copies + no_data ×2 · live visual ✓ (ภ.ง.ด.1ก tick, ศูนย์บาทถ้วน,
+  สปส 750.00) · tsc 0 · i18n 40/40.
+- **ตัดสินใจที่ Ham มอบ:** 50ทวิ PDF = **REGENERATE** ไม่เก็บไฟล์ (deterministic จาก snapshot;
+  เก็บ = infra+drift risk เปล่า) · ภ.พ.01/09 = **in scope**, recon เสร็จ (ทั้งคู่ AcroForm จริง:
+  pp01 3หน้า/190 widgets, pp09 4หน้า/299) — mapper ต้องใช้ fieldmap discipline เต็ม → แยก session,
+  v1 = prefill identity fields จาก CompanyProfile ที่เหลือกรอกมือ (ข้อมูลส่วนใหญ่ไม่อยู่ใน TEAS).
+- **ภ.ง.ด.50 C-D:** kickoff spec เขียนแล้ว (`docs/superpowers/specs/pnd50-cd-attachments-kickoff.md`)
+  — build order ตาม workflow v1/v2 + 3 คำถาม scope ให้ Ham ack ก่อนเริ่ม (ใบแนบไหน auto-fill /
+  ม.71ทวิ = refusal / รายจ่าย classification convention).
+- **ไม่แตะ:** RD PDF ~60MB commit (repo-size irreversible — รอ Ham ชี้ชัด) · สปส. upload e-Service
+  (external). **Gates:** build 0/0 · Api full **302/0/1** · tsc 0 · ম clean. **ยังไม่ push.**
+
 ## 2026-06-12 (cont. 91, overnight — Ham มอบอำนาจเต็ม "คิดเอง ทำเอง") — **ภ.ง.ด.1 ม.59 fix · non-VAT e2e first-class · openapi Sana delta ปิด · plan stale กวาดอีกรอบ.** Api **301/0/1** · e2e เต็ม **55 passed / 2 skipped / 0 failed** (เดิม 48/2/7).
 
 - **ภ.ง.ด.1/1ก ยื่นตามเดือนที่จ่ายจริง (commit `983897c`):** ประเด็นที่ flag ไว้เมื่อวาน — ตัดสินตามตัวบท
