@@ -3,6 +3,37 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-11 (cont. 90c) — **Visual-validation sweep (Ham delegated) + repo cleanup.** ฟอร์มที่ค้าง validate ผ่านหมด: ภ.ง.ด.50 v1/v2 · ภ.ง.ด.51 · ภ.ง.ด.1 v5 · ภ.ง.ด.1ก · payslip. เจอ 1 ประเด็น compliance รอ Ham ตัดสิน.
+
+- **ภ.ง.ด.50 — พร้อมใช้:** v2 gates (p3 ladder profit foots ทุกแถว 5M→100k→150k→130k→90k + radios /
+  p3 loss signs ขาดทุนสุทธิ abs / p6 balanced 811,111.10 ทุนจดทะเบียนเว้นว่าง) + v1 p1/p2 mechanics
+  (header/taxid comb/address ลงช่องเป๊ะ, period พ.ศ. ถูก, amount pairs single-sided ตาม sign, p1↔p2 foots
+  246,913.58−15,003.25+1,234.56=233,144.89). ⚠️ v1 SME crop เก่าเป็น alignment artifact (เลข General +
+  radio SMEs) — **superseded**; re-validate v2 SME PDF: taxable 90,000 → tax 0 ตามขั้น SME, overpaid
+  15,003.25 ✓. ลบ `_review/pnd50/` (ชุด v1) กัน confusion — เหลือ `_review/pnd50v2/` เป็น reference.
+- **ภ.ง.ด.51 — ผ่าน:** live render จาก endpoint จริง (year=2099, estimate 1,234,567.89, attest ครบ):
+  header/รอบบัญชี 01/01–31/12/2642 ✓, worksheet foots: estimate → ครึ่งปี 617,283.94 (box 59-60) →
+  ยกไป รายการที่ 1 box 28-29 ตรงกัน ✓.
+- **ภ.ง.ด.1 v5 — ผ่าน + WIP เก่าหายหมด:** name split ✓ (ชื่อ "นาย สมชาย" / ชื่อสกุล "ใจดี"), radio
+  เดือน ✓ (☑ มีนาคม), ยื่นปกติ ✓, address ✓, สรุป p1 = ใบแนบ (1 ราย 45,000.00/0.00) ✓, พ.ศ. 2642 ✓.
+  **🟠 พบประเด็น ม.59 รอ Ham:** radio เดือนใช้ `PeriodYearMonth` (งวด) แต่กฎหมายยื่นตามเดือนที่**จ่ายจริง**
+  — ถ้า `PayDate` ข้ามเดือน (เช่นงวด มี.ค. จ่าย 28/06) ฟอร์มจะ tick ผิดเดือน (`Pnd1FilingService.cs:28`
+  vs `:30`). งวดปกติจ่ายในเดือนเดียวกัน = ไม่กระทบ. ไม่แก้เองเพราะเป็น compliance semantics (§11).
+- **ภ.ง.ด.1ก — ผ่าน:** p1 header/ปีภาษี 2642/ยื่นปกติ/ใบแนบ 1 แผ่น ✓; ใบแนบ landscape: taxid comb,
+  ชื่อ+ที่อยู่ col, ยอดรายปี 100,000.00/1,746.25 + 45,000.00/0.00 ✓. แถว "???" = **dirty dev data**
+  (employee 1 `EMP-SMOKE-65071` ชื่อ/ที่อยู่ไทยพังเป็น `?` ตั้งแต่ insert สมัยเก่า ไม่ใช่ bug ฟอร์ม —
+  row อื่นไทยปกติ) → **แก้แล้วใน dev DB** ผ่าน PUT /employees/1 (นาย สมศักดิ์ ทดสอบระบบ).
+- **Payslip — ผ่าน:** 50,000 − PIT 686.25 − SSO 750 = 48,563.75 ✓ bahttext ตรง ✓ YTD ตรง ภ.ง.ด.1ก ✓.
+- **สปส.1-10:** ไฟล์ text validate แล้ว cont.82.3 vs spec ของ Ham; เหลือทดสอบ upload e-Service จริง (external).
+- **Cleanup:** root scratch ลบ 33 ไฟล์ (pnd51 diag/raster, reg_pnd1, z_*/zf_* crops, nonvat-quotation) +
+  log เก่า 32 ไฟล์ (api*/be/fe/next) · `_review/` เหลือเฉพาะชุด validated ล่าสุด (pnd50v2, pnd1_v5,
+  pnd1a_v2, payslip_run2, sps110 samples) · plan.md ปรับ stale: ลบ duplicate "FE payroll UI not yet
+  built" (สร้างแล้ว cont.82.2), ลบ e-Filing WhtBatchFormat path (Ham เลือก AcroForm แล้ว), ภ.ง.ด.51/50
+  visual-pending → validated, เพิ่ม ☐ employee 50ทวิ annual ที่ฝังอยู่ใน fragment เก่า.
+- **เหลือรอ Ham:** (1) ภ.ง.ด.1 เดือน = งวด หรือ เดือนจ่ายจริง (ม.59) · (2) SSO WageCeiling 2569 ·
+  (3) 50ทวิ PDF store-vs-regen · (4) ภ.พ.01/09 in scope? · (5) RD PDF binaries ~60MB commit? ·
+  (6) สปส.1-10 ทดสอบ upload จริง.
+
 ## 2026-06-11 (cont. 90) — **Per-company VAT mode (§4.6 amendment, มติ Ham)**: `Tax:VatMode`/`VatRate`/`Pnd30SubmissionMode` ย้ายจาก env config → `master.companies`. Build **0/0** · Domain **137/137** · affected classes **24/24 ×2** · Api full **299 passed / 0 failed / 1 skip** · live smoke ✓. **NOT committed — pending Ham.**
 
 - **ที่มา:** Ham ถามเรื่อง 1 instance รองรับกี่ company → ตัดสินใจคง multi-tenant instance เดียว แต่ให้

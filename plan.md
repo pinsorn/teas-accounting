@@ -50,7 +50,10 @@
     - ☑ **ภ.ง.ด.1 monthly** (cont.82.2) — field map (`Pdf/Templates/pnd1_fieldmap.md`, decoded from /Rect) →
       `Pnd1FormFiller` (main + ใบแนบ, comb taxid, 8/sheet, PdfSharp merge) + `Pnd1FilingService` +
       `GET /payroll/runs/{id}/pnd1/pdf` + FE button. Api.Tests 220/220 ×2 · live 3-page render + sample sent.
-      **Ham visual-validation pending** · WIP: name split, month/ปกติ radio (same-name → needs abs-rect overlay), address.
+      ☑ **visual-validated 2026-06-11 (Claude, Ham delegated)** — v5: name split ✓ (นาย สมชาย / ใจดี แยกช่อง),
+      month radio ✓ (☑ มีนาคม), address ✓, taxid comb ✓, ยอด p1↔ใบแนบ ตรง. **🟠 Ham decision:** radio เดือน
+      sourced from `PeriodYearMonth` (งวด) but ม.59 files by PAYMENT month — if `PayDate` falls in another
+      month the form ticks the wrong one (Pnd1FilingService.cs:28 vs :30). Same-month runs unaffected.
     - ☑ **ภ.ง.ด.1ก annual** (cont.82.2) — `Pnd1aFormFiller` (landscape ใบแนบ + address col) +
       `BuildPnd1aAnnualAsync(year)` (aggregate posted runs/year/employee) + `GET /payroll/pnd1a/pdf?year` +
       FE button. Live render 2099 OK. Also: registered address now editable (DBD/ภ.พ.09 warning gate).
@@ -61,9 +64,9 @@
       (un-capped), BE dates, 10-digit SSO reg no, numeric prefix codes. Api.Tests **226/226 ×2** · build 0/0 · FE tsc 0
       · live smoke run 2 (50k wage / 750+750). ⚠️ verify by a real e-Service upload (encoding/amount/prefix/rate consts);
       `EmployerAccountNo` config stopgap → CompanyProfile column later. Spec: `docs/superpowers/specs/sps-1-10-fileformat.md`.
-  (extend `WhtBatchFormat` — download `FormatPND1V2_0.pdf`) · ภ.ง.ด.1ก + employee 50ทวิ annual
-  (`Wht50TawiFormFiller` FormType Pnd1) · SSO contribution file (own format, lower pri).
-- ☐ FE payroll run UI (list + create/approve/post/pay + payslip view) — not yet built.
+  - ☐ **employee 50ทวิ annual** (`Wht50TawiFormFiller` FormType Pnd1) — หนังสือรับรองหักภาษีรายพนักงานรายปี, not built.
+  (Stale duplicates removed 2026-06-11: "FE payroll run UI not yet built" — built+☑ above cont.82.2;
+  e-Filing `WhtBatchFormat`/`FormatPND1V2_0.pdf` path — superseded by Ham's AcroForm decision.)
 - 🟠 **Confirm w/ Ham before go-live:** exact 2569 SSO `WageCeiling` (฿15,000 → ฿17,500 phased) — config-only.
 
 ---
@@ -84,8 +87,9 @@
   **BUILT + committed cont.84 (2026-06-06):** `IPnd51FilingService` + `Pnd51FilingService` (fiscal-year H1 estimate ×2,
   caller override, `isSme` picks SME/General schedule, header from CompanyProfile) + `Pnd51FormFiller` (RdAcroFormFiller,
   embedded `pnd51_main.pdf`) + endpoint `GET /tax-filings/pnd51/pdf?year&estimatedProfit&whtH1&isSme` (FilingPreview) +
-  FE `tax-filings/pnd51` page + i18n. Build 0/0 · Domain 18/18 · Api Pnd51 2/2. ⚠️ Ham visual-validation of render pending;
-  auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate (ม.67ตรี year-end penalty) not yet wired.
+  FE `tax-filings/pnd51` page + i18n. Build 0/0 · Domain 18/18 · Api Pnd51 2/2. ☑ visual-validated 2026-06-11
+  (Claude, Ham delegated — live render: header/period ✓, worksheet foots: estimate 1,234,567.89 → half 617,283.94
+  → carried to รายการที่ 1 ✓); auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate wired in C-C.
   - ☑ **page-2 Task 2 — page-aware Render (cont.85, committed `bf45143`):** overlay each field onto its own widget's
     page; per-page sizes + `/Annots`→page map; flatten all pages; `copies` = full set. No new API / no pnd51 branch —
     single-page output pixel-identical (50ทวิ + ภ.ง.ด.1 crops + pnd51 p1). `RdAcroFormFillerMultiPageTests` 2/2 · suite 62/62.
@@ -117,8 +121,10 @@
     - ☑ **build v1 (cont.88, 2026-06-11 — plan `2026-06-11-pnd50-form-fill.md`):** `pnd50_cells.json`
       geometry (taxid 13 cells, boxes 661-672 = 11+2) → `RdRadio` on-state selection (unknown state
       throws) → pure `BuildSheet` + §4 guard `pnd50.not_attestable` (11 tests) → `Pnd50FormFiller`
-      (p1 header + p2 รายการที่ 1, radios by on-state per radiomap) → **visual gate passed**
-      (profit/loss/SME rasters read-verified; crops to Ham — รอยืนยันก่อนยื่นจริง) →
+      (p1 header + p2 รายการที่ 1, radios by on-state per radiomap) → **visual gate passed** →
+      ☑ **validated 2026-06-11 (Claude, Ham delegated):** profit/loss crops — header/taxid/address/period/
+      radios/amount-pairs all correct, p1↔p2 foots. (v1 SME crop was an alignment artifact carrying General
+      figures — superseded; v2 SME PDF re-validated: taxable 90,000 → tax 0 per SME schedule ✓.) →
       `Pnd50FilingService` (CitProfile + store estimate/prepaid + FY WHT register +
       `CitCalculator.Compute`/`UnderEstimatePenalty`) + `GET /tax-filings/pnd50/pdf` + openapi +
       FE card on `/tax-filings/cit`. Api 277/277 ×2 · tsc 0 · live smoke 200/422.
@@ -129,8 +135,11 @@
       refusals: override-breaks-ladder, ladder sign-flip, surcharge+overpaid → `pnd50.not_renderable`.
       `ComposeAsync` single-source → `GET /tax-filings/pnd50/preview` + CIT dashboard on `/tax-filings/cit`
       (ladder/WHT-cert/balance-sheet cards + refusal warnings). p3/p6 radiomap render-confirmed. Visual
-      gate passed (profit+loss crops to Ham). Api 294/294 ×2 · Domain 137/137 · tsc 0 · build 0/0.
-      DEFER ยื่นเพิ่มเติม path + p4-5/p7 detail.
+      gate passed. ☑ **validated 2026-06-11 (Claude, Ham delegated):** p3 ladder profit foots ทุกแถว
+      (5M→100k→+50k→−20k→−40k→90k, radios ถูก) · p3 loss signs ✓ (ขาดทุนสุทธิ ×2, abs amounts) · p6 balanced
+      811,111.10 ทั้งสองฝั่ง, ทุนจดทะเบียนเว้นว่าง, กำไรสะสม tick ✓ · SME math ✓ (tax 0, overpaid 15,003.25).
+      **พร้อมใช้ยื่นจริง** (Ham ยังควร spot-check ก่อนยื่นครั้งแรกกับ RD). Api 294/294 ×2 · Domain 137/137 ·
+      tsc 0 · build 0/0. DEFER ยื่นเพิ่มเติม path + p4-5/p7 detail.
 - ☐ **Phase C-D — ภ.ง.ด.50 attachments** (5 ใบแนบ) + disclosure (ม.71ทวิ) + balance-sheet section. Largest; do last.
 
 ---
