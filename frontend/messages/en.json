@@ -100,6 +100,7 @@
     "salesSummary": "Sales Summary",
     "pnd30": "ภ.พ.30 VAT Return",
     "taxFilings": "Tax Filings",
+    "documents": "RD Form Documents",
     "missingWhtCert": "Missing 50ทวิ Receipts",
     "payroll": "Payroll",
     "section": { "sales": "Sales", "purchase": "Purchase", "payroll": "Payroll", "reports": "Reports", "settings": "Settings" },
@@ -638,6 +639,80 @@
       "override_breaks_ladder": "The net-profit override disagrees with the books — the ladder will not foot; file manually or remove the override",
       "ladder_sign_flip": "Adjustments flip the running total's sign mid-ladder; the form has no sign box for that — file manually",
       "surcharge_with_overpaid": "A s.67 ter surcharge with an overpaid bottom line cannot be rendered together"
+    }
+  },
+  "documents": {
+    "title": "RD Form Documents",
+    "subtitle": "Every Revenue Department (RD) tax form TEAS touches, with filing deadlines and links to the official forms.",
+    "channelsTitle": "Filing channels / portals",
+    "channel": {
+      "efiling": "RD e-Filing",
+      "openApi": "RD Open API (direct submit)",
+      "eStamp": "Stamp Duty (e-Stamp OS9)",
+      "dbd": "DBD e-Filing (financial statements)",
+      "taxCalendar": "Tax calendar"
+    },
+    "category": {
+      "vat": "Value Added Tax (VAT)",
+      "vatRequest": "VAT registration / change",
+      "wht": "Withholding Tax (WHT)",
+      "cit": "Corporate Income Tax (CIT)",
+      "pit": "Personal Income Tax (reference)",
+      "sbt": "Specific Business Tax (SBT)",
+      "stamp": "Stamp Duty"
+    },
+    "frequency": {
+      "monthly": "Monthly",
+      "annual": "Annual",
+      "semiAnnual": "Semi-annual",
+      "oneTime": "One-time",
+      "perTransaction": "Per transaction",
+      "adHoc": "As needed"
+    },
+    "tierLabel": "Usage tier",
+    "tier": {
+      "1": "Production",
+      "2": "In scope",
+      "3": "Reference"
+    },
+    "col": {
+      "code": "Code",
+      "name": "Form name",
+      "frequency": "Frequency",
+      "deadline": "Deadline",
+      "links": "Form"
+    },
+    "openPdf": "Open PDF",
+    "openSource": "RD page",
+    "noPdf": "See RD page",
+    "officialNote": "Links point to the official forms on the RD website — they open in a new tab and always serve the latest version.",
+    "form": {
+      "pp30": { "name": "VAT Monthly Return", "deadline": "By the 15th (paper) / 25th (e-Filing) of the next month" },
+      "pp30Attach": { "name": "P.P.30 attachment (per-branch breakdown)", "deadline": "With P.P.30 — 15th / 25th of next month" },
+      "pp36": { "name": "Self-assessed VAT (imported services)", "deadline": "By the 7th (paper) / 15th (e-Filing) of the next month" },
+      "pp302": { "name": "Input-VAT apportionment (annual adjustment)", "deadline": "By the 25th (e-Filing) of the first month of the next year" },
+      "pp01": { "name": "VAT registration request", "deadline": "Within 30 days after revenue crosses the threshold" },
+      "pp09": { "name": "VAT registration change notice", "deadline": "Within 15 days after the change" },
+      "pnd1": { "name": "WHT — Employment (s.40(1)(2))", "deadline": "By the 7th / 15th of the next month" },
+      "pnd1a": { "name": "Annual WHT summary — Employment", "deadline": "By the end of February" },
+      "pnd2": { "name": "WHT — Interest/Dividend (individuals)", "deadline": "By the 7th / 15th of the next month" },
+      "pnd3": { "name": "WHT — Individual contractors (s.40(5)-(8))", "deadline": "By the 7th / 15th of the next month" },
+      "pnd53": { "name": "WHT — Thai juristic recipients", "deadline": "By the 7th / 15th of the next month" },
+      "pnd54": { "name": "WHT — Foreign payment (s.70)", "deadline": "By the 7th / 15th of the next month" },
+      "wtc50": { "name": "Withholding Tax Certificate (50 bis)", "deadline": "Issue immediately on withholding" },
+      "popor01": { "name": "WHT correction request", "deadline": "As needed" },
+      "popor02": { "name": "WHT form-mismatch waiver request", "deadline": "As needed" },
+      "pnd50": { "name": "CIT Annual Return", "deadline": "Within 150 days of the fiscal year-end" },
+      "pnd51": { "name": "CIT Mid-year Prepayment", "deadline": "Within 2 months of the half-year end" },
+      "pnd52": { "name": "CIT — International transport", "deadline": "Within 150 days of the fiscal year-end" },
+      "pnd55": { "name": "Income tax — Foundation/Association", "deadline": "Within 150 days of the fiscal year-end" },
+      "pnd90": { "name": "PIT — Multiple income types", "deadline": "By 31 March" },
+      "pnd91": { "name": "PIT — Employment only", "deadline": "By 31 March" },
+      "pnd93": { "name": "PIT — Early filing", "deadline": "Before 1 January" },
+      "pnd94": { "name": "PIT mid-year (s.40(5)-(8))", "deadline": "By the end of September" },
+      "pnd95": { "name": "PIT — Reduced rate", "deadline": "By 31 March" },
+      "pt40": { "name": "Specific Business Tax Return", "deadline": "By the 15th / 25th of the next month" },
+      "os4": { "name": "Stamp Duty paid in cash", "deadline": "Within 15 days of executing the instrument" }
     }
   },
   "note": {
