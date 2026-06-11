@@ -48,7 +48,12 @@ scope แยก?). Claims ตรงกันแล้ว (`TenantClaims.CompanyI
 → spec ต้อง green. พิจารณาด้วยว่าควร FORCE RLS ให้สม่ำเสมอทุกตาราง (010) หรือไม่ — ถ้าทำ = แตะ
 compliance §4.7 → **ถาม Ham ก่อน**.
 
-### 2. ภ.ง.ด.50 Phase C-C FORM FILL (งานใหญ่หลัก)
+### 2. ☑ DONE (cont.88) — ภ.ง.ด.50 Phase C-C FORM FILL (งานใหญ่หลัก)
+
+> **เสร็จ 2026-06-11 (v1: p1 + p2 รายการที่ 1).** Plan: `docs/superpowers/plans/2026-06-11-pnd50-form-fill.md`.
+> geometry → RdRadio on-state → BuildSheet+guard → filler → visual gate (crops ส่ง Ham แล้ว) →
+> service + `GET /tax-filings/pnd50/pdf` + FE card ที่ /tax-filings/cit + openapi.
+> Gates: Api 277/277 ×2 · Domain 137/137 · tsc 0 · live smoke 200/422. รอ Ham ยืนยัน crops ก่อนยื่นจริง.
 
 ทุกอย่างพร้อม build แล้ว — mapping จบ ไม่ต้อง recon ซ้ำ:
 - Spec: `docs/superpowers/specs/pnd50-fieldmap-recon.md` (โครง 7 หน้า + draft map + v1 scope)
