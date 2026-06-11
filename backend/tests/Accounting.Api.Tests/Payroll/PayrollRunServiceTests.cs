@@ -30,7 +30,16 @@ public sealed class PayrollRunServiceTests
     {
         var cfg = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
-            { ["ConnectionStrings:Postgres"] = _fx.ConnectionString }).Build();
+            {
+                ["ConnectionStrings:Postgres"] = _fx.ConnectionString,
+                // Pin the pre-2569 SSO statutory params: these tests verify the clamp /
+                // allowance MATH with stable goldens, not the current statute (the live
+                // value rides appsettings — ฿17,500 since 1 ม.ค. 2569, phased to 23,000).
+                ["Payroll:Sso:Rate"] = "0.05",
+                ["Payroll:Sso:WageFloor"] = "1650",
+                ["Payroll:Sso:WageCeiling"] = "15000",
+                ["Payroll:Sso:MaxAllowanceForPit"] = "9000",
+            }).Build();
         var s = new ServiceCollection();
         s.AddLogging();
         s.AddSingleton<IConfiguration>(cfg);
