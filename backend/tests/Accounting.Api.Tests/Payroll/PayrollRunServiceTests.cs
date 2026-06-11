@@ -85,12 +85,13 @@ public sealed class PayrollRunServiceTests
         return e.EmployeeId;
     }
 
-    private static async Task<long> RunThroughPost(ServiceProvider sp, string period)
+    private static async Task<long> RunThroughPost(ServiceProvider sp, string period, DateOnly? payDate = null)
     {
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
         var id = await svc.CreateDraftAsync(
-            new CreatePayrollRunRequest(period, new DateOnly(int.Parse(period[..4]), int.Parse(period[4..]), 28), null),
+            new CreatePayrollRunRequest(period,
+                payDate ?? new DateOnly(int.Parse(period[..4]), int.Parse(period[4..]), 28), null),
             default);
         await svc.ApproveAsync(id, default);
         await svc.PostAsync(id, default);
@@ -228,6 +229,32 @@ public sealed class PayrollRunServiceTests
         using var ms = new System.IO.MemoryStream(pdf);
         var doc = PdfSharp.Pdf.IO.PdfReader.Open(ms, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
         doc.PageCount.Should().BeGreaterThanOrEqualTo(3);   // main (2) + ≥1 ใบแนบ
+    }
+
+    // ม.52/ม.59 + ม.58(1) — ภ.ง.ด.1/1ก follow the PAYMENT date, not the payroll period:
+    // a December-period run PAID in January belongs to the NEXT year's filings.
+    [SkippableFact]
+    public async Task Pnd1_filings_follow_payment_date_not_period()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var y = await FreshYearAsync(sp);
+        await AddEmployee(sp, 30_000m);
+        // Period ธ.ค. y, paid 5 ม.ค. y+1 (cross-month / cross-year).
+        await RunThroughPost(sp, Period(y, 12), payDate: new DateOnly(y + 1, 1, 5));
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+
+        // ภ.ง.ด.1ก of the PAYMENT year (y+1) includes the run …
+        var pdf = await svc.BuildPnd1aAnnualAsync(y + 1, default);
+        System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+
+        // … and the PERIOD year (y) has nothing paid in it (y is a fresh year and all other
+        // tests pay within their own period month) → payroll.no_data.
+        var act = () => svc.BuildPnd1aAnnualAsync(y, default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.no_data");
     }
 
     [SkippableFact]
