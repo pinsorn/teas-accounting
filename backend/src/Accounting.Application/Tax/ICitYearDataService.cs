@@ -16,6 +16,9 @@ public sealed record CitProfileDto(
     int FiscalYear, decimal? PaidUpCapital, decimal RevenueFullYear, bool IsSme,
     decimal AdjustmentsTotal, decimal LossCarryIn, decimal AccountingNetProfit);
 
+/// <summary>One posted-FY expense account total — feeds the ภ.ง.ด.50 p5 รายการที่ 7 schedule.</summary>
+public sealed record ExpenseAccountRow(string AccountCode, string AccountNameTh, decimal Amount);
+
 public interface ICitYearDataService
 {
     Task<IReadOnlyList<CitYearSummaryDto>> ListYearsAsync(CancellationToken ct);
@@ -32,4 +35,9 @@ public interface ICitYearDataService
     Task DeleteAdjustmentAsync(long id, CancellationToken ct);
 
     Task<CitProfileDto> ProfileAsync(int fiscalYear, CancellationToken ct);
+
+    /// <summary>Per-account FY expense totals (Σ Dr−Cr of posted entries), same query basis as
+    /// <see cref="ProfileAsync"/>'s P&amp;L so Σ Amount == RevenueFullYear − AccountingNetProfit —
+    /// the ภ.ง.ด.50 รายการที่ 7 foot guard relies on this.</summary>
+    Task<IReadOnlyList<ExpenseAccountRow>> ExpenseByAccountAsync(int fiscalYear, CancellationToken ct);
 }
