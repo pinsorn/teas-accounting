@@ -25,8 +25,12 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         var c = await db.Companies.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == run.CompanyId, ct);
         var prof = await db.CompanyProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == run.CompanyId, ct);
 
-        var month = int.Parse(run.PeriodYearMonth[4..]);
-        var yearBe = int.Parse(run.PeriodYearMonth[..4]) + 543;
+        // ม.52 + ม.59: ภ.ง.ด.1 is filed for the month the income was PAID (เดือนที่จ่ายเงินได้
+        // พึงประเมิน — remit within 7 days of that month's end), NOT the payroll period month.
+        // Identical for normal in-month runs; a cross-month PayDate follows the payment month.
+        // (สปส.1-10 correctly stays on the wage-period month — different law, different basis.)
+        var month = run.PayDate.Month;
+        var yearBe = run.PayDate.Year + 543;
         var payDate = $"{run.PayDate.Day:00}/{run.PayDate.Month:00}/{(run.PayDate.Year + 543) % 100:00}";
 
         var names = await NameMapAsync(run.Payslips.Select(p => p.EmployeeId), ct);
@@ -70,10 +74,10 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         var prof = await db.CompanyProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
         var c = await db.Companies.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
 
-        // Every POSTED run in the CE tax year, aggregated per employee (whole-year income + tax).
-        var prefix = year.ToString("0000");
+        // ม.58(1): ภ.ง.ด.1ก covers income PAID within the CE year (จ่ายในปีที่ล่วงมาแล้ว) —
+        // aggregate every POSTED run by PAYMENT year, per employee (whole-year income + tax).
         var slips = await db.Payslips.AsNoTracking()
-            .Where(p => p.Run!.Status == DocumentStatus.Posted && p.Run.PeriodYearMonth.StartsWith(prefix))
+            .Where(p => p.Run!.Status == DocumentStatus.Posted && p.Run.PayDate.Year == year)
             .Select(p => new { p.EmployeeId, p.NationalId, p.EmployeeName, p.AddressText, p.GrossTaxable, p.PitWithheld })
             .ToListAsync(ct);
         if (slips.Count == 0)
