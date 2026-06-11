@@ -144,6 +144,32 @@ public static class TaxFilingEndpoints
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);
 
+        // ── Phase C-C ภ.ง.ด.50 v1 (annual CIT return — p1 header + p2 รายการที่ 1).
+        // isSme: null → auto from CitProfile (paid-up ≤5M ∧ revenue ≤30M). hasRelatedParty:
+        // ม.71ทวิ related-party radio (รายได้ >200M → annual disclosure report). attest*: the
+        // service THROWS pnd50.not_attestable unless the year is honestly renderable in the v1
+        // scope (first filing; รายการที่ 2–9 blank acknowledged; zero adjustments / loss c/f) —
+        // a blank box on this form asserts zero, so no defaulting happens here (ภ.ง.ด.50 §4).
+        app.MapGet("/tax-filings/pnd50/pdf", async (
+            [FromQuery] int year,
+            [FromQuery] bool? isSme,
+            [FromQuery] bool? hasRelatedParty,
+            [FromQuery] bool? attestFirstFiling,
+            [FromQuery] bool? attestBlankSchedules,
+            IPnd50FilingService svc, CancellationToken ct) =>
+        {
+            var attest = (attestFirstFiling ?? false) || (attestBlankSchedules ?? false)
+                ? new Pnd50Attestation(
+                    FirstFiling:          attestFirstFiling    ?? false,
+                    AcceptBlankSchedules: attestBlankSchedules ?? false)
+                : null;
+            return Results.File(
+                await svc.BuildPnd50Async(year, isSme, hasRelatedParty ?? false, attest, ct),
+                "application/pdf", $"pnd50-{year}.pdf");
+        })
+        .WithTags("TaxFilings")
+        .RequireAuthorization(preview);
+
         // C-C — persist the method-A estimate at filing time (ม.67ตรี year-end check).
         app.MapPost("/tax-filings/pnd51/estimate", async (
             [FromQuery] int year, [FromQuery] decimal estimatedProfit,

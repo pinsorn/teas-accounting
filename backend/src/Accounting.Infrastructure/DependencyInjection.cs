@@ -99,6 +99,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Payroll.IPnd1FilingService, Payroll.Pnd1FilingService>();
         services.AddScoped<Application.Payroll.ISsoFilingService, Payroll.SsoFilingService>();
         services.AddScoped<Application.Tax.IPnd51FilingService, Tax.Pnd51FilingService>();
+        services.AddScoped<Application.Tax.IPnd50FilingService, Tax.Pnd50FilingService>();
         services.AddScoped<Application.Tax.ICitYearDataService, Tax.CitYearDataService>();
 
         // Sprint 8.5 — VAT-mode + non-VAT doc labels (bound from the same "Tax"
