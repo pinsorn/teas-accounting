@@ -70,11 +70,18 @@ compliance §4.7 → **ถาม Ham ก่อน**.
 4. `Pnd50FilingService` + endpoint `GET /tax-filings/pnd50/pdf?year&isSme…` + FE + openapi
 5. เขียนแผนผ่าน superpowers:writing-plans ก่อนลงมือ (แตก task ให้ subagent ได้)
 
-### 3. 🟠 FE: SO/DO list status filter ไม่ persist ลง URL (regression จาก DataTable redesign)
+### 3. ☑ DONE (cont.88) — FE: SO/DO list status filter persist ลง URL (`urlFilters` prop, 2 specs ปลด skip)
 
-- 2 specs skip รออยู่: `sales-order-flow.spec.ts:13`, `delivery-order-flow.spec.ts:14`
-- แก้ FE ให้ filter เขียน query param เหมือนเดิม (เทียบ pattern หน้า list อื่นที่ยัง persist) → ปลด skip
-- อยู่ในอำนาจแก้เอง (bug ของ feature ที่เคย ship)
+### 6. 🆕 งานหลัก session หน้า — ภ.ง.ด.50 Phase C-D BUILD (มติ Ham 2026-06-12 "ลุยเลย")
+
+> Spec: `docs/superpowers/specs/pnd50-cd-attachments-kickoff.md` (มี market check PEAK/FlowAccount
+> + recon results p4/p5/p7 ของ subagent ต่อท้าย). Recon artifacts:
+> `docs/RD-Forms/pnd50/fieldmap/pnd50_p4_map.md` / `_p5_` / `_p7_` + `pnd50_cells.json` (extended).
+- Build order ตาม spec §Build order: pure builders (TDD, foot กับ p3 ladder) → filler p4/p5/p7 →
+  visual gate (Pnd50VisualEmit) → ใบแนบเฉพาะที่ derive ได้ → preview/FE refusal list.
+- หลักคิดจาก market check: dashboard ตัวเลข (ship แล้ว) = market parity; p4-p7 fill = differentiator;
+  ใบแนบแยก = ค่าต่ำสุด อย่า over-invest. TEAS ไม่มี inventory → สาย COGS เป็น zeros-by-design.
+- ภ.พ.01/09 mapper (recon เสร็จ: pp01 190 widgets / pp09 299) — คิวถัดจาก C-D, v1 = prefill identity.
 
 ### 5. 🆕 คิวใหม่ (มติ Ham 2026-06-11 เช้า — spec: `docs/superpowers/specs/pnd50-v2-dashboard.md`)
 
@@ -93,11 +100,15 @@ compliance §4.7 → **ถาม Ham ก่อน**.
 
 ### 4. เก็บเล็ก (ทำแทรกได้)
 
-- ☐ ลบ/เขียนใหม่ `pv-sod-violations.spec.ts` เป็น permission-based test (SoD ถูกถอดโดยมติ Ham cont.77 — test เก่า skip ค้าง)
-- ☐ คัดกอง untracked ที่ root (`_pnd51_*.py`, `_taxid_*.png`, `_review/`, `comb_uniformity.txt` ฯลฯ):
-  เก็บเข้า `docs/RD-Forms/pnd51/fieldmap/` หรือลบ — ถาม Ham ถ้าไม่แน่ใจ
-- ☐ `docs/RD-Forms/INDEX.md` + `REPORT.md` แก้ค้างอยู่ (untracked diff เก่าก่อน cont.87) — review แล้ว commit หรือ revert
-- ☐ M15: DB dump `accounting_dev` อัตโนมัติ (โค้ดมี remote แล้ว แต่ data ยังเครื่องเดียว)
+- ☑ `pv-sod-violations.spec.ts` → `pv-approval-permission.spec.ts` (cont.88)
+- ☑ กอง untracked root คัดแล้ว (cont.88 ย้าย `_pnd51_*` เข้า fieldmap + cont.90c ลบ scratch 33 ไฟล์
+  + log 32 ไฟล์; `_review/` เหลือชุด validated)
+- ☑ `docs/RD-Forms/INDEX.md`/`REPORT.md` commit แล้ว (cont.88)
+- ☐ M15: DB dump `accounting_dev` อัตโนมัติ (โค้ดมี remote แล้ว แต่ data ยังเครื่องเดียว) —
+  ทำคู่ item 5.3 (dev DB ล้างบาง)
+- ☐ RD PDF binaries ~60MB ยัง untracked — **รอ Ham เคาะ** commit เข้า repo หรือเก็บนอก git
+- ☐ สปส.1-10 ทดสอบ upload e-Service จริง (external, ต้องมือ Ham)
+- ☐ ภ.ง.ด.1 หมายเหตุ: เดือนฟอร์มตอนนี้ตาม `PayDate` (ม.52/59, cont.91) — ถ้า Ham เห็นต่างแจ้งได้
 
 ## กฎที่ต้องไม่ลืม (จากบทเรียนเซสชันนี้)
 
