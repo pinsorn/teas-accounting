@@ -176,11 +176,10 @@ follow-ups below into the purchase work where they overlap.
    period gating) still ☐ — see "Test depth" below; TI immutability + GL balance proven via #3.
 3. ☑ **Runtime smoke** — full login→post-TI→GL→immutability verified end-to-end. (2026-05-16)
 
-### Test depth (remaining automated coverage)
-- ☐ NumberSequence concurrency test (parallel allocate, assert no dup / no gap)
-- ☐ PV + WHT certificate flow integration test
-- ☐ Period-close gating integration test (post into closed month → rejected)
-- ☐ Wire full `AddInfrastructure` DI into `PostgresFixture` for service-level tests
+### Test depth — ☑ ALL DONE (stale list; reconciled 2026-06-12)
+All four exist in `Hardening/Sprint1HardeningTests.cs`: NumberSequence gapless+unique under
+25-way parallel · period-close gating (`period.closed`) · PV+WHT 3% → 50ทวิ + balanced JV ·
+service-level providers built via full `AddInfrastructure` (same pattern as `TestCompanyFactory`).
 
 ## Non-VAT mode completion (cont. 67, 2026-05-23)
 
@@ -214,9 +213,10 @@ Spec: `docs/superpowers/specs/2026-05-23-non-vat-mode-design.md`. 4 decisions lo
 - ☑ **Hide VAT-only features in non-VAT FE (cont. 68b, Ham "ซ่อนทั้งหมด + route guard")** — nav TI/CN/DN `vatOnly`;
   DO→TI button + tax-filings ภ.พ.30 link gated; `NonVatGuard` route guards on /tax-invoices, /credit-notes, /debit-notes
   (list/new/[id]). Kept: Q/SO/DO/BN/RC, purchase, WHT certs, ภ.ง.ด.3/53/54, ภ.พ.36, threshold banner, customer VAT checkbox.
-- ☐ **openapi delta for Sana:** `POST /receipts` body +`lines[]`, `applications[].deliveryOrderId`/`billingNoteId`; `GET /delivery-orders`
-  list item +`customerId`/+`totalAmount`; receipt detail +`lines[]`; +`POST /delivery-orders/{id}/create-invoice`,
-  +`POST /billing-notes/{id}/create-tax-invoice`, +`GET /documents/chain`, +`mark-printed` on Q/SO/DO/Invoice (cont.66/69).
+- ☑ **openapi delta for Sana (2026-06-12):** stale `/customer-receipts` → real `/receipts` (+post/+pdf) with the
+  shipped `CreateReceiptRequest` (camelCase: `lines[]`, `applications[].deliveryOrderId`/`billingNoteId`, `whtLines[]`)
+  + `GET /documents/chain` + `POST /delivery-orders/{id}/create-invoice` + `POST /billing-notes/{id}/create-tax-invoice`
+  + `mark-printed` (Q/SO/DO/Invoice). YAML parses, 82 paths. **Sana delta — flag on next sync.**
 
 ## Invoice flow + full chain + universal print (cont. 69, 2026-05-23) — SHIPPED via sub-agents
 
@@ -225,7 +225,9 @@ Spec: `docs/superpowers/specs/2026-05-23-invoice-flow-related-docs-print-design.
 - ☑ **Phase 2a (FE)** — DO→Invoice + Invoice→TI buttons; receipt InvoicePicker (non-VAT). **2b** — rename → Invoice/ใบแจ้งหนี้, route `/invoices`.
 - ☑ **Phase 3** — `GetChainAsync` + `GET /documents/chain` + FE `<DocumentChain>` (full Q→RC) on all 8 detail pages.
 - ☑ **Phase 4** — print ต้นฉบับ/สำเนา + tracking on Q/SO/DO/Invoice (migration `AddPrintTrackingToSalesChain`); universal `PrintMenu` + `ChainRowPrint`.
-- ☐ **Follow-ups:** confirm spec assumptions D5–D8; fix pre-existing RED `Sprint10ProductTests.Wht_base_suggest_splits_service_and_goods` (ServiceSubtotal=0, cont.66 suggest); hide DO→Invoice button after creation (`DeliveryOrderDetail.billingNoteId`); CN/DN chain-row routing heuristic (`docNo.includes('DN')`).
+- ☐ **Follow-ups:** confirm spec assumptions D5–D8; ~~Sprint10ProductTests RED~~ (passes since ≤cont.90 — verified
+  2026-06-12, full suite green); hide DO→Invoice button after creation (`DeliveryOrderDetail.billingNoteId`);
+  CN/DN chain-row routing heuristic (`docNo.includes('DN')`).
 - ⚠️ **Commit the (currently untracked) Migrations/** with the code — an `ef remove --no-build` on a stale
   build reverted an untracked migration's Down on the dev DB this sprint. Never `dotnet ef` with `--no-build`
   after entity edits.
