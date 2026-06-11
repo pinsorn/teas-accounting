@@ -84,21 +84,79 @@ export interface UpdateCompanyProfileSoftRequest {
   ssoEmployerAccountNo: string | null;
 }
 
+// Legal form of the company — mirrors BE Accounting.Domain.Enums.LegalEntityType
+// (JsonStringEnumConverter → PascalCase strings on the wire).
+export type LegalEntityType =
+  | 'LimitedCompany'        // บริษัทจำกัด
+  | 'PublicLimitedCompany'  // บริษัทมหาชน
+  | 'LimitedPartnership'    // ห้างหุ้นส่วนจำกัด
+  | 'OrdinaryPartnership'   // ห้างหุ้นส่วนสามัญ
+  | 'JointVenture'          // กิจการร่วมค้า
+  | 'SoleProprietor'        // เจ้าของคนเดียว
+  | 'Other';                // นิติบุคคลอื่น
+
+// §4.5 — ภ.พ.30 filing mode is per-company config, never a casual UI toggle.
+export type Pnd30SubmissionMode = 'manual' | 'auto';
+
 // Phase C-C — master `companies` row (super-admin GET /companies). Carries
 // PaidUpCapital for the CIT SME test (ทุน ≤ 5 ล้าน ∧ รายได้ ≤ 30 ล้าน).
-export interface CompanyDto {
+// Per-company VAT mode: vatRate is a FRACTION (0.07), the UI shows percent.
+export interface CompanyListItem {
   companyId: number;
   taxId: string;
   nameTh: string;
   nameEn: string | null;
+  legalEntityType: LegalEntityType;
   vatRegistered: boolean;
   baseCurrency: string;
   isActive: boolean;
   paidUpCapital: number | null;
+  vatRate: number;
+  pnd30SubmissionMode: Pnd30SubmissionMode;
+}
+/** Back-compat alias (PaidUpCapitalCard et al. predate /settings/companies). */
+export type CompanyDto = CompanyListItem;
+
+// GET /companies/{id} — full row for the super-admin edit form (PUT replaces
+// every updatable field, so the FE must prefill all of them first).
+export interface CompanyDetail extends CompanyListItem {
+  registrationDate: string | null;
+  vatRegisterDate: string | null;
+  fiscalYearStartMonth: number;
+  addressTh: string | null;
+  subDistrict: string | null;
+  district: string | null;
+  province: string | null;
+  postalCode: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+// POST /companies (super-admin) — 201, no body.
+export interface CreateCompanyRequest {
+  taxId: string;
+  nameTh: string;
+  nameEn: string | null;
+  legalEntityType: LegalEntityType;
+  registrationDate: string | null;
+  vatRegistered: boolean;
+  vatRegisterDate: string | null;
+  fiscalYearStartMonth: number;
+  addressTh: string | null;
+  subDistrict: string | null;
+  district: string | null;
+  province: string | null;
+  postalCode: string | null;
+  phone: string | null;
+  email: string | null;
+  paidUpCapital: number | null;
+  vatRate: number;
+  pnd30SubmissionMode: Pnd30SubmissionMode;
 }
 
 // Full-overwrite body of PUT /companies/{id} — every field must be supplied
-// (the backend assigns all of them unconditionally; omitting one nulls it).
+// (the backend assigns all of them unconditionally; omitting one nulls it,
+// and omitting vatRate/pnd30SubmissionMode silently resets them to defaults).
 export interface UpdateCompanyRequest {
   nameTh: string;
   nameEn: string | null;
@@ -113,6 +171,8 @@ export interface UpdateCompanyRequest {
   email: string | null;
   isActive: boolean;
   paidUpCapital: number | null;
+  vatRate: number;
+  pnd30SubmissionMode: Pnd30SubmissionMode;
 }
 
 export interface TaxInvoiceDetailLine {

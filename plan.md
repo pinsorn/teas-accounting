@@ -5,6 +5,27 @@
 
 ---
 
+## ▶ Per-company VAT mode (spec: `docs/superpowers/specs/per-company-vat-mode.md`, Ham 2026-06-11)
+
+- ☑ **§4.6 amendment + BE refactor** (cont.90, 2026-06-11) — VAT mode/rate/ภ.พ.30 mode moved from env
+  `Tax:*` config to `master.companies` (`vat_registered` + new `vat_rate`/`pnd30_submission_mode`,
+  migration `CompanyTaxConfig` + ck constraints). `ICompanyTaxConfigService` (scoped, per-request cache)
+  feeds 11 Infra services + `/system/info` (now authed) + `/api/v1/system/info`. PUT /companies validates
+  + audits `tax_config_change` to activity_log. Tests: `TestCompanyFactory` (fresh company per non-VAT
+  scenario — never flips company 1) + `CompanyTaxConfigTests`. FE unchanged (`useSystemInfo()` same shape).
+  Build 0/0 · Domain 137/137 · affected classes 24/24 ×2 · Api full 299/0/1 · live smoke 200/401.
+- ☑ **FE super-admin companies page** (cont.90, 2026-06-11) — `/settings/companies` (super-admin only,
+  nav `superAdminOnly` flag + page gate via `useMePermissions().isSuperAdmin`): list + create + edit
+  dialogs; tax section (จด VAT switch, อัตรา VAT เป็น %, วันที่จด, โหมด ภ.พ.30) แยก block + §4.6 warning
+  callout. BE เพิ่ม `GET /companies/{id}` (CompanyDetailDto — PUT เป็น whole-row replace ต้อง prefill ครบ).
+  🔴 fixed: `PaidUpCapitalCard` PUT เดิมไม่ส่ง vatRate/pnd30 → จะ reset tax config เป็น default เงียบๆ.
+  Company admin แก้ข้อมูลบริษัทตัวเอง = หน้า `/settings/company` เดิม (soft fields + registered address).
+  tsc 0 · i18n parity 45/45 · CompanyTaxConfigTests 6/6 ×2 · Api full 300/0/1 ×2 · visual-verified.
+- ☐ **e2e (Playwright) pass over non-VAT flows** — BE behavior unchanged for VAT companies; non-VAT
+  e2e still drives the OLD env toggle assumption → review specs that mention VAT mode.
+
+---
+
 ## ▶ Payroll module (spec: `docs/superpowers/specs/payroll-module-design-2026-05-31.md` + `payroll-next-session-plan.md`)
 
 - ☑ **P-A — Employee master** (cont.82.1) — entity/CRUD/FE/RLS/perm, committed `f9e65ee`.

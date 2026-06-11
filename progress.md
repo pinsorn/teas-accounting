@@ -3,6 +3,66 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-11 (cont. 90) — **Per-company VAT mode (§4.6 amendment, มติ Ham)**: `Tax:VatMode`/`VatRate`/`Pnd30SubmissionMode` ย้ายจาก env config → `master.companies`. Build **0/0** · Domain **137/137** · affected classes **24/24 ×2** · Api full **299 passed / 0 failed / 1 skip** · live smoke ✓. **NOT committed — pending Ham.**
+
+- **ที่มา:** Ham ถามเรื่อง 1 instance รองรับกี่ company → ตัดสินใจคง multi-tenant instance เดียว แต่ให้
+  VAT mode ตั้งแยกต่อ company ได้ (แทนแนวทาง 1-instance-1-company). **§4.6 เปลี่ยน:** tax config =
+  company master data, แก้ได้ทาง `POST/PUT /companies` (super-admin `Master.CompanyManage`) เท่านั้น,
+  ทุกการแก้ tax field ลง `audit.activity_log` (`tax_config_change`), **ห้ามเป็น UI setting ปกติ** —
+  เจตนาเดิม (กันมือเปลี่ยน + audit trail) ครบ. Spec: `docs/superpowers/specs/per-company-vat-mode.md`.
+- **Schema (migration `20260611091924_CompanyTaxConfig`, applied dev+teas_test):** `companies` +
+  `vat_rate numeric(5,4) NOT NULL DEFAULT 0.07` + `pnd30_submission_mode text NOT NULL DEFAULT 'manual'`
+  (+ ck `IN ('manual','auto')`, ck vat_rate 0–1; `vat_registered` มีอยู่แล้ว = live switch).
+  ⚠️ footgun เจอจริง: snake_case convention แปลง `Pnd30SubmissionMode` → `pnd30submission_mode`
+  (digit boundary) ชน ck constraint → ต้อง `HasColumnName("pnd30_submission_mode")` explicit.
+- **Backend:** `ICompanyTaxConfigService.GetAsync(ct)` (Application.Abstractions) + scoped impl
+  (อ่าน company row ของ tenant, per-request cache; labels non-VAT มาจาก `VatModeOptions` เดิม —
+  เหลือแค่ labels ใน options/`TaxConfig` แล้ว). Consumer swap 11 services (TI/RC/BN/Q-chain/SO-DO/TAN/
+  SalesChainPdf/VatThreshold/TaxFiling/WhtFiling + partials `.Read.cs`); sync helpers เปลี่ยนเป็น
+  async/รับค่า param (`EnsureVatRegisteredAsync`, `SubmissionModeAsync`, `Summary(showVat)`).
+  `/system/info` (root + v1) อ่านจาก service + root **เปลี่ยนเป็น RequireAuthorization** (ต้องมี tenant).
+  DTO: Create/Update/CompanyDto + `VatRate`/`Pnd30SubmissionMode` (default 0.07/"manual") +
+  `UpdateCompanyValidator` ใหม่ (PUT เดิมไม่ validate เลย). appsettings: ตัด VatMode/VatRate/
+  Pnd30SubmissionMode ออกจาก Tax section (เหลือ labels/rounding).
+- **Tests (subagent B + main):** 5 ไฟล์ที่เคย inject `["Tax:VatMode"]` (ตอนนี้ no-op เงียบ) rework —
+  vatMode=true ลบ config ตาย, vatMode=false ใช้ `Fixtures/TestCompanyFactory.CreateAsync(conn,
+  vatRegistered:false)` (ผ่าน `ICompanyService.CreateAsync` จริง + HQ branch 00000 + CoA ขั้นต่ำ +
+  customer, TestIds ทุก unique, **ห้ามแตะ company 1** — suite แชร์ teas_test; มี setval sequence fix
+  เพราะ seed ใส่ id ตรง). ใหม่: `Master/CompanyTaxConfigTests` (per-company values, audit row on
+  tax change / ไม่ลงเมื่อแก้ field อื่น, 400 bogus mode/rate, ck constraint, system/info per-company).
+- **Gates:** build 0/0 · Domain 137/137 · affected classes 24/24 **×2 ติดกัน** (teas_test) · Api full
+  **299/0/1 skip** (baseline 294 + 5 ใหม่; skip = visual-emit เดิม) · live smoke: login → `/system/info`
+  = `vat_mode:true, vat_rate:0.0700, pnd30:manual` จาก company 1 row, no-token → **401**. FE ไม่แตะ
+  (`useSystemInfo()` shape เดิม; vat_rate เป็นค่า company แล้ว). openapi: `/companies` GET/POST/PUT +
+  `Company`/`CreateCompanyRequest`/`UpdateCompanyRequest` schemas + SystemInfo per-company note
+  (**Sana delta**) — YAML parse OK. CLAUDE.md §4.5/§4.6/§6 updated. :5080 restarted (Development).
+- **ค้าง/ตามต่อ:** e2e Playwright ยังอิง assumption env-toggle เดิมสำหรับ non-VAT flows (ดู plan) ·
+  subagent B โดน session limit กลางคัน — งานเสร็จบนดิสก์แล้ว main verify ต่อจนครบ gate.
+
+### cont. 90b (คืนเดียวกัน) — FE super-admin `/settings/companies` (มติ Ham: ให้แก้บน FE ได้)
+
+- **BE:** `GET /companies/{id}` ใหม่ (`CompanyDetailDto` full row — จำเป็นเพราะ `PUT /companies/{id}`
+  เป็น whole-row replace, FE ต้อง prefill ทุก field ไม่งั้น address โดน blank) + test ใน
+  `CompanyTaxConfigTests` (รวมเป็น 6 ตัว).
+- **FE:** หน้า `/settings/companies` ใหม่ (super-admin เท่านั้น): ตารางบริษัท (taxId, ชื่อ, จด/ไม่จด VAT
+  badge, อัตรา VAT %, โหมด ภ.พ.30, สถานะ) + create/edit dialogs — tax section แยก block สีเตือน +
+  AlertTriangle callout §4.6 (แก้ค่าภาษี = ลง audit log + มีผลทันที), vatRate กรอกเป็น % (7 ↔ 0.07),
+  pnd30 select ยื่นเอง/อัตโนมัติ. Nav: `superAdminOnly` flag ใหม่ใน `SidebarNav` (mirror pattern `vatOnly`),
+  page gate `useMePermissions().isSuperAdmin`. Types/queries ใหม่ (`useCompanies/useCompany/
+  useCreateCompany/useUpdateCompany` — update invalidate `['system-info']` ด้วยเพราะ vat fields กระทบทั้ง app).
+  **🔴 bug เจอระหว่างทำ (subagent FE):** `PaidUpCapitalCard` ใน `/settings/company` PUT โดยไม่ส่ง
+  vatRate/pnd30SubmissionMode → BE default จะ **reset tax config เงียบๆ** ทุกครั้งที่บันทึกทุน — แก้แล้ว
+  (echo ค่าเดิมจาก row). บทเรียน whole-row-replace + DTO defaults.
+- **Company admin ตามที่ Ham ขอ:** หน้า `/settings/company` เดิมครอบอยู่แล้ว (soft fields: ชื่อการค้า/โลโก้/
+  เบอร์/อีเมล/เว็บ/ผู้ติดต่อ + registered address พร้อม DBD warning gate) — ไม่ต้องสร้างใหม่; tax fields
+  จงใจไม่อยู่หน้านี้ (§4.6 = super-admin เท่านั้น).
+- **Gates:** build 0/0 · `CompanyTaxConfigTests` 6/6 **×2** · Api full **300/0/1 ×2 ติดกัน** (run แรกสุด
+  มี 1 fail transient ไม่ reproduce — ไม่ใช่ class ที่แตะ, output ถูก truncate ระบุชื่อไม่ได้, เฝ้าต่อ) ·
+  FE tsc 0 · i18n parity 45/45 · ম clean · live smoke `GET /companies/1` 200 detail ครบ · **visual-verified**
+  (login → /settings/companies: ตาราง 2 บริษัท + edit dialog prefill + tax warning ถูกต้อง — screenshot ส่ง Ham).
+  openapi: `GET /companies/{id}` + `CompanyDetail` schema (**Sana delta**). :5080 + :3000 รันอยู่.
+  **ยังไม่ commit — รอ Ham.**
+
 ## 2026-06-11 (cont. 89) — **ภ.ง.ด.50 v2 = default + CIT dashboard** (commit `5e682e9`) · **หน้า `/documents` รวมฟอร์ม RD** (commit `b2295c2`). Build **0/0** · Domain **137/137** · Api **294/294 ×2** · tsc **0** · i18n parity (cit 65/65 + documents 86/86) · ম clean.
 
 - **หน้า `/documents` (queue item 2, commit `b2295c2`):** ตารางฟอร์ม RD จัดกลุ่ม 7 หมวด (VAT/vatRequest/WHT/CIT/PIT/SBT/Stamp) — code, ชื่อ, ความถี่, กำหนดยื่น (text), tier badge (ใช้งานจริง/ตามขอบเขต/อ้างอิง) + ปุ่มลิงก์ฟอร์ม + การ์ดช่องทางยื่น (e-Filing/Open API/e-Stamp/DBD/ปฏิทินภาษี). **มติ Ham 2026-06-11: ลิงก์ official RD URL** (เปิด tab ใหม่ ได้ version ล่าสุดเสมอ) — ไม่ serve PDF ที่ commit ไว้, ไม่เพิ่ม backend endpoint. `frontend/lib/rd-forms.ts` (static registry: 26 ฟอร์ม + URLs จาก `_meta.md` Source URLs) — names/deadlines อยู่ใน i18n (`documents.form.<code>`), module เก็บแค่ structural facts. nav item ใต้ reports. **Rendered + visual-verified** (login → /documents, viewport 660px + 1440px — channels/category/ปุ่ม PDF+หน้ากรมฯ ครบ, deadline 2 บรรทัด, ตารางพอดีจอกว้าง). FE tsc 0 · documents i18n parity 86/86.

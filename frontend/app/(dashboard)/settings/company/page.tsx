@@ -370,6 +370,10 @@ function PaidUpCapitalCard({ profile }: { profile: CompanyProfile }) {
         email: profile.email,
         isActive: row.isActive,
         paidUpCapital: parsed,
+        // Per-company VAT mode — PUT is a full-row replace; echo the current tax
+        // config or the BE would reset it to defaults (0.07 / manual).
+        vatRate: row.vatRate,
+        pnd30SubmissionMode: row.pnd30SubmissionMode,
       };
       await apiPut<unknown>(`companies/${row.companyId}`, payload);
       setRow({ ...row, paidUpCapital: parsed });

@@ -8,13 +8,15 @@ import { useEffect, useState } from 'react';
 import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
-import { useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useCompanyProfile, useMePermissions, useSystemInfo } from '@/lib/queries';
 import { toast } from 'sonner';
 
 // vatOnly: shown only for VAT-registered companies (ม.86). Non-VAT companies do
 // not file ภ.พ.30, so that item is hidden. WHT filings (ภ.ง.ด.3/53) stay — a
 // non-VAT company is still a withholding agent.
-type NavItem = { href: string; key: string; Icon: typeof LayoutDashboard; badge?: number; vatOnly?: boolean };
+// superAdminOnly: shown only for super admins (hidden, not disabled — same rule
+// as PermissionGate; BE enforces master.company.manage regardless).
+type NavItem = { href: string; key: string; Icon: typeof LayoutDashboard; badge?: number; vatOnly?: boolean; superAdminOnly?: boolean };
 
 const SECTIONS: { key: string; items: NavItem[] }[] = [
   {
@@ -77,6 +79,8 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
     key: 'settings',
     items: [
       { href: '/settings/company', key: 'company', Icon: Building2 },
+      // Per-company VAT mode — super-admin companies CRUD (tax config per tenant).
+      { href: '/settings/companies', key: 'companies', Icon: Landmark, superAdminOnly: true },
       { href: '/settings/products', key: 'products', Icon: Package },
       { href: '/settings/business-units', key: 'businessUnits', Icon: Layers },
       { href: '/settings/employees', key: 'employees', Icon: Users },
@@ -104,6 +108,8 @@ export function SidebarNav() {
   // ม.86 — hide VAT-only items (ภ.พ.30) for non-VAT companies. Default true so the
   // menu is unchanged before /system/info resolves and for VAT registrants.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // Default false: super-admin-only items appear only once /me/permissions confirms.
+  const isSuperAdmin = useMePermissions().data?.isSuperAdmin ?? false;
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1');
@@ -183,7 +189,9 @@ export function SidebarNav() {
                   {t(`section.${section.key}`)}
                 </div>
               ))}
-            {section.items.filter((it) => !it.vatOnly || vatMode).map(({ href, key, Icon, badge }) => {
+            {section.items
+              .filter((it) => (!it.vatOnly || vatMode) && (!it.superAdminOnly || isSuperAdmin))
+              .map(({ href, key, Icon, badge }) => {
               const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
               return (
                 <Link
