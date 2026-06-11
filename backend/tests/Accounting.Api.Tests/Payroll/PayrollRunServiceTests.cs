@@ -240,6 +240,32 @@ public sealed class PayrollRunServiceTests
         doc.PageCount.Should().BeGreaterThanOrEqualTo(3);   // main (2) + ≥1 ใบแนบ
     }
 
+    // P-D #4 — annual employee 50ทวิ (ม.50ทวิ): aggregates the employee's POSTED slips by
+    // payment year into one ม.40(1) row, rendered as the official 2-copy certificate.
+    [SkippableFact]
+    public async Task Employee_annual_wht50tawi_renders_two_copies()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var y = await FreshYearAsync(sp);
+        var empId = await AddEmployee(sp, 60_000m);
+        await RunThroughPost(sp, Period(y, 1));
+        await RunThroughPost(sp, Period(y, 2));
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var pdf = await svc.BuildEmployeeWht50TawiAsync(empId, y, default);
+
+        System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+        using var ms = new System.IO.MemoryStream(pdf);
+        var doc = PdfSharp.Pdf.IO.PdfReader.Open(ms, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        doc.PageCount.Should().Be(2, "RD requires ฉบับที่ 1 + ฉบับที่ 2");
+
+        // No slips PAID to this employee in the prior year (filter is per-employee) → no_data.
+        var act = () => svc.BuildEmployeeWht50TawiAsync(empId, y - 1, default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("payroll.no_data");
+    }
+
     // ม.52/ม.59 + ม.58(1) — ภ.ง.ด.1/1ก follow the PAYMENT date, not the payroll period:
     // a December-period run PAID in January belongs to the NEXT year's filings.
     [SkippableFact]

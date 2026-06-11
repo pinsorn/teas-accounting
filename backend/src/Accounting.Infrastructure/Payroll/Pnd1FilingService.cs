@@ -109,6 +109,57 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         return Pnd1aFormFiller.FillAnnual(model);
     }
 
+    public async Task<byte[]> BuildEmployeeWht50TawiAsync(long employeeId, int year, CancellationToken ct)
+    {
+        var prof = await db.CompanyProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+        var c = await db.Companies.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+
+        // ม.58(1)/ม.59 basis — everything PAID to the employee within the CE year.
+        var slips = await db.Payslips.AsNoTracking()
+            .Where(p => p.EmployeeId == employeeId
+                && p.Run!.Status == DocumentStatus.Posted && p.Run.PayDate.Year == year)
+            .Select(p => new
+            {
+                p.NationalId, p.EmployeeName, p.AddressText,
+                p.GrossTaxable, p.PitWithheld, p.SsoEmployee, p.Run!.PayDate,
+            })
+            .ToListAsync(ct);
+        if (slips.Count == 0)
+            throw new DomainException("payroll.no_data",
+                $"Employee {employeeId} has no posted payroll paid in {year}.");
+
+        var emp = await db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.EmployeeId == employeeId, ct);
+        var s0 = slips[0];
+        var payeeName = emp is null
+            ? s0.EmployeeName
+            : $"{emp.TitleTh} {emp.FirstNameTh} {emp.LastNameTh}".Trim();
+
+        var payerAddress = string.Join(" ", new[]
+        {
+            prof?.RegisteredAddressLine1, prof?.RegisteredAddressLine2,
+            prof?.RegisteredSubdistrict, prof?.RegisteredDistrict,
+            prof?.RegisteredProvince, prof?.RegisteredPostalCode,
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        // Certificate reference — NOT a fiscal document number (§4.3 covers fiscal docs; the
+        // cert is regenerable evidence, same store-nothing stance as the vendor 50ทวิ PDFs).
+        var docNo = $"50T-{year}-E{employeeId:0000}";
+
+        return Wht50TawiFormFiller.FillCopies(new Wht50TawiData(
+            DocNo: docNo, FormType: "Pnd1",
+            PayerName: prof?.LegalName ?? c?.NameTh ?? "",
+            PayerTaxId: prof?.TaxId ?? c?.TaxId, PayerAddress: payerAddress,
+            PayeeName: payeeName, PayeeTaxId: s0.NationalId,
+            PayeeAddress: s0.AddressText,   // payslip snapshot = composed structured address
+            IncomeTypeMa40: "1",
+            IncomeDescription: null,   // ม.40(1) row is pre-printed; (ระบุ) is for ม.40(5)-(8)
+            PayDate: slips.Max(s => s.PayDate),
+            IncomeAmount: slips.Sum(s => s.GrossTaxable),
+            WhtAmount: slips.Sum(s => s.PitWithheld),
+            SsoContribution: slips.Sum(s => s.SsoEmployee)));
+    }
+
     // EmployeeId → (ชื่อ = title + first name, ชื่อสกุล = last name) for the form's split name boxes.
     private async Task<Dictionary<long, (string First, string Last)>> NameMapAsync(
         IEnumerable<long> employeeIds, CancellationToken ct)

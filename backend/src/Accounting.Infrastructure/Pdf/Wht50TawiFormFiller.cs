@@ -6,7 +6,10 @@ public sealed record Wht50TawiData(
     string PayerName, string? PayerTaxId, string? PayerAddress,
     string PayeeName, string? PayeeTaxId, string? PayeeAddress,
     string IncomeTypeMa40, string? IncomeDescription, DateOnly PayDate,
-    decimal IncomeAmount, decimal WhtAmount);
+    decimal IncomeAmount, decimal WhtAmount,
+    // P-D #4 (employee annual cert) — เงินสมทบประกันสังคมทั้งปี printed in the fund box
+    // (Text1.0.1); employees use it for their PIT filing. Null (vendor certs) = blank.
+    decimal? SsoContribution = null);
 
 /// <summary>
 /// Maps a WHT certificate onto the official RD 50ทวิ AcroForm and renders it via the generic
@@ -95,6 +98,9 @@ public static class Wht50TawiFormFiller
         // fund-contribution fields — Text1.0.0 กบข./กสจ./กองทุนสงเคราะห์ครูเอกชน, Text1.0.1
         // ประกันสังคม, Text1.1.0 กองทุนสำรองเลี้ยงชีพ — N/A for a PV-sourced WHT cert → left blank.
         f.Add(new("total", BahtText.Of(d.WhtAmount)));
+        // P-D #4 — the annual employee cert carries the year's SSO contributions (ประกันสังคม box).
+        if (d.SsoContribution is { } sso && sso > 0)
+            f.Add(new("Text1.0.1", Money(sso), Right: true));
         f.Add(new("chk8", "X", Check: true));   // (1) หักภาษี ณ ที่จ่าย — TEAS always withholds
         f.Add(new("date_pay", d.PayDate.Day.ToString()));
         f.Add(new("month_pay", ThaiMonth(d.PayDate.Month)));
