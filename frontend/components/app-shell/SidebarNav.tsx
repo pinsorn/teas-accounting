@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
 import { useCompanyProfile, useSystemInfo } from '@/lib/queries';
@@ -68,6 +68,7 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/reports/outstanding-po', key: 'outstandingPo', Icon: ListChecks },
       { href: '/reports/ap-aging', key: 'apAging', Icon: Coins },
       { href: '/tax-filings', key: 'taxFilings', Icon: Landmark },
+      { href: '/documents', key: 'documents', Icon: Files },
       { href: '/tax-filings/missing-wht-cert', key: 'missingWhtCert', Icon: FileSpreadsheet },
       { href: '/reports/wht-receivable', key: 'whtReceivable', Icon: Coins },
     ],
