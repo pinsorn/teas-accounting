@@ -457,21 +457,90 @@ paths:
           description: Created
 
   # ============================================================
-  # CUSTOMER RECEIPTS (รับเงินจากลูกค้า)
+  # RECEIPTS (ใบเสร็จรับเงิน) — actual route /receipts (was /customer-receipts)
   # ============================================================
-  /customer-receipts:
+  /receipts:
     post:
-      summary: บันทึกรับเงินจากลูกค้า
-      tags: [Customer Receipts]
+      summary: สร้างใบเสร็จรับเงิน (Draft)
+      description: |
+        Apply-mode (VAT path): `applications[]` — exactly ONE of
+        `taxInvoiceId` / `deliveryOrderId` / `billingNoteId` per application.
+        Standalone mode (non-VAT cash bill): empty `applications` + own `lines[]`.
+        WHT the customer withheld: `whtLines[]` (preferred, multi income-type)
+        or legacy single `whtAmount`+`whtTypeId`.
+      tags: [Receipts]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CustomerReceiptCreateRequest'
+              $ref: '#/components/schemas/CreateReceiptRequest'
       responses:
-        '201':
-          description: Created
+        '201': { description: Created (Draft — doc number assigned on post) }
+    get:
+      summary: รายการใบเสร็จ (cursor pagination)
+      tags: [Receipts]
+      responses:
+        '200': { description: OK }
+
+  /receipts/{id}/post:
+    post:
+      summary: Post ใบเสร็จ (ออกเลขเอกสาร + ลง GL)
+      tags: [Receipts]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Posted }
+
+  /receipts/{id}/pdf:
+    get:
+      summary: PDF ใบเสร็จ (?copy=true สำเนา)
+      tags: [Receipts]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: copy, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: PDF }
+
+  # ── Document chain + print tracking (cont.66/69 shipped contract) ──────────
+  /documents/chain:
+    get:
+      summary: เชน Q→SO→DO→Invoice→TI→RC ของเอกสารหนึ่งใบ (ทุก detail page ใช้)
+      tags: [Documents]
+      parameters:
+        - { name: docType, in: query, required: true, schema: { type: string, example: TI } }
+        - { name: docId, in: query, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: 'Chain nodes (docType, id, docNo, status, printedAt)' }
+
+  /delivery-orders/{id}/create-invoice:
+    post:
+      summary: สร้างใบแจ้งหนี้ (Billing Note) จาก Delivery Order
+      tags: [Delivery Orders]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '201': { description: 'BN draft created (id returned)' }
+
+  /billing-notes/{id}/create-tax-invoice:
+    post:
+      summary: สร้างใบกำกับภาษีจากใบแจ้งหนี้ (VAT-registered company only — ม.86)
+      tags: [Billing Notes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '201': { description: TI draft created }
+        '422': { description: 'ti.non_vat_blocked — non-VAT company cannot issue a Tax Invoice' }
+
+  /{docRoute}/{id}/mark-printed:
+    post:
+      summary: 'บันทึกการพิมพ์ ต้นฉบับ/สำเนา (docRoute ∈ quotations | sales-orders | delivery-orders | invoices)'
+      tags: [Documents]
+      parameters:
+        - { name: docRoute, in: path, required: true, schema: { type: string, enum: [quotations, sales-orders, delivery-orders, invoices] } }
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: 'Print recorded (first print = ต้นฉบับ, after = สำเนา)' }
 
   # ============================================================
   # VENDOR INVOICES (ใบกำกับภาษีซื้อ) — Sprint 5.5/6
@@ -2374,27 +2443,60 @@ components:
             $ref: '#/components/schemas/LineItem'
 
     # === Customer Receipt ===
-    CustomerReceiptCreateRequest:
+    CreateReceiptRequest:
       type: object
-      required: [customer_id, payment_method, received_amount, applications]
+      description: 'Shipped contract of POST /receipts (camelCase JSON; replaces the stale CustomerReceiptCreateRequest).'
+      required: [docDate, customerId, paymentMethod, currencyCode, exchangeRate, applications]
       properties:
-        customer_id: { type: integer }
-        payment_method:
-          type: string
-          enum: [CASH, TRANSFER, CHEQUE, CREDIT_CARD]
-        bank_account_id: { type: integer, nullable: true }
-        cheque_no: { type: string, nullable: true }
-        cheque_date: { type: string, format: date, nullable: true }
-        cheque_bank: { type: string, nullable: true }
-        received_amount: { type: number }
-        wht_amount: { type: number, default: 0 }
+        docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok)' }
+        customerId: { type: integer, format: int64 }
+        paymentMethod: { type: string, enum: [Cash, Transfer, Cheque, CreditCard] }
+        chequeNo: { type: string, nullable: true }
+        chequeDate: { type: string, format: date, nullable: true }
+        bankAccountId: { type: integer, format: int64, nullable: true }
+        currencyCode: { type: string, example: THB }
+        exchangeRate: { type: number, example: 1 }
+        notes: { type: string, nullable: true }
+        businessUnitId: { type: integer, nullable: true }
         applications:
           type: array
+          description: 'Apply-mode: exactly ONE of taxInvoiceId / deliveryOrderId / billingNoteId per item. Empty array = standalone non-VAT receipt (use lines).'
           items:
             type: object
+            required: [appliedAmount]
             properties:
-              tax_invoice_id: { type: integer }
-              applied_amount: { type: number }
+              taxInvoiceId: { type: integer, format: int64, nullable: true }
+              deliveryOrderId: { type: integer, format: int64, nullable: true }
+              billingNoteId: { type: integer, format: int64, nullable: true }
+              appliedAmount: { type: number }
+        whtAmount: { type: number, default: 0, description: 'LEGACY single-category WHT (use whtLines instead)' }
+        whtTypeId: { type: integer, nullable: true }
+        customerWhtCertNo: { type: string, nullable: true }
+        customerWhtCertDate: { type: string, format: date, nullable: true }
+        whtLines:
+          type: array
+          description: 'Preferred multi-income-type WHT the customer withheld; rate/amount computed server-side.'
+          items:
+            type: object
+            required: [whtTypeId, baseAmount]
+            properties:
+              whtTypeId: { type: integer }
+              baseAmount: { type: number }
+        lines:
+          type: array
+          description: 'Non-VAT standalone receipt lines (cash bill) — only when applications is empty. No VAT field (ม.86).'
+          items:
+            type: object
+            required: [descriptionTh, quantity, unitPrice, amount]
+            properties:
+              descriptionTh: { type: string }
+              quantity: { type: number }
+              unitPrice: { type: number }
+              amount: { type: number }
+              productId: { type: integer, format: int64, nullable: true }
+              productCode: { type: string, nullable: true }
+              productType: { type: string, default: GOOD }
+              uomText: { type: string, nullable: true }
 
     # === Vendor Invoice — Sprint 5.5/6 shipped contract ===
     CreateVendorInvoiceRequest:
