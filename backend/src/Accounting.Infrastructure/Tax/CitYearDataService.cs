@@ -165,6 +165,31 @@ public sealed class CitYearDataService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<IReadOnlyList<ExpenseAccountRow>> ExpenseByAccountAsync(
+        int fiscalYear, CancellationToken ct)
+    {
+        EnsureAuth();
+        var (start, end) = await FiscalBoundsAsync(fiscalYear, ct);
+
+        // Same posted-entry/date-window basis as FinancialReportService.ProfitLossAsync (which
+        // ProfileAsync uses), restricted to Expense accounts and grouped per account — so
+        // Σ Amount reproduces the P&L expense total and the รายการที่ 7 foot guard holds.
+        var rows = await db.JournalLines.AsNoTracking()
+            .Join(db.JournalEntries.AsNoTracking(), l => l.JournalId, j => j.JournalId,
+                  (l, j) => new { l, j })
+            .Join(db.ChartOfAccounts.AsNoTracking(), x => x.l.AccountId, a => a.AccountId,
+                  (x, a) => new { x.l, x.j, a })
+            .Where(x => x.j.Status == Domain.Enums.DocumentStatus.Posted
+                        && x.j.DocDate >= start && x.j.DocDate <= end
+                        && x.a.AccountType == Domain.Enums.AccountType.Expense)
+            .GroupBy(x => new { x.a.AccountCode, x.a.AccountNameTh })
+            .Select(g => new ExpenseAccountRow(
+                g.Key.AccountCode, g.Key.AccountNameTh,
+                g.Sum(x => x.l.DebitAmount) - g.Sum(x => x.l.CreditAmount)))
+            .ToListAsync(ct);
+        return rows.OrderBy(r => r.AccountCode).ToList();
+    }
+
     public async Task<CitProfileDto> ProfileAsync(int fiscalYear, CancellationToken ct)
     {
         EnsureAuth();
