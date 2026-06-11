@@ -83,8 +83,10 @@ compliance §4.7 → **ถาม Ham ก่อน**.
    (ladder/WHT-cert/งบฐานะ cards + refusal warnings). v1 adjustments/loss guard หายไป; แก้ double-count
    (`AccountingNetProfit` ไม่ใช่ `EffectiveNetProfit`). Visual gate ผ่าน — crops ส่ง Ham, **รอยืนยันยื่นจริง**.
    Api 294/294 ×2 · Domain 137/137 · tsc 0. plan `2026-06-11-pnd50-v2-dashboard.md`.
-2. **หน้าเว็บรวมเอกสาร `/documents`** — ตารางฟอร์ม RD จาก docs/RD-Forms (commit แล้ว 21574b1)
-   + กำหนดยื่น + ปุ่มเปิด PDF.
+2. ☑ **DONE (cont.89) — หน้า `/documents`** — ตารางฟอร์ม RD จัดกลุ่มตามหมวด (VAT/WHT/CIT/PIT/SBT/Stamp)
+   + กำหนดยื่น + tier badge + ปุ่มลิงก์ฟอร์มทางการ. **มติ Ham: ลิงก์ official RD URL** (เปิด tab ใหม่
+   ได้ version ล่าสุด) ไม่ serve PDF ที่ commit. `lib/rd-forms.ts` + i18n th/en (86 keys parity) +
+   nav item. Rendered + visual-verified. commit `b2295c2`.
 3. **Dev DB ล้างบาง** ("หลอนหมดแล้ว"): pg_dump backup → drop/recreate accounting_dev →
    reseed → mint Reptify key ใต้ company 2 → e2e re-baseline. ทำคู่ M15 dump อัตโนมัติ.
    (keys 2,3,4 revoke แล้ว 2026-06-11)
