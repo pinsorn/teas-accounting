@@ -57,14 +57,14 @@
   `CitCalculator` (`TaxOnProfit`/`Compute` [statutory order: loss→base, credits→tax] / `HalfYearPrepayment` ม.67ทวิ /
   `UnderEstimatePenalty` ม.67ตรี). Golden `CitCalculatorTests` **18/18** (+2 for 51 prepay/penalty). Domain 0/0. **Committed cont.84.**
   ⚠️ owed: a worked-example anchor from `pnd50/51_instructions.pdf` (rates currently trace to `_meta.md`).
-- ☑ **Phase C-B — ภ.ง.ด.51** (ম.67ทวิ mid-year prepay, do FIRST): probe `pnd51_020768.pdf` `/Fields` → `Pnd51FormFiller`
+- ☑ **Phase C-B — ภ.ง.ด.51** (ม.67ทวิ mid-year prepay, do FIRST): probe `pnd51_020768.pdf` `/Fields` → `Pnd51FormFiller`
   + `Pnd51FilingService` (P&L H1 + Company header + SME classify) + endpoint `GET /tax-filings/pnd51/pdf?year=YYYY`
   + FE button; store the estimate for the year-end penalty check. Source PDF fillable (probed in kickoff).
   **BUILT + committed cont.84 (2026-06-06):** `IPnd51FilingService` + `Pnd51FilingService` (fiscal-year H1 estimate ×2,
   caller override, `isSme` picks SME/General schedule, header from CompanyProfile) + `Pnd51FormFiller` (RdAcroFormFiller,
   embedded `pnd51_main.pdf`) + endpoint `GET /tax-filings/pnd51/pdf?year&estimatedProfit&whtH1&isSme` (FilingPreview) +
   FE `tax-filings/pnd51` page + i18n. Build 0/0 · Domain 18/18 · Api Pnd51 2/2. ⚠️ Ham visual-validation of render pending;
-  auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate (ম.67ตรี year-end penalty) not yet wired.
+  auto-SME deferred to C-C (needs `PaidUpCapital`); store-the-estimate (ม.67ตรี year-end penalty) not yet wired.
   - ☑ **page-2 Task 2 — page-aware Render (cont.85, committed `bf45143`):** overlay each field onto its own widget's
     page; per-page sizes + `/Annots`→page map; flatten all pages; `copies` = full set. No new API / no pnd51 branch —
     single-page output pixel-identical (50ทวิ + ภ.ง.ด.1 crops + pnd51 p1). `RdAcroFormFillerMultiPageTests` 2/2 · suite 62/62.
@@ -93,11 +93,16 @@
       + v1 scope in `docs/superpowers/specs/pnd50-fieldmap-recon.md`. p2 = รายการที่ 1 คำนวณภาษี
       (662/665/666/670/672 + Group4/5/21/6/7/8); p6 = งบฐานะ (`BalanceSheetAsync` ready).
       ❗Open: กำไรสุทธิ box 46-47 widget not found on its row — resolve with 0-fill raster FIRST.
-    - ☐ build: 0-fill raster p1+p2 (resolve open Qs, render-confirm every radio) → `pnd50_cells.json`
-      geometry → `Pnd50FormFiller` (p1 header + p2 รายการที่ 1, THB only, refuse-on-unrenderable guard
-      like pnd51 §4) → visual gate → `Pnd50FilingService` (P&L FY + Σ`cit_adjustments` + loss c/f +
-      WHT credit + 51 prepay from store + `CitCalculator.Compute`/`UnderEstimatePenalty`) + endpoint + FE.
-      DEFER p3-5/p7 detail pages.
+    - ☑ **build v1 (cont.88, 2026-06-11 — plan `2026-06-11-pnd50-form-fill.md`):** `pnd50_cells.json`
+      geometry (taxid 13 cells, boxes 661-672 = 11+2) → `RdRadio` on-state selection (unknown state
+      throws) → pure `BuildSheet` + §4 guard `pnd50.not_attestable` (11 tests) → `Pnd50FormFiller`
+      (p1 header + p2 รายการที่ 1, radios by on-state per radiomap) → **visual gate passed**
+      (profit/loss/SME rasters read-verified; crops to Ham — รอยืนยันก่อนยื่นจริง) →
+      `Pnd50FilingService` (CitProfile + store estimate/prepaid + FY WHT register +
+      `CitCalculator.Compute`/`UnderEstimatePenalty`) + `GET /tax-filings/pnd50/pdf` + openapi +
+      FE card on `/tax-filings/cit`. Api 277/277 ×2 · tsc 0 · live smoke 200/422.
+    - ☐ v2: รายการที่ 2 ladder (`cit_adjustments` → p3) + loss c/f rendering + p6 งบฐานะ
+      (`BalanceSheetAsync` ready) + ยื่นเพิ่มเติม path. DEFER p4-5/p7 detail pages.
 - ☐ **Phase C-D — ภ.ง.ด.50 attachments** (5 ใบแนบ) + disclosure (ม.71ทวิ) + balance-sheet section. Largest; do last.
 
 ---

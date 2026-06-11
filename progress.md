@@ -3,6 +3,23 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-11 (cont. 88) — NEXT-SESSION queue executed: **M13 ปิด (ไม่ใช่ RLS!)** · **ภ.ง.ด.50 v1 FORM FILL ship แล้วถึง FE** · SO/DO filter fix · cleanups. Build **0/0** · Domain **137/137** · Api **277/277 ×2** (teas_test) · tsc **0**.
+
+- **M13 root cause (commit `487564c`) — สองบั๊กจริง, ทฤษฎี RLS-FORCE ใน NEXT-SESSION ผิดประเด็น:**
+  1. **Cross-company BU hole:** EF tenant filter มี super-admin bypass (`IsSuperAdmin || CompanyId==…`) → admin (super, company 1) เห็น/ผูก BU 3 REPT **ของ company 2** ตอน mint key ได้ → key principal (non-super) มองไม่เห็น BU นั้น → `bu.invalid` = **ระบบ enforce ถูก ไม่ใช่ regression**. แก้: BU validation เป็น company-explicit ทุกจุด — ApiKeyService mint, BusinessUnitService CRUD/list/dup-check (dup ต่อ company ตาม ix), ProductService guard, 6 doc services (TI/RC/TAN/PV/PO/VI). Tests ใหม่ `CrossCompanyBuIsolationTests` 5 ตัว (red→green).
+  2. **ApiKey principal ไม่มี Branch claim** → `tenant.BranchId=0` → JE numbering เปิด sequence (branch 0) ใหม่ → doc_no ชน `ix_journal_entries_company_id_doc_no` (คือ 500 ตอน post ที่เคยโทษ "§14 GL desync"). แก้: resolver ส่ง `HeadOfficeBranchId` → handler ใส่ `TenantClaims.BranchId`.
+  - e2e `external-api-microservice` ปลด skip → **เขียวเต็ม 2× รวม post + REPT numbering**.
+  - 🚨 **พบเพิ่ม รอ Ham ตัดสิน:** (a) role `accounting` บน dev มี **BYPASSRLS** → RLS ทั้งระบบไม่ทำงานจริง (§4.7 defense layer = inert; FORCE/ไม่ FORCE ไม่มีผล) — infra decision; (b) dev keys 2,3,4 ("Reptify Shopify"/dbg) ผูก company 1 + BU 3 ข้าม company — ควร revoke/remint ใต้ company ที่ถูก (Reptify จริงน่าจะ = company 2 แบบ key 1 ECOM).
+- **ภ.ง.ด.50 Phase C-C v1 (plan `docs/superpowers/plans/2026-06-11-pnd50-form-fill.md`, inline ครบ 6 tasks):**
+  - `pnd50_main.pdf` + `pnd50_cells.json` embed (geo.py: taxid 13 ช่อง, ทุก box 661-672 = 11 บาท + 2 สตางค์ — dash gap 3pt ไม่ใช่ cell)
+  - `RdAcroFormFiller`: **RdRadio เลือกด้วย on-state name** (`Group5=Choice2` ตาม radiomap) — on-state ผิด = throw ไม่ tick มั่ว; index path เดิมไม่แตะ (pnd1/1a/51/50ทวิ 17/17 เขียว)
+  - `Pnd50FilingService.BuildSheet` (pure, 11 tests): §4 guard `pnd50.not_attestable` — ไม่ attest (firstFiling+acceptBlankSchedules) / adjustments≠0 / loss c/f≠0 (ต้องใช้ ladder หน้า 3 ที่ v1 ไม่ render) / เงินเพิ่ม+ชำระไว้เกิน
+  - `Pnd50FormFiller.Fill`: p1 (taxid grid, ชื่อ, address `3`-`15`+`Text10.1`, รอบบัญชี พ.ศ., ยื่นปกติ, นิติบุคคลไทย Group00, ม.71ทวิ Group06/07, จำนวนเงินคู่เดียวตาม sign) + p2 รายการที่ 1 (Group4 บาท, Group5 ตาม sign, Group21/6 ทั่วไป/SMEs, boxes 661-672, Group7/8)
+  - **Visual gate ผ่าน:** profit/loss/SME rasters อ่านทุก crop — ตัวเลขลงช่องเป๊ะ, radio ตรง map ทุกตัว, address ไม่ off-by-one — crops ส่ง Ham แล้ว **รอยืนยันก่อนใช้ยื่นจริง**
+  - Service + `GET /tax-filings/pnd50/pdf?year&isSme&hasRelatedParty&attestFirstFiling&attestBlankSchedules` (FilingPreview) + openapi + **FE การ์ด ภ.ง.ด.50 บน `/tax-filings/cit`** (attest 2 checkbox + related-party, ปุ่ม disabled จนติ๊กครบ) + i18n th/en. Live smoke: attest → 200 PDF 1.3MB · ไม่ attest → 422.
+- **SO/DO status filter:** DataTable ได้ prop `urlFilters` — mirror filter ลง `?status=…` (router.replace) + restore ตอน mount; SO/DO opt-in. 2 specs ปลด skip → 4/4 เขียว (รวม reload). บทเรียน: `next dev` ค้างข้ามคืนไม่ hot-reload code ใหม่ — restart ก่อน debug FE.
+- **Cleanups:** `pv-sod-violations.spec.ts` → `pv-approval-permission.spec.ts` (pin contract ใหม่ตามมติ cont.77: self-approve ได้, permission-based) · `_pnd51_*.py` ย้ายเข้า `docs/RD-Forms/pnd51/fieldmap/`, PNG วินิจฉัย (regenerable) ลบ · INDEX/REPORT.md commit แล้ว (PDF binaries 75 ไฟล์ ~60MB ยัง untracked — รอ Ham ตัดสินเรื่อง repo size) · เหลือ M15 DB dump + `_review/` กอง raster.
+
 ## 2026-06-10 (cont. 87d) — **FULL-PROJECT TEST REVIEW** (Ham สั่ง "review ทั้งโปรเจกต์"): BE เขียวหมด, e2e suite ซ่อมจาก stale-UI 28 fails → **48 passed / 2 failed / 7 skipped**. Flaky 1 + helper เก่า 20+ spec แก้แล้ว. Suspected regressions คัดกรองแล้ว 1 ปลอม (SoD = มติ Ham) เหลือ 2 ต้องตาม.
 
 - **BE:** Domain **137/137** · Api เต็ม suite **251/251** (run1 เจอ flaky `Ytd_carries…` → root cause = RandYear ชน payroll run สะสมใน teas_test → `FreshYearAsync` เช็ค DB ก่อนเลือกปี, 8 call sites, commit `2abe050`) · FE tsc 0.
