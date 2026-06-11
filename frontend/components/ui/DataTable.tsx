@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -75,6 +76,7 @@ export function DataTable<T>({
   initialSorting = [],
   pageSize = 25,
   emptyContent,
+  urlFilters,
 }: {
   data: T[];
   columns: ColumnDef<T, unknown>[];
@@ -85,11 +87,50 @@ export function DataTable<T>({
   initialSorting?: SortingState;
   pageSize?: number;
   emptyContent?: ReactNode;
+  /** cont.88 — column ids (string-valued filters: 'select'/'text') mirrored to URL query
+   *  params, restoring the pre-redesign `?status=...` refresh/share contract. Init runs in
+   *  an effect (not the state initializer) so server and first client render agree. */
+  urlFilters?: string[];
 }) {
   const tc = useTranslations('common');
+  const router = useRouter();
+  const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+
+  useEffect(() => {
+    if (!urlFilters?.length) return;
+    const sp = new URLSearchParams(window.location.search);
+    const fromUrl = urlFilters
+      .map((id) => ({ id, value: sp.get(id) ?? '' }))
+      .filter((f) => f.value !== '');
+    if (fromUrl.length > 0) setColumnFilters((prev) => {
+      const untouched = prev.filter((f) => !urlFilters.includes(f.id));
+      return [...untouched, ...fromUrl];
+    });
+    // run once on mount — later changes flow the other way (state → URL)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onColumnFiltersChange = (
+    updater: ColumnFiltersState | ((old: ColumnFiltersState) => ColumnFiltersState),
+  ) => {
+    setColumnFilters((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (urlFilters?.length) {
+        const sp = new URLSearchParams(window.location.search);
+        for (const id of urlFilters) {
+          const v = next.find((f) => f.id === id)?.value;
+          if (typeof v === 'string' && v !== '') sp.set(id, v);
+          else sp.delete(id);
+        }
+        const qs = sp.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      }
+      return next;
+    });
+  };
 
   const table = useReactTable({
     data,
@@ -97,7 +138,7 @@ export function DataTable<T>({
     state: { sorting, columnFilters, globalFilter },
     getRowId: getRowId ? (r) => getRowId(r) : undefined,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

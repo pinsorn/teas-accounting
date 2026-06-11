@@ -71,6 +71,7 @@ export default function SalesOrdersPage() {
         getRowId={(r) => String(r.salesOrderId)}
         searchPlaceholder={t('docNo')}
         initialSorting={[{ id: 'docDate', desc: true }]}
+        urlFilters={['status']}
       />
     </>
   );

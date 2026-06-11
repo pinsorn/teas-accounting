@@ -7,11 +7,8 @@ import { login } from './_helpers';
 // transitions are exercised in Sana's deep-mode walk through Chrome MCP.
 
 test('delivery orders: list + filter URL persist', async ({ page }) => {
-  // SUSPECTED REGRESSION (design swap 2026-05-30): DO list rebuilt on the shared
-  // <DataTable> (see "cont.82" comment in app/(dashboard)/delivery-orders/page.tsx)
-  // with CLIENT-SIDE column filters; <FilterBar> (URL-persisted) has no importers
-  // left, so ?status=Issued never lands in the URL. Same as sales-order-flow.
-  test.skip(true, 'status filter no longer persists to URL after DataTable redesign — suspected regression, see report');
+  // cont.88 — regression FIXED: <DataTable urlFilters={['status']}> mirrors the
+  // status column filter into ?status=… (same fix as sales-order-flow).
   await login(page);
   await page.goto('/delivery-orders');
   await expect(page.locator('table')).toBeVisible({ timeout: 10_000 });
