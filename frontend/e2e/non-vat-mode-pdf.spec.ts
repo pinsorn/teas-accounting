@@ -1,35 +1,45 @@
 import { test, expect } from '@playwright/test';
-import { login, createAndPostTaxInvoice, detailDocNo } from './_helpers';
+import { login, pickCustomer } from './_helpers';
 
-// Sprint 8.5 — runs ONLY against a VatMode=false stack (Tax__VatMode=false on the
-// API process). VatMode is process-global env, so this spec is executed in a
-// dedicated second pass; the other 15 specs run against the normal VatMode=true
-// stack. See Report-Backend11 §4 (e2e-harness mechanism note).
+// Per-company VAT mode (2026-06-12) — VAT mode now lives on master.companies, so
+// the old mechanism (a dedicated second pass with Tax__VatMode=false on the API
+// process) is DEAD. Seed 440 provides a dedicated non-VAT tenant (company 3,
+// user nonvat-admin / Admin@1234) and this spec runs FIRST-CLASS in the normal
+// pass by logging into that company. Same instance serves VAT (company 1) and
+// non-VAT (company 3) side by side.
 //
-// Authoritative PDF-label correctness is covered by DocumentLabelsTests (unit,
-// deterministic) + the manual ×8 inspection. Here we assert the cleanest
-// VatMode=false observable: e-Tax CTA must NOT leak (ม.3 อัฏฐ — VAT-only), and
-// the document is still issuable (PDF downloads).
-test('non-VAT mode hides e-Tax CTA and still issues the document', async ({ page }) => {
-  test.setTimeout(90_000); // TI create+post alone can take ~25s post-redesign
-  await login(page);
-  await createAndPostTaxInvoice(page); // lands on /tax-invoices/{id}
+// Authoritative PDF-label correctness is covered by DocumentLabelsTests (unit);
+// here we assert the cleanest per-company non-VAT observables (ม.86 — only a
+// VAT-registered company may issue ใบกำกับภาษี):
+//  * ภ.พ.30 nav entry hidden (vatOnly filter, driven by /system/info vat_mode)
+//  * a billing note still issues, with NO VAT row on the detail
+//  * e-Tax CTA absent (ม.3 อัฏฐ — VAT-only)
+//  * the document is still printable (PDF downloads)
+test('non-VAT company: no VAT artifacts, billing note still issues', async ({ page }) => {
+  test.setTimeout(90_000);
+  await login(page, 'nonvat-admin');
 
-  // Per the header this spec is only meaningful on a VatMode=false stack (the
-  // dedicated second pass). On the normal VAT stack the e-Tax CTA legitimately
-  // renders, so SKIP instead of failing (previously this "passed" only because
-  // the async e-Tax section hadn't rendered when toHaveCount(0) sampled it).
-  await detailDocNo(page, 'TI'); // waits until the detail data has rendered
-  const vatStack = (await page.locator('main').innerText()).includes('ภาษีมูลค่าเพิ่ม 7%');
-  test.skip(vatStack, 'VatMode=true stack — non-VAT assertions run only in the dedicated VatMode=false pass');
+  // ม.86 — ภ.พ.30 is VAT-only; the sidebar must not offer it to a non-VAT company.
+  await expect(page.getByRole('link', { name: /ภ\.พ\.30/ })).toHaveCount(0);
 
-  // e-Tax is VAT-registered only — XML + resend must be absent under VatMode=false.
+  // Billing note (the non-VAT revenue path) still works end-to-end.
+  await page.goto('/invoices/new');
+  await pickCustomer(page, 'ลูกค้า', /ลูกค้านิติ/); // seed-440 company-3 customer
+  await page.getByLabel('รายละเอียด 1').fill('e2e non-vat item');
+  await page.getByLabel('จำนวน 1').fill('2');
+  await page.getByLabel('ราคา/หน่วย 1').fill('1000');
+  await page.getByTestId('bn-issue').click();
+  await page.waitForURL(/\/invoices\/\d+$/, { timeout: 15_000 });
+  await expect(page.getByTestId('bn-status')).toContainText(/Issued|ออกแล้ว/, { timeout: 15_000 });
+
+  // No VAT row anywhere on the non-VAT document detail (single-Total summary).
+  await expect(page.locator('main')).not.toContainText('ภาษีมูลค่าเพิ่ม');
+
+  // e-Tax is VAT-registered only — XML + resend must be absent.
   await expect(page.getByRole('button', { name: 'ดาวน์โหลด XML' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'ส่งอีเมลอีกครั้ง' })).toHaveCount(0);
 
-  // The doc is still issuable — PDF lives in the PrintMenu dropdown now
-  // (design swap): a <label class="btn">พิมพ์ / PDF</label> trigger with menu
-  // item "ดาวน์โหลด PDF" (plain) or "ดาวน์โหลด PDF (สำเนา)" (tracked docs).
+  // The document is still printable — PDF lives in the PrintMenu dropdown.
   await page.getByText('พิมพ์ / PDF', { exact: false }).first().click();
   const pdfBtn = page.getByRole('button', { name: /ดาวน์โหลด PDF/ }).first();
   await expect(pdfBtn).toBeVisible();
