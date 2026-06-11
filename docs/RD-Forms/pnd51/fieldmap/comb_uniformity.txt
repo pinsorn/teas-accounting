@@ -1,0 +1,93 @@
+
+==== pnd1_attach.pdf  (1 page(s)) ====
+  p0 Text1.0      maxLen=17 comb=1 box=[441.8,621.7] w=179.9 dividers=18 gaps=[11.7, 5.9, 11.8, 12.0, 11.8, 12.0, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.8, 11.9, 5.9, 11.9]  ratio=2.11 cv=0.24 -> NON-UNIFORM
+  p0 Text1.1      maxLen= 5 comb=1 box=[749.0,807.5] w=58.5 dividers=4 gaps=[10.4, 10.5, 11.4]  ratio=1.10 cv=0.04 -> uniform
+  p0 Text1.5      maxLen=17 comb=1 box=[106.1,286.1] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text2.2      maxLen=17 comb=1 box=[105.3,285.2] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text3.2      maxLen=17 comb=1 box=[105.3,285.2] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text4.2      maxLen=17 comb=1 box=[104.9,284.8] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text5.2      maxLen=17 comb=1 box=[105.2,285.1] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text6.2      maxLen=17 comb=1 box=[104.6,284.5] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text7.2      maxLen=17 comb=1 box=[105.5,285.5] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text8.2      maxLen=17 comb=1 box=[104.5,284.5] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+
+==== pnd1_main.pdf  (2 page(s)) ====
+  p0 Text1.0      maxLen=17 comb=1 box=[160.3,331.2] w=170.8 dividers=18 gaps=[11.2, 5.6, 11.3, 11.3, 11.4, 11.3, 5.5, 11.4, 11.3, 11.3, 11.4, 11.3, 5.8, 11.3, 11.3, 5.6, 11.3]  ratio=2.07 cv=0.24 -> NON-UNIFORM
+  p0 Text1.1      maxLen= 5 comb=1 box=[274.7,333.2] w=58.5 dividers=6 gaps=[11.1, 11.1, 11.1, 11.1, 11.0]  ratio=1.01 cv=0.00 -> uniform
+  p0 Text1.15     maxLen= 5 comb=1 box=[89.6,144.5] w=54.9 dividers=6 gaps=[10.6, 10.6, 10.7, 10.6, 10.6]  ratio=1.01 cv=0.00 -> uniform
+
+==== pnd1a_attach.pdf  (1 page(s)) ====
+  p0 Text1.0      maxLen=17 comb=1 box=[424.4,604.3] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 12.0, 11.8, 11.9, 11.9, 11.9, 6.2, 11.8, 11.9, 5.8, 11.9]  ratio=2.11 cv=0.24 -> NON-UNIFORM
+  p0 Text1.1      maxLen= 5 comb=1 box=[749.7,808.2] w=58.5 dividers=4 gaps=[10.4, 10.5, 11.4]  ratio=1.10 cv=0.04 -> uniform
+  p0 Text1.5      maxLen=17 comb=1 box=[105.5,285.4] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text2.2      maxLen=17 comb=1 box=[105.3,285.2] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text3.2      maxLen=17 comb=1 box=[105.3,285.2] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text4.2      maxLen=17 comb=1 box=[105.6,285.5] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text5.2      maxLen=17 comb=1 box=[105.2,285.1] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text6.2      maxLen=17 comb=1 box=[106.6,286.5] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text7.2      maxLen=17 comb=1 box=[106.2,286.1] w=179.9 dividers=18 gaps=[11.8, 5.8, 11.9, 11.9, 11.9, 11.9, 5.7, 11.9, 11.9, 11.9, 11.9, 11.9, 6.1, 11.9, 11.9, 5.8, 11.9]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+
+==== pnd1a_main.pdf  (2 page(s)) ====
+  p0 Text1.0      maxLen=17 comb=1 box=[164.8,328.0] w=163.2 dividers=18 gaps=[10.6, 5.4, 10.7, 10.8, 10.7, 10.8, 5.2, 10.8, 10.7, 10.8, 10.8, 10.7, 5.7, 10.6, 10.8, 5.3, 10.7]  ratio=2.08 cv=0.24 -> NON-UNIFORM
+  p0 Text1.1      maxLen= 5 comb=1 box=[275.6,330.9] w=55.3 dividers=6 gaps=[10.7, 10.6, 10.8, 10.7, 10.6]  ratio=1.02 cv=0.01 -> uniform
+  p0 Text1.15     maxLen= 5 comb=1 box=[103.5,158.4] w=54.9 dividers=6 gaps=[10.6, 10.6, 10.6, 10.7, 10.6]  ratio=1.01 cv=0.00 -> uniform
+
+==== pnd51_main.pdf  (2 page(s)) ====
+  p0 Text1.1      maxLen=18 comb=1 box=[141.7,321.0] w=179.3 dividers=19 gaps=[11.0, 5.3, 11.6, 11.5, 5.2, 11.1, 5.5, 12.0, 11.8, 12.0, 6.9, 11.6, 11.8, 11.7, 12.0, 11.5, 7.1, 10.6]  ratio=2.31 cv=0.25 -> NON-UNIFORM
+  p0 Text1.18     maxLen= 2 comb=1 box=[399.8,425.0] w=25.3 dividers=3 gaps=[11.2, 11.3]  
+  p0 Text1.19     maxLen= 2 comb=1 box=[454.2,479.4] w=25.3 dividers=3 gaps=[11.3, 11.3]  
+  p0 Text1.20     maxLen= 4 comb=1 box=[507.4,556.1] w=48.6 dividers=5 gaps=[11.6, 11.2, 11.3, 11.6]  ratio=1.04 cv=0.02 -> uniform
+  p0 Text1.21     maxLen= 2 comb=1 box=[399.4,424.7] w=25.3 dividers=3 gaps=[11.2, 11.3]  
+  p0 Text1.22     maxLen= 2 comb=1 box=[454.2,479.5] w=25.3 dividers=3 gaps=[11.3, 11.3]  
+  p0 Text1.23     maxLen= 4 comb=1 box=[507.1,555.7] w=48.6 dividers=5 gaps=[11.6, 11.2, 11.3, 11.6]  ratio=1.04 cv=0.02 -> uniform
+  p0 Text1.15     maxLen= 5 comb=1 box=[83.0,143.3] w=60.3 dividers=6 gaps=[11.7, 11.9, 12.8, 12.0, 10.9]  ratio=1.17 cv=0.05 -> uniform
+  p0 Text1.25     maxLen=12 comb=1 box=[121.1,270.0] w=148.9 dividers=13 gaps=[12.4, 11.2, 12.5, 12.5, 12.2, 12.2, 12.5, 12.5, 12.2, 12.8, 12.4, 12.4]  ratio=1.14 cv=0.03 -> uniform
+  p0 Text2.1      maxLen=12 comb=1 box=[52.6,77.9] w=25.3 dividers=3 gaps=[11.2, 11.3]  
+  p0 Text2.2      maxLen= 2 comb=1 box=[101.6,126.8] w=25.3 dividers=3 gaps=[11.2, 11.3]  
+  p0 Text2.3      maxLen= 4 comb=1 box=[147.7,196.3] w=48.6 dividers=5 gaps=[11.6, 11.2, 11.3, 11.6]  ratio=1.04 cv=0.02 -> uniform
+  p0 Text2.4      maxLen= 4 comb=1 box=[238.5,287.1] w=48.6 dividers=5 gaps=[11.6, 11.2, 11.3, 11.6]  ratio=1.04 cv=0.02 -> uniform
+  p0 Text2.5      maxLen= 4 comb=1 box=[290.9,339.5] w=48.6 dividers=5 gaps=[11.6, 11.2, 11.3, 11.6]  ratio=1.04 cv=0.02 -> uniform
+  p0 Text2.7      maxLen=12 comb=1 box=[359.9,507.4] w=147.5 dividers=13 gaps=[12.5, 11.2, 12.4, 12.5, 12.3, 12.1, 12.6, 12.5, 12.2, 12.7, 12.5, 12.3]  ratio=1.13 cv=0.03 -> uniform
+  p0 Text2.9      maxLen=12 comb=1 box=[359.7,507.7] w=148.0 dividers=13 gaps=[12.5, 11.2, 12.4, 12.5, 12.3, 12.1, 12.6, 12.5, 12.2, 12.7, 12.5, 12.3]  ratio=1.13 cv=0.03 -> uniform
+  p0 Text2.11     maxLen=12 comb=1 box=[360.1,508.6] w=148.5 dividers=13 gaps=[12.5, 11.2, 12.4, 12.5, 12.3, 12.1, 12.6, 12.5, 12.2, 12.7, 12.5, 12.3]  ratio=1.13 cv=0.03 -> uniform
+  p0 Text3.8      maxLen=17 comb=1 box=[36.2,211.5] w=175.3 dividers=18 gaps=[11.5, 5.7, 11.6, 11.7, 11.6, 11.7, 5.6, 11.6, 11.6, 11.7, 11.7, 11.6, 6.0, 11.6, 11.6, 5.7, 11.6]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text3.10     maxLen= 8 comb=1 box=[460.8,557.4] w=96.7 dividers=9 gaps=[11.5, 12.0, 12.0, 12.2, 11.5, 12.0, 12.1, 11.1]  ratio=1.10 cv=0.03 -> uniform
+  p0 Text3.14     maxLen=18 comb=1 box=[381.7,562.8] w=181.1 dividers=19 gaps=[11.0, 5.3, 11.5, 11.5, 5.3, 11.0, 5.6, 12.0, 11.8, 12.0, 6.9, 11.6, 11.8, 11.7, 12.0, 11.4, 7.1, 10.6]  ratio=2.26 cv=0.25 -> NON-UNIFORM
+  p0 Text3.15     maxLen=17 comb=1 box=[36.5,212.7] w=176.2 dividers=18 gaps=[11.5, 5.7, 11.6, 11.7, 11.6, 11.7, 5.6, 11.6, 11.6, 11.7, 11.7, 11.6, 6.0, 11.6, 11.6, 5.7, 11.6]  ratio=2.09 cv=0.24 -> NON-UNIFORM
+  p0 Text3.17     maxLen=18 comb=1 box=[382.7,563.4] w=180.7 dividers=19 gaps=[11.0, 5.3, 11.5, 11.5, 5.3, 11.0, 5.6, 12.0, 11.8, 12.0, 6.9, 11.6, 11.8, 11.7, 12.0, 11.4, 7.1, 10.6]  ratio=2.26 cv=0.25 -> NON-UNIFORM
+  p0 Text3.5      maxLen= 2 comb=1 box=[245.2,270.5] w=25.3 dividers=3 gaps=[11.5, 12.1]  
+  p0 Text3.6      maxLen= 2 comb=1 box=[295.1,320.3] w=25.3 dividers=3 gaps=[11.5, 12.1]  
+  p0 Text3.7      maxLen= 4 comb=1 box=[341.6,391.1] w=49.5 dividers=5 gaps=[11.5, 11.9, 12.0, 11.9]  ratio=1.04 cv=0.02 -> uniform
+  p0 Text3.11     maxLen= 2 comb=1 box=[223.6,248.9] w=25.3 dividers=3 gaps=[11.5, 12.1]  
+  p0 Text3.12     maxLen= 2 comb=1 box=[273.5,298.8] w=25.3 dividers=3 gaps=[11.5, 12.1]  
+  p0 Text3.13     maxLen= 4 comb=1 box=[319.5,369.0] w=49.5 dividers=5 gaps=[11.6, 11.8, 12.1, 11.8]  ratio=1.04 cv=0.02 -> uniform
+  p1 Text4.2      maxLen= 2 comb=1 box=[329.0,354.3] w=25.3 dividers=3 gaps=[11.5, 12.1]  
+  p1 Text4.3      maxLen=12 comb=1 box=[442.3,564.8] w=122.5 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.4      maxLen=12 comb=1 box=[442.4,564.0] w=121.6 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.5      maxLen=12 comb=1 box=[442.6,563.8] w=121.2 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.6      maxLen=12 comb=1 box=[442.3,564.4] w=122.1 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.7      maxLen=12 comb=1 box=[442.3,564.4] w=122.1 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.8      maxLen=12 comb=1 box=[442.8,564.5] w=121.6 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.9      maxLen=12 comb=1 box=[443.0,563.4] w=120.3 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.10     maxLen=12 comb=1 box=[442.9,564.6] w=121.6 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.11     maxLen=12 comb=1 box=[442.8,564.4] w=121.6 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.12     maxLen=12 comb=1 box=[442.9,564.5] w=121.6 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.13     maxLen=12 comb=1 box=[443.0,563.7] w=120.8 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.14     maxLen=12 comb=1 box=[443.2,564.4] w=121.2 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.15     maxLen=12 comb=1 box=[442.6,564.7] w=122.1 dividers=16 gaps=[8.3, 7.9, 8.5, 8.4, 8.6, 8.3, 8.6, 8.5, 8.4, 8.9, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.62 cv=0.16 -> NON-UNIFORM
+  p1 Text4.16     maxLen=12 comb=1 box=[442.8,564.0] w=121.2 dividers=16 gaps=[8.3, 7.9, 8.5, 8.4, 8.6, 8.3, 8.6, 8.5, 8.4, 8.9, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.62 cv=0.16 -> NON-UNIFORM
+  p1 Text4.17     maxLen=12 comb=1 box=[442.9,563.7] w=120.8 dividers=16 gaps=[8.3, 7.9, 8.5, 8.4, 8.6, 8.3, 8.6, 8.5, 8.4, 8.9, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.62 cv=0.16 -> NON-UNIFORM
+  p1 Text4.18     maxLen=12 comb=1 box=[442.2,564.3] w=122.1 dividers=16 gaps=[8.3, 7.9, 8.5, 8.4, 8.6, 8.3, 8.6, 8.5, 8.4, 8.9, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.62 cv=0.16 -> NON-UNIFORM
+  p1 Text4.19     maxLen=12 comb=1 box=[293.2,415.2] w=122.1 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.6, 8.2, 8.7, 8.4, 8.5, 8.8, 8.4, 8.5, 3.3, 8.6, 8.4]  ratio=2.67 cv=0.16 -> NON-UNIFORM
+  p1 Text4.20     maxLen=12 comb=1 box=[294.0,415.7] w=121.6 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.5, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.6, 8.3]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.21     maxLen=12 comb=1 box=[294.1,415.3] w=121.2 dividers=16 gaps=[8.3, 7.9, 8.5, 8.4, 8.6, 8.3, 8.6, 8.5, 8.5, 8.8, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.59 cv=0.16 -> NON-UNIFORM
+  p1 Text4.22     maxLen=12 comb=1 box=[441.5,563.5] w=122.1 dividers=16 gaps=[8.4, 7.9, 8.4, 8.5, 8.6, 8.2, 8.7, 8.5, 8.4, 8.9, 8.4, 8.4, 3.3, 8.6, 8.4]  ratio=2.70 cv=0.16 -> NON-UNIFORM
+  p1 Text4.23     maxLen=12 comb=1 box=[441.9,563.9] w=122.1 dividers=16 gaps=[8.3, 7.9, 8.5, 8.4, 8.6, 8.3, 8.6, 8.5, 8.4, 8.9, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.62 cv=0.16 -> NON-UNIFORM
+  p1 Text4.24     maxLen=12 comb=1 box=[442.0,563.6] w=121.6 dividers=16 gaps=[8.3, 7.9, 8.5, 8.4, 8.6, 8.3, 8.6, 8.5, 8.4, 8.9, 8.4, 8.4, 3.4, 8.5, 8.4]  ratio=2.62 cv=0.16 -> NON-UNIFORM
+  p1 Text4.25     maxLen=12 comb=1 box=[442.2,563.8] w=121.6 dividers=16 gaps=[8.4, 7.8, 8.5, 8.5, 8.6, 8.2, 8.6, 8.5, 8.5, 8.8, 8.4, 8.5, 3.3, 8.6, 8.4]  ratio=2.67 cv=0.16 -> NON-UNIFORM
+
+==== wht_50tawi.pdf  (1 page(s)) ====
+  p0 id1          maxLen=17 comb=1 box=[374.7,558.4] w=183.8 dividers=10 gaps=[12.0, 6.0, 48.1, 6.5, 60.5, 5.5, 24.5, 6.9, 12.1]  ratio=11.00 cv=0.95 -> NON-UNIFORM
+  p0 tin1         maxLen=13 comb=1 box=[418.0,556.6] w=138.6 dividers=8 gaps=[12.0, 6.0, 48.0, 6.0, 48.0, 6.0, 12.1]  ratio=8.00 cv=0.92 -> NON-UNIFORM
+  p0 id1_2        maxLen=17 comb=1 box=[375.3,557.6] w=182.3 dividers=10 gaps=[11.9, 6.1, 48.0, 6.5, 60.5, 5.5, 24.5, 7.0, 12.0]  ratio=11.00 cv=0.95 -> NON-UNIFORM
+  p0 tin1_2       maxLen=13 comb=1 box=[419.3,558.0] w=138.6 dividers=8 gaps=[11.9, 6.1, 47.9, 6.1, 47.9, 6.1, 12.0]  ratio=7.85 cv=0.91 -> NON-UNIFORM
