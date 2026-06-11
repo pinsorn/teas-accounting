@@ -225,7 +225,8 @@ public sealed partial class ReceiptService
             new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId),
                 d.CustomerBranchCode, d.CustomerAddress),
             lines,
-            new Pdf.PaperSummary(d.Amount, null, null, 0m, d.Amount, null, ShowVat: _vat.VatMode),
+            new Pdf.PaperSummary(d.Amount, null, null, 0m, d.Amount, null,
+                ShowVat: (await _taxCfg.GetAsync(ct)).VatMode),
             new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: notes,
             Watermark: copy

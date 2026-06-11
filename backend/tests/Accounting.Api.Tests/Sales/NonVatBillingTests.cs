@@ -1,16 +1,13 @@
 using Accounting.Api.Tests.Fixtures;
-using Accounting.Application.Abstractions;
 using Accounting.Application.Master;
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Application.TaxFilings;
 using Accounting.Domain.Enums;
-using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
 using Accounting.TestKit;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -24,6 +21,8 @@ namespace Accounting.Api.Tests.Sales;
 /// too). ภ.พ.36 (ม.83/6): a non-VAT receiver remits reverse-charge VAT but cannot
 /// reclaim it, so the debit is the irrecoverable-VAT EXPENSE 5350 (vs 1170 for a VAT
 /// registrant).
+/// §4.6 per-company-vat-mode: VAT mode is companies.vat_registered — non-VAT
+/// scenarios run against their OWN TestCompanyFactory company (never company 1).
 /// </summary>
 [Collection(nameof(PostgresCollection))]
 public sealed class NonVatBillingTests
@@ -31,29 +30,11 @@ public sealed class NonVatBillingTests
     private readonly PostgresFixture _fx;
     public NonVatBillingTests(PostgresFixture fx) => _fx = fx;
 
-    private ServiceProvider Provider(bool? vatMode = null, int companyId = 1, long userId = 1)
-    {
-        var dict = new Dictionary<string, string?>
-        {
-            ["ConnectionStrings:Postgres"] = _fx.ConnectionString,
-        };
-        if (vatMode.HasValue) dict["Tax:VatMode"] = vatMode.Value ? "true" : "false";
-        var cfg = new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
-        var s = new ServiceCollection();
-        s.AddLogging();
-        return s.AddInfrastructure(cfg)
-            .AddSingleton<ITenantContext>(new StubTenant
-            { CompanyId = companyId, BranchId = 1, UserId = userId, IsSuperAdmin = false })
-            .BuildServiceProvider();
-    }
+    private ServiceProvider Provider(int companyId, int branchId, long userId = 1) =>
+        TestCompanyFactory.BuildProvider(_fx.ConnectionString, companyId, branchId, userId);
 
-    private static async Task<long> CustomerId(ServiceProvider sp)
-    {
-        await using var s = sp.CreateAsyncScope();
-        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
-        return await db.Customers.Where(c => c.CustomerCode == "C-DEMO-001")
-            .Select(c => c.CustomerId).FirstAsync();
-    }
+    private Task<TestCompanyFactory.SeededCompany> NonVatCompanyAsync() =>
+        TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
 
     // ภ.พ.36 finalize is IMMUTABLE per (FormType, Period). On the shared teas_test DB
     // a fixed (or small-range) period collides across re-runs (§14) → "already_finalized".
@@ -81,8 +62,9 @@ public sealed class NonVatBillingTests
     public async Task Standalone_receipt_recognizes_revenue_to_sales_account()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: false);
-        var cust = await CustomerId(sp);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var cust = c.CustomerId;
         var salesAcct = await AccountId(sp, "4000");
 
         await using var s = sp.CreateAsyncScope();
@@ -111,8 +93,9 @@ public sealed class NonVatBillingTests
     public async Task Do_applied_receipt_recognizes_revenue_to_sales_account()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: false);
-        var cust = await CustomerId(sp);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var cust = c.CustomerId;
         var salesAcct = await AccountId(sp, "4000");
 
         long doId;
@@ -151,7 +134,7 @@ public sealed class NonVatBillingTests
 
     // ── 3. ภ.พ.36 reverse charge: non-VAT → Dr 5350 sunk cost ───────────────
     private static async Task<long> ForeignPvPosted(
-        ServiceProvider sp, ServiceProvider approver, DateOnly docDate)
+        ServiceProvider sp, ServiceProvider approver, int companyId, DateOnly docDate)
     {
         long vendorId; int catId; long expAcct;
         await using (var s = sp.CreateAsyncScope())
@@ -166,7 +149,7 @@ public sealed class NonVatBillingTests
                 .Select(a => a.AccountId).FirstAsync();
             var c = new Accounting.Domain.Entities.Sys.ExpenseCategory
             {
-                CompanyId = 1, CategoryCode = TestIds.ExpenseCategoryCode(),
+                CompanyId = companyId, CategoryCode = TestIds.ExpenseCategoryCode(),
                 NameTh = "หมวด non-VAT ภ.พ.36", DefaultExpenseAccountId = expAcct,
                 DefaultIsRecoverableVat = true,
             };
@@ -207,11 +190,12 @@ public sealed class NonVatBillingTests
     public async Task Pnd36_nonvat_finalize_debits_irrecoverable_vat_5350()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: false, userId: 1);
-        await using var sp2 = Provider(vatMode: false, userId: 2);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId, userId: 1);
+        await using var sp2 = Provider(c.CompanyId, c.BranchId, userId: 2);
         var period = UniquePeriod();
         var docDate = new DateOnly(period / 100, period % 100, 15);
-        await ForeignPvPosted(sp, sp2, docDate);
+        await ForeignPvPosted(sp, sp2, c.CompanyId, docDate);
 
         await using var s = sp.CreateAsyncScope();
         var fsvc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
@@ -237,11 +221,12 @@ public sealed class NonVatBillingTests
     public async Task Pnd36_vat_finalize_debits_input_vat_1170()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: true, userId: 1);
-        await using var sp2 = Provider(vatMode: true, userId: 2);
+        // VAT-mode case — seeded company 1 (vat_registered = TRUE).
+        await using var sp = Provider(companyId: 1, branchId: 1, userId: 1);
+        await using var sp2 = Provider(companyId: 1, branchId: 1, userId: 2);
         var period = UniquePeriod();
         var docDate = new DateOnly(period / 100, period % 100, 15);
-        await ForeignPvPosted(sp, sp2, docDate);
+        await ForeignPvPosted(sp, sp2, 1, docDate);
 
         await using var s = sp.CreateAsyncScope();
         var fsvc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
@@ -263,8 +248,9 @@ public sealed class NonVatBillingTests
     public async Task NonVat_billing_note_snapshots_master_type_and_zeros_vat()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: false);
-        var cust = await CustomerId(sp);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var cust = c.CustomerId;
 
         long productId;
         await using (var s0 = sp.CreateAsyncScope())
@@ -272,7 +258,7 @@ public sealed class NonVatBillingTests
             var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
             var p = new Accounting.Domain.Entities.Master.Product
             {
-                CompanyId = 1, ProductCode = TestIds.ProductCode(),
+                CompanyId = c.CompanyId, ProductCode = TestIds.ProductCode(),
                 NameTh = "บริการ backstop", ProductType = ProductType.Service, IsActive = true,
             };
             db.Products.Add(p);

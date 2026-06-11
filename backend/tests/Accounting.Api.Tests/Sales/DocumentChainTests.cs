@@ -28,8 +28,9 @@ public sealed class DocumentChainTests
     {
         var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
+            // §4.6 per-company-vat-mode — VAT mode comes from companies.vat_registered;
+            // company 1 is seeded VAT-registered, so no config flag is needed.
             ["ConnectionStrings:Postgres"] = _fx.ConnectionString,
-            ["Tax:VatMode"] = "true",
         }).Build();
         var s = new ServiceCollection();
         s.AddLogging();

@@ -27,7 +27,7 @@ public class TaxFiling : ITenantOwned, IAuditable
     public long? FinalizedBy { get; set; }
     public DateTimeOffset? SubmittedAt { get; set; }
 
-    /// <summary>'manual' | 'auto' (env Tax:Pnd30SubmissionMode).</summary>
+    /// <summary>'manual' | 'auto' (per-company companies.pnd30_submission_mode).</summary>
     public string? SubmissionMode { get; set; }
 
     /// <summary>RD acknowledgement reference when auto-submitted.</summary>

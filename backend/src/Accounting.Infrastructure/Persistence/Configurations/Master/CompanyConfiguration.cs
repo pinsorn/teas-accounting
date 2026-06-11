@@ -30,12 +30,20 @@ internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
         b.Property(c => c.RequiresBusinessUnit).HasDefaultValue(false);
         b.Property(c => c.PaidUpCapital).HasPrecision(19, 4);
 
+        b.Property(c => c.VatRate).HasPrecision(5, 4).HasDefaultValue(0.07m);
+        // Explicit name: the snake_case convention would emit "pnd30submission_mode"
+        // (digit boundary), which the ck constraint below doesn't match.
+        b.Property(c => c.Pnd30SubmissionMode).HasColumnName("pnd30_submission_mode")
+            .HasMaxLength(10).HasDefaultValue("manual");
+
         b.Property(c => c.CreatedAt).HasColumnType("timestamptz(3)");
 
         b.ToTable(t =>
         {
             t.HasCheckConstraint("ck_companies_tax_id", "tax_id ~ '^[0-9]{13}$'");
             t.HasCheckConstraint("ck_companies_fiscal_month", "fiscal_year_start_month BETWEEN 1 AND 12");
+            t.HasCheckConstraint("ck_companies_pnd30_submission_mode", "pnd30_submission_mode IN ('manual','auto')");
+            t.HasCheckConstraint("ck_companies_vat_rate", "vat_rate >= 0 AND vat_rate <= 1");
         });
 
         b.HasIndex(c => c.TaxId).IsUnique();

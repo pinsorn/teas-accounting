@@ -8,7 +8,7 @@ namespace Accounting.Application.Reports;
 /// </summary>
 public enum RevenueThresholdStatus
 {
-    /// <summary>Company is already VAT-registered (Tax:VatMode=true) — no warning.</summary>
+    /// <summary>Company is already VAT-registered (companies.vat_registered=true) — no warning.</summary>
     NotApplicable,
     /// <summary>Rolling-12-mo revenue &lt; 1.5M — fine.</summary>
     Ok,

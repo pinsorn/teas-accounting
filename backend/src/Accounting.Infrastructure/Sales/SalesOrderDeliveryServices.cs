@@ -6,17 +6,14 @@ using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Sales;
 
 public sealed class SalesOrderService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    IOptions<VatModeOptions> vat) : ISalesOrderService
+    ICompanyTaxConfigService taxCfg) : ISalesOrderService
 {
-    private readonly bool _vatMode = vat.Value.VatMode;
-
     private void Auth()
     {
         if (!tenant.IsAuthenticated)
@@ -41,12 +38,13 @@ public sealed class SalesOrderService(
             QuotationId = req.FromQuotationId, CurrencyCode = req.CurrencyCode,
             ExchangeRate = req.ExchangeRate, Notes = req.Notes,
         };
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         int n = 1;
         foreach (var l in req.Lines)
         {
             var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(_vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+                SalesLineBackstop.Resolve(vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             so.Lines.Add(new SalesOrderLine
             {

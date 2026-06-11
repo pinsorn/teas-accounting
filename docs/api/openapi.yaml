@@ -1322,8 +1322,13 @@ paths:
   # ============================================================
   /system/info:
     get:
-      summary: System info (VAT_MODE, version, etc.)
+      summary: System info (vat_mode, version, etc.) — per-company since 2026-06-11
+      description: >
+        Authenticated (per-company-vat-mode spec §4.6): vat_mode / vat_rate /
+        pnd30_submission_mode are read from the caller company's row on
+        master.companies, no longer from instance env config.
       tags: [System]
+      security: [{ BearerAuth: [] }]
       responses:
         '200':
           description: OK
@@ -1331,6 +1336,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SystemInfo'
+
+  /companies:
+    get:
+      summary: List companies (super-admin, permission master.company.manage)
+      tags: [System]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Company' }
+    post:
+      summary: Create company (super-admin) — sets per-company tax config (§4.6)
+      tags: [System]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCompanyRequest' }
+      responses:
+        '201': { description: Created }
+        '400': { description: Validation error }
+
+  /companies/{id}:
+    get:
+      summary: Company detail (super-admin) — full row for the edit form (PUT is whole-row replace)
+      tags: [System]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyDetail' }
+        '404': { description: Not found }
+    put:
+      summary: Update company (super-admin) — tax-field changes write audit.activity_log (§4.6)
+      tags: [System]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCompanyRequest' }
+      responses:
+        '204': { description: Updated }
+        '400': { description: Validation error (vatRate 0–1, pnd30SubmissionMode manual|auto) }
 
   /document-prefixes:
     get:
@@ -2605,6 +2661,7 @@ components:
 
     SystemInfo:
       type: object
+      description: 'vat_mode/vat_rate/pnd30_submission_mode are the CALLER COMPANY''s values (per-company-vat-mode spec, 2026-06-11).'
       properties:
         version: { type: string }
         vat_mode: { type: boolean }
@@ -2614,6 +2671,80 @@ components:
           enum: [auto, manual]
         document_number_format: { type: string, example: MM-YYYY-PREFIX-NNNN }
         timezone: { type: string, example: Asia/Bangkok }
+
+    Company:
+      type: object
+      properties:
+        companyId: { type: integer }
+        taxId: { type: string, description: '13-digit Thai Tax ID' }
+        nameTh: { type: string }
+        nameEn: { type: string, nullable: true }
+        legalEntityType: { type: string }
+        vatRegistered: { type: boolean, description: 'Per-company VAT mode (§4.6)' }
+        baseCurrency: { type: string, example: THB }
+        isActive: { type: boolean }
+        paidUpCapital: { type: number, nullable: true }
+        vatRate: { type: number, example: 0.07, description: 'Per-company standard VAT rate' }
+        pnd30SubmissionMode: { type: string, enum: [manual, auto] }
+
+    CompanyDetail:
+      allOf:
+        - $ref: '#/components/schemas/Company'
+        - type: object
+          properties:
+            registrationDate: { type: string, format: date, nullable: true }
+            vatRegisterDate: { type: string, format: date, nullable: true }
+            fiscalYearStartMonth: { type: integer, minimum: 1, maximum: 12 }
+            addressTh: { type: string, nullable: true }
+            subDistrict: { type: string, nullable: true }
+            district: { type: string, nullable: true }
+            province: { type: string, nullable: true }
+            postalCode: { type: string, nullable: true }
+            phone: { type: string, nullable: true }
+            email: { type: string, nullable: true }
+
+    CreateCompanyRequest:
+      type: object
+      required: [taxId, nameTh, legalEntityType, vatRegistered, fiscalYearStartMonth]
+      properties:
+        taxId: { type: string }
+        nameTh: { type: string }
+        nameEn: { type: string, nullable: true }
+        legalEntityType: { type: string }
+        registrationDate: { type: string, format: date, nullable: true }
+        vatRegistered: { type: boolean }
+        vatRegisterDate: { type: string, format: date, nullable: true }
+        fiscalYearStartMonth: { type: integer, minimum: 1, maximum: 12 }
+        addressTh: { type: string, nullable: true }
+        subDistrict: { type: string, nullable: true }
+        district: { type: string, nullable: true }
+        province: { type: string, nullable: true }
+        postalCode: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        paidUpCapital: { type: number, nullable: true }
+        vatRate: { type: number, minimum: 0, maximum: 1, default: 0.07 }
+        pnd30SubmissionMode: { type: string, enum: [manual, auto], default: manual }
+
+    UpdateCompanyRequest:
+      type: object
+      required: [nameTh, vatRegistered, isActive]
+      properties:
+        nameTh: { type: string }
+        nameEn: { type: string, nullable: true }
+        vatRegistered: { type: boolean }
+        vatRegisterDate: { type: string, format: date, nullable: true }
+        addressTh: { type: string, nullable: true }
+        subDistrict: { type: string, nullable: true }
+        district: { type: string, nullable: true }
+        province: { type: string, nullable: true }
+        postalCode: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        isActive: { type: boolean }
+        paidUpCapital: { type: number, nullable: true }
+        vatRate: { type: number, minimum: 0, maximum: 1, default: 0.07 }
+        pnd30SubmissionMode: { type: string, enum: [manual, auto], default: manual }
 
 tags:
   - name: Quotations

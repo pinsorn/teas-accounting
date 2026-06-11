@@ -77,11 +77,15 @@ VOIDED), never reused.
 **4.4 e-Tax** — Phase 1 = e-Tax Invoice by Email: XAdES-BES-signed XML + email customer + cc
 `csemail@rd.go.th` simultaneously; per-invoice real-time; after submit status=SUBMITTED (errors → CN).
 
-**4.5 ภ.พ.30 (VAT return)** — monthly, due 15th of next month; `auto` (RD API) or `manual` (env);
-auto mode auto-submits at 23:00 day 15.
+**4.5 ภ.พ.30 (VAT return)** — monthly, due 15th of next month; `auto` (RD API) or `manual`
+(per-company, see §4.6); auto mode auto-submits at 23:00 day 15.
 
-**4.6 Config in .env / appsettings ONLY** — VAT rate, VAT mode, ภ.พ.30 mode are **NEVER** UI settings
-(changes go through deploy + git audit trail).
+**4.6 VAT mode/rate/ภ.พ.30 mode = COMPANY MASTER DATA (per-company-vat-mode spec, 2026-06-11)** —
+live on `master.companies` (`vat_registered`, `vat_rate`, `pnd30_submission_mode`), served per
+request by `ICompanyTaxConfigService`. Settable only via `POST/PUT /companies` (super-admin
+permission `Master.CompanyManage`); every tax-field change writes `audit.activity_log`
+(`tax_config_change`). **NEVER** a regular user-facing settings UI. Non-VAT doc labels stay in
+appsettings (cosmetic, instance-wide).
 
 **4.7 Multi-tenant isolation** — every business table has `company_id INT NOT NULL`; PostgreSQL RLS
 on every business table; `SET LOCAL app.company_id` per request; EF global query filter as backup.
@@ -146,9 +150,11 @@ PG; run from `W:\tests\Accounting.Api.Tests` with
 The fixture migrates + seeds it. If `teas_test` is missing, create the empty DB first (no psql/docker
 here → a tiny Npgsql console `CREATE DATABASE teas_test`).
 
-**VAT mode toggle** (`appsettings.Development.json` → `Tax:VatMode` + `Tax:VatRate`): `true`/`0.07`
-= normal VAT; `false`/`0.0` = non-VAT testing. Requires API restart. Tests inject their own VatMode
-via in-memory config — don't rely on appsettings for tests.
+**VAT mode toggle** (per-company since 2026-06-11 — `Tax:VatMode` config is GONE): VAT behavior
+follows `master.companies.vat_registered`/`vat_rate` of the caller's company. Dev non-VAT testing =
+use a non-VAT company (or `UPDATE master.companies SET vat_registered=false WHERE company_id=1` +
+revert). No API restart needed. Integration tests: NEVER flip company 1 — create a fresh company via
+`Accounting.Api.Tests/Fixtures/TestCompanyFactory.CreateAsync(conn, vatRegistered:false)`.
 
 **Frontend build:** never run `next build` while `next dev` is running (corrupts `.next`) — stop dev,
 `rm -rf .next`, build, restart dev. `tsc --noEmit` is the fast gate during dev (hot-reload covers the rest).

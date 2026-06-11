@@ -1,12 +1,9 @@
 using Accounting.Api.Tests.Fixtures;
-using Accounting.Application.Abstractions;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
-using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -27,19 +24,17 @@ public sealed class InvoiceFlowTests
     private readonly PostgresFixture _fx;
     public InvoiceFlowTests(PostgresFixture fx) => _fx = fx;
 
-    private ServiceProvider Provider(bool vatMode)
+    // §4.6 per-company-vat-mode — VAT mode comes from companies.vat_registered (the old
+    // in-memory Tax:VatMode config is a no-op). VAT scenarios run on seeded company 1.
+    private ServiceProvider Provider() =>
+        TestCompanyFactory.BuildProvider(_fx.ConnectionString, companyId: 1, branchId: 1);
+
+    // Non-VAT scenarios get their OWN freshly seeded company — company 1's row is
+    // shared with the rest of the suite and must never be flipped.
+    private async Task<(ServiceProvider sp, long cust)> NonVatProviderAsync()
     {
-        var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["ConnectionStrings:Postgres"] = _fx.ConnectionString,
-            ["Tax:VatMode"] = vatMode ? "true" : "false",
-        }).Build();
-        var s = new ServiceCollection();
-        s.AddLogging();
-        return s.AddInfrastructure(cfg)
-            .AddSingleton<ITenantContext>(new StubTenant
-            { CompanyId = 1, BranchId = 1, UserId = 1, IsSuperAdmin = false })
-            .BuildServiceProvider();
+        var c = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        return (TestCompanyFactory.BuildProvider(_fx.ConnectionString, c.CompanyId, c.BranchId), c.CustomerId);
     }
 
     private static async Task<long> CustomerId(ServiceProvider sp)
@@ -77,7 +72,7 @@ public sealed class InvoiceFlowTests
     public async Task MarkDelivered_does_not_create_tax_invoice()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: true);
+        await using var sp = Provider();
         var cust = await CustomerId(sp);
         var doId = await IssuedDoAsync(sp, cust, 1m, 1000m, 0.07m);
 
@@ -95,7 +90,7 @@ public sealed class InvoiceFlowTests
     public async Task Do_to_invoice_copies_lines_and_source_link()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: true);
+        await using var sp = Provider();
         var cust = await CustomerId(sp);
         var doId = await IssuedDoAsync(sp, cust, 2m, 1500m, 0.07m);
 
@@ -120,7 +115,7 @@ public sealed class InvoiceFlowTests
     public async Task Vat_invoice_to_tax_invoice_copies_lines_and_source_link()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: true);
+        await using var sp = Provider();
         var cust = await CustomerId(sp);
         var doId = await IssuedDoAsync(sp, cust, 3m, 200m, 0.07m);
 
@@ -151,8 +146,8 @@ public sealed class InvoiceFlowTests
     public async Task NonVat_invoice_to_tax_invoice_is_blocked()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: false);
-        var cust = await CustomerId(sp);
+        var (sp, cust) = await NonVatProviderAsync();
+        await using var _ = sp;
         var doId = await IssuedDoAsync(sp, cust, 1m, 800m, 0m);
 
         long invId;
@@ -175,8 +170,8 @@ public sealed class InvoiceFlowTests
     public async Task NonVat_receipt_applied_to_invoice_recognizes_revenue_to_sales()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        await using var sp = Provider(vatMode: false);
-        var cust = await CustomerId(sp);
+        var (sp, cust) = await NonVatProviderAsync();
+        await using var _ = sp;
         var salesAcct = await AccountId(sp, "4000");
         var doId = await IssuedDoAsync(sp, cust, 1m, 750m, 0m);
 

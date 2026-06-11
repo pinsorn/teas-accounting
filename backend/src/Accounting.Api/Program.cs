@@ -123,15 +123,21 @@ app.UseTenantContext();
 app.UseExternalApiIdempotency();   // Sprint 14 P4 — /api/v1/* mutations only
 
 app.MapHealthChecks("/health");
-app.MapGet("/system/info", (IConfiguration cfg) => new
+// Per-company-vat-mode spec (2026-06-11): VAT mode/rate/ภ.พ.30 mode come from the
+// caller's company row, so the endpoint needs a tenant → authenticated.
+app.MapGet("/system/info", async (ICompanyTaxConfigService taxCfg, CancellationToken ct) =>
 {
-    version = typeof(Program).Assembly.GetName().Version?.ToString(),
-    vat_mode = cfg.GetValue<bool>("Tax:VatMode"),
-    vat_rate = cfg.GetValue<decimal>("Tax:VatRate"),
-    pnd30_submission_mode = cfg.GetValue<string>("Tax:Pnd30SubmissionMode"),
-    document_number_format = "MM-YYYY-PREFIX-NNNN",
-    timezone = "Asia/Bangkok",
-});
+    var tax = await taxCfg.GetAsync(ct);
+    return new
+    {
+        version = typeof(Program).Assembly.GetName().Version?.ToString(),
+        vat_mode = tax.VatMode,
+        vat_rate = tax.VatRate,
+        pnd30_submission_mode = tax.Pnd30SubmissionMode,
+        document_number_format = "MM-YYYY-PREFIX-NNNN",
+        timezone = "Asia/Bangkok",
+    };
+}).RequireAuthorization();
 
 // Sprint 8.5 — VAT-registration threshold (ม.85/1). Authenticated (needs tenant
 // context for the TI query); no specific permission — any signed-in user.
@@ -176,16 +182,15 @@ app.Run();
 
 public partial class Program;  // For WebApplicationFactory in tests
 
+// Per-company-vat-mode spec (2026-06-11): VatMode / VatRate / Pnd30SubmissionMode
+// moved to the companies row (read via ICompanyTaxConfigService) and were removed here.
 public sealed class TaxConfig
 {
-    public bool VatMode { get; init; }
-    public decimal VatRate { get; init; }
     public DateOnly VatEffectiveFrom { get; init; }
     public string VatRounding { get; init; } = "HALF_UP";
     public int VatDecimalPlaces { get; init; } = 2;
-    public string Pnd30SubmissionMode { get; init; } = "manual";  // "auto" | "manual"
 
-    // Sprint 8.5 — header label for non-VAT-registered companies (VatMode=false).
+    // Sprint 8.5 — header label for non-VAT-registered companies.
     // ม.86: only VAT-registered may issue "ใบกำกับภาษี"; non-VAT must use a neutral term.
     public string NonVatDocLabelTh { get; init; } = "ใบส่งของ";
     public string NonVatDocLabelEn { get; init; } = "Delivery Order";

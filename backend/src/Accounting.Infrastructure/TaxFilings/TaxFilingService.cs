@@ -4,7 +4,6 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.TaxFilings;
 
@@ -19,7 +18,7 @@ public sealed class TaxFilingService(
     IProportionalInputVatService proportional,
     ITenantContext tenant,
     IClock clock,
-    IOptions<VatModeOptions> opts,
+    ICompanyTaxConfigService taxCfg,
     IRdEfilingClient rd) : ITaxFilingService
 {
     public async Task<Pnd30Filing> GeneratePnd30Async(
@@ -50,7 +49,7 @@ public sealed class TaxFilingService(
         var net = outputVatTotal - inputVatTotal;
 
         var due = TaxFilingPeriod.DueDate(period, 15);
-        var submissionMode = opts.Value.Pnd30SubmissionMode?.ToLowerInvariant() == "auto"
+        var submissionMode = (await taxCfg.GetAsync(ct)).Pnd30SubmissionMode.ToLowerInvariant() == "auto"
             ? "auto" : "manual";
 
         var warnings = new List<string>

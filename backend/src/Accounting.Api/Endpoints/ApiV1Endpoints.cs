@@ -1,4 +1,5 @@
 using Accounting.Api.Authorization;
+using Accounting.Application.Abstractions;
 using Accounting.Application.Master;
 using Accounting.Application.Sales;
 using FluentValidation;
@@ -133,15 +134,21 @@ public static class ApiV1Endpoints
             .RequireAuthorization(P("master.product.read"));
 
         // ── System info ─────────────────────────────────────────────────────
-        v1.MapGet("/system/info", (IConfiguration cfg) => Results.Ok(new
+        // Per-company-vat-mode spec (2026-06-11): values come from the caller's
+        // company row (API key carries the tenant), not env config.
+        v1.MapGet("/system/info", async (ICompanyTaxConfigService taxCfg, CancellationToken ct) =>
         {
-            version = typeof(Program).Assembly.GetName().Version?.ToString(),
-            vat_mode = cfg.GetValue<bool>("Tax:VatMode"),
-            vat_rate = cfg.GetValue<decimal>("Tax:VatRate"),
-            pnd30_submission_mode = cfg.GetValue<string>("Tax:Pnd30SubmissionMode"),
-            document_number_format = "MM-YYYY-PREFIX-NNNN",
-            timezone = "Asia/Bangkok",
-        })).RequireAuthorization(P("sys.system_info.read"));
+            var tax = await taxCfg.GetAsync(ct);
+            return Results.Ok(new
+            {
+                version = typeof(Program).Assembly.GetName().Version?.ToString(),
+                vat_mode = tax.VatMode,
+                vat_rate = tax.VatRate,
+                pnd30_submission_mode = tax.Pnd30SubmissionMode,
+                document_number_format = "MM-YYYY-PREFIX-NNNN",
+                timezone = "Asia/Bangkok",
+            });
+        }).RequireAuthorization(P("sys.system_info.read"));
 
         return app;
     }

@@ -68,7 +68,8 @@ public sealed partial class TaxAdjustmentNoteService
         // ม.82/9 (price adjustment) for non-VAT companies.
         var noteType = d.NoteType.Equals("Credit", StringComparison.OrdinalIgnoreCase)
             ? TaxAdjustmentNoteType.Credit : TaxAdjustmentNoteType.Debit;
-        var (titleTh, titleEn, legalRef) = DocumentLabels.AdjustmentNote(noteType, _vat.VatMode);
+        var vatMode = (await _taxCfg.GetAsync(ct)).VatMode;
+        var (titleTh, titleEn, legalRef) = DocumentLabels.AdjustmentNote(noteType, vatMode);
 
         // Sprint 13j-PDF — shared PaperDocument mirror. Adjustment notes carry no
         // line array → synthesize one line (reason + adjusted value, ม.86/10
@@ -86,7 +87,7 @@ public sealed partial class TaxAdjustmentNoteService
             new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), null, d.CustomerAddress),
             new[] { new Pdf.PaperLine(
                 $"เหตุผล ({d.ReasonCode}): {d.Reason}", null, null, null, null, null, d.SubtotalAmount) },
-            new Pdf.PaperSummary(d.SubtotalAmount, null, null, d.TaxAmount, d.TotalAmount, Pdf.PaperDoc.VatPercent(d.TaxRate), ShowVat: _vat.VatMode),
+            new Pdf.PaperSummary(d.SubtotalAmount, null, null, d.TaxAmount, d.TotalAmount, Pdf.PaperDoc.VatPercent(d.TaxRate), ShowVat: vatMode),
             new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: notes,
             Watermark: copy
