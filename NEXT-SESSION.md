@@ -76,6 +76,18 @@ compliance §4.7 → **ถาม Ham ก่อน**.
 - แก้ FE ให้ filter เขียน query param เหมือนเดิม (เทียบ pattern หน้า list อื่นที่ยัง persist) → ปลด skip
 - อยู่ในอำนาจแก้เอง (bug ของ feature ที่เคย ship)
 
+### 5. 🆕 คิวใหม่ (มติ Ham 2026-06-11 เช้า — spec: `docs/superpowers/specs/pnd50-v2-dashboard.md`)
+
+1. **ภ.ง.ด.50 v2 = default + CIT filing dashboard** — render p3 รายการที่ 2 ladder + p6 งบฐานะ
+   (⚠️ ต้อง recon 0-fill/radio-confirm p3+p6 ก่อน เหมือน p1/p2) + `GET /tax-filings/pnd50/preview`
+   + dashboard บน `/tax-filings/cit` แสดงทุกตัวเลขที่จะลงแบบ 50/51 (ladder, WHT รายใบ, 51 prepaid,
+   งบฐานะ) ก่อนกด generate. v1 guard adjustments/loss หายไป (ladder render จริงแล้ว).
+2. **หน้าเว็บรวมเอกสาร `/documents`** — ตารางฟอร์ม RD จาก docs/RD-Forms (commit แล้ว 21574b1)
+   + กำหนดยื่น + ปุ่มเปิด PDF.
+3. **Dev DB ล้างบาง** ("หลอนหมดแล้ว"): pg_dump backup → drop/recreate accounting_dev →
+   reseed → mint Reptify key ใต้ company 2 → e2e re-baseline. ทำคู่ M15 dump อัตโนมัติ.
+   (keys 2,3,4 revoke แล้ว 2026-06-11)
+
 ### 4. เก็บเล็ก (ทำแทรกได้)
 
 - ☐ ลบ/เขียนใหม่ `pv-sod-violations.spec.ts` เป็น permission-based test (SoD ถูกถอดโดยมติ Ham cont.77 — test เก่า skip ค้าง)
