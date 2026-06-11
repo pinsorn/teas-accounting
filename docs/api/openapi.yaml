@@ -1016,6 +1016,47 @@ paths:
         '422':
           description: pnd51.worksheet_not_attestable — worksheet requested but not attestable/footing
 
+  /tax-filings/pnd50/pdf:
+    get:
+      summary: ภ.ง.ด.50 (annual CIT return) v1 — p1 header + p2 รายการที่ 1 PDF
+      description: >
+        Fills the official RD ภ.ง.ด.50 AcroForm (v1 scope: page-1 header + page-2 การคำนวณภาษี;
+        รายการที่ 2–9 print blank). Figures come from the CIT data layer (CitProfile, ภ.ง.ด.51
+        estimate/prepaid store, FY WHT-receivable register, CitCalculator + ม.67ตรี penalty).
+        Both attest flags must be true AND the year must carry zero ม.65ทวิ/ตรี adjustments and
+        zero applied loss carry-forward, or the service returns 422 `pnd50.not_attestable` —
+        a blank box on this form asserts zero (ภ.ง.ด.50 §4).
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+          description: CE fiscal year (start year of the accounting period)
+        - name: isSme
+          in: query
+          schema: { type: boolean, nullable: true }
+          description: omit → auto from CitProfile (paid-up ≤5M ∧ revenue ≤30M)
+        - name: hasRelatedParty
+          in: query
+          schema: { type: boolean, default: false }
+          description: ม.71ทวิ related-party radio (มี → annual disclosure report required)
+        - name: attestFirstFiling
+          in: query
+          schema: { type: boolean, default: false }
+          description: ยื่นปกติ ครั้งแรก (ไม่ใช่ยื่นเพิ่มเติม)
+        - name: attestBlankSchedules
+          in: query
+          schema: { type: boolean, default: false }
+          description: รับทราบว่า รายการที่ 2–9 พิมพ์ว่าง ต้องกรอกเองก่อนยื่นจริง
+      responses:
+        '200':
+          description: PDF (7 pages; v1 fills pages 1–2)
+          content:
+            application/pdf: {}
+        '422':
+          description: pnd50.not_attestable — year not honestly renderable in the v1 scope
+
   /tax-filings/pnd51/estimate:
     post:
       summary: บันทึกประมาณการ ภ.ง.ด.51 (ม.67ตรี) — persist the method-A estimate + prepaid

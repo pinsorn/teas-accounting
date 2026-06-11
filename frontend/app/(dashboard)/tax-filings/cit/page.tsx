@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
+import { apiDelete, apiGet, apiPost, apiPut, openPdf } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 
 // Phase C-C — CIT year data (ภ.ง.ด.50 foundations): SME profile, per-FY net-profit
@@ -55,6 +55,12 @@ export default function CitYearDataPage() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [computing, setComputing] = useState(false);
+
+  // ภ.ง.ด.50 v1 download (p1+p2; the service 422s pnd50.not_attestable unless clean)
+  const [hasRelatedParty, setHasRelatedParty] = useState(false);
+  const [attestFirstFiling, setAttestFirstFiling] = useState(false);
+  const [attestBlankSchedules, setAttestBlankSchedules] = useState(false);
+  const [pnd50Busy, setPnd50Busy] = useState(false);
 
   // adjustment add/edit form (editId = null → add mode)
   const [editId, setEditId] = useState<number | null>(null);
@@ -117,6 +123,21 @@ export default function CitYearDataPage() {
       toast.error(t('saveError'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function downloadPnd50() {
+    setPnd50Busy(true);
+    try {
+      const params = new URLSearchParams({ year: String(year) });
+      if (hasRelatedParty) params.set('hasRelatedParty', 'true');
+      params.set('attestFirstFiling', String(attestFirstFiling));
+      params.set('attestBlankSchedules', String(attestBlankSchedules));
+      await openPdf(`tax-filings/pnd50/pdf?${params}`);
+    } catch {
+      toast.error(t('pnd50Error'));
+    } finally {
+      setPnd50Busy(false);
     }
   }
 
@@ -261,6 +282,49 @@ export default function CitYearDataPage() {
               {tc('save')}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* ── ภ.ง.ด.50 v1 PDF (p1 header + p2 รายการที่ 1; รายการ 2–9 ว่าง) ── */}
+      <div className="mb-4 rounded-lg border border-base-300 p-4">
+        <h2 className="font-semibold">{t('pnd50Title')}</h2>
+        <p className="mb-2 text-xs text-base-content/60">{t('pnd50Hint')}</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="label cursor-pointer gap-2">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={attestFirstFiling}
+              onChange={(e) => setAttestFirstFiling(e.target.checked)}
+            />
+            <span className="label-text text-sm">{t('pnd50AttestFirstFiling')}</span>
+          </label>
+          <label className="label cursor-pointer gap-2">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={attestBlankSchedules}
+              onChange={(e) => setAttestBlankSchedules(e.target.checked)}
+            />
+            <span className="label-text text-sm">{t('pnd50AttestBlankSchedules')}</span>
+          </label>
+          <label className="label cursor-pointer gap-2">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={hasRelatedParty}
+              onChange={(e) => setHasRelatedParty(e.target.checked)}
+            />
+            <span className="label-text text-sm">{t('pnd50HasRelatedParty')}</span>
+          </label>
+          <button
+            className="btn btn-sm btn-primary"
+            disabled={pnd50Busy || loading || !attestFirstFiling || !attestBlankSchedules}
+            onClick={() => void downloadPnd50()}
+          >
+            {pnd50Busy && <span className="loading loading-spinner loading-xs" />}
+            {t('pnd50Download')}
+          </button>
         </div>
       </div>
 

@@ -596,7 +596,14 @@
     "add": "Add item",
     "loadError": "Failed to load data",
     "saveError": "Save failed",
-    "saved": "Saved"
+    "saved": "Saved",
+    "pnd50Title": "P.N.D.50 (annual CIT return) — draft PDF",
+    "pnd50Hint": "v1 fills page 1 + section 1 only; sections 2–9 print blank and must be completed manually before filing. The download refuses years with adjustments or loss carry-forward.",
+    "pnd50AttestFirstFiling": "First filing (not an amendment)",
+    "pnd50AttestBlankSchedules": "I accept that sections 2–9 print blank",
+    "pnd50HasRelatedParty": "Related parties under s.71 bis (revenue > 200M)",
+    "pnd50Download": "Download P.N.D.50 (PDF)",
+    "pnd50Error": "P.N.D.50 generation failed — the year may have adjustments or loss carry-forward (v1 cannot render those honestly)"
   },
   "note": {
     "cnTitle": "Credit Note (ม.86/10)",

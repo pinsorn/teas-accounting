@@ -1,16 +1,74 @@
+using Accounting.Application.Abstractions;
+using Accounting.Application.Reports;
 using Accounting.Application.Tax;
 using Accounting.Domain.Common;
 using Accounting.Domain.Tax;
 using Accounting.Infrastructure.Pdf;
+using Accounting.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Tax;
 
 /// <summary>
-/// ภ.ง.ด.50 v1 (Phase C-C): page 1 header + page 2 รายการที่ 1 from the CIT data layer.
+/// ภ.ง.ด.50 v1 (Phase C-C): page 1 header + page 2 รายการที่ 1 from the CIT data layer
+/// (CitProfile for SME/adjustments/loss, cit_year_summaries for the ภ.ง.ด.51 estimate+prepaid,
+/// WhtReceivableRegister for the FY WHT credit, CitCalculator for the ladder + ม.67ตรี penalty).
 /// <see cref="BuildSheet"/> is the pure §4 guard + figure derivation (unit-tested without a DB).
 /// </summary>
-public sealed class Pnd50FilingService
+public sealed class Pnd50FilingService(
+    AccountingDbContext db,
+    ITenantContext tenant,
+    ICitYearDataService citData,
+    IWhtReceivableReportService whtReport) : IPnd50FilingService
 {
+    public async Task<byte[]> BuildPnd50Async(
+        int year, bool? isSme, bool hasRelatedPartyOver200M,
+        Pnd50Attestation? attest, CancellationToken ct)
+    {
+        var c = await db.Companies.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct)
+            ?? throw new DomainException("company.not_found", "Company not found.");
+        var prof = await db.CompanyProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+
+        var startMonth  = (int)c.FiscalYearStartMonth;
+        var periodStart = new DateOnly(year, startMonth, 1);
+        var periodEnd   = periodStart.AddMonths(12).AddDays(-1);
+
+        var profile = await citData.ProfileAsync(year, ct);
+        var summary = (await citData.ListYearsAsync(ct)).FirstOrDefault(y => y.FiscalYear == year);
+        var prepaid  = summary?.Pnd51Prepaid ?? 0m;
+        var estimate = summary?.Pnd51EstimatedProfit;
+
+        // FY WHT suffered (AR-side 50ทวิ credit — box 54).
+        var whtFy = (await whtReport.GetRegisterAsync(periodStart, periodEnd, ct)).TotalWht;
+
+        var sme      = isSme ?? profile.IsSme;
+        var schedule = sme ? CitRateSchedule.Sme() : CitRateSchedule.General();
+        var accountingNp = summary?.EffectiveNetProfit ?? profile.AccountingNetProfit;
+
+        var cit = CitCalculator.Compute(
+            accountingNp, profile.AdjustmentsTotal, profile.LossCarryIn, prepaid, whtFy, schedule);
+        var surcharge = estimate is { } est
+            ? CitCalculator.UnderEstimatePenalty(est, cit.TaxableProfit, prepaid, schedule)
+            : 0m;
+
+        var sheet = BuildSheet(cit, whtFy, prepaid, surcharge, sme, attest);
+
+        var model = new Pnd50Model(
+            TaxId: prof?.TaxId ?? c.TaxId, CompanyName: prof?.LegalName ?? c.NameTh,
+            PeriodStart: periodStart, PeriodEnd: periodEnd,
+            Building: prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
+            Village: prof?.RegVillage, HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo,
+            Soi: prof?.RegSoi, Road: prof?.RegStreet,
+            SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
+            Province: prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
+            Website: prof?.Website, Email: prof?.Email,
+            HasRelatedPartyOver200M: hasRelatedPartyOver200M,
+            Sheet: sheet);
+        return Pnd50FormFiller.Fill(model);
+    }
+
     /// <summary>
     /// Derive the page-2 รายการที่ 1 figures from a <see cref="CitComputation"/>, enforcing the
     /// ภ.ง.ด.50 §4 posture: a blank box on this form asserts zero, so any year the v1 layout cannot
