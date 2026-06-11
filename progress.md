@@ -3,6 +3,39 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 91, overnight — Ham มอบอำนาจเต็ม "คิดเอง ทำเอง") — **ภ.ง.ด.1 ม.59 fix · non-VAT e2e first-class · openapi Sana delta ปิด · plan stale กวาดอีกรอบ.** Api **301/0/1** · e2e เต็ม **55 passed / 2 skipped / 0 failed** (เดิม 48/2/7).
+
+- **ภ.ง.ด.1/1ก ยื่นตามเดือนที่จ่ายจริง (commit `983897c`):** ประเด็นที่ flag ไว้เมื่อวาน — ตัดสินตามตัวบท
+  (ม.52+ม.59: นำส่งใน 7 วันนับแต่สิ้นเดือนที่**จ่าย**; หัวฟอร์ม "เดือนที่จ่ายเงินได้พึงประเมิน" /
+  ม.58(1) ภ.ง.ด.1ก = จ่ายในปีที่ล่วงมา). `Pnd1FilingService`: เดือน/ปี ← `run.PayDate` (เดิม
+  `PeriodYearMonth`), ภ.ง.ด.1ก aggregate ด้วย `PayDate.Year`. งวดปกติจ่ายในเดือนเดียวกัน = ไม่กระทบ.
+  **สปส.1-10 คงตามงวดค่าจ้าง** (กฎหมายคนละฐาน). Test ใหม่: งวด ธ.ค. จ่าย 5 ม.ค. → ลงปีถัดไป,
+  ปีงวดว่าง → `payroll.no_data`. Payroll 9/9 ×2 · Api full 301/0/1.
+- **non-VAT e2e เป็น first-class (commit `5ff4cf4`):** seed `440_seed_nonvat_demo_company.sql` —
+  company 3 "ร้านนอนแวต เดโม" (`vat_registered=false`) + branch + CoA (+5350) + ลูกค้า 2 + สินค้า 2 +
+  user **`nonvat-admin` / Admin@1234** + period + profile. พิสูจน์ per-company VAT mode live: instance
+  เดียว `/system/info` ตอบ `vat_mode:false` (company 3) กับ `true` (company 1) พร้อมกัน.
+  `non-vat-mode-pdf.spec.ts` เขียนใหม่: กลไก env-pass-2 เดิม (`Tax__VatMode=false`) ตายแล้ว → spec
+  login `nonvat-admin` รันใน pass ปกติ (ภ.พ.30 nav hidden ✓ BN issue ✓ ไม่มีแถว VAT ✓ ไม่มี e-Tax
+  CTA ✓ PDF ✓) ผ่าน 2×. ⚠️ gotcha: `dotnet run --no-build` ไม่ copy ไฟล์ .sql ใหม่เข้า bin —
+  seed ไม่ apply จนกว่าจะ build. **plan item "e2e non-VAT pass" ปิด.**
+- **openapi Sana delta เก่าปิดหมด (commit `587cf48`):** `/customer-receipts` (stale) → `/receipts`
+  จริง (+`/post`+`/pdf`) พร้อม `CreateReceiptRequest` ตามที่ ship: camelCase, `lines[]` (non-VAT
+  standalone), `applications[]` one-of TI/DO/BN, `whtLines[]` + เพิ่ม `GET /documents/chain`,
+  `POST /delivery-orders/{id}/create-invoice`, `POST /billing-notes/{id}/create-tax-invoice`,
+  `mark-printed` (Q/SO/DO/Invoice). YAML parse OK, 82 paths. **Sana delta — แจ้งรอบ sync หน้า.**
+- **plan.md stale กวาดต่อ:** "Test depth" ทั้ง 4 ข้อ (NumberSequence concurrency / PV+WHT flow /
+  period-close gating / full-DI fixture) **มีครบแล้ว**ใน `Hardening/Sprint1HardeningTests.cs` —
+  ติ๊ก ☑ พร้อม pointer · `Sprint10ProductTests.Wht_base_suggest…` RED เก่า**ผ่านแล้ว** (รันยืนยัน +
+  full suite เขียว) · openapi delta ☑.
+- **Gates ท้ายคืน:** build 0/0 · Api full **301/0/1** · payroll/non-VAT classes ×2 · **e2e เต็ม
+  55/2 skip/0 fail (7.8 นาที)** — ดีขึ้นจาก 48/2/7 ของ cont.87d. :5080 + :3000 รันค้างไว้.
+- **Commits คืนนี้:** `983897c` (pnd1 ม.59) · `5ff4cf4` (nonvat seed+e2e) · `587cf48` (openapi+plan)
+  + entry นี้. **ยังไม่ push.**
+- **เหลือรอ Ham (ไม่แตะตาม §11):** SSO WageCeiling 2569 · 50ทวิ store-vs-regen · ภ.พ.01/09 scope ·
+  RD PDF ~60MB commit? · สปส. upload e-Service จริง · **employee 50ทวิ annual** (endpoint ใหม่ —
+  ขอ approve ก่อนทำ) · ภ.ง.ด.50 C-D ใบแนบ (ชิ้นใหญ่ ควรคุย scope ก่อน).
+
 ## 2026-06-11 (cont. 90c) — **Visual-validation sweep (Ham delegated) + repo cleanup.** ฟอร์มที่ค้าง validate ผ่านหมด: ภ.ง.ด.50 v1/v2 · ภ.ง.ด.51 · ภ.ง.ด.1 v5 · ภ.ง.ด.1ก · payslip. เจอ 1 ประเด็น compliance รอ Ham ตัดสิน.
 
 - **ภ.ง.ด.50 — พร้อมใช้:** v2 gates (p3 ladder profit foots ทุกแถว 5M→100k→150k→130k→90k + radios /
