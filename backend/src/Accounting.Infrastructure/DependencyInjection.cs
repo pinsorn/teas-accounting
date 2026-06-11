@@ -104,7 +104,11 @@ public static class DependencyInjection
 
         // Sprint 8.5 — VAT-mode + non-VAT doc labels (bound from the same "Tax"
         // section as API TaxConfig; Infra can't reference the API assembly).
+        // Per-company-vat-mode spec (2026-06-11): only the doc labels remain
+        // meaningful here; VAT mode/rate/ภ.พ.30 mode now live on master.companies
+        // and are served per request by ICompanyTaxConfigService.
         services.AddOptions<VatModeOptions>().Bind(cfg.GetSection("Tax"));
+        services.AddScoped<ICompanyTaxConfigService, Master.CompanyTaxConfigService>();
 
         // e-Tax (XAdES + email). Section "ETax:Signing" / "ETax:Email" in appsettings + .env.
         services.AddOptions<ETax.ETaxSigningOptions>().Bind(cfg.GetSection("ETax:Signing"));

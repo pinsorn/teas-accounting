@@ -10,7 +10,7 @@ namespace Accounting.Infrastructure.Sales;
 ///  • <b>ProductType</b> is snapshotted from the product master whenever a ProductId is
 ///    supplied — the WHT classification (SERVICE / EXEMPT_SERVICE → withholdable, ม.50 ทวิ)
 ///    must come from master data, not the request body.
-///  • A <b>non-VAT</b> company (Tax:VatMode=false — ม.86 / CLAUDE.md §4.6) never carries VAT
+///  • A <b>non-VAT</b> company (companies.vat_registered=false — ม.86 / CLAUDE.md §4.6) never carries VAT
 ///    on any line: the tax rate is forced to 0 and the code to VAT0 regardless of input.
 /// Chain-copy paths (DO→Invoice, Q→SO, …) inherit from the already-normalized source line,
 /// so the guards only need to run at the request-fed origin builders.

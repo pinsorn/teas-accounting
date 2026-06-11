@@ -108,8 +108,9 @@ public sealed partial class TaxInvoiceService
             ?? throw new DomainException("ti.not_found", $"Tax Invoice {id} not found.");
 
         // Sprint 8.5 — non-VAT companies must NOT head the doc "ใบกำกับภาษี" (ม.86).
+        var tax = await _taxCfg.GetAsync(ct);
         var (hdrTh, hdrEn) = DocumentLabels.TaxInvoiceHeader(
-            _vat.VatMode, _vat.NonVatDocLabelTh, _vat.NonVatDocLabelEn);
+            tax.VatMode, tax.NonVatDocLabelTh, tax.NonVatDocLabelEn);
 
         // Sprint 13j-PDF — render via the shared PaperDocument mirror, IDENTICAL to
         // the FE TI detail mapping (tax-invoices/[id]/page.tsx): posted snapshot for
@@ -128,7 +129,7 @@ public sealed partial class TaxInvoiceService
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             Summary: new Pdf.PaperSummary(
                 d.SubtotalAmount, d.DiscountAmount > 0m ? d.DiscountAmount : null,
-                d.TaxableAmount, d.TaxAmount, d.TotalAmount, null, ShowVat: _vat.VatMode),
+                d.TaxableAmount, d.TaxAmount, d.TotalAmount, null, ShowVat: tax.VatMode),
             SignRoles: new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: d.Notes,
             Watermark: copy

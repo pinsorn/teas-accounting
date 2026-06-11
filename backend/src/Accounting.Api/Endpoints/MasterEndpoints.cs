@@ -99,9 +99,17 @@ public static class MasterEndpoints
             if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
             return Results.Created($"/companies/{await svc.CreateAsync(req, ct)}", null);
         });
-        g.MapPut("/{id:int}", async (int id, [FromBody] UpdateCompanyRequest req, ICompanyService svc, CancellationToken ct)
-            => { await svc.UpdateAsync(id, req, ct); return Results.NoContent(); });
+        g.MapPut("/{id:int}", async (int id, [FromBody] UpdateCompanyRequest req,
+            IValidator<UpdateCompanyRequest> v, ICompanyService svc, CancellationToken ct) =>
+        {
+            var val = await v.ValidateAsync(req, ct);
+            if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
+            await svc.UpdateAsync(id, req, ct);
+            return Results.NoContent();
+        });
         g.MapGet("/", async (ICompanyService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
+        g.MapGet("/{id:int}", async (int id, ICompanyService svc, CancellationToken ct)
+            => Results.Ok(await svc.GetAsync(id, ct)));
     }
 
     // ------------------------- Document Prefixes -------------------------

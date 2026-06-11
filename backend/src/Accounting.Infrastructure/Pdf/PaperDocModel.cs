@@ -40,7 +40,7 @@ public sealed record PaperSummary(
     decimal? VatRate, // percent, e.g. 7
     // Non-VAT mode (ม.86 — บริษัทไม่จด VAT): when false the foot prints a single
     // "ยอดรวม / Total" row only (no Subtotal/Before-VAT/VAT). Sourced from
-    // VatModeOptions.VatMode by the per-doctype mapper. Defaults true so positional
+    // ICompanyTaxConfigService.VatMode by the per-doctype mapper. Defaults true so positional
     // callers + the VAT-registered path are unaffected.
     bool ShowVat = true,
     // Sprint 13j-PURCH Phase C — Payment Voucher only: when set, the foot prints a

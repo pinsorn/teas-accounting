@@ -24,6 +24,14 @@ public class Company
     public bool VatRegistered { get; set; }
     public DateOnly? VatRegisterDate { get; set; }
 
+    /// <summary>Standard VAT rate for this company (e.g. 0.07). Effective only when
+    /// VatRegistered. Per-company since the per-company-vat-mode spec (was env Tax-section VatRate).</summary>
+    public decimal VatRate { get; set; } = 0.07m;
+
+    /// <summary>ภ.พ.30 submission mode: "manual" (generate file) | "auto" (RD Open API).
+    /// Per-company since the per-company-vat-mode spec (was env Tax-section Pnd30SubmissionMode).</summary>
+    public string Pnd30SubmissionMode { get; set; } = "manual";
+
     /// <summary>1–12. Default 1 = calendar year. Used for fiscal period close.</summary>
     public short FiscalYearStartMonth { get; set; } = 1;
 

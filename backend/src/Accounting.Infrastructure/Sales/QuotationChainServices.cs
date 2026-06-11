@@ -6,7 +6,6 @@ using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -31,10 +30,8 @@ internal static class ChainMath
 public sealed class QuotationService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    IOptions<VatModeOptions> vat) : IQuotationService
+    ICompanyTaxConfigService taxCfg) : IQuotationService
 {
-    private readonly bool _vatMode = vat.Value.VatMode;
-
     private void Auth()
     {
         if (!tenant.IsAuthenticated)
@@ -71,12 +68,13 @@ public sealed class QuotationService(
             InternalNotes = req.InternalNotes,
             ShowWhtNote = cust.CustomerType == CustomerType.Corporate,
         };
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         int n = 1;
         foreach (var l in req.Lines)
         {
             var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(_vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+                SalesLineBackstop.Resolve(vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             q.Lines.Add(new QuotationLine
             {
@@ -132,12 +130,13 @@ public sealed class QuotationService(
         q.Lines.Clear();
         q.SubtotalAmount = q.VatAmount = q.TotalAmount = 0m;
 
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         int n = 1;
         foreach (var l in req.Lines)
         {
             var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(_vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+                SalesLineBackstop.Resolve(vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             q.Lines.Add(new QuotationLine
             {

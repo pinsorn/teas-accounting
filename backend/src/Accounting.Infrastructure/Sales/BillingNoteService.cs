@@ -6,7 +6,6 @@ using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -19,11 +18,8 @@ namespace Accounting.Infrastructure.Sales;
 public sealed class BillingNoteService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    IOptions<VatModeOptions> vat) : IBillingNoteService
+    ICompanyTaxConfigService taxCfg) : IBillingNoteService
 {
-    // Non-VAT companies (ม.86): suppress VAT total rows on the billing-note PDF.
-    private readonly bool _showVat = vat.Value.VatMode;
-
     private void Auth()
     {
         if (!tenant.IsAuthenticated)
@@ -242,6 +238,8 @@ public sealed class BillingNoteService(
             ?? throw new DomainException("billing_note.not_found", $"Billing note {id} not found.");
         var cust = await db.Customers.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CustomerId == d.CustomerId && c.CompanyId == tenant.CompanyId, ct);
+        // Non-VAT companies (ม.86): suppress VAT total rows on the billing-note PDF.
+        var showVat = (await taxCfg.GetAsync(ct)).VatMode;
         // Mirror FE billing-notes/[id] mapping: line amount = net lineAmount, no
         // descriptionSub, summary carries no vatRate (PaperFoot defaults 7%),
         // customer enriched from the master with formatTaxId.
@@ -252,7 +250,7 @@ public sealed class BillingNoteService(
             new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(cust?.TaxId), cust?.BranchCode, cust?.BillingAddress),
             d.Lines.Select(l => new Pdf.PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
-            new Pdf.PaperSummary(d.SubtotalAmount, null, null, d.VatAmount, d.TotalAmount, null, _showVat),
+            new Pdf.PaperSummary(d.SubtotalAmount, null, null, d.VatAmount, d.TotalAmount, null, showVat),
             new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             ValidUntil: d.DueDate, ValidUntilLabel: cfg.ValidUntilLabel,
             Notes: d.Notes,
@@ -311,12 +309,13 @@ public sealed class BillingNoteService(
     // master and zero all VAT for a non-VAT company, whatever the request carried.
     private async Task ApplyLinesAsync(BillingNote bn, IReadOnlyList<BillingLineInput> lines, CancellationToken ct)
     {
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, lines.Select(l => l.ProductId), ct);
         int n = 1;
         foreach (var l in lines)
         {
             var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(_showVat, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+                SalesLineBackstop.Resolve(vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             bn.Lines.Add(new BillingNoteLine
             {

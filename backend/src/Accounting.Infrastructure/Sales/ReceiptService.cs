@@ -7,7 +7,6 @@ using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -27,14 +26,14 @@ public sealed partial class ReceiptService : IReceiptService
     private readonly IGlPostingService       _gl;
     private readonly IPeriodCloseService     _period;
     private readonly IActivityRecorder       _activity;
-    private readonly VatModeOptions          _vat;
+    private readonly ICompanyTaxConfigService _taxCfg;
 
     public ReceiptService(AccountingDbContext db, ITenantContext tenant, IClock clock,
         INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period,
-        IActivityRecorder activity, IOptions<VatModeOptions> vat)
+        IActivityRecorder activity, ICompanyTaxConfigService taxCfg)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
-        _gl = gl; _period = period; _activity = activity; _vat = vat.Value;
+        _gl = gl; _period = period; _activity = activity; _taxCfg = taxCfg;
     }
 
     public async Task<long> CreateDraftAsync(CreateReceiptRequest req, CancellationToken ct)
@@ -80,7 +79,8 @@ public sealed partial class ReceiptService : IReceiptService
             : new List<BillingNote>();
 
         // A non-VAT company issues no Tax Invoice (ม.86/4) → it has none to apply to.
-        if (!_vat.VatMode && tiIds.Count > 0)
+        var tax = await _taxCfg.GetAsync(ct);
+        if (!tax.VatMode && tiIds.Count > 0)
             throw new DomainException("rc.non_vat_no_ti",
                 "A non-VAT company has no Tax Invoices; apply to a Delivery Order or issue a standalone receipt.");
 

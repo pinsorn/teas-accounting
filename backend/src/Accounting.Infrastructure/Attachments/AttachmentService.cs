@@ -15,7 +15,8 @@ namespace Accounting.Infrastructure.Attachments;
 /// query filter. Validates parent_type/category, parent-row existence, mime +
 /// size; soft-delete only. Perm-code strings are literals here because the Api
 /// Permissions class is not referenceable from Infrastructure (same constraint
-/// as the TaxConfig/VatModeOptions split — mechanism note).
+/// that once forced the TaxConfig/VatModeOptions label split — mechanism note;
+/// VAT mode itself is now per-company via ICompanyTaxConfigService).
 /// </summary>
 public sealed class AttachmentService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,

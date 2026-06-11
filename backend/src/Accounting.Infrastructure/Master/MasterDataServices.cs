@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Master;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Master;
@@ -161,7 +162,7 @@ public sealed class ChartOfAccountService(AccountingDbContext db, ITenantContext
     }
 }
 
-public sealed class CompanyService(AccountingDbContext db) : ICompanyService
+public sealed class CompanyService(AccountingDbContext db, IActivityRecorder activity) : ICompanyService
 {
     public async Task<int> CreateAsync(CreateCompanyRequest req, CancellationToken ct)
     {
@@ -173,6 +174,7 @@ public sealed class CompanyService(AccountingDbContext db) : ICompanyService
             TaxId = req.TaxId, NameTh = req.NameTh, NameEn = req.NameEn,
             LegalEntityType = req.LegalEntityType, RegistrationDate = req.RegistrationDate,
             VatRegistered = req.VatRegistered, VatRegisterDate = req.VatRegisterDate,
+            VatRate = req.VatRate, Pnd30SubmissionMode = req.Pnd30SubmissionMode,
             FiscalYearStartMonth = req.FiscalYearStartMonth,
             AddressTh = req.AddressTh, SubDistrict = req.SubDistrict, District = req.District,
             Province = req.Province, PostalCode = req.PostalCode,
@@ -267,8 +269,21 @@ public sealed class CompanyService(AccountingDbContext db) : ICompanyService
     {
         var e = await db.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.CompanyId == companyId, ct)
             ?? throw new DomainException("company.not_found", $"Company {companyId} not found.");
+
+        // §4.6 (per-company-vat-mode spec) — every change of a tax-config field is audited.
+        if (e.VatRegistered != req.VatRegistered || e.VatRate != req.VatRate
+            || e.Pnd30SubmissionMode != req.Pnd30SubmissionMode)
+        {
+            activity.Record("company", companyId, null, companyId, "tax_config_change",
+                note: $"vat_registered {e.VatRegistered}->{req.VatRegistered}; "
+                    + $"vat_rate {e.VatRate}->{req.VatRate}; "
+                    + $"pnd30_submission_mode {e.Pnd30SubmissionMode}->{req.Pnd30SubmissionMode}",
+                module: "master");
+        }
+
         e.NameTh = req.NameTh; e.NameEn = req.NameEn;
         e.VatRegistered = req.VatRegistered; e.VatRegisterDate = req.VatRegisterDate;
+        e.VatRate = req.VatRate; e.Pnd30SubmissionMode = req.Pnd30SubmissionMode;
         e.AddressTh = req.AddressTh; e.SubDistrict = req.SubDistrict; e.District = req.District;
         e.Province = req.Province; e.PostalCode = req.PostalCode;
         e.Phone = req.Phone; e.Email = req.Email; e.IsActive = req.IsActive;
@@ -279,8 +294,19 @@ public sealed class CompanyService(AccountingDbContext db) : ICompanyService
     public Task<IReadOnlyList<CompanyDto>> ListAsync(CancellationToken ct) =>
         db.Companies.IgnoreQueryFilters().OrderBy(c => c.NameTh)
             .Select(c => new CompanyDto(c.CompanyId, c.TaxId, c.NameTh, c.NameEn, c.LegalEntityType,
-                c.VatRegistered, c.BaseCurrency, c.IsActive, c.PaidUpCapital))
+                c.VatRegistered, c.BaseCurrency, c.IsActive, c.PaidUpCapital,
+                c.VatRate, c.Pnd30SubmissionMode))
             .ToListAsync(ct).ContinueWith<IReadOnlyList<CompanyDto>>(t => t.Result, TaskContinuationOptions.OnlyOnRanToCompletion);
+
+    public async Task<CompanyDetailDto> GetAsync(int companyId, CancellationToken ct) =>
+        await db.Companies.IgnoreQueryFilters().Where(c => c.CompanyId == companyId)
+            .Select(c => new CompanyDetailDto(c.CompanyId, c.TaxId, c.NameTh, c.NameEn,
+                c.LegalEntityType, c.RegistrationDate, c.VatRegistered, c.VatRegisterDate,
+                c.FiscalYearStartMonth, c.AddressTh, c.SubDistrict, c.District, c.Province,
+                c.PostalCode, c.Phone, c.Email, c.IsActive, c.PaidUpCapital,
+                c.VatRate, c.Pnd30SubmissionMode))
+            .FirstOrDefaultAsync(ct)
+        ?? throw new DomainException("company.not_found", $"Company {companyId} not found.");
 }
 
 public sealed class DocumentPrefixService(AccountingDbContext db) : IDocumentPrefixService

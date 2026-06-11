@@ -6,7 +6,6 @@ using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -17,11 +16,13 @@ namespace Accounting.Infrastructure.Sales;
 /// Quotation keeps the §B4 WHT note (corporate + service lines) in the notes block.
 /// </summary>
 public sealed class SalesChainPdfService(
-    AccountingDbContext db, ITenantContext tenant, IOptions<VatModeOptions> vat)
+    AccountingDbContext db, ITenantContext tenant, ICompanyTaxConfigService taxCfg)
     : ISalesChainPdfService
 {
-    // Non-VAT companies (ม.86): suppress the VAT total rows on Q/SO/DO.
-    private readonly bool _showVat = vat.Value.VatMode;
+    // Non-VAT companies (ม.86): suppress the VAT total rows on Q/SO/DO —
+    // resolved per request from the company row (per-company-vat-mode spec).
+    private async Task<bool> ShowVatAsync(CancellationToken ct) =>
+        (await taxCfg.GetAsync(ct)).VatMode;
 
     private void Auth()
     {
@@ -41,8 +42,8 @@ public sealed class SalesChainPdfService(
 
     // FE Q/SO/DO/BN summaries pass NO vatRate (PaperFoot defaults to 7%); mirror that.
     // ShowVat=false (non-VAT) collapses the foot to a single Total row.
-    private PaperSummary Summary(decimal subtotal, decimal vat, decimal total) =>
-        new(subtotal, null, null, vat, total, null, _showVat);
+    private static PaperSummary Summary(decimal subtotal, decimal vat, decimal total, bool showVat) =>
+        new(subtotal, null, null, vat, total, null, showVat);
 
     // cont.69 Phase 4 (D8) — copy=true forces the สำเนา watermark; otherwise the
     // status-based watermark (DRAFT/CANCELLED/…) is used. Mirrors TaxInvoice.BuildPdfAsync.
@@ -68,7 +69,7 @@ public sealed class SalesChainPdfService(
             new PaperCustomer(q.CustomerName, PaperFormat.TaxId(q.CustomerTaxId), null, q.CustomerAddress),
             q.Lines.OrderBy(l => l.LineNo).Select(l =>
                 Line(l.Quantity, l.DescriptionTh, l.UomText, l.UnitPrice, l.LineAmount)).ToList(),
-            Summary(q.SubtotalAmount, q.VatAmount, q.TotalAmount),
+            Summary(q.SubtotalAmount, q.VatAmount, q.TotalAmount, await ShowVatAsync(ct)),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             ValidUntil: q.ValidUntilDate, ValidUntilLabel: cfg.ValidUntilLabel,
             Notes: notes,
@@ -89,7 +90,7 @@ public sealed class SalesChainPdfService(
             new PaperCustomer(so.CustomerName, PaperFormat.TaxId(so.CustomerTaxId), null, so.CustomerAddress),
             so.Lines.OrderBy(l => l.LineNo).Select(l =>
                 Line(l.Quantity, l.DescriptionTh, l.UomText, l.UnitPrice, l.LineAmount)).ToList(),
-            Summary(so.SubtotalAmount, so.VatAmount, so.TotalAmount),
+            Summary(so.SubtotalAmount, so.VatAmount, so.TotalAmount, await ShowVatAsync(ct)),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: so.Notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.SalesOrder, so.Status.ToString())));
@@ -111,7 +112,7 @@ public sealed class SalesChainPdfService(
             new PaperCustomer(dord.CustomerName, PaperFormat.TaxId(dord.CustomerTaxId), null, dord.CustomerAddress),
             dord.Lines.OrderBy(l => l.LineNo).Select(l =>
                 Line(l.Quantity, l.DescriptionTh, l.UomText, l.UnitPrice, l.LineAmount)).ToList(),
-            Summary(dord.SubtotalAmount, dord.VatAmount, dord.TotalAmount),
+            Summary(dord.SubtotalAmount, dord.VatAmount, dord.TotalAmount, await ShowVatAsync(ct)),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: dord.Notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.DeliveryOrder, dord.Status.ToString())));

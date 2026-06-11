@@ -24,12 +24,12 @@ public sealed class WhtFilingService(
     IJournalService journals,
     ITenantContext tenant,
     IClock clock,
-    IOptions<VatModeOptions> opts,
+    ICompanyTaxConfigService taxCfg,
     IOptions<GlAccountsOptions> glAccounts,
     IRdEfilingClient rd) : IWhtFilingService
 {
-    private string SubmissionMode() =>
-        opts.Value.Pnd30SubmissionMode?.ToLowerInvariant() == "auto" ? "auto" : "manual";
+    private async Task<string> SubmissionModeAsync(CancellationToken ct) =>
+        (await taxCfg.GetAsync(ct)).Pnd30SubmissionMode.ToLowerInvariant() == "auto" ? "auto" : "manual";
 
     private void EnsureAuth()
     {
@@ -75,7 +75,7 @@ public sealed class WhtFilingService(
 
         var totals = new WhtFilingTotals(
             rows.Sum(r => r.IncomeAmount), rows.Sum(r => r.WhtAmount));
-        var sub = SubmissionMode();
+        var sub = await SubmissionModeAsync(ct);
         var due = TaxFilingPeriod.DueDate(period, 7);
         var status = mode == TaxFilingMode.Finalize
             ? TaxFilingStore.FinalStatus(sub) : "Preview";
@@ -124,7 +124,7 @@ public sealed class WhtFilingService(
 
         var totalService = rows.Sum(r => r.ServiceAmountThb);
         var totalVat = rows.Sum(r => r.VatAmount);
-        var sub = SubmissionMode();
+        var sub = await SubmissionModeAsync(ct);
         var due = TaxFilingPeriod.DueDate(period, 7);
         long? jvId = null;
 
@@ -160,7 +160,7 @@ public sealed class WhtFilingService(
     private async Task<long> PostReverseChargeJvAsync(
         int period, DateOnly docDate, decimal vat, CancellationToken ct)
     {
-        var vatMode = opts.Value.VatMode;
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
         // VAT registrant debits reclaimable Input VAT (1170); a non-VAT receiver debits
         // the irrecoverable-VAT expense (the VAT is a cost it can never claim back).
         var debitCode = vatMode ? "1170" : glAccounts.Value.IrrecoverableVatExpenseAccount;

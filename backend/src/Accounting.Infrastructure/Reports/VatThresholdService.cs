@@ -3,7 +3,6 @@ using Accounting.Application.Reports;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Reports;
 
@@ -13,7 +12,7 @@ namespace Accounting.Infrastructure.Reports;
 /// company_id). Pure read; safe to call on every dashboard load.
 /// </summary>
 public sealed class VatThresholdService(
-    AccountingDbContext db, IClock clock, IOptions<VatModeOptions> vat)
+    AccountingDbContext db, IClock clock, ICompanyTaxConfigService taxCfg)
     : IVatThresholdService
 {
     private const decimal Approaching = 1_500_000m;
@@ -21,7 +20,7 @@ public sealed class VatThresholdService(
 
     public async Task<RevenueThresholdStatus> CheckAsync(CancellationToken ct)
     {
-        if (vat.Value.VatMode) return RevenueThresholdStatus.NotApplicable;
+        if ((await taxCfg.GetAsync(ct)).VatMode) return RevenueThresholdStatus.NotApplicable;
 
         var cutoff = clock.UtcNow.AddYears(-1);
         var revenue = await db.TaxInvoices

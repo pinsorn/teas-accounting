@@ -32,7 +32,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     private readonly IETaxXmlBuilder         _etaxXml;
     private readonly IETaxSubmissionPipeline _etaxPipeline;
     private readonly ETaxBehaviorOptions     _etaxOpts;
-    private readonly VatModeOptions          _vat;
+    private readonly ICompanyTaxConfigService _taxCfg;
     private readonly ILogger<TaxInvoiceService> _log;
     private readonly IActivityRecorder       _activity;
 
@@ -46,23 +46,23 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         IETaxXmlBuilder etaxXml,
         IETaxSubmissionPipeline etaxPipeline,
         IOptions<ETaxBehaviorOptions> etaxOpts,
-        IOptions<VatModeOptions> vat,
+        ICompanyTaxConfigService taxCfg,
         ILogger<TaxInvoiceService> log,
         IActivityRecorder activity)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period;
         _etaxXml = etaxXml; _etaxPipeline = etaxPipeline;
-        _etaxOpts = etaxOpts.Value; _vat = vat.Value; _log = log;
+        _etaxOpts = etaxOpts.Value; _taxCfg = taxCfg; _log = log;
         _activity = activity;
     }
 
     // Non-VAT companies (ม.86/4) cannot issue Tax Invoices. This is the single
     // chokepoint for ALL TI creation — manual, Pattern X (DO→TI combined), and
     // Pattern Y (separate DO→TI) all funnel through CreateDraftAsync.
-    private void EnsureVatRegistered()
+    private async Task EnsureVatRegisteredAsync(CancellationToken ct)
     {
-        if (!_vat.VatMode)
+        if (!(await _taxCfg.GetAsync(ct)).VatMode)
             throw new DomainException("ti.non_vat_blocked",
                 "VAT-not-registered companies cannot issue Tax Invoices (ม.86/4). " +
                 "Use a delivery note / receipt instead.");
@@ -75,7 +75,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
-        EnsureVatRegistered();
+        await EnsureVatRegisteredAsync(ct);
 
         var bn = await _db.BillingNotes.AsNoTracking().Include(x => x.Lines)
             .Where(x => x.CompanyId == _tenant.CompanyId)
@@ -105,7 +105,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
-        EnsureVatRegistered();
+        await EnsureVatRegisteredAsync(ct);
 
         // Sprint 14 P7 — per-key BU lock (auto-fill / mismatch). Company-level
         // requires_business_unit still runs below on the resolved value.
@@ -232,7 +232,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
         // Defense: a draft TI may survive a VAT→non-VAT config switch; it must not post.
-        EnsureVatRegistered();
+        await EnsureVatRegisteredAsync(ct);
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 

@@ -7,7 +7,6 @@ using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -19,13 +18,13 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
     private readonly INumberSequenceService  _numbers;
     private readonly IGlPostingService       _gl;
     private readonly IPeriodCloseService     _period;
-    private readonly VatModeOptions          _vat;
+    private readonly ICompanyTaxConfigService _taxCfg;
     private readonly IActivityRecorder       _activity;
 
     public TaxAdjustmentNoteService(AccountingDbContext db, ITenantContext tenant, IClock clock,
         INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period,
-        IOptions<VatModeOptions> vat, IActivityRecorder activity)
-    { _db = db; _tenant = tenant; _clock = clock; _numbers = numbers; _gl = gl; _period = period; _vat = vat.Value; _activity = activity; }
+        ICompanyTaxConfigService taxCfg, IActivityRecorder activity)
+    { _db = db; _tenant = tenant; _clock = clock; _numbers = numbers; _gl = gl; _period = period; _taxCfg = taxCfg; _activity = activity; }
 
     // CN vs DN audit EntityType, matching ActivityEndpoints route mapping.
     private static string EntityTypeOf(TaxAdjustmentNote n) =>
