@@ -20,9 +20,9 @@
 > key principal (non-super) มองไม่เห็น BU นั้น = enforce ถูกต้อง; (2) ApiKey principal ไม่มี
 > Branch claim → BranchId=0 → JE numbering ชน ix_journal_entries. แก้: BU validation/list/mint
 > เป็น company-explicit ทุกจุด + principal ถือ head-office branch. ดู progress cont.88.
-> **หมายเหตุถึง Ham:** role `accounting` บน dev มี BYPASSRLS → RLS ทั้งระบบไม่ทำงานจริง (§4.7) —
-> ต้องตัดสินใจระดับ infra; และ dev keys เก่า (id 2,3,4 "Reptify Shopify"/dbg, company 1 + BU 3
-> ข้าม company) ยังค้างใน DB — ควร revoke/remint ภายใต้ company ที่ถูก.
+> **มติ Ham (2026-06-11 เช้า):** BYPASSRLS บน dev = ยอมรับได้ (มอง dev role เป็น super admin;
+> ระบบ permission ยังกำกับ — โปรดักชันจริงไม่ใช้ account dev). ✗ ไม่แก้ role.
+> dev keys เก่า (id 2,3,4 company 1 + BU 3 ข้าม company) — อธิบายให้ Ham แล้ว รอเคาะ revoke.
 
 **อาการ (reproduce แล้วสด 2026-06-10, ดู progress cont.87d):**
 - POST `/api/v1/tax-invoices` + `X-Api-Key` + `businessUnitId` ใด ๆ → 422 `bu.invalid`
