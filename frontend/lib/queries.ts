@@ -54,6 +54,10 @@ import type {
   CompanyProfile,
   UpdateCompanyProfileSoftRequest,
   UpdateRegisteredAddressRequest,
+  CompanyListItem,
+  CompanyDetail,
+  CreateCompanyRequest,
+  UpdateCompanyRequest,
   MePermissions,
   ProductListItem,
   ProductDetail,
@@ -583,6 +587,46 @@ export function useSetCompanyBuSetting() {
     mutationFn: (requiresBusinessUnit: boolean) =>
       apiPut<unknown>('business-units/company-setting', { requiresBusinessUnit }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['company-bu-setting'] }),
+  });
+}
+
+// ──────────── Per-company VAT mode — companies CRUD (/settings/companies) ────────────
+// Super-admin only (BE enforces master.company.manage on the whole /companies group).
+
+export function useCompanies() {
+  return useQuery({
+    queryKey: ['companies'],
+    queryFn: () => apiGet<CompanyListItem[]>('companies'),
+  });
+}
+
+export function useCompany(id: number) {
+  return useQuery({
+    queryKey: ['company', id],
+    queryFn: () => apiGet<CompanyDetail>(`companies/${id}`),
+    enabled: Number.isFinite(id) && id > 0,
+  });
+}
+
+export function useCreateCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateCompanyRequest) => apiPost<unknown>('companies/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['companies'] }),
+  });
+}
+
+export function useUpdateCompany(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateCompanyRequest) => apiPut<unknown>(`companies/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['companies'] });
+      qc.invalidateQueries({ queryKey: ['company', id] });
+      // §4.6 — vatRegistered/vatRate drive app-wide VAT mode (nav, e-Tax CTAs,
+      // doc forms) via /system/info → must refetch immediately after an edit.
+      qc.invalidateQueries({ queryKey: ['system-info'] });
+    },
   });
 }
 
