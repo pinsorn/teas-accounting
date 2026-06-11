@@ -1018,14 +1018,17 @@ paths:
 
   /tax-filings/pnd50/pdf:
     get:
-      summary: ภ.ง.ด.50 (annual CIT return) v1 — p1 header + p2 รายการที่ 1 PDF
+      summary: ภ.ง.ด.50 (annual CIT return) v2 — p1 + p2 รายการที่ 1 + p3 ladder + p6 งบฐานะ PDF
       description: >
-        Fills the official RD ภ.ง.ด.50 AcroForm (v1 scope: page-1 header + page-2 การคำนวณภาษี;
-        รายการที่ 2–9 print blank). Figures come from the CIT data layer (CitProfile, ภ.ง.ด.51
-        estimate/prepaid store, FY WHT-receivable register, CitCalculator + ม.67ตรี penalty).
-        Both attest flags must be true AND the year must carry zero ม.65ทวิ/ตรี adjustments and
-        zero applied loss carry-forward, or the service returns 422 `pnd50.not_attestable` —
-        a blank box on this form asserts zero (ภ.ง.ด.50 §4).
+        Fills the official RD ภ.ง.ด.50 AcroForm (v2 scope: page-1 header + page-2 การคำนวณภาษี +
+        page-3 รายการที่ 2/3 ladder (ม.65ทวิ/ตรี) + page-6 งบแสดงฐานะการเงิน — all from real data).
+        Figures come from the CIT data layer (CitProfile, ภ.ง.ด.51 estimate/prepaid store, FY
+        WHT-receivable register, BalanceSheet, CitCalculator + ม.67ตรี penalty). Both attest flags
+        must be true (pages 4–5 ต้นทุน/ขายบริหาร detail, page 7 แบบแจ้งกรรมการ and the ใบแนบ still
+        print blank → 422 `pnd50.not_attestable`), and the year must carry no refusal condition
+        (`pnd50.override_breaks_ladder` — override disagrees with the books; `pnd50.ladder_sign_flip`
+        — adjustments flip the running total mid-ladder; `pnd50.surcharge_with_overpaid`) or the
+        service returns 422 `pnd50.not_renderable`. A blank box on this form asserts zero (ภ.ง.ด.50 §4).
       tags: [Tax Filings]
       parameters:
         - name: year
@@ -1048,14 +1051,41 @@ paths:
         - name: attestBlankSchedules
           in: query
           schema: { type: boolean, default: false }
-          description: รับทราบว่า รายการที่ 2–9 พิมพ์ว่าง ต้องกรอกเองก่อนยื่นจริง
+          description: รับทราบว่า หน้า 4–5, หน้า 7 และใบแนบ พิมพ์ว่าง ต้องกรอกเองก่อนยื่นจริง
       responses:
         '200':
-          description: PDF (7 pages; v1 fills pages 1–2)
+          description: PDF (7 pages; v2 fills pages 1–3 + page 6)
           content:
             application/pdf: {}
         '422':
-          description: pnd50.not_attestable — year not honestly renderable in the v1 scope
+          description: pnd50.not_attestable (attestation missing) or pnd50.not_renderable (refusal condition)
+
+  /tax-filings/pnd50/preview:
+    get:
+      summary: ภ.ง.ด.50 dashboard dry-run — every figure the filler will print (single source)
+      description: >
+        JSON preview for the CIT filing dashboard, derived from the SAME composition the PDF filler
+        uses (no duplicated maths). Never 422s for a refusal: those are listed in `refusals[]` (the
+        /pdf endpoint 422s on the same codes). `ladder` is null only when a refusal prevented
+        building it. Includes the p3 ladder, p6 balance-sheet totals, the per-certificate WHT credit
+        (50ทวิ), the ภ.ง.ด.51 estimate/prepaid, and the ม.67ตรี surcharge.
+      tags: [Tax Filings]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+          description: CE fiscal year (start year of the accounting period)
+        - name: isSme
+          in: query
+          schema: { type: boolean, nullable: true }
+          description: omit → auto from CitProfile (paid-up ≤5M ∧ revenue ≤30M)
+      responses:
+        '200':
+          description: Preview figures + refusal codes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pnd50Preview' }
 
   /tax-filings/pnd51/estimate:
     post:
@@ -1740,6 +1770,99 @@ components:
 
   schemas:
     # === CIT Phase C-C (ภ.ง.ด.50 foundations) ===
+    Pnd50Preview:
+      type: object
+      description: >
+        ภ.ง.ด.50 dashboard dry-run — same figures the PDF filler prints (single source) plus the
+        refusal codes that would 422 the /pdf endpoint. All amounts THB; signed where the form uses
+        a sign radio (ladder rows, retained earnings).
+      properties:
+        year: { type: integer }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        isSme: { type: boolean }
+        paidUpCapital: { type: number, nullable: true }
+        revenue: { type: number }
+        expenses: { type: number }
+        pnd51EstimatedProfit: { type: number, nullable: true }
+        pnd51Prepaid: { type: number }
+        whtCreditTotal: { type: number, description: FY AR-side 50ทวิ credit (box 54) }
+        whtCertificates:
+          type: array
+          items: { $ref: '#/components/schemas/Pnd50WhtCert' }
+        ladder:
+          oneOf:
+            - { $ref: '#/components/schemas/Pnd50Ladder' }
+            - { type: 'null' }
+          description: null when a refusal prevented building it
+        adjustments:
+          type: array
+          items: { $ref: '#/components/schemas/CitAdjustment' }
+        taxBeforeCredits: { type: number }
+        creditsTotal: { type: number }
+        netPayable: { type: number, description: absolute value; see payMore for direction }
+        payMore: { type: boolean, description: true ชำระเพิ่มเติม, false ชำระไว้เกิน }
+        surcharge: { type: number, description: ม.67ตรี under-estimate penalty (0 when none) }
+        totalDue: { type: number }
+        balanceSheet: { $ref: '#/components/schemas/Pnd50BalanceSheet' }
+        refusals:
+          type: array
+          items: { type: string }
+          description: >
+            empty when renderable; otherwise any of pnd50.override_breaks_ladder,
+            pnd50.ladder_sign_flip, pnd50.surcharge_with_overpaid
+    Pnd50Ladder:
+      type: object
+      description: p3 รายการที่ 2 ladder (signed). Foots 1−2=3 · 3+4=5 · 5−6=7 · 7−8=9 · 9+10+11=12 · 12−13=14 · 14−15=16 · 16+17+18+19=20.
+      properties:
+        directRevenue: { type: number }
+        costOfSales: { type: number }
+        grossProfit: { type: number }
+        otherIncome: { type: number }
+        total5: { type: number }
+        otherExpenses: { type: number }
+        total7: { type: number }
+        sellingAdminExpenses: { type: number }
+        accountingNetProfit: { type: number }
+        incomeAdditions: { type: number }
+        disallowedExpenses: { type: number, description: row 11 — Σ positive ม.65ทวิ/ตรี adjustments }
+        total12: { type: number }
+        exemptDeductions: { type: number, description: row 13 — |Σ negative adjustments| }
+        total14: { type: number, description: == CitComputation.TaxableBeforeLoss }
+        lossCarryForward: { type: number, description: row 15 — ม.65ตรี(12) applied loss }
+        total16: { type: number }
+        total20: { type: number }
+        taxableNetProfit: { type: number, description: row 21 → flows to p2 box 48-49 }
+    Pnd50BalanceSheet:
+      type: object
+      description: p6 งบฐานะ totals (account-code classified). RetainedEarnings signed (→ Group91).
+      properties:
+        cashAndEquivalents: { type: number }
+        tradeReceivables: { type: number }
+        inventory: { type: number }
+        otherCurrentAssets: { type: number }
+        otherNonCurrentAssets: { type: number }
+        totalAssets: { type: number }
+        tradePayables: { type: number }
+        otherCurrentLiabilities: { type: number }
+        otherNonCurrentLiabilities: { type: number }
+        totalLiabilities: { type: number }
+        paidUpShareCapital: { type: number }
+        otherEquity: { type: number }
+        retainedEarnings: { type: number }
+        totalEquity: { type: number }
+        totalLiabilitiesAndEquity: { type: number }
+        balanced: { type: boolean }
+    Pnd50WhtCert:
+      type: object
+      description: One AR-side 50ทวิ certificate counted into the box-54 WHT credit.
+      properties:
+        docNo: { type: string }
+        docDate: { type: string, format: date }
+        customerName: { type: string }
+        customerTaxId: { type: string, nullable: true }
+        whtAmount: { type: number }
+        customerWhtCertNo: { type: string, nullable: true, description: null = cert not yet received }
     CitYearSummary:
       type: object
       description: Per-fiscal-year CIT store — loss c/f (ม.65ตรี(12), override-able) + ภ.ง.ด.51 estimate (ม.67ตรี).

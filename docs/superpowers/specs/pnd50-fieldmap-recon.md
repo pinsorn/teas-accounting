@@ -1,5 +1,10 @@
 # ภ.ง.ด.50 (`pnd50_050369.pdf`) — field-map recon (2026-06-10, cont.87b)
 
+> **Superseded scope note (cont.89):** v1 (p1+p2) shipped; **v2 (p1+p2+p3 ladder+p6 งบฐานะ) is now
+> the only behaviour** — see plan `docs/superpowers/plans/2026-06-11-pnd50-v2-dashboard.md` and the
+> p3/p6 render-confirmed radio map in `docs/RD-Forms/pnd50/pnd50_radiomap.md`. This file remains the
+> page-structure reference; the v1-scope passages below are historical.
+>
 > Grounding for the C-C FORM FILL plan. Probed with pymupdf (label-join, same method as ภ.ง.ด.51).
 > Raw per-page dumps: `docs/RD-Forms/pnd50/fieldmap/_pnd50_fields_p{1..7}.txt`
 > (field name | type [+radio choices] | rect x0,y0,x1,y1 | printed text on the same row).

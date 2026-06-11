@@ -1,6 +1,61 @@
 namespace Accounting.Infrastructure.Pdf;
 
 /// <summary>
+/// p3 รายการที่ 2 ladder — SIGNED values internally; the filler prints absolute values and sets the
+/// three sign radios (Group100 row 3, Group101 row 9, Group9 row 21). Rows are the form's printed
+/// lines (margin numbers in comments); arithmetic invariants and the sign-flip renderability rule
+/// are enforced by <c>Pnd50FilingService.BuildLadder</c> (boxes have no sign of their own).
+/// </summary>
+public sealed record Pnd50Ladder(
+    decimal DirectRevenue,         // 1  (63)
+    decimal CostOfSales,           // 2  (64) = รายการที่ 3 row 9 (0 — TEAS keeps no COGS/inventory)
+    decimal GrossProfit,           // 3  (65-66) signed → Group100
+    decimal OtherIncome,           // 4  (67) 0 in v2
+    decimal Total5,                // 5  = 3.+4. (signed)
+    decimal OtherExpenses,         // 6  (68) 0 in v2
+    decimal Total7,                // 7  = 5.−6. (signed)
+    decimal SellingAdminExpenses,  // 8  (69) = FY total expense
+    decimal AccountingNetProfit,   // 9  (70-71) signed → Group101
+    decimal IncomeAdditions,       // 10 (72) 0 in v2
+    decimal DisallowedExpenses,    // 11 (73) = Σ positive ม.65ทวิ/ตรี adjustments
+    decimal Total12,               // 12 signed = 9.+10.+11.
+    decimal ExemptDeductions,      // 13 (74) = |Σ negative adjustments|
+    decimal Total14,               // 14 signed = 12.−13. == CitComputation.TaxableBeforeLoss
+    decimal LossCarryForward,      // 15 (75) = CitComputation.LossApplied (ม.65ตรี(12))
+    decimal Total16,               // 16 signed = 14.−15.
+    decimal Excess10Pct,           // 17 (75.1) 0 in v2
+    decimal CharityExcess,         // 18 (76) 0 in v2
+    decimal EducationExcess,       // 19 (77) 0 in v2
+    decimal Total20,               // 20 (78) signed = 16.+17.+18.+19.
+    decimal TaxableNetProfit);     // 21 signed → Group9 (TaxableProfit, or TaxableBeforeLoss when loss)
+
+/// <summary>
+/// p6 งบแสดงฐานะการเงิน boxes, classified from BalanceSheetReport rows by the TEAS account-code
+/// convention (4-digit): 1110-1129→140, 1130-1139→141, 1140-1149→142, other 1000-1499→143,
+/// 1500-1999→148 · 2110→150, other 2000-2499→152, 2500-2999→154 · 3100-3199→156,
+/// 3200-3299→158-159 (+CurrentPeriodEarnings), other 3xxx→157. Form lines 144-147/149/151/153
+/// have no classified source accounts and print 0; unparseable codes land in the section's
+/// "อื่น (นอกจากที่ระบุ)" line. RetainedEarnings is SIGNED → Group91. The mapper
+/// (<c>Pnd50FilingService.MapBalanceSheet</c>) asserts the totals reproduce the report's.
+/// </summary>
+public sealed record Pnd50BalanceSheetBoxes(
+    decimal CashAndEquivalents,         // 140
+    decimal TradeReceivables,           // 141
+    decimal Inventory,                  // 142
+    decimal OtherCurrentAssets,         // 143
+    decimal OtherNonCurrentAssets,      // 148
+    decimal TotalAssets,                // รวมสินทรัพย์
+    decimal TradePayables,              // 150
+    decimal OtherCurrentLiabilities,    // 152
+    decimal OtherNonCurrentLiabilities, // 154
+    decimal TotalLiabilities,           // รวมหนี้สิน
+    decimal PaidUpShareCapital,         // 156
+    decimal OtherEquity,                // 157
+    decimal RetainedEarnings,           // 158-159 signed → Group91
+    decimal TotalEquity,                // 160
+    decimal TotalLiabilitiesAndEquity); // 161
+
+/// <summary>
 /// Page-2 รายการที่ 1 การคำนวณภาษี figures, all derived by <c>Pnd50FilingService.BuildSheet</c>
 /// (which enforces the ภ.ง.ด.50 §4 refuse-on-unrenderable guard before this record can exist).
 /// Box numbers refer to the form's printed margin numbering (spec: pnd50-fieldmap-recon.md).
@@ -19,8 +74,8 @@ public sealed record Pnd50Sheet(
     bool    IsSme);          // Group21: false→Choice1 ทั่วไป, true→Choice2 + Group6 Choice1 SMEs
 
 /// <summary>
-/// Model for ภ.ง.ด.50 v1 (annual CIT return — page 1 header + page 2 รายการที่ 1).
-/// Address block = same CompanyProfile source as ภ.ง.ด.51. Company type is fixed to
+/// Model for ภ.ง.ด.50 v2 (annual CIT return — p1 header + p2 รายการที่ 1 + p3 รายการที่ 2/3 +
+/// p6 งบฐานะ). Address block = same CompanyProfile source as ภ.ง.ด.51. Company type is fixed to
 /// (1) บริษัท/ห้างฯ ตั้งขึ้นตามกฎหมายไทย (Group00) — TEAS targets Thai juristic companies.
 /// </summary>
 public sealed record Pnd50Model(
@@ -31,7 +86,9 @@ public sealed record Pnd50Model(
     string? SubDistrict, string? District, string? Province, string? PostalCode,
     string? Website, string? Email,
     bool HasRelatedPartyOver200M,     // ม.71ทวิ: true→Group06 มี, false→Group07 ไม่มี/รายได้≤200M
-    Pnd50Sheet Sheet);
+    Pnd50Sheet Sheet,
+    Pnd50Ladder Ladder,
+    Pnd50BalanceSheetBoxes BalanceSheet);
 
 /// <summary>
 /// Fills the official RD ภ.ง.ด.50 AcroForm (v1: page 1 header + page 2 รายการที่ 1) and flattens
@@ -95,6 +152,67 @@ public static class Pnd50FormFiller
             Amt("671", s.Surcharge);      // 60    บวกเงินเพิ่ม (ถ้ามี)
         Amt("672",     s.TotalAmount);    // 61-62 รวมภาษีที่ ชำระเพิ่มเติม/ไว้เกิน
 
+        // p3 รายการที่ 2 — column ③ (รวม) ONLY: the form rubric (recon cont.89) says กรณีทั่วไป/
+        // ลดอัตรา fill ช่อง ③ ช่องเดียว; columns ①② are for exempt-business filers. Every row is
+        // printed (zero → explicit 0) — v2 never leaves a ladder box blank-as-lie. Signed rows
+        // print their absolute value; the sign lives in Group100/Group101/Group9 below.
+        var L = m.Ladder;
+        void Lad(string name, decimal v) => Amt(name, Math.Abs(v));
+        Lad("Text17.4",  L.DirectRevenue);          // 1  (63)
+        Lad("Text17.7",  L.CostOfSales);            // 2  (64) = รายการที่ 3 row 9
+        Lad("Text17.10", L.GrossProfit);            // 3  (65-66)
+        Lad("Text17.13", L.OtherIncome);            // 4  (67)
+        Lad("Text17.16", L.Total5);                 // 5
+        Lad("Text17.19", L.OtherExpenses);          // 6  (68)
+        Lad("Text17.22", L.Total7);                 // 7
+        Lad("Text17.25", L.SellingAdminExpenses);   // 8  (69)
+        Lad("Text17.28", L.AccountingNetProfit);    // 9  (70-71)
+        Lad("Text17.31", L.IncomeAdditions);        // 10 (72)
+        Lad("Text17.34", L.DisallowedExpenses);     // 11 (73)
+        Lad("Text17.37", L.Total12);                // 12
+        Lad("Text17.40", L.ExemptDeductions);       // 13 (74)
+        Lad("Text17.43", L.Total14);                // 14
+        Lad("Text20",    L.LossCarryForward);       // 15 (75)
+        Lad("Text23",    L.Total16);                // 16
+        Lad("Text26",    L.Excess10Pct);            // 17 (75.1)
+        Lad("Text29",    L.CharityExcess);          // 18 (76)
+        Lad("Text32",    L.EducationExcess);        // 19 (77)
+        Lad("Text35.1",  L.Total20);                // 20 (78)
+        Lad("Text35.2",  L.TaxableNetProfit);       // 21 → flows to p2 box 48-49
+
+        // p3 รายการที่ 3 ต้นทุนขาย rows 1-9 (boxes 79-85) — all explicit zeros, consistent with
+        // ladder row 2 = 0: TEAS books carry no inventory/COGS section at all.
+        foreach (var n in new[] { "Text35.5", "Text35.8", "Text35.11", "Text35.14", "Text35.17",
+                                  "Text35.20", "Text35.23", "Text35.26", "Text35.29" })
+            Amt(n, 0m);
+
+        // p6 งบแสดงฐานะการเงิน. NOT filled (system cannot know them): 155 ทุนจดทะเบียน
+        // (no registered-capital field; PaidUpCapital ≠ ทุนจดทะเบียน), Group92/93 auditor
+        // opinion, and the 162.x attachment-count boxes — those stay for the filer.
+        var B = m.BalanceSheet;
+        Amt("Text35.210", B.CashAndEquivalents);        // 140
+        Amt("Text35.211", B.TradeReceivables);          // 141
+        Amt("Text35.212", B.Inventory);                 // 142
+        Amt("Text35.213", B.OtherCurrentAssets);        // 143
+        Amt("Text35.214", 0m);                          // 144 เงินให้กู้ยืมแก่กิจการที่เกี่ยวข้อง
+        Amt("Text35.215", 0m);                          // 145 ที่ดินและอาคาร-สุทธิ
+        Amt("Text35.216", 0m);                          // 146 ทรัพย์สินอื่นหักค่าเสื่อมแล้ว
+        Amt("Text35.217", 0m);                          // 147 สิทธิการเช่า/สิทธิการใช้
+        Amt("Text35.218", B.OtherNonCurrentAssets);     // 148
+        Amt("Text35.219", B.TotalAssets);               // รวมสินทรัพย์
+        Amt("Text35.220", 0m);                          // 149 เงินเบิกเกินบัญชี/กู้สั้นจากสถาบันการเงิน
+        Amt("Text35.221", B.TradePayables);             // 150
+        Amt("Text35.222", 0m);                          // 151 เงินกู้ยืม
+        Amt("Text35.223", B.OtherCurrentLiabilities);   // 152
+        Amt("Text35.224", 0m);                          // 153 เงินกู้ยืมระยะยาว
+        Amt("Text35.225", B.OtherNonCurrentLiabilities);// 154
+        Amt("Text35.226", B.TotalLiabilities);          // รวมหนี้สิน
+        Amt("Text35.2241", B.PaidUpShareCapital);       // 156
+        Amt("Text35.2251", B.OtherEquity);              // 157
+        Amt("Text35.2261", Math.Abs(B.RetainedEarnings)); // 158-159 (sign → Group91)
+        Amt("Text35.2242", B.TotalEquity);              // 160
+        Amt("Text35.2252", B.TotalLiabilitiesAndEquity);// 161
+
         // p1 จำนวนเงิน — fill exactly ONE pair per the bottom-line sign (mirrors boxes 58-59/61-62).
         var p1Baht   = Math.Truncate(s.TotalAmount);
         var p1Satang = Math.Round((s.TotalAmount - p1Baht) * 100m);
@@ -129,6 +247,13 @@ public static class Pnd50FormFiller
         {
             radios.Add(new("Group21", "Choice1"));                      // 2.(1) กรณีทั่วไป
         }
+
+        // p3/p6 sign radios — render-confirmed on-states (cont.89). ⚠️ Group100/101 use raw
+        // '0'/'1' on-state names, not ChoiceN.
+        radios.Add(new("Group100", L.GrossProfit         < 0m ? "1" : "0"));        // 3. กำไร/ขาดทุนขั้นต้น
+        radios.Add(new("Group101", L.AccountingNetProfit < 0m ? "1" : "0"));        // 9. กำไร/ขาดทุนสุทธิ (บัญชี)
+        radios.Add(new("Group9",   L.TaxableNetProfit    < 0m ? "Choice2" : "Choice1")); // 21.
+        radios.Add(new("Group91",  B.RetainedEarnings    < 0m ? "Choice2" : "Choice1")); // p6 (3) กำไร/ขาดทุนสะสม
 
         return RdAcroFormFiller.Render(Template("pnd50_main.pdf"), fields, radios, CellCenters.Value);
     }

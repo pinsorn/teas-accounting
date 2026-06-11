@@ -39,6 +39,80 @@ interface CitProfile {
   accountingNetProfit: number;
 }
 
+// ภ.ง.ด.50 v2 dashboard preview — single-source dry-run (same figures the filler prints).
+interface Pnd50Ladder {
+  directRevenue: number;
+  costOfSales: number;
+  grossProfit: number;
+  otherIncome: number;
+  total5: number;
+  otherExpenses: number;
+  total7: number;
+  sellingAdminExpenses: number;
+  accountingNetProfit: number;
+  incomeAdditions: number;
+  disallowedExpenses: number;
+  total12: number;
+  exemptDeductions: number;
+  total14: number;
+  lossCarryForward: number;
+  total16: number;
+  total20: number;
+  taxableNetProfit: number;
+}
+
+interface Pnd50BalanceSheet {
+  cashAndEquivalents: number;
+  tradeReceivables: number;
+  inventory: number;
+  otherCurrentAssets: number;
+  otherNonCurrentAssets: number;
+  totalAssets: number;
+  tradePayables: number;
+  otherCurrentLiabilities: number;
+  otherNonCurrentLiabilities: number;
+  totalLiabilities: number;
+  paidUpShareCapital: number;
+  otherEquity: number;
+  retainedEarnings: number;
+  totalEquity: number;
+  totalLiabilitiesAndEquity: number;
+  balanced: boolean;
+}
+
+interface Pnd50WhtCert {
+  docNo: string;
+  docDate: string;
+  customerName: string;
+  customerTaxId: string | null;
+  whtAmount: number;
+  customerWhtCertNo: string | null;
+}
+
+interface Pnd50Preview {
+  year: number;
+  periodStart: string;
+  periodEnd: string;
+  isSme: boolean;
+  paidUpCapital: number | null;
+  revenue: number;
+  expenses: number;
+  pnd51EstimatedProfit: number | null;
+  pnd51Prepaid: number;
+  whtCreditTotal: number;
+  whtCertificates: Pnd50WhtCert[];
+  ladder: Pnd50Ladder | null;
+  adjustments: CitAdjustment[];
+  taxBeforeCredits: number;
+  creditsTotal: number;
+  netPayable: number;
+  payMore: boolean;
+  surcharge: number;
+  totalDue: number;
+  balanceSheet: Pnd50BalanceSheet;
+  refusals: string[];
+}
+
 const money = (v: number | null | undefined) => (v == null ? '—' : formatTHB(v));
 
 export default function CitYearDataPage() {
@@ -48,6 +122,7 @@ export default function CitYearDataPage() {
   const [profile, setProfile] = useState<CitProfile | null>(null);
   const [summary, setSummary] = useState<CitYearSummary | null>(null);
   const [adjustments, setAdjustments] = useState<CitAdjustment[]>([]);
+  const [preview, setPreview] = useState<Pnd50Preview | null>(null);
   const [loading, setLoading] = useState(false);
 
   // year-summary edit fields
@@ -86,6 +161,8 @@ export default function CitYearDataPage() {
       setProfile(p);
       applySummary(years.find((y) => y.fiscalYear === year) ?? null);
       setAdjustments(adj);
+      // ภ.ง.ด.50 dashboard dry-run (never throws — refusals are reported, not fatal).
+      setPreview(await apiGet<Pnd50Preview>(`tax-filings/pnd50/preview?year=${year}`));
     } catch {
       toast.error(t('loadError'));
     } finally {
@@ -101,8 +178,9 @@ export default function CitYearDataPage() {
     setComputing(true);
     try {
       applySummary(await apiPost<CitYearSummary>(`tax-filings/cit/years/${year}/compute`));
-      // adjustments feed the computed figure — refresh the profile totals too
+      // adjustments feed the computed figure — refresh the profile + dashboard preview too
       setProfile(await apiGet<CitProfile>(`tax-filings/cit/profile?year=${year}`));
+      setPreview(await apiGet<Pnd50Preview>(`tax-filings/pnd50/preview?year=${year}`));
       toast.success(t('saved'));
     } catch {
       toast.error(t('saveError'));
@@ -118,6 +196,7 @@ export default function CitYearDataPage() {
         overrideNetProfit: override.trim() === '' ? null : Number(override),
         note: note.trim() === '' ? null : note.trim(),
       }));
+      setPreview(await apiGet<Pnd50Preview>(`tax-filings/pnd50/preview?year=${year}`));
       toast.success(t('saved'));
     } catch {
       toast.error(t('saveError'));
@@ -285,10 +364,138 @@ export default function CitYearDataPage() {
         </div>
       </div>
 
-      {/* ── ภ.ง.ด.50 v1 PDF (p1 header + p2 รายการที่ 1; รายการ 2–9 ว่าง) ── */}
+      {/* ── ภ.ง.ด.50 dashboard: every figure that will be filled, before generating ── */}
+      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* ① ภ.ง.ด.51 ที่ยื่นไว้ + ② บันไดคำนวณ ภ.ง.ด.50 */}
+        <div className="rounded-lg border border-base-300 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="font-semibold">{t('ladderTitle')}</h2>
+            {preview && (
+              <span className={`badge badge-sm ${preview.isSme ? 'badge-success' : 'badge-ghost'}`}>
+                {preview.isSme ? t('smeBadge') : t('generalBadge')}
+              </span>
+            )}
+          </div>
+          {preview?.ladder ? (
+            <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">
+              <dt className="text-base-content/60">{t('ladderDirectRevenue')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.ladder.directRevenue)}</dd>
+              <dt className="text-base-content/60">{t('ladderSellingAdmin')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.ladder.sellingAdminExpenses)}</dd>
+              <dt className="text-base-content/60">{t('ladderAccountingNetProfit')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.ladder.accountingNetProfit)}</dd>
+              <dt className="text-base-content/60">{t('ladderDisallowed')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.ladder.disallowedExpenses)}</dd>
+              <dt className="text-base-content/60">{t('ladderExempt')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.ladder.exemptDeductions)}</dd>
+              <dt className="text-base-content/60">{t('ladderLossCf')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.ladder.lossCarryForward)}</dd>
+              <dt className="font-semibold">{t('ladderTaxable')}</dt>
+              <dd className="text-right font-semibold tabular-nums">{money(preview.ladder.taxableNetProfit)}</dd>
+              <dt className="text-base-content/60">{t('taxBeforeCredits')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.taxBeforeCredits)}</dd>
+              <dt className="text-base-content/60">{t('creditsTotal')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.creditsTotal)}</dd>
+              <dt className="text-base-content/60">{t('pnd51Prepaid')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.pnd51Prepaid)}</dd>
+              {preview.surcharge > 0 && (
+                <>
+                  <dt className="text-warning">{t('surcharge')}</dt>
+                  <dd className="text-right tabular-nums text-warning">{money(preview.surcharge)}</dd>
+                </>
+              )}
+              <dt className="font-semibold">{preview.payMore ? t('totalPayable') : t('totalOverpaid')}</dt>
+              <dd className="text-right font-semibold tabular-nums">{money(preview.totalDue)}</dd>
+            </dl>
+          ) : (
+            <p className="text-sm text-base-content/50">{preview ? t('ladderUnavailable') : tc('loading')}</p>
+          )}
+        </div>
+
+        {/* ⑤ งบแสดงฐานะการเงินย่อ */}
+        <div className="rounded-lg border border-base-300 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="font-semibold">{t('balanceSheetTitle')}</h2>
+            {preview && (
+              <span className={`badge badge-sm ${preview.balanceSheet.balanced ? 'badge-success' : 'badge-error'}`}>
+                {preview.balanceSheet.balanced ? t('balanced') : t('unbalanced')}
+              </span>
+            )}
+          </div>
+          {preview ? (
+            <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">
+              <dt className="text-base-content/60">{t('bsTotalAssets')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.balanceSheet.totalAssets)}</dd>
+              <dt className="text-base-content/60">{t('bsTotalLiabilities')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.balanceSheet.totalLiabilities)}</dd>
+              <dt className="text-base-content/60">{t('bsRetainedEarnings')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.balanceSheet.retainedEarnings)}</dd>
+              <dt className="text-base-content/60">{t('bsTotalEquity')}</dt>
+              <dd className="text-right tabular-nums">{money(preview.balanceSheet.totalEquity)}</dd>
+              <dt className="font-semibold">{t('bsTotalLiabAndEquity')}</dt>
+              <dd className="text-right font-semibold tabular-nums">
+                {money(preview.balanceSheet.totalLiabilitiesAndEquity)}
+              </dd>
+            </dl>
+          ) : (
+            <p className="text-sm text-base-content/50">{tc('loading')}</p>
+          )}
+        </div>
+      </div>
+
+      {/* ③ เครดิตภาษีถูกหัก ณ ที่จ่าย (ขาเข้า) — รายใบ 50ทวิ */}
+      {preview && preview.whtCertificates.length > 0 && (
+        <div className="mb-4 rounded-lg border border-base-300 p-4">
+          <h2 className="mb-2 font-semibold">{t('whtCreditTitle')}</h2>
+          <div className="overflow-x-auto">
+            <table className="table table-sm table-zebra">
+              <thead>
+                <tr>
+                  <th>{t('whtDocNo')}</th>
+                  <th>{t('whtDocDate')}</th>
+                  <th>{t('whtCustomer')}</th>
+                  <th>{t('whtCertNo')}</th>
+                  <th className="text-right">{t('amount')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.whtCertificates.map((w) => (
+                  <tr key={w.docNo} className={w.customerWhtCertNo ? '' : 'text-warning'}>
+                    <td className="font-mono text-xs">{w.docNo}</td>
+                    <td className="tabular-nums">{w.docDate}</td>
+                    <td>{w.customerName}</td>
+                    <td className="font-mono text-xs">{w.customerWhtCertNo ?? t('whtCertMissing')}</td>
+                    <td className="text-right tabular-nums">{formatTHB(w.whtAmount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colSpan={4} className="text-right">{tc('total')}</th>
+                  <th className="text-right tabular-nums">{formatTHB(preview.whtCreditTotal)}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── ภ.ง.ด.50 v2 PDF (p1 + p2 + p3 ladder + p6 งบฐานะ) ── */}
       <div className="mb-4 rounded-lg border border-base-300 p-4">
         <h2 className="font-semibold">{t('pnd50Title')}</h2>
         <p className="mb-2 text-xs text-base-content/60">{t('pnd50Hint')}</p>
+        {preview && preview.refusals.length > 0 && (
+          <div className="mb-3 rounded-md bg-error/10 p-3 text-sm text-error">
+            <p className="font-semibold">{t('refusalsTitle')}</p>
+            <ul className="ml-4 list-disc">
+              {preview.refusals.map((code) => {
+                // codes are "pnd50.<key>"; the i18n bundle nests them under refusal.<key>.
+                const key = code.replace(/^pnd50\./, '');
+                return <li key={code}>{t(`refusal.${key}` as 'refusal.not_renderable')}</li>;
+              })}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-4">
           <label className="label cursor-pointer gap-2">
             <input
@@ -319,7 +526,13 @@ export default function CitYearDataPage() {
           </label>
           <button
             className="btn btn-sm btn-primary"
-            disabled={pnd50Busy || loading || !attestFirstFiling || !attestBlankSchedules}
+            disabled={
+              pnd50Busy ||
+              loading ||
+              !attestFirstFiling ||
+              !attestBlankSchedules ||
+              (preview != null && preview.refusals.length > 0)
+            }
             onClick={() => void downloadPnd50()}
           >
             {pnd50Busy && <span className="loading loading-spinner loading-xs" />}

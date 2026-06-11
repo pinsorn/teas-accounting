@@ -9,9 +9,10 @@ namespace Accounting.Api.Tests.TaxFilings;
 
 /// <summary>
 /// ภ.ง.ด.50 §4 — pure sheet builder + refuse-on-unrenderable guard. A blank box on the form
-/// asserts zero, so every case the v1 layout (p1 + p2 รายการที่ 1 only) cannot honestly render
-/// must throw <c>pnd50.not_attestable</c>. Inputs always come from <see cref="CitCalculator.Compute"/>
-/// — never a hand-rolled <see cref="CitComputation"/>.
+/// asserts zero; v2 renders the p3 ladder + p6 balance sheet, so only pages 4–5/7 + ใบแนบ remain
+/// blank and need the attestation. Adjustments/loss years are now RENDERABLE (the v1 refusals are
+/// gone — see Pnd50LadderTests for the ladder rules). Inputs always come from
+/// <see cref="CitCalculator.Compute"/> — never a hand-rolled <see cref="CitComputation"/>.
 /// </summary>
 public sealed class Pnd50SheetTests
 {
@@ -42,19 +43,20 @@ public sealed class Pnd50SheetTests
     }
 
     [Fact]
-    public void Nonzero_adjustments_throws()
+    public void Nonzero_adjustments_render_in_v2()
     {
-        var act = () => Pnd50FilingService.BuildSheet(
-            Cit(1_000_000m, adjustments: 1_000m), 0m, 0m, 0m, false, Ok);
-        act.Should().Throw<DomainException>().Which.Code.Should().Be("pnd50.not_attestable");
+        var cit = Cit(1_000_000m, adjustments: 1_000m);
+        var s = Pnd50FilingService.BuildSheet(cit, 0m, 0m, 0m, false, Ok);
+        s.BaseAmount.Should().Be(1_001_000m);   // box 48-49 = TaxableProfit incl. adjustments
+        s.TaxComputed.Should().Be(cit.TaxBeforeCredits);
     }
 
     [Fact]
-    public void Applied_loss_carry_forward_throws()
+    public void Applied_loss_carry_forward_renders_in_v2()
     {
-        var act = () => Pnd50FilingService.BuildSheet(
-            Cit(1_000_000m, lossCarryIn: 500m), 0m, 0m, 0m, false, Ok);
-        act.Should().Throw<DomainException>().Which.Code.Should().Be("pnd50.not_attestable");
+        var cit = Cit(1_000_000m, lossCarryIn: 500m);
+        var s = Pnd50FilingService.BuildSheet(cit, 0m, 0m, 0m, false, Ok);
+        s.BaseAmount.Should().Be(999_500m);     // base after ม.65ตรี(12) loss applied
     }
 
     [Fact]
