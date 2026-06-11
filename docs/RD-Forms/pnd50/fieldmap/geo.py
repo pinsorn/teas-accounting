@@ -10,7 +10,7 @@ import fitz, json, collections, os
 os.chdir(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 src = "docs/RD-Forms/pnd50/pnd50_050369.pdf"
 OUT = "docs/RD-Forms/pnd50/fieldmap/pnd50_cells.json"
-PAGES = (0, 1, 2, 5)  # v2: p1, p2, p3 (รายการที่ 2+3 col ③), p6 (งบฐานะ)
+PAGES = (0, 1, 2, 3, 4, 5, 6)  # v2: p1, p2, p3 (col ③), p6 · C-D: p4, p5 (col ③), p7 (dates)
 WANT = {"1",                                            # p1 taxid 13-cell grid
         "Text2000-1", "Text3", "Text2000", "Text3-2",   # p1 amount pairs
         "Text661", "662", "663", "664", "665", "666", "667", "668",
@@ -28,7 +28,32 @@ WANT = {"1",                                            # p1 taxid 13-cell grid
         "Text35.215", "Text35.216", "Text35.217", "Text35.218", "Text35.219",
         "Text35.220", "Text35.221", "Text35.222", "Text35.223", "Text35.224",
         "Text35.225", "Text35.226", "Text35.227",
-        "Text35.2241", "Text35.2251", "Text35.2261", "Text35.2242", "Text35.2252"}
+        "Text35.2241", "Text35.2251", "Text35.2261", "Text35.2242", "Text35.2252",
+        # C-D recon 2026-06-12 — p4 รายการที่ 4 ต้นทุนผลิต/บริการ, column ③ รวม only
+        # (TEAS fills col ③ only — no BOI-exempt split, same rubric as the p3 ladder)
+        "Text35.32", "Text35.35", "Text35.38", "Text35.41", "Text35.44",
+        "Text35.47", "Text35.50", "Text35.53", "Text35.56", "Text35.59",
+        "Text35.62", "Text35.65", "Text35.68", "Text35.71", "Text35.74",
+        "Text35.77", "Text35.80",
+        # p4 รายการที่ 5 รายได้อื่น — col ③
+        "Text35.83", "Text35.86", "Text35.89", "Text35.92", "Text35.95",
+        "Text35.98", "Text35.101",
+        # p4 รายการที่ 6 รายจ่ายอื่น — col ③
+        "Text35.104", "Text35.107", "Text35.110", "Text35.113", "Text35.116",
+        # p5 รายการที่ 7 รายจ่ายในการขายและบริหาร — col ③
+        "Text35.119", "Text35.122", "Text35.125", "Text35.128", "Text35.131",
+        "Text35.134", "Text35.137", "Text35.140", "Text35.143", "Text35.146",
+        "Text35.149", "Text35.152", "Text35.155", "Text35.158", "Text35.161",
+        "Text35.164", "Text35.167", "Text35.170", "Text35.173", "Text35.176",
+        "Text35.179", "Text35.182", "Text35.185", "Text35.189",
+        # p5 รายการที่ 8 รายจ่ายที่ไม่ให้ถือเป็นรายจ่าย (ม.65ตรี) — col ③
+        # (NB row 4 เงินสำรอง is the odd name "Text35.2011", not 35.201)
+        "Text35.192", "Text35.195", "Text35.198", "Text35.2011", "Text35.203",
+        "Text35.206", "Text35.209",
+        # p7 date combs (วันที่=2 cells, เดือน=2, พ.ศ.=4): period from/to, director
+        # sign date, auditor sign date
+        "Text475", "Text476", "Text477", "Text478", "Text479", "Text480",
+        "Text491", "Text492", "Text493", "Text499", "Text500", "Text501"}
 
 
 def vbounds(page, rect):
