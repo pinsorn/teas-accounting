@@ -94,6 +94,14 @@ public static class PayrollEndpoints
             .WithTags("Payroll")
             .RequireAuthorization(p + Permissions.Payroll.RunManage);
 
+        // P-D #4 — annual 50ทวิ for one employee (ม.50ทวิ; payment-year basis, 2 copies).
+        app.MapGet("/payroll/employees/{employeeId:long}/wht50tawi/pdf",
+            async (long employeeId, [FromQuery] int year, IPnd1FilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildEmployeeWht50TawiAsync(employeeId, year, ct),
+                    "application/pdf", $"50tawi-{year}-emp{employeeId}.pdf"))
+            .WithTags("Payroll")
+            .RequireAuthorization(p + Permissions.Payroll.RunManage);
+
         return app;
     }
 }

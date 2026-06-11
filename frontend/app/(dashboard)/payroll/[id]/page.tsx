@@ -138,6 +138,15 @@ export default function PayrollRunDetailPage() {
                     onClick={() => pr(`payroll/runs/${id}/payslips/${p.employeeId}/pdf`)}>
                     <Printer className="h-3 w-3" aria-hidden /> {tc('print')}
                   </button>
+                  {run.status === 'POSTED' && (
+                    // P-D #4 — annual 50ทวิ (ม.50ทวิ) for this employee; year = the run's
+                    // PAYMENT year (same ม.59 basis as ภ.ง.ด.1/1ก).
+                    <button className="btn btn-ghost btn-xs gap-1"
+                      onClick={() => pr(`payroll/employees/${p.employeeId}/wht50tawi/pdf`
+                        + `?year=${new Date(run.payDate).getFullYear()}`)}>
+                      <FileText className="h-3 w-3" aria-hidden /> {t('wht50tawi')}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -1,5 +1,8 @@
 {
-  "app": { "name": "TEAS", "tagline": "Thailand Enterprise Accounting System" },
+  "app": {
+    "name": "TEAS",
+    "tagline": "Thailand Enterprise Accounting System"
+  },
   "party": {
     "selectCustomer": "Select customer",
     "selectVendor": "Select vendor",
@@ -104,7 +107,13 @@
     "documents": "RD Form Documents",
     "missingWhtCert": "Missing 50ทวิ Receipts",
     "payroll": "Payroll",
-    "section": { "sales": "Sales", "purchase": "Purchase", "payroll": "Payroll", "reports": "Reports", "settings": "Settings" },
+    "section": {
+      "sales": "Sales",
+      "purchase": "Purchase",
+      "payroll": "Payroll",
+      "reports": "Reports",
+      "settings": "Settings"
+    },
     "logout": "Sign out"
   },
   "payroll": {
@@ -146,7 +155,8 @@
     "statusApproved": "Approved",
     "statusPosted": "Posted",
     "statusPaid": "Paid",
-    "statusVoided": "Voided"
+    "statusVoided": "Voided",
+    "wht50tawi": "50 bis (annual)"
   },
   "businessUnit": {
     "title": "Business Unit",
@@ -688,32 +698,110 @@
     "noPdf": "See RD page",
     "officialNote": "Links point to the official forms on the RD website — they open in a new tab and always serve the latest version.",
     "form": {
-      "pp30": { "name": "VAT Monthly Return", "deadline": "By the 15th (paper) / 25th (e-Filing) of the next month" },
-      "pp30Attach": { "name": "P.P.30 attachment (per-branch breakdown)", "deadline": "With P.P.30 — 15th / 25th of next month" },
-      "pp36": { "name": "Self-assessed VAT (imported services)", "deadline": "By the 7th (paper) / 15th (e-Filing) of the next month" },
-      "pp302": { "name": "Input-VAT apportionment (annual adjustment)", "deadline": "By the 25th (e-Filing) of the first month of the next year" },
-      "pp01": { "name": "VAT registration request", "deadline": "Within 30 days after revenue crosses the threshold" },
-      "pp09": { "name": "VAT registration change notice", "deadline": "Within 15 days after the change" },
-      "pnd1": { "name": "WHT — Employment (s.40(1)(2))", "deadline": "By the 7th / 15th of the next month" },
-      "pnd1a": { "name": "Annual WHT summary — Employment", "deadline": "By the end of February" },
-      "pnd2": { "name": "WHT — Interest/Dividend (individuals)", "deadline": "By the 7th / 15th of the next month" },
-      "pnd3": { "name": "WHT — Individual contractors (s.40(5)-(8))", "deadline": "By the 7th / 15th of the next month" },
-      "pnd53": { "name": "WHT — Thai juristic recipients", "deadline": "By the 7th / 15th of the next month" },
-      "pnd54": { "name": "WHT — Foreign payment (s.70)", "deadline": "By the 7th / 15th of the next month" },
-      "wtc50": { "name": "Withholding Tax Certificate (50 bis)", "deadline": "Issue immediately on withholding" },
-      "popor01": { "name": "WHT correction request", "deadline": "As needed" },
-      "popor02": { "name": "WHT form-mismatch waiver request", "deadline": "As needed" },
-      "pnd50": { "name": "CIT Annual Return", "deadline": "Within 150 days of the fiscal year-end" },
-      "pnd51": { "name": "CIT Mid-year Prepayment", "deadline": "Within 2 months of the half-year end" },
-      "pnd52": { "name": "CIT — International transport", "deadline": "Within 150 days of the fiscal year-end" },
-      "pnd55": { "name": "Income tax — Foundation/Association", "deadline": "Within 150 days of the fiscal year-end" },
-      "pnd90": { "name": "PIT — Multiple income types", "deadline": "By 31 March" },
-      "pnd91": { "name": "PIT — Employment only", "deadline": "By 31 March" },
-      "pnd93": { "name": "PIT — Early filing", "deadline": "Before 1 January" },
-      "pnd94": { "name": "PIT mid-year (s.40(5)-(8))", "deadline": "By the end of September" },
-      "pnd95": { "name": "PIT — Reduced rate", "deadline": "By 31 March" },
-      "pt40": { "name": "Specific Business Tax Return", "deadline": "By the 15th / 25th of the next month" },
-      "os4": { "name": "Stamp Duty paid in cash", "deadline": "Within 15 days of executing the instrument" }
+      "pp30": {
+        "name": "VAT Monthly Return",
+        "deadline": "By the 15th (paper) / 25th (e-Filing) of the next month"
+      },
+      "pp30Attach": {
+        "name": "P.P.30 attachment (per-branch breakdown)",
+        "deadline": "With P.P.30 — 15th / 25th of next month"
+      },
+      "pp36": {
+        "name": "Self-assessed VAT (imported services)",
+        "deadline": "By the 7th (paper) / 15th (e-Filing) of the next month"
+      },
+      "pp302": {
+        "name": "Input-VAT apportionment (annual adjustment)",
+        "deadline": "By the 25th (e-Filing) of the first month of the next year"
+      },
+      "pp01": {
+        "name": "VAT registration request",
+        "deadline": "Within 30 days after revenue crosses the threshold"
+      },
+      "pp09": {
+        "name": "VAT registration change notice",
+        "deadline": "Within 15 days after the change"
+      },
+      "pnd1": {
+        "name": "WHT — Employment (s.40(1)(2))",
+        "deadline": "By the 7th / 15th of the next month"
+      },
+      "pnd1a": {
+        "name": "Annual WHT summary — Employment",
+        "deadline": "By the end of February"
+      },
+      "pnd2": {
+        "name": "WHT — Interest/Dividend (individuals)",
+        "deadline": "By the 7th / 15th of the next month"
+      },
+      "pnd3": {
+        "name": "WHT — Individual contractors (s.40(5)-(8))",
+        "deadline": "By the 7th / 15th of the next month"
+      },
+      "pnd53": {
+        "name": "WHT — Thai juristic recipients",
+        "deadline": "By the 7th / 15th of the next month"
+      },
+      "pnd54": {
+        "name": "WHT — Foreign payment (s.70)",
+        "deadline": "By the 7th / 15th of the next month"
+      },
+      "wtc50": {
+        "name": "Withholding Tax Certificate (50 bis)",
+        "deadline": "Issue immediately on withholding"
+      },
+      "popor01": {
+        "name": "WHT correction request",
+        "deadline": "As needed"
+      },
+      "popor02": {
+        "name": "WHT form-mismatch waiver request",
+        "deadline": "As needed"
+      },
+      "pnd50": {
+        "name": "CIT Annual Return",
+        "deadline": "Within 150 days of the fiscal year-end"
+      },
+      "pnd51": {
+        "name": "CIT Mid-year Prepayment",
+        "deadline": "Within 2 months of the half-year end"
+      },
+      "pnd52": {
+        "name": "CIT — International transport",
+        "deadline": "Within 150 days of the fiscal year-end"
+      },
+      "pnd55": {
+        "name": "Income tax — Foundation/Association",
+        "deadline": "Within 150 days of the fiscal year-end"
+      },
+      "pnd90": {
+        "name": "PIT — Multiple income types",
+        "deadline": "By 31 March"
+      },
+      "pnd91": {
+        "name": "PIT — Employment only",
+        "deadline": "By 31 March"
+      },
+      "pnd93": {
+        "name": "PIT — Early filing",
+        "deadline": "Before 1 January"
+      },
+      "pnd94": {
+        "name": "PIT mid-year (s.40(5)-(8))",
+        "deadline": "By the end of September"
+      },
+      "pnd95": {
+        "name": "PIT — Reduced rate",
+        "deadline": "By 31 March"
+      },
+      "pt40": {
+        "name": "Specific Business Tax Return",
+        "deadline": "By the 15th / 25th of the next month"
+      },
+      "os4": {
+        "name": "Stamp Duty paid in cash",
+        "deadline": "Within 15 days of executing the instrument"
+      }
     }
   },
   "note": {
@@ -867,7 +955,6 @@
     "inactive": "Inactive",
     "edit": "Edit",
     "view": "View",
-    "print": "Print",
     "delete": "Delete",
     "confirmDelete": "Confirm delete?",
     "deactivate": "Deactivate",
@@ -915,90 +1002,188 @@
     "deactivateConfirm": "Deactivate this product? It will be hidden from new documents."
   },
   "quotation": {
-    "listTitle": "Quotations", "create": "New quotation", "docNo": "Doc No.",
-    "customer": "Customer", "docDate": "Date", "total": "Total",
-    "validUntil": "Valid until", "lineDesc": "Description", "qty": "Qty",
-    "unitPrice": "Unit price", "send": "Send", "accept": "Accept",
-    "convertToSo": "Convert to Sales Order", "viewSo": "View Sales Order",
+    "listTitle": "Quotations",
+    "create": "New quotation",
+    "docNo": "Doc No.",
+    "customer": "Customer",
+    "docDate": "Date",
+    "total": "Total",
+    "validUntil": "Valid until",
+    "lineDesc": "Description",
+    "qty": "Qty",
+    "unitPrice": "Unit price",
+    "send": "Send",
+    "accept": "Accept",
+    "convertToSo": "Convert to Sales Order",
+    "viewSo": "View Sales Order",
     "createTaxInvoice": "Create Tax Invoice",
     "whtNote": "Note: corporate customers withhold 3% WHT on the service portion.",
     "pickCustomer": "Select a customer first",
-    "businessUnit": "Business unit", "notes": "Notes", "uom": "UoM",
-    "discountPct": "Disc %", "subtotal": "Subtotal", "discount": "Discount",
-    "vat": "VAT", "grandTotal": "Total",
-    "saveDraft": "Save draft", "issue": "Issue quotation",
-    "issued": "Quotation issued", "searchProduct": "Search product/service or type your own",
-    "addLine": "Add line", "noProduct": "No product found — type the description",
+    "businessUnit": "Business unit",
+    "notes": "Notes",
+    "uom": "UoM",
+    "discountPct": "Disc %",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "vat": "VAT",
+    "grandTotal": "Total",
+    "saveDraft": "Save draft",
+    "issue": "Issue quotation",
+    "issued": "Quotation issued",
+    "searchProduct": "Search product/service or type your own",
+    "addLine": "Add line",
+    "noProduct": "No product found — type the description",
     "createProduct": "+ New product / service",
-    "pickerTitle": "Select product / service", "pickerOpen": "Browse list",
-    "pickerSearch": "Search by name or code", "pickerUseTyped": "Use typed text",
-    "editTitle": "Edit quotation", "downloadPdf": "Download PDF",
-    "reject": "Customer rejected", "cancelQuotation": "Cancel quotation",
-    "cancelConfirm": "Cancel this quotation?", "cancelReason": "Cancelled by user",
-    "rejectConfirm": "Confirm the customer rejected this quotation?", "rejectReason": "Customer rejected"
+    "pickerTitle": "Select product / service",
+    "pickerOpen": "Browse list",
+    "pickerSearch": "Search by name or code",
+    "pickerUseTyped": "Use typed text",
+    "editTitle": "Edit quotation",
+    "downloadPdf": "Download PDF",
+    "reject": "Customer rejected",
+    "cancelQuotation": "Cancel quotation",
+    "cancelConfirm": "Cancel this quotation?",
+    "cancelReason": "Cancelled by user",
+    "rejectConfirm": "Confirm the customer rejected this quotation?",
+    "rejectReason": "Customer rejected"
   },
   "salesOrder": {
-    "listTitle": "Sales Orders", "docNo": "Doc No.", "customer": "Customer",
-    "docDate": "Date", "total": "Total", "post": "Post",
-    "createDo": "Create Delivery Order", "create": "New sales order",
-    "expectedDelivery": "Delivery due", "businessUnit": "Business unit",
-    "notes": "Notes", "saveDraft": "Save draft", "confirm": "Confirm order",
-    "confirmed": "Sales order confirmed", "pickCustomer": "Select a customer first",
-    "subtotal": "Subtotal", "vat": "VAT", "grandTotal": "Total"
+    "listTitle": "Sales Orders",
+    "docNo": "Doc No.",
+    "customer": "Customer",
+    "docDate": "Date",
+    "total": "Total",
+    "post": "Post",
+    "createDo": "Create Delivery Order",
+    "create": "New sales order",
+    "expectedDelivery": "Delivery due",
+    "businessUnit": "Business unit",
+    "notes": "Notes",
+    "saveDraft": "Save draft",
+    "confirm": "Confirm order",
+    "confirmed": "Sales order confirmed",
+    "pickCustomer": "Select a customer first",
+    "subtotal": "Subtotal",
+    "vat": "VAT",
+    "grandTotal": "Total"
   },
   "deliveryOrder": {
-    "listTitle": "Delivery Orders", "docNo": "Doc No.", "customer": "Customer",
-    "docDate": "Date", "total": "Total", "combined": "Combined with Tax Invoice",
-    "post": "Post", "createTi": "Create Tax Invoice", "createInvoice": "Create Invoice", "linkedTi": "Linked Tax Invoice",
-    "create": "New delivery order", "deliveryDate": "Delivery date",
-    "businessUnit": "Business unit", "shipTo": "Ship-to address", "recipient": "Received by",
-    "notes": "Notes", "lines": "Items", "desc": "Description", "qty": "Qty",
-    "uom": "UoM", "addLine": "Add line", "saveDraft": "Save draft",
-    "issue": "Issue delivery order", "issued": "Delivery order issued",
-    "markDelivered": "Confirm delivery", "delivered": "Delivered",
+    "listTitle": "Delivery Orders",
+    "docNo": "Doc No.",
+    "customer": "Customer",
+    "docDate": "Date",
+    "total": "Total",
+    "combined": "Combined with Tax Invoice",
+    "post": "Post",
+    "createTi": "Create Tax Invoice",
+    "createInvoice": "Create Invoice",
+    "linkedTi": "Linked Tax Invoice",
+    "create": "New delivery order",
+    "deliveryDate": "Delivery date",
+    "businessUnit": "Business unit",
+    "shipTo": "Ship-to address",
+    "recipient": "Received by",
+    "notes": "Notes",
+    "lines": "Items",
+    "desc": "Description",
+    "qty": "Qty",
+    "uom": "UoM",
+    "addLine": "Add line",
+    "saveDraft": "Save draft",
+    "issue": "Issue delivery order",
+    "issued": "Delivery order issued",
+    "markDelivered": "Confirm delivery",
+    "delivered": "Delivered",
     "pickCustomer": "Select a customer first"
   },
   "billingNote": {
-    "listTitle": "Invoices", "create": "New Invoice",
-    "docNo": "Doc No.", "customer": "Customer", "docDate": "Doc date", "dueDate": "Due date",
-    "total": "Total", "lineDesc": "Description", "qty": "Qty", "unitPrice": "Unit price",
-    "subtotal": "Subtotal", "discount": "Discount", "vat": "VAT", "grandTotal": "Grand total",
-    "saveDraft": "Save draft", "issue": "Issue", "issued": "Invoice issued",
-    "markSettled": "Mark settled", "createTaxInvoice": "Create Tax Invoice", "createReceipt": "Create receipt",
+    "listTitle": "Invoices",
+    "create": "New Invoice",
+    "docNo": "Doc No.",
+    "customer": "Customer",
+    "docDate": "Doc date",
+    "dueDate": "Due date",
+    "total": "Total",
+    "lineDesc": "Description",
+    "qty": "Qty",
+    "unitPrice": "Unit price",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "vat": "VAT",
+    "grandTotal": "Grand total",
+    "saveDraft": "Save draft",
+    "issue": "Issue",
+    "issued": "Invoice issued",
+    "markSettled": "Mark settled",
+    "createTaxInvoice": "Create Tax Invoice",
+    "createReceipt": "Create receipt",
     "cancelReasonPlaceholder": "Cancellation reason",
-    "pickCustomer": "Select a customer first", "notes": "Notes",
-    "taxInvoices": "Grouped Tax Invoices", "pickCustomerFirst": "Select a customer first"
+    "pickCustomer": "Select a customer first",
+    "notes": "Notes",
+    "taxInvoices": "Grouped Tax Invoices",
+    "pickCustomerFirst": "Select a customer first"
   },
   "attachment": {
-    "title": "Attachments", "upload": "Upload", "categoryLabel": "Category",
-    "fileName": "File", "size": "Size", "uploadedAt": "Uploaded",
-    "uploadedBy": "By", "description": "Description", "download": "Download",
-    "view": "View", "delete": "Delete",
+    "title": "Attachments",
+    "upload": "Upload",
+    "categoryLabel": "Category",
+    "fileName": "File",
+    "size": "Size",
+    "uploadedAt": "Uploaded",
+    "uploadedBy": "By",
+    "description": "Description",
+    "download": "Download",
+    "view": "View",
+    "delete": "Delete",
     "deleteConfirm": "Delete? (soft-delete kept for audit trail)",
-    "dropHere": "Choose a file", "maxSize": "Max 25 MB",
+    "dropHere": "Choose a file",
+    "maxSize": "Max 25 MB",
     "allowedTypes": "PDF, JPG, PNG, WebP, Excel, MSG",
-    "uploaded": "Uploaded", "descRequired": "Description required for OTHER",
+    "uploaded": "Uploaded",
+    "descRequired": "Description required for OTHER",
     "category": {
-      "TAX_INVOICE": "Tax Invoice", "RECEIPT": "Receipt",
-      "PURCHASE_ORDER": "Purchase Order", "DELIVERY_ORDER": "Delivery Order",
-      "QUOTATION": "Quotation", "WHT_CERT_50TAWI": "50 ทวิ WHT cert",
-      "BANK_SLIP": "Bank slip", "CONTRACT": "Contract",
-      "EXPENSE_CLAIM_FORM": "Expense claim", "CUSTOMS_DECL": "Customs decl.",
+      "TAX_INVOICE": "Tax Invoice",
+      "RECEIPT": "Receipt",
+      "PURCHASE_ORDER": "Purchase Order",
+      "DELIVERY_ORDER": "Delivery Order",
+      "QUOTATION": "Quotation",
+      "WHT_CERT_50TAWI": "50 ทวิ WHT cert",
+      "BANK_SLIP": "Bank slip",
+      "CONTRACT": "Contract",
+      "EXPENSE_CLAIM_FORM": "Expense claim",
+      "CUSTOMS_DECL": "Customs decl.",
       "OTHER": "Other"
     }
   },
   "purchaseOrder": {
-    "title": "Purchase Orders", "listTitle": "Purchase Orders", "create": "New Purchase Order",
-    "docNo": "Doc No.", "status": "Status",
-    "vendor": "Vendor", "docDate": "Date", "expectedDelivery": "Expected delivery",
-    "total": "Total", "lineDesc": "Description", "qty": "Qty",
-    "unitPrice": "Unit price", "pickVendor": "Select a vendor first",
-    "approve": "Approve", "sentToVendor": "Send to vendor", "close": "Close",
+    "title": "Purchase Orders",
+    "listTitle": "Purchase Orders",
+    "create": "New Purchase Order",
+    "docNo": "Doc No.",
+    "status": "Status",
+    "vendor": "Vendor",
+    "docDate": "Date",
+    "expectedDelivery": "Expected delivery",
+    "total": "Total",
+    "lineDesc": "Description",
+    "qty": "Qty",
+    "unitPrice": "Unit price",
+    "pickVendor": "Select a vendor first",
+    "approve": "Approve",
+    "sentToVendor": "Send to vendor",
+    "close": "Close",
     "createPv": "Create Payment Voucher",
-    "cancel": "Cancel", "linkedTo": "Linked Vendor Invoices",
-    "remaining": "Remaining", "outstandingReport": "Outstanding PO",
-    "overdueDays": "Overdue (days)", "aging": "Aging", "overdueOnly": "Overdue only",
-    "notes": "Notes", "subtotal": "Subtotal", "discount": "Discount", "vat": "VAT"
+    "cancel": "Cancel",
+    "linkedTo": "Linked Vendor Invoices",
+    "remaining": "Remaining",
+    "outstandingReport": "Outstanding PO",
+    "overdueDays": "Overdue (days)",
+    "aging": "Aging",
+    "overdueOnly": "Overdue only",
+    "notes": "Notes",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "vat": "VAT"
   },
   "expenseCategory": {
     "title": "Expense Categories",
