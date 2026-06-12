@@ -72,16 +72,19 @@ compliance §4.7 → **ถาม Ham ก่อน**.
 
 ### 3. ☑ DONE (cont.88) — FE: SO/DO list status filter persist ลง URL (`urlFilters` prop, 2 specs ปลด skip)
 
-### 6. 🆕 งานหลัก session หน้า — ภ.ง.ด.50 Phase C-D BUILD (มติ Ham 2026-06-12 "ลุยเลย")
+### 6. ☑ DONE (cont.92, 2026-06-12) — ภ.ง.ด.50 Phase C-D BUILD
 
-> Spec: `docs/superpowers/specs/pnd50-cd-attachments-kickoff.md` (มี market check PEAK/FlowAccount
-> + recon results p4/p5/p7 ของ subagent ต่อท้าย). Recon artifacts:
-> `docs/RD-Forms/pnd50/fieldmap/pnd50_p4_map.md` / `_p5_` / `_p7_` + `pnd50_cells.json` (extended).
-- Build order ตาม spec §Build order: pure builders (TDD, foot กับ p3 ladder) → filler p4/p5/p7 →
-  visual gate (Pnd50VisualEmit) → ใบแนบเฉพาะที่ derive ได้ → preview/FE refusal list.
-- หลักคิดจาก market check: dashboard ตัวเลข (ship แล้ว) = market parity; p4-p7 fill = differentiator;
-  ใบแนบแยก = ค่าต่ำสุด อย่า over-invest. TEAS ไม่มี inventory → สาย COGS เป็น zeros-by-design.
-- ภ.พ.01/09 mapper (recon เสร็จ: pp01 190 widgets / pp09 299) — คิวถัดจาก C-D, v1 = prefill identity.
+> **Shipped:** p4 zeros-by-design + p5 รายการที่ 7/8 (GL partition + adjustments, foot-guard vs
+> ladder) + p7 header + ม.71ทวิ informational refusal + dashboard cards + openapi. Api 314/0/1.
+> Commits `9a314b0`…`eae09ed` (push แล้ว). ดู progress cont.92 + plan C-D ☑.
+> **ค้างจาก C-D:** (1) Ham ยืนยัน crops `_review/pnd50cd/` ก่อนยื่นจริง · (2) ม.71ทวิ ตีความเป็น
+> informational (PDF ยัง render) — Ham เห็นต่างแจ้งได้ · (3) ต้นทุนทางการเงิน p4[108] vs p5[121]
+> รออ่านคำแนะนำ RD ก่อน map บัญชีดอกเบี้ยจ่าย (ตอนนี้ตกข้อ 22).
+
+### 7. 🆕 งานหลักถัดไป — ภ.พ.01/09 mapper (recon เสร็จ: pp01 3หน้า/190 widgets · pp09 4หน้า/299)
+
+- v1 = prefill identity fields จาก CompanyProfile เท่านั้น (ที่เหลือกรอกมือ — ข้อมูลส่วนใหญ่ไม่อยู่ใน
+  TEAS). ใช้ fieldmap discipline เต็ม (label-join → 0-fill raster → map doc → filler → visual gate).
 
 ### 5. 🆕 คิวใหม่ (มติ Ham 2026-06-11 เช้า — spec: `docs/superpowers/specs/pnd50-v2-dashboard.md`)
 

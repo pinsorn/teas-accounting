@@ -140,7 +140,20 @@
       811,111.10 ทั้งสองฝั่ง, ทุนจดทะเบียนเว้นว่าง, กำไรสะสม tick ✓ · SME math ✓ (tax 0, overpaid 15,003.25).
       **พร้อมใช้ยื่นจริง** (Ham ยังควร spot-check ก่อนยื่นครั้งแรกกับ RD). Api 294/294 ×2 · Domain 137/137 ·
       tsc 0 · build 0/0. DEFER ยื่นเพิ่มเติม path + p4-5/p7 detail.
-- ☐ **Phase C-D — ภ.ง.ด.50 attachments** (5 ใบแนบ) + disclosure (ม.71ทวิ) + balance-sheet section. Largest; do last.
+- ☑ **Phase C-D — ภ.ง.ด.50 p4/p5/p7 schedules (cont.92, 2026-06-12 — plan `2026-06-12-pnd50-cd-schedules.md`):**
+  recon consolidation (maps `pnd50_p{4,5,7}_map.md`, cells.json 69→141, p7 radios render-confirmed,
+  traps Text35.2011 / no-Text35.188) · `ExpenseByAccountAsync` (per-account FY expenses, same basis as
+  ProfileAsync) · pure `BuildExpenseSchedule` (รายการที่ 7 = partition by code convention
+  5400/5100/5300/5350/5200→lines 1/6/9/11/19, rest→22) + `BuildDisallowedSchedule` (รายการที่ 8 ←
+  positive adjustments by exact LegalRefCode/label) — both foot-guard vs ladder rows 8/11
+  (`pnd50.schedule_breaks_ladder`) · filler p4 zeros-by-design + ร.5/ร.6 totals tied to ladder ·
+  p5 ร.7/ร.8 col ③ explicit zeros · p7 header only (ชื่อ + รอบบัญชี พ.ศ.; director Q/sign NEVER
+  auto-ticked) · ม.71ทวิ → informational refusal `pnd50.disclosure_required` (revenue >200M warns,
+  PDF still renders) · preview + CIT dashboard ร.7/ร.8 cards + openapi (2 schemas). Visual gate
+  passed (crops sent to Ham 2026-06-12 — **รอยืนยันก่อนยื่นจริง**). Api 314/0/1 · Domain 137/137 ·
+  tsc 0 · i18n 98/98. **ใบแนบ ก-จ separate PDFs = OUT (market fills none; stay attest-blank).**
+  DEFER: finance-cost line placement (p4 ร.6[108] vs p5 ร.7[121] — needs RD instruction read before
+  mapping a dedicated interest-expense account; today unmapped → ข้อ 22).
 
 ---
 

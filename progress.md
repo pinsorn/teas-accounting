@@ -3,6 +3,48 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 92 — "ทำต่อ NEXT-SESSION.md") — **ภ.ง.ด.50 Phase C-D SHIPPED: p4/p5 schedules + p7 header.** Api **314/0/1** · Domain **137/137** · tsc 0 · e2e ไม่แตะ.
+
+- **Recon consolidation (commit `9a314b0`):** subagent recon (ค้างจาก cont.91b) ส่งงานครบ —
+  `pnd50_p{4,5,7}_map.md` + `pnd50_cells.json` 69→141 keys (col ③ + p7 date combs 2/2/4, ค่าเดิม 69
+  identical) + radiomap p7 (⚠️ ผสม on-state: Group991=Choice1/2, Group992-995='1'/'2'). Name traps
+  raster-confirmed: ร.8 แถว 4 ③ = **Text35.2011** (ไม่ใช่ .201) · ไม่มี Text35.188 (ร.7 รวม ③ = .189).
+  Embedded Templates copy synced. แผน build: `docs/superpowers/plans/2026-06-12-pnd50-cd-schedules.md`.
+- **Data layer (commit `d884989`):** `ICitYearDataService.ExpenseByAccountAsync` — per-account FY
+  expense totals, ฐาน query เดียวกับ `ProfileAsync` (Posted + DocDate window) ⇒ Σ rows ==
+  RevenueFullYear − AccountingNetProfit เสมอ (invariant ที่ foot guard ใช้). Test 2/2 ×2 (รวม
+  เทคนิค demote-to-DRAFT ก่อนลบ JE — trigger `trg_je_no_delete_posted` ห้ามลบ posted).
+- **Pure builders (commit `d4d79be`):** `BuildExpenseSchedule` — รายการที่ 7 เป็น PARTITION ของ
+  expense rows ตาม convention (5400-99→ข้อ1 · 5100-99→6 · 5300-49→9 · 5350-99→11 · 5200-99→19 ·
+  ที่เหลือ→22) รวม == ladder row 8 ไม่งั้น throw · `BuildDisallowedSchedule` — รายการที่ 8 ← positive
+  adjustments, LegalRefCode แบบ EXACT หลังตัด space (กัน "(1)" กลืน "(13)") + label keyword,
+  รวม == ladder row 11. หมายเหตุ: ข้อ 16/17 (บริจาค) ไม่ดึงจาก cit_adjustments — จะ break partition
+  (adjustments ไม่อยู่ในยอด expense); บริจาคที่ลงบัญชีตกข้อ 22, ส่วนเกินอยู่ ladder 18/19 ตามเดิม.
+- **Filler + wiring (commit `f0426f5`):** p4 = explicit zeros ทุกแถว col ③ (zeros-by-design ไม่มี
+  inventory; ร.5 ข้อ7 = OtherIncome, ร.6 ข้อ5 = OtherExpenses ผูก ladder) · p5 ร.7 24 แถว + ร.8 7 แถว
+  · p7 = ชื่อบริษัท + รอบบัญชี (พ.ศ.) เท่านั้น — คำถามกรรมการ 5 ข้อ/ลายเซ็น **ไม่ auto-tick**
+  (posture เดียวกับ Group92/93). `ComposeAsync` สร้าง schedules ผูก ladder (mismatch → refusal
+  `pnd50.schedule_breaks_ladder`) · **ม.71ทวิ: refusal `pnd50.disclosure_required` เมื่อรายได้ >200M
+  เป็น INFORMATIONAL** — เตือนบน dashboard แต่ PDF ยัง render (บ.ใหญ่ต้องพิมพ์ ภ.ง.ด.50 ได้;
+  Disclosure Form ยื่นแยกเอง) ← ตีความ "keep as refusal" ใน spec แบบไม่ block; Ham เห็นต่างแจ้งได้.
+  Attestation ตอนนี้ครอบแค่ ใบแนบ + p7 คำถาม/ลายเซ็น (ข้อความอัพเดตแล้ว).
+- **Visual gate ผ่าน (commit `530ea77`):** crops ส่ง Ham แล้ว (เซ็ต `_review/pnd50cd/`) — ร.7 ข้อ1
+  1,236,000.00 ลงช่องเป๊ะ · ข้อ22/23/24 = 3,326,000/0/4,900,000 foot ladder row 8 · ร.8 ค่ารับรอง
+  50,000 ลง box 131 (trap .2011 ถูกต้อง — แถวเงินสำรอง = 0) · p4 รวมทุก section = 0 · p7 header
+  01/01/2569–31/12/2569 + คำถาม blank · loss case 413,654.32→1,987,654.32 foot. **รอ Ham ยืนยันก่อนยื่นจริง.**
+- **FE + openapi (commit `eae09ed`):** CIT dashboard การ์ด รายการที่ 7 (เฉพาะบรรทัด ≠0 + รวม) +
+  บล็อก รายการที่ 8 เมื่อมี add-back · refusal แยก blocking (แดง, ปิดปุ่ม PDF) vs informational
+  (เหลือง, ปุ่มยังใช้ได้) · i18n th/en 98/98 (+`common.total` ที่หายมานาน — console error เดิมของ
+  ตาราง WHT) · openapi: pdf/preview C-D scope + `Pnd50ExpenseSchedule`/`Pnd50Disallowed` schemas.
+  Live smoke ปี 2026: expTotal 122,688 == row 8 ✓ (ตกข้อ 19 ค่าธรรมเนียมอื่นๆ จาก 5200) ·
+  FE card render ✓ (playwright screenshot).
+- **Scope ปิด/ค้าง:** ใบแนบ ก-จ แยก = **OUT** (ตลาดไม่มีใคร fill; attest-blank ต่อ) · ต้นทุนทางการเงิน
+  ซ้ำสองที่ (p4 ร.6[108] vs p5 ร.7[121]) — ยังไม่ map บัญชีดอกเบี้ยจ่าย dedicated จนกว่าจะอ่านคำแนะนำ
+  RD; ตอนนี้ตกข้อ 22 อย่างซื่อสัตย์ · ภ.พ.01/09 mapper = คิวถัดไป.
+- **Gates:** build 0/0 · Api full **314/0/1** (จาก 302; ×2 บน pnd50 classes) · Domain 137/137 ·
+  tsc 0 · i18n parity · ম clean ทุก commit · **push แล้วทุก commit** (`9a314b0`…`eae09ed`).
+  Servers: :5080 + :3000 รันค้างไว้.
+
 ## 2026-06-12 (cont. 91b, overnight ต่อ — Ham: "SSO env ได้มั้ย + ส่วนที่เหลือทำเลย แล้วนอน") — **SSO ceiling 2569 = 17,500 (ราชกิจจาฯ ยืนยัน) · employee 50ทวิ annual ship · 50ทวิ regen DECIDED · ภ.พ.01/09 recon · C-D kickoff spec.** Api **302/0/1**.
 
 - **SSO WageCeiling (commit `f84ccd5`):** ตั้งผ่าน env ได้อยู่แล้ว (`Payroll__Sso__WageCeiling` —
