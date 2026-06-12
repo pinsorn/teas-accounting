@@ -2,8 +2,12 @@ using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Tax;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Ledger;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
+using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -128,6 +132,88 @@ public sealed class Pnd50FilingServiceTests
         (b.PaidUpShareCapital + b.OtherEquity + b.RetainedEarnings).Should().Be(b.TotalEquity);
         // p2 figures present and self-consistent.
         p.TotalDue.Should().Be(p.NetPayable + p.Surcharge);
+    }
+
+    [SkippableFact]
+    public async Task Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = 2500 + Random.Shared.Next(400);
+
+        await using var s = sp.CreateAsyncScope();
+        var citData = s.ServiceProvider.GetRequiredService<ICitYearDataService>();
+        var adj = await citData.CreateAdjustmentAsync(
+            year, new UpsertCitAdjustmentRequest("ม.65ตรี(4)", "ค่ารับรองส่วนเกิน", 2_500m), default);
+        try
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IPnd50FilingService>();
+            var p = await svc.PreviewAsync(year, isSme: false, ct: default);
+
+            p.Refusals.Should().BeEmpty();
+            p.ExpenseSchedule.Should().NotBeNull();
+            p.Disallowed.Should().NotBeNull();
+            // รายการที่ 7 รวม == ladder row 8; รายการที่ 8 รวม == ladder row 11.
+            p.ExpenseSchedule!.Total.Should().Be(p.Ladder!.SellingAdminExpenses);
+            p.Disallowed!.Total.Should().Be(p.Ladder.DisallowedExpenses);
+            p.Disallowed.Entertainment.Should().Be(2_500m);   // ค่ารับรอง keyword → ข้อ 2 (131)
+        }
+        finally
+        {
+            await citData.DeleteAdjustmentAsync(adj.CitAdjustmentId, default);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Pnd50_revenue_over_200m_warns_disclosure_but_still_renders()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = 2500 + Random.Shared.Next(400);
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var expense = await db.ChartOfAccounts.AsNoTracking()
+            .FirstAsync(a => a.AccountType == AccountType.Expense);
+        var revenue = await db.ChartOfAccounts.AsNoTracking()
+            .FirstAsync(a => a.AccountType == AccountType.Revenue);
+
+        // ม.71ทวิ threshold year: posted revenue ฿250M (net profit 0 keeps the rest benign).
+        var je = new JournalEntry
+        {
+            CompanyId = 1, BranchId = 1, PrefixCode = "JV", DocNo = $"TEST-{Guid.NewGuid():N}",
+            DocDate = new DateOnly(year, 5, 5), PostingDate = new DateOnly(year, 5, 5),
+            Description = "pnd50 disclosure threshold test",
+            Status = DocumentStatus.Posted,
+            TotalDebit = 250_000_000m, TotalCredit = 250_000_000m,
+            PostedAt = DateTimeOffset.UtcNow, PostedBy = 1,
+            Lines =
+            {
+                new JournalLine { LineNo = 1, AccountId = expense.AccountId, DebitAmount = 250_000_000m },
+                new JournalLine { LineNo = 2, AccountId = revenue.AccountId, CreditAmount = 250_000_000m },
+            },
+        };
+        db.JournalEntries.Add(je);
+        await db.SaveChangesAsync();
+        try
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IPnd50FilingService>();
+
+            var p = await svc.PreviewAsync(year, isSme: false, ct: default);
+            p.Refusals.Should().Contain("pnd50.disclosure_required");
+
+            // Informational only — the ภ.ง.ด.50 itself still renders under attestation.
+            var pdf = await svc.BuildPnd50Async(year, false, true, attest: Ok, ct: default);
+            System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+        }
+        finally
+        {
+            je.Status = DocumentStatus.Draft;  // delete trigger allows DRAFT only
+            await db.SaveChangesAsync();
+            db.JournalLines.RemoveRange(je.Lines);
+            db.JournalEntries.Remove(je);
+            await db.SaveChangesAsync();
+        }
     }
 
     [SkippableFact]
