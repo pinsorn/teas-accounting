@@ -13,10 +13,17 @@ test('delivery orders: list + filter URL persist', async ({ page }) => {
   await page.goto('/delivery-orders');
   await expect(page.locator('table')).toBeVisible({ timeout: 10_000 });
 
+  // Status options are FACETED from the rows on screen — a fresh DB may not
+  // carry an 'Issued' DO (cont.92b). Pick the first real option; the contract
+  // under test is URL persistence, not the specific status.
   const statusSelect = page.getByLabel(/status|สถานะ/i).first();
   if (await statusSelect.isVisible().catch(() => false)) {
-    await statusSelect.selectOption('Issued').catch(() => undefined);
-    await expect(page).toHaveURL(/[?&]status=Issued/i);
+    const value = await statusSelect.locator('option:not([value=""])').first()
+      .getAttribute('value').catch(() => null);
+    if (value) {
+      await statusSelect.selectOption(value);
+      await expect(page).toHaveURL(new RegExp(`[?&]status=${value}`, 'i'));
+    }
   }
 });
 

@@ -11,13 +11,20 @@ test('sales orders: list + status filter persists in URL', async ({ page }) => {
   await page.goto('/sales-orders');
   await expect(page.locator('table')).toBeVisible({ timeout: 10_000 });
 
-  // Pick "Draft" in the status combobox.
+  // The status options are FACETED from the rows on screen (a fresh DB may hold
+  // only Posted SOs — cont.92b lesson: never hardcode 'Draft'). Pick the first
+  // real option; the contract under test is URL persistence, not the value.
   const statusSelect = page.getByLabel(/status|สถานะ/i).first();
   if (await statusSelect.isVisible().catch(() => false)) {
-    await statusSelect.selectOption('Draft').catch(() => undefined);
-    await expect(page).toHaveURL(/[?&]status=Draft/i);
-    await page.reload();
-    await expect(page).toHaveURL(/[?&]status=Draft/i);
+    const value = await statusSelect.locator('option:not([value=""])').first()
+      .getAttribute('value').catch(() => null);
+    if (value) {
+      await statusSelect.selectOption(value);
+      const inUrl = new RegExp(`[?&]status=${value}`, 'i');
+      await expect(page).toHaveURL(inUrl);
+      await page.reload();
+      await expect(page).toHaveURL(inUrl);
+    }
   }
 });
 
