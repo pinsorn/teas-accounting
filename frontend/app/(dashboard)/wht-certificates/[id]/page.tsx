@@ -50,7 +50,15 @@ export default function WhtCertificateDetailPage() {
       </div>
       <div className="card mt-4 bg-base-100 shadow-sm">
         <div className="card-body">
-          <p><b>{t('formType')}:</b> {d.formType} · {formatDate(d.certDate)}</p>
+          <p>
+            <b>{t('formType')}:</b> {d.formType} · {formatDate(d.certDate)}
+            {/* wht-grossup (2026-06-12) — เงื่อนไขผู้จ่ายเงินบน 50ทวิ */}
+            {(d.whtCondition ?? 1) !== 1 && (
+              <span className="badge badge-warning ml-2">
+                {d.whtCondition === 2 ? t('condition.forever') : t('condition.once')}
+              </span>
+            )}
+          </p>
           <table className="table">
             <thead>
               <tr>

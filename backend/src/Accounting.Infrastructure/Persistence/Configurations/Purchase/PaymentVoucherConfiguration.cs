@@ -9,7 +9,10 @@ internal sealed class PaymentVoucherConfiguration : IEntityTypeConfiguration<Pay
 {
     public void Configure(EntityTypeBuilder<PaymentVoucher> b)
     {
-        b.ToTable("payment_vouchers", "purchase");
+        // 2026-06-12 (wht-grossup spec) — ck on the WHT payer mode (เงื่อนไข 50ทวิ).
+        b.ToTable("payment_vouchers", "purchase",
+            t => t.HasCheckConstraint("ck_payment_vouchers_wht_payer_mode",
+                "wht_payer_mode IN ('DEDUCT','GROSS_UP_FOREVER','GROSS_UP_ONCE')"));
         b.HasKey(p => p.PaymentVoucherId);
 
         b.Property(p => p.DocNo).HasMaxLength(50);
@@ -44,6 +47,9 @@ internal sealed class PaymentVoucherConfiguration : IEntityTypeConfiguration<Pay
         // Sprint 8.7 — self-withhold + ภ.พ.36 reverse-charge flags.
         b.Property(p => p.SelfWithholdMode).HasDefaultValue(false);
         b.Property(p => p.RequiresPnd36ReverseCharge).HasDefaultValue(false);
+
+        // 2026-06-12 (wht-grossup spec) — WHT payer mode (เงื่อนไข 50ทวิ).
+        b.Property(p => p.WhtPayerMode).HasMaxLength(20).HasDefaultValue("DEDUCT");
 
         b.Property(p => p.Status)
             .HasConversion(v => v.ToString().ToUpperInvariant(),

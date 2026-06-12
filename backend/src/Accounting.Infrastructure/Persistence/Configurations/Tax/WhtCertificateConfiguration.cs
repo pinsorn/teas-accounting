@@ -9,7 +9,10 @@ internal sealed class WhtCertificateConfiguration : IEntityTypeConfiguration<Wht
 {
     public void Configure(EntityTypeBuilder<WhtCertificate> b)
     {
-        b.ToTable("wht_certificates", "tax");
+        // 2026-06-12 (wht-grossup spec) — ck on the 50ทวิ เงื่อนไข box value.
+        b.ToTable("wht_certificates", "tax",
+            t => t.HasCheckConstraint("ck_wht_certificates_condition",
+                "wht_condition IN (1, 2, 3)"));
         b.HasKey(w => w.WhtCertificateId);
 
         b.Property(w => w.DocNo).HasMaxLength(50).IsRequired();
@@ -34,6 +37,7 @@ internal sealed class WhtCertificateConfiguration : IEntityTypeConfiguration<Wht
         b.Property(w => w.IncomeAmount).HasPrecision(19, 4);
         b.Property(w => w.WhtRate).HasPrecision(9, 6);
         b.Property(w => w.WhtAmount).HasPrecision(19, 4);
+        b.Property(w => w.WhtCondition).HasDefaultValue(1);
 
         b.Property(w => w.Status)
             .HasConversion(v => v.ToString().ToUpperInvariant(),

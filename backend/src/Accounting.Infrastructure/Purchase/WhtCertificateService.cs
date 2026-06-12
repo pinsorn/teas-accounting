@@ -55,7 +55,7 @@ public sealed class WhtCertificateService(
             w.PayerName, w.PayerTaxId, w.PayerBranchCode, w.PayerAddress,
             w.PayeeName, w.PayeeTaxId, w.PayeeAddress, w.PayeeType.ToString(),
             w.IncomeTypeCode, w.IncomeDescription, w.IncomeAmount, w.WhtRate, w.WhtAmount,
-            w.Status.ToString(), w.IssuedAt);
+            w.Status.ToString(), w.IssuedAt, w.WhtCondition);
     }
 
     /// <summary>
@@ -106,7 +106,8 @@ public sealed class WhtCertificateService(
                 PayerName: w.PayerName, PayerTaxId: w.PayerTaxId, PayerAddress: w.PayerAddress,
                 PayeeName: w.PayeeName, PayeeTaxId: w.PayeeTaxId, PayeeAddress: w.PayeeAddress,
                 IncomeTypeMa40: w.IncomeTypeCode, IncomeDescription: w.IncomeDescription,
-                PayDate: w.CertDate, IncomeAmount: w.IncomeAmount, WhtAmount: w.WhtAmount));
+                PayDate: w.CertDate, IncomeAmount: w.IncomeAmount, WhtAmount: w.WhtAmount,
+                Condition: w.WhtCondition));
 
         return Document.Create(doc => doc.Page(page =>
         {

@@ -563,6 +563,8 @@ export interface PaymentVoucherDetail {
   approvedBy: number | null; approvedAt: string | null;
   postedAt: string | null;
   selfWithholdMode: boolean; requiresPnd36ReverseCharge: boolean;
+  /** wht-grossup (2026-06-12): DEDUCT | GROSS_UP_FOREVER | GROSS_UP_ONCE. */
+  whtPayerMode?: 'DEDUCT' | 'GROSS_UP_FOREVER' | 'GROSS_UP_ONCE';
   businessUnitId: number | null;        // Sprint BU-PURCH
   businessUnitCode: string | null;
   businessUnitName: string | null;
@@ -732,6 +734,8 @@ export interface WhtCertificateDetail {
   payeeAddress: string; payeeType: string; incomeTypeCode: string;
   incomeDescription: string | null; incomeAmount: number; whtRate: number;
   whtAmount: number; status: DocStatus; issuedAt: string;
+  /** wht-grossup (2026-06-12): 50ทวิ เงื่อนไข — 1 หัก ณ ที่จ่าย · 2 ออกให้ตลอดไป · 3 ออกให้ครั้งเดียว. */
+  whtCondition?: 1 | 2 | 3;
 }
 // Sprint 10 Part A — Product master
 export type ProductTypeStr = 'GOOD' | 'SERVICE' | 'EXEMPT_GOOD' | 'EXEMPT_SERVICE';

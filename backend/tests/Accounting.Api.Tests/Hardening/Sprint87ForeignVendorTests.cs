@@ -80,7 +80,8 @@ public sealed class Sprint87ForeignVendorTests
 
     private static async Task<long> CreatePv(
         ServiceProvider sp, long vendorId, int catId, long expAcct,
-        decimal amount, decimal vatRate, decimal whtRate, bool? selfWithhold)
+        decimal amount, decimal vatRate, decimal whtRate, bool? selfWithhold,
+        string? payerMode = null)
     {
         var whtTypeId = whtRate > 0m ? await SvcWhtTypeId(sp) : null;
         await using var s = sp.CreateAsyncScope();
@@ -89,7 +90,7 @@ public sealed class Sprint87ForeignVendorTests
             new DateOnly(2026, 5, 16), vendorId, catId, PaymentMethod.Transfer,
             null, null, null, "THB", 1m, "s87", null,
             [new PaymentVoucherLineInput(expAcct, "svc", amount, null, vatRate, true, whtTypeId, whtRate)],
-            null, selfWithhold), default);
+            null, selfWithhold, null, payerMode), default);
     }
 
     private static async Task ApproveAndPost(ServiceProvider approver, long pvId)
@@ -110,6 +111,8 @@ public sealed class Sprint87ForeignVendorTests
         var (cat, exp) = await SeedCategory(sp);
 
         // No self_withhold passed → auto-true (foreign no VAT-D). 3500, no VAT, 15%.
+        // 2026-06-12 wht-grossup: auto self-withhold defaults to ออกให้ตลอดไป —
+        // income = 3500/0.85 = 4117.65, tax = 617.65 (was flat 525 = under-remitted).
         var pvId = await CreatePv(sp, v, cat, exp, 3500m, 0m, 0.15m, selfWithhold: null);
 
         await using (var s = sp.CreateAsyncScope())
@@ -117,8 +120,10 @@ public sealed class Sprint87ForeignVendorTests
             var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             var pv = await db.PaymentVouchers.FirstAsync(p => p.PaymentVoucherId == pvId);
             pv.SelfWithholdMode.Should().BeTrue();
+            pv.WhtPayerMode.Should().Be("GROSS_UP_FOREVER");
             pv.RequiresPnd36ReverseCharge.Should().BeTrue();
             pv.TotalPaid.Should().Be(3500m);   // full amount (no WHT deducted)
+            pv.WhtAmount.Should().Be(617.65m); // 3500·0.15/0.85
         }
 
         await ApproveAndPost(sp2, pvId);
@@ -128,10 +133,15 @@ public sealed class Sprint87ForeignVendorTests
         var je = await db2.JournalEntries.Include(j => j.Lines)
             .FirstAsync(j => j.Reference == pv2.DocNo);
         je.TotalDebit.Should().Be(je.TotalCredit);
-        (je.TotalDebit - je.TotalCredit).Should().BeLessThan(0.01m);
-        je.Lines.Sum(l => l.DebitAmount).Should().Be(4025m);   // expense 3500 + wht 525
-        je.Lines.Should().Contain(l => l.CreditAmount == 3500m); // bank full
-        je.Lines.Should().Contain(l => l.CreditAmount == 525m);  // WHT payable
+        je.Lines.Sum(l => l.DebitAmount).Should().Be(4117.65m); // expense 3500 + wht 617.65
+        je.Lines.Should().Contain(l => l.CreditAmount == 3500m);   // bank full
+        je.Lines.Should().Contain(l => l.CreditAmount == 617.65m); // WHT payable (grossed)
+
+        // 50ทวิ: income carries the absorbed tax; condition = (2) ออกให้ตลอดไป.
+        var cert = await db2.WhtCertificates.FirstAsync(w => w.PaymentVoucherId == pvId);
+        cert.IncomeAmount.Should().Be(4117.65m);
+        cert.WhtAmount.Should().Be(617.65m);
+        cert.WhtCondition.Should().Be(2);
     }
 
     [SkippableFact]
@@ -143,6 +153,8 @@ public sealed class Sprint87ForeignVendorTests
         var v = await CreateVendor(sp, foreign: false, vatD: false);
         var (cat, exp) = await SeedCategory(sp);
 
+        // Legacy selfWithholdMode:true (no mode) → GROSS_UP_FOREVER:
+        // 10,000 @3% → income 10,309.28, tax 309.28 (effective 3.0928%).
         var pvId = await CreatePv(sp, v, cat, exp, 10000m, 0.07m, 0.03m, selfWithhold: true);
         await ApproveAndPost(sp2, pvId);
 
@@ -150,13 +162,79 @@ public sealed class Sprint87ForeignVendorTests
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var pv = await db.PaymentVouchers.FirstAsync(p => p.PaymentVoucherId == pvId);
         pv.TotalPaid.Should().Be(10700m);   // subtotal + vat (full)
+        pv.WhtPayerMode.Should().Be("GROSS_UP_FOREVER");
         var je = await db.JournalEntries.Include(j => j.Lines)
             .FirstAsync(j => j.Reference == pv.DocNo);
         je.TotalDebit.Should().Be(je.TotalCredit);
-        je.Lines.Should().Contain(l => l.CreditAmount == 10700m); // bank
-        je.Lines.Should().Contain(l => l.CreditAmount == 300m);   // WHT payable
+        je.Lines.Should().Contain(l => l.CreditAmount == 10700m);  // bank
+        je.Lines.Should().Contain(l => l.CreditAmount == 309.28m); // WHT payable (grossed)
         je.Lines.Where(l => l.DebitAmount > 0).Sum(l => l.DebitAmount)
-            .Should().Be(11000m);   // expense 10000 + input vat 700 + wht 300
+            .Should().Be(11009.28m);   // expense 10000 + input vat 700 + wht 309.28
+    }
+
+    [SkippableFact]
+    public async Task Gross_up_once_uses_single_iteration_and_condition_3()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider(userId: 1);
+        await using var sp2 = Provider(userId: 2);
+        var v = await CreateVendor(sp, foreign: false, vatD: false);
+        var (cat, exp) = await SeedCategory(sp);
+
+        // ออกให้ครั้งเดียว: income = 10,000·1.03 = 10,300, tax = 309.
+        var pvId = await CreatePv(sp, v, cat, exp, 10000m, 0m, 0.03m,
+            selfWithhold: null, payerMode: "GROSS_UP_ONCE");
+        await ApproveAndPost(sp2, pvId);
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var pv = await db.PaymentVouchers.FirstAsync(p => p.PaymentVoucherId == pvId);
+        pv.SelfWithholdMode.Should().BeTrue();
+        pv.WhtPayerMode.Should().Be("GROSS_UP_ONCE");
+        pv.TotalPaid.Should().Be(10000m);
+        pv.WhtAmount.Should().Be(309m);
+        var cert = await db.WhtCertificates.FirstAsync(w => w.PaymentVoucherId == pvId);
+        cert.IncomeAmount.Should().Be(10300m);
+        cert.WhtAmount.Should().Be(309m);
+        cert.WhtCondition.Should().Be(3);
+    }
+
+    [SkippableFact]
+    public async Task Normal_deduct_pv_keeps_condition_1_and_flat_math()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider(userId: 1);
+        await using var sp2 = Provider(userId: 2);
+        var v = await CreateVendor(sp, foreign: false, vatD: false);
+        var (cat, exp) = await SeedCategory(sp);
+
+        var pvId = await CreatePv(sp, v, cat, exp, 10000m, 0m, 0.03m, selfWithhold: null);
+        await ApproveAndPost(sp2, pvId);
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var pv = await db.PaymentVouchers.FirstAsync(p => p.PaymentVoucherId == pvId);
+        pv.WhtPayerMode.Should().Be("DEDUCT");
+        pv.SelfWithholdMode.Should().BeFalse();
+        pv.WhtAmount.Should().Be(300m);
+        pv.TotalPaid.Should().Be(9700m);   // WHT netted off the payment
+        var cert = await db.WhtCertificates.FirstAsync(w => w.PaymentVoucherId == pvId);
+        cert.IncomeAmount.Should().Be(10000m);
+        cert.WhtCondition.Should().Be(1);
+    }
+
+    [SkippableFact]
+    public void Payer_mode_contradicting_selfwithhold_is_rejected()
+    {
+        var v = new CreatePaymentVoucherValidator();
+        var req = new CreatePaymentVoucherRequest(
+            new DateOnly(2026, 5, 16), 1, 1, PaymentMethod.Transfer, null, null, null,
+            "THB", 1m, null, null,
+            [new PaymentVoucherLineInput(1, "x", 100m, null, 0m, true, null, 0.03m)],
+            null, SelfWithholdMode: false, null, WhtPayerMode: "GROSS_UP_FOREVER");
+        var r = v.Validate(req);
+        r.IsValid.Should().BeFalse();
+        r.Errors.Should().Contain(e => e.ErrorMessage.Contains("contradicts"));
     }
 
     [SkippableFact]

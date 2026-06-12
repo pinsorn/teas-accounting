@@ -330,11 +330,21 @@
     "fromPo": "Referencing Purchase Order",
     "approveWarn": "Approving makes the document postable — the approver must not be the creator",
     "selfWithhold": {
-      "toggle": "Self-withhold mode",
-      "explanation": "For auto-charge / gateway-forced vendors — gross-up expense + issue 50tawi (we pay full + remit WHT ourselves)",
-      "autoLockedForeign": "⚠ Foreign vendor — self-withhold WHT 15% (PND.54) + PND.36 reverse charge",
+      "toggle": "Payee won't be withheld (we bear the tax)",
+      "explanation": "Use when the vendor won't allow withholding (auto-charge / online services) — we pay in full and remit the WHT ourselves (the base is grossed up per the chosen method)",
+      "autoLockedForeign": "⚠ Foreign vendor — tax borne by payer 15% (PND.54) + PP.36 reverse charge",
       "vatDInfo": "ℹ Vendor registered for VAT-D — normal flow",
-      "detailBadge": "Self-withhold"
+      "detailBadge": "Tax borne by payer",
+      "remitRow": "WHT borne by us (remitted to RD separately, not deducted)",
+      "preview": "Remit {remit} THB to RD — effective rate {effective}% of the contract amount",
+      "mode": {
+        "forever": "Gross-up forever (recommended)",
+        "foreverHint": "The absorbed tax is the payee's income recursively — base = amount ÷ (1−rate), per RD practice",
+        "once": "Gross-up once",
+        "onceHint": "Add the absorbed tax to income exactly once — base = amount × (1+rate)",
+        "foreverBadge": "gross-up forever",
+        "onceBadge": "gross-up once"
+      }
     },
     "createVi": {
       "action": "Create purchase tax-invoice record",
@@ -376,7 +386,11 @@
     "incomeAmount": "Amount",
     "rate": "Rate",
     "whtAmount": "Tax withheld",
-    "fromPv": "Source Payment Voucher"
+    "fromPv": "Source Payment Voucher",
+    "condition": {
+      "forever": "Tax borne by payer (forever)",
+      "once": "Tax borne by payer (once)"
+    }
   },
   "rc": {
     "title": "Receipts",

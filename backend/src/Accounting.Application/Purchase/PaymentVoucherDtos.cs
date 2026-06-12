@@ -37,7 +37,11 @@ public sealed record CreatePaymentVoucherRequest(
     // cont.79 — Business Unit (GL dimension). Required when Company.RequiresBusinessUnit;
     // embedded in the PV doc number at POST (MM-YYYY-PV-{BU}-{CATEGORY}-NNNN). Trailing-
     // defaulted so positional call-sites compile.
-    int? BusinessUnitId = null);
+    int? BusinessUnitId = null,
+    // 2026-06-12 (wht-grossup spec) — DEDUCT | GROSS_UP_FOREVER | GROSS_UP_ONCE.
+    // null → derived: self-withhold (explicit or foreign auto) → GROSS_UP_FOREVER
+    // (the RD-safe default), else DEDUCT.
+    string? WhtPayerMode = null);
 
 public sealed record PaymentVoucherApprovedResult(
     long PaymentVoucherId, long ApprovedBy, System.DateTimeOffset ApprovedAt);
@@ -79,6 +83,19 @@ public sealed class CreatePaymentVoucherValidator : AbstractValidator<CreatePaym
         // Sprint 8.7 — self-withhold for a VI-linked PV is out of scope (Phase 2).
         RuleFor(x => x.SelfWithholdMode)
             .Must((r, sw) => sw != true || r.VendorInvoiceId is null)
+            .WithMessage("Self-withhold mode is not yet supported for VI-linked PV (Phase 2).");
+        // 2026-06-12 — gross-up method must be a known value and must not contradict an
+        // explicit selfWithholdMode=false (DEDUCT is the only consistent pairing there).
+        RuleFor(x => x.WhtPayerMode)
+            .Must(m => m is null || Domain.Tax.WhtPayerModes.IsValid(m))
+            .WithMessage("whtPayerMode must be DEDUCT, GROSS_UP_FOREVER or GROSS_UP_ONCE.");
+        RuleFor(x => x.WhtPayerMode)
+            .Must((r, m) => m is null || r.SelfWithholdMode is null
+                || Domain.Tax.WhtPayerModes.IsSelfWithhold(m) == r.SelfWithholdMode)
+            .WithMessage("whtPayerMode contradicts selfWithholdMode.");
+        RuleFor(x => x.WhtPayerMode)
+            .Must((r, m) => m is null || !Domain.Tax.WhtPayerModes.IsSelfWithhold(m)
+                || r.VendorInvoiceId is null)
             .WithMessage("Self-withhold mode is not yet supported for VI-linked PV (Phase 2).");
     }
 }

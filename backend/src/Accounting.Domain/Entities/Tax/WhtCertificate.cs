@@ -52,6 +52,11 @@ public class WhtCertificate : ITenantOwned
     public decimal  WhtRate         { get; set; }
     public decimal  WhtAmount       { get; set; }
 
+    /// <summary>2026-06-12 — 50ทวิ ผู้จ่ายเงิน condition box: 1 หัก ณ ที่จ่าย ·
+    /// 2 ออกให้ตลอดไป · 3 ออกให้ครั้งเดียว. Under 2/3 IncomeAmount already includes the
+    /// absorbed tax (gross-up). Direction='R' rows stay 1.</summary>
+    public int WhtCondition { get; set; } = 1;
+
     public DocumentStatus Status { get; set; } = DocumentStatus.Posted;
     public DateTimeOffset IssuedAt { get; set; }
     public long? IssuedBy { get; set; }

@@ -6,6 +6,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Purchase;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
+using Accounting.Domain.Tax;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -123,13 +124,24 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
+        // 2026-06-12 (wht-grossup spec) — resolve the WHT payer mode BEFORE the line loop:
+        // gross-up changes every line's WhtAmount. Explicit whtPayerMode wins; else legacy
+        // selfWithholdMode=true (and the foreign-no-VAT-D auto) defaults to ออกให้ตลอดไป —
+        // the RD-safe reading (tax paid on the payee's behalf is the payee's income).
+        var autoSelfWithhold = vendor.IsForeign && !vendor.HasThaiVatDReg;
+        var wantsSelfWithhold = req.WhtPayerMode is { } reqMode
+            ? WhtPayerModes.IsSelfWithhold(reqMode)
+            : req.SelfWithholdMode ?? autoSelfWithhold;
+        var payerMode = req.WhtPayerMode
+            ?? (wantsSelfWithhold ? WhtPayerModes.GrossUpForever : WhtPayerModes.Deduct);
+
         var lines = new List<PaymentVoucherLine>();
         for (var i = 0; i < req.Lines.Count; i++)
         {
             var input = req.Lines[i];
             var net   = Math.Round(input.Amount, 4, MidpointRounding.AwayFromZero);
             var vat   = Math.Round(net * input.VatRate, 2, MidpointRounding.AwayFromZero);
-            var wht   = Math.Round(net * input.WhtRate, 2, MidpointRounding.AwayFromZero);
+            var (wht, _) = WhtPayerModes.Compute(net, input.WhtRate, payerMode);
 
             var expenseAccountId = input.ExpenseAccountId ?? category.DefaultExpenseAccountId
                 ?? throw new DomainException("pv.expense_account_missing",
@@ -165,12 +177,10 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         var vatTotal = lines.Sum(l => l.VatAmount);
         var whtTotal = lines.Sum(l => l.WhtAmount);
 
-        // Sprint 8.7 — self-withhold: explicit value wins; else auto-true for a
-        // foreign vendor without Thai VAT-D (Scenario B). VI-linked is blocked
-        // by the validator, so this only ever applies to standalone PV.
-        var selfWithhold = req.SelfWithholdMode
-            ?? (vendor.IsForeign && !vendor.HasThaiVatDReg);
-        var requiresPnd36 = vendor.IsForeign && !vendor.HasThaiVatDReg;
+        // Sprint 8.7 — self-withhold (canonical from payerMode; VI-linked is blocked
+        // by the validator, so this only ever applies to standalone PV).
+        var selfWithhold = WhtPayerModes.IsSelfWithhold(payerMode);
+        var requiresPnd36 = autoSelfWithhold;
         // Self-withhold: we pay the vendor the full amount (no WHT deducted);
         // WHT is owed to RD separately. Otherwise the WHT is netted off payment.
         var totalPaid = selfWithhold
@@ -189,6 +199,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             ExpenseCategoryId  = category.CategoryId,
             VendorInvoiceId    = req.VendorInvoiceId,
             SelfWithholdMode          = selfWithhold,
+            WhtPayerMode              = payerMode,
             RequiresPnd36ReverseCharge = requiresPnd36,
             VendorTaxId        = vendor.TaxId,
             VendorBranchCode   = vendor.BranchCode,
@@ -293,7 +304,10 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                     ?? throw new DomainException("pv.wht_type_missing",
                         $"WHT line references missing WhtType {grp.Key}.");
 
-                var groupIncome = grp.Sum(l => l.Amount);
+                // Gross-up modes: the cert income includes the absorbed tax (RD treats tax
+                // paid on the payee's behalf as the payee's assessable income).
+                var groupIncome = grp.Sum(l =>
+                    WhtPayerModes.Compute(l.Amount, l.WhtRate, pv.WhtPayerMode).CertIncome);
                 var groupWht    = grp.Sum(l => l.WhtAmount);
                 var grpNo = (await _numbers.NextAsync(
                     pv.CompanyId, pv.BranchId, WtPrefix, subPrefix: null, pv.DocDate, ct)).Value;
@@ -317,6 +331,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                     IncomeTypeCode    = whtType.IncomeTypeCode,
                     IncomeDescription = whtType.NameTh,
                     IncomeAmount      = groupIncome,
+                    WhtCondition      = WhtPayerModes.Condition(pv.WhtPayerMode),
                     // Effective rate for the group (handles per-line rate variance within a type).
                     WhtRate           = groupIncome == 0m ? 0m
                                         : Math.Round(groupWht / groupIncome, 6, MidpointRounding.AwayFromZero),
