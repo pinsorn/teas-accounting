@@ -1,4 +1,4 @@
-# ภ.ง.ด.50 page 4 — field map (C-D recon, 2026-06-12)
+﻿# ภ.ง.ด.50 page 4 — field map (C-D recon, 2026-06-12)
 
 > Method = cont.87b/88/89 verbatim: label-join dump (`_pnd50_fields_p4.txt`) + 0-fill marker raster
 > (`#N` = dump line N) + band crops read at zoom 2.8-4.0. Every row below was traced to a raster
@@ -62,7 +62,7 @@ lines (1, 2, 3, 5, 7, 16) are **zeros-by-design** permanently.
 |---|---|---|---|---|---|---|
 | 1 | ขาดทุนจากการจำหน่ายทรัพย์สิน | 106 | Text35.102 | Text35.103 | Text35.104 | NOT AVAILABLE → 0 |
 | 2 | ขาดทุนจากอัตราแลกเปลี่ยนเงินตรา | 107 | Text35.105 | Text35.106 | Text35.107 | zero (THB-only) |
-| 3 | ต้นทุนทางการเงิน | 108 | Text35.108 | Text35.109 | Text35.110 | GL conv. — dedicated interest-expense account; ⚠️ same label exists at p5 ร.7 ข้อ 12 — RD instructions decide which side; fill ONE, never both |
+| 3 | ต้นทุนทางการเงิน | 108 | Text35.108 | Text35.109 | Text35.110 | always 0 (DECIDED 2026-06-12): interest expense reports at p5 ร.7 ข้อ 12 (5500-5599) — this section must foot ladder row 6 == 0 in the flat P&L |
 | 4 | รายจ่ายอื่นที่นอกเหนือจาก 1. ถึง 3. | 109 | Text35.111 | Text35.112 | Text35.113 | flat P&L cannot split non-operating from SG&A → default 0 (everything reports in ร.7 ข้อ 22) |
 | 5 | รวม 1. ถึง 4. | — | Text35.114 | Text35.115 | Text35.116 | calc |
 

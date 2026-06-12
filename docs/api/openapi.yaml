@@ -1958,8 +1958,9 @@ components:
       description: >
         p5 รายการที่ 7 รายจ่ายในการขายและบริหาร (boxes 110-129.1, column ③) — a PARTITION of the
         FY per-account expenses by the TEAS account-code convention (5400-5499 → employee ·
-        5100-5199 → rent · 5300-5349 → marketing · 5350-5399 → otherTaxes · 5200-5299 → otherFees ·
-        rest → other). total == ladder row 8 (sellingAdminExpenses).
+        5100-5199 → rent · 5300-5349 → marketing · 5350-5399 → otherTaxes · 5500-5599 →
+        financeCost · 5200-5299 → otherFees · rest → other). total == ladder row 8
+        (sellingAdminExpenses).
       properties:
         employee: { type: number }
         directorComp: { type: number }
@@ -1972,7 +1973,7 @@ components:
         marketing: { type: number }
         sbtTax: { type: number }
         otherTaxes: { type: number }
-        financeCost: { type: number }
+        financeCost: { type: number, description: 5500-5599 — ร.7 line 12, never p4 ร.6 (flat P&L) }
         bookkeeping: { type: number }
         auditFee: { type: number }
         politicalDonation: { type: number }

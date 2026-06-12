@@ -331,7 +331,7 @@ public sealed class Pnd50FilingService(
     public static Pnd50ExpenseSchedule BuildExpenseSchedule(
         IReadOnlyList<ExpenseAccountRow> rows, decimal sellingAdminExpenses)
     {
-        decimal emp = 0, rent = 0, mkt = 0, otherTax = 0, fees = 0, other = 0;
+        decimal emp = 0, rent = 0, mkt = 0, otherTax = 0, fees = 0, fin = 0, other = 0;
         foreach (var r in rows)
         {
             var code = int.TryParse(r.AccountCode, out var n) && n is >= 1000 and <= 9999 ? n : -1;
@@ -342,11 +342,16 @@ public sealed class Pnd50FilingService(
                 case >= 5300 and <= 5349: mkt      += r.Amount; break;
                 case >= 5350 and <= 5399: otherTax += r.Amount; break;
                 case >= 5200 and <= 5299: fees     += r.Amount; break;
+                // ต้นทุนทางการเงิน lives in รายการที่ 7 ข้อ 12 — NOT p4 ร.6 ข้อ 3 (the form has
+                // both, but TEAS's flat P&L puts every expense in ladder row 8, and ร.7 must
+                // partition row 8; the p4 ร.6 total must foot ladder row 6 == 0). Decided
+                // 2026-06-12 (Ham delegated).
+                case >= 5500 and <= 5599: fin      += r.Amount; break;
                 default:                  other    += r.Amount; break;  // incl. unparseable
             }
         }
 
-        var total = emp + rent + mkt + otherTax + fees + other;
+        var total = emp + rent + mkt + otherTax + fees + fin + other;
         if (total != sellingAdminExpenses)
             throw new InvalidOperationException(
                 "BuildExpenseSchedule rows must reproduce the ladder's SellingAdminExpenses.");
@@ -354,7 +359,7 @@ public sealed class Pnd50FilingService(
         return new Pnd50ExpenseSchedule(
             Employee: emp, DirectorComp: 0m, Utilities: 0m, Travel: 0m, Freight: 0m,
             Rent: rent, Repairs: 0m, Entertainment: 0m, Marketing: mkt, SbtTax: 0m,
-            OtherTaxes: otherTax, FinanceCost: 0m, Bookkeeping: 0m, AuditFee: 0m,
+            OtherTaxes: otherTax, FinanceCost: fin, Bookkeeping: 0m, AuditFee: 0m,
             PoliticalDonation: 0m, CharityDonation: 0m, EducationSport: 0m, Consulting: 0m,
             OtherFees: fees, BadDebt: 0m, Depreciation: 0m, Other: other,
             DoubleDeduct: 0m, Total: total);

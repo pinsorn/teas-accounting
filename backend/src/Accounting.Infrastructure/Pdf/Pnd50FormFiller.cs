@@ -33,7 +33,8 @@ public sealed record Pnd50Ladder(
 /// p5 รายการที่ 7 รายจ่ายในการขายและบริหาร (boxes 110-129.1, column ③ only) — a PARTITION of the
 /// FY per-account expense rows by the TEAS 4-digit account-code convention: 5400-5499→1(110)
 /// พนักงาน · 5100-5199→6(115) ค่าเช่า · 5300-5349→9(118) โฆษณา/ส่งเสริมการขาย ·
-/// 5350-5399→11(120) ค่าภาษีอากรอื่นๆ · 5200-5299→19(126) ค่าธรรมเนียมอื่นๆ · everything else
+/// 5350-5399→11(120) ค่าภาษีอากรอื่นๆ · 5500-5599→12(121) ต้นทุนทางการเงิน ·
+/// 5200-5299→19(126) ค่าธรรมเนียมอื่นๆ · everything else
 /// (incl. unparseable) →22(129) อื่นๆ. Lines with no mapped range print explicit 0. Built by
 /// <c>Pnd50FilingService.BuildExpenseSchedule</c>, whose Total MUST equal the p3 ladder row 8
 /// (SellingAdminExpenses) — รายการที่ 7 is the detail of that single ladder row.
@@ -50,7 +51,7 @@ public sealed record Pnd50ExpenseSchedule(
     decimal Marketing,           // 9  (118) 5300-5349
     decimal SbtTax,              // 10 (119) 0 — no SBT in TEAS
     decimal OtherTaxes,          // 11 (120) 5350-5399 (e.g. irrecoverable VAT)
-    decimal FinanceCost,         // 12 (121) 0 — no mapped range (RD instructions ambiguity vs p4 ร.6 ข้อ 3)
+    decimal FinanceCost,         // 12 (121) 5500-5599 — ร.7 side, never p4 ร.6 (flat P&L: ladder row 6 == 0)
     decimal Bookkeeping,         // 13 (121.1) 0
     decimal AuditFee,            // 14 (122) 0
     decimal PoliticalDonation,   // 15 (122.1) 0
