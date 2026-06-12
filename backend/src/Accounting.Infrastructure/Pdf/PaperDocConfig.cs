@@ -32,7 +32,8 @@ public static class PaperDoc
             [PaperDocKind.Receipt]      = new("ใบเสร็จรับเงิน", "RECEIPT", "ผู้รับเงิน", "ผู้จ่ายเงิน"),
             [PaperDocKind.CreditNote]   = new("ใบลดหนี้", "CREDIT NOTE", "ผู้ออกใบลดหนี้", "ผู้ซื้อ"),
             [PaperDocKind.DebitNote]    = new("ใบเพิ่มหนี้", "DEBIT NOTE", "ผู้ออกใบเพิ่มหนี้", "ผู้ซื้อ"),
-            [PaperDocKind.BillingNote]  = new("ใบแจ้งหนี้", "BILLING NOTE", "ผู้ออกใบแจ้งหนี้", "ผู้รับใบแจ้งหนี้", "ครบกำหนดชำระ"),
+            // D4 rename (Ham 2026-06-12): EN label = INVOICE, matching the FE paper-doc-config mirror.
+            [PaperDocKind.BillingNote]  = new("ใบแจ้งหนี้", "INVOICE", "ผู้ออกใบแจ้งหนี้", "ผู้รับใบแจ้งหนี้", "ครบกำหนดชำระ"),
         };
 
     // VAT rate normalizer → percent for display. Sales-chain docs (Q/SO/DO/BN)
