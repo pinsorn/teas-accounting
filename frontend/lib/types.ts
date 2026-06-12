@@ -917,6 +917,8 @@ export type CrossRefDocType = 'tax-invoice' | 'receipt' | 'adjustment-note';
 // cont.69 Phase 3 (D7) — unified full document chain (Q→SO→DO→Invoice→TI→RC + CN/DN).
 export interface ChainNode {
   id: number; docNo: string | null; docDate: string; status: string; total: number;
+  /** Adjustment-note nodes only: 'Credit' | 'Debit'. Null/absent on every other node type. */
+  noteType?: 'Credit' | 'Debit' | null;
 }
 export interface DocumentChain {
   quotation: ChainNode | null;

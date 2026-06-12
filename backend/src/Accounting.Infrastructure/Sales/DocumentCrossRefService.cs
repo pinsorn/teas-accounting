@@ -369,7 +369,8 @@ public sealed class DocumentCrossRefService(
         var adjustmentNotes = tiIds.Count == 0 ? new List<ChainNode>() : await db.TaxAdjustmentNotes.AsNoTracking()
             .Where(x => x.CompanyId == cid && tiIds.Contains(x.OriginalTaxInvoiceId))
             .OrderBy(x => x.NoteId)
-            .Select(x => new ChainNode(x.NoteId, x.DocNo, x.DocDate, x.Status.ToString(), x.TotalAmount))
+            .Select(x => new ChainNode(x.NoteId, x.DocNo, x.DocDate, x.Status.ToString(), x.TotalAmount,
+                x.NoteType.ToString()))
             .ToListAsync(ct);
 
         return new DocumentChainDto(

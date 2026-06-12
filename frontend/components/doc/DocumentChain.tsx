@@ -55,9 +55,11 @@ const ROW_ICON: Record<Kind, LucideIcon> = {
   'debit-note': FilePlus,
 };
 
-// CN vs DN: the chain returns them together in adjustmentNotes; the status string
-// does not distinguish, so we rely on the docNo prefix (CN-/DN-) when present.
+// CN vs DN: the chain returns them together in adjustmentNotes. The server now
+// sends noteType ('Credit'/'Debit'); the docNo sniff stays only as a fallback
+// for cached responses that predate the field.
 function isDebitNote(node: ChainNode): boolean {
+  if (node.noteType) return node.noteType === 'Debit';
   return (node.docNo ?? '').toUpperCase().includes('DN');
 }
 
