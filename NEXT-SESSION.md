@@ -81,10 +81,18 @@ compliance §4.7 → **ถาม Ham ก่อน**.
 > informational (PDF ยัง render) — Ham เห็นต่างแจ้งได้ · (3) ต้นทุนทางการเงิน p4[108] vs p5[121]
 > รออ่านคำแนะนำ RD ก่อน map บัญชีดอกเบี้ยจ่าย (ตอนนี้ตกข้อ 22).
 
-### 7. 🆕 งานหลักถัดไป — ภ.พ.01/09 mapper (recon เสร็จ: pp01 3หน้า/190 widgets · pp09 4หน้า/299)
+### 7. ☑ DONE (cont.92b, 2026-06-12) — ภ.พ.01/09 v1 identity prefill
 
-- v1 = prefill identity fields จาก CompanyProfile เท่านั้น (ที่เหลือกรอกมือ — ข้อมูลส่วนใหญ่ไม่อยู่ใน
-  TEAS). ใช้ fieldmap discipline เต็ม (label-join → 0-fill raster → map doc → filler → visual gate).
+> **Shipped:** `GET /tax-filings/pp01/pdf` + `/pp09/pdf` (header หน้า 1 จาก CompanyProfile,
+> print-and-sign, ไม่ tick radio) + ปุ่ม prefill บน `/documents` + maps/cells commit แล้ว.
+> commit `2d52a7e`. C-D decisions ปิดด้วย: finance cost = 5500-5599 → ร.7 ข้อ 12 (`ad691c6`) ·
+> ม.71ทวิ = informational ยืนตามเดิม. **ค้าง Ham:** ยืนยัน crops `_review/pnd50cd/` + `_review/vatreg/`.
+
+### 8. คิวงานถัดไป (เลือกตามแรง)
+
+- **Dev DB ล้างบาง + M15 dump อัตโนมัติ** (item 5.3 + เก็บเล็ก M15 — ชุดเดียวกัน)
+- RD PDF ~60MB commit เข้า repo? — **ยังรอ Ham เคาะ** (irreversible repo-size)
+- สปส.1-10 upload e-Service จริง — ต้องมือ Ham (external)
 
 ### 5. 🆕 คิวใหม่ (มติ Ham 2026-06-11 เช้า — spec: `docs/superpowers/specs/pnd50-v2-dashboard.md`)
 

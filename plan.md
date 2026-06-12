@@ -152,8 +152,13 @@
   PDF still renders) · preview + CIT dashboard ร.7/ร.8 cards + openapi (2 schemas). Visual gate
   passed (crops sent to Ham 2026-06-12 — **รอยืนยันก่อนยื่นจริง**). Api 314/0/1 · Domain 137/137 ·
   tsc 0 · i18n 98/98. **ใบแนบ ก-จ separate PDFs = OUT (market fills none; stay attest-blank).**
-  DEFER: finance-cost line placement (p4 ร.6[108] vs p5 ร.7[121] — needs RD instruction read before
-  mapping a dedicated interest-expense account; today unmapped → ข้อ 22).
+  ~~DEFER: finance-cost line placement~~ → **RESOLVED (cont.92b):** 5500-5599 → ร.7 ข้อ 12 only —
+  forced by the flat-P&L foot invariants (ร.6 must foot ladder row 6 == 0), not RD interpretation.
+- ☑ **ภ.พ.01/09 v1 identity prefill (cont.92b, 2026-06-12):** `GET /tax-filings/pp01/pdf` + `/pp09/pdf`
+  — page-1 company header only (taxid 13-comb, postal 5-comb, address, email/website), print-and-sign,
+  no radio ever ticked (form-defect groups recorded in `pp01_map.md`/`pp09_map.md`, all PREFILL fields
+  raster-traced). pp09 email comb-flag defect stripped on the embedded template. FE prefill buttons on
+  `/documents`. Api 319/0/2 · live smoke 200/200 · visual gate passed (crops `_review/vatreg/`).
 
 ---
 

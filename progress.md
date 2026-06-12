@@ -3,6 +3,31 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 92b — Ham มอบอำนาจเต็ม "ตัดสินใจได้เลย รวม Item 7") — **C-D decisions ปิด 2 ข้อ + ภ.พ.01/09 v1 prefill SHIPPED.** Api **319/0/2** · tsc 0.
+
+- **Decision: ต้นทุนทางการเงิน (commit `ad691c6`)** — จอง range **5500-5599 → ร.7 ข้อ 12** (p5), ห้าม
+  p4 ร.6 ข้อ 3. ไม่ใช่เรื่องตีความ RD แต่ถูกบังคับโดยสถาปัตยกรรม: flat P&L ใส่รายจ่ายทุกบาทใน ladder
+  row 8, ร.7 ต้อง partition row 8 / ร.6 ต้อง foot row 6==0 — ดอกเบี้ยจ่ายลง p4 จะ break foot ทันที.
+  Map docs + openapi + tests อัพครบ.
+- **Decision: ม.71ทวิ** — ยืน informational refusal (PDF ยัง render) ตามที่ ship ใน cont.92.
+- **ภ.พ.01/09 v1 prefill (commit `2d52a7e`, Item 7 จาก NEXT-SESSION):**
+  `GET /tax-filings/pp01/pdf` + `/pp09/pdf` — เติมเฉพาะ header ข้อมูลบริษัทหน้า 1 จาก CompanyProfile
+  (ชื่อ, taxid 13-comb, ที่อยู่, ไปรษณีย์ 5-comb, email/website); เนื้อหาสาระทั้งหมด blank ให้กรอกมือ
+  (print-and-sign — ไม่มี attestation/refusal เพราะเป็นคำขอ ไม่ใช่แบบคำนวณ). **ไม่ tick radio ใด ๆ**
+  (ทั้งคู่มี form defect: กลุ่ม radio เดียว span หลายคำถาม / on-state ไม่เรียง — บันทึกใน map docs).
+  - Recon โดย subagent (fieldmap discipline เต็ม): `pp01_map.md`/`pp09_map.md` ทุก PREFILL field
+    raster-traced; trap สำคัญ: pp09 `Text1.x` สลับลำดับ (Text1.6=เลขที่, Text1.13=ห้องเลขที่),
+    `Text1.18` คนละความหมายสองฟอร์ม (pp01=แยก, pp09=E-mail).
+  - **pp09 email fix:** field มี comb flag + MaxLen=12 ปลอม → engine ตัด "acc@example." — แก้โดย strip
+    comb bit บน embedded template copy (pymupdf one-time) → overlay เต็ม `acc@example.co.th` ✓.
+  - FE: ปุ่ม "กรอกข้อมูลบริษัทให้" บนแถว ภ.พ.01/09 ใน `/documents` (`prefillPath` ใน rd-forms registry).
+  - Visual gate ผ่าน (crops `_review/vatreg/` — taxid/postal ลงช่อง, address ถูกบรรทัด, ส่งให้ Ham).
+    Live smoke 200/200. Tests 9/1 ×2.
+  - หมายเหตุ staging: commit เฉพาะ embedded templates (precedent pnd50_main.pdf) + map docs/dumps —
+    PDF ต้นฉบับใน docs/RD-Forms ยัง untracked ตามเดิม (รอ Ham เคาะเรื่อง ~60MB).
+- **Gates:** build 0/0 · Api full **319/0/2** (skip = VisualEmit ×2 by design) · tsc 0 · i18n parity ·
+  ম clean · push ครบ (`ad691c6`, `2d52a7e`). Servers :5080/:3000 รันอยู่.
+
 ## 2026-06-12 (cont. 92 — "ทำต่อ NEXT-SESSION.md") — **ภ.ง.ด.50 Phase C-D SHIPPED: p4/p5 schedules + p7 header.** Api **314/0/1** · Domain **137/137** · tsc 0 · e2e ไม่แตะ.
 
 - **Recon consolidation (commit `9a314b0`):** subagent recon (ค้างจาก cont.91b) ส่งงานครบ —
