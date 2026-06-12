@@ -1,4 +1,6 @@
+using Accounting.Application.Tax;
 using Accounting.Infrastructure.Pdf;
+using Accounting.Infrastructure.Tax;
 using FluentAssertions;
 using Xunit;
 
@@ -47,6 +49,28 @@ public sealed class Pnd50FormFillerTests
         PaidUpShareCapital: 300_000m, OtherEquity: 0m, RetainedEarnings: retained,
         TotalEquity: 300_000m + retained, TotalLiabilitiesAndEquity: 811_111.10m);
 
+    // Worked p5 รายการที่ 7 — built through the REAL builder so the partition foots to the
+    // Ladder()'s SellingAdminExpenses (4,900,000).
+    internal static Pnd50ExpenseSchedule Expenses(decimal total = 4_900_000m) =>
+        Pnd50FilingService.BuildExpenseSchedule(
+        [
+            new ExpenseAccountRow("5400", "เงินเดือนและค่าจ้าง", 1_200_000m),
+            new ExpenseAccountRow("5410", "เงินสมทบประกันสังคม", 36_000m),
+            new ExpenseAccountRow("5100", "ค่าเช่า", 240_000m),
+            new ExpenseAccountRow("5300", "ค่าโฆษณา", 61_000m),
+            new ExpenseAccountRow("5350", "ภาษีซื้อขอคืนไม่ได้", 7_000m),
+            new ExpenseAccountRow("5200", "ค่าบริการ", 30_000m),
+            new ExpenseAccountRow("5990", "ค่าใช้จ่ายเบ็ดเตล็ด", total - 1_574_000m),
+        ], total);
+
+    // Worked p5 รายการที่ 8 — foots to Ladder()'s DisallowedExpenses (50,000 profit / 0 loss).
+    internal static Pnd50DisallowedSchedule Disallowed(bool loss) =>
+        Pnd50FilingService.BuildDisallowedSchedule(
+            loss
+                ? []
+                : [new CitAdjustmentDto(1, 2569, "ม.65ตรี(4)", "ค่ารับรองส่วนเกิน", 50_000m)],
+            loss ? 0m : 50_000m);
+
     internal static Pnd50Model Model(Pnd50Sheet sheet) => new(
         TaxId: "0105561234567", CompanyName: "บริษัท ทดสอบภาษี จำกัด",
         PeriodStart: new DateOnly(2026, 1, 1), PeriodEnd: new DateOnly(2026, 12, 31),
@@ -57,6 +81,8 @@ public sealed class Pnd50FormFillerTests
         HasRelatedPartyOver200M: false,
         Sheet: sheet,
         Ladder: Ladder(sheet.IsLoss ? -1m : 1m),
+        ExpenseSchedule: Expenses(),
+        Disallowed: Disallowed(sheet.IsLoss),
         BalanceSheet: Boxes(sheet.IsLoss ? -321_098.76m : 321_098.76m));
 
     [Fact]
@@ -134,5 +160,48 @@ public sealed class Pnd50FormFillerTests
         // ทุนจดทะเบียน (155) is a plain box, NOT a comb — must stay OUT of the cell map
         // (a 1-cell entry would stack every character at one X).
         cells.Should().NotContainKey("Text35.227");
+    }
+
+    [Fact]
+    public void Cells_geometry_has_every_cd_p4_p5_comb_and_p7_dates()
+    {
+        var cells = Pnd50FormFiller.Cells;
+        // p4 column ③ (pnd50_p4_map.md): ร.4 17 rows + ร.5 7 rows + ร.6 5 rows.
+        string[] p4 = ["Text35.32", "Text35.35", "Text35.38", "Text35.41", "Text35.44",
+                       "Text35.47", "Text35.50", "Text35.53", "Text35.56", "Text35.59",
+                       "Text35.62", "Text35.65", "Text35.68", "Text35.71", "Text35.74",
+                       "Text35.77", "Text35.80",
+                       "Text35.83", "Text35.86", "Text35.89", "Text35.92", "Text35.95",
+                       "Text35.98", "Text35.101",
+                       "Text35.104", "Text35.107", "Text35.110", "Text35.113", "Text35.116"];
+        // p5 column ③ (pnd50_p5_map.md): ร.7 24 rows (⚠️ no Text35.188 — row 24 is .189)
+        // + ร.8 7 rows (⚠️ row 4 is Text35.2011, not .201).
+        string[] p5 = ["Text35.119", "Text35.122", "Text35.125", "Text35.128", "Text35.131",
+                       "Text35.134", "Text35.137", "Text35.140", "Text35.143", "Text35.146",
+                       "Text35.149", "Text35.152", "Text35.155", "Text35.158", "Text35.161",
+                       "Text35.164", "Text35.167", "Text35.170", "Text35.173", "Text35.176",
+                       "Text35.179", "Text35.182", "Text35.185", "Text35.189",
+                       "Text35.192", "Text35.195", "Text35.198", "Text35.2011", "Text35.203",
+                       "Text35.206", "Text35.209"];
+        foreach (var box in p4.Concat(p5))
+            cells.Should().ContainKey(box).WhoseValue.Should().HaveCount(13,
+                $"box {box} is an 11+2 comb on p4/p5 (column ③)");
+        cells.Should().NotContainKey("Text35.188");
+        // p7 date combs: วันที่ 2 cells · เดือน 2 · พ.ศ. 4 (both ตั้งแต่ and ถึง + sign dates).
+        foreach (var (box, n) in new[] { ("Text475", 2), ("Text476", 2), ("Text477", 4),
+                                         ("Text478", 2), ("Text479", 2), ("Text480", 4) })
+            cells.Should().ContainKey(box).WhoseValue.Should().HaveCount(n,
+                $"p7 date box {box} is a {n}-cell comb");
+    }
+
+    [Fact]
+    public void Cd_schedules_print_partition_that_foots_to_the_ladder()
+    {
+        // The worked schedule built through the REAL builders must reproduce the ladder rows the
+        // form cross-references (row 8 = รายการที่ 7 รวม, row 11 = รายการที่ 8 รวม).
+        var ladder = Ladder();
+        Expenses().Total.Should().Be(ladder.SellingAdminExpenses);
+        Disallowed(loss: false).Total.Should().Be(ladder.DisallowedExpenses);
+        Pnd50FormFiller.Fill(Model(ProfitSheet())).Length.Should().BeGreaterThan(50_000);
     }
 }

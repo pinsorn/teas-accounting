@@ -26,16 +26,23 @@ public sealed class Pnd50FilingService(
     IWhtReceivableReportService whtReport,
     IFinancialReportService financialReport) : IPnd50FilingService
 {
-    /// <summary>Everything the PDF/preview need, derived once. Refusals are COLLECTED, not thrown.</summary>
+    /// <summary>Everything the PDF/preview need, derived once. Refusals are COLLECTED, not thrown.
+    /// <c>pnd50.disclosure_required</c> is INFORMATIONAL (ม.71ทวิ TP disclosure = separate manual
+    /// form when revenue &gt; ฿200M) — it never blocks the PDF; every other refusal does.</summary>
     internal sealed record Pnd50Composition(
         int Year, DateOnly PeriodStart, DateOnly PeriodEnd,
         bool IsSme, decimal? PaidUpCapital, decimal Revenue, decimal Expenses,
-        CitComputation Cit, Pnd50Ladder? Ladder, Pnd50BalanceSheetBoxes BalanceSheet,
+        CitComputation Cit, Pnd50Ladder? Ladder,
+        Pnd50ExpenseSchedule? ExpenseSchedule, Pnd50DisallowedSchedule? Disallowed,
+        Pnd50BalanceSheetBoxes BalanceSheet,
         bool BalanceSheetBalanced,
         decimal WhtCredit, decimal Pnd51Prepaid, decimal? Pnd51Estimate, decimal Surcharge,
         IReadOnlyList<WhtReceivableRegisterRow> WhtRows,
         IReadOnlyList<CitAdjustmentDto> Adjustments,
         IReadOnlyList<string> Refusals);
+
+    /// <summary>Refusal codes that warn but never block rendering (see composition doc).</summary>
+    private static readonly string[] InformationalRefusals = ["pnd50.disclosure_required"];
 
     private async Task<Pnd50Composition> ComposeAsync(int year, bool? isSme, CancellationToken ct)
     {
@@ -88,6 +95,32 @@ public sealed class Pnd50FilingService(
             refusals.Add(ex.Code);
         }
 
+        // C-D: p5 รายการที่ 7/8 schedules — only meaningful against a built ladder (their totals
+        // ARE ladder rows 8/11). A foot mismatch here is a data-source inconsistency between
+        // ExpenseByAccountAsync and the P&L → collected refusal, never a silent render.
+        Pnd50ExpenseSchedule? expSchedule = null;
+        Pnd50DisallowedSchedule? disallowed = null;
+        if (ladder is not null)
+        {
+            try
+            {
+                var expRows = await citData.ExpenseByAccountAsync(year, ct);
+                expSchedule = BuildExpenseSchedule(expRows, ladder.SellingAdminExpenses);
+                disallowed  = BuildDisallowedSchedule(adjustments, ladder.DisallowedExpenses);
+            }
+            catch (InvalidOperationException)
+            {
+                expSchedule = null;
+                disallowed  = null;
+                refusals.Add("pnd50.schedule_breaks_ladder");
+            }
+        }
+
+        // ม.71ทวิ — FY revenue > ฿200M requires the Transfer-Pricing disclosure form, which TEAS
+        // has no related-party ledger to fill. Informational: points the filer to manual filing.
+        if (profile.RevenueFullYear > 200_000_000m)
+            refusals.Add("pnd50.disclosure_required");
+
         // เงินเพิ่ม (ม.67ตรี) sits on the ชำระเพิ่มเติม branch — an overpaid bottom line that still
         // owes the penalty has no honest box (same rule BuildSheet enforces on the PDF path).
         if (cit.TaxBeforeCredits - cit.CreditsTotal < 0m && surcharge > 0m)
@@ -98,7 +131,7 @@ public sealed class Pnd50FilingService(
         return new Pnd50Composition(
             year, periodStart, periodEnd, sme, profile.PaidUpCapital,
             profile.RevenueFullYear, expenses,
-            cit, ladder, MapBalanceSheet(bs), bs.Balanced,
+            cit, ladder, expSchedule, disallowed, MapBalanceSheet(bs), bs.Balanced,
             whtReg.TotalWht, prepaid, estimate, surcharge,
             whtReg.Rows, adjustments, refusals);
     }
@@ -108,9 +141,10 @@ public sealed class Pnd50FilingService(
         Pnd50Attestation? attest, CancellationToken ct)
     {
         var comp = await ComposeAsync(year, isSme, ct);
-        if (comp.Refusals.Count > 0)
+        var blocking = comp.Refusals.Where(r => !InformationalRefusals.Contains(r)).ToList();
+        if (blocking.Count > 0)
             throw new DomainException("pnd50.not_renderable",
-                "ภ.ง.ด.50 cannot honestly render this year: " + string.Join("; ", comp.Refusals));
+                "ภ.ง.ด.50 cannot honestly render this year: " + string.Join("; ", blocking));
 
         var prof = await db.CompanyProfiles.AsNoTracking()
             .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
@@ -132,6 +166,8 @@ public sealed class Pnd50FilingService(
             HasRelatedPartyOver200M: hasRelatedPartyOver200M,
             Sheet: sheet,
             Ladder: comp.Ladder!,
+            ExpenseSchedule: comp.ExpenseSchedule!,
+            Disallowed: comp.Disallowed!,
             BalanceSheet: comp.BalanceSheet);
         return Pnd50FormFiller.Fill(model);
     }
@@ -160,6 +196,20 @@ public sealed class Pnd50FilingService(
                     l.Total14, l.LossCarryForward, l.Total16, l.Total20, l.TaxableNetProfit)
                 : null,
             comp.Adjustments,
+            comp.ExpenseSchedule is { } e
+                ? new Pnd50ExpenseScheduleDto(
+                    e.Employee, e.DirectorComp, e.Utilities, e.Travel, e.Freight,
+                    e.Rent, e.Repairs, e.Entertainment, e.Marketing, e.SbtTax,
+                    e.OtherTaxes, e.FinanceCost, e.Bookkeeping, e.AuditFee,
+                    e.PoliticalDonation, e.CharityDonation, e.EducationSport, e.Consulting,
+                    e.OtherFees, e.BadDebt, e.Depreciation, e.Other,
+                    e.DoubleDeduct, e.Total)
+                : null,
+            comp.Disallowed is { } d
+                ? new Pnd50DisallowedScheduleDto(
+                    d.IncomeTax, d.Entertainment, d.BadDebt, d.Provisions,
+                    d.FromItem7Line23, d.Other, d.Total)
+                : null,
             cit.TaxBeforeCredits, cit.CreditsTotal, Math.Abs(net), payMore,
             payMore ? comp.Surcharge : 0m,
             Math.Abs(net) + (payMore ? comp.Surcharge : 0m),
@@ -193,9 +243,9 @@ public sealed class Pnd50FilingService(
 
         if (attest is not { FirstFiling: true, AcceptBlankSchedules: true })
             throw new DomainException("pnd50.not_attestable",
-                "ภ.ง.ด.50 prints pages 4–5 (ต้นทุน/ขายบริหาร detail), page 7 (แบบแจ้งกรรมการ) and "
-              + "the ใบแนบ blank (a blank box asserts zero) — the filer must attest firstFiling + "
-              + "acceptBlankSchedules, or complete those schedules manually.");
+                "ภ.ง.ด.50 prints the page-7 director questions/signatures and the separate "
+              + "ใบแนบ ก-จ blank (a blank box asserts zero) — the filer must attest firstFiling + "
+              + "acceptBlankSchedules, or complete those pieces manually.");
 
         var net     = cit.TaxBeforeCredits - cit.CreditsTotal;
         var payMore = net >= 0m;

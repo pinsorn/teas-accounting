@@ -125,9 +125,10 @@ public sealed record Pnd50Sheet(
     bool    IsSme);          // Group21: false→Choice1 ทั่วไป, true→Choice2 + Group6 Choice1 SMEs
 
 /// <summary>
-/// Model for ภ.ง.ด.50 v2 (annual CIT return — p1 header + p2 รายการที่ 1 + p3 รายการที่ 2/3 +
-/// p6 งบฐานะ). Address block = same CompanyProfile source as ภ.ง.ด.51. Company type is fixed to
-/// (1) บริษัท/ห้างฯ ตั้งขึ้นตามกฎหมายไทย (Group00) — TEAS targets Thai juristic companies.
+/// Model for ภ.ง.ด.50 C-D (annual CIT return — p1 header + p2 รายการที่ 1 + p3 รายการที่ 2/3 +
+/// p4 รายการที่ 4-6 + p5 รายการที่ 7-8 + p6 งบฐานะ + p7 header). Address block = same
+/// CompanyProfile source as ภ.ง.ด.51. Company type is fixed to (1) บริษัท/ห้างฯ ตั้งขึ้นตาม
+/// กฎหมายไทย (Group00) — TEAS targets Thai juristic companies.
 /// </summary>
 public sealed record Pnd50Model(
     string TaxId, string CompanyName,
@@ -139,12 +140,15 @@ public sealed record Pnd50Model(
     bool HasRelatedPartyOver200M,     // ม.71ทวิ: true→Group06 มี, false→Group07 ไม่มี/รายได้≤200M
     Pnd50Sheet Sheet,
     Pnd50Ladder Ladder,
+    Pnd50ExpenseSchedule ExpenseSchedule,
+    Pnd50DisallowedSchedule Disallowed,
     Pnd50BalanceSheetBoxes BalanceSheet);
 
 /// <summary>
-/// Fills the official RD ภ.ง.ด.50 AcroForm (v1: page 1 header + page 2 รายการที่ 1) and flattens
-/// it via <see cref="RdAcroFormFiller"/>. Field map: docs/superpowers/specs/pnd50-fieldmap-recon.md
-/// + docs/RD-Forms/pnd50/fieldmap/_pnd50_fields_p1.txt (rect+label join). Radios are selected by
+/// Fills the official RD ภ.ง.ด.50 AcroForm (C-D: p1 header + p2 รายการที่ 1 + p3 รายการที่ 2/3 +
+/// p4 รายการที่ 4-6 + p5 รายการที่ 7-8 + p6 งบฐานะ + p7 header) and flattens it via
+/// <see cref="RdAcroFormFiller"/>. Field maps: docs/superpowers/specs/pnd50-fieldmap-recon.md
+/// + docs/RD-Forms/pnd50/fieldmap/pnd50_p{4,5,7}_map.md (rect+label join). Radios are selected by
 /// their RENDER-CONFIRMED on-state names (docs/RD-Forms/pnd50/pnd50_radiomap.md) — never by index.
 /// Comb boxes (taxid grid + every amount box) place per-char at the printed cell centres from the
 /// embedded pnd50_cells.json (11 baht + 2 satang cells; the dash gap is not a cell).
@@ -236,6 +240,77 @@ public static class Pnd50FormFiller
         foreach (var n in new[] { "Text35.5", "Text35.8", "Text35.11", "Text35.14", "Text35.17",
                                   "Text35.20", "Text35.23", "Text35.26", "Text35.29" })
             Amt(n, 0m);
+
+        // ── p4 (C-D) — column ③ only, same rubric as p3; field names from pnd50_p4_map.md. ──
+        // รายการที่ 4 ต้นทุนผลิต/บริการ (86-99): zeros-by-design — TEAS books carry no inventory
+        // or production costing at all; consistent with BuildLadder's CostOfSales: 0m and the
+        // all-zero p3 รายการที่ 3 above. Every row prints explicit 0 (blank box = lie).
+        foreach (var n in new[] { "Text35.32", "Text35.35", "Text35.38", "Text35.41", "Text35.44",
+                                  "Text35.47", "Text35.50", "Text35.53", "Text35.56", "Text35.59",
+                                  "Text35.62", "Text35.65", "Text35.68", "Text35.71", "Text35.74",
+                                  "Text35.77", "Text35.80" })
+            Amt(n, 0m);
+        // รายการที่ 5 รายได้อื่น (100-105): detail rows 0; row 7 รวม = ladder row 4 (OtherIncome,
+        // structurally 0 in the flat P&L — DirectRevenue carries the full FY revenue).
+        foreach (var n in new[] { "Text35.83", "Text35.86", "Text35.89",
+                                  "Text35.92", "Text35.95", "Text35.98" })
+            Amt(n, 0m);
+        Amt("Text35.101", Math.Abs(L.OtherIncome));
+        // รายการที่ 6 รายจ่ายอื่น (106-109): detail rows 0; row 5 รวม = ladder row 6 (OtherExpenses,
+        // structurally 0 — all expenses report in รายการที่ 7 per the flat P&L).
+        foreach (var n in new[] { "Text35.104", "Text35.107", "Text35.110", "Text35.113" })
+            Amt(n, 0m);
+        Amt("Text35.116", Math.Abs(L.OtherExpenses));
+
+        // ── p5 รายการที่ 7 รายจ่ายในการขายและบริหาร (110-129.1) — column ③, explicit zeros. ──
+        // Field names from pnd50_p5_map.md; ⚠️ row 24 ③ is Text35.189 (no Text35.188 exists).
+        var E = m.ExpenseSchedule;
+        Amt("Text35.119", E.Employee);           // 1  (110)
+        Amt("Text35.122", E.DirectorComp);       // 2  (111)
+        Amt("Text35.125", E.Utilities);          // 3  (112)
+        Amt("Text35.128", E.Travel);             // 4  (113)
+        Amt("Text35.131", E.Freight);            // 5  (114)
+        Amt("Text35.134", E.Rent);               // 6  (115)
+        Amt("Text35.137", E.Repairs);            // 7  (116)
+        Amt("Text35.140", E.Entertainment);      // 8  (117)
+        Amt("Text35.143", E.Marketing);          // 9  (118)
+        Amt("Text35.146", E.SbtTax);             // 10 (119)
+        Amt("Text35.149", E.OtherTaxes);         // 11 (120)
+        Amt("Text35.152", E.FinanceCost);        // 12 (121)
+        Amt("Text35.155", E.Bookkeeping);        // 13 (121.1)
+        Amt("Text35.158", E.AuditFee);           // 14 (122)
+        Amt("Text35.161", E.PoliticalDonation);  // 15 (122.1)
+        Amt("Text35.164", E.CharityDonation);    // 16 (123)
+        Amt("Text35.167", E.EducationSport);     // 17 (124)
+        Amt("Text35.170", E.Consulting);         // 18 (125)
+        Amt("Text35.173", E.OtherFees);          // 19 (126)
+        Amt("Text35.176", E.BadDebt);            // 20 (127)
+        Amt("Text35.179", E.Depreciation);       // 21 (128)
+        Amt("Text35.182", E.Other);              // 22 (129)
+        Amt("Text35.185", E.DoubleDeduct);       // 23 (129.1)
+        Amt("Text35.189", E.Total);              // 24 รวม == ladder row 8
+
+        // ── p5 รายการที่ 8 รายจ่ายที่ไม่ให้ถือเป็นรายจ่ายฯ (130-134.1) — column ③. ──
+        // ⚠️ Name trap (raster-confirmed): row 4 ③ is Text35.2011, NOT Text35.201 (= row 5 ①).
+        var D = m.Disallowed;
+        Amt("Text35.192",  D.IncomeTax);         // 1 (130)
+        Amt("Text35.195",  D.Entertainment);     // 2 (131)
+        Amt("Text35.198",  D.BadDebt);           // 3 (132)
+        Amt("Text35.2011", D.Provisions);        // 4 (133)
+        Amt("Text35.203",  D.FromItem7Line23);   // 5 (134)
+        Amt("Text35.206",  D.Other);             // 6 (134.1)
+        Amt("Text35.209",  D.Total);             // 7 รวม == ladder row 11
+
+        // ── p7 แบบแจ้งข้อความของกรรมการ — header ONLY (pnd50_p7_map.md). The five questions,
+        // signatures and dates are the director's/auditor's personal attestations: never
+        // auto-ticked (same posture as p6 Group92/93), so Group991-995 are NOT emitted here.
+        fields.Add(new("Text36.11", m.CompanyName));
+        fields.Add(new("Text475", m.PeriodStart.Day.ToString("00")));    // ตั้งแต่ วันที่ (comb 2)
+        fields.Add(new("Text476", m.PeriodStart.Month.ToString("00")));  // เดือน (comb 2)
+        fields.Add(new("Text477", (m.PeriodStart.Year + 543).ToString())); // พ.ศ. (comb 4)
+        fields.Add(new("Text478", m.PeriodEnd.Day.ToString("00")));      // ถึง วันที่
+        fields.Add(new("Text479", m.PeriodEnd.Month.ToString("00")));
+        fields.Add(new("Text480", (m.PeriodEnd.Year + 543).ToString()));
 
         // p6 งบแสดงฐานะการเงิน. NOT filled (system cannot know them): 155 ทุนจดทะเบียน
         // (no registered-capital field; PaidUpCapital ≠ ทุนจดทะเบียน), Group92/93 auditor
