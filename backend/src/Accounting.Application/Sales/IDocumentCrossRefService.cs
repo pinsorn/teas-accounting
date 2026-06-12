@@ -44,7 +44,10 @@ public interface IDocumentCrossRefService
 }
 
 /// <summary>cont.69 Phase 3 — one node in the unified document chain.</summary>
-public sealed record ChainNode(long Id, string? DocNo, DateOnly DocDate, string Status, decimal Total);
+/// <param name="NoteType">Set only on adjustment-note nodes ("Credit"/"Debit") so the FE can route
+/// CN vs DN without parsing the doc number; null for every other node type.</param>
+public sealed record ChainNode(long Id, string? DocNo, DateOnly DocDate, string Status, decimal Total,
+    string? NoteType = null);
 
 /// <summary>
 /// cont.69 Phase 3 — normalized full chain. Each property holds the present node(s)
