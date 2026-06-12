@@ -740,11 +740,13 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
     (Sidebar + PaperHead; mascot=logo, no new static asset — Ham 2026-05-22; tsc 0 + next build 0/0).
     **Bonus fix:** removed stale `CreateReceiptValidator` rule still forcing `CustomerWhtCertNo`
     required (contradicted cont. 62 deferred-cert; blocked the missing-cert scenario this report chases).
-- ☐ **Sprint — Line product/service typing + service-WHT + inline product modal**
-  (Ham 2026-05-22, `docs/sprint-line-product-wht-plan.md`) — **Product-master driven**: pick
-  product → goods/service + DefaultWhtType; **price/discount per-line, master must NOT drive
-  price**; **inline "create new product/service" modal** from the line table; ProductPicker on
-  all sales line forms; receipt WHT stays receipt-level (existing). Large → focused sprint.
+- ☑ **Sprint — Line product/service typing + service-WHT + inline product modal**
+  (Ham 2026-05-22, `docs/sprint-line-product-wht-plan.md`) — **SHIPPED cont.81 (2026-05-30,
+  commits `ce72a13`+`7b8d0fe`; stale marker cleared 2026-06-12):** `ProductPicker` embedded in the
+  shared `LineItemsTable` (every sales line form) + `taxRateForProductType` master-driven typing ·
+  `ProductQuickCreateModal` inline create from the line table · DefaultWhtType flow · price
+  auto-fills on pick but stays per-line editable (master does NOT lock price, per spec) ·
+  purchase/sale split + BU scope on the picker.
 - ☐ **Sprint 13k (queued)** — Security + RBAC full Cartesian + Performance +
   Accessibility audit (Answer-30; after 13j).
 - ☐ **Sprint 13L (queued)** — DevOps: migration rollback + build pipeline +
