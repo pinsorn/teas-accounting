@@ -3,6 +3,34 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 93b — "แก้เลย พร้อม FE") — **WHT gross-up ออกภาษีให้เอง + 50ทวิ เงื่อนไข SHIPPED.** Api **325/0/3** · Domain +9 · tsc 0.
+
+- **ที่มา:** Ham ถาม "ซื้อบริการแต่อีกฝั่งไม่ให้หัก ณ ที่จ่าย ระบบเป็นยังไง" → audit เจอ 2 ช่องโหว่ใน
+  Sprint 8.7 self-withhold: ฐานภาษีคิด rate×net ตรง ๆ (RD ต้อง gross-up — ภาษีที่ออกให้เป็นเงินได้ผู้รับ)
+  + 50ทวิ ติ๊ก "(1) หัก ณ ที่จ่าย" hardcode ทุกใบ. Ham สั่งแก้ทั้งคู่ + FE ใช้งานง่าย.
+- **Engine:** `Domain/Tax/WhtPayerModes` — DEDUCT / **GROSS_UP_FOREVER** (ตลอดไป: income = net÷(1−r);
+  3%→3.0928%, 15%→17.6471%) / GROSS_UP_ONCE (ครั้งเดียว: net×(1+r)). Golden 9/9. Spec:
+  `docs/superpowers/specs/2026-06-12-wht-grossup-design.md`.
+- **BE:** PV `WhtPayerMode` column (+ck) — explicit ชนะ, legacy `selfWithholdMode:true` + foreign auto ⇒
+  FOREVER; line WhtAmount = grossed → GL gross-up branch ถูกอัตโนมัติ (อ่าน pv.WhtAmount เดิม);
+  `WhtCertificate.WhtCondition` 1|2|3 (+ck), cert IncomeAmount = net+ภาษีที่ออกให้; 50ทวิ filler ติ๊ก
+  chk8/chk9/chk10 ตาม condition (rects probe จาก template: x=82/177/282). Migration
+  `AddWhtPayerModeAndCondition` applied. PV PDF: self-withhold ไม่แสดง WHT เป็นรายการหัก (จ่ายเต็ม) —
+  disclose เป็น note "ออกภาษีหัก ณ ที่จ่ายให้เอง X บาท".
+- **FE (UX ใหม่):** toggle "ผู้รับเงินไม่ให้หัก ณ ที่จ่าย (ออกภาษีให้เอง)" → radio ออกให้ตลอดไป (แนะนำ) /
+  ออกให้ครั้งเดียว + hint สูตร + chip live "นำส่งสรรพากร X บาท — อัตราแท้จริง Y%"; summary แถว
+  "ภาษีออกให้เอง (นำส่ง รด. ต่างหาก)" ไม่ลบจากยอดจ่าย; paper preview Total เต็ม; PV detail badge ระบุวิธี;
+  cert detail badge เงื่อนไข. i18n th/en parity ✓.
+- **Tests เดิมที่ encode math ผิดถูกแก้:** Sprint87 foreign 3500@15% 525→**617.65**, domestic 10000@3%
+  300→**309.28** + 3 ตัวใหม่ (ONCE / DEDUCT / validator contradiction). **Sprint87 8/8 ×2 · Api full
+  325/0/3 · Domain golden 9/9 · tsc 0.**
+- **Live smoke:** PV `06-2026-PV-CAPEX-0001` (ap_clerk สร้าง / admin approve+post) — จ่ายเต็ม 10,700,
+  WHT 309.28, cert `06-2026-WT-0012` income 10,309.28 / condition 2; 50ทวิ PDF ☒ "(2) ออกให้ตลอดไป"
+  (crop verified); FE form + PV PDF screenshot ส่งให้ Ham. openapi: `whtPayerMode`+`selfWithholdMode`
+  บน CreatePaymentVoucherRequest (107 paths, YAML ✓).
+- หมายเหตุ ม.70: ค่าโฆษณา Google/Meta = 40(8) ไม่เข้า ม.70 → ไม่ต้องหัก เหลือแค่ ภ.พ.36 — ผู้ใช้ override
+  ได้ต่อ PV (เลือกประเภทเงินได้/ไม่หัก). Servers :5080/:3000 รัน binary/build ล่าสุด.
+
 ## 2026-06-12 (cont. 93 — "ทยอยจัดการเลย + อัพเดทแพลนตามจริง") — **plan.md reconciled (14 stale ☑) · openapi delta ปิด · 13j-PDF visual gate ผ่าน + 🔴 TI seller-address fix (ม.86/4 #2) · CN/DN chain NoteType · e-Tax plan แยกไฟล์.** Api **322/0/3** · tsc 0 · build 0/0.
 
 - **Plan reconciliation (Ham: "เหมือนจะทำไปเยอะแล้วนะ Mark done"):** verified vs code แล้วติ๊ก 14 จุด —
