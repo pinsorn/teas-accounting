@@ -57,10 +57,14 @@ public sealed class Pnd50VisualEmit
             Pnd50FormFillerTests.Model(s) with
             { Ladder = l, BalanceSheet = b, HasRelatedPartyOver200M = relatedParty };
 
+        // C-D: the Model() helper's schedules already foot the profit/SME ladder (row 8 =
+        // 4,900,000 · row 11 = 50,000) through the REAL builders; the loss case re-foots its
+        // expense partition to ladderL row 8 (1,987,654.32 — Disallowed stays 0).
         File.WriteAllBytes(Path.Combine(dir!, "pnd50_profit.pdf"),
             Pnd50FormFiller.Fill(M(sheetP, ladderP, boxesP)));
         File.WriteAllBytes(Path.Combine(dir!, "pnd50_loss.pdf"),
-            Pnd50FormFiller.Fill(M(sheetL, ladderL, boxesL, relatedParty: true)));
+            Pnd50FormFiller.Fill(M(sheetL, ladderL, boxesL, relatedParty: true) with
+            { ExpenseSchedule = Pnd50FormFillerTests.Expenses(1_987_654.32m) }));
         File.WriteAllBytes(Path.Combine(dir!, "pnd50_sme.pdf"),
             Pnd50FormFiller.Fill(M(
                 Pnd50FilingService.BuildSheet(
