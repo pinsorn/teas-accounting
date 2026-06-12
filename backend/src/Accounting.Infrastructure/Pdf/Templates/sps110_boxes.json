@@ -1,0 +1,22 @@
+{
+  "employerName":           { "x": 166.4, "yTop": 94.6,  "w": 219.0, "h": 12.0, "align": "left" },
+  "branchName":             { "x": 136.4, "yTop": 116.2, "w": 248.0, "h": 12.0, "align": "left" },
+  "address":                { "x": 180.9, "yTop": 137.8, "w": 205.6, "h": 12.0, "align": "left" },
+  "address2":               { "x": 73.0,  "yTop": 159.4, "w": 310.0, "h": 12.0, "align": "left" },
+  "postalCode":             { "x": 133.5, "yTop": 181.1, "w": 39.4,  "h": 12.0, "align": "left" },
+  "phone":                  { "x": 217.3, "yTop": 181.1, "w": 76.7,  "h": 12.0, "align": "left" },
+  "accountNoCells":         { "cells": [571.5, 582.8, 603.8, 615.0, 626.3, 636.8, 648.0, 659.3, 670.5, 690.8], "yTop": 111.1, "h": 14.0 },
+  "branchSeqCells":         { "cells": [571.5, 582.8, 594.0, 605.3, 616.5, 627.8], "yTop": 134.5, "h": 14.0 },
+  "wageMonth":              { "x": 217.5, "yTop": 202.6, "w": 89.8,  "h": 12.0, "align": "left" },
+  "wageYear":               { "x": 326.6, "yTop": 202.6, "w": 53.4,  "h": 12.0, "align": "left" },
+  "tblWageBaht":            { "x": 271.9, "yTop": 258.1, "w": 83.0,  "h": 12.0, "align": "right" },
+  "tblWageSatang":          { "x": 361.9, "yTop": 258.1, "w": 20.0,  "h": 12.0, "align": "right" },
+  "tblEmpContribBaht":      { "x": 271.9, "yTop": 279.6, "w": 83.0,  "h": 12.0, "align": "right" },
+  "tblEmpContribSatang":    { "x": 361.9, "yTop": 279.6, "w": 20.0,  "h": 12.0, "align": "right" },
+  "tblEmployerContribBaht": { "x": 271.9, "yTop": 298.4, "w": 83.0,  "h": 12.0, "align": "right" },
+  "tblEmployerContribSatang": { "x": 361.9, "yTop": 298.4, "w": 20.0, "h": 12.0, "align": "right" },
+  "tblTotalBaht":           { "x": 271.9, "yTop": 316.7, "w": 83.0,  "h": 12.0, "align": "right" },
+  "tblTotalSatang":         { "x": 361.9, "yTop": 316.7, "w": 20.0,  "h": 12.0, "align": "right" },
+  "tblEmployeeCount":       { "x": 271.9, "yTop": 357.1, "w": 83.0,  "h": 12.0, "align": "right" },
+  "amountWords":            { "x": 91.0,  "yTop": 335.8, "w": 278.0, "h": 12.0, "align": "left" }
+}
