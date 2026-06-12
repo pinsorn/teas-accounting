@@ -88,11 +88,18 @@ compliance §4.7 → **ถาม Ham ก่อน**.
 > commit `2d52a7e`. C-D decisions ปิดด้วย: finance cost = 5500-5599 → ร.7 ข้อ 12 (`ad691c6`) ·
 > ม.71ทวิ = informational ยืนตามเดิม. **ค้าง Ham:** ยืนยัน crops `_review/pnd50cd/` + `_review/vatreg/`.
 
-### 8. คิวงานถัดไป (เลือกตามแรง)
+### 8. ☑ DONE (cont.92c) — Dev DB ล้างบาง + M15 + Reptify key + e2e re-baseline
 
-- **Dev DB ล้างบาง + M15 dump อัตโนมัติ** (item 5.3 + เก็บเล็ก M15 — ชุดเดียวกัน)
-- RD PDF ~60MB commit เข้า repo? — **ยังรอ Ham เคาะ** (irreversible repo-size)
+> Backups `Y:\TEAS-backups\` · task "TEAS dev DB dump" 03:30 ทุกวัน · key ใหม่ใน
+> `Y:\TEAS-backups\reptify-dev-key.json` (company 2, BU REPT) · e2e 55/2/0 บน next start.
+> spec SO/DO filter แก้แล้วไม่พึ่งข้อมูลเก่า (`71d51a4`).
+
+### 9. ค้างรอ Ham (ไม่มีงาน build เหลือในคิว)
+
+- ยืนยัน visual crops 2 ชุด: `_review/pnd50cd/` (ภ.ง.ด.50 C-D) + `_review/vatreg/` (ภ.พ.01/09)
+- RD PDF ~60MB commit เข้า repo? — irreversible repo-size, รอเคาะ
 - สปส.1-10 upload e-Service จริง — ต้องมือ Ham (external)
+- เอา Reptify key ใหม่ไปใส่ `.env` ฝั่ง Reptify เมื่อเริ่ม wire integration จริง
 
 ### 5. 🆕 คิวใหม่ (มติ Ham 2026-06-11 เช้า — spec: `docs/superpowers/specs/pnd50-v2-dashboard.md`)
 
