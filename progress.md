@@ -3,6 +3,27 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 92d — Ham ตอบ 3 ข้อ) — **สปส.1-10 PDF fill SHIPPED · approvals บันทึก · flake ปีชน killed.** Api **322/0/3 ×3** · tsc 0.
+
+- **Ham approvals:** (1) crops ภ.ง.ด.50 C-D + ภ.พ.01/09 = "ดูดีเลย" → plan.md ติ๊ก **พร้อมใช้ยื่นจริง** ·
+  (2) RD PDF ~60MB = ไม่ commit (นโยบายลิงก์เว็บสรรพากร) → `.gitignore` block `docs/RD-Forms/**/*.pdf|png`
+  + `_review/` (commit `a1e7b95`) · (3) สปส.1-10 ไม่ต้อง upload e-Service จริง — fill form แทน → ทำแล้ว ↓
+- **สปส.1-10 ส่วนที่ 1 PDF (commit `ebf2761`):** `GET /payroll/runs/{id}/sso/pdf` + ปุ่ม "สปส.1-10 (PDF)"
+  บน run ที่ POSTED. จุดต่าง: **ฟอร์ม SSO เป็น flat PDF ไม่มี AcroForm** (ต่างจาก RD ทุกฟอร์ม) →
+  engine ใหม่ `RdAcroFormFiller.RenderFlat`/`FlatComb` (overlay ที่พิกัด caller-measured, reuse
+  Thai-safe composite path) + `sps110_boxes.json` (21 keys, subagent วัดจาก get_drawings + marker-
+  raster verified ทุก key — `docs/RD-Forms/sps1-10/fieldmap/`). เติม: header นายจ้าง/ที่อยู่ 2 บรรทัด,
+  เลขที่บัญชี 10 ช่อง (ว่าง = เว้นว่าง ไม่พิมพ์ศูนย์ปลอม), ลำดับที่สาขา 6 ช่อง (RD 5 หลัก pad ซ้าย),
+  เดือนไทย+พ.ศ., ตาราง 4 แถว + จำนวนคน, จำนวนเงินตัวอักษร (BahtText, shrink-to-fit). Checkbox
+  วิธีชำระ/ลายเซ็น = manual. Visual crops อ่านยืนยัน: บัญชีลง NN-NNNNNNN-N, 47,345|67→3,000|00,
+  "(สามพันบาทถ้วน)" ในวงเล็บ, 2 คน. หมายเหตุ: payroll endpoints ทั้งกลุ่มไม่อยู่ใน openapi (gap เดิม).
+- **Flake ปีชน killed (commit `842e7ae`):** full suite เจอ fail สลับตัว (CitExpense row เกิน /
+  disclosure) — root: teas_test สะสม posted JE ปีอนาคตจาก suite อื่น → ปี random 2500-2899 สกปรก.
+  แก้ด้วย `FreshJeYearAsync` (เลือกปีที่ไม่มี JE จริงใน DB — pattern PayrollRunService) ใช้กับ 5 จุด
+  ใน CitExpenseByAccountTests + Pnd50FilingServiceTests. **Full Api 322/0/3 สามรอบติด.**
+- **Gates:** build 0/0 · Api **322/0/3 ×3** · tsc 0 · i18n 41/41 payroll · ম clean · push ครบ
+  (`a1e7b95`, `ebf2761`, `842e7ae`). Servers :5080 + :3000 (next start) รันอยู่.
+
 ## 2026-06-12 (cont. 92c — "ต่อเลย") — **Dev DB ล้างบาง + M15 dump + Reptify key ใหม่ + e2e re-baseline 55/2/0.**
 
 - **M15 (commit `d459137`):** `scripts/dump-dev-db.ps1` (pg_dump -Fc → `Y:\TEAS-backups`, เก็บ 14 ชุด)
