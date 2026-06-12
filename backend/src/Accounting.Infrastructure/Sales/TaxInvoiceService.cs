@@ -184,6 +184,16 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         var vatAmount = lines.Sum(l => l.TaxAmount);
         var total     = lines.Sum(l => l.TotalAmount);
 
+        // ม.86/4 #2 — the seller address on a Tax Invoice is the registered (DBD) address.
+        // Prefer the CompanyProfile registered address; companies.AddressTh is the legacy
+        // free-text fallback (it is empty on fresh seeds, which left the printed TI without
+        // a seller address). Snapshot here = immutable after post (§4.2).
+        var sellerProfile = await _db.CompanyProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == _tenant.CompanyId, ct);
+        var sellerAddress = Pdf.PaperSellerSource.ComposeRegisteredAddress(sellerProfile);
+        if (string.IsNullOrWhiteSpace(sellerAddress))
+            sellerAddress = company.AddressTh ?? string.Empty;
+
         var ti = new TaxInvoice
         {
             CompanyId = _tenant.CompanyId,
@@ -194,7 +204,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             SupplierBranchCode = branch.BranchCode,
             SupplierBranchName = branch.IsHeadOffice ? "สำนักงานใหญ่" : $"สาขาที่ {branch.BranchCode}",
             SupplierName       = company.NameTh,
-            SupplierAddress    = company.AddressTh ?? string.Empty,
+            SupplierAddress    = sellerAddress,
             CustomerId             = customer.CustomerId,
             CustomerTaxId          = customer.TaxId,
             CustomerBranchCode     = customer.BranchCode,

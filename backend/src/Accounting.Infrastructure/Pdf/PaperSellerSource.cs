@@ -21,11 +21,7 @@ public static class PaperSellerSource
             .FirstOrDefaultAsync(x => x.CompanyId == companyId, ct);
         if (p is null) return await FromCompanyAsync(db, companyId, ct);
 
-        var address = string.Join(" ", new[]
-        {
-            p.RegisteredAddressLine1, p.RegisteredAddressLine2, p.RegisteredSubdistrict,
-            p.RegisteredDistrict, p.RegisteredProvince, p.RegisteredPostalCode,
-        }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        var address = ComposeRegisteredAddress(p);
 
         return new PaperSeller(
             string.IsNullOrEmpty(p.TradeName) ? p.LegalName : p.TradeName!,
@@ -36,6 +32,15 @@ public static class PaperSellerSource
             Phone: p.Phone,
             Email: p.Email);
     }
+
+    /// <summary>Registered (DBD) address joined to one line; "" when the profile is null
+    /// or has no registered-address fields. Also used by the TI post-snapshot (ม.86/4 #2).</summary>
+    public static string ComposeRegisteredAddress(Domain.Entities.Master.CompanyProfile? p) =>
+        p is null ? string.Empty : string.Join(" ", new[]
+        {
+            p.RegisteredAddressLine1, p.RegisteredAddressLine2, p.RegisteredSubdistrict,
+            p.RegisteredDistrict, p.RegisteredProvince, p.RegisteredPostalCode,
+        }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
     public static async Task<PaperSeller> FromCompanyAsync(
         AccountingDbContext db, int companyId, CancellationToken ct)
