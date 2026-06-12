@@ -106,6 +106,10 @@ export default function PayrollRunDetailPage() {
               onClick={() => dl(`payroll/runs/${id}/sso/file`, `sps1-10_${run.periodYearMonth}.txt`)}>
               <FileText className="h-4 w-4" aria-hidden /> {t('ssoFile')}
             </button>
+            <button className="btn btn-outline btn-sm gap-1"
+              onClick={() => pr(`payroll/runs/${id}/sso/pdf`)}>
+              <Printer className="h-4 w-4" aria-hidden /> {t('ssoPdf')}
+            </button>
           </div>
         )}
       </div>

@@ -87,6 +87,13 @@ public static class PayrollEndpoints
             })
             .RequireAuthorization(p + Permissions.Payroll.RunManage);
 
+        // P-D #4 — official สปส.1-10 ส่วนที่ 1 PDF (print-and-sign; flat-form overlay — Ham
+        // 2026-06-12: no live e-Service upload test needed, fill the form like the other docs).
+        g.MapGet("/{id:long}/sso/pdf",
+            async (long id, ISsoFilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildMonthlyPdfAsync(id, ct), "application/pdf", $"sps1-10-{id}.pdf"))
+            .RequireAuthorization(p + Permissions.Payroll.RunManage);
+
         // P-D #3 — ภ.ง.ด.1ก (annual, ม.58(1)) — aggregates all posted runs in the CE tax year.
         app.MapGet("/payroll/pnd1a/pdf",
             async ([FromQuery] int year, IPnd1FilingService svc, CancellationToken ct) =>

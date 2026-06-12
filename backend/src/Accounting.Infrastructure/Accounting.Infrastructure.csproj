@@ -55,6 +55,10 @@
     <EmbeddedResource Include="Pdf\Templates\pp01_cells.json" />
     <EmbeddedResource Include="Pdf\Templates\pp09_main.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pp09_cells.json" />
+    <!-- Official SSO สปส.1-10 ส่วนที่ 1 — a FLAT PDF (no AcroForm), filled via RenderFlat at the
+         measured coordinates in sps110_boxes.json (docs/RD-Forms/sps1-10/fieldmap). -->
+    <EmbeddedResource Include="Pdf\Templates\sps110_main.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\sps110_boxes.json" />
     <!-- Sarabun (SIL OFL) — embedded so Wht50TawiFormFiller's QuestPDF overlay shapes +
          embeds Thai independent of host fonts / Program.cs startup registration. -->
     <EmbeddedResource Include="Pdf\Fonts\Sarabun-Regular.ttf" />

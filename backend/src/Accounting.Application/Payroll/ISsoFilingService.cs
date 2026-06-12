@@ -14,6 +14,10 @@ public interface ISsoFilingService
     /// <summary>Build the สปส.1-10 e-Service upload TEXT file (TIS-620) for a posted run, with its
     /// SSO-convention filename.</summary>
     Task<(byte[] Content, string FileName)> BuildMonthlyFileAsync(long runId, CancellationToken ct);
+
+    /// <summary>Fill the official สปส.1-10 ส่วนที่ 1 PDF (print-and-sign) for a posted run — same
+    /// aggregation as the file channel, overlaid onto the flat SSO form (it has no AcroForm).</summary>
+    Task<byte[]> BuildMonthlyPdfAsync(long runId, CancellationToken ct);
 }
 
 /// <summary>One insured person (ผู้ประกันตน) row on ใบแนบ สปส.1-10 ส่วนที่ 2. The สปส.1-10 detail

@@ -1,4 +1,4 @@
-using Accounting.Application.Abstractions;
+﻿using Accounting.Application.Abstractions;
 using Accounting.Application.Payroll;
 using Accounting.Domain.Common;
 using Accounting.Infrastructure.Persistence;
@@ -66,6 +66,9 @@ public sealed class SsoFilingService(AccountingDbContext db, IOptions<SsoOptions
                 ? _sso.EmployerAccountNo : prof!.SsoEmployerAccountNo,
             Lines: lines);
     }
+
+    public async Task<byte[]> BuildMonthlyPdfAsync(long runId, CancellationToken ct) =>
+        Pdf.Sps110FormFiller.Fill(await BuildMonthlyAsync(runId, ct));
 
     public async Task<(byte[] Content, string FileName)> BuildMonthlyFileAsync(long runId, CancellationToken ct)
     {
