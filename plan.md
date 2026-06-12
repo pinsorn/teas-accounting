@@ -21,8 +21,9 @@
   🔴 fixed: `PaidUpCapitalCard` PUT เดิมไม่ส่ง vatRate/pnd30 → จะ reset tax config เป็น default เงียบๆ.
   Company admin แก้ข้อมูลบริษัทตัวเอง = หน้า `/settings/company` เดิม (soft fields + registered address).
   tsc 0 · i18n parity 45/45 · CompanyTaxConfigTests 6/6 ×2 · Api full 300/0/1 ×2 · visual-verified.
-- ☐ **e2e (Playwright) pass over non-VAT flows** — BE behavior unchanged for VAT companies; non-VAT
-  e2e still drives the OLD env toggle assumption → review specs that mention VAT mode.
+- ☑ **e2e (Playwright) pass over non-VAT flows** (cont.91, 2026-06-12) — `non-vat-mode-pdf.spec.ts`
+  rewritten per-company: seed 440 non-VAT tenant (company 3, `nonvat-admin`), runs FIRST-CLASS in the
+  normal pass (no second env-toggle pass). Full baseline 55/2/0 (cont.92c).
 
 ---
 
@@ -38,7 +39,7 @@
   audit on every transition (§4.8) + `IsActive` inclusion gate, migration `AddPayrollRun` + RLS/seed 480–482.
   Domain 8/8 · Api.Tests **218/218** (+5 payroll ×2) · build 0/0 · live smoke create→approve→post→pay POSTED+Paid
   (`03-2099-PR-0001`, balanced JV, 4 audit rows). **NOT committed — pending Ham.**
-- ◐ **P-D — outputs:**
+- ☑ **P-D — outputs (ALL SHIPPED — last item employee 50ทวิ, 2026-06-12):**
   - ☑ **payslip / payment-evidence PDF** (cont.82.2) — `PayslipPdf` (QuestPDF, self-registers license+Sarabun)
     + `PayslipPdfService` (per-employee + run-zip), endpoints `/payroll/runs/{id}/payslips/{employeeId}/pdf`
     + `/payslips/pdf`. Api.Tests 219/219 ×2 · live PDF+zip smoke. Sample sent to Ham.
@@ -46,14 +47,14 @@
     `/payroll/[id]` detail (totals, approve/post/pay/delete gated by SoD perms, payslip table +
     per-row PDF + run-zip download) · nav section + i18n th/en (35-key parity) · FE tsc 0.
     (Not visually spot-checked — tsc gate per §6; mirrors the employee/DataTable patterns.)
-  - ◐ **ภ.ง.ด.1 / ภ.ง.ด.1ก** — **AcroForm fill** (Ham: fillable → via `RdAcroFormFiller`, not bespoke).
+  - ☑ **ภ.ง.ด.1 / ภ.ง.ด.1ก** — **AcroForm fill** (Ham: fillable → via `RdAcroFormFiller`, not bespoke).
     - ☑ **ภ.ง.ด.1 monthly** (cont.82.2) — field map (`Pdf/Templates/pnd1_fieldmap.md`, decoded from /Rect) →
       `Pnd1FormFiller` (main + ใบแนบ, comb taxid, 8/sheet, PdfSharp merge) + `Pnd1FilingService` +
       `GET /payroll/runs/{id}/pnd1/pdf` + FE button. Api.Tests 220/220 ×2 · live 3-page render + sample sent.
       ☑ **visual-validated 2026-06-11 (Claude, Ham delegated)** — v5: name split ✓ (นาย สมชาย / ใจดี แยกช่อง),
-      month radio ✓ (☑ มีนาคม), address ✓, taxid comb ✓, ยอด p1↔ใบแนบ ตรง. **🟠 Ham decision:** radio เดือน
-      sourced from `PeriodYearMonth` (งวด) but ม.59 files by PAYMENT month — if `PayDate` falls in another
-      month the form ticks the wrong one (Pnd1FilingService.cs:28 vs :30). Same-month runs unaffected.
+      month radio ✓ (☑ มีนาคม), address ✓, taxid comb ✓, ยอด p1↔ใบแนบ ตรง. ~~🟠 radio เดือน sourced from
+      `PeriodYearMonth` (งวด) but ม.59 files by PAYMENT month~~ → **✅ FIXED (cont.91, commit `983897c`):**
+      month/year now from `run.PayDate` per ม.52/ม.59 (สปส.1-10 stays wage-period month — different law).
     - ☑ **ภ.ง.ด.1ก annual** (cont.82.2) — `Pnd1aFormFiller` (landscape ใบแนบ + address col) +
       `BuildPnd1aAnnualAsync(year)` (aggregate posted runs/year/employee) + `GET /payroll/pnd1a/pdf?year` +
       FE button. Live render 2099 OK. Also: registered address now editable (DBD/ภ.พ.09 warning gate).
@@ -67,12 +68,22 @@
       `GET /payroll/runs/{id}/sso/pdf` — flat-form overlay via new `RdAcroFormFiller.RenderFlat`/`FlatComb`
       at marker-verified coordinates (`sps110_boxes.json`, 21 keys); account 10-cell comb (blank stays
       blank), branch 6-cell, Thai month/BE year, contribution table + BahtText words; FE button. Visual
-      crops read-verified. `EmployerAccountNo` config stopgap → CompanyProfile column later.
+      crops read-verified. ~~`EmployerAccountNo` config stopgap~~ → already profile-first:
+      `CompanyProfile.SsoEmployerAccountNo` (migration `AddCompanyProfileSsoAccount` 2026-06-01) wins,
+      `Payroll:Sso:EmployerAccountNo` config is only the fallback (SsoFilingService.cs:65).
       Spec: `docs/superpowers/specs/sps-1-10-fileformat.md`.
-  - ☐ **employee 50ทวิ annual** (`Wht50TawiFormFiller` FormType Pnd1) — หนังสือรับรองหักภาษีรายพนักงานรายปี, not built.
+  - ☑ **employee 50ทวิ annual** — SHIPPED 2026-06-12, commit `f66f57c` (see the detailed ☑ entry in
+    the Purchase/WHT section: `GET /payroll/employees/{id}/wht50tawi/pdf?year`, 2 copies, SSO box).
   (Stale duplicates removed 2026-06-11: "FE payroll run UI not yet built" — built+☑ above cont.82.2;
   e-Filing `WhtBatchFormat`/`FormatPND1V2_0.pdf` path — superseded by Ham's AcroForm decision.)
-- 🟠 **Confirm w/ Ham before go-live:** exact 2569 SSO `WageCeiling` (฿15,000 → ฿17,500 phased) — config-only.
+- ☑ **2569 SSO `WageCeiling` — RESOLVED (Ham 2026-06-12):** config `Payroll:Sso:WageCeiling`,
+  default **17,500** (2569–2571 ceiling → ฿875 @ 5%, `PayrollOptions.cs:15` + appsettings.json);
+  override per env via `Payroll__Sso__WageCeiling`.
+- ☑ **openapi: payroll group** — DONE (cont.93, 2026-06-12): `/employees` (5 ops) + `/payroll/runs`
+  lifecycle + all PDF/file outputs (payslips/pnd1/pnd1a/sso text+pdf/50ทวิ) documented; also added
+  SO/DO/BN pdf + BN CRUD, and **fixed a stale contract**: documented `/credit-notes`+`/debit-notes`
+  never existed → replaced with the real `/tax-adjustment-notes` surface (+`CreateTaxAdjustmentNoteRequest`
+  schema, old CN/DN schemas dropped). 107 paths, YAML parses. **Sana delta — flag on next sync.**
 
 ---
 
@@ -110,14 +121,14 @@
     → `Pnd51Attestation`; openapi `/tax-filings/pnd51/pdf` added (rest of `/tax-filings/*` still undocumented — Sana delta);
     FE toggle + 5 checkboxes (download gated; SME blocked). Live e2e 4/4 (200/422/200/422) · FE tsc 0 · Pnd51 15/15 ×2.
     **PAGE-2 PLAN COMPLETE.** Deferred: SME % radio (ask Ham), Method B, ชำระไว้เกิน, store-estimate ม.67ตรี.
-- ◐ **Phase C-C — ภ.ง.ด.50 main:**
+- ☑ **Phase C-C — ภ.ง.ด.50 main (COMPLETE — v2 default, Ham validated 2026-06-11):**
   - ☑ **C-C FOUNDATIONS (cont.87, 2026-06-10 — plan `2026-06-10-pnd50-cc-foundations.md`):** `CitLossCarryForward`
     ม.65ตรี(12) golden 12/12 · `tax.cit_year_summaries` (per-FY override-able store + ภ.ง.ด.51 estimate/prepaid,
     persisted via `POST /tax-filings/pnd51/estimate`) + `tax.cit_adjustments` (signed ม.65ตรี lines) + RLS
     · `Company.PaidUpCapital` (+migration `AddCitYearStoresAndPaidUpCapital`) · auto-SME `ProfileAsync` (≤5M ∧ ≤30M,
     null→General) · **real `BalanceSheetAsync`** + `GET /reports/balance-sheet` · `CitEndpoints` + FE `/tax-filings/cit`
     + settings paid-up-capital + i18n. Build 0/0 · Domain 137/137 · Api 23/23 ×2 · tsc 0. openapi +9 paths.
-  - ◐ **C-C FORM FILL:**
+  - ☑ **C-C FORM FILL:**
     - ☑ recon (cont.87b): `pnd50_050369.pdf` = **7 pages, 478 widgets** (not 120/192 — those were
       main-p1/attach probes); per-page label-joined dumps in `docs/RD-Forms/pnd50/fieldmap/` + draft map
       + v1 scope in `docs/superpowers/specs/pnd50-fieldmap-recon.md`. p2 = รายการที่ 1 คำนวณภาษี
@@ -194,7 +205,10 @@ build 0/0 (54 routes). NOT committed. Detail: `docs/Report-Backend35.md` + `prog
 - ☑ **RD-Forms PDF-fill scoping (cont.75):** generic `/Rect`-driven engine (no per-form coord tuning); `docs/RD-Forms/TEAS-FORM-FILL-PLAN.md` written. **Finding:** monthly returns file via RD Open API (Strategy B, already in `TaxFilings`), NOT PDF-fill → only 50ทวิ needs official-PDF-fill.
   - ☑ **ภ.พ.01/ภ.พ.09 print-and-sign — SHIPPED (cont.92b, 2026-06-12, commit `2d52a7e`):** see the
     dedicated entry above (v1 identity prefill, fieldmap discipline followed, Ham approved).
-- ☐ **Sales track (not Purchase scope, Req §6):** BP-08 (`payment-voucher-non-super-rbac` test picks a cross-company expense category — the §4.7 filter is correct, fix is test-side) · BP-10 (add `q-status/so-status/bn-status` data-testids on Sales detail pages so the Sales E2E runs).
+- ☑ **Sales track (not Purchase scope, Req §6) — both resolved (verified 2026-06-12):** BP-08 — spec now
+  resolves the expense category AS ap_clerk (company-scoped, seed 440, picks active PROF) · BP-10 —
+  `q-status`/`so-status`/`bn-status` data-testids live on quotations/sales-orders/invoices detail pages;
+  full e2e baseline 55/2/0 (cont.92c).
 
 Then Reports depth. See `docs/accounting-system-plan.md` §7 + §17.3. Carry the cont.69
 follow-ups below into the purchase work where they overlap.
@@ -257,9 +271,13 @@ Spec: `docs/superpowers/specs/2026-05-23-invoice-flow-related-docs-print-design.
 - ☑ **Phase 2a (FE)** — DO→Invoice + Invoice→TI buttons; receipt InvoicePicker (non-VAT). **2b** — rename → Invoice/ใบแจ้งหนี้, route `/invoices`.
 - ☑ **Phase 3** — `GetChainAsync` + `GET /documents/chain` + FE `<DocumentChain>` (full Q→RC) on all 8 detail pages.
 - ☑ **Phase 4** — print ต้นฉบับ/สำเนา + tracking on Q/SO/DO/Invoice (migration `AddPrintTrackingToSalesChain`); universal `PrintMenu` + `ChainRowPrint`.
-- ☐ **Follow-ups:** confirm spec assumptions D5–D8; ~~Sprint10ProductTests RED~~ (passes since ≤cont.90 — verified
-  2026-06-12, full suite green); hide DO→Invoice button after creation (`DeliveryOrderDetail.billingNoteId`);
-  CN/DN chain-row routing heuristic (`docNo.includes('DN')`).
+- ☑ **Follow-ups:** D5–D8 — shipped exactly as assumed (rename depth / FK links / full chain / universal
+  print) — **☑ Ham confirmed "ตามนั้น" 2026-06-12**;
+  ~~Sprint10ProductTests RED~~ (passes since ≤cont.90); ~~hide DO→Invoice button~~ (done —
+  `d.billingNoteId == null` gate); ~~CN/DN chain-row routing heuristic~~ → **FIXED (cont.93):**
+  `ChainNode.NoteType` ("Credit"/"Debit") added BE-side (`DocumentCrossRefService` projection) +
+  FE `isDebitNote` reads it (docNo sniff kept only as legacy-cache fallback). Chain tests 11/11 ×2 ·
+  full Api 322/0/3.
 - ⚠️ **Commit the (currently untracked) Migrations/** with the code — an `ef remove --no-build` on a stale
   build reverted an untracked migration's Down on the dev DB this sprint. Never `dotnet ef` with `--no-build`
   after entity edits.
@@ -267,7 +285,9 @@ Spec: `docs/superpowers/specs/2026-05-23-invoice-flow-related-docs-print-design.
 ## Compliance hardening (before any production use)
 
 4. ⏸ **e-Tax XAdES-BES** — see TECHNICAL DEBT below. Decision (Ham, 2026-05-16): do NOT
-   attempt real e-Tax now; continue all other work.
+   attempt real e-Tax now; continue all other work. **มติ Ham 2026-06-12:** actionable plan
+   moved to its own file `docs/superpowers/plans/etax-xades-production-plan.md` — GATED,
+   do NOT execute until Ham orders (activation trigger: company revenue approaching ฿30M).
 
 ---
 
@@ -306,8 +326,8 @@ schema/profile blocker). Ham authorized "implement + dev-cert test, keep inert".
 Do NOT touch `docs/Design(Architect).md` (per Ham).
 
 ### Test depth (add)
-- ☐ `TenantIsolationTests` is not idempotent (inserts fixed codes; needs per-test cleanup
-  or unique ids) — fails on a re-used DB. Add teardown / randomized codes.
+- ☑ `TenantIsolationTests` idempotency — resolved: uses `"ISO-" + Guid` randomized codes
+  (`TenantIsolationTests.cs:27`); safe on a re-used DB (verified 2026-06-12).
 5. ☑ **WHT certificate split by income type** — `PaymentVoucherService` groups WHT lines by
    `WhtTypeId`, one 50ทวิ per income type w/ own WT doc no + effective rate. (2026-05-16)
 6. ☑ **Security package CVEs** — MailKit 4.16.0, Sec.Cryptography.Xml 10.0.8, OpenTelemetry.*
@@ -317,8 +337,10 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
 
 7. ☑ **Auth mechanism unification** — BFF: `app/api/auth/{login,logout}/route.ts` set/clear
    httpOnly cookie; `lib/auth.ts` same-origin. Middleware cookie-gate now coherent. (2026-05-16)
-   - ☐ Follow-up: generic `/api/proxy/[...path]` BFF so authed backend calls attach the bearer
-     from the cookie (api-client currently public-endpoint only).
+   - ☑ ~~Follow-up: generic `/api/proxy/[...path]` BFF~~ — already built and in use
+     (`app/api/proxy/[...path]/route.ts`: httpOnly cookie → Bearer, binary passthrough;
+     `lib/api.ts` routes through it). Stale marker cleared 2026-06-12; the `lib/api-client.ts`
+     header comment still says TODO — cosmetic.
 8. ◐ Build out dashboard screens per `docs/Design(UI).md`.
    - ☑ **Receipt itemization + multi-category WHT** (cont. 66, 2026-05-22) — receipt now
      lists derived goods/service line items (TI no in notes) + WHT split per income type
@@ -332,15 +354,16 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
      list+new+detail; `/payment-vouchers` & `/wht-certificates` list+detail (read);
      `VendorSelector`, `ExpenseCategorySelector`; backend PV/WHT/vendor read surface
      + 50ทวิ QuestPDF; gotcha#2 `/vendors` nullable fix. Gates 6/6 green. (2026-05-16)
-   - ⏸ **Sprint 5 paused (Question-Backend5):** `/vendor-invoices` (B1 — VendorInvoice
-     backend absent), PV create/approve UI (B2 — no ApproveAsync/SoD). e2e
-     `record-vendor-invoice` + `payment-voucher-with-wht` blocked on B1/B2.
-     Awaiting `Answer-Backend5` (B1=A|B|C, B2=A|B|C).
+   - ☑ ~~Sprint 5 paused (Question-Backend5)~~ — superseded: Sprint 5.5 delivered B1 (VendorInvoice
+     backend) + Sprint 6 delivered B2 (PV approve/post UI) + the blocked e2e specs (8/8). See the
+     Phase 2/3 backlog entries below. (Stale marker cleared 2026-06-12.)
 
 ## Phase 2/3 backlog (per docs/accounting-system-plan.md §22)
 
-- ☐ Sales pre-fiscal flow: Quotation → SO → DO (non-fiscal, before Tax Invoice)
-- ◐ Purchase: Vendor Invoice (PI) → Payment Voucher.
+- ☑ Sales pre-fiscal flow: Quotation → SO → DO — shipped Sprint 10 Part B/C (§23.8) + lifecycle/forms
+  polish 13e/13h/13i (stale marker cleared 2026-06-12)
+- ☑ Purchase: Vendor Invoice (PI) → Payment Voucher (Sprint 5.5 + 6 shipped; only the cosmetic
+  sonner-toast UX note below stays open).
   - ☑ **Sprint 5.5 backend DONE** (signed off): VI entity/EF/migration/GL/endpoints;
     PV B2 Draft→Approved→Posted (`ck_pv_sod`); ม.82/4 window + §5 closed-claim
     rejection; 060/140 SqlScripts; 6 new tests green. (2026-05-16)
@@ -567,7 +590,7 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
   exact commands in `progress.md` cont. 41 — honest, not a fake pass:
   no Docker / port 5432 closed this session. Single per-step git history
   (`56c68f3`→`47ad3eb`→`62cac14`→wrap). See §23.13 + Report-Backend20.
-- ◐ **Sprint 13e IN PROGRESS (2026-05-19)** — chapter 3 sales-form fix
+- ☑ **Sprint 13e (started 2026-05-19; SHIPPED 2026-05-20 cont.51 — see the ☑ entry below)** — chapter 3 sales-form fix
   (Answer-Sana-Backend22 + Report-Backend28/29 + Answer-Sana-Backend26):
   - ☑ **P1** (cont. 48 / Report-Backend28) — SO/DO `/new` routing fix
     (created `sales-orders/new/page.tsx` + `delivery-orders/new/page.tsx`
@@ -585,7 +608,7 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
     `MSBuild`/`csc`). Sana doc deltas applied 2026-05-19 (cont. 50):
     openapi `GET /tax-invoices` += `search`/`unpaid`; runtime-gotchas
     §29 + ROI row.
-  - ◐ **P2 / P4 / P5 + E2E** unblocked via **R-Q1a** (Question-Backend14 →
+  - ☑ **P2 / P4 / P5 + E2E** (shipped cont.51) unblocked via **R-Q1a** (Question-Backend14 →
     Ham accepted 2026-05-19; Answer-Sana-Backend26 issued same day).
     Claude Code: FE-now (Quotation form rebuild + ProductPicker +
     LineItemsTable + SO/DO forms + DocumentStatusBadge — all
@@ -673,7 +696,8 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
   - Verified cont. 60: BE build 0/0, Domain 89/89, FE tsc 0, both migrations
     applied to accounting_dev, snapshot-drift check empty, API live :5080,
     psql confirms join table + RLS + product_type NOT NULL ×5 + dropped column.
-- ◑ **Sprint 13j (split into 13j-FE + 13j-PDF)** — Answer-29 + ClaudeDesign-Integration-Brief.
+- ☑ **Sprint 13j (split into 13j-FE + 13j-PDF)** — Answer-29 + ClaudeDesign-Integration-Brief.
+  (Both halves closed — 13j-FE cont.61, 13j-PDF polish cont.93.)
   - ☑ **13j-FE SHIPPED (2026-05-21, cont. 61, Report-Backend34)** — Claude Design FE
     swap on SALES module. Phase A (tokens/teas-orange/fonts/mascot) + B (Sidebar/Topbar/
     StatusBadge withEn/DocActionBar/MascotGreeting/EmptyState/FilterBar) + C (PaperDocument
@@ -690,14 +714,23 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
     LineItemsTable VAT dropdown 7%/0% + wider cols; receipt WHT rate readonly; customer master data on
     Q/SO/DO/BN paper; PaperDocument fixes (total row, watermark in-flow bug, VAT float round); middleware
     static-asset 404 fix; company-1 profile seed (420). CLAUDE.md §17 (/graphify) added.
-  - ◐ **13j-PDF (FUNCTIONALLY COMPLETE — see `docs/13j-pdf-plan.md`)** — QuestPDF mirror of
+  - ☑ **13j-PDF (COMPLETE cont.93 — see `docs/13j-pdf-plan.md`)** — QuestPDF mirror of
     `PaperDocumentProps` §C4 + `lib/paper.css`, all 8 doctypes, replaces browser-print. cont. 64 (Ham
     picked over 13k, code = source-of-truth): ☑ C# `BahtText` (9/9), ☑ Sarabun font bundled+registered,
     ☑ `PaperDocModel`/`PaperDocConfig`/`PaperDocumentPdf` renderer, ☑ all 8 doctype mappers + endpoints
     (BN endpoint new), ☑ FE PrintMenu "ดาวน์โหลด PDF" → server QuestPDF, ☑ 3 review bugs fixed (Thai
-    test-encoding, logo fallback, VAT 700%→VatPercent). BE 0/0 · FE tsc 0 · next build 0/0. **Polish left:**
-    watermark rotation visual-confirm; seller from CompanyProfile (not db.Companies) for full 1:1; openapi
-    routes (Sana); Sana visual 1:1 sign-off on all 8.
+    test-encoding, logo fallback, VAT 700%→VatPercent). BE 0/0 · FE tsc 0 · next build 0/0. **☑ Polish CLOSED (cont.93, 2026-06-12 — Ham delegated the visual gate to Claude):**
+    visual gate passed on live renders of Q/SO/DO/BN/TI(+copy)/RC/CN — watermark rotation ✓ (ต้นฉบับ/สำเนา
+    diagonal + status marks ยืนยันแล้ว/ส่งของแล้ว; draft = no watermark **by §C4 design**, mirrors FE);
+    ~~seller from CompanyProfile~~ done; ~~openapi pdf routes~~ done (cont.93 delta). **🔴 Real bug found
+    by the gate + FIXED:** posted-TI seller address was snapshotted from `companies.AddressTh` (empty on
+    fresh seeds) → printed TI had NO seller address (**ม.86/4 #2**). `TaxInvoiceService` snapshot now
+    prefers the CompanyProfile registered address (`PaperSellerSource.ComposeRegisteredAddress`),
+    AddressTh fallback. Verified live: fresh TI 06-2026-TI-0016 prints the full registered address.
+    Old posted TIs keep their snapshot (§4.2 immutability — correct). Api 322/0/3 · TI+chain 11/11 ×2.
+    ~~⚠️ BN PDF EN small-label "BILLING NOTE"~~ → **FIXED (Ham "ต้องเป็น Invoice สิ" 2026-06-12):**
+    `PaperDocConfig` BillingNote EN → "INVOICE", now matches the FE mirror
+    (`paper-doc-config.ts:49` was already INVOICE — true 1:1 restored); render-verified.
   - ☑ **13j-tail — DONE (cont. 63–64)** — (1) ☑ §4.8 audit-log writes for all sales transitions
     (cont. 63 — `IActivityRecorder` × 6 sales services; Question-Backend15 RESOLVED, verified live);
     (2) ☑ report "ใบเสร็จขาดใบทวิ 50" ใต้ **Tax filings** (Ham confirmed placement) —
@@ -723,7 +756,8 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
   Phase-2 expansion.
 - ☐ **Tech debt — `bank_account` master + BankAccountSelector:** Q3.1 SKIP confirmed;
   PV uses plain bank/cheque inputs + raw `bank_account_id`. Future master-data slice.
-- ☐ WHT PND3/PND53 monthly return generation
+- ☑ WHT PND3/PND53 monthly return generation — shipped Sprint 9 Part C (ภ.ง.ด.3/53/54 generators,
+  see §23.7; stale marker cleared 2026-06-12)
 - ☐ Fixed Assets register + depreciation
 - ⏸ Inventory tracking — explicitly out of scope (CLAUDE.md §8) until requested
 
