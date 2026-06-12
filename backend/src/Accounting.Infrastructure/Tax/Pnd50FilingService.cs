@@ -271,6 +271,78 @@ public sealed class Pnd50FilingService(
     }
 
     /// <summary>
+    /// p5 รายการที่ 7 schedule — PARTITIONS the per-account FY expense rows by the account-code
+    /// convention documented on <see cref="Pnd50ExpenseSchedule"/>; every row lands in exactly one
+    /// line (unmapped → ข้อ 22), so Total ≡ Σ rows by construction. Throws
+    /// InvalidOperationException when that total does not reproduce the ladder's row 8
+    /// (<paramref name="sellingAdminExpenses"/>) — a data-source mismatch between
+    /// ExpenseByAccountAsync and the P&amp;L is a caller bug, not a tax condition.
+    /// </summary>
+    public static Pnd50ExpenseSchedule BuildExpenseSchedule(
+        IReadOnlyList<ExpenseAccountRow> rows, decimal sellingAdminExpenses)
+    {
+        decimal emp = 0, rent = 0, mkt = 0, otherTax = 0, fees = 0, other = 0;
+        foreach (var r in rows)
+        {
+            var code = int.TryParse(r.AccountCode, out var n) && n is >= 1000 and <= 9999 ? n : -1;
+            switch (code)
+            {
+                case >= 5400 and <= 5499: emp      += r.Amount; break;
+                case >= 5100 and <= 5199: rent     += r.Amount; break;
+                case >= 5300 and <= 5349: mkt      += r.Amount; break;
+                case >= 5350 and <= 5399: otherTax += r.Amount; break;
+                case >= 5200 and <= 5299: fees     += r.Amount; break;
+                default:                  other    += r.Amount; break;  // incl. unparseable
+            }
+        }
+
+        var total = emp + rent + mkt + otherTax + fees + other;
+        if (total != sellingAdminExpenses)
+            throw new InvalidOperationException(
+                "BuildExpenseSchedule rows must reproduce the ladder's SellingAdminExpenses.");
+
+        return new Pnd50ExpenseSchedule(
+            Employee: emp, DirectorComp: 0m, Utilities: 0m, Travel: 0m, Freight: 0m,
+            Rent: rent, Repairs: 0m, Entertainment: 0m, Marketing: mkt, SbtTax: 0m,
+            OtherTaxes: otherTax, FinanceCost: 0m, Bookkeeping: 0m, AuditFee: 0m,
+            PoliticalDonation: 0m, CharityDonation: 0m, EducationSport: 0m, Consulting: 0m,
+            OtherFees: fees, BadDebt: 0m, Depreciation: 0m, Other: other,
+            DoubleDeduct: 0m, Total: total);
+    }
+
+    /// <summary>
+    /// p5 รายการที่ 8 schedule from the POSITIVE adjustment lines (the same set that feeds ladder
+    /// row 11). LegalRefCode matches are EXACT after whitespace removal (so ม.65ตรี(1) never
+    /// swallows ม.65ตรี(13)); Label matching is contains-based; remainder → ข้อ 6 อื่นๆ.
+    /// Throws InvalidOperationException when Total ≠ <paramref name="disallowedExpenses"/>
+    /// (ladder row 11) — caller bug.
+    /// </summary>
+    public static Pnd50DisallowedSchedule BuildDisallowedSchedule(
+        IReadOnlyList<CitAdjustmentDto> adjustments, decimal disallowedExpenses)
+    {
+        decimal tax = 0, ent = 0, bad = 0, prov = 0, other = 0;
+        foreach (var a in adjustments.Where(a => a.Amount > 0m))
+        {
+            var code  = a.LegalRefCode.Replace(" ", "");
+            var label = a.Label;
+            if (code == "ม.65ตรี(6)" || label.Contains("ภาษีเงินได้"))      tax   += a.Amount;
+            else if (code == "ม.65ตรี(4)" || label.Contains("ค่ารับรอง"))   ent   += a.Amount;
+            else if (label.Contains("หนี้สูญ"))                              bad   += a.Amount;
+            else if (code == "ม.65ตรี(1)" || label.Contains("เงินสำรอง"))   prov  += a.Amount;
+            else                                                             other += a.Amount;
+        }
+
+        var total = tax + ent + bad + prov + other;
+        if (total != disallowedExpenses)
+            throw new InvalidOperationException(
+                "BuildDisallowedSchedule positive adjustments must reproduce the ladder's DisallowedExpenses.");
+
+        return new Pnd50DisallowedSchedule(
+            IncomeTax: tax, Entertainment: ent, BadDebt: bad, Provisions: prov,
+            FromItem7Line23: 0m, Other: other, Total: total);
+    }
+
+    /// <summary>
     /// p6 งบแสดงฐานะการเงิน classifier — routes BalanceSheetReport rows to the form's named lines
     /// by the TEAS 4-digit account-code convention (see <see cref="Pnd50BalanceSheetBoxes"/> doc).
     /// Pure; throws InvalidOperationException when the mapped boxes fail to reproduce the report

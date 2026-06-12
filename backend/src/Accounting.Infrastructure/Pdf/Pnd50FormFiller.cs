@@ -30,6 +30,57 @@ public sealed record Pnd50Ladder(
     decimal TaxableNetProfit);     // 21 signed → Group9 (TaxableProfit, or TaxableBeforeLoss when loss)
 
 /// <summary>
+/// p5 รายการที่ 7 รายจ่ายในการขายและบริหาร (boxes 110-129.1, column ③ only) — a PARTITION of the
+/// FY per-account expense rows by the TEAS 4-digit account-code convention: 5400-5499→1(110)
+/// พนักงาน · 5100-5199→6(115) ค่าเช่า · 5300-5349→9(118) โฆษณา/ส่งเสริมการขาย ·
+/// 5350-5399→11(120) ค่าภาษีอากรอื่นๆ · 5200-5299→19(126) ค่าธรรมเนียมอื่นๆ · everything else
+/// (incl. unparseable) →22(129) อื่นๆ. Lines with no mapped range print explicit 0. Built by
+/// <c>Pnd50FilingService.BuildExpenseSchedule</c>, whose Total MUST equal the p3 ladder row 8
+/// (SellingAdminExpenses) — รายการที่ 7 is the detail of that single ladder row.
+/// </summary>
+public sealed record Pnd50ExpenseSchedule(
+    decimal Employee,            // 1  (110) 5400-5499 รายจ่ายเกี่ยวกับพนักงาน
+    decimal DirectorComp,        // 2  (111) 0 — not tracked
+    decimal Utilities,           // 3  (112) 0 — no mapped range
+    decimal Travel,              // 4  (113) 0
+    decimal Freight,             // 5  (114) 0
+    decimal Rent,                // 6  (115) 5100-5199
+    decimal Repairs,             // 7  (116) 0
+    decimal Entertainment,       // 8  (117) 0 (add-back side lives in รายการที่ 8 ข้อ 2)
+    decimal Marketing,           // 9  (118) 5300-5349
+    decimal SbtTax,              // 10 (119) 0 — no SBT in TEAS
+    decimal OtherTaxes,          // 11 (120) 5350-5399 (e.g. irrecoverable VAT)
+    decimal FinanceCost,         // 12 (121) 0 — no mapped range (RD instructions ambiguity vs p4 ร.6 ข้อ 3)
+    decimal Bookkeeping,         // 13 (121.1) 0
+    decimal AuditFee,            // 14 (122) 0
+    decimal PoliticalDonation,   // 15 (122.1) 0
+    decimal CharityDonation,     // 16 (123) 0 — donations booked in GL land in 22; excess lives on ladder 18
+    decimal EducationSport,      // 17 (124) 0 — same; ladder 19
+    decimal Consulting,          // 18 (125) 0
+    decimal OtherFees,           // 19 (126) 5200-5299
+    decimal BadDebt,             // 20 (127) 0
+    decimal Depreciation,        // 21 (128) 0
+    decimal Other,               // 22 (129) catch-all for every unmapped account
+    decimal DoubleDeduct,        // 23 (129.1) 0 — TEAS records no double-deduction expenses
+    decimal Total);              // 24 = Σ 1-23 == ladder row 8
+
+/// <summary>
+/// p5 รายการที่ 8 รายจ่ายที่ไม่ให้ถือเป็นรายจ่ายตามประมวลรัษฎากร (boxes 130-134.1, column ③) —
+/// the POSITIVE `tax.cit_adjustments` lines classified by LegalRefCode (exact, whitespace-removed)
+/// or Label keyword; remainder →6(134.1) อื่นๆ. Built by
+/// <c>Pnd50FilingService.BuildDisallowedSchedule</c>, whose Total MUST equal the p3 ladder
+/// row 11 (DisallowedExpenses = Σ positive adjustments).
+/// </summary>
+public sealed record Pnd50DisallowedSchedule(
+    decimal IncomeTax,           // 1 (130) ม.65ตรี(6) / ภาษีเงินได้
+    decimal Entertainment,       // 2 (131) ม.65ตรี(4) / ค่ารับรอง
+    decimal BadDebt,             // 3 (132) หนี้สูญ
+    decimal Provisions,          // 4 (133) ม.65ตรี(1) / เงินสำรอง — ⚠️ box field is Text35.2011
+    decimal FromItem7Line23,     // 5 (134) 0 — pairs with รายการที่ 7 ข้อ 23 (always 0 in C-D)
+    decimal Other,               // 6 (134.1) remainder
+    decimal Total);              // 7 = Σ 1-6 == ladder row 11
+
+/// <summary>
 /// p6 งบแสดงฐานะการเงิน boxes, classified from BalanceSheetReport rows by the TEAS account-code
 /// convention (4-digit): 1110-1129→140, 1130-1139→141, 1140-1149→142, other 1000-1499→143,
 /// 1500-1999→148 · 2110→150, other 2000-2499→152, 2500-2999→154 · 3100-3199→156,
