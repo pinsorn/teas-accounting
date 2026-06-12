@@ -3,6 +3,38 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 93 — "ทยอยจัดการเลย + อัพเดทแพลนตามจริง") — **plan.md reconciled (14 stale ☑) · openapi delta ปิด · 13j-PDF visual gate ผ่าน + 🔴 TI seller-address fix (ม.86/4 #2) · CN/DN chain NoteType · e-Tax plan แยกไฟล์.** Api **322/0/3** · tsc 0 · build 0/0.
+
+- **Plan reconciliation (Ham: "เหมือนจะทำไปเยอะแล้วนะ Mark done"):** verified vs code แล้วติ๊ก 14 จุด —
+  SSO `WageCeiling` (config default **17,500**, `PayrollOptions.cs:15` — มติ Ham ใส่ config ได้) ·
+  `EmployerAccountNo` profile-first อยู่แล้ว (`CompanyProfile.SsoEmployerAccountNo` ชนะ, config = fallback) ·
+  e2e non-VAT per-company (cont.91) · BP-08/BP-10 · hide DO→Invoice button · `TenantIsolationTests`
+  (Guid codes) · employee 50ทวิ (`f66f57c`) · P-D outputs ทั้ง block · Phase C-C · ภ.ง.ด.1/1ก ·
+  PND3/53 generators (Sprint 9) · Sprint 5-paused/13e/Q→SO→DO markers · **BFF `/api/proxy/[...path]`
+  มีอยู่แล้วใช้งานจริง** (item stale). ภ.ง.ด.1 payment-month ก็ fix ไปแล้ว (`983897c` cont.91) — flag เก่าลบ.
+- **openapi delta (Sana — flag next sync):** `/employees` + `/payroll/*` ครบ 14 paths (runs lifecycle,
+  payslip pdf/zip, pnd1/pnd1a/sso file+pdf/50ทวิ) + `/sales-orders|delivery-orders|billing-notes/{id}/pdf`
+  + BN CRUD/issue/cancel/mark-settled + **แก้ contract ผี**: `/credit-notes`+`/debit-notes` ไม่เคยมีจริง →
+  แทนด้วย `/tax-adjustment-notes` (list/detail/create/post/pdf + `CreateTaxAdjustmentNoteRequest`).
+  **82→107 paths**, YAML parse ผ่าน.
+- **13j-PDF visual gate (Ham delegate "นายดูได้เลย"):** raster ตรวจจริง 7 doctypes (Q/SO/DO/BN/TI+copy/RC/CN;
+  DN ไม่มี doc ใน dev — renderer ร่วมกับ CN) — watermark ต้นฉบับ/สำเนา + ยืนยันแล้ว/ส่งของแล้ว เฉียงถูกทุกใบ,
+  draft ไม่มี watermark = §C4 design. **🔴 บั๊กจริงที่ gate จับได้:** TI posted snapshot ดึง seller address จาก
+  `companies.AddressTh` (ว่างหลัง DB reset) → TI พิมพ์ออกมา**ไม่มีที่อยู่ผู้ขาย** (ผิด ม.86/4 #2) ขณะที่ Q/SO/DO/RC/CN
+  ใช้ CompanyProfile ครบ. Fix: snapshot ใช้ `PaperSellerSource.ComposeRegisteredAddress(profile)` ก่อน,
+  AddressTh fallback (จุดสร้าง TI มีจุดเดียว — ทุก path ผ่าน). Live verify: TI-0016 ที่อยู่ครบ. TI เก่า
+  immutable ตาม §4.2 (ถูกต้อง). ⚠️ Sana wording: BN PDF label EN ยังเป็น "BILLING NOTE" (D4 บอก "Invoice").
+- **CN/DN chain routing:** `ChainNode.NoteType` ("Credit"/"Debit") additive ใน chain DTO + FE `isDebitNote`
+  อ่าน field จริง (docNo sniff เหลือเป็น fallback). openapi chain description อัพ.
+- **e-Tax XAdES:** plan แยกไฟล์ `docs/superpowers/plans/etax-xades-production-plan.md` — **GATED ห้ามทำ
+  จนกว่า Ham สั่ง** (trigger: รายได้ใกล้ ฿30M); สรุป B1 C14N / B2 cert / B3 sandbox UAT / B4 cutover.
+- **D5–D8: ☑ Ham confirmed "ตามนั้น" (2026-06-12)** — ติ๊กใน plan.md แล้ว.
+- **BN PDF label EN (Ham "ต้องเป็น Invoice สิ"):** `PaperDocConfig` BillingNote "BILLING NOTE" → **"INVOICE"**
+  — FE mirror (`paper-doc-config.ts:49`) เป็น INVOICE อยู่แล้ว = BE หลุด 1:1 จริง; render-verify แล้ว (BN 12).
+- **Gates:** build 0/0 (solution ×2) · Api full **322/0/3** (= baseline) · TI+Chain subset 11/11 **×2** ·
+  FE tsc 0 · openapi YAML parse ✓ · ম clean (รวมแก้ typo เก่า 3 จุด). Servers :5080 รันอยู่ (binary ล่าสุด),
+  :3000 ตามเดิม. Committed per Ham (5 commits — hashes ใน git log).
+
 ## 2026-06-12 (cont. 92d — Ham ตอบ 3 ข้อ) — **สปส.1-10 PDF fill SHIPPED · approvals บันทึก · flake ปีชน killed.** Api **322/0/3 ×3** · tsc 0.
 
 - **Ham approvals:** (1) crops ภ.ง.ด.50 C-D + ภ.พ.01/09 = "ดูดีเลย" → plan.md ติ๊ก **พร้อมใช้ยื่นจริง** ·
@@ -340,7 +372,7 @@ Task 6 (final) of `docs/superpowers/plans/2026-06-09-pnd51-page2-fill.md`. The w
 - **Live e2e on :5080** (admin login, year 3099, est 2.5M, WHT 30k): no-worksheet → **200** (278,576 B) · partial attest → **422** · full attest → **200** (280,884 B; page-2 raster verified — override path: 51/52/53-54 blank [audit-honest per spec self-review], 57-58=2,500,000 → 39-40=220,000, all radios ✓) · full attest + isSme → **422**. Contract exactly as designed.
 - **Gates:** build 0/0 · `Pnd51` 15/15 ×2 (teas_test) · FE `tsc --noEmit` 0 · `/tax-filings/pnd51` renders 200. **FE screenshot NOT taken** — browser MCPs disconnected mid-session; FE+BE both left RUNNING (localhost:3000, login admin/Admin@1234) for Ham to eyeball the checkbox gate.
 - **Env gotcha (new, for §6):** `next dev` MUST run from the **real** path, not `U:` — pnpm symlinks resolve node_modules to `C:\…`, and webpack from `U:\frontend` then computes an unresolvable cross-drive relative (`./C:/Users/...` → Module not found → every route 500s with an empty body). Symptom: clean compile, 500 everywhere. Fix: kill node, `rm -rf .next`, start with `-WorkingDirectory <real path>\frontend`. (`dotnet` is the opposite — must run from `W:`.)
-- **Remaining (deferred, by design):** SME-rate worksheet (Button20 % tick — needs Ham), Method B / gross-receipts / ชำระไว้เกิน, store-the-estimate (ম.67ตรี), worked-example anchor from `pnd51_instructions.pdf` (code≡law debt from cont.84).
+- **Remaining (deferred, by design):** SME-rate worksheet (Button20 % tick — needs Ham), Method B / gross-receipts / ชำระไว้เกิน, store-the-estimate (ม.67ตรี), worked-example anchor from `pnd51_instructions.pdf` (code≡law debt from cont.84).
 
 ## 2026-06-10 (cont. 86b) — ภ.ง.ด.51 page-2 RENDERED: radio map corrected + worksheet boxes/radios filled (Tasks 1+5). Build **0/0** · `Pnd51` **15/15 ×2** on teas_test · page-2 render visually verified (both bands) + sent to Ham.
 
@@ -377,7 +409,7 @@ Executed the standalone Task-2 plan (`docs/superpowers/plans/2026-06-09-pnd51-pa
 
 This session = housekeeping: the C-A engine (cont.83) + the C-B ภ.ง.ด.51 filler (built Jun 3, never recorded — memory obs 5103–5115) were sitting **uncommitted/unrecorded**. Re-ran gates, wrote this entry, committed the pile.
 - **Phase C-B shipped (built Jun 3, verified this session):** `Application/Tax/IPnd51FilingService` (method A: estimated full-year taxable profit × 50% rate − H1 WHT) + `Infrastructure/Tax/Pnd51FilingService` (company header from `CompanyProfile`→`Company` fallback; **fiscal-year-aware** bounds from `Company.FiscalYearStartMonth` → H1 = first 6 months; default estimate = H1 P&L `NetProfit` × 2 via `IFinancialReportService.ProfitLossAsync`, caller override wins; `isSme` flag picks `CitRateSchedule.Sme()` 0/15/20 vs `General()` 20% flat — **auto-SME deferred to C-C** when `PaidUpCapital` lands; `CitCalculator.HalfYearPrepayment` for the figure; BKK-date filing stamp) + `Infrastructure/Pdf/Pnd51FormFiller.Fill` (RdAcroFormFiller over the official `pnd51_020768.pdf` → embedded `Pdf/Templates/pnd51_main.pdf`, 120 AcroForm fields confirmed in probe) + endpoint `GET /tax-filings/pnd51/pdf?year&estimatedProfit&whtH1&isSme` (FilingPreview perm, CIT-namespaced under `/tax-filings`, NOT payroll) + FE `app/(dashboard)/tax-filings/pnd51/page.tsx` + i18n th/en + DI registered + csproj embed.
-- **Phase C-A engine (cont.83, now committed):** `Domain/Tax/CitRateSchedule` (General 20% flat / SME 0-15-20, legal cite §4.6) + `CitComputation` (ladder record + `RefundDue`, `LossApplied` exposed for roll-forward) + `CitCalculator` (`TaxOnProfit`/`Compute` [order: loss→base, credits→tax] / `HalfYearPrepayment` ม.67ทวิ / `UnderEstimatePenalty` ম.67ตรี). Golden `CitCalculatorTests` **18/18** (was 16 at cont.83 → +2 for 51 prepay/penalty).
+- **Phase C-A engine (cont.83, now committed):** `Domain/Tax/CitRateSchedule` (General 20% flat / SME 0-15-20, legal cite §4.6) + `CitComputation` (ladder record + `RefundDue`, `LossApplied` exposed for roll-forward) + `CitCalculator` (`TaxOnProfit`/`Compute` [order: loss→base, credits→tax] / `HalfYearPrepayment` ม.67ทวิ / `UnderEstimatePenalty` ม.67ตรี). Golden `CitCalculatorTests` **18/18** (was 16 at cont.83 → +2 for 51 prepay/penalty).
 - **Gates this session:** `dotnet build W:\Accounting.sln` 0 warn / 0 err · Domain CIT 18/18 · Api Pnd51 2/2 (teas_test). subst U:/W: recreated (lost on resume); :5080 not running (no exe lock).
 - **NOT in this commit (left untracked for Ham):** the bulk RD-Forms reference PDF dump (pnd90/91/94/95, pp01, pt40, popor, os4, 50tawi, _english/_misc), `docs/SSO-Forms/`, `_review/`, and scratch screenshots (`pnd51_pw_*.png`, `nonvat-quotation.png`). Committed only the CIT C-A/C-B code + tests + FE + the pnd50/pnd51 source+instructions PDFs + the kickoff spec.
 - ⚠️ **Still owed (carried from C-A):** worked-example anchor from `pnd51_instructions.pdf` to prove code≡law (rates trace to `_meta.md`, a secondary source). **Ham visual-validation of the rendered ภ.ง.ด.51 PDF** not yet done — recommend a render+screenshot pass before C-C builds on the layout.
@@ -493,7 +525,7 @@ This session = housekeeping: the C-A engine (cont.83) + the C-B ภ.ง.ด.51 f
     ชำระเพิ่มเติม (net≥0). SME-rate radio (Button19#2+Button20%) gated → v1 general-rate only (guard also throws on isSme).
     **Next = Task 2** (page-aware multi-page Render + regression gate vs the `_real_*` baselines), then 3-6. Nothing
     committed yet; no production code touched this turn (Task 1 = docs only).
-- **Next = Phase C-C (ภ.ง.ด.50 main):** adjustment-entry model (ম.65ตรี manual) + `Company.PaidUpCapital` field (+migration, unlocks auto-SME) + override-able loss-c/f store + `BalanceSheetAsync` + `Pnd50FormFiller` + service + endpoint + FE. Then C-D (5 ใบแนบ + disclosure). **Page-2 of ภ.ง.ด.51:** decide §4 path + §5 split-vs-refactor (see `pnd51-page2-map.md`) with Ham before building.
+- **Next = Phase C-C (ภ.ง.ด.50 main):** adjustment-entry model (ม.65ตรี manual) + `Company.PaidUpCapital` field (+migration, unlocks auto-SME) + override-able loss-c/f store + `BalanceSheetAsync` + `Pnd50FormFiller` + service + endpoint + FE. Then C-D (5 ใบแนบ + disclosure). **Page-2 of ภ.ง.ด.51:** decide §4 path + §5 split-vs-refactor (see `pnd51-page2-map.md`) with Ham before building.
 
 ## 2026-06-01 (cont. 83) — CIT Phase C-A: pure `CitCalculator` + `CitRateSchedule` (ภ.ง.ด.50/51 engine) — BUILT + golden-tested. Domain build 0/0 · Domain.Tests **CitCalculatorTests 16/16** (deterministic, no DB). **Committed cont.84 (2026-06-06).**
 
