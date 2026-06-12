@@ -62,8 +62,13 @@
       `SsoFilingService` + `SpsBatchFormat` (135-char fixed-width, TIS-620, header"1"/detail"2") + endpoint
       `GET /payroll/runs/{id}/sso/file` + FE button + i18n. Verified vs Ham's `docs/SSO-Forms/` spec: ค่าจ้าง=actual
       (un-capped), BE dates, 10-digit SSO reg no, numeric prefix codes. Api.Tests **226/226 ×2** · build 0/0 · FE tsc 0
-      · live smoke run 2 (50k wage / 750+750). ⚠️ verify by a real e-Service upload (encoding/amount/prefix/rate consts);
-      `EmployerAccountNo` config stopgap → CompanyProfile column later. Spec: `docs/superpowers/specs/sps-1-10-fileformat.md`.
+      · live smoke run 2 (50k wage / 750+750). ~~⚠️ verify by a real e-Service upload~~ → **มติ Ham 2026-06-12:
+      ไม่ต้อง upload จริง — fill form แทน.** ☑ **สปส.1-10 ส่วนที่ 1 PDF (cont.92d, commit `ebf2761`):**
+      `GET /payroll/runs/{id}/sso/pdf` — flat-form overlay via new `RdAcroFormFiller.RenderFlat`/`FlatComb`
+      at marker-verified coordinates (`sps110_boxes.json`, 21 keys); account 10-cell comb (blank stays
+      blank), branch 6-cell, Thai month/BE year, contribution table + BahtText words; FE button. Visual
+      crops read-verified. `EmployerAccountNo` config stopgap → CompanyProfile column later.
+      Spec: `docs/superpowers/specs/sps-1-10-fileformat.md`.
   - ☐ **employee 50ทวิ annual** (`Wht50TawiFormFiller` FormType Pnd1) — หนังสือรับรองหักภาษีรายพนักงานรายปี, not built.
   (Stale duplicates removed 2026-06-11: "FE payroll run UI not yet built" — built+☑ above cont.82.2;
   e-Filing `WhtBatchFormat`/`FormatPND1V2_0.pdf` path — superseded by Ham's AcroForm decision.)
