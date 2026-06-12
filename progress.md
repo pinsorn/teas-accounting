@@ -3,6 +3,27 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-12 (cont. 92c — "ต่อเลย") — **Dev DB ล้างบาง + M15 dump + Reptify key ใหม่ + e2e re-baseline 55/2/0.**
+
+- **M15 (commit `d459137`):** `scripts/dump-dev-db.ps1` (pg_dump -Fc → `Y:\TEAS-backups`, เก็บ 14 ชุด)
+  + Windows scheduled task **"TEAS dev DB dump"** ทุกวัน 03:30 (ลงทะเบียนแล้ว, ทดสอบรันจริงผ่าน).
+  PG = service `postgresql-x64-18`, binaries ที่ `S:\Program Files\PostgreSQL\18\bin` (ไม่อยู่ใน PATH).
+- **Dev DB ล้างบาง (item 5.3):** backup ×2 → probe สิทธิ์ CREATEDB ก่อน (scratch DB) → drop/recreate
+  `accounting_dev` → `dotnet ef database update` → **seeds ทำงานตอน API startup** (ไม่ใช่ใน
+  migrations — gotcha cont.91 ยืนยันอีกรอบ) → 3 companies / 8 users / BU REPT ครบ, login
+  admin + nonvat-admin ผ่าน, per-company VAT mode สด (company1=true, company3=false พร้อมกัน).
+- **Reptify key ใหม่:** minted เป็น demo-admin (รหัส **Demo@1234** ไม่ใช่ Admin@1234 — seed 400)
+  ใต้ company 2 + default BU REPT(3), scopes sales.tax_invoice.{create,read,post}; ยิง
+  `/api/v1/tax-invoices` ผ่าน 200 (M13 regression ✓). **Plaintext: `Y:\TEAS-backups\reptify-dev-key.json`**
+  (Reptify `.env` ยังไม่เคยมี TEAS key — ไม่มีอะไรพังฝั่งนั้น).
+- **e2e re-baseline (commit `71d51a4`):** บน next dev ได้ 50/5 (cold-compile กิน 30s) → สลับเป็น
+  `next build`+`next start` ตามที่ suite ออกแบบ → 53/2 → 2 ตัวสุดท้ายคือ spec บั๊กจริง:
+  SO/DO status-filter spec hardcode 'Draft'/'Issued' แต่ตัวเลือก status เป็น **faceted จากแถวบนจอ**
+  (DB ใหม่มีแต่ Posted) — `selectOption().catch()` กลืน error เงียบ. แก้ให้เลือก option จริงตัวแรก
+  (contract = URL persistence ไม่ใช่ค่า). **Full suite: 55 passed / 2 skipped / 0 failed (2.3 นาที).**
+- **Gates:** e2e 55/2/0 ×(fixed specs 2×) · servers :5080 + :3000 (`next start`) รันอยู่ ·
+  push ครบ (`d459137`, `71d51a4`). คิวเหลือรอ Ham: ยืนยัน crops 2 ชุด · RD PDF ~60MB · สปส. e-Service.
+
 ## 2026-06-12 (cont. 92b — Ham มอบอำนาจเต็ม "ตัดสินใจได้เลย รวม Item 7") — **C-D decisions ปิด 2 ข้อ + ภ.พ.01/09 v1 prefill SHIPPED.** Api **319/0/2** · tsc 0.
 
 - **Decision: ต้นทุนทางการเงิน (commit `ad691c6`)** — จอง range **5500-5599 → ร.7 ข้อ 12** (p5), ห้าม
