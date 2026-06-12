@@ -219,6 +219,20 @@ paths:
         '200':
           description: OK
 
+  /sales-orders/{id}/pdf:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Download SO PDF (?copy=true สำเนา)
+      tags: [Sales Orders]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
   # ============================================================
   # DELIVERY ORDERS
   # ============================================================
@@ -247,6 +261,20 @@ paths:
       responses:
         '200':
           description: OK
+
+  /delivery-orders/{id}/pdf:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Download DO PDF (?copy=true สำเนา; combined DO+TI ใช้ dual label)
+      tags: [Delivery Orders]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
 
   # ============================================================
   # TAX INVOICES ★ (e-Tax compliant)
@@ -414,47 +442,66 @@ paths:
           description: OK
 
   # ============================================================
-  # CREDIT / DEBIT NOTES ★
+  # CREDIT / DEBIT NOTES ★ — actual route /tax-adjustment-notes
+  # (one resource, noteType CN|DN discriminator; the old documented
+  #  /credit-notes + /debit-notes paths never existed — fixed 2026-06-12)
   # ============================================================
-  /credit-notes:
+  /tax-adjustment-notes:
     post:
-      summary: สร้างใบลดหนี้ (ต้องอ้างอิง Tax Invoice เดิม)
-      tags: [Credit Notes]
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
+      summary: สร้างใบลดหนี้/ใบเพิ่มหนี้ draft (อ้างอิง Tax Invoice เดิม — ม.86/10 · ม.86/9)
+      tags: [Credit/Debit Notes]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreditNoteCreateRequest'
+              $ref: '#/components/schemas/CreateTaxAdjustmentNoteRequest'
       responses:
-        '201':
-          description: Created
+        '201': { description: 'Created (Draft) — `{ note_id }`' }
+    get:
+      summary: รายการ CN/DN (cursor pagination, filter noteType/businessUnitId)
+      tags: [Credit/Debit Notes]
+      parameters:
+        - { name: noteType, in: query, schema: { type: string, enum: [CN, DN] } }
+        - { name: cursor, in: query, schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+        - { name: businessUnitId, in: query, schema: { type: integer } }
+        - { name: includeUnspecified, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
 
-  /credit-notes/{id}/post:
+  /tax-adjustment-notes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: รายละเอียด CN/DN
+      tags: [Credit/Debit Notes]
+      responses:
+        '200': { description: OK }
+        '404': { description: Not found }
+
+  /tax-adjustment-notes/{id}/post:
     parameters:
       - $ref: '#/components/parameters/DocId'
     post:
-      summary: Post + ส่ง e-Tax + email
-      tags: [Credit Notes]
+      summary: Post (ออกเลขเอกสาร + GL + e-Tax + email)
+      tags: [Credit/Debit Notes]
+      responses:
+        '200': { description: 'Posted — `{ noteId, docNo, postedAt, noteType, totalAmount, taxAmount }`' }
+
+  /tax-adjustment-notes/{id}/pdf:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Download CN/DN PDF (?copy=true สำเนา)
+      tags: [Credit/Debit Notes]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean } }
       responses:
         '200':
-          description: OK
-
-  /debit-notes:
-    post:
-      summary: สร้างใบเพิ่มหนี้
-      tags: [Debit Notes]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DebitNoteCreateRequest'
-      responses:
-        '201':
-          description: Created
+          description: PDF stream
+          content:
+            application/pdf: {}
 
   # ============================================================
   # RECEIPTS (ใบเสร็จรับเงิน) — actual route /receipts (was /customer-receipts)
@@ -511,7 +558,7 @@ paths:
         - { name: docType, in: query, required: true, schema: { type: string, example: TI } }
         - { name: docId, in: query, required: true, schema: { type: integer, format: int64 } }
       responses:
-        '200': { description: 'Chain nodes (docType, id, docNo, status, printedAt)' }
+        '200': { description: 'Chain nodes (docType, id, docNo, status, printedAt; adjustment-note nodes also carry noteType Credit|Debit)' }
 
   /delivery-orders/{id}/create-invoice:
     post:
@@ -531,6 +578,80 @@ paths:
       responses:
         '201': { description: TI draft created }
         '422': { description: 'ti.non_vat_blocked — non-VAT company cannot issue a Tax Invoice' }
+
+  # ── Billing Notes (ใบแจ้งหนี้ — FE route /invoices) ─────────────────────────
+  /billing-notes:
+    post:
+      summary: สร้างใบแจ้งหนี้ draft
+      tags: [Billing Notes]
+      responses:
+        '201': { description: Created (Draft) }
+    get:
+      summary: รายการใบแจ้งหนี้ (filter status)
+      tags: [Billing Notes]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [Draft, Issued, Settled, Cancelled] } }
+      responses:
+        '200': { description: OK }
+
+  /billing-notes/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: รายละเอียดใบแจ้งหนี้
+      tags: [Billing Notes]
+      responses:
+        '200': { description: OK }
+    put:
+      summary: แก้ไข draft
+      tags: [Billing Notes]
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: ลบ draft
+      tags: [Billing Notes]
+      responses:
+        '204': { description: Deleted }
+
+  /billing-notes/{id}/issue:
+    post:
+      summary: Issue ใบแจ้งหนี้ (ออกเลขเอกสาร)
+      tags: [Billing Notes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Issued }
+
+  /billing-notes/{id}/cancel:
+    post:
+      summary: ยกเลิกใบแจ้งหนี้ (พร้อมเหตุผล)
+      tags: [Billing Notes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Cancelled }
+
+  /billing-notes/{id}/mark-settled:
+    post:
+      summary: บันทึกชำระแล้ว (ปกติ auto-derive จากใบเสร็จ; ปุ่ม manual override)
+      tags: [Billing Notes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Settled }
+
+  /billing-notes/{id}/pdf:
+    get:
+      summary: PDF ใบแจ้งหนี้ (?copy=true สำเนา)
+      tags: [Billing Notes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: copy, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
 
   /{docRoute}/{id}/mark-printed:
     post:
@@ -1666,6 +1787,183 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelopeV1'
 
   # ============================================================
+  # PAYROLL (P-A…P-D shipped; documented 2026-06-12 — closes the
+  # longstanding "payroll group absent from openapi" gap)
+  # SoD perms: payroll.run.manage (draft/read) · .post (approve+post) · .pay
+  # ============================================================
+  /employees:
+    post:
+      summary: สร้างพนักงาน
+      tags: [Payroll]
+      responses:
+        '201': { description: Created }
+    get:
+      summary: รายชื่อพนักงาน
+      tags: [Payroll]
+      parameters:
+        - { name: includeInactive, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+
+  /employees/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: รายละเอียดพนักงาน
+      tags: [Payroll]
+      responses:
+        '200': { description: OK }
+    put:
+      summary: แก้ไขพนักงาน
+      tags: [Payroll]
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: ปิดใช้งานพนักงาน (soft)
+      tags: [Payroll]
+      responses:
+        '204': { description: Deactivated }
+
+  /payroll/runs:
+    post:
+      summary: สร้าง payroll run (Draft — เลขเอกสารออกตอน Post)
+      tags: [Payroll]
+      responses:
+        '201': { description: Created (Draft) }
+    get:
+      summary: รายการ payroll runs
+      tags: [Payroll]
+      responses:
+        '200': { description: OK }
+
+  /payroll/runs/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: รายละเอียด run + payslips
+      tags: [Payroll]
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: ลบ draft run
+      tags: [Payroll]
+      responses:
+        '204': { description: Deleted }
+
+  /payroll/runs/{id}/approve:
+    post:
+      summary: อนุมัติ run (perm payroll.run.post — SoD)
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Approved }
+
+  /payroll/runs/{id}/post:
+    post:
+      summary: Post run ลง GL (Dr 5400/5410 / Cr 2153/2160/2170/เงินสุทธิ) — immutable หลัง Post
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Posted }
+
+  /payroll/runs/{id}/pay:
+    post:
+      summary: บันทึกจ่ายแล้ว (perm payroll.run.pay)
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Paid }
+
+  /payroll/runs/{id}/payslips/{employeeId}/pdf:
+    get:
+      summary: Payslip PDF รายพนักงาน
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: employeeId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
+  /payroll/runs/{id}/payslips/pdf:
+    get:
+      summary: Zip payslips ทั้ง run
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Zip stream
+          content:
+            application/zip: {}
+
+  /payroll/runs/{id}/pnd1/pdf:
+    get:
+      summary: ภ.ง.ด.1 รายเดือน + ใบแนบ (official AcroForm; เดือนตาม PayDate — ม.52/ม.59)
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
+  /payroll/runs/{id}/sso/file:
+    get:
+      summary: สปส.1-10 e-Service text file (TIS-620 fixed-width 135 chars; เดือนตามงวดค่าจ้าง)
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Text file
+          content:
+            text/plain: {}
+
+  /payroll/runs/{id}/sso/pdf:
+    get:
+      summary: สปส.1-10 ส่วนที่ 1 PDF (print-and-sign; flat-form overlay)
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
+  /payroll/pnd1a/pdf:
+    get:
+      summary: ภ.ง.ด.1ก รายปี (ม.58(1) — รวมทุก posted run ตามปีที่จ่าย)
+      tags: [Payroll]
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer, example: 2026 } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
+  /payroll/employees/{employeeId}/wht50tawi/pdf:
+    get:
+      summary: 50ทวิ รายพนักงานรายปี (ม.50ทวิ; 2 copies, payment-year basis)
+      tags: [Payroll]
+      parameters:
+        - { name: employeeId, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: year, in: query, required: true, schema: { type: integer, example: 2026 } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
+  # ============================================================
   # ADMIN — ApiKey management (BFF/JWT only, perm: sys.api_key.manage)
   # Sprint 14 P2
   # ============================================================
@@ -2511,30 +2809,22 @@ components:
         hasGaps: { type: boolean }
 
     # === Credit / Debit Note ===
-    CreditNoteCreateRequest:
+    CreateTaxAdjustmentNoteRequest:
       type: object
-      required: [original_invoice_id, reason_code, reason_text, lines]
+      description: 'Shipped contract of POST /tax-adjustment-notes (camelCase; replaces the stale CreditNoteCreateRequest/DebitNoteCreateRequest — those routes never existed).'
+      required: [noteType, docDate, originalTaxInvoiceId, reasonCode, reason, adjustmentSubtotal, taxRate, currencyCode, exchangeRate]
       properties:
-        original_invoice_id: { type: integer }
-        reason_code:
-          type: string
-          enum: [TYPO, AMOUNT_ERROR, CUSTOMER_INFO, RETURN, PRICE_REDUCE, CANCEL]
-        reason_text: { type: string }
-        lines:
-          type: array
-          items:
-            $ref: '#/components/schemas/LineItem'
-
-    DebitNoteCreateRequest:
-      type: object
-      required: [original_invoice_id, reason_text, lines]
-      properties:
-        original_invoice_id: { type: integer }
-        reason_text: { type: string }
-        lines:
-          type: array
-          items:
-            $ref: '#/components/schemas/LineItem'
+        noteType: { type: string, enum: [CN, DN] }
+        docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok)' }
+        originalTaxInvoiceId: { type: integer, format: int64 }
+        reasonCode: { type: string }
+        reason: { type: string }
+        adjustmentSubtotal: { type: number, description: 'Positive magnitude; sign derives from noteType' }
+        taxRate: { type: number }
+        currencyCode: { type: string, example: THB }
+        exchangeRate: { type: number, example: 1 }
+        notes: { type: string, nullable: true }
+        businessUnitId: { type: integer, nullable: true, description: 'Typically inherited from the original TI' }
 
     # === Customer Receipt ===
     CreateReceiptRequest:
