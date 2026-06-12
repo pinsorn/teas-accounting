@@ -1161,6 +1161,37 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Pnd50Preview' }
 
+  /tax-filings/pp01/pdf:
+    get:
+      summary: ภ.พ.01 (คำขอจดทะเบียนภาษีมูลค่าเพิ่ม) — v1 identity prefill, print-and-sign
+      description: >
+        Fills ONLY the page-1 company-identity header (name, 13-digit tax id comb, registered
+        address, postal-code comb, e-mail/website) from CompanyProfile; every substantive answer
+        (person type, ลักษณะสถานประกอบการ, branch lists, dates, signatures) prints blank for the
+        filer/officer. No attestation/refusals — an application, not a computed return. Field map:
+        docs/RD-Forms/pp01/fieldmap/pp01_map.md.
+      tags: [Tax Filings]
+      responses:
+        '200':
+          description: PDF (3 pages; identity header prefilled)
+          content:
+            application/pdf: {}
+
+  /tax-filings/pp09/pdf:
+    get:
+      summary: ภ.พ.09 (แจ้งการเปลี่ยนแปลงทะเบียนภาษีมูลค่าเพิ่ม) — v1 identity prefill, print-and-sign
+      description: >
+        Same v1 posture as ภ.พ.01 — page-1 identity header only; the รายการที่ขอเปลี่ยนแปลง body
+        stays blank (its checkbox group is a known form defect — one exclusive AcroForm group for
+        boxes the paper allows multi-ticking — so TEAS never ticks it). Field map:
+        docs/RD-Forms/pp09/fieldmap/pp09_map.md.
+      tags: [Tax Filings]
+      responses:
+        '200':
+          description: PDF (4 pages; identity header prefilled)
+          content:
+            application/pdf: {}
+
   /tax-filings/pnd51/estimate:
     post:
       summary: บันทึกประมาณการ ภ.ง.ด.51 (ม.67ตรี) — persist the method-A estimate + prepaid

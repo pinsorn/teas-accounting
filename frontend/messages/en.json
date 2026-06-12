@@ -731,6 +731,8 @@
     "openPdf": "Open PDF",
     "openSource": "RD page",
     "noPdf": "See RD page",
+    "prefill": "Prefill company info",
+    "prefillError": "Could not generate the form",
     "officialNote": "Links point to the official forms on the RD website — they open in a new tab and always serve the latest version.",
     "form": {
       "pp30": {

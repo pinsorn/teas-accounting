@@ -1,8 +1,10 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { ExternalLink, FileText, Info } from 'lucide-react';
+import { toast } from 'sonner';
+import { ExternalLink, FileDown, FileText, Info } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { openPdf } from '@/lib/api';
 import {
   RD_FORMS,
   RD_FORM_CATEGORIES,
@@ -110,6 +112,16 @@ function FormRow({ form }: { form: RdForm }) {
       </td>
       <td className="text-right align-top">
         <div className="flex justify-end gap-1.5">
+          {form.prefillPath && (
+            <button
+              type="button"
+              className="btn btn-xs btn-secondary gap-1"
+              onClick={() => void openPdf(form.prefillPath!).catch(() => toast.error(t('prefillError')))}
+            >
+              <FileDown className="h-3 w-3" aria-hidden />
+              {t('prefill')}
+            </button>
+          )}
           {form.pdfUrl && (
             <a
               href={form.pdfUrl}

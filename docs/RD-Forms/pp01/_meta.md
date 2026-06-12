@@ -34,5 +34,15 @@
 - หลังจด สรรพากรออก ภ.พ.20 (ใบทะเบียนภาษีมูลค่าเพิ่ม) ให้
 - ก่อนวันจดทะเบียน effective: **ห้ามออกใบกำกับภาษี** (ม.90/4 อาญา)
 
+## Fieldmap recon 2026-06-12
+- Render-verified AcroForm map: `fieldmap/pp01_map.md` · comb cell geometry: `fieldmap/pp01_cells.json`.
+- 3 PDF pages (p3 = instructions, 0 widgets). p1 = 76 widgets, p2 = 114.
+- **17 v1 PREFILL fields** (identity only, all p1): Text1.3 (LegalName), Text1.4 (TaxId, 13-cell comb),
+  Text1.10 (trade name), Text1.11-1.17/1.19-1.22 + Text1.26 (address, postal = 5-cell comb),
+  Text1.24 (Email), Text1.25 (Website). Everything else blank-manual/officer-only; no radios ticked.
+- ⚠️ Traps: `Radio Button2` mixes person-type (0-2) and ลักษณะสถานประกอบการ (3-8) in one group;
+  field names don't follow visual order; `Text1.18` = แยก here but = E-mail in ภ.พ.09.
+- Raw dumps `fieldmap/_pp01_fields_p{1,2}.txt`; cited band crops in `fieldmap/_scratch/`.
+
 ## Download status
-- ⚠️ Binary not downloaded · URLs verified
+- ✅ PDFs present in this folder (pp01, pp01.1, pp01.2, pp02, pp04, pp08 — only pp01 fieldmapped)
