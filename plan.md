@@ -170,6 +170,18 @@
   tsc 0 · i18n 98/98. **ใบแนบ ก-จ separate PDFs = OUT (market fills none; stay attest-blank).**
   ~~DEFER: finance-cost line placement~~ → **RESOLVED (cont.92b):** 5500-5599 → ร.7 ข้อ 12 only —
   forced by the flat-P&L foot invariants (ร.6 must foot ladder row 6 == 0), not RD interpretation.
+- ☑ **WHT self-withhold gross-up + 50ทวิ เงื่อนไข (cont.93b, 2026-06-12 — Ham "แก้เลย พร้อม FE"; spec
+  `2026-06-12-wht-grossup-design.md`):** ปิด 2 ช่องโหว่ scenario "ผู้รับไม่ให้หัก" (บริการออนไลน์/foreign) —
+  (1) ฐานภาษีไม่ gross-up: `WhtPayerModes` (Domain pure: DEDUCT / GROSS_UP_FOREVER ตลอดไป net÷(1−r) /
+  GROSS_UP_ONCE ครั้งเดียว net×(1+r)) + `PaymentVoucher.WhtPayerMode` (+ck) — legacy selfWithhold=true และ
+  foreign auto ⇒ FOREVER (RD-safe), cert income = grossed, GL ใช้ยอด gross อัตโนมัติ; (2) 50ทวิ ติ๊กช่อง
+  ผู้จ่ายเงิน: `WhtCertificate.WhtCondition` 1|2|3 (+ck) → filler chk8/chk9/chk10 (template probe-verified).
+  Migration `AddWhtPayerModeAndCondition`. FE: PV form toggle ใหม่ "ผู้รับเงินไม่ให้หัก (ออกภาษีให้เอง)" +
+  radio 2 วิธี + live chip นำส่งจริง/อัตราแท้จริง + paper preview ไม่ลบ WHT (จ่ายเต็ม) + detail badge + cert
+  เงื่อนไข badge; BE PV PDF เลิกแสดง WHT เป็นรายการหัก → disclose เป็น note. openapi `whtPayerMode`/`selfWithholdMode`.
+  Gates: Domain **9/9** golden · Sprint87 **8/8 ×2** · **Api full 325/0/3** · tsc 0 · i18n parity ·
+  live smoke PV 06-2026-PV-CAPEX-0001 (wht 309.28, จ่ายเต็ม 10,700, cert income 10,309.28 cond 2) ·
+  visual ✓ (50ทวิ ☒(2)ออกให้ตลอดไป + PV PDF + FE form ส่งให้ Ham).
 - ☑ **ภ.พ.01/09 v1 identity prefill (cont.92b, 2026-06-12):** `GET /tax-filings/pp01/pdf` + `/pp09/pdf`
   — page-1 company header only (taxid 13-comb, postal 5-comb, address, email/website), print-and-sign,
   no radio ever ticked (form-defect groups recorded in `pp01_map.md`/`pp09_map.md`, all PREFILL fields
