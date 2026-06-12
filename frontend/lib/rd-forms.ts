@@ -22,6 +22,9 @@ export interface RdForm {
   pdfUrl: string | null;
   /** RD official source page (version-latest landing page). */
   sourceUrl: string;
+  /** TEAS endpoint that returns the form with the company-identity header prefilled
+   *  (print-and-sign v1 — ภ.พ.01/ภ.พ.09 only). Omit → no prefill available. */
+  prefillPath?: string;
 }
 
 // Ordered by category then INDEX.md row order.
@@ -43,10 +46,12 @@ export const RD_FORMS: readonly RdForm[] = [
   // §2 VAT — registration / change requests
   { code: 'pp01', rdCode: 'ภ.พ.01', category: 'vatRequest', tier: 2, frequency: 'oneTime',
     pdfUrl: 'https://www.rd.go.th/fileadmin/tax_pdf/request/2568/pp01_010968.pdf',
-    sourceUrl: 'https://www.rd.go.th/62386.html' },
+    sourceUrl: 'https://www.rd.go.th/62386.html',
+    prefillPath: 'tax-filings/pp01/pdf' },
   { code: 'pp09', rdCode: 'ภ.พ.09', category: 'vatRequest', tier: 2, frequency: 'adHoc',
     pdfUrl: 'https://www.rd.go.th/fileadmin/tax_pdf/request/2568/pp09_010968.pdf',
-    sourceUrl: 'https://www.rd.go.th/62386.html' },
+    sourceUrl: 'https://www.rd.go.th/62386.html',
+    prefillPath: 'tax-filings/pp09/pdf' },
 
   // §3 WHT
   { code: 'pnd1', rdCode: 'ภ.ง.ด.1', category: 'wht', tier: 1, frequency: 'monthly',

@@ -182,6 +182,19 @@ public static class TaxFilingEndpoints
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);
 
+        // ── ภ.พ.01 / ภ.พ.09 v1 prefill (print-and-sign): only the page-1 identity header is
+        // filled from CompanyProfile; every substantive answer stays blank for the filer.
+        // No attestation/refusals — these are applications, not computed returns.
+        app.MapGet("/tax-filings/pp01/pdf", async (IVatRegFormService svc, CancellationToken ct) =>
+            Results.File(await svc.BuildPp01Async(ct), "application/pdf", "pp01.pdf"))
+        .WithTags("TaxFilings")
+        .RequireAuthorization(preview);
+
+        app.MapGet("/tax-filings/pp09/pdf", async (IVatRegFormService svc, CancellationToken ct) =>
+            Results.File(await svc.BuildPp09Async(ct), "application/pdf", "pp09.pdf"))
+        .WithTags("TaxFilings")
+        .RequireAuthorization(preview);
+
         // C-C — persist the method-A estimate at filing time (ม.67ตรี year-end check).
         app.MapPost("/tax-filings/pnd51/estimate", async (
             [FromQuery] int year, [FromQuery] decimal estimatedProfit,

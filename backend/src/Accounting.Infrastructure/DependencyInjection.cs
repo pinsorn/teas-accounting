@@ -101,6 +101,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Tax.IPnd51FilingService, Tax.Pnd51FilingService>();
         services.AddScoped<Application.Tax.IPnd50FilingService, Tax.Pnd50FilingService>();
         services.AddScoped<Application.Tax.ICitYearDataService, Tax.CitYearDataService>();
+        services.AddScoped<Application.Tax.IVatRegFormService, Tax.VatRegFormService>();
 
         // Sprint 8.5 — VAT-mode + non-VAT doc labels (bound from the same "Tax"
         // section as API TaxConfig; Infra can't reference the API assembly).
