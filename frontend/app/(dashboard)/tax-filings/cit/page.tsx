@@ -89,6 +89,45 @@ interface Pnd50WhtCert {
   customerWhtCertNo: string | null;
 }
 
+// C-D — p5 รายการที่ 7 partition (column ③); total == ladder row 8.
+interface Pnd50ExpenseSchedule {
+  employee: number;
+  directorComp: number;
+  utilities: number;
+  travel: number;
+  freight: number;
+  rent: number;
+  repairs: number;
+  entertainment: number;
+  marketing: number;
+  sbtTax: number;
+  otherTaxes: number;
+  financeCost: number;
+  bookkeeping: number;
+  auditFee: number;
+  politicalDonation: number;
+  charityDonation: number;
+  educationSport: number;
+  consulting: number;
+  otherFees: number;
+  badDebt: number;
+  depreciation: number;
+  other: number;
+  doubleDeduct: number;
+  total: number;
+}
+
+// C-D — p5 รายการที่ 8 (positive adjustments classified); total == ladder row 11.
+interface Pnd50Disallowed {
+  incomeTax: number;
+  entertainment: number;
+  badDebt: number;
+  provisions: number;
+  fromItem7Line23: number;
+  other: number;
+  total: number;
+}
+
 interface Pnd50Preview {
   year: number;
   periodStart: string;
@@ -103,6 +142,8 @@ interface Pnd50Preview {
   whtCertificates: Pnd50WhtCert[];
   ladder: Pnd50Ladder | null;
   adjustments: CitAdjustment[];
+  expenseSchedule: Pnd50ExpenseSchedule | null;
+  disallowed: Pnd50Disallowed | null;
   taxBeforeCredits: number;
   creditsTotal: number;
   netPayable: number;
@@ -114,6 +155,26 @@ interface Pnd50Preview {
 }
 
 const money = (v: number | null | undefined) => (v == null ? '—' : formatTHB(v));
+
+// Informational refusals warn on the dashboard but never block the PDF (the disclosure form is
+// a separate manual filing — see Pnd50FilingService.InformationalRefusals).
+const INFORMATIONAL_REFUSALS = ['pnd50.disclosure_required'];
+
+// [i18n key, value] pairs for the รายการที่ 7 lines (1-23, form margin order).
+const expenseLines = (s: Pnd50ExpenseSchedule): Array<[string, number]> => [
+  ['es1', s.employee], ['es2', s.directorComp], ['es3', s.utilities], ['es4', s.travel],
+  ['es5', s.freight], ['es6', s.rent], ['es7', s.repairs], ['es8', s.entertainment],
+  ['es9', s.marketing], ['es10', s.sbtTax], ['es11', s.otherTaxes], ['es12', s.financeCost],
+  ['es13', s.bookkeeping], ['es14', s.auditFee], ['es15', s.politicalDonation],
+  ['es16', s.charityDonation], ['es17', s.educationSport], ['es18', s.consulting],
+  ['es19', s.otherFees], ['es20', s.badDebt], ['es21', s.depreciation], ['es22', s.other],
+  ['es23', s.doubleDeduct],
+];
+
+const disallowedLines = (d: Pnd50Disallowed): Array<[string, number]> => [
+  ['ds1', d.incomeTax], ['ds2', d.entertainment], ['ds3', d.badDebt],
+  ['ds4', d.provisions], ['ds5', d.fromItem7Line23], ['ds6', d.other],
+];
 
 export default function CitYearDataPage() {
   const t = useTranslations('cit');
@@ -480,19 +541,73 @@ export default function CitYearDataPage() {
         </div>
       )}
 
-      {/* ── ภ.ง.ด.50 v2 PDF (p1 + p2 + p3 ladder + p6 งบฐานะ) ── */}
+      {/* ── C-D: รายการที่ 7 รายจ่ายในการขายและบริหาร (p5) — nonzero lines + รวม ── */}
+      {preview?.expenseSchedule && (
+        <div className="mb-4 rounded-lg border border-base-300 p-4">
+          <h2 className="mb-2 font-semibold">{t('expenseScheduleTitle')}</h2>
+          <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">
+            {expenseLines(preview.expenseSchedule)
+              .filter(([, v]) => v !== 0)
+              .map(([k, v]) => (
+                <div key={k} className="contents">
+                  <dt className="text-base-content/60">{t(k as 'es1')}</dt>
+                  <dd className="text-right tabular-nums">{money(v)}</dd>
+                </div>
+              ))}
+            <dt className="font-semibold">{t('esTotal')}</dt>
+            <dd className="text-right font-semibold tabular-nums">
+              {money(preview.expenseSchedule.total)}
+            </dd>
+          </dl>
+          {preview.disallowed && preview.disallowed.total > 0 && (
+            <>
+              <h3 className="mb-1 mt-3 text-sm font-semibold">{t('disallowedScheduleTitle')}</h3>
+              <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">
+                {disallowedLines(preview.disallowed)
+                  .filter(([, v]) => v !== 0)
+                  .map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt className="text-base-content/60">{t(k as 'ds1')}</dt>
+                      <dd className="text-right tabular-nums">{money(v)}</dd>
+                    </div>
+                  ))}
+                <dt className="font-semibold">{t('dsTotal')}</dt>
+                <dd className="text-right font-semibold tabular-nums">
+                  {money(preview.disallowed.total)}
+                </dd>
+              </dl>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── ภ.ง.ด.50 C-D PDF (p1-p6 + p7 header) ── */}
       <div className="mb-4 rounded-lg border border-base-300 p-4">
         <h2 className="font-semibold">{t('pnd50Title')}</h2>
         <p className="mb-2 text-xs text-base-content/60">{t('pnd50Hint')}</p>
-        {preview && preview.refusals.length > 0 && (
+        {preview && preview.refusals.some((c) => !INFORMATIONAL_REFUSALS.includes(c)) && (
           <div className="mb-3 rounded-md bg-error/10 p-3 text-sm text-error">
             <p className="font-semibold">{t('refusalsTitle')}</p>
             <ul className="ml-4 list-disc">
-              {preview.refusals.map((code) => {
-                // codes are "pnd50.<key>"; the i18n bundle nests them under refusal.<key>.
-                const key = code.replace(/^pnd50\./, '');
-                return <li key={code}>{t(`refusal.${key}` as 'refusal.not_renderable')}</li>;
-              })}
+              {preview.refusals
+                .filter((c) => !INFORMATIONAL_REFUSALS.includes(c))
+                .map((code) => {
+                  // codes are "pnd50.<key>"; the i18n bundle nests them under refusal.<key>.
+                  const key = code.replace(/^pnd50\./, '');
+                  return <li key={code}>{t(`refusal.${key}` as 'refusal.not_renderable')}</li>;
+                })}
+            </ul>
+          </div>
+        )}
+        {preview && preview.refusals.some((c) => INFORMATIONAL_REFUSALS.includes(c)) && (
+          <div className="mb-3 rounded-md bg-warning/10 p-3 text-sm text-warning">
+            <ul className="ml-4 list-disc">
+              {preview.refusals
+                .filter((c) => INFORMATIONAL_REFUSALS.includes(c))
+                .map((code) => {
+                  const key = code.replace(/^pnd50\./, '');
+                  return <li key={code}>{t(`refusal.${key}` as 'refusal.not_renderable')}</li>;
+                })}
             </ul>
           </div>
         )}
@@ -531,7 +646,8 @@ export default function CitYearDataPage() {
               loading ||
               !attestFirstFiling ||
               !attestBlankSchedules ||
-              (preview != null && preview.refusals.length > 0)
+              (preview != null &&
+                preview.refusals.some((c) => !INFORMATIONAL_REFUSALS.includes(c)))
             }
             onClick={() => void downloadPnd50()}
           >
