@@ -150,7 +150,7 @@
   p5 ร.7/ร.8 col ③ explicit zeros · p7 header only (ชื่อ + รอบบัญชี พ.ศ.; director Q/sign NEVER
   auto-ticked) · ม.71ทวิ → informational refusal `pnd50.disclosure_required` (revenue >200M warns,
   PDF still renders) · preview + CIT dashboard ร.7/ร.8 cards + openapi (2 schemas). Visual gate
-  passed (crops sent to Ham 2026-06-12 — **รอยืนยันก่อนยื่นจริง**). Api 314/0/1 · Domain 137/137 ·
+  passed (crops sent to Ham 2026-06-12 — **☑ Ham approved 2026-06-12 "ดูดีเลย" — พร้อมใช้ยื่นจริง**). Api 314/0/1 · Domain 137/137 ·
   tsc 0 · i18n 98/98. **ใบแนบ ก-จ separate PDFs = OUT (market fills none; stay attest-blank).**
   ~~DEFER: finance-cost line placement~~ → **RESOLVED (cont.92b):** 5500-5599 → ร.7 ข้อ 12 only —
   forced by the flat-P&L foot invariants (ร.6 must foot ladder row 6 == 0), not RD interpretation.
@@ -158,7 +158,8 @@
   — page-1 company header only (taxid 13-comb, postal 5-comb, address, email/website), print-and-sign,
   no radio ever ticked (form-defect groups recorded in `pp01_map.md`/`pp09_map.md`, all PREFILL fields
   raster-traced). pp09 email comb-flag defect stripped on the embedded template. FE prefill buttons on
-  `/documents`. Api 319/0/2 · live smoke 200/200 · visual gate passed (crops `_review/vatreg/`).
+  `/documents`. Api 319/0/2 · live smoke 200/200 · visual gate passed (crops `_review/vatreg/`)
+  **☑ Ham approved 2026-06-12.**
 
 ---
 
@@ -186,13 +187,8 @@ build 0/0 (54 routes). NOT committed. Detail: `docs/Report-Backend35.md` + `prog
     SSO-contribution box filled (new optional `Wht50TawiData.SsoContribution` — vendor certs unaffected);
     FE per-row button on posted run detail. Test ×2 + live visual (ภ.ง.ด.1ก ✓ ศูนย์บาทถ้วน ✓ สปส 750.00 ✓).
 - ☑ **RD-Forms PDF-fill scoping (cont.75):** generic `/Rect`-driven engine (no per-form coord tuning); `docs/RD-Forms/TEAS-FORM-FILL-PLAN.md` written. **Finding:** monthly returns file via RD Open API (Strategy B, already in `TaxFilings`), NOT PDF-fill → only 50ทวิ needs official-PDF-fill.
-  - ◐ **ภ.พ.01/ภ.พ.09 print-and-sign — IN SCOPE (Ham 2026-06-12 "ทำเลย"); recon done, mapper queued:**
-    both are real AcroForms (`docs/RD-Forms/pp01/pp01_010968.pdf` 3pp/190 widgets · `pp09/pp09_010968.pdf`
-    4pp/299 widgets). Needs the full fieldmap discipline (label-joined dump → draft map → 0-fill raster
-    confirm → radiomap), NOT a late-night shortcut. v1 scope: prefill IDENTITY fields only from
-    CompanyProfile (name/taxid/address/branch) + leave operational fields for hand completion —
-    most ภ.พ.01/09 content (กรรมการ, สถานประกอบการเพิ่มเติม, เหตุแห่งการเปลี่ยนแปลง) isn't TEAS data.
-    Own session; reuse the pnd50 fieldmap workflow.
+  - ☑ **ภ.พ.01/ภ.พ.09 print-and-sign — SHIPPED (cont.92b, 2026-06-12, commit `2d52a7e`):** see the
+    dedicated entry above (v1 identity prefill, fieldmap discipline followed, Ham approved).
 - ☐ **Sales track (not Purchase scope, Req §6):** BP-08 (`payment-voucher-non-super-rbac` test picks a cross-company expense category — the §4.7 filter is correct, fix is test-side) · BP-10 (add `q-status/so-status/bn-status` data-testids on Sales detail pages so the Sales E2E runs).
 
 Then Reports depth. See `docs/accounting-system-plan.md` §7 + §17.3. Carry the cont.69

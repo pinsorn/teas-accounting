@@ -93,3 +93,11 @@ frontend/public/_mockup.html
 mockup-*.png
 pilot-*.png
 rollout-*.png
+
+# ===== Local review artifacts + RD/SSO source binaries =====
+# Ham 2026-06-12: link the official RD URLs; never commit the ~60MB source PDFs/rasters.
+# (Embedded filler templates under backend/src/**/Pdf/Templates are committed deliberately.)
+_review/
+docs/RD-Forms/**/*.pdf
+docs/RD-Forms/**/*.png
+docs/SSO-Forms/**/*.pdf

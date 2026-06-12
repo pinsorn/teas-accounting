@@ -27,6 +27,13 @@ public readonly record struct RdRadio(string Name, int WidgetIndex, string? OnSt
     public RdRadio(string name, string onState) : this(name, -1, onState) { }
 }
 
+/// <summary>One value at an EXPLICIT rect on a FLAT (widget-less) template page — see
+/// <see cref="RdAcroFormFiller.RenderFlat"/>. <paramref name="YTop"/> is measured from the
+/// page TOP (PDF points), matching the fieldmap-recon JSON convention.</summary>
+public readonly record struct RdFlatBox(
+    double X, double YTop, double Width, double FontSize, string Text,
+    bool Right = false, bool Center = false, int Page = 0);
+
 /// <summary>
 /// Generic filler for any official Thai Revenue Department (RD) AcroForm template. It is
 /// fully /Rect-driven — every value is placed at the position defined by its own field
@@ -75,6 +82,50 @@ public static class RdAcroFormFiller
         var cells = BuildCells(fields, rects, pageSizes, cellCenters);
         cells.AddRange(BuildRadioCells(radios, allRects, pageSizes));
         return Composite(template, cells, pageSizes, copies);
+    }
+
+    /// <summary>
+    /// Overlay + flatten for a FLAT template (no AcroForm widgets at all — e.g. the SSO สปส.1-10,
+    /// whose official PDF ships without fields). Every box is caller-measured: <c>YTop</c> is the
+    /// distance from the PAGE TOP to the top of the writing box, in PDF points (same convention as
+    /// the fieldmap recon docs). Same Thai-safe QuestPDF overlay + composite path as
+    /// <see cref="Render(byte[],IReadOnlyCollection{RdField},IReadOnlyCollection{RdRadio},IReadOnlyDictionary{string,IReadOnlyList{double}},int)"/>.
+    /// Blank/whitespace texts are skipped (nothing is asserted by an empty line on these forms).
+    /// </summary>
+    public static byte[] RenderFlat(
+        byte[] template, IReadOnlyCollection<RdFlatBox> boxes, int copies = 1)
+    {
+        EnsureFont();
+        List<(double W, double H)> pageSizes;
+        using (var probe = new MemoryStream(template))
+        {
+            var d = PdfReader.Open(probe, PdfDocumentOpenMode.Import);
+            pageSizes = new List<(double, double)>(d.PageCount);
+            for (var i = 0; i < d.PageCount; i++)
+                pageSizes.Add((d.Pages[i].Width.Point, d.Pages[i].Height.Point));
+        }
+        var cells = boxes
+            .Where(b => !string.IsNullOrWhiteSpace(b.Text))
+            .Select(b => new Cell(b.X, b.YTop, b.Width, b.FontSize, b.Text, b.Right, b.Center, b.Page))
+            .ToList();
+        return Composite(template, cells, pageSizes, copies);
+    }
+
+    /// <summary>Place one char per printed cell centre on a FLAT template (comb grids like the
+    /// สปส.1-10 เลขที่บัญชี boxes) — flat-template counterpart of the cellCenters override.</summary>
+    public static IEnumerable<RdFlatBox> FlatComb(
+        IReadOnlyList<double> centers, double yTop, double h, string text,
+        bool right = false, int page = 0)
+    {
+        var s = text;
+        var n = centers.Count;
+        if (s.Length > n) s = right ? s[^n..] : s[..n];
+        var start = right ? n - s.Length : 0;
+        var fs = Math.Clamp(h - 2.0, 7.5, 12.0);
+        for (var i = 0; i < s.Length; i++)
+            yield return new RdFlatBox(
+                centers[start + i] - fs / 2.0, yTop + (h - fs) * 0.40, fs, fs,
+                s[i].ToString(), Center: true, Page: page);
     }
 
     // Place each char centred at an explicit printed cell-centre X (vertical placement + size from the
