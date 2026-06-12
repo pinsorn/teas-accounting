@@ -1,4 +1,4 @@
-# ภ.ง.ด.50 page 5 — field map (C-D recon, 2026-06-12)
+﻿# ภ.ง.ด.50 page 5 — field map (C-D recon, 2026-06-12)
 
 > Method = cont.87b/88/89 verbatim: label-join dump (`_pnd50_fields_p5.txt`) + 0-fill marker raster
 > + band crops read. Every row traced to a raster crop. Page margin box numbers: **110-134.1**.
@@ -21,7 +21,7 @@
 | 9 | ค่านายหน้า ค่าโฆษณา ค่าส่งเสริมการขาย | 118 | Text35.141 | Text35.142 | Text35.143 | GL conv. (same) |
 | 10 | ค่าภาษีธุรกิจเฉพาะ (รวมรายได้ส่วนท้องถิ่น) | 119 | Text35.144 | Text35.145 | Text35.146 | NOT AVAILABLE (no SBT in TEAS) → 0 |
 | 11 | ค่าภาษีอากร อื่นๆ | 120 | Text35.147 | Text35.148 | Text35.149 | GL conv. (e.g. IrrecoverableVat 5350) |
-| 12 | ต้นทุนทางการเงิน | 121 | Text35.150 | Text35.151 | Text35.152 | GL conv. — dedicated interest-expense account; ⚠️ duplicate concept at p4 ร.6 ข้อ 3 — fill ONE side only (read RD instructions) |
+| 12 | ต้นทุนทางการเงิน | 121 | Text35.150 | Text35.151 | Text35.152 | GL conv. **5500-5599** (DECIDED 2026-06-12): interest expense reports HERE, never p4 ร.6 ข้อ 3 — flat P&L puts all expenses in ladder row 8 and ร.7 must partition row 8 (ร.6 must foot row 6 == 0) |
 | 13 | ค่าทำบัญชี | 121.1 | Text35.153 | Text35.154 | Text35.155 | GL conv. |
 | 14 | ค่าสอบบัญชี | 122 | Text35.156 | Text35.157 | Text35.158 | GL conv. |
 | 15 | เงินที่บริจาคแก่พรรคการเมือง | 122.1 | Text35.159 | Text35.160 | Text35.161 | NOT AVAILABLE → 0 |

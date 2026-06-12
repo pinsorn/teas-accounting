@@ -26,6 +26,7 @@ public sealed class Pnd50ScheduleTests
             Row("5300", 60_000m), Row("5349", 1_000m),       // → 9 โฆษณา
             Row("5350", 7_000m),                             // → 11 ภาษีอากรอื่น
             Row("5200", 30_000m),                            // → 19 ค่าธรรมเนียมอื่น
+            Row("5510", 4_500m),                             // → 12 ต้นทุนทางการเงิน (ร.7 side, not p4 ร.6)
             Row("5990", 12_345.67m),                         // → 22 อื่นๆ (unmapped range)
             Row("ABC", 0.33m),                               // → 22 (unparseable code)
         };
@@ -38,15 +39,16 @@ public sealed class Pnd50ScheduleTests
         s.Marketing.Should().Be(61_000m);
         s.OtherTaxes.Should().Be(7_000m);
         s.OtherFees.Should().Be(30_000m);
+        s.FinanceCost.Should().Be(4_500m);
         s.Other.Should().Be(12_346m);
         s.Total.Should().Be(total);
         // Unmapped lines print explicit zeros.
         (s.DirectorComp + s.Utilities + s.Travel + s.Freight + s.Repairs + s.Entertainment
-         + s.SbtTax + s.FinanceCost + s.Bookkeeping + s.AuditFee + s.PoliticalDonation
+         + s.SbtTax + s.Bookkeeping + s.AuditFee + s.PoliticalDonation
          + s.CharityDonation + s.EducationSport + s.Consulting + s.BadDebt + s.Depreciation
          + s.DoubleDeduct).Should().Be(0m);
         // Partition identity: the 23 data lines sum to Total.
-        (s.Employee + s.Rent + s.Marketing + s.OtherTaxes + s.OtherFees + s.Other)
+        (s.Employee + s.Rent + s.Marketing + s.OtherTaxes + s.OtherFees + s.FinanceCost + s.Other)
             .Should().Be(s.Total);
     }
 
