@@ -47,8 +47,11 @@ public sealed class CitExpenseByAccountTests
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var citData = s.ServiceProvider.GetRequiredService<ICitYearDataService>();
 
-        // Own far-future year per run (§8) — calendar FY for company 1.
-        var year = 2500 + Random.Shared.Next(400);
+        // §8 isolation: the shared teas_test DB accumulates far-future POSTED JEs from other
+        // suites (PV/vendor-invoice tests use future periods too), so a bare random year can
+        // already carry expense rows — pick a year with NO journal entries at all
+        // (FreshYearAsync pattern from PayrollRunServiceTests).
+        var year = await FreshJeYearAsync(db);
         var accounts = await db.ChartOfAccounts.AsNoTracking()
             .Where(a => a.AccountType == AccountType.Expense)
             .OrderBy(a => a.AccountCode).Take(2).ToListAsync();
@@ -99,6 +102,19 @@ public sealed class CitExpenseByAccountTests
             db.JournalLines.RemoveRange(je.Lines);
             db.JournalEntries.Remove(je);
             await db.SaveChangesAsync();
+        }
+    }
+
+    internal static async Task<int> FreshJeYearAsync(AccountingDbContext db)
+    {
+        while (true)
+        {
+            var y = 2500 + Random.Shared.Next(5000);
+            var from = new DateOnly(y, 1, 1);
+            var to = new DateOnly(y + 1, 1, 1);
+            if (!await db.JournalEntries.AsNoTracking()
+                    .AnyAsync(j => j.DocDate >= from && j.DocDate < to))
+                return y;
         }
     }
 

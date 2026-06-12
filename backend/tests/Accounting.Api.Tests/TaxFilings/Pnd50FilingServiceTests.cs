@@ -75,10 +75,12 @@ public sealed class Pnd50FilingServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        // Own far-future year per run — adjustments are unique to (year, row); clean up after.
-        var year = 2500 + Random.Shared.Next(400);
 
         await using var s = sp.CreateAsyncScope();
+        // §8 (cont.92c): historical far-future JEs in teas_test make a bare random year dirty —
+        // refusals/ladder assertions need a year with NO posted entries.
+        var year = await CitExpenseByAccountTests.FreshJeYearAsync(
+            s.ServiceProvider.GetRequiredService<AccountingDbContext>());
         var citData = s.ServiceProvider.GetRequiredService<ICitYearDataService>();
         var adj = await citData.CreateAdjustmentAsync(
             year, new UpsertCitAdjustmentRequest("ม.65ตรี(3)", "test add-back", 1_000m), default);
@@ -139,9 +141,11 @@ public sealed class Pnd50FilingServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var year = 2500 + Random.Shared.Next(400);
 
         await using var s = sp.CreateAsyncScope();
+        // §8: foreign far-future JEs in a colliding year would flip Refusals/totals.
+        var year = await CitExpenseByAccountTests.FreshJeYearAsync(
+            s.ServiceProvider.GetRequiredService<AccountingDbContext>());
         var citData = s.ServiceProvider.GetRequiredService<ICitYearDataService>();
         var adj = await citData.CreateAdjustmentAsync(
             year, new UpsertCitAdjustmentRequest("ม.65ตรี(4)", "ค่ารับรองส่วนเกิน", 2_500m), default);
@@ -169,10 +173,12 @@ public sealed class Pnd50FilingServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var year = 2500 + Random.Shared.Next(400);
 
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        // §8: a year with NO existing posted JEs — foreign far-future rows would shift the
+        // composition this test pins (see CitExpenseByAccountTests.FreshJeYearAsync).
+        var year = await CitExpenseByAccountTests.FreshJeYearAsync(db);
         var expense = await db.ChartOfAccounts.AsNoTracking()
             .FirstAsync(a => a.AccountType == AccountType.Expense);
         var revenue = await db.ChartOfAccounts.AsNoTracking()
@@ -221,9 +227,11 @@ public sealed class Pnd50FilingServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
-        var year = 2500 + Random.Shared.Next(400);
 
         await using var s = sp.CreateAsyncScope();
+        // §8 (cont.92c): same fresh-year discipline — "empty far-future P&L" must actually be empty.
+        var year = await CitExpenseByAccountTests.FreshJeYearAsync(
+            s.ServiceProvider.GetRequiredService<AccountingDbContext>());
         var citData = s.ServiceProvider.GetRequiredService<ICitYearDataService>();
         // Override that disagrees with the books (empty far-future P&L ⇒ computed 0).
         await citData.UpsertYearAsync(year, new UpsertCitYearRequest(123_456m, "test override"), default);
