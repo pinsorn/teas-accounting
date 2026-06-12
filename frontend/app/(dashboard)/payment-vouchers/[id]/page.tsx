@@ -97,7 +97,12 @@ export default function PaymentVoucherDetailPage() {
         <DocumentNumberBadge value={d.docNo} />
         <StatusBadge status={d.status} />
         {d.selfWithholdMode && (
-          <span className="badge badge-warning">{t('selfWithhold.detailBadge')}</span>
+          <span className="badge badge-warning">
+            {t('selfWithhold.detailBadge')}
+            {d.whtPayerMode === 'GROSS_UP_ONCE'
+              ? ` · ${t('selfWithhold.mode.onceBadge')}`
+              : ` · ${t('selfWithhold.mode.foreverBadge')}`}
+          </span>
         )}
         {d.requiresPnd36ReverseCharge && (
           <span className="badge badge-outline">ภ.พ.36</span>

@@ -63,6 +63,9 @@ function PvForm() {
   const [rows, setRows] = useState<Row[]>([emptyRow(1)]);
   const [busy, setBusy] = useState(false);
   const [manualSelfWithhold, setManualSelfWithhold] = useState(false);
+  // wht-grossup (2026-06-12) — when the payee won't be withheld, RD requires the absorbed
+  // tax to be grossed up into the payee's income. ตลอดไป (forever) is the safe default.
+  const [grossUpMode, setGrossUpMode] = useState<'GROSS_UP_FOREVER' | 'GROSS_UP_ONCE'>('GROSS_UP_FOREVER');
 
   // cont.77 — per-line WHT type (income type for the 50ทวิ).
   const whtTypes = useWhtTypes().data ?? [];
@@ -107,8 +110,17 @@ function PvForm() {
 
   const subtotal = rows.reduce((s, r) => s + r.amount, 0);
   const vat = vendorVat ? rows.reduce((s, r) => s + r.amount * r.vatRate, 0) : 0;
-  const wht = rows.reduce((s, r) => s + r.amount * r.whtRate, 0);
-  const net = subtotal + vat - wht;
+  // Mirrors WhtPayerModes.Compute (BE): gross-up the base under self-withhold.
+  const whtFor = (amount: number, rate: number) => {
+    if (rate <= 0) return 0;
+    if (!selfWithhold) return amount * rate;
+    return grossUpMode === 'GROSS_UP_FOREVER'
+      ? (amount / (1 - rate)) * rate
+      : amount * (1 + rate) * rate;
+  };
+  const wht = rows.reduce((s, r) => s + whtFor(r.amount, r.whtRate), 0);
+  // Self-withhold pays the vendor in full; the (grossed) WHT goes to RD separately.
+  const net = selfWithhold ? subtotal + vat : subtotal + vat - wht;
 
   const canSave =
     vendorId !== null && categoryId !== null &&
@@ -153,6 +165,7 @@ function PvForm() {
         })),
         vendorInvoiceId: fromVi ? Number(fromVi) : null,
         selfWithholdMode: fromVi ? null : selfWithhold,
+        whtPayerMode: fromVi ? null : selfWithhold ? grossUpMode : 'DEDUCT',
       });
       toast.success(tc('save'));
       router.push(`/payment-vouchers/${res.payment_voucher_id}`);
@@ -169,7 +182,11 @@ function PvForm() {
   const totalRows: TotalRow[] = [
     { label: t('subtotal'), value: subtotal },
     { label: t('vat'), value: vat },
-    { label: t('wht'), value: -wht, muted: true },
+    // Self-withhold: WHT is NOT deducted from the payment — shown as a separate
+    // remit-to-RD line so the user sees the true cost of absorbing the tax.
+    selfWithhold
+      ? { label: t('selfWithhold.remitRow'), value: wht, muted: true }
+      : { label: t('wht'), value: -wht, muted: true },
   ];
 
   const docMeta = fromVi
@@ -223,13 +240,20 @@ function PvForm() {
               beforeVat: subtotal,
               vat,
               total: subtotal + vat,
-              wht: hasWht ? wht : null,
+              // Self-withhold pays the vendor in full — the absorbed WHT is never a
+              // deduction on the voucher (shown as a remit note in extraMetaBlock).
+              wht: hasWht && !selfWithhold ? wht : null,
             }}
             signRoles={cfg.signRoles}
             extraMetaBlock={
               <div className="text-[12px] leading-relaxed text-ink-700">
                 <div><b>{t('method')}:</b> {method}
                   {method === 'Cheque' && chequeNo ? ` (${chequeNo}${chequeDate ? ` / ${chequeDate}` : ''})` : ''}</div>
+                {selfWithhold && wht > 0 && (
+                  <div className="text-warning">
+                    {t('selfWithhold.remitRow')}: {wht.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
               </div>
             }
           />
@@ -367,6 +391,34 @@ function PvForm() {
             )}
             {!selfWithholdLocked && selfWithhold && (
               <p className="mt-1 text-xs text-base-content/60">{t('selfWithhold.explanation')}</p>
+            )}
+            {selfWithhold && (
+              <div className="mt-3 space-y-2" data-testid="pv-grossup-mode">
+                {(['GROSS_UP_FOREVER', 'GROSS_UP_ONCE'] as const).map((m) => (
+                  <label key={m} className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="radio" name="grossUpMode" className="radio radio-warning radio-sm mt-0.5"
+                      checked={grossUpMode === m} onChange={() => setGrossUpMode(m)}
+                    />
+                    <span>
+                      <span className="font-medium">
+                        {m === 'GROSS_UP_FOREVER' ? t('selfWithhold.mode.forever') : t('selfWithhold.mode.once')}
+                      </span>
+                      <span className="block text-xs text-base-content/60">
+                        {m === 'GROSS_UP_FOREVER' ? t('selfWithhold.mode.foreverHint') : t('selfWithhold.mode.onceHint')}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+                {wht > 0 && (
+                  <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning-content/80">
+                    {t('selfWithhold.preview', {
+                      remit: wht.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                      effective: subtotal > 0 ? ((wht / subtotal) * 100).toFixed(4) : '0',
+                    })}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

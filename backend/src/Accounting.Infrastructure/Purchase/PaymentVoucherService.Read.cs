@@ -135,7 +135,8 @@ public sealed partial class PaymentVoucherService
                 l.VatAmount, l.IsRecoverableVat, l.WhtTypeId, l.WhtRate, l.WhtAmount,
                 l.ProductType)).ToList(),
             whtCerts, completeness,
-            p.BusinessUnitId, bu?.Code, bu?.NameTh);   // cont.79 — BU id + display
+            p.BusinessUnitId, bu?.Code, bu?.NameTh,   // cont.79 — BU id + display
+            p.WhtPayerMode);                          // 2026-06-12 wht-grossup spec
     }
 
     /// <summary>
@@ -200,6 +201,11 @@ public sealed partial class PaymentVoucherService
             + (string.IsNullOrEmpty(d.ChequeNo) ? "" : $"  เช็คเลขที่ {d.ChequeNo}");
         if (!string.IsNullOrWhiteSpace(d.Description)) notes = $"{d.Description}\n{notes}";
         if (!string.IsNullOrWhiteSpace(d.Notes)) notes = $"{notes}\n{d.Notes}";
+        // wht-grossup (2026-06-12): under self-withhold the vendor is paid in FULL — the
+        // WHT must NOT be shown as a deduction on the voucher (it would break the foot:
+        // Total = subtotal + vat). The absorbed tax is disclosed as a note instead.
+        if (d.SelfWithholdMode && d.WhtAmount > 0m)
+            notes = $"{notes}\nออกภาษีหัก ณ ที่จ่ายให้เอง {d.WhtAmount:N2} บาท (นำส่งสรรพากรต่างหาก ไม่หักจากยอดจ่าย)";
 
         var model = new Pdf.PaperDocModel(
             DocType: "ใบสำคัญจ่าย",
@@ -214,7 +220,7 @@ public sealed partial class PaymentVoucherService
             Summary: new Pdf.PaperSummary(
                 Subtotal: d.SubtotalAmount, Discount: null, BeforeVat: d.SubtotalAmount,
                 Vat: d.VatAmount, Total: d.TotalPaid, VatRate: null, ShowVat: true,
-                Wht: d.WhtAmount > 0m ? d.WhtAmount : null),
+                Wht: !d.SelfWithholdMode && d.WhtAmount > 0m ? d.WhtAmount : null),
             SignRoles: new Pdf.PaperSignRoles("ผู้จัดทำ", "ผู้รับเงิน", Middle: "ผู้อนุมัติ"),
             Notes: notes,
             Watermark: new Pdf.PaperWatermark(

@@ -44,7 +44,9 @@ public sealed record PaymentVoucherDetail(
     CompletenessView Completeness,   // cont.76 — advisory completeness (POSTED only)
     int? BusinessUnitId = null,      // cont.79 — BU GL dimension
     string? BusinessUnitCode = null,
-    string? BusinessUnitName = null);
+    string? BusinessUnitName = null,
+    // 2026-06-12 (wht-grossup spec) — DEDUCT | GROSS_UP_FOREVER | GROSS_UP_ONCE.
+    string WhtPayerMode = "DEDUCT");
 
 public sealed record WhtCertificateListItem(
     long WhtCertificateId, string DocNo, DateOnly CertDate, long? PaymentVoucherId,
@@ -58,4 +60,6 @@ public sealed record WhtCertificateDetail(
     string PayeeName, string? PayeeTaxId, string PayeeAddress, string PayeeType,
     string IncomeTypeCode, string? IncomeDescription,
     decimal IncomeAmount, decimal WhtRate, decimal WhtAmount,
-    string Status, System.DateTimeOffset IssuedAt);
+    string Status, System.DateTimeOffset IssuedAt,
+    // 2026-06-12 (wht-grossup spec) — 50ทวิ เงื่อนไข: 1 หัก ณ ที่จ่าย · 2 ออกให้ตลอดไป · 3 ออกให้ครั้งเดียว.
+    int WhtCondition = 1);

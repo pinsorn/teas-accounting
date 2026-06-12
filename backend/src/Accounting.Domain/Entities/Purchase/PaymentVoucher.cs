@@ -1,5 +1,6 @@
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
+using Accounting.Domain.Tax;
 
 namespace Accounting.Domain.Entities.Purchase;
 
@@ -58,6 +59,15 @@ public class PaymentVoucher : ITenantOwned, IAuditable, IConcurrencyVersioned
     // for domestic auto-charge): gross-up — expense = subtotal + vat + wht,
     // cash = subtotal + vat (full), we owe WHT to RD separately.
     public bool SelfWithholdMode { get; set; }
+
+    // 2026-06-12 (wht-grossup spec) — WHT base method when the payee won't be withheld.
+    // RD treats tax paid on the payee's behalf as the payee's income → gross-up:
+    //   DEDUCT           (เงื่อนไข 1 หัก ณ ที่จ่าย)   tax = r·net, netted off payment
+    //   GROSS_UP_FOREVER (เงื่อนไข 2 ออกให้ตลอดไป)  income = net/(1−r), tax = r·income
+    //   GROSS_UP_ONCE    (เงื่อนไข 3 ออกให้ครั้งเดียว) income = net·(1+r), tax = r·income
+    // Kept in sync with SelfWithholdMode (true ⟺ mode ≠ DEDUCT).
+    public string WhtPayerMode { get; set; } = WhtPayerModes.Deduct;
+
     /// <summary>Auto-set when vendor is foreign without Thai VAT-D — Sprint 9 ภ.พ.36 generator scans this.</summary>
     public bool RequiresPnd36ReverseCharge { get; set; }
 

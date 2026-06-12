@@ -9,7 +9,10 @@ public sealed record Wht50TawiData(
     decimal IncomeAmount, decimal WhtAmount,
     // P-D #4 (employee annual cert) — เงินสมทบประกันสังคมทั้งปี printed in the fund box
     // (Text1.0.1); employees use it for their PIT filing. Null (vendor certs) = blank.
-    decimal? SsoContribution = null);
+    decimal? SsoContribution = null,
+    // 2026-06-12 (wht-grossup spec) — ผู้จ่ายเงิน condition box: 1 หัก ณ ที่จ่าย (chk8) ·
+    // 2 ออกให้ตลอดไป (chk9) · 3 ออกให้ครั้งเดียว (chk10). Template rects probe-verified.
+    int Condition = 1);
 
 /// <summary>
 /// Maps a WHT certificate onto the official RD 50ทวิ AcroForm and renders it via the generic
@@ -101,7 +104,9 @@ public static class Wht50TawiFormFiller
         // P-D #4 — the annual employee cert carries the year's SSO contributions (ประกันสังคม box).
         if (d.SsoContribution is { } sso && sso > 0)
             f.Add(new("Text1.0.1", Money(sso), Right: true));
-        f.Add(new("chk8", "X", Check: true));   // (1) หักภาษี ณ ที่จ่าย — TEAS always withholds
+        // ผู้จ่ายเงิน condition: (1) หัก ณ ที่จ่าย / (2) ออกให้ตลอดไป / (3) ออกให้ครั้งเดียว.
+        // Under 2/3 the IncomeAmount above is already grossed up (absorbed tax = income).
+        f.Add(new(d.Condition switch { 2 => "chk9", 3 => "chk10", _ => "chk8" }, "X", Check: true));
         f.Add(new("date_pay", d.PayDate.Day.ToString()));
         f.Add(new("month_pay", ThaiMonth(d.PayDate.Month)));
         f.Add(new("year_pay", (d.PayDate.Year + 543).ToString()));
