@@ -3,6 +3,28 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-13 (cont. 94c — "หมวดซื้อ PV ไม่ควรตั้ง VAT manual + ดึงจาก products + vendor ไม่จด VAT ห้าม VAT") — **PV form product-driven + derived VAT.** Api **331/0/3** · tsc 0.
+
+- **ที่มา:** Ham ชี้ว่า PV (ใบสำคัญจ่าย) ปล่อยให้ตั้ง VAT มือ + ใช้ free-text + ProductTypeSelect manual —
+  ผิด pattern (sales ใช้ ProductPicker + VAT derived มานานแล้ว). Fable พลาดตรงนี้. WHT คงเดิม (Ham OK).
+- **FE (`payment-vouchers/new`):** เปลี่ยน description input + `ProductTypeSelect` + VAT `<input>` →
+  **`ProductPicker` (purpose="purchase")** (component เดียวกับ sales) — เลือก product เติม description/
+  productType, seed ราคาเฉพาะถ้า line ยัง 0 (master ไม่ lock ราคา ตาม Ham cont.81); พิมพ์เอง = ad-hoc
+  (productType→GOOD). VAT เป็น **read-only คำนวณเอง**: `vendorVat ? taxRateForProductType(type) : 0`
+  (EXEMPT→0% ม.81 · vendor ไม่จด VAT→0% ม.82/5 · else 7%). totals/save ใช้ค่า derived. PO-prefill เลิก
+  copy vatRate.
+- **BE (`PaymentVoucherService.CreateDraftAsync`):** guard ใหม่ — vendor ไม่จด VAT + line VatRate>0 →
+  `DomainException "pv.vendor_not_vat_registered"` (ม.82/5). foreign vendor = VatRegistered=true เสมอ
+  (VAT ผ่าน ภ.พ.36) ไม่โดน block. (FE บังคับ 0 อยู่แล้ว — BE เป็น defense + API contract).
+- **Tests:** +2 ใน Sprint87 (`Non_vat_registered_vendor_rejects_a_vat_line` 422 ·
+  `…_allows_a_zero_vat_line` ผ่าน). Sprint87 **10/10 ×2**.
+- **Gates:** build 0/0 · Api full **331/0/3** (329 +2, 0 regression) · tsc 0 · i18n parity (pv.item +
+  pv.vendorNoVatShort) · openapi +422 บน POST /payment-vouchers (108 paths) · visual gate ผ่าน 2 เคส:
+  vendor จด VAT → VAT 7% read-only · vendor "NoVAT Demo Co" ไม่จด VAT → "0% · ผู้ขายไม่จด VAT" + preview
+  ภาษี 0.00/Total 5,000 (ส่ง crop ให้ Ham). Spec `docs/superpowers/specs/2026-06-13-pv-product-picker-vat.md`.
+- หมายเหตุ: PV line ไม่เก็บ product FK (ไม่มี column — `productType` snapshot ขับ VAT พอ). VI (เอกสารเคลม
+  input VAT) ไม่แตะ. dev DB มี vendor เดโม 2 ตัว (NoVAT Demo Co + ตัว mojibake จาก PS encoding) — dev-only.
+
 ## 2026-06-13 (cont. 94b — "มี Filter BU ยังนะ") — **เพิ่ม BU filter ให้ tax-summary.** Api **329/0/3** · tsc 0 · i18n parity.
 
 - Optional analytical BU lens, thread ครบ 3 แหล่ง: GL รายได้/รายจ่าย (`journal_line.BusinessUnitId`
