@@ -81,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Reports.IVatThresholdService,      Reports.VatThresholdService>();
         services.AddScoped<Application.Reports.IWhtReceivableReportService, Reports.WhtReceivableReportService>();
         services.AddScoped<Application.Reports.IFinancialReportService,     Reports.FinancialReportService>();
+        services.AddScoped<Application.Reports.ITaxSummaryService,          Reports.TaxSummaryService>();
         services.AddScoped<Application.TaxFilings.IProportionalInputVatService, TaxFilings.ProportionalInputVatService>();
         services.AddScoped<Application.TaxFilings.ITaxFilingService,         TaxFilings.TaxFilingService>();
         services.AddScoped<Application.TaxFilings.IWhtFilingService,         TaxFilings.WhtFilingService>();

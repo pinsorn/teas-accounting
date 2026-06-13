@@ -781,6 +781,13 @@ export function useProfitLoss(
         includeUnspecified: includeUnspecified || undefined })}`),
   });
 }
+export function useTaxSummary(year: number) {
+  return useQuery({
+    queryKey: ['tax-summary', year],
+    queryFn: () => apiGet<import('./types').TaxSummaryReport>(
+      `reports/tax-summary${qs({ year })}`),
+  });
+}
 export function useSalesSummary(from: string, to: string, groupBy: string) {
   return useQuery({
     queryKey: ['sales-summary', from, to, groupBy],

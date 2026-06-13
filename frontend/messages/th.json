@@ -99,6 +99,7 @@
     "expenseCategories": "หมวดค่าใช้จ่าย",
     "apiKeys": "API Keys",
     "whtReceivable": "ภาษีหัก ณ ที่จ่ายค้างรับ",
+    "taxSummary": "สรุปภาษีรายเดือน",
     "trialBalance": "งบทดลอง",
     "profitLoss": "กำไรขาดทุน",
     "salesSummary": "สรุปยอดขาย",
@@ -477,6 +478,38 @@
     "certNo": "เลขที่ 50ทวิ",
     "ageDays": "อายุ (วัน)",
     "total": "รวม"
+  },
+  "taxSummary": {
+    "title": "สรุปภาษีรายเดือน",
+    "subtitle": "รายได้ รายจ่าย VAT และภาษีหัก ณ ที่จ่าย แยกตามเดือน",
+    "year": "ปี",
+    "month": "เดือน",
+    "revenue": "รายได้",
+    "expense": "รายจ่าย",
+    "netProfit": "กำไรสุทธิ",
+    "outputVat": "ภาษีขาย",
+    "inputVat": "ภาษีซื้อ",
+    "vatNet": "VAT สุทธิ",
+    "vatPayable": "VAT ชำระ",
+    "whtPaid": "WHT นำส่ง",
+    "whtReceived": "WHT ถูกหัก",
+    "payable": "ชำระเพิ่ม",
+    "refundable": "ขอคืน/ยกไป",
+    "totalRow": "รวมทั้งปี",
+    "kpi": {
+      "revenue": "รายได้รวม",
+      "expense": "รายจ่ายรวม",
+      "netProfit": "กำไรสุทธิ",
+      "vatNet": "VAT นำส่งสุทธิ",
+      "whtPaid": "WHT นำส่งรวม",
+      "whtReceived": "WHT ถูกหัก (เครดิต ภ.ง.ด.50)",
+      "whtReceivedHint": "ใช้เป็นเครดิตภาษีเงินได้นิติบุคคล"
+    },
+    "chart": {
+      "revVsExp": "รายได้ vs รายจ่าย รายเดือน",
+      "tax": "ภาษีรายเดือน (VAT / WHT)"
+    },
+    "footnote": "คำนวณจากเอกสารที่ผ่านการ Post แล้วเท่านั้น · VAT จาก ภ.พ.30 · WHT จากหนังสือรับรอง 50ทวิ · ภ.พ.36 และภาษีเงินได้นิติบุคคล ดูที่หน้าแบบยื่นภาษี"
   },
   "report": {
     "tbTitle": "งบทดลอง (Trial Balance)",

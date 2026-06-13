@@ -72,6 +72,14 @@ public static class ReportEndpoints
                 Results.Ok(await svc.SalesSummaryAsync(from, to, groupBy ?? "customer", ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.ProfitLoss);
 
+        // 2026-06-13 — monthly tax summary dashboard (revenue/expense + VAT + WHT
+        // paid/received per month). Year defaults to the current Asia/Bangkok year.
+        group.MapGet("/tax-summary", async (
+            [FromQuery] int? year, ITaxSummaryService svc,
+            Accounting.Application.Abstractions.IClock clock, CancellationToken ct) =>
+                Results.Ok(await svc.GetAsync(year ?? clock.TodayInBangkok().Year, ct)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.ProfitLoss);
+
         // Number-gap audit (CLAUDE.md §4.3 / plan §17.6). Empty result = compliant.
         group.MapGet("/number-gaps", async (
             [FromQuery] int? year, [FromQuery] int? month, [FromQuery] string? doc_type,
