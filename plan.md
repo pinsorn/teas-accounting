@@ -182,6 +182,14 @@
   Gates: Domain **9/9** golden · Sprint87 **8/8 ×2** · **Api full 325/0/3** · tsc 0 · i18n parity ·
   live smoke PV 06-2026-PV-CAPEX-0001 (wht 309.28, จ่ายเต็ม 10,700, cert income 10,309.28 cond 2) ·
   visual ✓ (50ทวิ ☒(2)ออกให้ตลอดไป + PV PDF + FE form ส่งให้ Ham).
+- ☑ **PV product-driven lines + derived VAT (cont.94c, 2026-06-13 — Ham "หมวดซื้อไม่ควรตั้ง VAT manual +
+  ดึงจาก products + vendor ไม่จด VAT ห้าม VAT"; spec `2026-06-13-pv-product-picker-vat.md`):** PV form
+  เคยให้ตั้ง VAT มือ + free-text + ProductTypeSelect (ผิด pattern — sales ใช้ ProductPicker+derived
+  มานานแล้ว). FE: เปลี่ยนเป็น `ProductPicker (purpose="purchase")` + VAT read-only derived
+  (`vendorVat ? taxRateForProductType(type) : 0`); master seed ราคาเฉพาะ line ว่าง (ไม่ lock ราคา).
+  BE guard `pv.vendor_not_vat_registered` (ม.82/5 — vendor ไม่จด VAT + VatRate>0 → 422; foreign ไม่โดน
+  เพราะ VatRegistered=true ผ่าน ภ.พ.36). WHT คงเดิม (Ham OK). +2 tests (Sprint87 10/10 ×2). Api full
+  **331/0/3** · tsc 0 · i18n parity · openapi +422 · visual ✓ (7% / 0%-ผู้ขายไม่จด VAT).
 - ☑ **Tax Summary Dashboard — สรุปภาษีรายเดือน (cont.94, 2026-06-13 — Opus 4.8; Ham "สร้างเลย พร้อม
   dashboard + detail + visualization"; spec `2026-06-13-tax-summary-dashboard.md`):** หน้าเดียวรวม
   ภาษีที่เคยกระจาย 5–6 หน้า. `ITaxSummaryService` (`GET /reports/tax-summary?year=`, perm
