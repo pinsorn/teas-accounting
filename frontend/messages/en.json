@@ -99,6 +99,7 @@
     "expenseCategories": "Expense Categories",
     "apiKeys": "API Keys",
     "whtReceivable": "WHT Receivable",
+    "taxSummary": "Monthly Tax Summary",
     "trialBalance": "Trial Balance",
     "profitLoss": "Profit & Loss",
     "salesSummary": "Sales Summary",
@@ -477,6 +478,38 @@
     "certNo": "50tawi no.",
     "ageDays": "Age (days)",
     "total": "Total"
+  },
+  "taxSummary": {
+    "title": "Monthly Tax Summary",
+    "subtitle": "Revenue, expense, VAT and withholding tax by month",
+    "year": "Year",
+    "month": "Month",
+    "revenue": "Revenue",
+    "expense": "Expense",
+    "netProfit": "Net profit",
+    "outputVat": "Output VAT",
+    "inputVat": "Input VAT",
+    "vatNet": "Net VAT",
+    "vatPayable": "VAT payable",
+    "whtPaid": "WHT remitted",
+    "whtReceived": "WHT withheld",
+    "payable": "payable",
+    "refundable": "refund/carry",
+    "totalRow": "Year total",
+    "kpi": {
+      "revenue": "Total revenue",
+      "expense": "Total expense",
+      "netProfit": "Net profit",
+      "vatNet": "Net VAT remitted",
+      "whtPaid": "Total WHT remitted",
+      "whtReceived": "WHT withheld (PND.50 credit)",
+      "whtReceivedHint": "Credited against corporate income tax"
+    },
+    "chart": {
+      "revVsExp": "Revenue vs Expense by month",
+      "tax": "Monthly tax (VAT / WHT)"
+    },
+    "footnote": "Computed from Posted documents only · VAT from PP.30 · WHT from 50tawi certificates · PP.36 and corporate income tax: see Tax Filings"
   },
   "report": {
     "tbTitle": "Trial Balance",

@@ -353,6 +353,17 @@ export interface ProfitLossReport {
   from: string; to: string;
   groups: ProfitLossGroup[]; totals: ProfitLossGroup; note: string;
 }
+// 2026-06-13 — monthly tax summary dashboard
+export interface TaxSummaryMonth {
+  month: number;            // 1..12; 0 = year total
+  revenue: number; expense: number; netProfit: number;
+  outputVat: number; inputVat: number; vatPayable: number; vatRefundable: number;
+  whtPaidPnd3: number; whtPaidPnd53: number; whtPaidPnd54: number; whtPaidPnd1: number;
+  whtPaidTotal: number; whtReceived: number;
+}
+export interface TaxSummaryReport {
+  year: number; months: TaxSummaryMonth[]; totals: TaxSummaryMonth;
+}
 export interface SalesSummaryRow {
   dimension: string; label: string; docCount: number;
   subtotal: number; vat: number; total: number;

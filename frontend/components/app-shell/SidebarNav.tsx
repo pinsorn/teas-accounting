@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
 import { useCompanyProfile, useMePermissions, useSystemInfo } from '@/lib/queries';
@@ -63,6 +63,7 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
   {
     key: 'reports',
     items: [
+      { href: '/reports/tax-summary', key: 'taxSummary', Icon: PieChart },
       { href: '/reports/trial-balance', key: 'trialBalance', Icon: Scale },
       { href: '/reports/profit-loss', key: 'profitLoss', Icon: TrendingUp },
       { href: '/reports/sales-summary', key: 'salesSummary', Icon: BarChart3 },

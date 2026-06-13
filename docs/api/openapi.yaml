@@ -1494,6 +1494,23 @@ paths:
                   lossCarryIn: { type: number }
                   accountingNetProfit: { type: number }
 
+  /reports/tax-summary:
+    get:
+      summary: สรุปภาษีรายเดือน (Monthly Tax Summary) for a calendar year
+      description: >
+        Per-month (Jan–Dec) + year-total overview: revenue/expense (GL Posted), VAT
+        (ภ.พ.30 reuse — output/input/payable/refundable), WHT remitted split by form
+        (ภ.ง.ด.3/53/54/1), and WHT received (ภ.ง.ด.50 credit). Posted documents only.
+      tags: [Reports]
+      parameters:
+        - name: year
+          in: query
+          schema: { type: integer, example: 2026 }
+          description: Defaults to the current Asia/Bangkok year.
+      responses:
+        '200':
+          description: 'TaxSummaryReport { year, months[12], totals } — each month carries revenue, expense, netProfit, outputVat, inputVat, vatPayable, vatRefundable, whtPaidPnd3/53/54/1, whtPaidTotal, whtReceived (totals row has month=0).'
+
   /reports/balance-sheet:
     get:
       summary: งบแสดงฐานะการเงิน (Balance Sheet) as-of date
