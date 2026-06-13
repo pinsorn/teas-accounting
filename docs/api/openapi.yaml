@@ -806,6 +806,7 @@ paths:
                 properties:
                   payment_voucher_id: { type: integer, format: int64 }
         '400': { description: Validation error }
+        '422': { description: 'pv.vendor_not_vat_registered — a non-VAT-registered vendor cannot carry VAT on the purchase (ม.82/5)' }
 
     get:
       summary: List Payment Vouchers (cursor-paginated)

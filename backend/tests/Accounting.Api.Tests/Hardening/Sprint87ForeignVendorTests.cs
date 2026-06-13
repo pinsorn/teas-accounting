@@ -271,6 +271,33 @@ public sealed class Sprint87ForeignVendorTests
     }
 
     [SkippableFact]
+    public async Task Non_vat_registered_vendor_rejects_a_vat_line()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        // Domestic, NOT VAT-registered → ม.82/5: no input VAT may be charged on the purchase.
+        var v = await CreateVendor(sp, foreign: false, vatD: false, vatReg: false);
+        var (cat, exp) = await SeedCategory(sp);
+
+        var act = async () => await CreatePv(sp, v, cat, exp, 1_000m, 0.07m, 0m, selfWithhold: null);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("pv.vendor_not_vat_registered");
+    }
+
+    [SkippableFact]
+    public async Task Non_vat_registered_vendor_allows_a_zero_vat_line()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var v = await CreateVendor(sp, foreign: false, vatD: false, vatReg: false);
+        var (cat, exp) = await SeedCategory(sp);
+
+        // vatRate 0 is fine — the non-VAT vendor purchase just carries no input VAT.
+        var pvId = await CreatePv(sp, v, cat, exp, 1_000m, 0m, 0m, selfWithhold: null);
+        pvId.Should().BeGreaterThan(0);
+    }
+
+    [SkippableFact]
     public async Task Receipt_only_vi_lumps_vat_into_expense()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);

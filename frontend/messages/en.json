@@ -317,6 +317,8 @@
     "whtType": "Income type (50ทวิ)",
     "whtTypeNone": "— none —",
     "vendorNoVat": "Vendor is not VAT-registered — no input VAT",
+    "vendorNoVatShort": "no VAT",
+    "item": "Item (product/service)",
     "netPaid": "Net paid",
     "lines": "Lines",
     "nonRecoverableVat": "Non-recoverable VAT",
