@@ -15,12 +15,14 @@ public sealed class VatReportService : IVatReportService
 
     public VatReportService(AccountingDbContext db) => _db = db;
 
-    public async Task<VatRegisterPeriod> GetRegisterAsync(int year, int month, CancellationToken ct)
+    public async Task<VatRegisterPeriod> GetRegisterAsync(
+        int year, int month, CancellationToken ct, int? businessUnitId = null)
     {
         var (from, to) = MonthRange(year, month);
 
         var ti = await _db.TaxInvoices
             .Where(t => t.Status == DocumentStatus.Posted && t.DocDate >= from && t.DocDate <= to)
+            .Where(t => businessUnitId == null || t.BusinessUnitId == businessUnitId)
             .OrderBy(t => t.DocDate).ThenBy(t => t.DocNo)
             .Select(t => new SalesVatRegisterRow(t.DocDate, t.DocNo!, "TI",
                 t.CustomerName, t.CustomerTaxId,
@@ -29,6 +31,7 @@ public sealed class VatReportService : IVatReportService
 
         var notes = await _db.TaxAdjustmentNotes
             .Where(n => n.Status == DocumentStatus.Posted && n.DocDate >= from && n.DocDate <= to)
+            .Where(n => businessUnitId == null || n.BusinessUnitId == businessUnitId)
             .OrderBy(n => n.DocDate).ThenBy(n => n.DocNo)
             .Select(n => new SalesVatRegisterRow(
                 n.DocDate, n.DocNo!,
@@ -51,6 +54,7 @@ public sealed class VatReportService : IVatReportService
             .Where(v => v.Status == DocumentStatus.Posted
                      && v.VatClaimPeriod == period
                      && v.VatAmount > 0m)
+            .Where(v => businessUnitId == null || v.BusinessUnitId == businessUnitId)
             .OrderBy(v => v.VendorTaxInvoiceDate).ThenBy(v => v.VendorTaxInvoiceNo)
             .Select(v => new PurchaseVatRegisterRow(
                 v.VendorTaxInvoiceDate, v.VendorTaxInvoiceNo, v.VendorName, v.VendorTaxId,
@@ -67,9 +71,10 @@ public sealed class VatReportService : IVatReportService
             NetVatPayable:  outputVat - inputVat);
     }
 
-    public async Task<Pnd30Summary> GetPnd30Async(int year, int month, CancellationToken ct)
+    public async Task<Pnd30Summary> GetPnd30Async(
+        int year, int month, CancellationToken ct, int? businessUnitId = null)
     {
-        var reg = await GetRegisterAsync(year, month, ct);
+        var reg = await GetRegisterAsync(year, month, ct, businessUnitId);
         var net = reg.OutputVatTotal - reg.InputVatTotal;
 
         return new Pnd30Summary(

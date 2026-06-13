@@ -1507,6 +1507,13 @@ paths:
           in: query
           schema: { type: integer, example: 2026 }
           description: Defaults to the current Asia/Bangkok year.
+        - name: businessUnitId
+          in: query
+          schema: { type: integer }
+          description: >
+            Optional analytical BU lens. null = company-wide (the ภ.พ.30/ภ.ง.ด.50 filing
+            basis). WHT is BU-resolved via the source PV/Receipt; cross-BU receipts fall
+            outside any single-BU filter.
       responses:
         '200':
           description: 'TaxSummaryReport { year, months[12], totals } — each month carries revenue, expense, netProfit, outputVat, inputVat, vatPayable, vatRefundable, whtPaidPnd3/53/54/1, whtPaidTotal, whtReceived (totals row has month=0).'

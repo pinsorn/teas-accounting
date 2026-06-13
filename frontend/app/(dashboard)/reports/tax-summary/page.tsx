@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useTaxSummary } from '@/lib/queries';
+import { useTaxSummary, useBusinessUnits } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { TaxSummaryMonth } from '@/lib/types';
 
@@ -23,7 +23,9 @@ export default function TaxSummaryPage() {
   const tc = useTranslations('common');
   const nowYear = new Date().getFullYear();
   const [year, setYear] = useState(nowYear);
-  const q = useTaxSummary(year);
+  const [buId, setBuId] = useState<number | undefined>(undefined);
+  const bus = useBusinessUnits();
+  const q = useTaxSummary(year, buId);
   const data = q.data;
   const totals = data?.totals;
   const months = data?.months ?? [];
@@ -39,6 +41,17 @@ export default function TaxSummaryPage() {
             value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {Array.from({ length: 6 }, (_, i) => nowYear - i).map((y) => (
               <option key={y} value={y}>{y} ({y + 543})</option>
+            ))}
+          </select>
+        </label>
+        <label className="form-control">
+          <span className="label-text text-xs">{t('bu')}</span>
+          <select className="select select-bordered select-sm" data-testid="ts-bu"
+            value={buId ?? ''} onChange={(e) =>
+              setBuId(e.target.value ? Number(e.target.value) : undefined)}>
+            <option value="">— {t('allBu')} —</option>
+            {bus.data?.map((b) => (
+              <option key={b.businessUnitId} value={b.businessUnitId}>{b.code} · {b.nameTh}</option>
             ))}
           </select>
         </label>
@@ -151,6 +164,9 @@ export default function TaxSummaryPage() {
         </table>
       </div>
 
+      {buId !== undefined && (
+        <p className="mt-3 text-xs text-amber-700">{t('buNote')}</p>
+      )}
       <p className="mt-3 text-xs text-base-content/60">{t('footnote')}</p>
     </>
   );

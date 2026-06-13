@@ -2,8 +2,10 @@ using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Reports;
 using Accounting.Domain.Entities.Ledger;
+using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
+using Accounting.TestKit;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
@@ -150,6 +152,51 @@ public sealed class TaxSummaryTests
         finally
         {
             db.WhtCertificates.RemoveRange(certs);
+            await db.SaveChangesAsync();
+        }
+    }
+
+    [SkippableFact]
+    public async Task Business_unit_filter_isolates_revenue_and_expense()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var svc = s.ServiceProvider.GetRequiredService<ITaxSummaryService>();
+
+        var year = await FreshYearAsync(db);
+        var expense = await db.ChartOfAccounts.AsNoTracking()
+            .FirstAsync(a => a.AccountType == AccountType.Expense);
+        var revenue = await db.ChartOfAccounts.AsNoTracking()
+            .FirstAsync(a => a.AccountType == AccountType.Revenue);
+        var asset = await db.ChartOfAccounts.AsNoTracking()
+            .FirstAsync(a => a.AccountType == AccountType.Asset);
+
+        var bu = new BusinessUnit { CompanyId = 1, Code = TestIds.BusinessUnitCode(), NameTh = "หน่วย TS" };
+        db.BusinessUnits.Add(bu);
+        await db.SaveChangesAsync();
+
+        // March: BU-tagged JE (rev 1,000 / exp 400) + an untagged JE (rev 999 / exp 300).
+        // Every line must satisfy ck_journal_lines_amount_sign (no zero-amount line).
+        var buJe = MakeJe(year, 3, revenue.AccountId, 1_000m, expense.AccountId, 400m, asset.AccountId);
+        foreach (var l in buJe.Lines) l.BusinessUnitId = bu.BusinessUnitId;
+        var plainJe = MakeJe(year, 3, revenue.AccountId, 999m, expense.AccountId, 300m, asset.AccountId);
+        db.JournalEntries.AddRange(buJe, plainJe);
+        await db.SaveChangesAsync();
+        try
+        {
+            var scoped = await svc.GetAsync(year, default, bu.BusinessUnitId);
+            scoped.Totals.Revenue.Should().Be(1_000m, "only the BU-tagged lines count");
+            scoped.Totals.Expense.Should().Be(400m);
+
+            var all = await svc.GetAsync(year, default, null);
+            all.Totals.Revenue.Should().Be(1_999m, "company-wide includes the untagged JE");
+        }
+        finally
+        {
+            await CleanupJes(db, new[] { buJe, plainJe });
+            db.BusinessUnits.Remove(bu);
             await db.SaveChangesAsync();
         }
     }

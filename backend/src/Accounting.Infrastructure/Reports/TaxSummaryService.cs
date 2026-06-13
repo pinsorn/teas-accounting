@@ -16,12 +16,14 @@ namespace Accounting.Infrastructure.Reports;
 public sealed class TaxSummaryService(
     AccountingDbContext db, ITenantContext tenant, IVatReportService vat) : ITaxSummaryService
 {
-    public async Task<TaxSummaryReport> GetAsync(int year, CancellationToken ct)
+    public async Task<TaxSummaryReport> GetAsync(int year, CancellationToken ct, int? businessUnitId = null)
     {
         if (!tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
         // ── Revenue / Expense from GL, all 12 months in one grouped query ──────────
+        // GlPostingService snapshots the document BU onto every journal_line (Sprint 8),
+        // so a BU filter on the line is exact for revenue/expense.
         var glRows = await (
             from l in db.JournalLines.AsNoTracking()
             join j in db.JournalEntries.AsNoTracking() on l.JournalId equals j.JournalId
@@ -29,6 +31,7 @@ public sealed class TaxSummaryService(
             where j.Status == DocumentStatus.Posted
                   && j.DocDate.Year == year
                   && (a.AccountType == AccountType.Revenue || a.AccountType == AccountType.Expense)
+                  && (businessUnitId == null || l.BusinessUnitId == businessUnitId)
             group new { l.DebitAmount, l.CreditAmount, a.AccountType } by j.DocDate.Month into g
             select new
             {
@@ -43,9 +46,18 @@ public sealed class TaxSummaryService(
 
         // ── WHT from the certificate register (one query for the year) ─────────────
         // Direction 'P' = we withheld + remit (ภ.ง.ด.3/53/54/1); 'R' = customer withheld
-        // from us (ภ.ง.ด.50 credit). Grouped by CertDate month.
-        var whtRows = await db.WhtCertificates.AsNoTracking()
-            .Where(w => w.CertDate.Year == year)
+        // from us (ภ.ง.ด.50 credit). Grouped by CertDate month. The cert carries no BU of
+        // its own, so the BU lens resolves it via the source PV (P) / Receipt (R) header BU.
+        var certQuery = db.WhtCertificates.AsNoTracking().Where(w => w.CertDate.Year == year);
+        if (businessUnitId is { } whtBu)
+        {
+            certQuery = certQuery.Where(w =>
+                (w.PaymentVoucherId != null && db.PaymentVouchers
+                    .Any(p => p.PaymentVoucherId == w.PaymentVoucherId && p.BusinessUnitId == whtBu))
+             || (w.ReceiptId != null && db.Receipts
+                    .Any(r => r.ReceiptId == w.ReceiptId && r.BusinessUnitId == whtBu)));
+        }
+        var whtRows = await certQuery
             .GroupBy(w => new { w.CertDate.Month, w.Direction, w.FormType })
             .Select(g => new { g.Key.Month, g.Key.Direction, g.Key.FormType, Wht = g.Sum(x => x.WhtAmount) })
             .ToListAsync(ct);
@@ -54,7 +66,7 @@ public sealed class TaxSummaryService(
         var months = new List<TaxSummaryMonth>(12);
         for (var m = 1; m <= 12; m++)
         {
-            var pnd30 = await vat.GetPnd30Async(year, m, ct);
+            var pnd30 = await vat.GetPnd30Async(year, m, ct, businessUnitId);
             var (rev, exp) = gl.TryGetValue(m, out var v) ? v : (0m, 0m);
 
             decimal Paid(WhtFormType f) => whtRows
