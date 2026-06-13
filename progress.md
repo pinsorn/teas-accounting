@@ -3,6 +3,21 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-13 (cont. 94b — "มี Filter BU ยังนะ") — **เพิ่ม BU filter ให้ tax-summary.** Api **329/0/3** · tsc 0 · i18n parity.
+
+- Optional analytical BU lens, thread ครบ 3 แหล่ง: GL รายได้/รายจ่าย (`journal_line.BusinessUnitId`
+  — snapshot ตั้งแต่ Sprint 8 = exact) · VAT (เพิ่ม `int? businessUnitId` ใน `IVatReportService.
+  GetPnd30Async`/`GetRegisterAsync` — กรอง TI/CN-DN/VI by BU; additive nullable ไม่กระทบ caller เดิม
+  เช่นหน้า ภ.พ.30) · WHT (cert ไม่มี BU column → join source PV `Direction='P'`/Receipt `Direction='R'`
+  header BU; cross-BU receipt (header BU null) ตกนอก filter — เป็น analytical lens ยอมรับได้).
+- FE: dropdown หน่วยธุรกิจ (reuse `useBusinessUnits`) + amber note เตือน "ใช้วิเคราะห์ภายใน
+  (ภ.พ.30/ภ.ง.ด.50 ยื่นระดับบริษัท)". `useTaxSummary(year, buId)`.
+- เหตุผลออกแบบ: VAT/CIT ยื่นระดับบริษัท ไม่ใช่ BU → BU filter เป็น managerial lens ไม่ใช่ filing.
+  default = ทั้งบริษัท (เหมือนเดิม).
+- **Gates:** build 0/0 · Api full **329/0/3** (+1 `Business_unit_filter_isolates_revenue_and_expense`,
+  pass ×2) · tsc 0 · i18n parity · openapi param documented (108 paths) · live smoke BU REPT
+  rev 3,000/VAT 210 (vs company 22,600) + XBUA99F rev 1,000/VAT 70 · visual gate ✓ (ส่ง crop ให้ Ham).
+
 ## 2026-06-13 (cont. 94 — Opus 4.8 รับช่วงต่อจาก Fable 5) — **หน้าสรุปภาษีรายเดือน (Tax Summary Dashboard) SHIPPED.** Api **328/0/3** · tsc 0 · i18n parity.
 
 - **ที่มา:** Ham ถาม "มีหน้าสรุปภาษีไหม — เสีย/คืน/หักเท่าไหร่ + รายได้รายจ่ายรายเดือน". เดิมข้อมูล
