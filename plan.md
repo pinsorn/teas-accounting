@@ -182,6 +182,16 @@
   Gates: Domain **9/9** golden · Sprint87 **8/8 ×2** · **Api full 325/0/3** · tsc 0 · i18n parity ·
   live smoke PV 06-2026-PV-CAPEX-0001 (wht 309.28, จ่ายเต็ม 10,700, cert income 10,309.28 cond 2) ·
   visual ✓ (50ทวิ ☒(2)ออกให้ตลอดไป + PV PDF + FE form ส่งให้ Ham).
+- ☑ **Tax Summary Dashboard — สรุปภาษีรายเดือน (cont.94, 2026-06-13 — Opus 4.8; Ham "สร้างเลย พร้อม
+  dashboard + detail + visualization"; spec `2026-06-13-tax-summary-dashboard.md`):** หน้าเดียวรวม
+  ภาษีที่เคยกระจาย 5–6 หน้า. `ITaxSummaryService` (`GET /reports/tax-summary?year=`, perm
+  `report.profit_loss.read`) aggregates per-month: รายได้/รายจ่าย (GL Posted), VAT (reuse `GetPnd30Async`
+  ×12 — DRY, respect claim-period), WHT นำส่ง split ภ.ง.ด.3/53/54/1 + WHT ถูกหัก (Direction P/R) จาก
+  wht_certificates. FE `/reports/tax-summary`: year selector + 6 KPI cards + 2 inline-SVG bar charts
+  (รายได้-vs-รายจ่าย, VAT/WHT — no chart dep) + ตาราง 12 เดือน + แถวรวม + drill-down (VAT→ภ.พ.30,
+  WHT→tax-filings, WHT-recv→wht-receivable); nav PieChart + i18n th/en. `TaxSummaryTests` 3 ×2.
+  **Api 328/0/3** · tsc 0 · i18n parity · openapi +1 (108) · live smoke 2026 ✓ · visual gate ✓.
+  Out v1: ภ.พ.36 line (net-zero, อยู่ใน VAT register) · CIT estimate (dashboard เอง) · BU filter · PDF.
 - ☑ **ภ.พ.01/09 v1 identity prefill (cont.92b, 2026-06-12):** `GET /tax-filings/pp01/pdf` + `/pp09/pdf`
   — page-1 company header only (taxid 13-comb, postal 5-comb, address, email/website), print-and-sign,
   no radio ever ticked (form-defect groups recorded in `pp01_map.md`/`pp09_map.md`, all PREFILL fields

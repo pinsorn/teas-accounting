@@ -3,6 +3,30 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-13 (cont. 94 — Opus 4.8 รับช่วงต่อจาก Fable 5) — **หน้าสรุปภาษีรายเดือน (Tax Summary Dashboard) SHIPPED.** Api **328/0/3** · tsc 0 · i18n parity.
+
+- **ที่มา:** Ham ถาม "มีหน้าสรุปภาษีไหม — เสีย/คืน/หักเท่าไหร่ + รายได้รายจ่ายรายเดือน". เดิมข้อมูล
+  กระจาย 5–6 หน้า (ภ.พ.30 / ภ.ง.ด.3/53/54 / wht-receivable / profit-loss / CIT). สร้างหน้าเดียวรวม.
+  Spec: `docs/superpowers/specs/2026-06-13-tax-summary-dashboard.md`.
+- **BE:** `ITaxSummaryService`+`TaxSummaryService` (`GET /reports/tax-summary?year=`, perm
+  `report.profit_loss.read`, year default = `IClock.TodayInBangkok().Year` — กัน Windows tz throw).
+  รวม 3 แหล่ง/เดือน: รายได้/รายจ่าย (GL Posted by DocDate), VAT (reuse `IVatReportService.GetPnd30Async`
+  ×12 → respect VI vat_claim_period, DRY), WHT (wht_certificates group by CertDate month + Direction
+  P/R + FormType). DTO `TaxSummaryReport{year, months[12], totals(month=0)}`. Posted only, tenant =
+  global filter. Tests `TaxSummaryTests` 3 (GL by month + year totals · WHT split P/R + ภ.ง.ด.3/53/54 ·
+  empty year) pass **×2** บน teas_test (fresh-year isolation + cleanup).
+- **FE:** `app/(dashboard)/reports/tax-summary/page.tsx` — year selector (default ปีปัจจุบัน, 6 ปีย้อนหลัง),
+  6 KPI cards (รายได้/รายจ่าย/กำไรสุทธิ/VAT สุทธิ/WHT นำส่ง/WHT ถูกหัก), 2 inline-SVG grouped-bar charts
+  (รายได้-vs-รายจ่าย + VAT/WHT — ไม่เพิ่ม chart dep), ตาราง 12 เดือน + แถวรวม, drill-down links
+  (VAT→/reports/pnd30, WHT→/tax-filings, WHT ถูกหัก→/reports/wht-receivable). nav "สรุปภาษีรายเดือน"
+  (PieChart icon, อันแรกใน section รายงาน) + i18n th/en parity. `useTaxSummary` hook + types.
+- **Gates:** build 0/0 · Api full **328/0/3** (325 baseline +3, 0 regression) · tsc 0 · i18n parity ·
+  openapi +1 path (108 total, YAML ✓) · live smoke 2026 (รายได้ 22,600 / รายจ่าย 62,484 / VAT สุทธิ 637
+  ชำระเพิ่ม / WHT นำส่ง 2,664.28 / WHT ถูกหัก 450) · visual gate ผ่าน (dashboard+table crops ส่งให้ Ham).
+  Servers :5080 + :3000 รัน build/binary ล่าสุด.
+- **Out of scope v1 (note บนหน้า):** ภ.พ.36 reverse-charge line (net-zero, อยู่ใน VAT register แล้ว) +
+  CIT estimate (มี dashboard เอง /tax-filings/cit) + BU filter + PDF export.
+
 ## 2026-06-12 (cont. 93b — "แก้เลย พร้อม FE") — **WHT gross-up ออกภาษีให้เอง + 50ทวิ เงื่อนไข SHIPPED.** Api **325/0/3** · Domain +9 · tsc 0.
 
 - **ที่มา:** Ham ถาม "ซื้อบริการแต่อีกฝั่งไม่ให้หัก ณ ที่จ่าย ระบบเป็นยังไง" → audit เจอ 2 ช่องโหว่ใน
