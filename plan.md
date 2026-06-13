@@ -191,7 +191,14 @@
   (รายได้-vs-รายจ่าย, VAT/WHT — no chart dep) + ตาราง 12 เดือน + แถวรวม + drill-down (VAT→ภ.พ.30,
   WHT→tax-filings, WHT-recv→wht-receivable); nav PieChart + i18n th/en. `TaxSummaryTests` 3 ×2.
   **Api 328/0/3** · tsc 0 · i18n parity · openapi +1 (108) · live smoke 2026 ✓ · visual gate ✓.
-  Out v1: ภ.พ.36 line (net-zero, อยู่ใน VAT register) · CIT estimate (dashboard เอง) · BU filter · PDF.
+  - ☑ **BU filter (cont.94b, 2026-06-13 — Ham "มี Filter BU ยังนะ"):** optional analytical BU lens
+    threaded end-to-end — GL revenue/expense (journal_line.BusinessUnitId, exact), VAT (added
+    `int? businessUnitId` to `GetPnd30Async`/`GetRegisterAsync` → filter TI/CN-DN/VI by BU), WHT
+    (cert has no BU → join source PV `Direction='P'` / Receipt `Direction='R'` header BU; cross-BU
+    receipts fall outside). FE BU dropdown + amber note (ภ.พ.30/ภ.ง.ด.50 filed company-level). `+1`
+    test `Business_unit_filter_isolates_revenue_and_expense`. **Api 329/0/3** · tsc 0 · live smoke
+    BU REPT (rev 3,000/VAT 210 vs company 22,600) · visual ✓.
+  Out v1: ภ.พ.36 line (net-zero, อยู่ใน VAT register) · CIT estimate (dashboard เอง) · PDF export.
 - ☑ **ภ.พ.01/09 v1 identity prefill (cont.92b, 2026-06-12):** `GET /tax-filings/pp01/pdf` + `/pp09/pdf`
   — page-1 company header only (taxid 13-comb, postal 5-comb, address, email/website), print-and-sign,
   no radio ever ticked (form-defect groups recorded in `pp01_map.md`/`pp09_map.md`, all PREFILL fields
