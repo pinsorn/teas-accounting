@@ -46,6 +46,8 @@ public sealed record Pnd30Summary(
 
 public interface IVatReportService
 {
-    Task<VatRegisterPeriod> GetRegisterAsync(int year, int month, CancellationToken ct);
-    Task<Pnd30Summary> GetPnd30Async(int year, int month, CancellationToken ct);
+    // businessUnitId (2026-06-13): optional analytical filter for the tax-summary dashboard
+    // BU lens. null = company-wide (the ภ.พ.30 filing basis — VAT is filed per company, not BU).
+    Task<VatRegisterPeriod> GetRegisterAsync(int year, int month, CancellationToken ct, int? businessUnitId = null);
+    Task<Pnd30Summary> GetPnd30Async(int year, int month, CancellationToken ct, int? businessUnitId = null);
 }

@@ -75,9 +75,9 @@ public static class ReportEndpoints
         // 2026-06-13 — monthly tax summary dashboard (revenue/expense + VAT + WHT
         // paid/received per month). Year defaults to the current Asia/Bangkok year.
         group.MapGet("/tax-summary", async (
-            [FromQuery] int? year, ITaxSummaryService svc,
+            [FromQuery] int? year, [FromQuery] int? businessUnitId, ITaxSummaryService svc,
             Accounting.Application.Abstractions.IClock clock, CancellationToken ct) =>
-                Results.Ok(await svc.GetAsync(year ?? clock.TodayInBangkok().Year, ct)))
+                Results.Ok(await svc.GetAsync(year ?? clock.TodayInBangkok().Year, ct, businessUnitId)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.ProfitLoss);
 
         // Number-gap audit (CLAUDE.md §4.3 / plan §17.6). Empty result = compliant.

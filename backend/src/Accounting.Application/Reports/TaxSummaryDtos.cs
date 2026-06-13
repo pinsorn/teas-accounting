@@ -28,5 +28,8 @@ public sealed record TaxSummaryReport(
 
 public interface ITaxSummaryService
 {
-    Task<TaxSummaryReport> GetAsync(int year, CancellationToken ct);
+    // businessUnitId (2026-06-13): optional analytical BU lens. null = company-wide.
+    // WHT is BU-resolved via the source PV (Direction='P') / Receipt (Direction='R');
+    // cross-BU receipts (header BU null) fall outside any single-BU filter.
+    Task<TaxSummaryReport> GetAsync(int year, CancellationToken ct, int? businessUnitId = null);
 }
