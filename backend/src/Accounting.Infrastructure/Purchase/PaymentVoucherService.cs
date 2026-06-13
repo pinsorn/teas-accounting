@@ -135,6 +135,14 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         var payerMode = req.WhtPayerMode
             ?? (wantsSelfWithhold ? WhtPayerModes.GrossUpForever : WhtPayerModes.Deduct);
 
+        // ม.82/5 — a non-VAT-registered vendor issues no tax invoice, so no input VAT may
+        // be charged/claimed on the purchase. Reject any VAT line (the FE also forces the
+        // per-line VAT to 0 and hides the input for such vendors). Foreign vendors stay
+        // VatRegistered=true and route VAT via ภ.พ.36 reverse charge, so they are unaffected.
+        if (!vendor.VatRegistered && req.Lines.Any(l => l.VatRate > 0m))
+            throw new DomainException("pv.vendor_not_vat_registered",
+                "Vendor is not VAT-registered — VAT cannot be charged on this purchase (ม.82/5).");
+
         var lines = new List<PaymentVoucherLine>();
         for (var i = 0; i < req.Lines.Count; i++)
         {

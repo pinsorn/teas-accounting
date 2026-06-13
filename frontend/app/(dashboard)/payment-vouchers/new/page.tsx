@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
 import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
-import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
+import { ProductPicker, taxRateForProductType } from '@/components/forms/ProductPicker';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { apiPost } from '@/lib/api';
 import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
@@ -23,15 +23,17 @@ import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
 interface Row {
   key: number; description: string; amount: number;
-  vatRate: number; whtRate: number; recoverable: boolean;
-  productType: ProductTypeStr;
+  whtRate: number; recoverable: boolean;
+  // Set by the ProductPicker (master) or defaults for an ad-hoc free-text line.
+  // VAT is DERIVED from productType + the vendor's VAT status — never typed by hand.
+  productId: number | null; productCode: string | null; productType: ProductTypeStr;
   // cont.77 — the 50ทวิ income type (WhtType) for this line. Picking one auto-fills the
   // WHT rate; null = no WHT (or fall back to the expense-category default at post).
   whtTypeId: number | null;
 }
 const emptyRow = (k: number): Row =>
-  ({ key: k, description: '', amount: 0, vatRate: 0, whtRate: 0, recoverable: true,
-     productType: 'GOOD', whtTypeId: null });
+  ({ key: k, description: '', amount: 0, whtRate: 0, recoverable: true,
+     productId: null, productCode: null, productType: 'GOOD', whtTypeId: null });
 
 function PvForm() {
   const t = useTranslations('pv');
@@ -85,7 +87,7 @@ function PvForm() {
             ...emptyRow(i + 1),
             description: l.descriptionTh,
             amount: l.lineAmount,
-            vatRate: l.lineAmount > 0 ? Math.round((l.taxAmount / l.lineAmount) * 100) / 100 : 0,
+            // VAT is derived from product type + vendor status — not copied from the PO line.
           }))
         : [emptyRow(1)],
     );
@@ -108,8 +110,11 @@ function PvForm() {
   // no tax invoice → nothing to claim). Default true until the vendor loads.
   const vendorVat = vendor?.vatRegistered ?? true;
 
+  // VAT is derived, never typed: 0 if the vendor isn't VAT-registered (ม.82/5) or the
+  // product is VAT-exempt (ม.81); otherwise the standard rate for that product type.
+  const lineVat = (r: Row): number => (vendorVat ? taxRateForProductType(r.productType) : 0);
   const subtotal = rows.reduce((s, r) => s + r.amount, 0);
-  const vat = vendorVat ? rows.reduce((s, r) => s + r.amount * r.vatRate, 0) : 0;
+  const vat = rows.reduce((s, r) => s + r.amount * lineVat(r), 0);
   // Mirrors WhtPayerModes.Compute (BE): gross-up the base under self-withhold.
   const whtFor = (amount: number, rate: number) => {
     if (rate <= 0) return 0;
@@ -158,7 +163,7 @@ function PvForm() {
           amount: r.amount,
           taxCodeId: null,
           isRecoverableVat: catRecoverable,
-          vatRate: vendorVat ? r.vatRate : 0,
+          vatRate: lineVat(r),
           whtTypeId: r.whtTypeId,
           whtRate: r.whtRate,
           productType: r.productType,
@@ -315,15 +320,24 @@ function PvForm() {
           {rows.map((r) => (
             <div key={r.key} className="grid grid-cols-1 gap-3 rounded-lg border border-base-300 p-3 md:grid-cols-4">
               <label className="form-control md:col-span-2">
-                <span className="label-text">รายละเอียด *</span>
-                <input className="input input-bordered input-sm" value={r.description}
-                  onChange={(e) => setRow(r.key, { description: e.target.value })} />
+                <span className="label-text">{t('item')} *</span>
+                {/* รายการดึงจาก /settings/products (purpose=purchase); พิมพ์เองได้สำหรับ ad-hoc. */}
+                <ProductPicker
+                  description={r.description}
+                  ariaLabel={`รายละเอียด ${rows.indexOf(r) + 1}`}
+                  purpose="purchase"
+                  businessUnitId={businessUnitId}
+                  onDescriptionChange={(text) =>
+                    setRow(r.key, { description: text, productId: null, productCode: null, productType: 'GOOD' })}
+                  onSelectProduct={(p) =>
+                    setRow(r.key, {
+                      description: p.nameTh, productId: p.productId, productCode: p.productCode,
+                      productType: p.productType,
+                      // master may seed price but never locks it (Ham cont.81): only fill if empty.
+                      amount: r.amount > 0 ? r.amount : (p.defaultUnitPrice ?? 0),
+                    })}
+                />
               </label>
-              <ProductTypeSelect
-                value={r.productType}
-                onChange={(v) => setRow(r.key, { productType: v })}
-                testId="pv-line-product-type"
-              />
               <label className="form-control">
                 <span className="label-text">{t('subtotal')} *</span>
                 <input type="number" className="input input-bordered input-sm" value={r.amount}
@@ -331,11 +345,12 @@ function PvForm() {
               </label>
               <label className="form-control">
                 <span className="label-text">VAT</span>
-                <input type="number" step="0.01" className="input input-bordered input-sm"
-                  value={vendorVat ? r.vatRate : 0}
-                  disabled={!vendorVat}
-                  title={!vendorVat ? t('vendorNoVat') : undefined}
-                  onChange={(e) => setRow(r.key, { vatRate: Number(e.target.value) || 0 })} />
+                {/* คำนวณอัตโนมัติจากสินค้า/บริการ + สถานะ VAT ของผู้ขาย — แก้เองไม่ได้ */}
+                <div className="input input-bordered input-sm flex items-center bg-base-200 text-base-content/70"
+                  data-testid="pv-line-vat" title={!vendorVat ? t('vendorNoVat') : undefined}>
+                  {(lineVat(r) * 100).toFixed(0)}%
+                  {!vendorVat && <span className="ml-1 text-xs">· {t('vendorNoVatShort')}</span>}
+                </div>
               </label>
               <label className="form-control md:col-span-2">
                 <span className="label-text">{t('whtType')}</span>
