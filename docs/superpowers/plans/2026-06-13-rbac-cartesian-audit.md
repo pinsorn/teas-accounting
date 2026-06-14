@@ -1,6 +1,6 @@
 # Plan 2 — RBAC Full Cartesian Audit (ไล่เช็คทุกคู่ บทบาท × endpoint)
 
-> **Status:** DRAFT (Opus 4.8, 2026-06-13). Core of Sprint 13k. Not started.
+> **Status:** DRAFT (Opus 4.8, 2026-06-13; reconciled 2026-06-14 after Plan 1 shipped). Core of Sprint 13k. Not started — see §0a for deltas from Plan 1.
 > **Goal:** พิสูจน์ว่า **ทุกคู่ (role × endpoint ที่มี permission)** บังคับสิทธิ์ถูกต้อง —
 > allow ที่ควร allow, 403 ที่ควรปฏิเสธ. หาช่องโหว่ (over-grant / missing-grant) แล้วแก้.
 
@@ -11,6 +11,25 @@
 - Test เดิม = จุดๆ (`payment-voucher-non-super-rbac`, `pv-approval-permission`, `rbac-chapter3`) —
   ไม่ครบ ไม่ใช่ Cartesian.
 - **ยังไม่มี matrix ที่เป็น source of truth** ว่า role ไหน "ควร" ได้ endpoint ไหน.
+
+## 0a. Deltas จาก Plan 1 (shipped 2026-06-14, commit b8b4773 — ต้องอัพเดทก่อนเริ่ม)
+- **Endpoints เพิ่ม:** +9 operations `/admin/rbac/*` (GET permissions · GET/POST roles · GET/PUT/DELETE roles/{id} ·
+  PUT roles/{id}/permissions · GET users · PUT users/{id}/roles) gated `sys.role.manage` / `sys.user.manage`.
+  → endpoint count **63 → ~72**, matrix **~756 → ~864 คู่**. Phase A generator จะ scan เจอเอง (ไม่ต้องแก้มือ).
+- **`sys.permissions` 52 → 66:** `520_seed_missing_permission_codes.sql` insert 14 codes ที่ enforce บน endpoint
+  แต่เดิมไม่เคย seed (`gl.period.close`, `sales.{receipt,credit_note,debit_note}.{create,post}`, `purchase.wht.read`,
+  `tax.{vat_register,pnd30,pnd3,pnd53}.read`, `report.{trial_balance,profit_loss}.read`). ตอนนี้ catalog grantable ครบ.
+- **⚠️ มติ Ham 2026-06-14 — 14 perm นี้ grant ให้ SUPER_ADMIN เท่านั้น (ไม่ผูก default role อื่น):** การจัดการ
+  ทำผ่าน admin UI (Plan 1). **Phase B/D ต้องถือว่า expected = ✗ สำหรับ non-super** — ไม่ flag เป็น under-grant
+  finding (เช่น AR_CLERK สร้าง receipt ผ่าน HTTP ไม่ได้ = by design จนกว่า admin จะ grant ใน UI). matrix doc
+  ต้อง encode ข้อนี้ชัด.
+- **403 ใช้ได้จริงบน root/BFF endpoints แล้ว:** `DomainExceptionMiddleware` เปลี่ยนเป็น `StatusFor(code)` →
+  `*.scope_required`→403, `*.not_found`→404 (เดิม root hardcode 422). cross-company isolation assertion (§2a)
+  ตอนนี้คืน 403 จริง. (permission-gate denial ยังเป็น 403 จาก ASP.NET auth เหมือนเดิม — ไม่กระทบ Phase C core.)
+- **Roles เป็น per-company จริงแล้ว** (Plan 1): SUPER_ADMIN = global เดียว (company_id NULL), 11 roles/บริษัท
+  copy จาก template เดียว. matrix canonical = `role_code × permission` (template). Cartesian สร้าง JWT จากบริษัทอ้างอิง.
+- **Test ใหม่ที่มีแล้ว:** `RbacAdminServiceTests` (24, service+DB) + e2e `rbac-admin.spec.ts` — ยังเป็น CRUD/scope ของ
+  admin API ไม่ใช่ Cartesian enforcement; Plan 2 ยังต้องทำ.
 
 ## 1. แนวทาง (data-driven test, ไม่ใช่ไล่มือ 756 ครั้ง)
 หัวใจ = สร้าง **matrix เดียวเป็น source of truth** แล้วเขียน test ตัวเดียวที่วน matrix นั้น.
@@ -44,7 +63,8 @@
 - Finding ที่คาดจะเจอ:
   - endpoint ลืม permission (เปล่า/แค่ authn) → ใส่ perm ให้ถูก.
   - role ได้ perm เกิน (over-grant) → ถอดใน seed ใหม่.
-  - role ขาด perm ที่ควรได้ (เช่น AR_CLERK อ่าน receipt ไม่ได้) → เพิ่ม seed.
+  - role ขาด perm ที่ควรได้ → เพิ่ม seed. **แต่ระวัง:** 14 perm จาก §0a (receipt/CN/DN create+post ฯลฯ)
+    เป็น default-unassigned ตั้งใจ (มติ Ham) — ไม่นับเป็น under-grant; grant ผ่าน UI ถ้าต้องการ.
 - ทุกการแก้ grant = seed SQL ใหม่ (idempotent) + migration ถ้าจำเป็น.
 - แก้แล้ว rerun Cartesian test จนเขียว.
 
@@ -76,9 +96,9 @@
   + company-scope enforcement.
 
 ## 3. ลำดับกับ Plan 1
-- ทำ **Plan 2 ก่อนได้เลย** (ไม่ต้องรอ UI) — matrix + test ทำงานบน seed ปัจจุบัน.
-- ถ้าทำ Plan 1 (UI) ด้วย → Cartesian test กลายเป็น regression guard ให้ UI: แก้ grant ผ่าน UI แล้ว
-  ถ้าทำ matrix เพี้ยน test จับได้.
-- **แนะนำ: Plan 2 Phase A–C ก่อน** (เห็นช่องโหว่จริงก่อน) → แก้ (D) → แล้วค่อย Plan 1 (UI) → Plan 2 E (FE).
+- **Plan 1 (UI) ☑ DONE แล้ว (2026-06-14).** Plan 2 ทำได้เลยบน per-company schema ปัจจุบัน — กลายเป็น
+  regression guard ให้ UI: แก้ grant ผ่าน UI แล้วถ้า matrix เพี้ยน Cartesian test จับได้.
+- matrix doc (Phase B) = source of truth ที่ "ของจริงควรเป็น"; เทียบกับ `sys.role_permissions` (ที่ UI/seed เซ็ต).
+- **ทำตามลำดับ Phase A → B → C → D → E → F** ได้เลย (ไม่มี dependency ค้างจาก Plan 1 อีก).
 
 ## 4. ประมาณการ: 2 session (A–D ~1.5, E–F ~0.5). ใหญ่สุดคือ matrix review + แก้ over/under-grant.
