@@ -1,6 +1,8 @@
 # Plan 1 — Role / Permission Admin UI (จัดการสิทธิ์ผ่านหน้าจอ)
 
-> **Status:** DRAFT (Opus 4.8, 2026-06-13). Part of Sprint 13k. Not started.
+> **Status:** ☑ DONE (Opus 4.8, 2026-06-14, branch `feat/rbac-per-company-admin-ui`). Phases 0,A,B,C,D shipped;
+> Api 354/0/3, tsc 0, next build 0/0, accounting_dev converted + live smoke + visual gate ✓. Phase E
+> remainder: openapi.yaml 9 paths + formal Playwright spec pending (live browser e2e done). See progress.md cont.95.
 > **Goal:** ให้ super-admin จัดการ role + grant permission + มอบ role ให้ user ผ่านหน้าจอ
 > แทนการแก้ seed SQL มือ. เปลี่ยนสิทธิ์ทุกครั้ง = audit log (§4.8).
 

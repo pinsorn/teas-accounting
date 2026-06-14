@@ -73,8 +73,10 @@ public sealed class DomainExceptionMiddleware
         }
         catch (DomainException ex)
         {
-            // Root / BFF — unchanged RFC-7807.
-            ctx.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+            // Root / BFF — RFC-7807. Honour the same code→status map as the v1 surface so
+            // auth.*→401, *.scope_required→403 (cross-company RBAC), *.not_found→404 etc. work
+            // here too; defaults to 422 for ordinary business-rule violations.
+            ctx.Response.StatusCode = StatusFor(ex.Code);
             ctx.Response.ContentType = "application/problem+json";
             var payload = new
             {

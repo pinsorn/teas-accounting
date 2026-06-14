@@ -62,13 +62,38 @@ public sealed class PostgresFixture : IAsyncLifetime
             "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";");
         await db.Database.MigrateAsync();
 
-        // RLS + triggers + append-only + seed, in lexical order.
+        // RLS + triggers + append-only + seed, in lexical order — applied ONCE per DB, tracked in
+        // sys.applied_sql_scripts (mirrors DbInitializer). teas_test persists across `dotnet test`
+        // invocations, so replaying scripts every run is both wasteful and, post per-company-RBAC
+        // conversion (510), incorrect: 110's ON CONFLICT (role_code) would fail once 510 has
+        // swapped the global role_code unique for a per-company one. Apply-once matches prod.
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE SCHEMA IF NOT EXISTS sys;
+            CREATE TABLE IF NOT EXISTS sys.applied_sql_scripts (
+                script_name TEXT PRIMARY KEY,
+                applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            """);
+        var applied = (await db.Database
+                .SqlQueryRaw<string>("SELECT script_name AS \"Value\" FROM sys.applied_sql_scripts")
+                .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Bootstrap scripts can be heavy (e.g. 510 fans per-company roles out to every company;
+        // a long-lived shared teas_test accumulates hundreds of test companies). Allow well past
+        // the 30s default so the one-time conversion never trips the command timeout.
+        db.Database.SetCommandTimeout(300);
+
         var scriptsDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src",
             "Accounting.Infrastructure", "Migrations", "SqlScripts");
         foreach (var path in Directory.GetFiles(scriptsDir, "*.sql").OrderBy(p => p, StringComparer.Ordinal))
         {
+            var name = Path.GetFileName(path);
+            if (applied.Contains(name)) continue;
             var sql = await File.ReadAllTextAsync(path);
             await db.Database.ExecuteSqlRawAsync(sql);
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO sys.applied_sql_scripts(script_name) VALUES ({0})", name);
         }
     }
 

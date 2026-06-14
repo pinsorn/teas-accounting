@@ -784,8 +784,14 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
   `ProductQuickCreateModal` inline create from the line table · DefaultWhtType flow · price
   auto-fills on pick but stays per-line editable (master does NOT lock price, per spec) ·
   purchase/sale split + BU scope on the picker.
-- ☐ **Sprint 13k (queued)** — Security + RBAC full Cartesian + Performance +
+- ◐ **Sprint 13k (in progress)** — Security + RBAC full Cartesian + Performance +
   Accessibility audit (Answer-30; after 13j).
+  - ☑ **Plan 1 — Role/Permission Admin UI (per-company)** SHIPPED 2026-06-14 (branch
+    `feat/rbac-per-company-admin-ui`, cont.95): per-company roles schema+reconcile (510) +
+    perm-seed-gap fix (520) + `RbacAdminService`/endpoints (23 tests) + FE `/settings/{roles,users}`.
+    Api 354/0/3, tsc 0, accounting_dev converted + visual gate. Remainder: openapi 9 paths +
+    formal Playwright spec (live browser e2e done); not yet committed.
+  - ☐ **Plan 2 — RBAC full Cartesian audit** (`docs/superpowers/plans/2026-06-13-rbac-cartesian-audit.md`).
 - ☐ **Sprint 13L (queued)** — DevOps: migration rollback + build pipeline +
   test skip audit (Answer-31; after 13k).
 - ☐ **Chapter 3 manual** — re-deferred per CLAUDE.md §16, authored ONLY after

@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart, ShieldCheck, UsersRound } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
 import { useCompanyProfile, useMePermissions, useSystemInfo } from '@/lib/queries';
@@ -16,7 +16,9 @@ import { toast } from 'sonner';
 // non-VAT company is still a withholding agent.
 // superAdminOnly: shown only for super admins (hidden, not disabled — same rule
 // as PermissionGate; BE enforces master.company.manage regardless).
-type NavItem = { href: string; key: string; Icon: typeof LayoutDashboard; badge?: number; vatOnly?: boolean; superAdminOnly?: boolean };
+// perm: shown when the user holds this permission OR is a super admin (RBAC admin
+// pages are dual-audience: super-admins + company-admins with the grant).
+type NavItem = { href: string; key: string; Icon: typeof LayoutDashboard; badge?: number; vatOnly?: boolean; superAdminOnly?: boolean; perm?: string };
 
 const SECTIONS: { key: string; items: NavItem[] }[] = [
   {
@@ -82,6 +84,9 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/settings/company', key: 'company', Icon: Building2 },
       // Per-company VAT mode — super-admin companies CRUD (tax config per tenant).
       { href: '/settings/companies', key: 'companies', Icon: Landmark, superAdminOnly: true },
+      // Per-company RBAC admin — super-admin OR a company-admin holding the grant.
+      { href: '/settings/roles', key: 'roles', Icon: ShieldCheck, perm: 'sys.role.manage' },
+      { href: '/settings/users', key: 'users', Icon: UsersRound, perm: 'sys.user.manage' },
       { href: '/settings/products', key: 'products', Icon: Package },
       { href: '/settings/business-units', key: 'businessUnits', Icon: Layers },
       { href: '/settings/employees', key: 'employees', Icon: Users },
@@ -110,7 +115,9 @@ export function SidebarNav() {
   // menu is unchanged before /system/info resolves and for VAT registrants.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   // Default false: super-admin-only items appear only once /me/permissions confirms.
-  const isSuperAdmin = useMePermissions().data?.isSuperAdmin ?? false;
+  const me = useMePermissions().data;
+  const isSuperAdmin = me?.isSuperAdmin ?? false;
+  const myPerms = me?.permissions ?? [];
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1');
@@ -191,7 +198,10 @@ export function SidebarNav() {
                 </div>
               ))}
             {section.items
-              .filter((it) => (!it.vatOnly || vatMode) && (!it.superAdminOnly || isSuperAdmin))
+              .filter((it) =>
+                (!it.vatOnly || vatMode)
+                && (!it.superAdminOnly || isSuperAdmin)
+                && (!it.perm || isSuperAdmin || myPerms.includes(it.perm)))
               .map(({ href, key, Icon, badge }) => {
               const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
               return (

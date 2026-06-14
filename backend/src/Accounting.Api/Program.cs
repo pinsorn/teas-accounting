@@ -150,6 +150,7 @@ app.MapAuthEndpoints();
 app.MapCustomerEndpoints();
 app.MapMasterEndpoints();
 app.MapBusinessUnitEndpoints();
+app.MapRbacAdminEndpoints();
 app.MapEmployeeEndpoints();
 app.MapPayrollEndpoints();
 app.MapCompanyProfileEndpoints();
