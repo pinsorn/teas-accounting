@@ -35,11 +35,17 @@ python -m mkdocs build -f docs/manual/mkdocs.yml   ← pnpm manual:site
 ```
 
 **Commands (pnpm มักไม่อยู่ใน PATH → ใช้ตรง):**
-- capture: `cd frontend && node "node_modules\.pnpm\@playwright+test@1.60.0\node_modules\@playwright\test\cli.js" test -c manual/playwright.config.ts`
-  (หรือกรองบท: `... test -c manual/playwright.config.ts -g "02.0"`)
+- capture: `cd frontend && node node_modules/@playwright/test/cli.js test -c manual/playwright.config.ts`
+  (หรือกรองบท: `... test -c manual/playwright.config.ts -g "02.0"`) — path `.pnpm/@playwright+test@1.60.0/...` เดิม **ใช้ไม่ได้** (module not found); ใช้ hoisted path นี้.
 - gen md: `cd frontend && node manual/gen-markdown.mjs`
 - build site: `cd docs/manual && python -m mkdocs build -f mkdocs.yml` → ออกที่ `docs/_site/`
 - toolchain ยืนยันแล้วมีในเครื่อง: Python 3.10 + mkdocs 1.6.1 + mkdocs-material. (ข้าม `manual:pdf` — Ham อยาก HTML)
+- **บทที่ 7 (ภาษี) — ตัวอย่าง PDF ที่ระบบ fill แล้ว:** ก่อน capture บท 7 ต้องรัน
+  `cd frontend && python manual/render-pdf-samples.py` (backend :5080 + co2 seed ขึ้นอยู่) ก่อน →
+  เรียก endpoint `/tax-filings/pnd51,pnd50/pdf` + `/wht-certificates/{id}/pdf` แล้ว render หน้าแรก
+  ด้วย **PyMuPDF (fitz)** ลง `frontend/manual/pdf-samples/*.png`. walkthrough ฝังผ่าน
+  `lib/pdf-sample.ts` → `showPdfSample()` (guard: ไฟล์หาย → throw "run render-pdf-samples.py first").
+  render ได้: ภ.ง.ด.51 · ภ.ง.ด.50 · 50ทวิ. (ภ.ง.ด.1/1ก ต้อง payroll run posted ก่อน — DRAFT = 404/422.)
 
 **Capture config** `frontend/manual/playwright.config.ts`: testMatch `run-capture.spec.ts`, baseURL :3000,
 viewport 1440×900, locale th-TH. **ต้องมี stack รันอยู่ก่อน** (ดู §3).

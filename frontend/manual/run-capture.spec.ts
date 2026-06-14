@@ -43,6 +43,7 @@ import './walkthroughs/05.05-vendor-vat-types';
 import './walkthroughs/06.01-payroll-run';
 import './walkthroughs/07.01-pnd30-vat-return';
 import './walkthroughs/07.02-wht-filing';
+import './walkthroughs/07.03-corporate-income-tax';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 

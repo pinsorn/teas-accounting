@@ -3,6 +3,19 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-15 (cont. 98g — "บท 7 ต่อเลย พร้อมตัวอย่าง pdf ที่ fill แล้ว" [Ham ตื่นแล้ว สั่งต่อ]) — **บท 7 ต่อ: 07.03 ภาษีเงินได้นิติบุคคล (ภ.ง.ด.51/50) + ฝัง "PDF แบบ RD ที่ระบบกรอกแล้ว" จริง (pipeline ใหม่ render-pdf-samples.py + showPdfSample) + 07.02 ได้ตัวอย่าง 50ทวิ สะอาด. gen-md 32 wt · 147 steps · mkdocs 0 error · ম clean.**
+
+- **ที่มา:** Ham สั่ง "บท 7 ต่อเลย พร้อมตัวอย่าง pdf ที่ fill แล้ว" → ต่อบท 7 + แสดง **PDF ฟอร์มกรมสรรพากรที่ระบบ fill ให้** ในคู่มือ.
+- **🔧 pipeline ใหม่ (PDF→PNG→ฝังในคู่มือ):**
+  - `frontend/manual/render-pdf-samples.py` — login co2 (demo-admin) → เรียก `/tax-filings/pnd51/pdf?year=2026`, `/tax-filings/pnd50/pdf?year=2026&attestFirstFiling=true&attestBlankSchedules=true`, `/wht-certificates/{id}/pdf` → **render หน้า 1 ด้วย PyMuPDF (fitz, มีในเครื่อง)** ลง `frontend/manual/pdf-samples/*.png`. เลือกใบ 50ทวิ **by payee "เช่า/พร็อพเพอร์ตี้"** (ไม่ hardcode id — id เลื่อนได้).
+  - `frontend/manual/lib/pdf-sample.ts` → `showPdfSample(page, file)` — ฝัง PNG เป็น `<img>` กลางจอบนพื้นเทาแบบ PDF viewer (`max-height:96vh`) แล้ว `capture()` screenshot ตามปกติ → เข้า pipeline JSON/gen-md เดิม. **guard:** ไฟล์หาย → throw "run render-pdf-samples.py first" (บทเรียน 06.01).
+- **🔬 empirical probe (ไม่เดา):** pnd51 `?year` bare = **200** (2p, render ได้เลย; ใส่ attest flags กลับ 422 worksheet_not_attestable → ใช้ bare); pnd50 ต้อง `attestFirstFiling+attestBlankSchedules` = **200** (7p); pnd1/1a = **404/422** (payroll run 202602 ยัง DRAFT → ไม่มี posted payroll → ข้าม); pp01/pp09 = 200 แต่ fill แค่หัวกระดาษ (สรรพากรตั้งใจ) → **ข้าม** (sparse, advisor บอก flagship = 50ทวิ+51/50).
+- **07.03 ภาษีเงินได้นิติบุคคล (CIT)** (`/tax-filings/cit`, 3 step) — (1) **แดชบอร์ด CIT** สด: บันได รายได้ 98,600 → กำไรบัญชี 1,315.72 → กำไรภาษี 1,315.72 → ภาษี 263.14 − เครดิต 50ทวิ 450 = **ชำระเกิน 186.86**; งบฐานะ **balanced 27,148**. **(รายได้ 98,600 ตรงกับ ภ.พ.30 07.01 — manual สอดคล้องทั้งเล่ม.)** (2) **ภ.ง.ด.51** PDF กรอกแล้ว (หัวกระดาษ+ช่องภาษี 263.15) (3) **ภ.ง.ด.50** PDF หน้าปก.
+- **07.02 redeemed:** เพิ่ม step-02 = **50ทวิ PDF กรอกแล้ว** (ใบค่าเช่า: 30,000 → หัก 5% = 1,500, สะอาด — ตรง 05.03) → ชดเชยตาราง pnd53 ที่ตัดออกเพราะ e2e noise.
+- **advisor:** ✅ ยกเลิก "อย่าเริ่ม 07.03" (Ham สั่ง override autonomy frame เดิม) · ✅ eyeball **ตัวเลข** CIT (ไม่ใช่แค่ template) — coherent (BS ดุล, ภาษี=20%, refusals=[]) · ✅ guard dep ใหม่ · ✅ ลบ probe (`_probe_*.py`, `_pdf_probe_out/`) · ✅ 50ทวิ→07.02 redemption.
+- **Gates:** gen-md **32 wt · 147 steps** · mkdocs **0 error** · ch7 มี ภ.ง.ด.51/50/50ทวิ · ম clean · **eyeball ทุกภาพ** (dashboard ตัวเลข + ภ.ง.ด.51 legible เต็มหน้า + 50ทวิ + pnd50) · INSTRUCTIONS.md += renderer step + fix cli path (.pnpm เดิม module-not-found → hoisted path). render-pdf-samples 3/3.
+- **ค้าง / ถัดไป:** ภ.ง.ด.51 ใช้ bare (worksheet ไม่ attestable — ถ้าอยากโชว์ worksheet p2 ต้องข้อมูล footing) · pp01/09 (จดทะเบียน VAT) ถ้าอยากได้ก็เพิ่มได้ (sparse) · ภ.ง.ด.1/1ก ต้อง post payroll ก่อน · บท 8 รายงาน-GL · บท 9 e-Tax · (เดิม) localize pnd30 EN warning · polish ตาราง pnd53 บน demo สะอาด.
+
 ## 2026-06-15 (cont. 98f — autonomous overnight, ต่อจาก 98e: advisor fixes บท 6 + เริ่มบท 7 ภาษี) — **(1) แก้ความถูกต้อง 06.01 เงินเดือน: caption เท็จ "เงินเดือนเท่ากัน" → ตัวเลขจริงรายคน + เพดาน ปกส ฿750→฿875 + guard. (2) เริ่มบท 7 ภาษี: 07.01 ภ.พ.30 VAT return + 07.02 ภ.ง.ด.3/53 WHT (read-only preview ทั้งคู่). 5 commits (`71b6ccc`,`a3545b4`,`85178a1`,`2a43458`,`3fce9a0`). gen-md 31 wt · 144 steps · mkdocs 0 error · ম clean.**
 
 - **ที่มา:** advisor review รอบปิด batch 98e จับ 3 issue บน 06.01 (commit `6a85649`). ตรวจ + แก้ทั้งหมด autonomous (Ham นอน).
