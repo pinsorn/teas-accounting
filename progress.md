@@ -3,6 +3,14 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-14 (cont. 97c — "ทำให้คู่มือเป็น HTML หลายๆหน้า Step by Step เริ่มตั้งแต่ Install") — **คู่มือ HTML multi-page (MkDocs) phase 1: บทที่ 0 ติดตั้ง+ผู้ดูแลระบบ + roadmap ทุก module.**
+
+- **ตัดสินใจ:** ต่อยอด pipeline เดิม (Sana track) ไม่สร้างใหม่ — `frontend/manual/walkthroughs/*.ts` (Playwright per-step capture) → `gen-markdown.mjs` → MkDocs Material (TH, Sarabun) → `docs/_site/*.html`. ยืนยัน toolchain: Python 3.10 + mkdocs 1.6.1 + mkdocs-material ติดตั้งแล้ว, build ผ่าน.
+- **Phase 1 (ครั้งนี้):** เขียน **บทที่ 0 — ติดตั้งระบบ + ตั้งผู้ดูแล** (`docs/manual/chapters/00-ติดตั้งและผู้ดูแลระบบ.md`, prose ไทยละเอียด): prerequisites · install (DB/env/build/run) · DbInitializer (migrations+seed apply-once) · **bootstrap super admin** (seed `admin`/`Admin@1234`, เปลี่ยนรหัสทันที; SUPER_ADMIN = flag กำหนดผ่าน UI ไม่ได้ → DB op) · **สร้างบริษัท + ตั้งค่าภาษี** (§4.6 super-only) + auto-clone 11 per-company roles · สร้าง role/user · ลำดับตั้งค่าแนะนำ. + roadmap ทุก module ใน `index.md` (บท 0–2 + RBAC guide = พร้อม; 3–9 ขาย/ซื้อ/เงินเดือน/ภาษี/รายงาน/e-Tax = ถัดไป). mkdocs nav += บท 0 + RBAC guide.
+- **advisor:** Install/สร้าง-super-admin = terminal/seed **ไม่ใช่ UI flow** (อย่า fake walkthrough) · create-company = UI flow จริง (walkthrough ถัดไป) · "ครบทุก module" = หลาย session, ส่ง phase 1 จริง ไม่ใช่ stub เปล่า.
+- **Build:** `python -m mkdocs build -f docs/manual/mkdocs.yml` → `docs/_site/` (gitignored, 24MB regenerable). บทที่ 0 render ครบ 0.1–0.7. (rbac-ui-guide screenshots นอก docs_dir → broken ใน site = known follow-up.)
+- **ถัดไป:** บท 3+ แบบ captured walkthrough (เริ่ม create-company) — reuse fixture knowledge (purchase-chain API seed, SoD creator≠approver) จาก cont.97b.
+
 ## 2026-06-14 (cont. 97b — "ลุยอันที่ deferred ไว้เลย") — **Plan 3 detail-lifecycle buttons asserted (PV/PO/VI/TI) — e2e 24/24 · 1284 checks · 0 mismatches ×2.** FE tsc 0 · next build 0/0.
 
 - **ที่มา:** Ham สั่งทำ deferred detail-lifecycle buttons ต่อจาก cont.97. ขยาย `rbac-ui-gating` ให้ assert ปุ่ม approve/post/cancel/create-from บนหน้า detail.

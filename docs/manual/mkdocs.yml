@@ -30,5 +30,7 @@ markdown_extensions:
 
 nav:
   - บทนำ: index.md
+  - "บทที่ 0 — ติดตั้งและผู้ดูแลระบบ": "chapters/00-ติดตั้งและผู้ดูแลระบบ.md"
   - "บทที่ 1 — เริ่มต้นใช้งาน": generated/chapter-01.md
   - "บทที่ 2 — ตั้งค่าระบบ": generated/chapter-02.md
+  - "สิทธิ์การมองเห็น (RBAC UI Guide)": rbac-ui-guide.md
