@@ -17,9 +17,15 @@ public static class PeriodEndpoints
                 Results.Ok(await svc.CloseAsync(year, month, body?.Notes, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Gl.PeriodClose);
 
+        // Sprint 13k Plan 2 (RBAC Cartesian audit) — was reachable WITHOUT auth, so an
+        // unauthenticated caller hit IsOpenAsync with no tenant context (company_id) →
+        // cross-tenant period-status leak. Period status is a benign read needed by
+        // posting flows across every role, so gate it as authenticated-only (the close
+        // action keeps the gl.period.close permission).
         group.MapGet("/{year:int}/{month:int}/status", async (
             int year, int month, IPeriodCloseService svc, CancellationToken ct) =>
-                Results.Ok(new { open = await svc.IsOpenAsync(year, month, ct) }));
+                Results.Ok(new { open = await svc.IsOpenAsync(year, month, ct) }))
+        .RequireAuthorization();
 
         return app;
     }

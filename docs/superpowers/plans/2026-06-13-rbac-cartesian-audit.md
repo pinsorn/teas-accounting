@@ -1,6 +1,9 @@
 # Plan 2 — RBAC Full Cartesian Audit (ไล่เช็คทุกคู่ บทบาท × endpoint)
 
-> **Status:** DRAFT (Opus 4.8, 2026-06-13; reconciled 2026-06-14 after Plan 1 shipped). Core of Sprint 13k. Not started — see §0a for deltas from Plan 1.
+> **Status:** ✅ EXECUTED (Opus 4.8, 2026-06-14). Phases A–F done. Artefacts: `docs/rbac/endpoint-permission-map.generated.md`
+> (255 routes), `docs/rbac/role-permission-matrix.md` (source of truth), tests `RbacAuthMapTests`/`RbacMatrixTests`/
+> `RbacCartesianTests` (green ×2 on teas_test), seed `530_seed_rbac_grant_reconcile.sql`, periods-status auth fix, FE nav
+> permission-gating. Findings for Ham: see §0a strike-through + the matrix doc SoD section. See `progress.md` (top).
 > **Goal:** พิสูจน์ว่า **ทุกคู่ (role × endpoint ที่มี permission)** บังคับสิทธิ์ถูกต้อง —
 > allow ที่ควร allow, 403 ที่ควรปฏิเสธ. หาช่องโหว่ (over-grant / missing-grant) แล้วแก้.
 
@@ -19,10 +22,24 @@
 - **`sys.permissions` 52 → 66:** `520_seed_missing_permission_codes.sql` insert 14 codes ที่ enforce บน endpoint
   แต่เดิมไม่เคย seed (`gl.period.close`, `sales.{receipt,credit_note,debit_note}.{create,post}`, `purchase.wht.read`,
   `tax.{vat_register,pnd30,pnd3,pnd53}.read`, `report.{trial_balance,profit_loss}.read`). ตอนนี้ catalog grantable ครบ.
-- **⚠️ มติ Ham 2026-06-14 — 14 perm นี้ grant ให้ SUPER_ADMIN เท่านั้น (ไม่ผูก default role อื่น):** การจัดการ
+- ~~**⚠️ มติ Ham 2026-06-14 — 14 perm นี้ grant ให้ SUPER_ADMIN เท่านั้น (ไม่ผูก default role อื่น):** การจัดการ
   ทำผ่าน admin UI (Plan 1). **Phase B/D ต้องถือว่า expected = ✗ สำหรับ non-super** — ไม่ flag เป็น under-grant
   finding (เช่น AR_CLERK สร้าง receipt ผ่าน HTTP ไม่ได้ = by design จนกว่า admin จะ grant ใน UI). matrix doc
-  ต้อง encode ข้อนี้ชัด.
+  ต้อง encode ข้อนี้ชัด.~~
+  > **❗STRUCK 2026-06-14 (Phase D execution) — this was a MISDIAGNOSIS, not a real policy.** The audit
+  > traced the super-only state to a **seed-ordering bug**: `320`/`330` *intended* to grant the 6 sales
+  > receipt/CN/DN create+post pairs to ACCOUNTANT/AR_CLERK/CHIEF_ACCOUNTANT/COMPANY_ADMIN, but their
+  > grant statements ran **before** `520` inserted the permission codes into `sys.permissions`, so the
+  > `JOIN sys.permissions` matched nothing and the grants silently no-op'd. `520` then granted the codes
+  > to SUPER_ADMIN only, which got rationalised as "default-unassigned, grant via UI". The other 8 codes
+  > (period.close, wht.read, the 4 tax reads, the 2 report reads) plus `sales.tax_invoice.create/post`,
+  > `gl.journal.*`, `master.vendor.manage`, `report.audit.read`, PO-create were simply **never granted to
+  > any role** — e.g. TAX_OFFICER could read zero tax reports, AR_CLERK could not issue a tax invoice.
+  > **`530_seed_rbac_grant_reconcile.sql` restores all of these per each role's documented purpose**
+  > (every grant justified in the file header + `docs/rbac/role-permission-matrix.md`). The ONLY
+  > permission left SUPER_ADMIN-only is `master.company.manage` (§4.6). Ham authorised this 2026-06-14
+  > ("แก้ได้เลย ถ้าอันไหนไม่สมเหตุสมผล"); **Ham may still veto** any specific grant on return — see the
+  > matrix doc's SoD section + the `sys.role.manage`/`sys.user.manage`→COMPANY_ADMIN line item (530 §D).
 - **403 ใช้ได้จริงบน root/BFF endpoints แล้ว:** `DomainExceptionMiddleware` เปลี่ยนเป็น `StatusFor(code)` →
   `*.scope_required`→403, `*.not_found`→404 (เดิม root hardcode 422). cross-company isolation assertion (§2a)
   ตอนนี้คืน 403 จริง. (permission-gate denial ยังเป็น 403 จาก ASP.NET auth เหมือนเดิม — ไม่กระทบ Phase C core.)

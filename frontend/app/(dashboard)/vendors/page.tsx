@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { useVendors } from '@/lib/queries';
 import type { VendorListItem } from '@/lib/types';
@@ -50,9 +51,11 @@ export default function VendorListPage() {
       <PageHeader
         title={t('title')}
         actions={
-          <Link href="/vendors/new" className="btn btn-primary btn-sm gap-1">
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </Link>
+          <PermissionGate scope="master.vendor.manage">
+            <Link href="/vendors/new" className="btn btn-primary btn-sm gap-1">
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </Link>
+          </PermissionGate>
         }
       />
       <input

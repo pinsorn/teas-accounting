@@ -8,6 +8,7 @@ import { FileCode, Send, ReceiptText } from 'lucide-react';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -85,14 +86,16 @@ export default function TaxInvoiceDetailPage() {
           // assigns the sequential number + fires e-Tax (§4.3/§4.4) — guarded by
           // PostConfirmDialog so the user reviews buyer tax fields first (ม.86/4 #3).
           d.status === 'Draft' ? (
-            <button
-              data-testid="ti-post-action"
-              className="btn btn-primary btn-sm"
-              disabled={post.isPending}
-              onClick={() => setConfirmPost(true)}
-            >
-              {t('post')}
-            </button>
+            <PermissionGate scope="sales.tax_invoice.post">
+              <button
+                data-testid="ti-post-action"
+                className="btn btn-primary btn-sm"
+                disabled={post.isPending}
+                onClick={() => setConfirmPost(true)}
+              >
+                {t('post')}
+              </button>
+            </PermissionGate>
           ) : undefined
         }
       />

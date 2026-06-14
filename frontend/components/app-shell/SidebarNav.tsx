@@ -20,6 +20,11 @@ import { toast } from 'sonner';
 // pages are dual-audience: super-admins + company-admins with the grant).
 type NavItem = { href: string; key: string; Icon: typeof LayoutDashboard; badge?: number; vatOnly?: boolean; superAdminOnly?: boolean; perm?: string };
 
+// Sprint 13k Plan 2 (Phase E) — each item carries the READ permission of its primary endpoint
+// (from docs/rbac/endpoint-permission-map.generated.md) so the nav mirrors the BE gate: a role
+// that would 403 on the section's main endpoint no longer sees the item. Super-admins bypass.
+// Items left ungated are reachable by any authenticated user (dashboard, AuthnOnly endpoints like
+// /documents and the own-company /settings/company profile page).
 const SECTIONS: { key: string; items: NavItem[] }[] = [
   {
     key: 'overview',
@@ -30,18 +35,18 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
   {
     key: 'sales',
     items: [
-      { href: '/customers', key: 'customers', Icon: Users },
-      { href: '/quotations', key: 'quotations', Icon: FileSignature },
-      { href: '/sales-orders', key: 'salesOrders', Icon: ListChecks },
-      { href: '/delivery-orders', key: 'deliveryOrders', Icon: FileInput },
+      { href: '/customers', key: 'customers', Icon: Users, perm: 'master.customer.read' },
+      { href: '/quotations', key: 'quotations', Icon: FileSignature, perm: 'sales.quotation.manage' },
+      { href: '/sales-orders', key: 'salesOrders', Icon: ListChecks, perm: 'sales.sales_order.manage' },
+      { href: '/delivery-orders', key: 'deliveryOrders', Icon: FileInput, perm: 'sales.delivery_order.manage' },
       // Document chain order: Invoice (ใบแจ้งหนี้) precedes the Tax Invoice (ใบกำกับภาษี).
-      { href: '/invoices', key: 'billingNotes', Icon: ReceiptText },
-      { href: '/tax-invoices', key: 'taxInvoices', Icon: FileText, vatOnly: true },
-      { href: '/receipts', key: 'receipts', Icon: Receipt },
+      { href: '/invoices', key: 'billingNotes', Icon: ReceiptText, perm: 'sales.billing_note.read' },
+      { href: '/tax-invoices', key: 'taxInvoices', Icon: FileText, vatOnly: true, perm: 'sales.tax_invoice.read' },
+      { href: '/receipts', key: 'receipts', Icon: Receipt, perm: 'sales.receipt.read' },
       // CN/DN adjust a Tax Invoice's VAT (ม.86/10) — a non-VAT company issues none.
-      { href: '/credit-notes', key: 'creditNotes', Icon: FileMinus, vatOnly: true },
-      { href: '/debit-notes', key: 'debitNotes', Icon: FilePlus, vatOnly: true },
-      { href: '/number-gaps', key: 'numberGaps', Icon: ListChecks },
+      { href: '/credit-notes', key: 'creditNotes', Icon: FileMinus, vatOnly: true, perm: 'sales.credit_note.read' },
+      { href: '/debit-notes', key: 'debitNotes', Icon: FilePlus, vatOnly: true, perm: 'sales.debit_note.read' },
+      { href: '/number-gaps', key: 'numberGaps', Icon: ListChecks, perm: 'report.audit.read' },
     ],
   },
   {
@@ -49,50 +54,52 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
     items: [
       // Document flow order (Ham 2026-05-30): ผู้ขาย → ใบสั่งซื้อ → ใบสำคัญจ่าย →
       // ใบกำกับภาษีซื้อ → หนังสือรับรองหัก ณ ที่จ่าย.
-      { href: '/vendors', key: 'vendors', Icon: Building2 },
-      { href: '/purchase-orders', key: 'purchaseOrders', Icon: ListChecks },
-      { href: '/payment-vouchers', key: 'paymentVouchers', Icon: Wallet },
-      { href: '/vendor-invoices', key: 'vendorInvoices', Icon: FileInput },
-      { href: '/wht-certificates', key: 'whtCerts', Icon: FileSignature },
+      { href: '/vendors', key: 'vendors', Icon: Building2, perm: 'master.vendor.manage' },
+      { href: '/purchase-orders', key: 'purchaseOrders', Icon: ListChecks, perm: 'purchase.purchase_order.read' },
+      { href: '/payment-vouchers', key: 'paymentVouchers', Icon: Wallet, perm: 'purchase.payment_voucher.read' },
+      { href: '/vendor-invoices', key: 'vendorInvoices', Icon: FileInput, perm: 'purchase.vendor_invoice.read' },
+      { href: '/wht-certificates', key: 'whtCerts', Icon: FileSignature, perm: 'purchase.wht.read' },
     ],
   },
   {
     key: 'payroll',
     items: [
-      { href: '/payroll', key: 'payroll', Icon: Coins },
+      { href: '/payroll', key: 'payroll', Icon: Coins, perm: 'payroll.run.manage' },
     ],
   },
   {
     key: 'reports',
     items: [
-      { href: '/reports/tax-summary', key: 'taxSummary', Icon: PieChart },
-      { href: '/reports/trial-balance', key: 'trialBalance', Icon: Scale },
-      { href: '/reports/profit-loss', key: 'profitLoss', Icon: TrendingUp },
-      { href: '/reports/sales-summary', key: 'salesSummary', Icon: BarChart3 },
-      { href: '/reports/pnd30', key: 'pnd30', Icon: FileSpreadsheet, vatOnly: true },
-      { href: '/reports/outstanding-po', key: 'outstandingPo', Icon: ListChecks },
-      { href: '/reports/ap-aging', key: 'apAging', Icon: Coins },
-      { href: '/tax-filings', key: 'taxFilings', Icon: Landmark },
+      { href: '/reports/tax-summary', key: 'taxSummary', Icon: PieChart, perm: 'report.profit_loss.read' },
+      { href: '/reports/trial-balance', key: 'trialBalance', Icon: Scale, perm: 'report.trial_balance.read' },
+      { href: '/reports/profit-loss', key: 'profitLoss', Icon: TrendingUp, perm: 'report.profit_loss.read' },
+      { href: '/reports/sales-summary', key: 'salesSummary', Icon: BarChart3, perm: 'report.profit_loss.read' },
+      { href: '/reports/pnd30', key: 'pnd30', Icon: FileSpreadsheet, vatOnly: true, perm: 'tax.pnd30.read' },
+      { href: '/reports/outstanding-po', key: 'outstandingPo', Icon: ListChecks, perm: 'purchase.purchase_order.read' },
+      { href: '/reports/ap-aging', key: 'apAging', Icon: Coins, perm: 'purchase.purchase_order.read' },
+      { href: '/tax-filings', key: 'taxFilings', Icon: Landmark, perm: 'tax.filing.read' },
+      // /documents (chain views) is AuthnOnly on the BE — any authenticated user.
       { href: '/documents', key: 'documents', Icon: Files },
-      { href: '/tax-filings/missing-wht-cert', key: 'missingWhtCert', Icon: FileSpreadsheet },
-      { href: '/reports/wht-receivable', key: 'whtReceivable', Icon: Coins },
+      { href: '/tax-filings/missing-wht-cert', key: 'missingWhtCert', Icon: FileSpreadsheet, perm: 'tax.pnd53.read' },
+      { href: '/reports/wht-receivable', key: 'whtReceivable', Icon: Coins, perm: 'tax.pnd53.read' },
     ],
   },
   {
     key: 'settings',
     items: [
+      // Own-company profile (soft fields) — AuthnOnly read; edits are BE-gated.
       { href: '/settings/company', key: 'company', Icon: Building2 },
       // Per-company VAT mode — super-admin companies CRUD (tax config per tenant).
       { href: '/settings/companies', key: 'companies', Icon: Landmark, superAdminOnly: true },
       // Per-company RBAC admin — super-admin OR a company-admin holding the grant.
       { href: '/settings/roles', key: 'roles', Icon: ShieldCheck, perm: 'sys.role.manage' },
       { href: '/settings/users', key: 'users', Icon: UsersRound, perm: 'sys.user.manage' },
-      { href: '/settings/products', key: 'products', Icon: Package },
-      { href: '/settings/business-units', key: 'businessUnits', Icon: Layers },
-      { href: '/settings/employees', key: 'employees', Icon: Users },
-      { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent },
-      { href: '/settings/expense-categories', key: 'expenseCategories', Icon: FolderTree },
-      { href: '/settings/api-keys', key: 'apiKeys', Icon: KeyRound },
+      { href: '/settings/products', key: 'products', Icon: Package, perm: 'master.product.manage' },
+      { href: '/settings/business-units', key: 'businessUnits', Icon: Layers, perm: 'master.business_unit.manage' },
+      { href: '/settings/employees', key: 'employees', Icon: Users, perm: 'master.employee.manage' },
+      { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent, perm: 'tax.wht_type.manage' },
+      { href: '/settings/expense-categories', key: 'expenseCategories', Icon: FolderTree, perm: 'sys.expense_category.manage' },
+      { href: '/settings/api-keys', key: 'apiKeys', Icon: KeyRound, perm: 'sys.api_key.manage' },
     ],
   },
 ];

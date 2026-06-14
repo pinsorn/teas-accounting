@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -59,31 +60,41 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           name={d.businessUnitName}
         />
         {d.status === 'Draft' && (
-          <button data-testid="po-approve" className="btn btn-success btn-sm"
-            disabled={act.isPending} onClick={() => run('approve')}>{t('approve')}</button>
+          <PermissionGate scope="purchase.purchase_order.approve">
+            <button data-testid="po-approve" className="btn btn-success btn-sm"
+              disabled={act.isPending} onClick={() => run('approve')}>{t('approve')}</button>
+          </PermissionGate>
         )}
         {d.status === 'Approved' && (
           <>
             {/* ITEM 9 — convenience hand-off to the PV create form, pre-filled from
                 this PO (mirrors the VI→PV fromVendorInvoiceId pattern). No backend
                 PO→PV link; pure client-side pre-fill. */}
-            <Link href={`/payment-vouchers/new?fromPurchaseOrderId=${poId}`}
-              data-testid="po-create-pv" className="btn btn-primary btn-sm">
-              {t('createPv')}
-            </Link>
-            <button data-testid="po-mark-sent" className="btn btn-outline btn-sm"
-              disabled={act.isPending} onClick={() => run('mark-sent')}>{t('sentToVendor')}</button>
-            <button data-testid="po-close" className="btn btn-secondary btn-sm"
-              disabled={act.isPending} onClick={() => run('close')}>{t('close')}</button>
+            <PermissionGate scope="purchase.payment_voucher.create">
+              <Link href={`/payment-vouchers/new?fromPurchaseOrderId=${poId}`}
+                data-testid="po-create-pv" className="btn btn-primary btn-sm">
+                {t('createPv')}
+              </Link>
+            </PermissionGate>
+            <PermissionGate scope="purchase.purchase_order.create">
+              <button data-testid="po-mark-sent" className="btn btn-outline btn-sm"
+                disabled={act.isPending} onClick={() => run('mark-sent')}>{t('sentToVendor')}</button>
+            </PermissionGate>
+            <PermissionGate scope="purchase.purchase_order.cancel">
+              <button data-testid="po-close" className="btn btn-secondary btn-sm"
+                disabled={act.isPending} onClick={() => run('close')}>{t('close')}</button>
+            </PermissionGate>
           </>
         )}
         {(d.status === 'Draft' || d.status === 'Approved') && (
-          <button data-testid="po-cancel" className="btn btn-ghost btn-sm text-error"
-            disabled={act.isPending}
-            onClick={() => {
-              const reason = window.prompt(t('cancel') + '?');
-              if (reason) run('cancel', { reason });
-            }}>{t('cancel')}</button>
+          <PermissionGate scope="purchase.purchase_order.cancel">
+            <button data-testid="po-cancel" className="btn btn-ghost btn-sm text-error"
+              disabled={act.isPending}
+              onClick={() => {
+                const reason = window.prompt(t('cancel') + '?');
+                if (reason) run('cancel', { reason });
+              }}>{t('cancel')}</button>
+          </PermissionGate>
         )}
         {d.sentToVendorAt && (
           <span className="text-xs text-base-content/60">

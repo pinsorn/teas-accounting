@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
@@ -73,9 +74,11 @@ export default function PaymentVoucherListPage() {
       <PageHeader
         title={t('title')}
         actions={
-          <Link href="/payment-vouchers/new" className="btn btn-primary btn-sm gap-1">
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </Link>
+          <PermissionGate scope="purchase.payment_voucher.create">
+            <Link href="/payment-vouchers/new" className="btn btn-primary btn-sm gap-1">
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </Link>
+          </PermissionGate>
         }
       />
       <IncompleteOnlyToggle />
