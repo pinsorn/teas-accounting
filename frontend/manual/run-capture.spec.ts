@@ -40,6 +40,7 @@ import './walkthroughs/05.02-vendor-invoice';
 import './walkthroughs/05.03-payment-voucher-wht';
 import './walkthroughs/05.04-wht-explained';
 import './walkthroughs/05.05-vendor-vat-types';
+import './walkthroughs/06.01-payroll-run';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 
