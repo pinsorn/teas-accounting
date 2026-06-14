@@ -29,6 +29,7 @@ export type DetailIds = {
   poApprovedId: number;  // PO Approved→ po-create-pv, po-mark-sent, po-close
   viDraftId: number;     // VI Draft   → vi-post
   tiDraftId: number;     // TI Draft   → ti-post-action
+  payrollRunId: number;  // Payroll DRAFT run → pr-approve (run.post), pr-delete (run.manage)
 };
 
 async function postOk(page: Page, path: string, data: unknown, label: string): Promise<any> {
@@ -93,6 +94,39 @@ export async function seedDetailFixtures(page: Page, userPrefix: string): Promis
     lines: [{ productId: null, productCode: null, descriptionTh: 'TI draft (rbac-ui)', quantity: 1, uomId: 1, uomText: 'ชิ้น', unitPrice: 1000, discountPercent: 0, taxCodeId: 1, taxCode: 'VAT7', taxRate: 0.07 }],
   }, 'TI draft')).tax_invoice_id;
 
+  // ── payroll: ensure ≥1 employee, then reuse/create a DRAFT run (company admin
+  //    holds master.employee.manage + payroll.run.manage). Idempotent across
+  //    re-runs: a period's run is unique, so reuse an existing DRAFT one. ──────
+  const emps = await (await page.request.get(`${API}/employees`)).json();
+  const empList = Array.isArray(emps) ? emps : emps.items ?? [];
+  if (empList.length === 0) {
+    const hireDate = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+    await postOk(page, '/employees/', {
+      employeeCode: `RBACEMP${TestIds.suffix()}`, titleTh: null, firstNameTh: 'พนักงาน', lastNameTh: 'rbac-ui',
+      titleEn: null, firstNameEn: null, lastNameEn: null,
+      nationalId: String(Math.floor(1e12 + Math.random() * 8e12)), taxId: null, address: null,
+      hireDate, terminationDate: null, baseSalary: 30000,
+      bankName: null, bankAccountNo: null, bankAccountName: null,
+      ssoApplicable: true, ssoNumber: null, maritalStatus: 'SINGLE', spouseHasIncome: false, childrenCount: 0,
+    }, 'employee create');
+  }
+  const runPeriod = String(claimPeriod); // current YYYYMM
+  const runsList = await (await page.request.get(`${API}/payroll/runs/`)).json();
+  const existingRun = (Array.isArray(runsList) ? runsList : runsList.items ?? [])
+    .find((r: { periodYearMonth: string; status: string }) => r.periodYearMonth === runPeriod && r.status === 'DRAFT');
+  let payrollRunId: number;
+  if (existingRun) {
+    payrollRunId = existingRun.payrollRunId;
+  } else {
+    const created = await postOk(page, '/payroll/runs/', { periodYearMonth: runPeriod, payDate: today, notes: null }, 'payroll run create');
+    payrollRunId = created?.payrollRunId ?? created?.payroll_run_id ?? created?.id;
+    if (!payrollRunId) {
+      const after = await (await page.request.get(`${API}/payroll/runs/`)).json();
+      payrollRunId = (Array.isArray(after) ? after : after.items ?? [])
+        .find((r: { periodYearMonth: string }) => r.periodYearMonth === runPeriod).payrollRunId;
+    }
+  }
+
   // ── PO: SoD — AP_CLERK creates, APPROVER approves ──────────────────────────
   const poBody = (note: string) => ({
     docDate: today, expectedDeliveryDate: today, vendorId, businessUnitId: null,
@@ -105,7 +139,7 @@ export async function seedDetailFixtures(page: Page, userPrefix: string): Promis
   await login(page, approver);
   await postOk(page, `/purchase-orders/${poApprovedId}/approve`, undefined, 'PO approve');
 
-  return { pvDraftId, pvApprovedId, poDraftId, poApprovedId, viDraftId, tiDraftId };
+  return { pvDraftId, pvApprovedId, poDraftId, poApprovedId, viDraftId, tiDraftId, payrollRunId };
 }
 
 /** Build the detail-page Controls for the seeded ids (VAT reference company). */
@@ -127,6 +161,9 @@ export function detailControls(ids: DetailIds): Control[] {
     { feature: 'PO detail: mark sent',         kind: 'button', detail: true, route: `/purchase-orders/${ids.poApprovedId}`,  locate: { testId: 'po-mark-sent' },  perm: 'purchase.purchase_order.create',   readPerm: poRead },
     { feature: 'PO detail: close',             kind: 'button', detail: true, route: `/purchase-orders/${ids.poApprovedId}`,  locate: { testId: 'po-close' },      perm: 'purchase.purchase_order.cancel',   readPerm: poRead },
     { feature: 'VI detail: post',              kind: 'button', detail: true, route: `/vendor-invoices/${ids.viDraftId}`,     locate: { testId: 'vi-post' },       perm: 'purchase.vendor_invoice.post',     readPerm: 'purchase.vendor_invoice.read' },
+    // Payroll DRAFT run — the page-load read perm is payroll.run.manage (GET /payroll/runs/{id}).
+    { feature: 'Payroll detail: approve',      kind: 'button', detail: true, route: `/payroll/${ids.payrollRunId}`,        locate: { testId: 'pr-approve' },    perm: 'payroll.run.post',                 readPerm: 'payroll.run.manage' },
+    { feature: 'Payroll detail: delete',       kind: 'button', detail: true, route: `/payroll/${ids.payrollRunId}`,        locate: { testId: 'pr-delete' },     perm: 'payroll.run.manage',               readPerm: 'payroll.run.manage' },
     { feature: 'TI detail: post',              kind: 'button', detail: true, route: `/tax-invoices/${ids.tiDraftId}`,        locate: { testId: 'ti-post-action' }, perm: 'sales.tax_invoice.post',          readPerm: 'sales.tax_invoice.read', vatOnly: true },
   ];
 }

@@ -58,7 +58,7 @@ export default function PayrollRunDetailPage() {
             <PayrollStatusBadge status={run.status} isPaid={run.paidAt != null} />
             {run.status === 'DRAFT' && (
               <PermissionGate scope="payroll.run.post">
-                <button className="btn btn-primary btn-sm" disabled={busy}
+                <button data-testid="pr-approve" className="btn btn-primary btn-sm" disabled={busy}
                   onClick={() => act(() => approve.mutateAsync(id), t('approved'))}>{t('approve')}</button>
               </PermissionGate>
             )}
@@ -76,7 +76,7 @@ export default function PayrollRunDetailPage() {
             )}
             {run.status === 'DRAFT' && (
               <PermissionGate scope="payroll.run.manage">
-                <button className="btn btn-ghost btn-sm text-error gap-1" disabled={busy}
+                <button data-testid="pr-delete" className="btn btn-ghost btn-sm text-error gap-1" disabled={busy}
                   onClick={() => act(async () => { await del.mutateAsync(id); router.push('/payroll'); }, tc('delete'), t('deleteConfirm'))}>
                   <Trash2 className="h-4 w-4" aria-hidden /> {tc('delete')}
                 </button>
