@@ -1424,6 +1424,43 @@
   "dashboard": {
     "title": "แดชบอร์ด",
     "subtitle": "ภาพรวมระบบ",
+    "hello": "สวัสดี 👋",
+    "overviewFor": "ภาพรวมเดือน{month} {year}",
+    "loading": "กำลังโหลด…",
+    "payable": "ต้องชำระ",
+    "refundable": "ขอคืนได้",
+    "kpi": {
+      "section": "ตัวเลขสำคัญเดือนนี้",
+      "revenue": "รายได้",
+      "expense": "รายจ่าย",
+      "netProfit": "กำไรสุทธิ",
+      "vatNet": "VAT สุทธิ",
+      "whtPaid": "ภาษีหัก ณ ที่จ่าย"
+    },
+    "trend": {
+      "title": "รายรับ-รายจ่าย ปี {year}",
+      "detail": "ดูสรุปภาษี",
+      "empty": "ยังไม่มีข้อมูลในปีนี้"
+    },
+    "alerts": {
+      "section": "ต้องทำ / แจ้งเตือน",
+      "allClear": "ไม่มีรายการค้าง — เรียบร้อยดี",
+      "numberGaps": "เลขเอกสารขาดช่วง {n} จุด",
+      "incompletePurchase": "เอกสารซื้อยังไม่ครบ {n} รายการ",
+      "pnd30Due": "ภ.พ.30 ครบกำหนดยื่นวันที่ {day} {month}",
+      "view": "ดู",
+      "review": "ตรวจ",
+      "complete": "เติมให้ครบ",
+      "prepare": "เตรียมยื่น"
+    },
+    "quick": {
+      "title": "ทางลัด",
+      "taxInvoice": "ออกใบกำกับภาษี",
+      "receipt": "ออกใบเสร็จ",
+      "paymentVoucher": "สร้างใบสำคัญจ่าย",
+      "customer": "เพิ่มลูกค้า",
+      "vendor": "เพิ่มผู้ขาย"
+    },
     "stat": {
       "tiThisMonth": "ใบกำกับภาษีเดือนนี้",
       "salesThisMonth": "ยอดขายเดือนนี้",

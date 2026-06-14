@@ -1424,6 +1424,43 @@
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "System overview",
+    "hello": "Hello 👋",
+    "overviewFor": "Overview · {month} {year}",
+    "loading": "Loading…",
+    "payable": "payable",
+    "refundable": "refundable",
+    "kpi": {
+      "section": "Key figures this month",
+      "revenue": "Revenue",
+      "expense": "Expense",
+      "netProfit": "Net profit",
+      "vatNet": "Net VAT",
+      "whtPaid": "WHT paid"
+    },
+    "trend": {
+      "title": "Revenue vs expense · {year}",
+      "detail": "Tax summary",
+      "empty": "No data for this year yet"
+    },
+    "alerts": {
+      "section": "To do / alerts",
+      "allClear": "Nothing pending — all clear",
+      "numberGaps": "{n} document number gap(s)",
+      "incompletePurchase": "{n} incomplete purchase document(s)",
+      "pnd30Due": "PND.30 due by {day} {month}",
+      "view": "View",
+      "review": "Review",
+      "complete": "Complete",
+      "prepare": "Prepare"
+    },
+    "quick": {
+      "title": "Quick actions",
+      "taxInvoice": "New tax invoice",
+      "receipt": "New receipt",
+      "paymentVoucher": "New payment voucher",
+      "customer": "Add customer",
+      "vendor": "Add vendor"
+    },
     "stat": {
       "tiThisMonth": "Tax Invoices this month",
       "salesThisMonth": "Sales this month",
