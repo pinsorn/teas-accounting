@@ -70,6 +70,8 @@ The sidebar and each action button are shown only when the signed-in user's role
 | PO detail: mark sent | ✓ | ✓ |  | ✓ |  | ✓ |  | ✓ |  |  |  |  |
 | PO detail: close | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |
 | VI detail: post | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |
+| Payroll detail: approve | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |
+| Payroll detail: delete | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |
 | TI detail: post | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |
 
 ## Visibility matrix — non-VAT company
@@ -135,6 +137,8 @@ The sidebar and each action button are shown only when the signed-in user's role
 | PO detail: mark sent | – | – | – | – | – | – | – | – | – | – | – | – |
 | PO detail: close | – | – | – | – | – | – | – | – | – | – | – | – |
 | VI detail: post | – | – | – | – | – | – | – | – | – | – | – | – |
+| Payroll detail: approve | – | – | – | – | – | – | – | – | – | – | – | – |
+| Payroll detail: delete | – | – | – | – | – | – | – | – | – | – | – | – |
 | TI detail: post | – | – | – | – | – | – | – | – | – | – | – | – |
 
 ## Super-admin-only / backend-enforced-only (not in the matrix)
@@ -143,7 +147,8 @@ These controls are intentionally not asserted by the FE matrix above; their gati
 
 - **Paid-up capital card** (`/settings/company`) — `master.company.manage`, SUPER_ADMIN only (§4.6 tax/company master data). It self-hides via an async `GET /companies`; same gate as the "Companies (tax cfg)" nav row above.
 - **Document-detail lifecycle actions** — approve / post / cancel / create-from on Payment Voucher, Purchase Order, Vendor Invoice, and Tax Invoice detail pages ARE asserted by the matrix above (the `* detail:` rows), on the VAT reference company where the full document chain has master data. Each carries its own distinct `PermissionGate` scope (Sprint 13k Plan 2 Phase E) and is independently enforced on the backend (`RbacCartesianTests`).
-- **Residual (BE-enforced + FE-gated, not in the matrix):** (a) **Payroll** approve / post / pay — neither demo company has employee master data, so no payroll run can be seeded; (b) the same detail-lifecycle buttons on the **non-VAT** company — it has no vendor / expense-category / tax-code master data. Both use the identical `PermissionGate` mechanism proven on the VAT company and are enforced at the backend boundary.
+- **Payroll** detail: the DRAFT-run actions — approve (`payroll.run.post`) and delete (`payroll.run.manage`) — ARE asserted (the `Payroll detail:` rows; the spec seeds an employee + a DRAFT run). The **pay** button (`payroll.run.pay`) needs a POSTED run (approve → post → GL journal) and is left residual.
+- **Residual (BE-enforced + FE-gated, not in the matrix):** the payroll **pay** button (needs a POSTED run) + every detail-lifecycle button on the **non-VAT** company (it has no vendor / expense-category / tax-code master data). Both use the identical `PermissionGate` mechanism proven on the VAT company and are enforced at the backend boundary (`RbacCartesianTests`).
 - **In-form Save** on `/new` create forms — reached only through a gated create button (shown above) and re-checked by the backend on submit.
 - **settings/* create buttons** — the settings page itself is nav-gated by the same `*.manage` permission, so the page (and its create button) is hidden as a unit.
 
