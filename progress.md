@@ -3,6 +3,16 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-14 (cont. 98e — "ทำให้เสร็จ อธิบายทุก modal ทุกปุ่ม แยก vat/non-vat บริษัท/vendor/ลูกค้า + ทำข้อถัดไป" [autonomous, Ham นอน]) — **VAT vs non-VAT ครบ 3 มิติ: 04.09 ลูกค้า · 04.10 บริษัท (non-VAT, login co3) · 05.05 ผู้ขาย. gen-md 28 walkthroughs · 136 steps · mkdocs 0 error.** _(งานต่อเนื่อง autonomous — modal/button reference + บท 6 กำลังทำต่อ.)_
+
+- **ที่มา:** Ham สั่ง autonomous overnight: (1) อธิบายทุก modal/ปุ่มให้ครบ, (2) แยก VAT/non-VAT ให้ดู ทั้งบริษัท+vendor+ลูกค้า, (3) ทำข้อถัดไป. ทำเป็น increment commit ทีละชุด. ชุดนี้ = มิติ VAT/non-VAT (3 walkthrough).
+- **04.09 ลูกค้า จด VAT vs ไม่จด VAT** (ch4, `/tax-invoices/new`, สลับผู้ซื้อ ไม่ post) — VAT customer (แอคมี) → ใบกำกับภาษีแสดง **เลขผู้เสียภาษีผู้ซื้อ 13 หลัก+สาขา** (ม.86/4 #3); non-VAT customer (คุณสมชาย ใจดี บุคคลธรรมดา) → บล็อกผู้ซื้อมีแค่ชื่อ ไม่มีเลขผู้เสียภาษี. VAT ยังคิด 7% ปกติ. (co2 มี customer ทั้ง 2 แบบ: 4 VAT + 4 non-VAT.)
+- **04.10 กิจการไม่จด VAT (non-VAT company)** (ch4, **login co3 "ร้านนอนแวต เดโม" vat=false** — walkthrough เดียวที่ login คนละบริษัท) — eyeball: sidebar **ไม่มี ใบกำกับภาษี/ใบลดหนี้/ใบเพิ่มหนี้** (vatOnly ซ่อนอัตโนมัติ ม.86) + dashboard ไม่มี VAT tile; ใบแจ้งหนี้ **ตารางไม่มีคอลัมน์ VAT**, ยอดรวม = ยอดก่อนภาษี (3,000 ไม่มี 7%). intro = ตารางเทียบ VAT vs non-VAT (เอกสาร/เมนู/ภ.พ.30/e-Tax). **persona infra ใหม่:** เพิ่ม `nonvat` ใน `lib/personas.ts` (`rbac_nv_company_admin`/Admin@1234 บน co3, seed 550) + ขยาย type `persona` ใน `lib/walkthrough.ts`. co3 มี 2 customers + 2 products (พอ sales demo; ไม่มี vendor).
+- **05.05 ผู้ขาย จด VAT / ไม่จด VAT / ต่างประเทศ** (ch5, `/vendor-invoices/new`, เปลี่ยน vendor ไม่ post) — 4 แบบ: ในประเทศ VAT (เคลมปกติ ไม่มีเตือน) · ในประเทศไม่จด VAT (ร้านโชห่วย → "เคลม Input VAT ไม่ได้") · ต่างประเทศไม่มี VAT-D (Amazon → "ภ.พ.36 reverse charge") · ต่างประเทศมี VAT-D (Netflix → "เคลม Input VAT ปกติ"). co2 seed มีครบ 4 (MV-DOM-001/002, MV-FOR-001/002).
+- **🔵 selector:** re-pick party = ปุ่ม "เปลี่ยน" บน PartySelectBox (เปิด picker ใหม่). non-VAT persona = `meta.persona:'nonvat'`. nav-gates-ready sentinel ใช้ได้บน co3.
+- **Gates:** gen-md **28 walkthroughs · 136 steps** · mkdocs **0 error** · eyeball ทุก step (TI buyer taxId on/off, co3 sidebar ไม่มี VAT menu + no-VAT invoice, vendor messages 4 แบบ) · ম clean.
+- **ค้าง (autonomous กำลังทำต่อ):** modal/button reference (#14) · บท 6 เงินเดือน (#15) · commit ชุดนี้.
+
 ## 2026-06-14 (cont. 98d — "การซื้อการขายอยากให้อธิบายการเลือกสินค้า/บริการ WHT อย่างละเอียด") — **+2 section อธิบายเชิงลึก: 04.08 เลือกสินค้า/บริการ (ProductPicker + ผล VAT) · 05.04 ภาษีหัก ณ ที่จ่าย (WHT) โดยละเอียด. gen-md 25 walkthroughs · 128 steps · mkdocs 0 error.** _(รูปแบบ: Ham เลือก "section ใหม่ มีภาพ" ผ่าน AskUserQuestion.)_
 
 - **ที่มา:** Ham อยากให้คู่มืออธิบาย "การเลือกสินค้า/บริการ" + "WHT" ละเอียดขึ้น ทั้งฝั่งซื้อ-ขาย. ถาม fork รูปแบบ → เลือก **section ใหม่ที่ capture จริง** (ไม่ใช่แก้ของเดิม/prose). capture สดบน co2 persona admin.

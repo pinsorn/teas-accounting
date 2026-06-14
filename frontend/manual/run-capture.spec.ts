@@ -33,10 +33,13 @@ import './walkthroughs/04.05-receipt';
 import './walkthroughs/04.06-credit-note';
 import './walkthroughs/04.07-debit-note';
 import './walkthroughs/04.08-product-selection';
+import './walkthroughs/04.09-customer-vat-types';
+import './walkthroughs/04.10-nonvat-company';
 import './walkthroughs/05.01-purchase-order';
 import './walkthroughs/05.02-vendor-invoice';
 import './walkthroughs/05.03-payment-voucher-wht';
 import './walkthroughs/05.04-wht-explained';
+import './walkthroughs/05.05-vendor-vat-types';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 
