@@ -41,6 +41,7 @@ import './walkthroughs/05.03-payment-voucher-wht';
 import './walkthroughs/05.04-wht-explained';
 import './walkthroughs/05.05-vendor-vat-types';
 import './walkthroughs/06.01-payroll-run';
+import './walkthroughs/07.01-pnd30-vat-return';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 
