@@ -221,7 +221,7 @@ public sealed partial class ReceiptService
 
         var model = new Pdf.PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
-            await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct),
+            await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage),
             new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId),
                 d.CustomerBranchCode, d.CustomerAddress),
             lines,

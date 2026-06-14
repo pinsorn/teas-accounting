@@ -1,3 +1,6 @@
+using Accounting.Application.Abstractions;
+using Accounting.Domain.Entities.Sys;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +18,8 @@ public static class PaperSellerSource
     // logoUrl/phone/email passed through. Falls back to the Company row if the
     // tenant has no profile yet.
     public static async Task<PaperSeller> FromCompanyProfileAsync(
-        AccountingDbContext db, int companyId, CancellationToken ct)
+        AccountingDbContext db, int companyId, CancellationToken ct,
+        IFileStorageService? storage = null)
     {
         var p = await db.CompanyProfiles.AsNoTracking()
             .FirstOrDefaultAsync(x => x.CompanyId == companyId, ct);
@@ -28,9 +32,44 @@ public static class PaperSellerSource
             p.TaxId,
             string.IsNullOrEmpty(p.BranchCode) ? "00000" : p.BranchCode,
             address,
-            Logo: null,           // TODO: resolve p.LogoUrl attachment → bytes; fallback mascot for now
+            // Sprint 13k — the company's uploaded logo (raster) is embedded in the
+            // document header; PaperDocumentPdf falls back to the bundled TEAS mark
+            // when this is null. Logo is decorative: a read failure never blocks a
+            // legal document, and SVG logos are skipped (QuestPDF .Image is raster).
+            Logo: storage is null ? null : await ResolveLogoAsync(db, storage, companyId, ct),
             Phone: p.Phone,
             Email: p.Email);
+    }
+
+    private static readonly string[] RasterLogoMimes =
+        { "image/png", "image/jpeg", "image/jpg", "image/webp" };
+
+    /// <summary>Latest non-deleted COMPANY_PROFILE logo attachment for the tenant,
+    /// returned as raw bytes (raster only). Null when none, when it is an SVG, or on
+    /// any read error — the caller falls back to the bundled mark.</summary>
+    private static async Task<byte[]?> ResolveLogoAsync(
+        AccountingDbContext db, IFileStorageService storage, int companyId, CancellationToken ct)
+    {
+        var att = await db.Set<Attachment>().AsNoTracking()
+            .Where(a => a.ParentType == AttachmentParentType.CompanyProfile
+                        && a.ParentId == companyId
+                        && a.DeletedAt == null)
+            .OrderByDescending(a => a.UploadedAt)
+            .Select(a => new { a.StoragePath, a.MimeType })
+            .FirstOrDefaultAsync(ct);
+        if (att is null) return null;
+        if (!RasterLogoMimes.Contains(att.MimeType.ToLowerInvariant())) return null;
+        try
+        {
+            await using var s = await storage.OpenReadAsync(att.StoragePath, ct);
+            using var ms = new MemoryStream();
+            await s.CopyToAsync(ms, ct);
+            return ms.Length > 0 ? ms.ToArray() : null;
+        }
+        catch
+        {
+            return null; // logo is decorative — never fail a legal document on it
+        }
     }
 
     /// <summary>Registered (DBD) address joined to one line; "" when the profile is null

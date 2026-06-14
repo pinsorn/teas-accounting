@@ -17,7 +17,8 @@ namespace Accounting.Infrastructure.Purchase;
 /// </summary>
 public sealed class PurchaseOrderService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
-    INumberSequenceService numbers, IActivityRecorder activity) : IPurchaseOrderService
+    INumberSequenceService numbers, IActivityRecorder activity,
+    IFileStorageService storage) : IPurchaseOrderService
 {
     private void Auth()
     {
@@ -213,7 +214,7 @@ public sealed class PurchaseOrderService(
         // (IDENTICAL shape to the Sales TI builder). Seller = the issuing company
         // (we are the buyer issuing the PO); Customer = the vendor. Two-box sign
         // (ผู้ขออนุมัติ / ผู้อนุมัติ). Watermark: explicit copy → "สำเนา", else "ต้นฉบับ".
-        var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, po.CompanyId, ct);
+        var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, po.CompanyId, ct, storage);
         var model = new Pdf.PaperDocModel(
             DocType: "ใบสั่งซื้อ",
             DocTypeEn: "Purchase Order",

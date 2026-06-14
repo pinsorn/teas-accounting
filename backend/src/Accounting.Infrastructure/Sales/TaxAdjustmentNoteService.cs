@@ -20,11 +20,12 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
     private readonly IPeriodCloseService     _period;
     private readonly ICompanyTaxConfigService _taxCfg;
     private readonly IActivityRecorder       _activity;
+    private readonly IFileStorageService     _storage;   // Sprint 13k — logo on PDF
 
     public TaxAdjustmentNoteService(AccountingDbContext db, ITenantContext tenant, IClock clock,
         INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period,
-        ICompanyTaxConfigService taxCfg, IActivityRecorder activity)
-    { _db = db; _tenant = tenant; _clock = clock; _numbers = numbers; _gl = gl; _period = period; _taxCfg = taxCfg; _activity = activity; }
+        ICompanyTaxConfigService taxCfg, IActivityRecorder activity, IFileStorageService storage)
+    { _db = db; _tenant = tenant; _clock = clock; _numbers = numbers; _gl = gl; _period = period; _taxCfg = taxCfg; _activity = activity; _storage = storage; }
 
     // CN vs DN audit EntityType, matching ActivityEndpoints route mapping.
     private static string EntityTypeOf(TaxAdjustmentNote n) =>

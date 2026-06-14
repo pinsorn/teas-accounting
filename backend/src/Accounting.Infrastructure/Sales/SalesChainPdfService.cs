@@ -16,7 +16,8 @@ namespace Accounting.Infrastructure.Sales;
 /// Quotation keeps the §B4 WHT note (corporate + service lines) in the notes block.
 /// </summary>
 public sealed class SalesChainPdfService(
-    AccountingDbContext db, ITenantContext tenant, ICompanyTaxConfigService taxCfg)
+    AccountingDbContext db, ITenantContext tenant, ICompanyTaxConfigService taxCfg,
+    IFileStorageService storage)
     : ISalesChainPdfService
 {
     // Non-VAT companies (ม.86): suppress the VAT total rows on Q/SO/DO —
@@ -31,7 +32,7 @@ public sealed class SalesChainPdfService(
     }
 
     private Task<PaperSeller> SellerAsync(CancellationToken ct) =>
-        PaperSellerSource.FromCompanyProfileAsync(db, tenant.CompanyId, ct);
+        PaperSellerSource.FromCompanyProfileAsync(db, tenant.CompanyId, ct, storage);
 
     // Mirror the FE detail line mapping EXACTLY (must be identical text — Ham
     // 2026-05-22): {description, quantity, unit, unitPrice, amount: lineAmount}.

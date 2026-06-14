@@ -195,7 +195,7 @@ public sealed partial class PaymentVoucherService
         // Three-box sign (ผู้จัดทำ / ผู้อนุมัติ / ผู้รับเงิน). The foot carries the
         // WHT-deducted net via PaperSummary.Wht → grand total reads "จ่ายสุทธิ".
         // Payment method / cheque detail goes into Notes (no §86/4 schema applies).
-        var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct);
+        var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage);
 
         var notes = $"วิธีชำระ / Method: {d.PaymentMethod}"
             + (string.IsNullOrEmpty(d.ChequeNo) ? "" : $"  เช็คเลขที่ {d.ChequeNo}");

@@ -18,7 +18,7 @@ namespace Accounting.Infrastructure.Sales;
 public sealed class BillingNoteService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    ICompanyTaxConfigService taxCfg) : IBillingNoteService
+    ICompanyTaxConfigService taxCfg, IFileStorageService storage) : IBillingNoteService
 {
     private void Auth()
     {
@@ -246,7 +246,7 @@ public sealed class BillingNoteService(
         var cfg = Pdf.PaperDoc.Config[Pdf.PaperDocKind.BillingNote];
         var model = new Pdf.PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
-            await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, tenant.CompanyId, ct),
+            await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, tenant.CompanyId, ct, storage),
             new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(cust?.TaxId), cust?.BranchCode, cust?.BillingAddress),
             d.Lines.Select(l => new Pdf.PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
