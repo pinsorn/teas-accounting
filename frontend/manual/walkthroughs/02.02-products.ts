@@ -85,8 +85,14 @@ walkthrough({
 
   // ─── Step 3: Add new product ─────────────────────────────────────────
   await page.getByRole('button', { name: 'เพิ่มสินค้า/บริการ' }).click();
+  // The list now carries its own "ประเภท" filter (data-testid=product-type-filter),
+  // so every form interaction MUST be scoped to the DaisyUI modal-box — page-level
+  // getByLabel('ประเภท') would match both the filter and the form select
+  // (strict-mode violation). The modal is a plain `.modal-box` div (no role=dialog).
+  const modal = page.locator('.modal-box');
+  await modal.waitFor({ state: 'visible' });
   await capture('step-03-add-modal', {
-    highlight: '[role="dialog"]',
+    highlight: '.modal-box',
     caption:
       'ขั้นที่ 3: คลิก "+ เพิ่มสินค้า/บริการ" → modal เปิด. Fields: รหัส (SKU)*,' +
       ' ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภท (dropdown 4 options), หน่วยนับ,' +
@@ -94,7 +100,7 @@ walkthrough({
   });
 
   await capture('step-04-type-dropdown', {
-    highlight: 'select',
+    highlight: '.modal-box select',
     arrow: 'right',
     caption:
       'ขั้นที่ 4: dropdown "ประเภท" มี 4 options: GOOD (default), SERVICE,' +
@@ -102,13 +108,13 @@ walkthrough({
   });
 
   // Fill + save (real save — test DB writable per user instruction; sku random per run)
-  await page.getByLabel('รหัส (SKU)').fill(sku);
-  await page.getByLabel('ชื่อ (ไทย)').fill(nameTh);
-  await page.getByLabel('ประเภท').selectOption('SERVICE');
-  await page.getByLabel('หน่วยนับ').fill('งาน');
-  await page.getByLabel('ราคาตั้งต้น').fill(unitPrice);
+  await modal.getByLabel('รหัส (SKU)').fill(sku);
+  await modal.getByLabel('ชื่อ (ไทย)').fill(nameTh);
+  await modal.getByLabel('ประเภท').selectOption('SERVICE');
+  await modal.getByLabel('หน่วยนับ').fill('งาน');
+  await modal.getByLabel('ราคาตั้งต้น').fill(unitPrice);
   // DOM-assert pattern (Sprint 13g lesson): click + wait for row to appear
-  await page.getByRole('button', { name: 'บันทึก' }).click();
+  await modal.getByRole('button', { name: 'บันทึก' }).click();
   await page.getByRole('row', { name: new RegExp(sku) }).waitFor({ state: 'visible', timeout: 10000 });
   await capture('step-05-saved', {
     highlight: `table tr:has-text("${sku}")`,

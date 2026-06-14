@@ -1,41 +1,54 @@
 /**
- * 01.02 — Dashboard tour
+ * 01.02 — Dashboard tour (redesigned home, cont.97d)
  *
  * Chapter: 1. เริ่มต้นใช้งาน
- * Story: User เพิ่ง login เสร็จ → ทำความรู้จัก dashboard + sidebar structure
+ * Story: User เพิ่ง login เสร็จ → ทำความรู้จักหน้าแรก (แดชบอร์ดที่ออกแบบใหม่)
+ *        + โครงสร้าง sidebar
  *
- * Verified live via Chrome MCP at http://localhost:3000/ (2026-05-19 Sana session).
- * Confirmed: 4 stat cards render with manual-demo seed (company_id=2, empty data → 0 values).
- * Sidebar groups confirmed: (ขาย implicit) → ซื้อ → รายงาน → ตั้งค่า.
+ * ⚠️ Re-captured 2026-06-14 against the REDESIGNED dashboard
+ * (app/(dashboard)/page.tsx, cont.97d). The previous version documented the
+ * old "4 stat cards" home — that page no longer exists. New home:
+ *   - header: greeting + company name (from profile) + "ภาพรวมเดือน…"
+ *   - KPI section "ตัวเลขสำคัญเดือนนี้": 5 tiles (รายได้ / รายจ่าย / กำไรสุทธิ /
+ *     VAT สุทธิ [VAT companies only] / ภาษีหัก ณ ที่จ่าย)
+ *   - trend chart "รายรับ-รายจ่าย ปี <ปี>" (2/3) + alerts panel "ต้องทำ / แจ้งเตือน" (1/3)
+ *   - quick actions "ทางลัด" — buttons gated by the user's permissions
+ *
+ * Persona: demo-accountant (default for 01.02). The quick-actions row and the
+ * sidebar are permission-gated, so what renders depends on this persona —
+ * captions describe them generically ("ตามสิทธิ์ของผู้ใช้") rather than
+ * enumerating every button, so the doc survives RBAC changes.
+ *
+ * Data note: manual-demo company (company_id=2) is a fresh tenant with no
+ * posted sales yet → all KPIs show ฿0 and the trend is empty. That is the
+ * legitimate "new tenant" view. co2 is VAT-registered (vat_mode=true, 7%) so
+ * the VAT สุทธิ tile renders and (on/before the 15th) a ภ.พ.30 alert appears.
  *
  * Pre-condition:
- *   - Logged in as demo-accountant (via walkthrough 01.01)
- *   - Currently on URL / (dashboard root)
- *
- * Acceptance:
- *   - Heading "แดชบอร์ด" + subtitle "ภาพรวมระบบ" visible
- *   - 4 stat cards labeled: ใบกำกับภาษีเดือนนี้ / ยอดขายเดือนนี้ /
- *     ภาษีขายเดือนนี้ / เลขเอกสารขาดช่วง
- *   - Sidebar shows 4 groups: (ขาย — implicit, no label) / ซื้อ / รายงาน / ตั้งค่า
- *   - Footer of sidebar: TH/EN toggle + ออกจากระบบ button
- *
- * Note: ปัจจุบัน TEAS ยังไม่มี header bar ด้านบน — ทุก navigation อยู่ใน sidebar.
+ *   - Logged in as demo-accountant (run-capture pre-logs in)
+ *   - Lands on URL / (dashboard root)
  */
 import { walkthrough } from '../lib/walkthrough';
 
 walkthrough({
   id: '01.02',
-  title: 'สำรวจ Dashboard',
+  title: 'สำรวจหน้าแรก (แดชบอร์ด)',
   chapter: '1. เริ่มต้นใช้งาน',
   intro: `
-หลัง login สำเร็จ ผู้ใช้จะมาที่ "แดชบอร์ด" — หน้าแรกที่สรุปภาพรวมระบบ
-และเป็นจุดเริ่มต้นในการเข้าทุกโมดูล. ในบทนี้คุณจะรู้จัก:
+หลัง login สำเร็จ ผู้ใช้จะมาที่ "แดชบอร์ด" — หน้าแรกที่สรุปสถานะการเงิน
+ของเดือนปัจจุบัน และเป็นจุดเริ่มต้นเข้าทุกโมดูล. ในบทนี้คุณจะรู้จัก:
 
-- 4 stat cards ที่สรุปสถานะการเงินของเดือนนี้
-- โครงสร้าง sidebar ที่แบ่งเป็น 4 กลุ่ม: ขาย / ซื้อ / รายงาน / ตั้งค่า
-- ปุ่ม TH/EN สำหรับสลับภาษา และปุ่ม "ออกจากระบบ"
+- **ส่วนหัว** — คำทักทาย + ชื่อบริษัท (ดึงจากข้อมูลบริษัท) + เดือนที่กำลังดู
+- **ตัวเลขสำคัญเดือนนี้ (KPI)** — 5 ช่อง: รายได้ / รายจ่าย / กำไรสุทธิ /
+  VAT สุทธิ (เฉพาะบริษัทจด VAT) / ภาษีหัก ณ ที่จ่าย
+- **กราฟรายรับ-รายจ่ายทั้งปี** + แผง **"ต้องทำ / แจ้งเตือน"** ที่รวมงานค้าง
+  (เลขเอกสารขาดช่วง, เอกสารซื้อไม่ครบ, ภ.พ.30 ใกล้ครบกำหนด ฯลฯ)
+- **ทางลัด** — ปุ่มสร้างเอกสารที่ใช้บ่อย (แสดงตามสิทธิ์ของผู้ใช้)
+- โครงสร้าง **sidebar** ที่แบ่งเป็นกลุ่ม: ขาย / ซื้อ / เงินเดือน / รายงาน / ตั้งค่า
 
-หมายเหตุ: TEAS ใช้ navigation แบบ sidebar เพียงอย่างเดียว — ไม่มี top header bar.
+หมายเหตุ: บริษัทตัวอย่างนี้เป็น tenant ใหม่ ยังไม่มีเอกสารที่โพสต์ →
+ตัวเลขทุกช่องจึงเป็น ฿0 และกราฟยังว่าง. เมื่อเริ่มออกเอกสารจริง ตัวเลข
+จะอัปเดตอัตโนมัติ.
   `.trim(),
   prerequisites: [
     'login แล้ว (walkthrough 01.01)',
@@ -43,101 +56,86 @@ walkthrough({
   ],
 }, async ({ page, capture }) => {
 
-  // ─── Step 1: overview — heading + 4 stat cards ───────────────────────
+  // ─── Step 1: clean overview (no spotlight) ───────────────────────────
   await page.goto('/');
+  // settle KPI/trend queries before the first shot
+  await page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible' });
   await capture('step-01-overview', {
-    highlight: 'main',
     caption:
-      'ขั้นที่ 1: นี่คือหน้า "แดชบอร์ด" — สรุปภาพรวมระบบของเดือนปัจจุบัน.' +
-      ' หัวเรื่อง "แดชบอร์ด" + คำอธิบาย "ภาพรวมระบบ" + 4 stat cards ด้านบน',
+      'ขั้นที่ 1: หน้า "แดชบอร์ด" — หน้าแรกหลัง login. แถบบนสุดมีช่องค้นหาเอกสาร/' +
+      'ลูกค้า (กด ⌘K), กระดิ่งแจ้งเตือน และไอคอนตั้งค่า. ถัดมาเป็นส่วนหัว (คำทักทาย' +
+      ' + ชื่อบริษัท + เดือนที่กำลังดู) ตามด้วยตัวเลขสำคัญ, กราฟ, แผงแจ้งเตือน' +
+      ' และปุ่มทางลัด — ทั้งหมดของเดือนปัจจุบัน',
   });
 
-  // ─── Step 2: stat card — ใบกำกับภาษีเดือนนี้ ─────────────────────────
-  await capture('step-02-card-tax-invoices', {
-    // First card: index-based since each card is structurally identical
-    highlight: 'main > div:nth-of-type(1) > div:nth-of-type(1)',
+  // ─── Step 2: header — company name + month ───────────────────────────
+  await capture('step-02-header', {
+    highlight: 'header',
     arrow: 'down',
     caption:
-      'ขั้นที่ 2: card แรก "ใบกำกับภาษีเดือนนี้" — จำนวนใบกำกับภาษีขายที่ Post' +
-      ' แล้วในเดือนปัจจุบัน. เมื่อยังไม่มีข้อมูลจะแสดง "—"',
+      'ขั้นที่ 2: ส่วนหัว — "สวัสดี 👋" + ชื่อบริษัท (ดึงจากข้อมูลบริษัทที่ตั้งไว้' +
+      ' ในเมนู "ตั้งค่า → ข้อมูลบริษัท" — ดูบท 02.05) และข้อความ "ภาพรวมเดือน…"' +
+      ' บอกว่ากำลังดูข้อมูลของเดือนใด',
   });
 
-  // ─── Step 3: stat card — ยอดขายเดือนนี้ ──────────────────────────────
-  await capture('step-03-card-sales', {
-    highlight: 'main > div:nth-of-type(1) > div:nth-of-type(2)',
+  // ─── Step 3: KPI tiles ───────────────────────────────────────────────
+  await capture('step-03-kpi', {
+    highlight: 'section[aria-label]',
+    caption:
+      'ขั้นที่ 3: "ตัวเลขสำคัญเดือนนี้" — 5 ช่อง: รายได้, รายจ่าย, กำไรสุทธิ,' +
+      ' VAT สุทธิ (เฉพาะบริษัทจด VAT), ภาษีหัก ณ ที่จ่าย. บริษัทใหม่ที่ยังไม่ออก' +
+      ' เอกสารจะแสดง ฿0 ทุกช่อง แล้วอัปเดตเองเมื่อโพสต์เอกสาร',
+  });
+
+  // ─── Step 4: VAT net tile (VAT companies only) ───────────────────────
+  await capture('step-04-kpi-vat', {
+    highlight: 'section[aria-label] > div:nth-of-type(4)',
     arrow: 'down',
     caption:
-      'ขั้นที่ 3: card "ยอดขายเดือนนี้" — ผลรวม net amount ของใบกำกับภาษีขาย' +
-      ' ที่ Post แล้ว (ไม่รวมที่ยกเลิก). หน่วยเป็นบาท (฿)',
+      'ขั้นที่ 4: ช่อง "VAT สุทธิ" = ภาษีขาย − ภาษีซื้อของเดือนนี้ (ตัวเลขที่จะยื่น' +
+      ' ภ.พ.30). มีกำกับ "ต้องชำระ" หรือ "ขอคืนได้" ตามผลลัพธ์. ช่องนี้แสดงเฉพาะ' +
+      ' บริษัทที่จดทะเบียน VAT — บริษัทไม่จด VAT จะไม่เห็นช่องนี้',
   });
 
-  // ─── Step 4: stat card — ภาษีขายเดือนนี้ ─────────────────────────────
-  await capture('step-04-card-output-vat', {
-    highlight: 'main > div:nth-of-type(1) > div:nth-of-type(3)',
-    arrow: 'down',
+  // ─── Step 5: trend chart ─────────────────────────────────────────────
+  await capture('step-05-trend', {
+    highlight: 'div.grid > section:nth-of-type(1)',
+    arrow: 'up',
     caption:
-      'ขั้นที่ 4: card "ภาษีขายเดือนนี้" — ผลรวม VAT 7% (Output VAT) ที่' +
-      ' เรียกเก็บจากลูกค้า. เป็นตัวเลขเดียวกับที่จะยื่น ภ.พ.30 ปลายเดือน',
+      'ขั้นที่ 5: กราฟ "รายรับ-รายจ่าย" ทั้งปี — แท่งคู่รายเดือน (เขียว=รายได้,' +
+      ' แดง=รายจ่าย) ครบทั้ง 12 เดือน. tenant ใหม่ยังไม่ออกเอกสาร แท่งจึงเตี้ย' +
+      ' (เป็น 0) ทุกเดือน แล้วจะสูงขึ้นเองเมื่อมีรายการจริง. ลิงก์ "ดูสรุปภาษี"' +
+      ' มุมขวาบนพาไปหน้าสรุปภาษีรายเดือนแบบละเอียด (บท 07.03)',
   });
 
-  // ─── Step 5: stat card — เลขเอกสารขาดช่วง ────────────────────────────
-  await capture('step-05-card-number-gaps', {
-    highlight: 'main > div:nth-of-type(1) > div:nth-of-type(4)',
-    arrow: 'down',
+  // ─── Step 6: alerts panel ────────────────────────────────────────────
+  await capture('step-06-alerts', {
+    highlight: 'div.grid > section:nth-of-type(2)',
+    arrow: 'up',
     caption:
-      'ขั้นที่ 5: card "เลขเอกสารขาดช่วง" — จำนวนช่วงของเลขเอกสารที่ขาด' +
-      ' (ตามกฎบัญชี TEAS ต้องเป็น gapless). ถ้าไม่ใช่ 0 ต้องรีบตรวจ — ดูบทที่ 5',
+      'ขั้นที่ 6: แผง "ต้องทำ / แจ้งเตือน" — รวมงานค้างที่ต้องจัดการ เช่น' +
+      ' เลขเอกสารขาดช่วง, เอกสารซื้อยังไม่ครบ, ภ.พ.30 ใกล้ครบกำหนด. แต่ละรายการ' +
+      ' คลิกไปหน้าที่เกี่ยวข้องได้ทันที. ถ้าไม่มีงานค้างจะขึ้น "เรียบร้อยดี" ✓',
   });
 
-  // ─── Step 6: sidebar — ขาย group ─────────────────────────────────────
-  await capture('step-06-sidebar-sales', {
-    // Sales group is implicit — first 9 nav links (no group header above)
-    highlight: 'nav',
+  // ─── Step 7: quick actions (permission-gated) ────────────────────────
+  await capture('step-07-quick', {
+    highlight: 'main section:last-of-type',
+    arrow: 'up',
+    caption:
+      'ขั้นที่ 7: "ทางลัด" — ปุ่มสร้างเอกสารที่ใช้บ่อย (ออกใบกำกับภาษี, ออกใบเสร็จ,' +
+      ' สร้างใบสำคัญจ่าย, เพิ่มลูกค้า/ผู้ขาย). ระบบแสดงเฉพาะปุ่มที่ผู้ใช้มีสิทธิ์ —' +
+      ' ผู้ใช้แต่ละบทบาทจึงเห็นปุ่มไม่เหมือนกัน',
+  });
+
+  // ─── Step 8: sidebar groups + footer ─────────────────────────────────
+  await capture('step-08-sidebar', {
+    highlight: 'aside, nav',
     arrow: 'right',
     caption:
-      'ขั้นที่ 6: sidebar กลุ่มแรก (ไม่มีหัวข้อ) คือ "ขาย" — รวม' +
-      ' แดชบอร์ด, ใบเสนอราคา, ใบสั่งขาย, ใบส่งของ, ใบกำกับภาษี, ใบเสร็จรับเงิน,' +
-      ' ใบลดหนี้, ใบเพิ่มหนี้, ตรวจเลขเอกสารขาดช่วง',
-  });
-
-  // ─── Step 7: sidebar — ซื้อ group ─────────────────────────────────────
-  await capture('step-07-sidebar-purchase', {
-    // Scroll to the "ซื้อ" section header
-    highlight: 'nav',
-    arrow: 'right',
-    caption:
-      'ขั้นที่ 7: กลุ่ม "ซื้อ" — ผู้ขาย, บันทึกใบกำกับภาษีซื้อ, ใบสั่งซื้อ,' +
-      ' ใบสำคัญจ่าย, หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)',
-  });
-
-  // ─── Step 8: sidebar — รายงาน group ──────────────────────────────────
-  await capture('step-08-sidebar-reports', {
-    highlight: 'nav',
-    arrow: 'right',
-    caption:
-      'ขั้นที่ 8: กลุ่ม "รายงาน" — งบทดลอง, กำไรขาดทุน, สรุปยอดขาย, ภ.พ.30,' +
-      ' PO ค้าง, แบบยื่นภาษี, ภาษีหัก ณ ที่จ่ายค้างรับ',
-  });
-
-  // ─── Step 9: sidebar — ตั้งค่า group ─────────────────────────────────
-  await capture('step-09-sidebar-settings', {
-    highlight: 'nav',
-    arrow: 'right',
-    caption:
-      'ขั้นที่ 9: กลุ่ม "ตั้งค่า" — 5 รายการ. ลิงก์แรก "ข้อมูลบริษัท"' +
-      ' (Sprint 13d-P6, ทำก่อนเป็นอันดับแรกสำหรับ tenant ใหม่ — ดูบท 02.05)' +
-      ' ตามด้วย สินค้า/บริการ, หน่วยธุรกิจ (Business Unit),' +
-      ' ประเภทหัก ณ ที่จ่าย (admin), API Keys (admin)',
-  });
-
-  // ─── Step 10: sidebar footer — TH/EN + logout ────────────────────────
-  await capture('step-10-sidebar-footer', {
-    // Bottom of sidebar — TH/EN button + logout button
-    highlight: 'aside button',
-    arrow: 'right',
-    caption:
-      'ขั้นที่ 10: ด้านล่าง sidebar มี 2 ปุ่ม — "TH / EN" สลับภาษา (ดูบท 01.03)' +
-      ' และ "ออกจากระบบ" สำหรับ logout (ดูบท 01.04)',
+      'ขั้นที่ 8: แถบเมนูซ้าย (sidebar) คือ navigation หลัก แบ่งเป็นกลุ่ม:' +
+      ' ขาย / ซื้อ / เงินเดือน / รายงาน / ตั้งค่า (เมนูที่เห็นขึ้นกับสิทธิ์ของผู้ใช้).' +
+      ' ด้านล่างสุดมีปุ่มสลับภาษา TH/EN (บท 01.03) และ "ออกจากระบบ" (บท 01.04)',
   });
 
 });

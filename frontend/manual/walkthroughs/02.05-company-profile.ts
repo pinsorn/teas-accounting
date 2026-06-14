@@ -134,13 +134,15 @@ attachment upload ของ ภ.พ.09.
       ' เบอร์ "02-555-1234", อีเมล "contact@manualdemo.example.com"',
   });
 
+  // The page now has TWO "บันทึก" buttons (soft section + paid-up-capital
+  // section), so target the soft-save by test-id to avoid a strict violation.
   await Promise.all([
     page.waitForResponse(r =>
       r.url().includes('/api/proxy/company-profile') &&
       r.request().method() === 'PUT' &&
       r.ok()
     ),
-    page.getByRole('button', { name: 'บันทึก' }).click(),
+    page.getByTestId('cp-soft-save').click(),
   ]);
   // Settle by waiting for the input to reflect the new value
   await page.waitForFunction(
@@ -160,14 +162,25 @@ attachment upload ของ ภ.พ.09.
       ' (ดู section "ข้อมูลทางกฎหมาย" ด้านบน — ค่าเดิม)',
   });
 
-  // ─── Step 8: explain logo URL ────────────────────────────────────────
-  await capture('step-08-logo-url-note', {
-    highlight: 'input[name="logoUrl"]',
-    arrow: 'right',
+  // ─── Step 8: logo upload ─────────────────────────────────────────────
+  await capture('step-08-logo-upload', {
+    highlight: '[data-testid="cp-logo-upload"]',
+    arrow: 'up',
     caption:
-      'ขั้นที่ 8: "URL โลโก้" — Phase 1 รับ URL อย่างเดียว (ยังไม่มี upload' +
-      ' widget). Phase 2 จะรองรับ upload ผ่าน Sprint 11 attachment infra.' +
-      ' Workaround: host logo บน CDN/S3 ของตัวเอง + ใส่ URL ที่นี่',
+      'ขั้นที่ 8: "โลโก้บริษัท" — อัปโหลดไฟล์ภาพได้โดยตรง (PNG / JPEG / SVG /' +
+      ' WebP, ไม่เกิน 1 MB). ระบบเก็บเป็น attachment แล้ว embed โลโก้นี้ใน' +
+      ' หัวกระดาษ PDF ของทุกใบกำกับภาษี / ใบเสร็จ / CN / DN. มีช่อง "URL โลโก้"' +
+      ' และตัวอย่าง (preview) ให้ตรวจก่อนบันทึก',
+  });
+
+  // ─── Step 9: paid-up capital (CIT SME classification) ────────────────
+  await capture('step-09-paid-up-capital', {
+    highlight: '[data-testid="cp-paid-up-capital"]',
+    arrow: 'up',
+    caption:
+      'ขั้นที่ 9: "ทุนจดทะเบียนที่ชำระแล้ว" — ใช้จัดประเภท SME สำหรับภาษีเงินได้' +
+      ' นิติบุคคล (CIT): ทุน ≤ 5 ล้านบาท และรายได้ ≤ 30 ล้านบาท/ปี ได้อัตรา' +
+      ' ลดหย่อนแบบขั้นบันได. ค่านี้อยู่บนข้อมูลหลักบริษัท — แก้ได้โดย super-admin',
   });
 
 });

@@ -1060,6 +1060,7 @@
     "bankName": "ธนาคาร",
     "bankAccountNo": "เลขที่บัญชี",
     "bankAccountName": "ชื่อบัญชี",
+    "ssoEmployerAccountNo": "เลขที่บัญชีนายจ้าง (ประกันสังคม)",
     "saved": "บันทึกข้อมูลติดต่อแล้ว",
     "loadError": "โหลดข้อมูลบริษัทไม่สำเร็จ",
     "paidUpCapital": "ทุนจดทะเบียนชำระแล้ว (บาท)",
