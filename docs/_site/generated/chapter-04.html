@@ -917,6 +917,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#0408" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        04.08 — เลือกสินค้า/บริการในเอกสาร
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="04.08 — เลือกสินค้า/บริการในเอกสาร">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1520,6 +1581,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#0408" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        04.08 — เลือกสินค้า/บริการในเอกสาร
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="04.08 — เลือกสินค้า/บริการในเอกสาร">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 3
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1853,6 +1975,69 @@
   <img alt="step-05-posted" src="../captures/04/04.07/step-05-posted.png" />
 <br />
 <figcaption>ใบเพิ่มหนี้ออกเลขที่เอกสารแล้ว อ้างอิงใบกำกับภาษีเดิมใน "เอกสารอ้างอิง" พร้อมเหตุผลและมูลค่าที่เพิ่ม — วิธีปรับยอด "ขึ้น" ที่ถูกต้องตามกฎหมาย</figcaption>
+</figure>
+<h2 id="0408">04.08 — เลือกสินค้า/บริการในเอกสาร</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login admin · มีข้อมูลหลักสินค้า/บริการในระบบ (02.02)</p>
+</blockquote>
+<p>ทุกเอกสารที่มี "รายการสินค้า/บริการ" (ใบเสนอราคา, ใบกำกับภาษี, ใบสั่งซื้อ, ใบสำคัญจ่าย ฯลฯ)
+ใช้ช่องเลือกสินค้า/บริการแบบเดียวกัน — แต่ละบรรทัดมีปุ่ม <strong>"เลือกจากรายการ" (🔍)</strong> เปิด
+หน้าต่างค้นหาจาก <strong>ข้อมูลหลักสินค้า (Product Master, ดู 02.02)</strong>.</p>
+<p><strong>เลือกจาก master ได้อะไร:</strong> ระบบดึง <strong>ชื่อ + รหัส + ราคาตั้งต้น + หน่วยนับ + ประเภท</strong> มาเติม
+ให้อัตโนมัติ ไม่ต้องพิมพ์ซ้ำและลดความผิดพลาด. ถ้าเป็นรายการเฉพาะกิจที่ไม่มีใน master
+ก็ <strong>พิมพ์รายละเอียดเองได้</strong> (ad-hoc) โดยไม่ต้องสร้างสินค้าใหม่.</p>
+<p><strong>ประเภทสินค้า/บริการ → ผลทาง VAT:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ประเภท</th>
+<th>ป้าย</th>
+<th>VAT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>สินค้า (GOOD)</td>
+<td>🟦 สินค้า</td>
+<td>7%</td>
+</tr>
+<tr>
+<td>บริการ (SERVICE)</td>
+<td>🟪 บริการ</td>
+<td>7%</td>
+</tr>
+<tr>
+<td>สินค้า/บริการยกเว้น (EXEMPT)</td>
+<td>🟧 ยกเว้น VAT</td>
+<td><strong>0% (ม.81)</strong> เช่น สัตว์มีชีวิต พืชผลเกษตร</td>
+</tr>
+</tbody>
+</table>
+<p>ระบบ <strong>คิด VAT ให้ตามประเภทอัตโนมัติ</strong> — เลือกสินค้ายกเว้นแล้วบรรทัดนั้นจะไม่มี VAT ทันที
+โดยผู้ใช้ไม่ต้องตั้งเอง (กันออกภาษีผิดประเภท).</p>
+<h3 id="1_7">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-line-table" src="../captures/04/04.08/step-01-line-table.png" />
+<br />
+<figcaption>ในส่วน "รายการ" ของเอกสาร แต่ละบรรทัดมีช่องรายละเอียด + ปุ่มแว่นขยาย "เลือกจากรายการ" สำหรับดึงสินค้า/บริการจากข้อมูลหลัก (หรือจะพิมพ์เองก็ได้)</figcaption>
+</figure>
+<h3 id="2_7">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-modal" src="../captures/04/04.08/step-02-modal.png" />
+<br />
+<figcaption>หน้าต่าง "เลือกสินค้า / บริการ" — ค้นหาด้วยชื่อหรือรหัส. แต่ละรายการ แสดง รหัส · ชื่อ · ป้ายประเภท (สินค้า/บริการ/ยกเว้น VAT) · ราคาตั้งต้น</figcaption>
+</figure>
+<h3 id="3_7">ขั้นที่ 3</h3>
+<figure>
+  <img alt="step-03-service" src="../captures/04/04.08/step-03-service.png" />
+<br />
+<figcaption>เลือกบริการ "ค่าที่ปรึกษา" → ระบบเติมชื่อ + ราคาตั้งต้น (2,000) + หน่วยนับให้อัตโนมัติ และตั้งอัตราภาษีเป็น 7% เพราะเป็นประเภท "บริการ"</figcaption>
+</figure>
+<h3 id="4_8">ขั้นที่ 4</h3>
+<figure>
+  <img alt="step-04-exempt" src="../captures/04/04.08/step-04-exempt.png" />
+<br />
+<figcaption>เลือกสินค้ายกเว้น VAT "เต่าบก (สัตว์มีชีวิต)" → อัตราภาษีของบรรทัด เปลี่ยนเป็น 0 อัตโนมัติ (ยกเว้น VAT ตาม ม.81). ระบบกันการคิดภาษีผิดประเภทให้เอง. รายการที่ไม่มีใน master ให้พิมพ์รายละเอียดเองได้</figcaption>
 </figure>
 
 
