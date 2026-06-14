@@ -72,7 +72,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#0102-dashboard" class="md-skip">
+        <a href="#0102" class="md-skip">
           ข้ามไปที่เนื้อหา
         </a>
       
@@ -312,6 +312,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../chapter-03.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    บทที่ 3 — ข้อมูลหลัก
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chapter-04.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    บทที่ 4 — งานขาย
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../rbac-ui-guide.html" class="md-nav__link">
         
   
@@ -357,15 +411,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#0102-dashboard" class="md-nav__link">
+  <a href="#0102" class="md-nav__link">
     <span class="md-ellipsis">
       
-        01.02 — สำรวจ Dashboard
+        01.02 — สำรวจหน้าแรก (แดชบอร์ด)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="01.02 — สำรวจ Dashboard">
+    <nav class="md-nav" aria-label="01.02 — สำรวจหน้าแรก (แดชบอร์ด)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -456,28 +510,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ขั้นที่ 9
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ขั้นที่ 10
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -502,77 +534,71 @@
 
   <h1>01.02</h1>
 
-<h2 id="0102-dashboard">01.02 — สำรวจ Dashboard</h2>
+<h2 id="0102">01.02 — สำรวจหน้าแรก (แดชบอร์ด)</h2>
 <blockquote>
 <p><strong>เงื่อนไขก่อนใช้งาน:</strong> login แล้ว (walkthrough 01.01) · อยู่ที่ URL / (dashboard root)</p>
 </blockquote>
-<p>หลัง login สำเร็จ ผู้ใช้จะมาที่ "แดชบอร์ด" — หน้าแรกที่สรุปภาพรวมระบบ
-และเป็นจุดเริ่มต้นในการเข้าทุกโมดูล. ในบทนี้คุณจะรู้จัก:</p>
+<p>หลัง login สำเร็จ ผู้ใช้จะมาที่ "แดชบอร์ด" — หน้าแรกที่สรุปสถานะการเงิน
+ของเดือนปัจจุบัน และเป็นจุดเริ่มต้นเข้าทุกโมดูล. ในบทนี้คุณจะรู้จัก:</p>
 <ul>
-<li>4 stat cards ที่สรุปสถานะการเงินของเดือนนี้</li>
-<li>โครงสร้าง sidebar ที่แบ่งเป็น 4 กลุ่ม: ขาย / ซื้อ / รายงาน / ตั้งค่า</li>
-<li>ปุ่ม TH/EN สำหรับสลับภาษา และปุ่ม "ออกจากระบบ"</li>
+<li><strong>ส่วนหัว</strong> — คำทักทาย + ชื่อบริษัท (ดึงจากข้อมูลบริษัท) + เดือนที่กำลังดู</li>
+<li><strong>ตัวเลขสำคัญเดือนนี้ (KPI)</strong> — 5 ช่อง: รายได้ / รายจ่าย / กำไรสุทธิ /
+  VAT สุทธิ (เฉพาะบริษัทจด VAT) / ภาษีหัก ณ ที่จ่าย</li>
+<li><strong>กราฟรายรับ-รายจ่ายทั้งปี</strong> + แผง <strong>"ต้องทำ / แจ้งเตือน"</strong> ที่รวมงานค้าง
+  (เลขเอกสารขาดช่วง, เอกสารซื้อไม่ครบ, ภ.พ.30 ใกล้ครบกำหนด ฯลฯ)</li>
+<li><strong>ทางลัด</strong> — ปุ่มสร้างเอกสารที่ใช้บ่อย (แสดงตามสิทธิ์ของผู้ใช้)</li>
+<li>โครงสร้าง <strong>sidebar</strong> ที่แบ่งเป็นกลุ่ม: ขาย / ซื้อ / เงินเดือน / รายงาน / ตั้งค่า</li>
 </ul>
-<p>หมายเหตุ: TEAS ใช้ navigation แบบ sidebar เพียงอย่างเดียว — ไม่มี top header bar.</p>
+<p>หมายเหตุ: บริษัทตัวอย่างนี้เป็น tenant ใหม่ ยังไม่มีเอกสารที่โพสต์ →
+ตัวเลขทุกช่องจึงเป็น ฿0 และกราฟยังว่าง. เมื่อเริ่มออกเอกสารจริง ตัวเลข
+จะอัปเดตอัตโนมัติ.</p>
 <h3 id="1">ขั้นที่ 1</h3>
 <figure>
   <img alt="step-01-overview" src="../../captures/01/01.02/step-01-overview.png" />
 <br />
-<figcaption>นี่คือหน้า "แดชบอร์ด" — สรุปภาพรวมระบบของเดือนปัจจุบัน. หัวเรื่อง "แดชบอร์ด" + คำอธิบาย "ภาพรวมระบบ" + 4 stat cards ด้านบน</figcaption>
+<figcaption>หน้า "แดชบอร์ด" — หน้าแรกหลัง login. แถบบนสุดมีช่องค้นหาเอกสาร/ลูกค้า (กด ⌘K), กระดิ่งแจ้งเตือน และไอคอนตั้งค่า. ถัดมาเป็นส่วนหัว (คำทักทาย + ชื่อบริษัท + เดือนที่กำลังดู) ตามด้วยตัวเลขสำคัญ, กราฟ, แผงแจ้งเตือน และปุ่มทางลัด — ทั้งหมดของเดือนปัจจุบัน</figcaption>
 </figure>
 <h3 id="2">ขั้นที่ 2</h3>
 <figure>
-  <img alt="step-02-card-tax-invoices" src="../../captures/01/01.02/step-02-card-tax-invoices.png" />
+  <img alt="step-02-header" src="../../captures/01/01.02/step-02-header.png" />
 <br />
-<figcaption>card แรก "ใบกำกับภาษีเดือนนี้" — จำนวนใบกำกับภาษีขายที่ Post แล้วในเดือนปัจจุบัน. เมื่อยังไม่มีข้อมูลจะแสดง "—"</figcaption>
+<figcaption>ส่วนหัว — "สวัสดี 👋" + ชื่อบริษัท (ดึงจากข้อมูลบริษัทที่ตั้งไว้ ในเมนู "ตั้งค่า → ข้อมูลบริษัท" — ดูบท 02.05) และข้อความ "ภาพรวมเดือน…" บอกว่ากำลังดูข้อมูลของเดือนใด</figcaption>
 </figure>
 <h3 id="3">ขั้นที่ 3</h3>
 <figure>
-  <img alt="step-03-card-sales" src="../../captures/01/01.02/step-03-card-sales.png" />
+  <img alt="step-03-kpi" src="../../captures/01/01.02/step-03-kpi.png" />
 <br />
-<figcaption>card "ยอดขายเดือนนี้" — ผลรวม net amount ของใบกำกับภาษีขาย ที่ Post แล้ว (ไม่รวมที่ยกเลิก). หน่วยเป็นบาท (฿)</figcaption>
+<figcaption>"ตัวเลขสำคัญเดือนนี้" — 5 ช่อง: รายได้, รายจ่าย, กำไรสุทธิ, VAT สุทธิ (เฉพาะบริษัทจด VAT), ภาษีหัก ณ ที่จ่าย. บริษัทใหม่ที่ยังไม่ออก เอกสารจะแสดง ฿0 ทุกช่อง แล้วอัปเดตเองเมื่อโพสต์เอกสาร</figcaption>
 </figure>
 <h3 id="4">ขั้นที่ 4</h3>
 <figure>
-  <img alt="step-04-card-output-vat" src="../../captures/01/01.02/step-04-card-output-vat.png" />
+  <img alt="step-04-kpi-vat" src="../../captures/01/01.02/step-04-kpi-vat.png" />
 <br />
-<figcaption>card "ภาษีขายเดือนนี้" — ผลรวม VAT 7% (Output VAT) ที่ เรียกเก็บจากลูกค้า. เป็นตัวเลขเดียวกับที่จะยื่น ภ.พ.30 ปลายเดือน</figcaption>
+<figcaption>ช่อง "VAT สุทธิ" = ภาษีขาย − ภาษีซื้อของเดือนนี้ (ตัวเลขที่จะยื่น ภ.พ.30). มีกำกับ "ต้องชำระ" หรือ "ขอคืนได้" ตามผลลัพธ์. ช่องนี้แสดงเฉพาะ บริษัทที่จดทะเบียน VAT — บริษัทไม่จด VAT จะไม่เห็นช่องนี้</figcaption>
 </figure>
 <h3 id="5">ขั้นที่ 5</h3>
 <figure>
-  <img alt="step-05-card-number-gaps" src="../../captures/01/01.02/step-05-card-number-gaps.png" />
+  <img alt="step-05-trend" src="../../captures/01/01.02/step-05-trend.png" />
 <br />
-<figcaption>card "เลขเอกสารขาดช่วง" — จำนวนช่วงของเลขเอกสารที่ขาด (ตามกฎบัญชี TEAS ต้องเป็น gapless). ถ้าไม่ใช่ 0 ต้องรีบตรวจ — ดูบทที่ 5</figcaption>
+<figcaption>กราฟ "รายรับ-รายจ่าย" ทั้งปี — แท่งคู่รายเดือน (เขียว=รายได้, แดง=รายจ่าย) ครบทั้ง 12 เดือน. tenant ใหม่ยังไม่ออกเอกสาร แท่งจึงเตี้ย (เป็น 0) ทุกเดือน แล้วจะสูงขึ้นเองเมื่อมีรายการจริง. ลิงก์ "ดูสรุปภาษี" มุมขวาบนพาไปหน้าสรุปภาษีรายเดือนแบบละเอียด (บท 07.03)</figcaption>
 </figure>
 <h3 id="6">ขั้นที่ 6</h3>
 <figure>
-  <img alt="step-06-sidebar-sales" src="../../captures/01/01.02/step-06-sidebar-sales.png" />
+  <img alt="step-06-alerts" src="../../captures/01/01.02/step-06-alerts.png" />
 <br />
-<figcaption>sidebar กลุ่มแรก (ไม่มีหัวข้อ) คือ "ขาย" — รวม แดชบอร์ด, ใบเสนอราคา, ใบสั่งขาย, ใบส่งของ, ใบกำกับภาษี, ใบเสร็จรับเงิน, ใบลดหนี้, ใบเพิ่มหนี้, ตรวจเลขเอกสารขาดช่วง</figcaption>
+<figcaption>แผง "ต้องทำ / แจ้งเตือน" — รวมงานค้างที่ต้องจัดการ เช่น เลขเอกสารขาดช่วง, เอกสารซื้อยังไม่ครบ, ภ.พ.30 ใกล้ครบกำหนด. แต่ละรายการ คลิกไปหน้าที่เกี่ยวข้องได้ทันที. ถ้าไม่มีงานค้างจะขึ้น "เรียบร้อยดี" ✓</figcaption>
 </figure>
 <h3 id="7">ขั้นที่ 7</h3>
 <figure>
-  <img alt="step-07-sidebar-purchase" src="../../captures/01/01.02/step-07-sidebar-purchase.png" />
+  <img alt="step-07-quick" src="../../captures/01/01.02/step-07-quick.png" />
 <br />
-<figcaption>กลุ่ม "ซื้อ" — ผู้ขาย, บันทึกใบกำกับภาษีซื้อ, ใบสั่งซื้อ, ใบสำคัญจ่าย, หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)</figcaption>
+<figcaption>"ทางลัด" — ปุ่มสร้างเอกสารที่ใช้บ่อย (ออกใบกำกับภาษี, ออกใบเสร็จ, สร้างใบสำคัญจ่าย, เพิ่มลูกค้า/ผู้ขาย). ระบบแสดงเฉพาะปุ่มที่ผู้ใช้มีสิทธิ์ — ผู้ใช้แต่ละบทบาทจึงเห็นปุ่มไม่เหมือนกัน</figcaption>
 </figure>
 <h3 id="8">ขั้นที่ 8</h3>
 <figure>
-  <img alt="step-08-sidebar-reports" src="../../captures/01/01.02/step-08-sidebar-reports.png" />
+  <img alt="step-08-sidebar" src="../../captures/01/01.02/step-08-sidebar.png" />
 <br />
-<figcaption>กลุ่ม "รายงาน" — งบทดลอง, กำไรขาดทุน, สรุปยอดขาย, ภ.พ.30, PO ค้าง, แบบยื่นภาษี, ภาษีหัก ณ ที่จ่ายค้างรับ</figcaption>
-</figure>
-<h3 id="9">ขั้นที่ 9</h3>
-<figure>
-  <img alt="step-09-sidebar-settings" src="../../captures/01/01.02/step-09-sidebar-settings.png" />
-<br />
-<figcaption>กลุ่ม "ตั้งค่า" — 5 รายการ. ลิงก์แรก "ข้อมูลบริษัท" (Sprint 13d-P6, ทำก่อนเป็นอันดับแรกสำหรับ tenant ใหม่ — ดูบท 02.05) ตามด้วย สินค้า/บริการ, หน่วยธุรกิจ (Business Unit), ประเภทหัก ณ ที่จ่าย (admin), API Keys (admin)</figcaption>
-</figure>
-<h3 id="10">ขั้นที่ 10</h3>
-<figure>
-  <img alt="step-10-sidebar-footer" src="../../captures/01/01.02/step-10-sidebar-footer.png" />
-<br />
-<figcaption>ด้านล่าง sidebar มี 2 ปุ่ม — "TH / EN" สลับภาษา (ดูบท 01.03) และ "ออกจากระบบ" สำหรับ logout (ดูบท 01.04)</figcaption>
+<figcaption>แถบเมนูซ้าย (sidebar) คือ navigation หลัก แบ่งเป็นกลุ่ม: ขาย / ซื้อ / เงินเดือน / รายงาน / ตั้งค่า (เมนูที่เห็นขึ้นกับสิทธิ์ของผู้ใช้). ด้านล่างสุดมีปุ่มสลับภาษา TH/EN (บท 01.03) และ "ออกจากระบบ" (บท 01.04)</figcaption>
 </figure>
 
 
