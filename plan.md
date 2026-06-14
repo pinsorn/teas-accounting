@@ -5,6 +5,25 @@
 
 ---
 
+## ▶ Sprint 13k RBAC (plans: `docs/superpowers/plans/2026-06-13-rbac-{admin-ui,cartesian-audit}.md`)
+
+- ☑ **Plan 1 — per-company roles + admin UI** (cont.95, 2026-06-14, commit b8b4773) — see progress.md.
+- ☑ **Plan 2 — Full Cartesian audit** (cont.96, 2026-06-14) — endpoint→perm map generator (255 routes),
+  role×perm matrix doc (source of truth), `RbacCartesianTests` (role×endpoint HTTP enforcement + super
+  bypass + cross-company isolation + API-key scope, green ×2 on teas_test). **Found+fixed a seed-ordering
+  bug** that left core operational perms (sales create/post, TI issuance, tax/report reads, journals,
+  vendor master, PO-create, period-close) SUPER_ADMIN-only → `530_seed_rbac_grant_reconcile.sql` restores
+  them per role purpose; `master.company.manage` stays super-only (§4.6). Also fixed an unauth
+  `GET /periods/.../status` leak. Api 360/0/3 ×2 · FE tsc 0. **NOT committed (รอ Ham).**
+  - ⚠️ **Ham to เคาะ on return:** (a) SoD overlaps CHIEF/COMPANY_ADMIN PV create+approve (matrix doc §SoD);
+    (b) `sys.role.manage`+`sys.user.manage`→COMPANY_ADMIN (530 §D — keep or switch to assigning SUPER_ADMIN);
+    (c) `/company-profile/*` shares `master.company.manage` with §4.6 tax config → needs its own perm.
+  - ☑ **Plan 2 Phase E (FE gating)** — nav fully permission-gated + main action buttons wrapped in
+    `PermissionGate` (create on 8 list pages; lifecycle on PV/TI/PO/VI detail; payroll already gated).
+    Remaining nit: receipt post lives in the shared `DocActionBar` component (gate there if wanted);
+    settings/* create buttons are already nav-gated by their manage perm. UX-grade — BE is the real
+    enforcement (proven by `RbacCartesianTests`).
+
 ## ▶ Per-company VAT mode (spec: `docs/superpowers/specs/per-company-vat-mode.md`, Ham 2026-06-11)
 
 - ☑ **§4.6 amendment + BE refactor** (cont.90, 2026-06-11) — VAT mode/rate/ภ.พ.30 mode moved from env

@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
@@ -60,18 +61,22 @@ export default function VendorInvoiceDetailPage() {
         actions={
           <div className="flex gap-2">
             {isDraft && (
-              <button className="btn btn-primary btn-sm"
-                disabled={post.isPending}
-                title={missingFileWarn ? t('attachmentAdvisoryHint') : undefined}
-                onClick={() => setConfirm(true)}>
-                {t('post')}
-              </button>
+              <PermissionGate scope="purchase.vendor_invoice.post">
+                <button className="btn btn-primary btn-sm"
+                  disabled={post.isPending}
+                  title={missingFileWarn ? t('attachmentAdvisoryHint') : undefined}
+                  onClick={() => setConfirm(true)}>
+                  {t('post')}
+                </button>
+              </PermissionGate>
             )}
             {canSettle && (
-              <button className="btn btn-secondary btn-sm"
-                onClick={() => router.push(`/payment-vouchers/new?fromVendorInvoiceId=${id}`)}>
-                {t('settleWithPv')}
-              </button>
+              <PermissionGate scope="purchase.payment_voucher.create">
+                <button className="btn btn-secondary btn-sm"
+                  onClick={() => router.push(`/payment-vouchers/new?fromVendorInvoiceId=${id}`)}>
+                  {t('settleWithPv')}
+                </button>
+              </PermissionGate>
             )}
           </div>
         }

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { FilePlus2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
@@ -70,22 +71,28 @@ export default function PaymentVoucherDetailPage() {
         actions={
           <div className="flex gap-2">
             {d.status === 'Draft' && (
-              <button className="btn btn-secondary btn-sm" disabled={approve.isPending}
-                onClick={doApprove} title={t('sodHint')}>
-                {t('approve')}
-              </button>
+              <PermissionGate scope="purchase.payment_voucher.approve">
+                <button className="btn btn-secondary btn-sm" disabled={approve.isPending}
+                  onClick={doApprove} title={t('sodHint')}>
+                  {t('approve')}
+                </button>
+              </PermissionGate>
             )}
             {d.status === 'Approved' && (
-              <button className="btn btn-primary btn-sm" disabled={post.isPending}
-                onClick={doPost}>
-                {t('post')}
-              </button>
+              <PermissionGate scope="purchase.payment_voucher.post">
+                <button className="btn btn-primary btn-sm" disabled={post.isPending}
+                  onClick={doPost}>
+                  {t('post')}
+                </button>
+              </PermissionGate>
             )}
             {canCreateVi && (
-              <button className="btn btn-primary btn-sm gap-1" data-testid="pv-create-vi"
-                onClick={() => setViDialog(true)}>
-                <FilePlus2 className="h-4 w-4" aria-hidden /> {t('createVi.action')}
-              </button>
+              <PermissionGate scope="purchase.vendor_invoice.create">
+                <button className="btn btn-primary btn-sm gap-1" data-testid="pv-create-vi"
+                  onClick={() => setViDialog(true)}>
+                  <FilePlus2 className="h-4 w-4" aria-hidden /> {t('createVi.action')}
+                </button>
+              </PermissionGate>
             )}
             {/* Sprint 13j-PURCH D3 — tracked ต้นฉบับ/สำเนา print (Phase C added
                 payment-vouchers /pdf?copy + /mark-printed). */}

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Plus, Search } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { useCustomers } from '@/lib/queries';
@@ -77,9 +78,11 @@ export default function CustomerListPage() {
         title={t('title')}
         subtitle={t('subtitle')}
         actions={
-          <Link href="/customers/new" className="btn btn-primary btn-sm gap-1">
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </Link>
+          <PermissionGate scope="master.customer.manage">
+            <Link href="/customers/new" className="btn btn-primary btn-sm gap-1">
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </Link>
+          </PermissionGate>
         }
       />
 
