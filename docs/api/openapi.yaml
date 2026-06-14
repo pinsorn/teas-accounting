@@ -1639,6 +1639,194 @@ paths:
         '204': { description: Updated }
         '400': { description: Validation error (vatRate 0–1, pnd30SubmissionMode manual|auto) }
 
+  # ============================================================
+  # RBAC ADMIN — per-company role/permission/user management (Sprint 13k Plan 1)
+  # super-admin may target any company via ?companyId; company-admin is forced to
+  # their own company (cross-company → 403 rbac.cross_company.scope_required).
+  # ============================================================
+  /admin/rbac/permissions:
+    get:
+      summary: Permission catalog (66 codes + Thai/English labels) — perm sys.role.manage
+      tags: [RBAC Admin]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [code, module, labelTh, labelEn]
+                  properties:
+                    code: { type: string, example: 'sales.tax_invoice.create' }
+                    module: { type: string, example: 'sales' }
+                    labelTh: { type: string }
+                    labelEn: { type: string }
+  /admin/rbac/roles:
+    get:
+      summary: List roles for the target company (SUPER_ADMIN excluded) — perm sys.role.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: companyId, in: query, required: false, schema: { type: integer }, description: 'super-admin only; company-admin is forced to own company' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    roleId: { type: integer }
+                    roleCode: { type: string }
+                    nameTh: { type: string }
+                    description: { type: string, nullable: true }
+                    isSystem: { type: boolean }
+                    userCount: { type: integer }
+                    permissionCount: { type: integer }
+        '403': { description: Forbidden (cross-company — rbac.cross_company.scope_required) }
+    post:
+      summary: Create a custom role in the target company — perm sys.role.manage
+      tags: [RBAC Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleCode, nameTh]
+              properties:
+                roleCode: { type: string }
+                nameTh: { type: string }
+                description: { type: string, nullable: true }
+                companyId: { type: integer, nullable: true, description: 'super-admin target; omitted = caller company' }
+      responses:
+        '201': { description: Created }
+        '403': { description: Forbidden (cross-company) }
+        '422': { description: Business rule (rbac.role_code_duplicate, rbac.super_admin_locked) }
+  /admin/rbac/roles/{id}:
+    get:
+      summary: Role detail + permission codes — perm sys.role.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roleId: { type: integer }
+                  companyId: { type: integer }
+                  roleCode: { type: string }
+                  nameTh: { type: string }
+                  description: { type: string, nullable: true }
+                  isSystem: { type: boolean }
+                  permissionCodes: { type: array, items: { type: string } }
+        '404': { description: Not found (rbac.role.not_found) }
+    put:
+      summary: Rename a role (nameTh/description only) — perm sys.role.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nameTh]
+              properties:
+                nameTh: { type: string }
+                description: { type: string, nullable: true }
+      responses:
+        '204': { description: Updated }
+        '404': { description: Not found }
+        '422': { description: SUPER_ADMIN locked (rbac.super_admin_locked) }
+    delete:
+      summary: Delete a role (not is_system, not in use) — perm sys.role.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Not found }
+        '422': { description: rbac.role_is_system / rbac.role_in_use / rbac.super_admin_locked }
+  /admin/rbac/roles/{id}/permissions:
+    put:
+      summary: Replace a role's whole permission set (diff → audit rbac_grant_change) — perm sys.role.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissionCodes]
+              properties:
+                permissionCodes: { type: array, items: { type: string } }
+      responses:
+        '204': { description: Replaced }
+        '404': { description: Not found }
+        '422': { description: rbac.unknown_permission / rbac.super_admin_locked }
+  /admin/rbac/users:
+    get:
+      summary: List users in the target company with their company-scoped roles — perm sys.user.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: companyId, in: query, required: false, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    userId: { type: integer, format: int64 }
+                    username: { type: string }
+                    fullName: { type: string }
+                    isActive: { type: boolean }
+                    isSuperAdmin: { type: boolean }
+                    roles:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          roleId: { type: integer }
+                          roleCode: { type: string }
+                          nameTh: { type: string }
+        '403': { description: Forbidden (cross-company) }
+  /admin/rbac/users/{id}/roles:
+    put:
+      summary: Replace a user's whole role set for the target company (audit user_role_change) — perm sys.user.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleIds]
+              properties:
+                roleIds: { type: array, items: { type: integer } }
+                companyId: { type: integer, nullable: true, description: 'super-admin target; omitted = caller company' }
+      responses:
+        '204': { description: Replaced }
+        '403': { description: Forbidden (cross-company) }
+        '404': { description: User not found }
+        '422': { description: rbac.role_company_mismatch / rbac.self_lockout }
+
   /document-prefixes:
     get:
       summary: List registered prefixes

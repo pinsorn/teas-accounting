@@ -221,6 +221,14 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
             db.TaxCodes.Add(tc);
         }
         await db.SaveChangesAsync(ct);
+
+        // Sprint 13k — per-company RBAC: clone the standard role set + grants into the new
+        // tenant from the templates captured in 510_per_company_roles_reconcile.sql. SUPER_ADMIN
+        // is system-global and intentionally NOT copied (super-admin = is_super_admin user flag).
+        // Done via the SQL fan-out function to stay DRY with the reconcile/bootstrap path.
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT sys.seed_company_roles({e.CompanyId})", ct);
+
         return e.CompanyId;
     }
 

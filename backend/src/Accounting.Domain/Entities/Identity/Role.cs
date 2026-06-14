@@ -3,6 +3,14 @@ namespace Accounting.Domain.Entities.Identity;
 public class Role
 {
     public int RoleId { get; set; }
+
+    /// <summary>
+    /// Owning company. NULL means a system-global role (only <see cref="SystemRoles.SuperAdmin"/>);
+    /// every other role is per-company (Sprint 13k — per-company RBAC). Enforced by a DB CHECK
+    /// (company_id NOT NULL OR role_code = 'SUPER_ADMIN') added in the reconcile SQL script.
+    /// </summary>
+    public int? CompanyId { get; set; }
+
     public required string RoleCode { get; set; }
     public required string RoleName { get; set; }
     public string? Description { get; set; }

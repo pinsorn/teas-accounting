@@ -71,6 +71,73 @@ export interface MePermissions {
   isSuperAdmin: boolean;
 }
 
+// ───────────── Sprint 13k — per-company RBAC admin (/settings/roles, /users) ─────────────
+// Mirrors Accounting.Application.Identity.RbacAdminDtos (JSON camelCase). The 66
+// permission labels come from the API (labelTh/labelEn) — never re-translated in i18n.
+
+export interface PermissionCatalogItem {
+  code: string;
+  module: string;
+  labelTh: string;
+  labelEn: string;
+}
+
+export interface RoleListItem {
+  roleId: number;
+  roleCode: string;
+  nameTh: string;
+  description: string | null;
+  isSystem: boolean;
+  userCount: number;
+  permissionCount: number;
+}
+
+export interface RoleDetail {
+  roleId: number;
+  companyId: number | null;
+  roleCode: string;
+  nameTh: string;
+  description: string | null;
+  isSystem: boolean;
+  permissionCodes: string[];
+}
+
+export interface CreateRoleRequest {
+  roleCode: string;
+  nameTh: string;
+  description: string | null;
+  companyId?: number | null;
+}
+
+export interface UpdateRoleRequest {
+  nameTh: string;
+  description: string | null;
+}
+
+export interface SetRolePermissionsRequest {
+  permissionCodes: string[];
+}
+
+export interface RoleRef {
+  roleId: number;
+  roleCode: string;
+  nameTh: string;
+}
+
+export interface RbacUserListItem {
+  userId: number;
+  username: string;
+  fullName: string;
+  isActive: boolean;
+  isSuperAdmin: boolean;
+  roles: RoleRef[];
+}
+
+export interface SetUserRolesRequest {
+  roleIds: number[];
+  companyId?: number | null;
+}
+
 export interface UpdateCompanyProfileSoftRequest {
   tradeName: string | null;
   logoUrl: string | null;

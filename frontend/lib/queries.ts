@@ -1250,3 +1250,102 @@ export function useDocumentActivity(docType: ActivityDocType, id: number | null)
     staleTime: 30_000,
   });
 }
+
+// ───────────── Sprint 13k — per-company RBAC admin (/settings/roles, /users) ─────────────
+// All under /admin/rbac. companyId is OMITTED for company-admins (qs() drops undefined →
+// the BE defaults to the caller's own company); super-admins pass the selected company.
+// Query keys carry companyId so a super-admin's company switch refetches.
+import type {
+  PermissionCatalogItem,
+  RoleListItem as RbacRoleListItem,
+  RoleDetail as RbacRoleDetail,
+  CreateRoleRequest as RbacCreateRoleRequest,
+  UpdateRoleRequest as RbacUpdateRoleRequest,
+  SetRolePermissionsRequest,
+  RbacUserListItem,
+  SetUserRolesRequest,
+} from './types';
+
+/** 66-item permission catalog — the source of permission labels (labelTh/labelEn). */
+export function usePermissionCatalog() {
+  return useQuery({
+    queryKey: ['rbac-permissions'],
+    queryFn: () => apiGet<PermissionCatalogItem[]>('admin/rbac/permissions'),
+    staleTime: 60 * 60_000, // catalog is effectively static
+  });
+}
+
+// `enabled` lets the super-admin pages defer the fetch until a company is picked
+// (a companyId-less call would hit the BE with ambiguous scope on first render).
+export function useRbacRoles(companyId?: number, enabled = true) {
+  return useQuery({
+    queryKey: ['rbac-roles', companyId ?? null],
+    queryFn: () => apiGet<RbacRoleListItem[]>(`admin/rbac/roles${qs({ companyId })}`),
+    enabled,
+  });
+}
+
+export function useRbacRole(roleId: number | null) {
+  return useQuery({
+    queryKey: ['rbac-role', roleId],
+    queryFn: () => apiGet<RbacRoleDetail>(`admin/rbac/roles/${roleId}`),
+    enabled: roleId != null && Number.isFinite(roleId) && roleId > 0,
+  });
+}
+
+export function useCreateRbacRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: RbacCreateRoleRequest) => apiPost<unknown>('admin/rbac/roles', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-roles'] }),
+  });
+}
+
+export function useUpdateRbacRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: RbacUpdateRoleRequest }) =>
+      apiPut<void>(`admin/rbac/roles/${v.id}`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['rbac-roles'] });
+      qc.invalidateQueries({ queryKey: ['rbac-role', v.id] });
+    },
+  });
+}
+
+export function useDeleteRbacRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete<void>(`admin/rbac/roles/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-roles'] }),
+  });
+}
+
+export function useSetRolePermissions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: SetRolePermissionsRequest }) =>
+      apiPut<void>(`admin/rbac/roles/${v.id}/permissions`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['rbac-roles'] });
+      qc.invalidateQueries({ queryKey: ['rbac-role', v.id] });
+    },
+  });
+}
+
+export function useRbacUsers(companyId?: number, enabled = true) {
+  return useQuery({
+    queryKey: ['rbac-users', companyId ?? null],
+    queryFn: () => apiGet<RbacUserListItem[]>(`admin/rbac/users${qs({ companyId })}`),
+    enabled,
+  });
+}
+
+export function useSetUserRoles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: SetUserRolesRequest }) =>
+      apiPut<void>(`admin/rbac/users/${v.id}/roles`, v.req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-users'] }),
+  });
+}
