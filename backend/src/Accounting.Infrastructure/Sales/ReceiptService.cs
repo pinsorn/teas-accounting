@@ -27,13 +27,15 @@ public sealed partial class ReceiptService : IReceiptService
     private readonly IPeriodCloseService     _period;
     private readonly IActivityRecorder       _activity;
     private readonly ICompanyTaxConfigService _taxCfg;
+    private readonly IFileStorageService     _storage;   // Sprint 13k — logo on PDF
 
     public ReceiptService(AccountingDbContext db, ITenantContext tenant, IClock clock,
         INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period,
-        IActivityRecorder activity, ICompanyTaxConfigService taxCfg)
+        IActivityRecorder activity, ICompanyTaxConfigService taxCfg, IFileStorageService storage)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period; _activity = activity; _taxCfg = taxCfg;
+        _storage = storage;
     }
 
     public async Task<long> CreateDraftAsync(CreateReceiptRequest req, CancellationToken ct)

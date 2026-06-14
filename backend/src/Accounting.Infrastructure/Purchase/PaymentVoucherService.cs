@@ -30,6 +30,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
     private readonly IPeriodCloseService     _period;
     private readonly IActivityRecorder       _activity;
     private readonly IVendorInvoiceService   _viService;   // cont.76 — PV→VI guided create
+    private readonly IFileStorageService     _storage;     // Sprint 13k — logo on PDF
 
     public PaymentVoucherService(
         AccountingDbContext db,
@@ -39,10 +40,12 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         IGlPostingService gl,
         IPeriodCloseService period,
         IActivityRecorder activity,
-        IVendorInvoiceService viService)
+        IVendorInvoiceService viService,
+        IFileStorageService storage)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period; _activity = activity; _viService = viService;
+        _storage = storage;
     }
 
     /// <summary>

@@ -83,7 +83,7 @@ public sealed partial class TaxAdjustmentNoteService
 
         var model = new Pdf.PaperDocModel(
             titleTh, titleEn, d.DocNo ?? string.Empty, d.DocDate,
-            await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct),
+            await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage),
             new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), null, d.CustomerAddress),
             new[] { new Pdf.PaperLine(
                 $"เหตุผล ({d.ReasonCode}): {d.Reason}", null, null, null, null, null, d.SubtotalAmount) },
