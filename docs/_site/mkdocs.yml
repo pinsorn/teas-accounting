@@ -36,4 +36,5 @@ nav:
   - "บทที่ 3 — ข้อมูลหลัก": generated/chapter-03.md
   - "บทที่ 4 — งานขาย": generated/chapter-04.md
   - "บทที่ 5 — งานซื้อ": generated/chapter-05.md
+  - "อ้างอิง: หน้าต่างและปุ่มทั้งหมด": reference-modals-buttons.md
   - "สิทธิ์การมองเห็น (RBAC UI Guide)": rbac-ui-guide.md
