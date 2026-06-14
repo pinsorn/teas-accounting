@@ -18,6 +18,7 @@
 | `master.business_unit.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.coa.manage` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.company.manage` † |  |  |  |  |  |  |  |  |  |  |  | ✓ |
+| `master.company_profile.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `master.customer.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.customer.read` | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `master.employee.manage` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
@@ -87,12 +88,12 @@
 | AR_CLERK | 23 |
 | AUDITOR | 17 |
 | CHIEF_ACCOUNTANT | 59 |
-| COMPANY_ADMIN | 65 |
+| COMPANY_ADMIN | 66 |
 | PURCHASING_STAFF | 5 |
 | SALES_STAFF | 13 |
 | TAX_OFFICER | 11 |
 | WAREHOUSE_STAFF | 2 |
-| SUPER_ADMIN | 66 (bypass) |
+| SUPER_ADMIN | 67 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

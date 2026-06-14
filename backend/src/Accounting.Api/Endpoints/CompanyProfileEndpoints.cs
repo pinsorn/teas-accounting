@@ -41,7 +41,7 @@ public static class CompanyProfileEndpoints
             await svc.UpdateSoftAsync(req, ct);
             return Results.NoContent();
         }).RequireAuthorization(
-            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage);
+            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyProfileManage);
 
         // Registered-address (HARD) update — allowed after the admin confirms (FE warning modal)
         // that the change is filed with DBD (บอจ.1/บอจ.4) + ภ.พ.09. Audited in the service.
@@ -51,7 +51,7 @@ public static class CompanyProfileEndpoints
             await svc.UpdateRegisteredAddressAsync(req, ct);
             return Results.NoContent();
         }).RequireAuthorization(
-            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage);
+            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyProfileManage);
 
         // Hard update — Phase-1 not implemented (ภ.พ.20-bound, see body).
         g.MapPut("/hard", () => Results.Json(new
@@ -68,7 +68,7 @@ public static class CompanyProfileEndpoints
             status = StatusCodes.Status501NotImplemented,
         }, statusCode: StatusCodes.Status501NotImplemented))
             .RequireAuthorization(
-                PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage);
+                PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyProfileManage);
 
         // Sprint 13h P10 — Logo upload (multipart/form-data, png/jpeg/svg/webp,
         // max 1 MB). Stored via the polymorphic attachments table; the new URL
@@ -87,7 +87,7 @@ public static class CompanyProfileEndpoints
                 file.FileName, file.ContentType, file.Length, s, ct);
             return Results.Ok(new { logoUrl = url });
         }).RequireAuthorization(
-            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage)
+            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyProfileManage)
           .DisableAntiforgery();
 
         return app;
