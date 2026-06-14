@@ -12,6 +12,10 @@
  *
  * Data (co2): พนักงานตัวอย่าง MD-EMP-001 (เงินเดือน 35,000 โสด) + MD-EMP-002
  * (22,000 สมรส บุตร 2) → เห็นความต่างของภาษีตามสถานะครอบครัว.
+ *
+ * Dependency: this reads an existing DRAFT run for period 202602 via the API
+ * (dev-seeded, not created here). On a fresh DB seed the two employees + that
+ * draft run first; step-03 guards with a clear error if it is missing.
  */
 import { walkthrough } from '../lib/walkthrough';
 
@@ -68,6 +72,12 @@ walkthrough({
   const body = await res.json();
   const runs = Array.isArray(body) ? body : (body.items ?? []);
   const run = runs.find((r: { periodYearMonth: string | number }) => String(r.periodYearMonth) === '202602');
+  if (!run) {
+    throw new Error(
+      '06.01 needs the dev-seeded DRAFT payroll run for period 202602 ' +
+      '(employees MD-EMP-001/002). Seed it before capturing on a fresh DB.',
+    );
+  }
   await page.goto(`/payroll/${run.payrollRunId}`);
   await page.getByText('รายการพนักงาน').waitFor({ state: 'visible', timeout: 10_000 });
   await capture('step-03-run-detail', {
