@@ -159,7 +159,7 @@ export default function CompanyProfilePage() {
                   <Lock className="h-4 w-4" aria-hidden /> {t('legalSection')}
                 </h2>
                 <PermissionGate scope="master.company_profile.manage">
-                  <button className="btn btn-ghost btn-xs gap-1" onClick={openAddr}>
+                  <button data-testid="cp-edit-address" className="btn btn-ghost btn-xs gap-1" onClick={openAddr}>
                     <Pencil className="h-3 w-3" aria-hidden /> {t('editRegisteredAddress')}
                   </button>
                 </PermissionGate>

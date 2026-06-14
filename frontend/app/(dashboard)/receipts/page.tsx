@@ -82,7 +82,7 @@ export default function ReceiptListPage() {
         title={t('title')}
         actions={
           <PermissionGate scope="sales.receipt.create">
-            <Link href="/receipts/new" className="btn btn-primary btn-sm gap-1">
+            <Link href="/receipts/new" data-testid="receipt-create" className="btn btn-primary btn-sm gap-1">
               <Plus className="h-4 w-4" aria-hidden /> {t('create')}
             </Link>
           </PermissionGate>

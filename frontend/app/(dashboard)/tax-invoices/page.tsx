@@ -85,7 +85,7 @@ export default function TaxInvoiceListPage() {
         title={t('title')}
         actions={
           <PermissionGate scope="sales.tax_invoice.create">
-            <Link href="/tax-invoices/new" className="btn btn-primary btn-sm gap-1">
+            <Link href="/tax-invoices/new" data-testid="tax-invoice-create" className="btn btn-primary btn-sm gap-1">
               <Plus className="h-4 w-4" aria-hidden /> {t('create')}
             </Link>
           </PermissionGate>

@@ -72,7 +72,7 @@ export default function PurchaseOrdersPage() {
     <>
       <PageHeader title={t('listTitle')} actions={
         <PermissionGate scope="purchase.purchase_order.create">
-          <Link href="/purchase-orders/new" className="btn btn-primary btn-sm gap-1">
+          <Link href="/purchase-orders/new" data-testid="purchase-order-create" className="btn btn-primary btn-sm gap-1">
             <Plus className="h-4 w-4" aria-hidden /> {t('create')}
           </Link>
         </PermissionGate>

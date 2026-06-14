@@ -75,7 +75,7 @@ export default function PaymentVoucherListPage() {
         title={t('title')}
         actions={
           <PermissionGate scope="purchase.payment_voucher.create">
-            <Link href="/payment-vouchers/new" className="btn btn-primary btn-sm gap-1">
+            <Link href="/payment-vouchers/new" data-testid="payment-voucher-create" className="btn btn-primary btn-sm gap-1">
               <Plus className="h-4 w-4" aria-hidden /> {t('create')}
             </Link>
           </PermissionGate>

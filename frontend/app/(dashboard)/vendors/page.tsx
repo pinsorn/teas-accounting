@@ -52,7 +52,7 @@ export default function VendorListPage() {
         title={t('title')}
         actions={
           <PermissionGate scope="master.vendor.manage">
-            <Link href="/vendors/new" className="btn btn-primary btn-sm gap-1">
+            <Link href="/vendors/new" data-testid="vendor-create" className="btn btn-primary btn-sm gap-1">
               <Plus className="h-4 w-4" aria-hidden /> {t('create')}
             </Link>
           </PermissionGate>
