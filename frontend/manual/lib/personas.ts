@@ -2,6 +2,10 @@
 export const personas = {
   admin: { username: 'demo-admin', password: 'Demo@1234' },
   accountant: { username: 'demo-accountant', password: 'Demo@1234' },
+  // Non-VAT company (company_id=3, "ร้านนอนแวต เดโม", vat_registered=false) —
+  // used by the non-VAT walkthrough to contrast VAT vs non-VAT company behaviour.
+  // Seeded by 550_seed_rbac_e2e_users.sql (company_admin on co3).
+  nonvat: { username: 'rbac_nv_company_admin', password: 'Admin@1234' },
 } as const;
 
 export type PersonaName = keyof typeof personas;

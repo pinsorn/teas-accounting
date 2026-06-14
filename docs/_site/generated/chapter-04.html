@@ -978,6 +978,84 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#0409-vat-vs-vat-864" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        04.09 — ลูกค้าจด VAT vs ไม่จด VAT (ม.86/4)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="04.09 — ลูกค้าจด VAT vs ไม่จด VAT (ม.86/4)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0410-vat-non-vat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        04.10 — กิจการไม่จด VAT (non-VAT)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="04.10 — กิจการไม่จด VAT (non-VAT)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1642,6 +1720,84 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#0409-vat-vs-vat-864" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        04.09 — ลูกค้าจด VAT vs ไม่จด VAT (ม.86/4)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="04.09 — ลูกค้าจด VAT vs ไม่จด VAT (ม.86/4)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0410-vat-non-vat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        04.10 — กิจการไม่จด VAT (non-VAT)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="04.10 — กิจการไม่จด VAT (non-VAT)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ขั้นที่ 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2038,6 +2194,87 @@
   <img alt="step-04-exempt" src="../captures/04/04.08/step-04-exempt.png" />
 <br />
 <figcaption>เลือกสินค้ายกเว้น VAT "เต่าบก (สัตว์มีชีวิต)" → อัตราภาษีของบรรทัด เปลี่ยนเป็น 0 อัตโนมัติ (ยกเว้น VAT ตาม ม.81). ระบบกันการคิดภาษีผิดประเภทให้เอง. รายการที่ไม่มีใน master ให้พิมพ์รายละเอียดเองได้</figcaption>
+</figure>
+<h2 id="0409-vat-vs-vat-864">04.09 — ลูกค้าจด VAT vs ไม่จด VAT (ม.86/4)</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login admin (สิทธิ์ tax_invoice) · มีลูกค้าทั้งจด VAT และไม่จด VAT ในระบบ</p>
+</blockquote>
+<p>ผู้ขายที่จด VAT ออกใบกำกับภาษีให้ผู้ซื้อได้ "ทุกราย" — แต่กฎ <strong>ม.86/4 #3</strong> กำหนดให้ใส่
+<strong>ชื่อ-ที่อยู่-เลขผู้เสียภาษีของผู้ซื้อ "เฉพาะเมื่อผู้ซื้อจด VAT"</strong>:</p>
+<ul>
+<li><strong>ผู้ซื้อจด VAT</strong> (นิติบุคคล/กิจการจด VAT) → ใบกำกับภาษีต้องมี <strong>เลขผู้เสียภาษี 13 หลัก +
+  สาขา</strong> ของผู้ซื้อ (เพื่อให้ผู้ซื้อเอาไปเคลมภาษีซื้อได้).</li>
+<li><strong>ผู้ซื้อไม่จด VAT</strong> (บุคคลธรรมดา/ผู้บริโภคทั่วไป) → <strong>ไม่ต้องมีเลขผู้เสียภาษีผู้ซื้อ</strong>
+  (ใส่แค่ชื่อก็พอ) เพราะผู้ซื้อเคลมภาษีซื้อไม่ได้อยู่แล้ว.</li>
+</ul>
+<p>ระบบดึงสถานะ VAT จากข้อมูลหลักลูกค้า (ดู 03.01) มาแสดง/ซ่อนเลขผู้เสียภาษีบนเอกสารให้เอง.</p>
+<h3 id="1_8">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-vat-buyer" src="../captures/04/04.09/step-01-vat-buyer.png" />
+<br />
+<figcaption>ผู้ซื้อ "บริษัท แอคมี จำกัด" (จด VAT) → ตัวอย่างใบกำกับภาษีด้านขวาแสดง "เลขผู้เสียภาษี 13 หลัก + สาขา" ของผู้ซื้อ ตาม ม.86/4 #3 (ผู้ซื้อนำไปเคลมภาษีซื้อได้)</figcaption>
+</figure>
+<h3 id="2_8">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-nonvat-buyer" src="../captures/04/04.09/step-02-nonvat-buyer.png" />
+<br />
+<figcaption>เปลี่ยนผู้ซื้อเป็น "คุณสมชาย ใจดี" (บุคคลธรรมดา ไม่จด VAT) → บล็อกผู้ซื้อ บนเอกสารแสดงแค่ "ชื่อ" ไม่มีเลขผู้เสียภาษี (ม.86/4 #3 ไม่บังคับเมื่อผู้ซื้อไม่จด VAT). ยังเป็นใบกำกับภาษีเต็มรูปที่ถูกต้อง — VAT ยังคิด 7% ตามปกติ</figcaption>
+</figure>
+<h2 id="0410-vat-non-vat">04.10 — กิจการไม่จด VAT (non-VAT)</h2>
+<blockquote>
+<p><strong>เงื่อนไขก่อนใช้งาน:</strong> login เป็นผู้ใช้ของกิจการที่ไม่จด VAT</p>
+</blockquote>
+<p><strong>สถานะ VAT เป็นข้อมูลของ "บริษัท"</strong> (ตั้งโดยผู้ดูแลระบบสูงสุด ตอนสร้างบริษัท — §4.6,
+ดูบทที่ 0). กิจการที่ <strong>ไม่จด VAT</strong> มีระบบที่ต่างจากกิจการ VAT ดังนี้:</p>
+<table>
+<thead>
+<tr>
+<th>เรื่อง</th>
+<th>กิจการจด VAT</th>
+<th>กิจการไม่จด VAT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ภาษีบนเอกสาร</td>
+<td>VAT 7% ทุกใบ</td>
+<td><strong>ไม่มี VAT</strong> (ยอดรวม = ยอดก่อนภาษี)</td>
+</tr>
+<tr>
+<td>ใบกำกับภาษี (ม.86)</td>
+<td>ออกได้</td>
+<td><strong>ออกไม่ได้</strong> — ใช้ใบแจ้งหนี้/ใบเสร็จแทน</td>
+</tr>
+<tr>
+<td>ใบลดหนี้/เพิ่มหนี้</td>
+<td>มี</td>
+<td>ไม่มี (ผูกกับใบกำกับภาษี)</td>
+</tr>
+<tr>
+<td>เมนูด้านซ้าย</td>
+<td>มีครบ</td>
+<td><strong>ซ่อนเมนูที่เกี่ยวกับ VAT</strong> อัตโนมัติ</td>
+</tr>
+<tr>
+<td>ภ.พ.30 / e-Tax</td>
+<td>ต้องยื่น</td>
+<td>ไม่เกี่ยวข้อง</td>
+</tr>
+</tbody>
+</table>
+<p>ระบบ <strong>ปรับให้อัตโนมัติ</strong> ตามสถานะบริษัท — ผู้ใช้ไม่ต้องตั้งค่าเอง และไม่มีปุ่มให้สลับ
+โหมด VAT ในหน้าผู้ใช้ทั่วไป (กันออกเอกสารผิดประเภท).</p>
+<h3 id="1_9">ขั้นที่ 1</h3>
+<figure>
+  <img alt="step-01-sidebar" src="../captures/04/04.10/step-01-sidebar.png" />
+<br />
+<figcaption>เมนูด้านซ้ายของกิจการไม่จด VAT — สังเกตว่า "ไม่มี" ใบกำกับภาษี / ใบลดหนี้ / ใบเพิ่มหนี้ (เมนูที่เกี่ยวกับ VAT ถูกซ่อนอัตโนมัติ ตาม ม.86). ยังขายของได้ผ่านใบเสนอราคา → ใบส่งของ → ใบแจ้งหนี้ → ใบเสร็จ</figcaption>
+</figure>
+<h3 id="2_9">ขั้นที่ 2</h3>
+<figure>
+  <img alt="step-02-no-vat" src="../captures/04/04.10/step-02-no-vat.png" />
+<br />
+<figcaption>ใบแจ้งหนี้ของกิจการไม่จด VAT — ตารางรายการ "ไม่มีคอลัมน์ VAT" และ ตัวอย่างเอกสารด้านขวา ยอดรวม = ยอดก่อนภาษี (2 × 1,500 = 3,000) ไม่มีบรรทัด ภาษีมูลค่าเพิ่ม. เทียบกับกิจการ VAT ที่จะมี VAT 7% เพิ่มทุกใบ</figcaption>
 </figure>
 
 

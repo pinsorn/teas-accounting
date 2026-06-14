@@ -12,7 +12,7 @@ export interface WalkthroughMeta {
   chapter: string;       // e.g. '2. ตั้งค่าระบบ'
   intro: string;         // multi-line Thai
   prerequisites: string[];
-  persona?: 'admin' | 'accountant'; // optional override; default resolved by id
+  persona?: 'admin' | 'accountant' | 'nonvat'; // optional override; default resolved by id
 }
 
 export interface CaptureOpts {
