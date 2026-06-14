@@ -21,6 +21,11 @@ import './walkthroughs/02.02-products';
 import './walkthroughs/02.03-wht-types';
 import './walkthroughs/02.04-api-keys';
 import './walkthroughs/02.05-company-profile';
+import './walkthroughs/03.01-customers';
+import './walkthroughs/03.02-vendors';
+import './walkthroughs/03.04-expense-categories';
+import './walkthroughs/03.05-employees';
+import './walkthroughs/04.04-tax-invoice-post';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 

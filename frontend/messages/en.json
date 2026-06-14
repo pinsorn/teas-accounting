@@ -1060,6 +1060,7 @@
     "bankName": "Bank",
     "bankAccountNo": "Account no.",
     "bankAccountName": "Account name",
+    "ssoEmployerAccountNo": "SSO employer account no.",
     "saved": "Contact information saved",
     "loadError": "Failed to load company profile",
     "paidUpCapital": "Paid-up capital (THB)",

@@ -34,8 +34,32 @@
       "stepId": "step-04-name",
       "caption": "ขั้นที่ 4: กรอก \"ชื่อ\" — ใช้บอกว่า key นี้สำหรับอะไร (เช่น \"ECOM Storefront — production\"). ไม่กระทบความปลอดภัย แต่ช่วย ตอน revoke ทีหลัง",
       "imageRel": "captures/02/02.04/step-04-name.png"
+    },
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-05-scopes",
+      "caption": "ขั้นที่ 5: เลือก scopes — สำหรับ storefront ทั่วไป: sales.tax_invoice.create, sales.tax_invoice.post, sales.receipt.create, sales.receipt.post. หลีกเลี่ยง .delete หรือ admin scopes ที่ไม่ใช้",
+      "imageRel": "captures/02/02.04/step-05-scopes.png"
+    },
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-06-bu-binding",
+      "caption": "ขั้นที่ 6: เลือก \"Business Unit เริ่มต้น\" — เช่น ECOM. ทุกเอกสารที่ key นี้สร้างจะ tag เป็น BU ECOM อัตโนมัติ. ถ้าเลือก \"ไม่กำหนด\" → ผู้เรียกต้องส่ง BU ในทุก request",
+      "imageRel": "captures/02/02.04/step-06-bu-binding.png"
+    },
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-07-expiry",
+      "caption": "ขั้นที่ 7: \"หมดอายุ\" (optional). แนะนำตั้งสำหรับ contractor / temp. Production keys อาจปล่อยว่าง แต่ควร rotate ทุก 90 วัน (best practice)",
+      "imageRel": "captures/02/02.04/step-07-expiry.png"
+    },
+    {
+      "walkthroughId": "02.04",
+      "stepId": "step-08-key-revealed",
+      "caption": "ขั้นที่ 8: กด \"สร้าง\" → modal แสดง **full key 1 ครั้งเท่านั้น** พร้อม ปุ่ม \"Copy\". 🔐 Copy ใส่ secret manager ของ external app ทันที (Azure Key Vault / AWS Secrets Manager / Vault). ถ้าปิด modal ก่อน copy → ต้อง revoke + สร้างใหม่ (ระบบเก็บแค่ hash)",
+      "imageRel": "captures/02/02.04/step-08-key-revealed.png"
     }
   ],
-  "failure": "locator.click: Error: strict mode violation: getByText('sales.tax_invoice.create', { exact: true }) resolved to 2 elements:\n    1) <span class=\"badge badge-ghost badge-xs\">sales.tax_invoice.create</span> aka getByRole('table').getByText('sales.tax_invoice.create')\n    2) <span class=\"label-text font-mono text-xs\">sales.tax_invoice.create</span> aka getByRole('dialog').getByText('sales.tax_invoice.create')\n\nCall log:\n\u001b[2m  - waiting for getByText('sales.tax_invoice.create', { exact: true })\u001b[22m\n",
-  "capturedSteps": 4
+  "failure": null,
+  "capturedSteps": 8
 }
