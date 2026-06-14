@@ -6,6 +6,10 @@ public static class Permissions
     public static class Master
     {
         public const string CompanyManage     = "master.company.manage";
+        // Sprint 13k Plan 2 — company-admin-managed soft profile (registered address, logo,
+        // contact). Split from CompanyManage so /company-profile/* is grantable to COMPANY_ADMIN
+        // WITHOUT exposing /companies tax config, which stays CompanyManage/super-only (§4.6).
+        public const string CompanyProfileManage = "master.company_profile.manage";
         public const string BranchManage      = "master.branch.manage";
         public const string CustomerManage    = "master.customer.manage";
         public const string CustomerRead      = "master.customer.read";    // Sprint 13h P1
@@ -113,7 +117,7 @@ public static class Permissions
     /// <summary>All permission codes — for seed migration.</summary>
     public static readonly IReadOnlyList<string> All =
     [
-        Master.CompanyManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead, Master.VendorManage,
+        Master.CompanyManage, Master.CompanyProfileManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead, Master.VendorManage,
         Master.CoaManage, Master.BusinessUnitManage,
         Master.ProductManage, Master.ProductRead, Master.EmployeeManage,
         Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage, Sys.ExpenseCatRead,

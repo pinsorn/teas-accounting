@@ -15,9 +15,11 @@
   vendor master, PO-create, period-close) SUPER_ADMIN-only → `530_seed_rbac_grant_reconcile.sql` restores
   them per role purpose; `master.company.manage` stays super-only (§4.6). Also fixed an unauth
   `GET /periods/.../status` leak. Api 360/0/3 ×2 · FE tsc 0. **NOT committed (รอ Ham).**
-  - ⚠️ **Ham to เคาะ on return:** (a) SoD overlaps CHIEF/COMPANY_ADMIN PV create+approve (matrix doc §SoD);
-    (b) `sys.role.manage`+`sys.user.manage`→COMPANY_ADMIN (530 §D — keep or switch to assigning SUPER_ADMIN);
-    (c) `/company-profile/*` shares `master.company.manage` with §4.6 tax config → needs its own perm.
+  - ☑ **Ham decisions (2026-06-14):** (a) SoD CHIEF/COMPANY_ADMIN PV create+approve → **keep** (admin/chief
+    hold both = normal; pinned in AcceptedSoDExceptions); (b) `sys.role.manage`+`sys.user.manage`→COMPANY_ADMIN
+    (530 §D) → **keep**; (c) `/company-profile/*` → **split** into `master.company_profile.manage`
+    (`540_seed_company_profile_perm.sql`, granted COMPANY_ADMIN; `/companies` tax config stays super-only §4.6).
+    Catalog 66→67. Api 360/0/3 · FE tsc 0.
   - ☑ **Plan 2 Phase E (FE gating)** — nav fully permission-gated + main action buttons wrapped in
     `PermissionGate` (create on 8 list pages; lifecycle on PV/TI/PO/VI detail; payroll already gated).
     Remaining nit: receipt post lives in the shared `DocActionBar` component (gate there if wanted);

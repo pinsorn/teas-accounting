@@ -39,7 +39,8 @@ public static class PermissionCatalog
         new Dictionary<string, (string, string)>
         {
             // master
-            [Permissions.Master.CompanyManage]      = ("จัดการข้อมูลบริษัท", "Manage company"),
+            [Permissions.Master.CompanyManage]      = ("จัดการข้อมูลบริษัท (ภาษี/VAT)", "Manage company (tax/VAT)"),
+            [Permissions.Master.CompanyProfileManage] = ("จัดการโปรไฟล์บริษัท (ที่อยู่/โลโก้)", "Manage company profile (address/logo)"),
             [Permissions.Master.BranchManage]       = ("จัดการสาขา", "Manage branches"),
             [Permissions.Master.CustomerManage]     = ("จัดการลูกค้า", "Manage customers"),
             [Permissions.Master.CustomerRead]       = ("ดูข้อมูลลูกค้า", "View customers"),

@@ -158,7 +158,7 @@ export default function CompanyProfilePage() {
                 <h2 className="card-title flex items-center gap-2 text-base">
                   <Lock className="h-4 w-4" aria-hidden /> {t('legalSection')}
                 </h2>
-                <PermissionGate scope="master.company.manage">
+                <PermissionGate scope="master.company_profile.manage">
                   <button className="btn btn-ghost btn-xs gap-1" onClick={openAddr}>
                     <Pencil className="h-3 w-3" aria-hidden /> {t('editRegisteredAddress')}
                   </button>
@@ -256,26 +256,28 @@ export default function CompanyProfilePage() {
 
               {/* Sprint 13h P10 — logo upload (multipart). 1 MB max,
                   png/jpeg/svg/webp. Writes attachment + LogoUrl back. */}
-              <div className="mt-2 flex items-end gap-3">
-                <label className="form-control">
-                  <span className="label-text">{t('logoUpload')}</span>
-                  <input
-                    type="file"
-                    className="file-input file-input-bordered file-input-sm"
-                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                    data-testid="cp-logo-upload"
-                    disabled={upload.isPending}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void onUploadLogo(f);
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-                {upload.isPending && (
-                  <span className="loading loading-spinner loading-sm" />
-                )}
-              </div>
+              <PermissionGate scope="master.company_profile.manage">
+                <div className="mt-2 flex items-end gap-3">
+                  <label className="form-control">
+                    <span className="label-text">{t('logoUpload')}</span>
+                    <input
+                      type="file"
+                      className="file-input file-input-bordered file-input-sm"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      data-testid="cp-logo-upload"
+                      disabled={upload.isPending}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void onUploadLogo(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {upload.isPending && (
+                    <span className="loading loading-spinner loading-sm" />
+                  )}
+                </div>
+              </PermissionGate>
 
               {form.logoUrl?.trim() && (
                 <div className="mt-2">
@@ -292,19 +294,21 @@ export default function CompanyProfilePage() {
                 </div>
               )}
 
-              <div className="card-actions mt-4 justify-end">
-                <button
-                  className="btn btn-primary"
-                  onClick={onSave}
-                  disabled={save.isPending}
-                  data-testid="cp-soft-save"
-                >
-                  {save.isPending && (
-                    <span className="loading loading-spinner loading-sm" />
-                  )}
-                  {tc('save')}
-                </button>
-              </div>
+              <PermissionGate scope="master.company_profile.manage">
+                <div className="card-actions mt-4 justify-end">
+                  <button
+                    className="btn btn-primary"
+                    onClick={onSave}
+                    disabled={save.isPending}
+                    data-testid="cp-soft-save"
+                  >
+                    {save.isPending && (
+                      <span className="loading loading-spinner loading-sm" />
+                    )}
+                    {tc('save')}
+                  </button>
+                </div>
+              </PermissionGate>
             </div>
           </section>
 

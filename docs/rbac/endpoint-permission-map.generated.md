@@ -86,10 +86,10 @@
 | GET | `/companies/{id:int}` | Perm | master.company.manage |
 | PUT | `/companies/{id:int}` | Perm | master.company.manage |
 | GET | `/company-profile/` | AuthnOnly | — |
-| PUT | `/company-profile/hard` | Perm | master.company.manage |
-| POST | `/company-profile/logo` | Perm | master.company.manage |
-| PUT | `/company-profile/registered-address` | Perm | master.company.manage |
-| PUT | `/company-profile/soft` | Perm | master.company.manage |
+| PUT | `/company-profile/hard` | Perm | master.company_profile.manage |
+| POST | `/company-profile/logo` | Perm | master.company_profile.manage |
+| PUT | `/company-profile/registered-address` | Perm | master.company_profile.manage |
+| PUT | `/company-profile/soft` | Perm | master.company_profile.manage |
 | GET | `/credit-notes/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/credit-notes/{id:long}/mark-printed` | Perm | sales.credit_note.read |
 | GET | `/customers/` | Perm | master.customer.read |
