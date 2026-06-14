@@ -62,6 +62,15 @@ The sidebar and each action button are shown only when the signed-in user's role
 | Edit registered address | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
 | Upload logo | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
 | Save company profile | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
+| PV detail: approve | ✓ | ✓ | ✓ |  |  |  |  |  |  | ✓ |  |  |
+| PV detail: post | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |
+| PO detail: approve | ✓ | ✓ | ✓ |  |  |  |  |  |  | ✓ |  |  |
+| PO detail: cancel | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |
+| PO detail: create PV | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |
+| PO detail: mark sent | ✓ | ✓ |  | ✓ |  | ✓ |  | ✓ |  |  |  |  |
+| PO detail: close | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  |  |
+| VI detail: post | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |
+| TI detail: post | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |
 
 ## Visibility matrix — non-VAT company
 
@@ -118,13 +127,23 @@ The sidebar and each action button are shown only when the signed-in user's role
 | Edit registered address | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
 | Upload logo | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
 | Save company profile | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
+| PV detail: approve | – | – | – | – | – | – | – | – | – | – | – | – |
+| PV detail: post | – | – | – | – | – | – | – | – | – | – | – | – |
+| PO detail: approve | – | – | – | – | – | – | – | – | – | – | – | – |
+| PO detail: cancel | – | – | – | – | – | – | – | – | – | – | – | – |
+| PO detail: create PV | – | – | – | – | – | – | – | – | – | – | – | – |
+| PO detail: mark sent | – | – | – | – | – | – | – | – | – | – | – | – |
+| PO detail: close | – | – | – | – | – | – | – | – | – | – | – | – |
+| VI detail: post | – | – | – | – | – | – | – | – | – | – | – | – |
+| TI detail: post | – | – | – | – | – | – | – | – | – | – | – | – |
 
 ## Super-admin-only / backend-enforced-only (not in the matrix)
 
 These controls are intentionally not asserted by the FE matrix above; their gating is proven by the backend tests and (where applicable) the super-only nav rows:
 
 - **Paid-up capital card** (`/settings/company`) — `master.company.manage`, SUPER_ADMIN only (§4.6 tax/company master data). It self-hides via an async `GET /companies`; same gate as the "Companies (tax cfg)" nav row above.
-- **Document-detail lifecycle actions** — approve / post / cancel / settle on Payment Voucher, Tax Invoice, Purchase Order, Vendor Invoice, and Payroll detail pages. Each carries its OWN distinct `PermissionGate` scope (Sprint 13k Plan 2 Phase E) and is independently enforced on the backend (`RbacCartesianTests`). **These are NOT yet asserted by the matrix above** — they need a seeded document in the right status per company; planned as the follow-up extension to this e2e (open question for Ham). Until then their who-sees-what is proven only at the backend boundary.
+- **Document-detail lifecycle actions** — approve / post / cancel / create-from on Payment Voucher, Purchase Order, Vendor Invoice, and Tax Invoice detail pages ARE asserted by the matrix above (the `* detail:` rows), on the VAT reference company where the full document chain has master data. Each carries its own distinct `PermissionGate` scope (Sprint 13k Plan 2 Phase E) and is independently enforced on the backend (`RbacCartesianTests`).
+- **Residual (BE-enforced + FE-gated, not in the matrix):** (a) **Payroll** approve / post / pay — neither demo company has employee master data, so no payroll run can be seeded; (b) the same detail-lifecycle buttons on the **non-VAT** company — it has no vendor / expense-category / tax-code master data. Both use the identical `PermissionGate` mechanism proven on the VAT company and are enforced at the backend boundary.
 - **In-form Save** on `/new` create forms — reached only through a gated create button (shown above) and re-checked by the backend on submit.
 - **settings/* create buttons** — the settings page itself is nav-gated by the same `*.manage` permission, so the page (and its create button) is hidden as a unit.
 

@@ -3,6 +3,17 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-14 (cont. 97b — "ลุยอันที่ deferred ไว้เลย") — **Plan 3 detail-lifecycle buttons asserted (PV/PO/VI/TI) — e2e 24/24 · 1284 checks · 0 mismatches ×2.** FE tsc 0 · next build 0/0.
+
+- **ที่มา:** Ham สั่งทำ deferred detail-lifecycle buttons ต่อจาก cont.97. ขยาย `rbac-ui-gating` ให้ assert ปุ่ม approve/post/cancel/create-from บนหน้า detail.
+- **Fixtures (`frontend/e2e/helpers/rbac-detail-fixtures.ts`):** `test.beforeAll` (VAT company id 1 เท่านั้น — มี master data ครบ) seed เอกสารผ่าน BFF API ตาม status ที่ปุ่มต้องการ: vendor (VAT) → PV Draft + PV Approved (create+approve) → PO Draft + PO Approved (**SoD: create เป็น AP_CLERK, approve เป็น APPROVER** เพราะ ck_po_sod) → VI Draft → TI Draft. payload lift จาก `purchase-chain.spec.ts`.
+- **9 detail controls asserted (co1):** PV approve/post · PO approve/cancel/create-pv/mark-sent/close · VI post · TI post — แต่ละปุ่ม map ไป fixture id ใน status ที่ render ปุ่มนั้น.
+- **🔑 `readPerm` (advisor):** detail page ไม่ render ปุ่มถ้า doc GET 403 → expected ต้อง AND read-perm ของหน้า (ไม่ใช่แค่ action perm) ไม่งั้น role ที่มี action แต่ไม่มี read = false-fail. `checkControl` รอปุ่ม visible เฉพาะตอน expected=true (กัน doc-load race) — expected=false เช็คทันที (PermissionGate คืน null sync หลัง nav-gates-ready).
+- **🔴 fixes ระหว่าง triage:** (1) `postOk` เดิม `r.json()` พังกับ POST /vendors/ ที่คืน 201 body ว่าง → parse เฉพาะตอนมี body. (2) **drop `pv-create-vi`** — `canCreateVi = vendor?.vatRegistered && noVI` ขึ้นกับ vendor object ที่ต้อง vendor-read perm ด้วย (ACCOUNTANT มี vendor_invoice.create แต่ไม่มี vendor-read → false-fail) → ไม่ใช่ lifecycle gate แท้, vendor_invoice.create พิสูจน์ที่ BE แล้ว.
+- **testids เพิ่ม (rebuild 1 ครั้ง):** `pv-approve`, `pv-post` (PV detail), `vi-post` (VI detail). PO/TI มี testid อยู่แล้ว.
+- **ยัง residual (ระบุใน manual appendix + plan):** (a) **payroll** approve/post/pay — ทั้ง 2 บริษัท employees=0 (seed ไม่มี) → seed payroll run ไม่ได้; (b) detail buttons บน **non-VAT** co3 — ไม่มี vendor/expense-category/tax-code master data. ทั้งคู่ใช้ PermissionGate กลไกเดียวกับที่พิสูจน์บน co1 + BE-enforced (`RbacCartesianTests`).
+- **Gates:** FE tsc 0 · next build 0/0 · e2e **24/24 · 1284 checks (+108 detail) · 0 mismatches ×2** · manual regen deterministic (58 features × 12 roles). generator appendix แก้ให้ตรง (detail buttons = asserted now; payroll/co3 = residual).
+
 ## 2026-06-14 (cont. 97 — "...ทำเลย") — **RBAC FE permission-gating e2e (Cartesian) + combined user manual SHIPPED (Sprint 13k Plan 3).** e2e **24/24 · 1176 checks · 0 mismatches ×2** · FE tsc 0 · next build 0/0. Branch `feat/rbac-per-company-admin-ui`.
 
 - **ที่มา:** exec `docs/superpowers/plans/2026-06-14-rbac-fe-gating-e2e-and-manual.md` — พิสูจน์อัตโนมัติ (Playwright) ว่า FE แสดง/ซ่อนทุก nav item + ปุ่ม action ถูกต้องตามสิทธิ์ของ **ทุก role** บนบริษัท **VAT + non-VAT**, แล้ว generate คู่มือเดียวจาก run เดียวกัน (กัน doc drift). FE = UX affordance layer; security boundary จริง = `RbacCartesianTests` (BE).
