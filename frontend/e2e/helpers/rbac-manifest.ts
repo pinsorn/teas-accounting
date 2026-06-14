@@ -12,6 +12,9 @@ export type Control = {
   route: string;              // page to visit (detail-button routes carry a seeded id, see spec)
   locate: { href?: string; testId?: string };
   perm?: string;
+  readPerm?: string;          // detail buttons: the page-load READ perm — the detail page
+                              // won't render any action button if the doc GET 403s, so a role
+                              // holding the action perm but not this read perm still sees nothing.
   vatOnly?: boolean;
   alwaysVisible?: boolean;
   superAdminOnly?: boolean;

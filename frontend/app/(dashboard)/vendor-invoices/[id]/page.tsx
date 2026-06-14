@@ -62,7 +62,7 @@ export default function VendorInvoiceDetailPage() {
           <div className="flex gap-2">
             {isDraft && (
               <PermissionGate scope="purchase.vendor_invoice.post">
-                <button className="btn btn-primary btn-sm"
+                <button data-testid="vi-post" className="btn btn-primary btn-sm"
                   disabled={post.isPending}
                   title={missingFileWarn ? t('attachmentAdvisoryHint') : undefined}
                   onClick={() => setConfirm(true)}>

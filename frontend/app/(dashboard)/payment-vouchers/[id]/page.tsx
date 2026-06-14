@@ -72,7 +72,7 @@ export default function PaymentVoucherDetailPage() {
           <div className="flex gap-2">
             {d.status === 'Draft' && (
               <PermissionGate scope="purchase.payment_voucher.approve">
-                <button className="btn btn-secondary btn-sm" disabled={approve.isPending}
+                <button data-testid="pv-approve" className="btn btn-secondary btn-sm" disabled={approve.isPending}
                   onClick={doApprove} title={t('sodHint')}>
                   {t('approve')}
                 </button>
@@ -80,7 +80,7 @@ export default function PaymentVoucherDetailPage() {
             )}
             {d.status === 'Approved' && (
               <PermissionGate scope="purchase.payment_voucher.post">
-                <button className="btn btn-primary btn-sm" disabled={post.isPending}
+                <button data-testid="pv-post" className="btn btn-primary btn-sm" disabled={post.isPending}
                   onClick={doPost}>
                   {t('post')}
                 </button>

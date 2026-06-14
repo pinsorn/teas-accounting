@@ -34,9 +34,12 @@
   (a dashboard CTA also linked `/reports/sales-summary` — caught + fixed). Seed `550_seed_rbac_e2e_users.sql`
   (one login/role in co1+co3). Combined `docs/manual/rbac-ui-guide.md` generated from the run
   (`scripts/gen-rbac-manual.mjs`, deterministic) + 24 sidebar screenshots. FE tsc 0 · next build 0/0.
-  - ☐ **Deferred (follow-up):** detail-lifecycle buttons (PV/TI/PO/VI/payroll approve/post) + the super-only
-    paid-up-capital card not yet asserted by the matrix — all already BE-enforced (`RbacCartesianTests`) +
-    FE-gated (Plan 2 Phase E); this plan's note calls them the extension point.
+  - ☑ **Detail-lifecycle buttons asserted (cont.97b)** — PV/PO/VI/TI approve/post/cancel/create-from on the VAT
+    company (id 1) via API-seeded status fixtures (`rbac-detail-fixtures.ts`; PO uses creator≠approver for ck_po_sod)
+    + a `readPerm` page-load gate in `expectedVisible`. e2e **24/24 · 1284 checks · 0 mismatches ×2**.
+  - ☐ **Residual:** payroll approve/post/pay (employees=0 in BOTH demo companies → no run seedable) + the same
+    detail buttons on the non-VAT company (no vendor/category/tax-code master data) + the super-only paid-up-capital
+    card — all BE-enforced (`RbacCartesianTests`) + FE-gated (Plan 2 Phase E), identical PermissionGate mechanism.
 
 ## ▶ Per-company VAT mode (spec: `docs/superpowers/specs/per-company-vat-mode.md`, Ham 2026-06-11)
 
