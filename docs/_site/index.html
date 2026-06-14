@@ -12,7 +12,7 @@
       
       
       
-        <link rel="next" href="generated/chapter-01.html">
+        <link rel="next" href="chapters/00-%E0%B8%95%E0%B8%B4%E0%B8%94%E0%B8%95%E0%B8%B1%E0%B9%89%E0%B8%87%E0%B9%81%E0%B8%A5%E0%B8%B0%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B8%94%E0%B8%B9%E0%B9%81%E0%B8%A5%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A.html">
       
       
         
@@ -269,7 +269,18 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        โครงสร้างคู่มือ
+        วิธีอ่านคู่มือ
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        แผนผังคู่มือ (ทุกโมดูล)
       
     </span>
   </a>
@@ -280,6 +291,33 @@
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="chapters/00-%E0%B8%95%E0%B8%B4%E0%B8%94%E0%B8%95%E0%B8%B1%E0%B9%89%E0%B8%87%E0%B9%81%E0%B8%A5%E0%B8%B0%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B8%94%E0%B8%B9%E0%B9%81%E0%B8%A5%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    บทที่ 0 — ติดตั้งและผู้ดูแลระบบ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -338,6 +376,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="rbac-ui-guide.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    สิทธิ์การมองเห็น (RBAC UI Guide)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -368,7 +433,18 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        โครงสร้างคู่มือ
+        วิธีอ่านคู่มือ
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        แผนผังคู่มือ (ทุกโมดูล)
       
     </span>
   </a>
@@ -396,17 +472,83 @@
 <p><strong>Thailand Enterprise Accounting System</strong> — ระบบบัญชีสำหรับองค์กรไทย
 ที่รองรับภาษีมูลค่าเพิ่มและ e-Tax ตั้งแต่วันแรก</p>
 <blockquote>
-<p>เวอร์ชัน <strong>0.5</strong> — นำร่องบทที่ 1–2 (เริ่มต้นใช้งาน + ตั้งค่าระบบ)
-เนื้อหาในคู่มือนี้สร้างอัตโนมัติจากการบันทึกหน้าจอจริงของระบบ
-(Playwright headless capture) — ภาพและขั้นตอนตรงกับแอปที่ใช้งานจริง</p>
+<p>เนื้อหาคู่มือนี้ส่วนที่เป็นหน้าจอจริงสร้างอัตโนมัติจากการบันทึกหน้าจอของระบบ
+(Playwright headless capture) — ภาพและขั้นตอนตรงกับแอปที่ใช้งานจริง ไม่ drift.</p>
 </blockquote>
-<h2 id="_1">โครงสร้างคู่มือ</h2>
-<ul>
-<li><strong>บทที่ 1 — เริ่มต้นใช้งาน</strong>: เข้าสู่ระบบ, แดชบอร์ด, สลับภาษา, ออกจากระบบ</li>
-<li><strong>บทที่ 2 — ตั้งค่าระบบ</strong>: หน่วยธุรกิจ, สินค้า/บริการ, ประเภทหัก ณ ที่จ่าย,
-  API keys, ข้อมูลบริษัท</li>
-</ul>
-<p>บทเพิ่มเติม (ขาย/ซื้อ/รายงาน) จะทยอยเพิ่มในเวอร์ชันถัดไป</p>
+<h2 id="_1">วิธีอ่านคู่มือ</h2>
+<p>อ่านตามลำดับบท: เริ่มจาก <strong>บทที่ 0 (ติดตั้ง)</strong> สำหรับผู้ดูแลระบบ → <strong>บทที่ 1
+(เริ่มต้นใช้งาน)</strong> สำหรับผู้ใช้ทุกคน → บทตามโมดูลที่ใช้งาน. แต่ละหัวข้อเป็น
+<strong>step-by-step</strong> พร้อมภาพหน้าจอประกอบทุกขั้น.</p>
+<h2 id="_2">แผนผังคู่มือ (ทุกโมดูล)</h2>
+<table>
+<thead>
+<tr>
+<th>บท</th>
+<th>เรื่อง</th>
+<th>สถานะ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>0</strong></td>
+<td><strong>ติดตั้งระบบ + ตั้งผู้ดูแล</strong> — prerequisites, install, ฐานข้อมูลตั้งต้น, Super Admin คนแรก, สร้างบริษัท + ตั้งค่าภาษี, สร้าง role/ผู้ใช้</td>
+<td>✅ พร้อม</td>
+</tr>
+<tr>
+<td><strong>1</strong></td>
+<td><strong>เริ่มต้นใช้งาน</strong> — เข้าสู่ระบบ, แดชบอร์ด, สลับภาษา, ออกจากระบบ</td>
+<td>✅ พร้อม</td>
+</tr>
+<tr>
+<td><strong>2</strong></td>
+<td><strong>ตั้งค่าระบบ</strong> — ข้อมูลบริษัท, หน่วยธุรกิจ, สินค้า/บริการ, ประเภทหัก ณ ที่จ่าย, API keys</td>
+<td>✅ พร้อม</td>
+</tr>
+<tr>
+<td>—</td>
+<td><strong>สิทธิ์การมองเห็น (RBAC UI Guide)</strong> — ใครเห็น/ใช้เมนูและปุ่มใดได้บ้าง (ทุก role × บริษัท VAT/ไม่ VAT)</td>
+<td>✅ พร้อม</td>
+</tr>
+<tr>
+<td><strong>3</strong></td>
+<td><strong>ข้อมูลหลัก</strong> — ลูกค้า, ผู้ขาย, ผังบัญชี, หมวดค่าใช้จ่าย, พนักงาน</td>
+<td>🚧 ถัดไป</td>
+</tr>
+<tr>
+<td><strong>4</strong></td>
+<td><strong>งานขาย</strong> — ใบเสนอราคา → ใบสั่งขาย → ใบส่งของ → ใบแจ้งหนี้ → ใบกำกับภาษี → ใบเสร็จ, ใบลดหนี้/เพิ่มหนี้</td>
+<td>🚧 ถัดไป</td>
+</tr>
+<tr>
+<td><strong>5</strong></td>
+<td><strong>งานซื้อ</strong> — ใบสั่งซื้อ → ใบสำคัญจ่าย → ใบกำกับภาษีซื้อ → หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)</td>
+<td>🚧 ถัดไป</td>
+</tr>
+<tr>
+<td><strong>6</strong></td>
+<td><strong>เงินเดือน</strong> — พนักงาน, รอบเงินเดือน, ภ.ง.ด.1, ประกันสังคม</td>
+<td>🚧 ถัดไป</td>
+</tr>
+<tr>
+<td><strong>7</strong></td>
+<td><strong>ภาษีและการยื่น</strong> — ภ.พ.30, ภ.ง.ด.3/53/54, สรุปภาษีรายเดือน</td>
+<td>🚧 ถัดไป</td>
+</tr>
+<tr>
+<td><strong>8</strong></td>
+<td><strong>รายงาน</strong> — งบทดลอง, กำไรขาดทุน, ช่องว่างเลขเอกสาร, อายุหนี้</td>
+<td>🚧 ถัดไป</td>
+</tr>
+<tr>
+<td><strong>9</strong></td>
+<td><strong>e-Tax</strong> — ใบกำกับภาษีอิเล็กทรอนิกส์ (XAdES) + ส่งอีเมล + cc สรรพากร</td>
+<td>🚧 ถัดไป</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>บทที่มีสถานะ 🚧 จะทยอยเพิ่มแบบ step-by-step พร้อมภาพหน้าจอจริงในรอบถัดไป.</p>
+</blockquote>
 
 
 
