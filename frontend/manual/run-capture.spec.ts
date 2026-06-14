@@ -25,7 +25,13 @@ import './walkthroughs/03.01-customers';
 import './walkthroughs/03.02-vendors';
 import './walkthroughs/03.04-expense-categories';
 import './walkthroughs/03.05-employees';
+import './walkthroughs/04.01-quotation';
+import './walkthroughs/04.02-sales-order-delivery';
+import './walkthroughs/04.03-billing-note';
 import './walkthroughs/04.04-tax-invoice-post';
+import './walkthroughs/04.05-receipt';
+import './walkthroughs/04.06-credit-note';
+import './walkthroughs/04.07-debit-note';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 
