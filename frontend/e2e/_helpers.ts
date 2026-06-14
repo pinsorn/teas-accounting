@@ -14,6 +14,33 @@ export async function logout(page: Page) {
   await page.waitForURL('**/login', { timeout: 15_000 });
 }
 
+/** Live grants of the currently logged-in user (via the BFF proxy, cookie auth). */
+export async function mePermissions(
+  page: Page,
+): Promise<{ isSuperAdmin: boolean; permissions: string[]; roles: string[] }> {
+  const r = await page.request.get('/api/proxy/me/permissions');
+  if (!r.ok()) throw new Error(`/me/permissions ${r.status()}`);
+  return r.json();
+}
+
+/** Current company's VAT mode (true = VAT-registered) via the BFF proxy. */
+export async function vatMode(page: Page): Promise<boolean> {
+  const r = await page.request.get('/api/proxy/system/info');
+  return r.ok() ? Boolean((await r.json()).vatMode) : true;
+}
+
+/**
+ * Block until SidebarNav has applied its final permission/VAT filter. The nav
+ * renders a hidden `nav-gates-ready` sentinel only once BOTH useMePermissions
+ * and useSystemInfo have settled — so waiting on it (attached, it is hidden)
+ * removes the client-gate race without guessing a timeout, and closes the
+ * vatMode-default-true flash on non-VAT companies. Call after every navigation
+ * that lands inside the dashboard shell.
+ */
+export async function waitForNavGates(page: Page) {
+  await page.getByTestId('nav-gates-ready').waitFor({ state: 'attached', timeout: 15_000 });
+}
+
 /**
  * Pick a customer via EntityPickerModal. Two trigger generations exist:
  * the create-form redesign's PartySelectBox renders an empty-state dashed

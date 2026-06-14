@@ -25,6 +25,18 @@
     Remaining nit: receipt post lives in the shared `DocActionBar` component (gate there if wanted);
     settings/* create buttons are already nav-gated by their manage perm. UX-grade — BE is the real
     enforcement (proven by `RbacCartesianTests`).
+- ☑ **Plan 3 — FE gating e2e (Cartesian) + combined manual** (cont.97, 2026-06-14,
+  plan `docs/superpowers/plans/2026-06-14-rbac-fe-gating-e2e-and-manual.md`) — `e2e/rbac-ui-gating.spec.ts`
+  asserts every gated nav item + create button + company-profile soft-edit control against each user's
+  **live** grants (`GET /me/permissions`) for all 12 roles × VAT(co1)/non-VAT(co3) = **24 tests, 1176 checks,
+  0 mismatches ×2**. Single-source manifest (`e2e/helpers/rbac-manifest.ts`); `nav-gates-ready` sentinel in
+  `SidebarNav` (deterministic gate-settle, kills the vatMode-default-true flash); sidebar-scoped nav locator
+  (a dashboard CTA also linked `/reports/sales-summary` — caught + fixed). Seed `550_seed_rbac_e2e_users.sql`
+  (one login/role in co1+co3). Combined `docs/manual/rbac-ui-guide.md` generated from the run
+  (`scripts/gen-rbac-manual.mjs`, deterministic) + 24 sidebar screenshots. FE tsc 0 · next build 0/0.
+  - ☐ **Deferred (follow-up):** detail-lifecycle buttons (PV/TI/PO/VI/payroll approve/post) + the super-only
+    paid-up-capital card not yet asserted by the matrix — all already BE-enforced (`RbacCartesianTests`) +
+    FE-gated (Plan 2 Phase E); this plan's note calls them the extension point.
 
 ## ▶ Per-company VAT mode (spec: `docs/superpowers/specs/per-company-vat-mode.md`, Ham 2026-06-11)
 

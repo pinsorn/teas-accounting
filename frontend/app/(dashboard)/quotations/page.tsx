@@ -74,7 +74,7 @@ export default function QuotationsPage() {
     <>
       <PageHeader title={t('listTitle')} actions={
         <PermissionGate scope="sales.quotation.manage">
-          <Link href="/quotations/new" className="btn btn-primary btn-sm gap-1">
+          <Link href="/quotations/new" data-testid="quotation-create" className="btn btn-primary btn-sm gap-1">
             <Plus className="h-4 w-4" aria-hidden /> {t('create')}
           </Link>
         </PermissionGate>

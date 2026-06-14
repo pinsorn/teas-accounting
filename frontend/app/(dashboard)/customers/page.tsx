@@ -79,7 +79,7 @@ export default function CustomerListPage() {
         subtitle={t('subtitle')}
         actions={
           <PermissionGate scope="master.customer.manage">
-            <Link href="/customers/new" className="btn btn-primary btn-sm gap-1">
+            <Link href="/customers/new" data-testid="customer-create" className="btn btn-primary btn-sm gap-1">
               <Plus className="h-4 w-4" aria-hidden /> {t('create')}
             </Link>
           </PermissionGate>

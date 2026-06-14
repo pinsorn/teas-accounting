@@ -120,11 +120,19 @@ export function SidebarNav() {
   const logoSrc = resolveLogoUrl(profile.data?.logoUrl);
   // ม.86 — hide VAT-only items (ภ.พ.30) for non-VAT companies. Default true so the
   // menu is unchanged before /system/info resolves and for VAT registrants.
-  const vatMode = useSystemInfo().data?.vatMode ?? true;
+  const sysInfo = useSystemInfo();
+  const vatMode = sysInfo.data?.vatMode ?? true;
   // Default false: super-admin-only items appear only once /me/permissions confirms.
-  const me = useMePermissions().data;
+  const mePerms = useMePermissions();
+  const me = mePerms.data;
   const isSuperAdmin = me?.isSuperAdmin ?? false;
   const myPerms = me?.permissions ?? [];
+  // e2e sentinel — both gate queries settled (success OR error), so the nav has
+  // applied its final permission/VAT filter. The RBAC UI-gating spec waits on
+  // this (attached) after every navigation instead of guessing a timeout; it
+  // also closes the vatMode-default-true flash on non-VAT companies. Hidden;
+  // zero UX impact.
+  const gatesReady = !mePerms.isPending && !sysInfo.isPending;
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1');
@@ -158,6 +166,7 @@ export function SidebarNav() {
 
   return (
     <aside
+      data-testid="app-sidebar"
       className={`flex shrink-0 flex-col border-r border-ink-100 bg-base-100 transition-[width] duration-200 ${
         collapsed ? 'w-[72px]' : 'w-64'
       }`}
@@ -193,6 +202,7 @@ export function SidebarNav() {
       </div>
 
       {/* Nav */}
+      {gatesReady && <span data-testid="nav-gates-ready" hidden aria-hidden />}
       <nav className="flex-1 overflow-y-auto px-2.5 py-3">
         {SECTIONS.map((section) => (
           <div key={section.key} className="mb-1.5">
