@@ -4,6 +4,7 @@ using Accounting.Application.TaxFilings;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Ledger;
+using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -86,6 +87,81 @@ public sealed class WhtFilingService(
                 db, tenant, clock, formType, period, sub, filing, ct, rd);
         return filing;
     }
+
+    // ── Phase C/D — filled ภ.ง.ด.3 / ภ.ง.ด.53 PDFs (main page + ใบแนบ; print-and-file) ──
+    public async Task<byte[]> BuildPnd3PdfAsync(int period, CancellationToken ct) =>
+        await BuildWhtPdfAsync(await GeneratePnd3Async(period, TaxFilingMode.Preview, ct), Pnd3Layout, ct);
+
+    public async Task<byte[]> BuildPnd53PdfAsync(int period, CancellationToken ct) =>
+        await BuildWhtPdfAsync(await GeneratePnd53Async(period, TaxFilingMode.Preview, ct), Pnd53Layout, ct);
+
+    public async Task<byte[]> BuildPnd54PdfAsync(int period, CancellationToken ct) =>
+        await BuildWhtPdfAsync(await GeneratePnd54Async(period, TaxFilingMode.Preview, ct), Pnd54Layout, ct);
+
+    private async Task<byte[]> BuildWhtPdfAsync(WhtFiling f, WhtFormLayout layout, CancellationToken ct)
+    {
+        var prof = await db.CompanyProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+        var company = await db.Companies.AsNoTracking()
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => new { c.TaxId, c.NameTh }).FirstAsync(ct);
+
+        var rows = f.Rows.Select((r, i) => new WhtFormRow(
+            Seq: i + 1, PayeeTaxId: r.PayeeTaxId ?? "", PayeeName: r.PayeeName,
+            IncomeTypeText: r.IncomeTypeCode, Rate: r.WhtRate,
+            Income: r.IncomeAmount, Wht: r.WhtAmount, Condition: "1")).ToList();
+
+        var model = new WhtFormModel(
+            TaxId:      prof?.TaxId ?? company.TaxId,
+            BranchCode: prof?.BranchCode ?? "00000",
+            PayerName:  prof?.LegalName ?? company.NameTh,
+            Building:   prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
+            Village:    prof?.RegVillage, HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo,
+            Soi:        prof?.RegSoi, Yaek: null, Road: prof?.RegStreet,
+            SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
+            Province:    prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
+            PeriodMonth:  f.Period % 100, PeriodYearCe: f.Period / 100,
+            TotalIncome:  f.Totals.Income, TotalWht: f.Totals.Wht,
+            Rows: rows);
+
+        return WhtFormFiller.Fill(model, layout);
+    }
+
+    // ── Per-form layouts. ภ.ง.ด.3 / ภ.ง.ด.53 share the main field map; only the พ.ศ. field, the
+    // templates, and the ใบแนบ row scheme differ. See Pdf/Templates/pnd53_fieldmap.md. ──
+    // Month on-state (AcroForm export value) per month 1..12, decoded from each template's widgets.
+    private static readonly string[] Pnd53Months = ["2", "4", "8", "1", "5", "9", "0", "6", "10", "3", "7", "11"];
+    private static readonly string[] Pnd3Months  = ["0", "4", "8", "1", "5", "9", "2", "6", "11", "3", "7", "10"];
+
+    private static readonly WhtFormLayout Pnd53Layout = new(
+        MainTemplate: "pnd53_main.pdf", YearField: "Text1.17",
+        FixedRadios: [new RdRadio("Radio Button0", 0), new RdRadio("Radio Button2", 0)],  // ม.3เตรส · ยื่นปกติ
+        MonthRadio: "Radio Button10", MonthOnStates: Pnd53Months,
+        AttachTemplate: "pnd53_attach.pdf", RowsPerAttachPage: 6,
+        AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
+        AttachRow: k => new WhtAttachRowFields(
+            Seq: $"Text{k}.4", TaxId: $"Text{k}.5", Name: $"Text{k}.6",
+            Date: $"Text{k}.10", IncomeType: $"Text{k}.11", Rate: $"Text{k}.12",
+            Income: $"Text{k}.13", Wht: $"Text{k}.14", Cond: $"Text{k}.15"));
+
+    private static readonly WhtFormLayout Pnd3Layout = new(
+        MainTemplate: "pnd3_main.pdf", YearField: "Text1.18",
+        FixedRadios: [new RdRadio("Radio Button0", 0), new RdRadio("Radio Button2", 0)],  // ยื่นปกติ · ม.3เตรส
+        MonthRadio: "Radio Button10", MonthOnStates: Pnd3Months,
+        AttachTemplate: "pnd3_attach.pdf", RowsPerAttachPage: 6,
+        AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
+        AttachRow: k => new WhtAttachRowFields(
+            Seq: $"Text{k}.27", TaxId: $"Text{k}.1", Name: $"Text{k}.3",
+            Date: $"Text{k}.9", IncomeType: $"Text{k}.10", Rate: $"Text{k}.11",
+            Income: $"Text{k}.12", Wht: $"Text{k}.13", Cond: $"Text{k}.14"));
+
+    // ภ.ง.ด.54 = single page, no ใบแนบ (foreign ม.70). Year field + radios decoded in Phase E.
+    private static readonly WhtFormLayout Pnd54Layout = new(
+        MainTemplate: "pnd54_main.pdf", YearField: "Text1.18",
+        FixedRadios: [], MonthRadio: "Radio Button10", MonthOnStates: Pnd3Months,
+        AttachTemplate: null, RowsPerAttachPage: 0,
+        AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
+        AttachRow: _ => throw new InvalidOperationException("ภ.ง.ด.54 has no ใบแนบ."));
 
     public async Task<Pnd36Filing> GeneratePnd36Async(
         int period, TaxFilingMode mode, CancellationToken ct)

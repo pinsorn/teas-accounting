@@ -85,6 +85,22 @@ public static class TaxFilingEndpoints
             return deny ?? Results.Ok(await svc.GeneratePnd54Async(period, m, ct));
         }).RequireAuthorization(preview);
 
+        // ── Phase C/D/E — filled WHT PDFs (main page + ใบแนบ; print-and-file, no RD submission).
+        app.MapGet("/tax-filings/pnd3/pdf", async (
+            [FromQuery] int period, IWhtFilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildPnd3PdfAsync(period, ct), "application/pdf", $"pnd3-{period}.pdf"))
+        .WithTags("TaxFilings").RequireAuthorization(preview);
+
+        app.MapGet("/tax-filings/pnd53/pdf", async (
+            [FromQuery] int period, IWhtFilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildPnd53PdfAsync(period, ct), "application/pdf", $"pnd53-{period}.pdf"))
+        .WithTags("TaxFilings").RequireAuthorization(preview);
+
+        app.MapGet("/tax-filings/pnd54/pdf", async (
+            [FromQuery] int period, IWhtFilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildPnd54PdfAsync(period, ct), "application/pdf", $"pnd54-{period}.pdf"))
+        .WithTags("TaxFilings").RequireAuthorization(preview);
+
         // ── cont.82.1 P2 — RD batch-upload file (FORMAT กลาง) for ภ.ง.ด.53 / ภ.ง.ด.3.
         // Emits the pipe-delimited UTF-8 .txt the user uploads to the RD e-Filing portal.
         // Read-only export (no finalize) → gated on the same FilingPreview permission.
