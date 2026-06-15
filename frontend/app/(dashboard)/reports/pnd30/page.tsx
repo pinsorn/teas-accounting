@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { openPdf } from '@/lib/api';
 import { usePnd30, useSystemInfo } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { Pnd30Filing } from '@/lib/types';
@@ -69,6 +70,11 @@ export default function Pnd30Page() {
         <button className="btn btn-sm btn-secondary"
           disabled={pnd30.isPending || !filing} onClick={() => run('finalize')}>
           {t('finalize')}
+        </button>
+        <button className="btn btn-sm btn-outline" data-testid="pnd30-download-pdf"
+          onClick={() => openPdf(`tax-filings/pnd30/pdf?period=${toPeriod(ym)}`)
+            .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
+          {t('pnd30DownloadPdf')}
         </button>
         {filing && (
           <span data-testid="pnd30-status"
