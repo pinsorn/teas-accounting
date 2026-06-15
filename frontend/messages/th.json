@@ -555,6 +555,7 @@
     "pnd30FinalizeConfirm": "ยืนยันปิดงวด ภ.พ.30? เมื่อปิดแล้วแก้ไขไม่ได้ (immutable)",
     "pnd30Finalized": "ปิดงวด ภ.พ.30 แล้ว",
     "pnd30Previewed": "แสดงตัวอย่าง ภ.พ.30 แล้ว",
+    "pnd30DownloadPdf": "ดาวน์โหลด PDF (ภ.พ.30)",
     "pnd30Due": "กำหนดยื่นภายใน",
     "salesTaxable": "ขายที่ต้องเสียภาษี",
     "salesZeroRated": "ขายอัตรา 0% (ม.80/1)",

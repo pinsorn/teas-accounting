@@ -555,6 +555,7 @@
     "pnd30FinalizeConfirm": "Finalize ภ.พ.30 for this period? Finalized filings are immutable.",
     "pnd30Finalized": "ภ.พ.30 finalized",
     "pnd30Previewed": "ภ.พ.30 preview generated",
+    "pnd30DownloadPdf": "Download PDF (ภ.พ.30)",
     "pnd30Due": "Filing due by",
     "salesTaxable": "Taxable sales",
     "salesZeroRated": "Zero-rated sales (ม.80/1)",
