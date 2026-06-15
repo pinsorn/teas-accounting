@@ -101,7 +101,8 @@ public sealed record WhtFilingRow(
     string CertNo, string PayeeName, string? PayeeTaxId,
     string IncomeTypeCode, decimal IncomeAmount, decimal WhtRate, decimal WhtAmount,
     string? IncomeDescription = null,   // ประเภทเงินได้ (free text — what was paid for)
-    int WhtCondition = 1);              // เงื่อนไข: 1 = หัก ณ ที่จ่าย, 2 = ออกภาษีให้
+    int WhtCondition = 1,               // เงื่อนไข: 1 = หัก ณ ที่จ่าย, 2 = ออกภาษีให้
+    DateOnly? CertDate = null);         // วัน เดือน ปี ที่จ่าย (cert date)
 
 public sealed record WhtFilingTotals(decimal Income, decimal Wht);
 

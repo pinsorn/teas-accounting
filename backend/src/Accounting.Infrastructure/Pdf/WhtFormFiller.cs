@@ -7,7 +7,8 @@ namespace Accounting.Infrastructure.Pdf;
 /// <summary>One payee/payment line for a WHT remittance form (ภ.ง.ด.3 / ภ.ง.ด.53).</summary>
 public sealed record WhtFormRow(
     int Seq, string PayeeTaxId, string PayeeName, string IncomeTypeText,
-    decimal Rate, decimal Income, decimal Wht, string Condition);
+    decimal Rate, decimal Income, decimal Wht, string Condition,
+    string? PayDate = null);   // วัน เดือน ปี ที่จ่าย (already formatted dd/MM/yyyy BE)
 
 /// <summary>Payer header + totals + payee rows for a WHT remittance form.</summary>
 public sealed record WhtFormModel(
@@ -35,10 +36,14 @@ public sealed record WhtFormLayout(
     string MonthRadio,
     IReadOnlyList<string> MonthOnStates,
     string? AttachTemplate,
+    string? AttachCellsResource,      // ใบแนบ payee-taxId comb cell-centres (1-4-5-2-1)
     int RowsPerAttachPage,
     // ใบแนบ page-header (payer taxId / branch) + per-row field-name builder.
     string AttachHdrTaxId, string AttachHdrBranch,
-    Func<int, WhtAttachRowFields> AttachRow);
+    Func<int, WhtAttachRowFields> AttachRow,
+    // main page: tick "ใบแนบ ที่แนบมาพร้อมนี้" + fill จำนวน ___ ราย / ___ แผ่น when an ใบแนบ is attached.
+    string AttachFlagRadio, string AttachFlagOnState,
+    string AttachCountRaiField, string AttachCountSheetField);
 
 /// <summary>AcroForm field names for one ใบแนบ payee row (sub-line 1 only — one payment per row).</summary>
 public sealed record WhtAttachRowFields(
@@ -106,6 +111,14 @@ public static class WhtFormFiller
             // tax month — select by on-state (export value), order-independent.
             new(layout.MonthRadio, layout.MonthOnStates[Math.Clamp(m.PeriodMonth, 1, 12) - 1]),
         };
+        // ใบแนบ ที่แนบมาพร้อมนี้ — tick the paper-ใบแนบ box + จำนวน ราย / แผ่น when payee rows exist.
+        if (layout.AttachTemplate is not null && m.Rows.Count > 0)
+        {
+            var sheets = (m.Rows.Count + layout.RowsPerAttachPage - 1) / layout.RowsPerAttachPage;
+            radios.Add(new RdRadio(layout.AttachFlagRadio, layout.AttachFlagOnState));
+            fields.Add(new(layout.AttachCountRaiField, m.Rows.Count.ToString(Inv), Right: true));
+            fields.Add(new(layout.AttachCountSheetField, sheets.ToString(Inv), Right: true));
+        }
         return RdAcroFormFiller.Render(Template(layout.MainTemplate), fields, radios, CellsFor(layout.CellsResource));
     }
 
@@ -134,9 +147,11 @@ public static class WhtFormFiller
             fields.Add(new(f.Income, Money(r.Income), Right: true));
             fields.Add(new(f.Wht, Money(r.Wht), Right: true));
             fields.Add(new(f.Cond, string.IsNullOrWhiteSpace(r.Condition) ? "1" : r.Condition));
-            // f.Date intentionally left blank — the WHT filing DTO carries no per-row pay date.
+            if (!string.IsNullOrWhiteSpace(r.PayDate))
+                fields.Add(new(f.Date, r.PayDate!));   // วัน เดือน ปี ที่จ่าย
         }
-        return RdAcroFormFiller.Render(Template(attachTemplate), fields, Array.Empty<RdRadio>());
+        var cells = layout.AttachCellsResource is { } res ? CellsFor(res) : null;
+        return RdAcroFormFiller.Render(Template(attachTemplate), fields, Array.Empty<RdRadio>(), cells);
     }
 
     // Rate may arrive as a fraction (0.05) or a percent (5). Normalise to a percent number string.

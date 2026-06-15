@@ -72,7 +72,7 @@ public sealed class WhtFilingService(
             .Select(w => new WhtFilingRow(
                 w.DocNo, w.PayeeName, w.PayeeTaxId, w.IncomeTypeCode,
                 w.IncomeAmount, w.WhtRate, w.WhtAmount,
-                w.IncomeDescription, w.WhtCondition))
+                w.IncomeDescription, w.WhtCondition, w.CertDate))
             .ToListAsync(ct);
 
         var totals = new WhtFilingTotals(
@@ -138,7 +138,10 @@ public sealed class WhtFilingService(
                 : $"ม.40({r.IncomeTypeCode})",
             Rate: r.WhtRate,
             Income: r.IncomeAmount, Wht: r.WhtAmount,
-            Condition: r.WhtCondition.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToList();
+            Condition: r.WhtCondition.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            PayDate: r.CertDate is { } dt
+                ? $"{dt.Day:00}/{dt.Month:00}/{dt.Year + 543}"   // วัน/เดือน/ปี (พ.ศ.)
+                : null)).ToList();
 
         var model = new WhtFormModel(
             TaxId:      prof?.TaxId ?? company.TaxId,
@@ -162,32 +165,40 @@ public sealed class WhtFilingService(
     private static readonly string[] Pnd53Months = ["2", "4", "8", "1", "5", "9", "0", "6", "10", "3", "7", "11"];
     private static readonly string[] Pnd3Months  = ["0", "4", "8", "1", "5", "9", "2", "6", "11", "3", "7", "10"];
 
-    private static readonly WhtFormLayout Pnd53Layout = new(
+    public static readonly WhtFormLayout Pnd53Layout = new(
         MainTemplate: "pnd53_main.pdf",
         CellsResource: "Accounting.Infrastructure.Pdf.Templates.pnd53_cells.json",
         YearField: "Text1.17",
         // select by on-state (export value), not positional — same-row radio pairs tie-break unreliably.
         FixedRadios: [new RdRadio("Radio Button0", "2"), new RdRadio("Radio Button2", "0")],  // ม.3เตรส · ยื่นปกติ
         MonthRadio: "Radio Button10", MonthOnStates: Pnd53Months,
-        AttachTemplate: "pnd53_attach.pdf", RowsPerAttachPage: 6,
+        AttachTemplate: "pnd53_attach.pdf",
+        AttachCellsResource: "Accounting.Infrastructure.Pdf.Templates.pnd53_attach_cells.json",
+        RowsPerAttachPage: 6,
         AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
         AttachRow: k => new WhtAttachRowFields(
             Seq: $"Text{k}.4", TaxId: $"Text{k}.5", Name: $"Text{k}.6",
             Date: $"Text{k}.10", IncomeType: $"Text{k}.11", Rate: $"Text{k}.12",
-            Income: $"Text{k}.13", Wht: $"Text{k}.14", Cond: $"Text{k}.15"));
+            Income: $"Text{k}.13", Wht: $"Text{k}.14", Cond: $"Text{k}.15"),
+        AttachFlagRadio: "Radio Button3", AttachFlagOnState: "0",   // ☑ ใบแนบ ภ.ง.ด.53 ที่แนบมาพร้อมนี้
+        AttachCountRaiField: "Text1.19", AttachCountSheetField: "Text1.20");
 
-    private static readonly WhtFormLayout Pnd3Layout = new(
+    public static readonly WhtFormLayout Pnd3Layout = new(
         MainTemplate: "pnd3_main.pdf",
         CellsResource: "Accounting.Infrastructure.Pdf.Templates.pnd3_cells.json",
         YearField: "Text1.18",
         FixedRadios: [new RdRadio("Radio Button0", "0"), new RdRadio("Radio Button2", "0")],  // ยื่นปกติ · ม.3เตรส
         MonthRadio: "Radio Button10", MonthOnStates: Pnd3Months,
-        AttachTemplate: "pnd3_attach.pdf", RowsPerAttachPage: 6,
+        AttachTemplate: "pnd3_attach.pdf",
+        AttachCellsResource: "Accounting.Infrastructure.Pdf.Templates.pnd3_attach_cells.json",
+        RowsPerAttachPage: 6,
         AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
         AttachRow: k => new WhtAttachRowFields(
             Seq: $"Text{k}.27", TaxId: $"Text{k}.1", Name: $"Text{k}.3",
             Date: $"Text{k}.9", IncomeType: $"Text{k}.10", Rate: $"Text{k}.11",
-            Income: $"Text{k}.12", Wht: $"Text{k}.13", Cond: $"Text{k}.14"));
+            Income: $"Text{k}.12", Wht: $"Text{k}.13", Cond: $"Text{k}.14"),
+        AttachFlagRadio: "Radio Button3", AttachFlagOnState: "0",   // ☑ ใบแนบ ภ.ง.ด.3 ที่แนบมาพร้อมนี้
+        AttachCountRaiField: "Text1.19", AttachCountSheetField: "Text1.20");
 
 
     public async Task<Pnd36Filing> GeneratePnd36Async(
