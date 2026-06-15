@@ -37,7 +37,7 @@
 - Tests from `W:\tests\Accounting.Api.Tests` with `$env:TEAS_TEST_PG=...teas_test...` (login co2 = `demo-admin`/`Demo@1234`).
 - Render-verify a filled PDF: `python docs/RD-Forms/_scratch/fill_render.py <key> "<endpoint?query>"` → writes
   `docs/RD-Forms/_fills/<key>.pdf` + page PNGs. Cell-overlay-on-blank before trusting a new cells.json.
-- Commit messages slash-free. grep Bengali `ম` = 0 before doc commits. NEVER stage `docs/RD-Forms`,
+- Commit messages slash-free. grep Bengali `ม` = 0 before doc commits. NEVER stage `docs/RD-Forms`,
   `frontend/screenshots`, `docs/SSO-Forms` (other-session scratch). `_fills/` + `_scratch/` are review-only.
 
 ---
@@ -61,5 +61,5 @@ branch feat/rbac-per-company-admin-ui). งานที่เหลือ เร
 
 env: §6 (subst W:, kill :5080 ก่อน full build, TEAS_TEST_PG, login demo-admin/Demo@1234).
 render-verify: python docs/RD-Forms/_scratch/fill_render.py <key> "<endpoint>". commit slash-free,
-grep ম=0, ห้าม stage docs/RD-Forms · frontend/screenshots · docs/SSO-Forms.
+grep ม=0, ห้าม stage docs/RD-Forms · frontend/screenshots · docs/SSO-Forms.
 ```
