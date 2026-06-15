@@ -19,18 +19,24 @@
 1. ✅ **DONE — Manual walkthroughs 07.07–07.10.** render-pdf-samples targets + 4 `showPdfSample()` walkthroughs +
    run-capture register + capture 4/4 + gen-md (41wt/159steps) + mkdocs 0 err + ম=0, eyeballed 4/4. Page-1-only
    samples = the main page, so the co2 ภ.ง.ด.53 e2e-noise (which lives on the ใบแนบ pages) never appears — no filtering needed.
-2. ⏸ **BLOCKED on Ham (DECISION 1) — ภ.ง.ด.54 ม.70.** Root cause found: **no app path ever sets FormType=Pnd54**
-   (`PaymentVoucherService.cs:302` derives it from vendor type → Pnd3/Pnd53 only), so `/tax-filings/pnd54/pdf`
-   returns 0 rows for EVERY company, not just co2. The amount-mapping is now **verified by a teas_test**
-   (`WhtFormPdfFillTests.Pnd54_maps_ma70_amounts_through_to_the_form` — inserts a Pnd54 cert, asserts totals +
-   render) without touching co2. Routing ม.70 → Pnd54 = a §4 compliance-classification change + out of this
-   plan's scope → **Ham's call**: implement (foreign no-VAT-D corporate → Pnd54) or accept as documented limitation.
+2. ✅ **DONE (cont.98l) — ภ.ง.ด.54 ม.70 routing (Decision 1 Tier A, Ham approved).** `PaymentVoucherService`
+   now honours `whtType.FormType == Pnd54` (FOR-SVC / FOR-ROYAL) → a ม.70 income type routes the cert to
+   ภ.ง.ด.54 regardless of payee kind (the income type, not a vendor flag, is the ม.70 discriminator — a foreign
+   co. with a Thai PE still files ภ.ง.ด.53). Per-line WHT rate already user-editable → 15% (no treaty) vs 10%/DTA.
+   `BuildPnd54PdfAsync` now multi-sheet (was Rows[0] only). Seed 251 backfills FOR-* for older companies (co2).
+   Verified end-to-end on co2 (PV → Pnd54 cert → ภ.ง.ด.54 PDF with 50,000×15%=7,500) + the matrix test
+   (`WhtFormRoutingTests`, 2×). **DTA reduced-rate modelling per treaty = deferred Tier B.**
+   ⚠️ The end-to-end co2 seed PV left co2 LIVE data polluted (it's a real FY2026 expense → breaks the CIT /
+   ภ.พ.36 / tax-summary tie-outs); it can't be cleanly deleted (immutability triggers, no void endpoint).
+   **Cleanup for Ham** (manual was reverted to honest, so committed docs are clean): recreate accounting_dev from
+   seed (cleanest — the PV was runtime-added, not seeded), or post a reversing JE (partial), or add a void feature.
 3. ✅ **DONE — ภ.ง.ด.3 ใบแนบ — and it was BROKEN.** The best-guess scheme was wrong for every row: pnd3_attach
    uses a flat `Text1.*` namespace (header at `.0–.3`), so row-1 data is shifted +3 (taxId=`Text1.4`, not `.1`)
    and rows 2–6's date→cond block starts at `.6` not `.9`. Fixed `Pnd3Layout.AttachRow` (k==1 branch); render-
    verified every column + the now-filled row-1 taxId; guarded by `WhtFormPdfFillTests` (pass 2×).
 4. ✅ **DONE — `reference-modals-buttons.md` §3.7** — added the "ดาวน์โหลด PDF" buttons (ภ.พ.30 / ภ.ง.ด.3/53/54).
-5. ⏸ **DECISION 2 (Ham) — Branch scope.** Still rides on `feat/rbac-per-company-admin-ui`. Decide PR/merge.
+5. ✅ **DONE (cont.98l) — Branch scope (Decision 2, Ham approved "merge"):** verify full suite green → merge the
+   whole `feat/rbac-per-company-admin-ui` branch to `main` locally (no push). Future unrelated work = fresh branch.
 6. **(optional)** WHT total digit spacing slightly loose — tighten `pnd3_cells.json`/`pnd53_cells.json` if Ham wants.
 
 ## ENV (hard-won — read §6 of CLAUDE.md)
