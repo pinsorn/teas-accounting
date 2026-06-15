@@ -58,9 +58,11 @@
     <EmbeddedResource Include="Pdf\Templates\pnd3_main.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd3_attach.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd3_cells.json" />
+    <EmbeddedResource Include="Pdf\Templates\pnd3_attach_cells.json" />
     <EmbeddedResource Include="Pdf\Templates\pnd53_main.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd53_attach.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd53_cells.json" />
+    <EmbeddedResource Include="Pdf\Templates\pnd53_attach_cells.json" />
     <!-- Official RD ภ.ง.ด.54 foreign-remittance AcroForm (Phase E — single page, no ใบแนบ). -->
     <EmbeddedResource Include="Pdf\Templates\pnd54_main.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd54_cells.json" />
