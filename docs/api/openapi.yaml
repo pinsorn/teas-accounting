@@ -1314,6 +1314,72 @@ paths:
           content:
             application/pdf: {}
 
+  /tax-filings/pnd30/pdf:
+    get:
+      summary: ภ.พ.30 (VAT return) — filled official RD AcroForm, print-and-file (no RD submission)
+      description: >
+        Fills the official ภ.พ.30 from the computed Pnd30Filing (same data as GET /reports/pnd30 /
+        POST /tax-filings/pnd30): payer header (taxId/branch/name/structured address), tax-month tick
+        + พ.ศ., and all 16 calc lines (VAT shown separately — line 5 output, line 7 input; net 11/12).
+        Field map: backend Pdf/Templates/pnd30_fieldmap.md.
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: PDF (2 pages; page 1 filled)
+          content:
+            application/pdf: {}
+
+  /tax-filings/pnd3/pdf:
+    get:
+      summary: ภ.ง.ด.3 (WHT, individuals) — filled main page + ใบแนบ, print-and-file
+      description: >
+        Fills the ภ.ง.ด.3 main page (payer header, tax-month, ยื่นปกติ + ม.3เตรส, grand totals
+        รวมเงินได้/รวมภาษีนำส่ง) plus one ใบแนบ row per payee (6/page, multiple ใบแนบ pages merged).
+        Data = WhtFilingService.GeneratePnd3Async (individual payees). The pay-date column is blank
+        (the filing DTO carries no per-row date). Field map: backend Pdf/Templates/pnd53_fieldmap.md.
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: PDF (main page + ใบแนบ pages)
+          content:
+            application/pdf: {}
+
+  /tax-filings/pnd53/pdf:
+    get:
+      summary: ภ.ง.ด.53 (WHT, juristic) — filled main page + ใบแนบ, print-and-file
+      description: >
+        As ภ.ง.ด.3 but for corporate payees (GeneratePnd53Async); main page selects ม.3เตรส as the
+        legal basis. Per-payee rows on the ใบแนบ foot to the totals (amount × rate% = WHT).
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: PDF (main page + ใบแนบ pages)
+          content:
+            application/pdf: {}
+
+  /tax-filings/pnd54/pdf:
+    get:
+      summary: ภ.ง.ด.54 (foreign ม.70) — v1 payer-header prefill, print-and-file
+      description: >
+        ภ.ง.ด.54 is a single foreign-payment form (one payee/sheet). v1 prefills the payer identity
+        header + (1) ม.70 / ยื่นปกติ marks + the foreign payee's name (like the ภ.พ.01/09 prefills);
+        the payment-amount / income-type / WHT boxes await ม.70 seed data + an amount render-verify
+        pass. Field map decoded in backend Pnd54FormFiller.
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: PDF (single page; header prefilled)
+          content:
+            application/pdf: {}
+
   /tax-filings/pnd51/estimate:
     post:
       summary: บันทึกประมาณการ ภ.ง.ด.51 (ม.67ตรี) — persist the method-A estimate + prepaid
