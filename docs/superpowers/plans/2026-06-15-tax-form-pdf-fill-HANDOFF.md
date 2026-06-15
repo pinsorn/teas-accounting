@@ -28,8 +28,14 @@
    (`WhtFormRoutingTests`, 2×). **DTA reduced-rate modelling per treaty = deferred Tier B.**
    ⚠️ The end-to-end co2 seed PV left co2 LIVE data polluted (it's a real FY2026 expense → breaks the CIT /
    ภ.พ.36 / tax-summary tie-outs); it can't be cleanly deleted (immutability triggers, no void endpoint).
-   **Cleanup for Ham** (manual was reverted to honest, so committed docs are clean): recreate accounting_dev from
-   seed (cleanest — the PV was runtime-added, not seeded), or post a reversing JE (partial), or add a void feature.
+   **Cleanup for Ham** (manual was reverted to honest, so committed docs are clean) — do this WITH Ham present,
+   not overnight: (a) **reversing JE** to restore P&L/CIT (sanctioned §4.2, no trigger touch = least destructive;
+   PARTIAL — ภ.พ.36/ภ.ง.ด.54/WHT-summary aggregate from the source PV, not GL, so their row counts stay); (b)
+   **targeted delete of PV+cert+JE on dev** (disable the immutability trigger briefly → delete → re-enable; dev
+   demo data only, NOT a prod pattern — fully clears the pollution from every report but is DB surgery); (c) ❌ do
+   NOT recreate accounting_dev from seed — it wipes runtime-added demo data that ch5/6/7 depend on (MD-EMP
+   employees + payroll run 202602 for ch6/07.06; rent PV + cert WT-0001 for 05.03/07.02), breaking those tie-outs
+   and forcing a re-seed + multi-chapter re-capture.
 3. ✅ **DONE — ภ.ง.ด.3 ใบแนบ — and it was BROKEN.** The best-guess scheme was wrong for every row: pnd3_attach
    uses a flat `Text1.*` namespace (header at `.0–.3`), so row-1 data is shifted +3 (taxId=`Text1.4`, not `.1`)
    and rows 2–6's date→cond block starts at `.6` not `.9`. Fixed `Pnd3Layout.AttachRow` (k==1 branch); render-
