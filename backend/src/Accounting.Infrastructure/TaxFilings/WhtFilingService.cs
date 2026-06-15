@@ -197,10 +197,19 @@ public sealed class WhtFilingService(
         AttachCellsResource: "Accounting.Infrastructure.Pdf.Templates.pnd3_attach_cells.json",
         RowsPerAttachPage: 6,
         AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
-        AttachRow: k => new WhtAttachRowFields(
-            Seq: $"Text{k}.27", TaxId: $"Text{k}.1", Name: $"Text{k}.3",
-            Date: $"Text{k}.9", IncomeType: $"Text{k}.10", Rate: $"Text{k}.11",
-            Income: $"Text{k}.12", Wht: $"Text{k}.13", Cond: $"Text{k}.14"),
+        // pnd3 ใบแนบ row slots differ by slot. Slot 1 lives in the Text1.* namespace whose .0–.3 are the
+        // page header (taxId/branch/sheet no), so row-1 data is shifted +3: taxId=Text1.4, name=Text1.6,
+        // date-block .9–.14. Slots 2–6 (Text2..Text6) start the row at .1 (taxId), .3 (name), date-block
+        // .6–.11. Decoded from pnd3_attach.pdf /Rects (matches the comb cells.json keys Text1.4/Text{k}.1).
+        AttachRow: k => k == 1
+            ? new WhtAttachRowFields(
+                Seq: "Text1.27", TaxId: "Text1.4", Name: "Text1.6",
+                Date: "Text1.9", IncomeType: "Text1.10", Rate: "Text1.11",
+                Income: "Text1.12", Wht: "Text1.13", Cond: "Text1.14")
+            : new WhtAttachRowFields(
+                Seq: $"Text{k}.27", TaxId: $"Text{k}.1", Name: $"Text{k}.3",
+                Date: $"Text{k}.6", IncomeType: $"Text{k}.7", Rate: $"Text{k}.8",
+                Income: $"Text{k}.9", Wht: $"Text{k}.10", Cond: $"Text{k}.11"),
         AttachFlagRadio: "Radio Button3", AttachFlagOnState: "0",   // ☑ ใบแนบ ภ.ง.ด.3 ที่แนบมาพร้อมนี้
         AttachCountRaiField: "Text1.19", AttachCountSheetField: "Text1.20");
 
