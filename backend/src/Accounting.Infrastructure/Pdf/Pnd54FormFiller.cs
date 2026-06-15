@@ -50,8 +50,11 @@ public static class Pnd54FormFiller
             new("Radio Button1", "0"),   // (1) ภาษีหักจากเงินได้ที่จ่าย ตาม ม.70
             new("Radio Button2", "0"),   // (1) ยื่นปกติ
         };
-        return RdAcroFormFiller.Render(Template("pnd54_main.pdf"), fields, radios);
+        return RdAcroFormFiller.Render(Template("pnd54_main.pdf"), fields, radios, Cells.Value);
     }
+
+    private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlyList<double>>> Cells =
+        new(() => RdCells.Load("Accounting.Infrastructure.Pdf.Templates.pnd54_cells.json"));
 
     private static string Digits(string? s) => new((s ?? "").Where(char.IsDigit).ToArray());
 

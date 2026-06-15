@@ -26,6 +26,7 @@ public sealed record WhtFormModel(
 /// </summary>
 public sealed record WhtFormLayout(
     string MainTemplate,
+    string CellsResource,             // embedded comb cell-centres (taxId 1-4-5-2-1 + postal)
     string YearField,                 // พ.ศ. (ml=4) — Text1.18 (pnd3) / Text1.17 (pnd53)
     // Form-specific fixed radios (legal basis ม.3เตรส, ยื่นปกติ) — small groups, positional is reliable.
     IReadOnlyList<RdRadio> FixedRadios,
@@ -105,8 +106,13 @@ public static class WhtFormFiller
             // tax month — select by on-state (export value), order-independent.
             new(layout.MonthRadio, layout.MonthOnStates[Math.Clamp(m.PeriodMonth, 1, 12) - 1]),
         };
-        return RdAcroFormFiller.Render(Template(layout.MainTemplate), fields, radios);
+        return RdAcroFormFiller.Render(Template(layout.MainTemplate), fields, radios, CellsFor(layout.CellsResource));
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string, IReadOnlyDictionary<string, IReadOnlyList<double>>> CellsCache = new();
+    private static IReadOnlyDictionary<string, IReadOnlyList<double>> CellsFor(string res)
+        => CellsCache.GetOrAdd(res, RdCells.Load);
 
     private static byte[] RenderAttachPage(
         WhtFormModel m, WhtFormLayout layout, string attachTemplate, IReadOnlyList<WhtFormRow> rows)

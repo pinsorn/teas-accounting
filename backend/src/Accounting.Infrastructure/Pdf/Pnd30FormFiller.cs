@@ -108,8 +108,12 @@ public static class Pnd30FormFiller
             new("Radio Button3", MonthWidgetIndex(m.PeriodMonth)),
         };
 
-        return RdAcroFormFiller.Render(Template("pnd30_main.pdf"), fields, radios);
+        return RdAcroFormFiller.Render(Template("pnd30_main.pdf"), fields, radios, Cells.Value);
     }
+
+    // taxId (1-4-5-2-1) + postal combs are non-uniform → place digits at the real printed cell-centres.
+    private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlyList<double>>> Cells =
+        new(() => RdCells.Load("Accounting.Infrastructure.Pdf.Templates.pnd30_cells.json"));
 
     // Month → widget index for the 4-col × 3-row grid (widgets sort y-from-top asc, then x asc).
     private static int MonthWidgetIndex(int month)
