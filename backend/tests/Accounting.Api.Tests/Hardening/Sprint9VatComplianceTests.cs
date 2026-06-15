@@ -155,6 +155,25 @@ public sealed class Sprint9VatComplianceTests
             .Which.Code.Should().Be("tax_filing.already_finalized");
     }
 
+    // Phase B — the print-and-file ภ.พ.30 PDF: BuildPnd30PdfAsync must return a real, non-trivial
+    // flattened AcroForm. Exercises the full path (GeneratePnd30Async → CompanyProfile → filler).
+    [SkippableFact]
+    public async Task Pnd30_pdf_renders_filled_acroform()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var cust = await CustomerId(sp);
+        await PostTi(sp, cust, 8000m, "VAT7", 0.07m);   // taxable sales land in period 202605
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<ITaxFilingService>();
+        var pdf = await svc.BuildPnd30PdfAsync(202605, default);
+
+        pdf.Should().NotBeNullOrEmpty();
+        pdf.Length.Should().BeGreaterThan(10_000, "a filled ภ.พ.30 AcroForm is ~290 KB");
+        System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+    }
+
     [SkippableFact]
     public async Task Output_vat_register_lists_posted_ti_with_category()
     {
