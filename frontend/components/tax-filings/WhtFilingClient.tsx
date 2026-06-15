@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { usePnd3, usePnd53, usePnd54 } from '@/lib/queries';
-import { downloadFile } from '@/lib/api';
+import { downloadFile, openPdf } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 import type { WhtFiling } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -81,6 +81,11 @@ export function WhtFilingClient({
         <button className="btn btn-sm btn-secondary"
           disabled={mut.isPending || !filing} onClick={() => run('finalize')}>
           {t('finalize')}
+        </button>
+        <button className="btn btn-sm btn-outline" data-testid="tf-download-pdf"
+          onClick={() => openPdf(`tax-filings/${form}/pdf?period=${ym.replace('-', '')}`)
+            .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
+          {t('downloadPdf')}
         </button>
         {canBatch && (
           <button className="btn btn-sm btn-outline" data-testid="tf-batch-file"

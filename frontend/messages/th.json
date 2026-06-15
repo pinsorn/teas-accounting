@@ -594,6 +594,7 @@
     "finalized": "ปิดงวดแล้ว",
     "previewed": "แสดงตัวอย่างแล้ว",
     "downloadBatchFile": "ดาวน์โหลดไฟล์ยื่น (RD Prep)",
+    "downloadPdf": "ดาวน์โหลด PDF (แบบกรมสรรพากร)",
     "downloading": "กำลังสร้างไฟล์...",
     "batchFileHint": "ไฟล์ .txt รูปแบบ FORMAT กลาง สำหรับอัปโหลดเข้าโปรแกรมโอนย้ายข้อมูล/ยื่นผ่าน e-Filing",
     "batchFileError": "สร้างไฟล์ไม่สำเร็จ",
