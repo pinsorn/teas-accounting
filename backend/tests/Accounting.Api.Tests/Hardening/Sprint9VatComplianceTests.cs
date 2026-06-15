@@ -188,6 +188,7 @@ public sealed class Sprint9VatComplianceTests
         {
             await svc.BuildPnd3PdfAsync(202605, default),
             await svc.BuildPnd53PdfAsync(202605, default),
+            await svc.BuildPnd54PdfAsync(202605, default),
         })
         {
             pdf.Should().NotBeNullOrEmpty();

@@ -95,8 +95,30 @@ public sealed class WhtFilingService(
     public async Task<byte[]> BuildPnd53PdfAsync(int period, CancellationToken ct) =>
         await BuildWhtPdfAsync(await GeneratePnd53Async(period, TaxFilingMode.Preview, ct), Pnd53Layout, ct);
 
-    public async Task<byte[]> BuildPnd54PdfAsync(int period, CancellationToken ct) =>
-        await BuildWhtPdfAsync(await GeneratePnd54Async(period, TaxFilingMode.Preview, ct), Pnd54Layout, ct);
+    public async Task<byte[]> BuildPnd54PdfAsync(int period, CancellationToken ct)
+    {
+        // ภ.ง.ด.54 is a single-payment foreign-remittance form (one payee/sheet), structurally unlike
+        // the ภ.ง.ด.3/53 payee lists — v1 prefills the payer header + ม.70/ยื่นปกติ marks (+ first payee).
+        var f = await GeneratePnd54Async(period, TaxFilingMode.Preview, ct);
+        var prof = await db.CompanyProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+        var company = await db.Companies.AsNoTracking()
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => new { c.TaxId, c.NameTh }).FirstAsync(ct);
+
+        var model = new Pnd54Model(
+            TaxId:      prof?.TaxId ?? company.TaxId,
+            BranchCode: prof?.BranchCode ?? "00000",
+            PayerName:  prof?.LegalName ?? company.NameTh,
+            Building:   prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
+            Village:    prof?.RegVillage, HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo,
+            Soi:        prof?.RegSoi, Yaek: null, Road: prof?.RegStreet,
+            SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
+            Province:    prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
+            PayeeName:  f.Rows.Count > 0 ? f.Rows[0].PayeeName : null);
+
+        return Pnd54FormFiller.Fill(model);
+    }
 
     private async Task<byte[]> BuildWhtPdfAsync(WhtFiling f, WhtFormLayout layout, CancellationToken ct)
     {
@@ -135,7 +157,8 @@ public sealed class WhtFilingService(
 
     private static readonly WhtFormLayout Pnd53Layout = new(
         MainTemplate: "pnd53_main.pdf", YearField: "Text1.17",
-        FixedRadios: [new RdRadio("Radio Button0", 0), new RdRadio("Radio Button2", 0)],  // ม.3เตรส · ยื่นปกติ
+        // select by on-state (export value), not positional — same-row radio pairs tie-break unreliably.
+        FixedRadios: [new RdRadio("Radio Button0", "2"), new RdRadio("Radio Button2", "0")],  // ม.3เตรส · ยื่นปกติ
         MonthRadio: "Radio Button10", MonthOnStates: Pnd53Months,
         AttachTemplate: "pnd53_attach.pdf", RowsPerAttachPage: 6,
         AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
@@ -146,7 +169,7 @@ public sealed class WhtFilingService(
 
     private static readonly WhtFormLayout Pnd3Layout = new(
         MainTemplate: "pnd3_main.pdf", YearField: "Text1.18",
-        FixedRadios: [new RdRadio("Radio Button0", 0), new RdRadio("Radio Button2", 0)],  // ยื่นปกติ · ม.3เตรส
+        FixedRadios: [new RdRadio("Radio Button0", "0"), new RdRadio("Radio Button2", "0")],  // ยื่นปกติ · ม.3เตรส
         MonthRadio: "Radio Button10", MonthOnStates: Pnd3Months,
         AttachTemplate: "pnd3_attach.pdf", RowsPerAttachPage: 6,
         AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
@@ -155,13 +178,6 @@ public sealed class WhtFilingService(
             Date: $"Text{k}.9", IncomeType: $"Text{k}.10", Rate: $"Text{k}.11",
             Income: $"Text{k}.12", Wht: $"Text{k}.13", Cond: $"Text{k}.14"));
 
-    // ภ.ง.ด.54 = single page, no ใบแนบ (foreign ม.70). Year field + radios decoded in Phase E.
-    private static readonly WhtFormLayout Pnd54Layout = new(
-        MainTemplate: "pnd54_main.pdf", YearField: "Text1.18",
-        FixedRadios: [], MonthRadio: "Radio Button10", MonthOnStates: Pnd3Months,
-        AttachTemplate: null, RowsPerAttachPage: 0,
-        AttachHdrTaxId: "Text1.0", AttachHdrBranch: "Text1.1",
-        AttachRow: _ => throw new InvalidOperationException("ภ.ง.ด.54 has no ใบแนบ."));
 
     public async Task<Pnd36Filing> GeneratePnd36Async(
         int period, TaxFilingMode mode, CancellationToken ct)
