@@ -6,6 +6,7 @@ using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.TaxFilings;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -95,6 +96,22 @@ public sealed class WhtFormPdfFillTests
         ("2", "ค่านายหน้า",         0.03m),
         ("8", "ค่าโฆษณา",           0.02m),
     ];
+
+    // The actual guard against the wrong-box regression: pin the ภ.ง.ด.3 ใบแนบ field names per slot.
+    // Row 1 lives in the header-shifted Text1.* namespace (+3); rows 2+ use the standard Text{k}.* scheme.
+    // A render-only assertion can't catch this — the buggy mapping still produced a non-empty 7-row PDF.
+    [Fact]
+    public void Pnd3_attach_row_field_scheme_matches_the_template()
+    {
+        var r1 = WhtFilingService.Pnd3Layout.AttachRow(1);
+        (r1.Seq, r1.TaxId, r1.Name, r1.Date, r1.IncomeType, r1.Rate, r1.Income, r1.Wht, r1.Cond)
+            .Should().Be(("Text1.27", "Text1.4", "Text1.6", "Text1.9", "Text1.10", "Text1.11",
+                          "Text1.12", "Text1.13", "Text1.14"));
+        var r2 = WhtFilingService.Pnd3Layout.AttachRow(2);
+        (r2.Seq, r2.TaxId, r2.Name, r2.Date, r2.IncomeType, r2.Rate, r2.Income, r2.Wht, r2.Cond)
+            .Should().Be(("Text2.27", "Text2.1", "Text2.3", "Text2.6", "Text2.7", "Text2.8",
+                          "Text2.9", "Text2.10", "Text2.11"));
+    }
 
     [SkippableFact]
     public async Task Pnd3_attach_renders_individual_payee_rows_in_correct_columns()
