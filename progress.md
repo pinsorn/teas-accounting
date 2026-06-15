@@ -3,6 +3,14 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-15 (cont. 98i — "generate ภ.ง.ด.1/3/53/54 ฟอร์ม fill อัตโนมัติ — build PDF-fill ใหม่" [Ham สั่ง]) — **🚧 IN PROGRESS: spec เขียนแล้ว (`docs/superpowers/specs/2026-06-15-wht-form-pdf-fill.md`). feasibility CONFIRMED — template RD ครบใน `docs/RD-Forms/` (pnd3/53/54). กำลังทำ Phase A (ภ.ง.ด.1).**
+
+- **ที่มา:** Ham เลือก "build PDF-fill ใหม่ (backend)" สำหรับ ภ.ง.ด.3/53/54 + ทำ ภ.ง.ด.1 (seed+post run) + ภ.ง.ด.54 (seed ม.70). เป้า = ระบบ generate **PDF ฟอร์มสรรพากรที่กรอกแล้ว** (เหมือน 50ทวิ/CIT) ไม่ต้อง submit.
+- **🔑 feasibility (orient):** PDF-fill infra พร้อม (`RdAcroFormFiller` + filler pnd1/1a/50/51/50tawi/pp01/09/sps110, `Pdf/Templates/*.pdf` embedded). **filler ภ.ง.ด.3/53/54 ยังไม่มี** แต่ **template RD มีครบใน `docs/RD-Forms/`** (untracked scratch ของ Ham — pnd3_270360 / pnd53_041060 / pnd54_050369 + attach; +RD form อีกเพียบ pnd2/52/55/90/91/pp30/pp36/os4...). → ต้อง copy เข้า `Pdf/Templates/` + embed + decode field + filler + endpoint.
+- **🔵 pattern (จาก Pnd51FormFiller):** decode AcroForm field name→/Rect (offline, ใช้ fitz ได้) → cells.json (comb cell-centres) → `<F>FormFiller.Fill(model)` map→RdField/RdRadio → `RdAcroFormFiller.Render`. งานต่อฟอร์ม = reverse-engineer layout + render-verify loop (intricate, comment pnd51 โชว์ "off by one field"/coordinate drift). **ไม่ใช่ quick add — เป็น feature จริงต่อฟอร์ม.**
+- **plan/phasing:** A=ภ.ง.ด.1 (unblocked: seed+post run 202601 → pnd1/pdf มีอยู่ → 07.06; ⚠️ re-capture 08.02 เพราะ Jan โผล่; ห้าม post 202602=06.01 พัง) · B=pnd3 filler · C=pnd53 (clone) · D=pnd54+seed ม.70 · E=openapi+manual. ดู spec.
+- **ค้าง:** กำลังทำ Phase A. ถัดไป B–D (filler build ต่อฟอร์ม) + บท 9 e-Tax.
+
 ## 2026-06-15 (cont. 98h — "บท 8 เลย" + ถาม generate ภ.ง.ด.54/1 [Ham สั่งต่อ]) — **บท 8 รายงาน: 08.01 งบกำไรขาดทุน (P&L) + สรุปยอดขาย · 08.02 สรุปภาษีรายเดือน (Tax Summary dashboard). ตัวเลขผูกทั้งเล่ม (รายได้ 98,600 = ภ.พ.30 = CIT = tax-summary). gen-md 36 wt · 154 steps · mkdocs 0 error · ম clean · ch8 ไม่มี XBU/e2e leak.**
 
 - **ที่มา:** Ham "บท 8 เลย" + ถามว่า generate ภ.ง.ด.54/1 ได้ไหม. ทำบท 8 (รายงาน, read-only).
