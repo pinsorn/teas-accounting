@@ -38,5 +38,6 @@ nav:
   - "บทที่ 5 — งานซื้อ": generated/chapter-05.md
   - "บทที่ 6 — เงินเดือน": generated/chapter-06.md
   - "บทที่ 7 — ภาษี": generated/chapter-07.md
+  - "บทที่ 8 — รายงาน": generated/chapter-08.md
   - "อ้างอิง: หน้าต่างและปุ่มทั้งหมด": reference-modals-buttons.md
   - "สิทธิ์การมองเห็น (RBAC UI Guide)": rbac-ui-guide.md
