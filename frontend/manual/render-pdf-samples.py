@@ -84,6 +84,10 @@ def main():
         ("pnd51", f"/tax-filings/pnd51/pdf?year={YEAR}"),
         ("pnd50", f"/tax-filings/pnd50/pdf?year={YEAR}"
                   "&attestFirstFiling=true&attestBlankSchedules=true"),
+        # ภ.พ.01 / ภ.พ.09 — VAT-registration applications; only the identity header
+        # is filled (the rest is filled by hand), so these are sparse samples.
+        ("pp01", "/tax-filings/pp01/pdf"),
+        ("pp09", "/tax-filings/pp09/pdf"),
     ]
     if cert:
         targets.append(("wht50tawi", f"/wht-certificates/{cert}/pdf"))
