@@ -35,8 +35,13 @@
    and rows 2–6's date→cond block starts at `.6` not `.9`. Fixed `Pnd3Layout.AttachRow` (k==1 branch); render-
    verified every column + the now-filled row-1 taxId; guarded by `WhtFormPdfFillTests` (pass 2×).
 4. ✅ **DONE — `reference-modals-buttons.md` §3.7** — added the "ดาวน์โหลด PDF" buttons (ภ.พ.30 / ภ.ง.ด.3/53/54).
-5. ✅ **DONE (cont.98l) — Branch scope (Decision 2, Ham approved "merge"):** verify full suite green → merge the
-   whole `feat/rbac-per-company-admin-ui` branch to `main` locally (no push). Future unrelated work = fresh branch.
+5. 🛑 **HELD (cont.98l) — Branch scope (Decision 2).** Ham approved merge *conditional on a green suite*. Full
+   suite: Domain 146/146 ✅, but Api has **11 PRE-EXISTING reds** (confirmed identical at session-start 39d0a2a —
+   NOT this work): 9× stale test DI (hand-built providers don't register `IFileStorageService`, needed by the
+   `PaymentVoucherService` ctor since Sprint 13k) + 2× RBAC map/matrix drift on this RBAC branch. Per
+   "don't merge over red / don't fix pre-existing reds overnight" → merge HELD for Ham: fix those reds (the 9 DI
+   ones look like a small shared test-provider fix; the 2 RBAC ones are the branch owner's), then merge — OR merge
+   accepting the pre-existing debt. The tax-pdf work is fully green and committed on the branch.
 6. **(optional)** WHT total digit spacing slightly loose — tighten `pnd3_cells.json`/`pnd53_cells.json` if Ham wants.
 
 ## ENV (hard-won — read §6 of CLAUDE.md)
