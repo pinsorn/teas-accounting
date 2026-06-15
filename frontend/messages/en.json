@@ -594,6 +594,7 @@
     "finalized": "Finalized",
     "previewed": "Preview generated",
     "downloadBatchFile": "Download filing file (RD Prep)",
+    "downloadPdf": "Download PDF (RD form)",
     "downloading": "Generating file...",
     "batchFileHint": "FORMAT กลาง .txt for the RD data-transfer program / e-Filing upload",
     "batchFileError": "Could not generate the file",
