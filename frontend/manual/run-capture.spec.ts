@@ -46,6 +46,8 @@ import './walkthroughs/07.02-wht-filing';
 import './walkthroughs/07.03-corporate-income-tax';
 import './walkthroughs/07.04-foreign-payment-tax';
 import './walkthroughs/07.05-vat-registration-forms';
+import './walkthroughs/08.01-financial-statements';
+import './walkthroughs/08.02-tax-summary';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 
