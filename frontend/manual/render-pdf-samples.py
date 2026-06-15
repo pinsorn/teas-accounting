@@ -22,6 +22,7 @@ import fitz  # PyMuPDF
 BASE = os.environ.get("TEAS_API", "http://localhost:5080")
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pdf-samples")
 YEAR = 2026  # demo data lives in FY2026 (CE); co2 ภ.พ.30/CIT all reference it
+PERIOD = 202606  # the demo "current" month (YYYYMM); ch7 ties ภ.พ.30/ภ.ง.ด.x to it
 DPI = 140    # crisp enough; showPdfSample down-scales to ~96vh in the capture
 
 
@@ -93,6 +94,16 @@ def main():
     tok = login()
     cert = find_rent_cert(tok)
     targets = [
+        # ภ.พ.30 (VAT return) — the system-filled RD form; ties to /reports/pnd30 (07.01).
+        ("pnd30", f"/tax-filings/pnd30/pdf?period={PERIOD}"),
+        # ภ.ง.ด.3 / ภ.ง.ด.53 (WHT remittance) — main page + ใบแนบ (per-payee rows).
+        # ภ.ง.ด.3 = individual payees, ภ.ง.ด.53 = juristic payees (co2 has 13 rows).
+        ("pnd3", f"/tax-filings/pnd3/pdf?period={PERIOD}"),
+        ("pnd53", f"/tax-filings/pnd53/pdf?period={PERIOD}"),
+        # ภ.ง.ด.54 (foreign ม.70) — header prefill only; co2 produces no ม.70 rows
+        # (no app path emits FormType=Pnd54 — see progress cont.98j), so this is a
+        # sparse identity-header sample like pp01/pp09 until the routing is decided.
+        ("pnd54", f"/tax-filings/pnd54/pdf?period={PERIOD}"),
         ("pnd51", f"/tax-filings/pnd51/pdf?year={YEAR}"),
         ("pnd50", f"/tax-filings/pnd50/pdf?year={YEAR}"
                   "&attestFirstFiling=true&attestBlankSchedules=true"),

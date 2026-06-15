@@ -47,6 +47,10 @@ import './walkthroughs/07.03-corporate-income-tax';
 import './walkthroughs/07.04-foreign-payment-tax';
 import './walkthroughs/07.05-vat-registration-forms';
 import './walkthroughs/07.06-pnd1-payroll-wht';
+import './walkthroughs/07.07-pnd30-pdf';
+import './walkthroughs/07.08-pnd3-pdf';
+import './walkthroughs/07.09-pnd53-pdf';
+import './walkthroughs/07.10-pnd54-pdf';
 import './walkthroughs/08.01-financial-statements';
 import './walkthroughs/08.02-tax-summary';
 
