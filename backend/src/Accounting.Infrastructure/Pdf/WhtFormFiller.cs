@@ -67,6 +67,12 @@ public static class WhtFormFiller
     private static readonly CultureInfo Th = CultureInfo.GetCultureInfo("th-TH");
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     private static string Money(decimal v) => v.ToString("#,##0.00", Th);
+    // Amount as comb digits (no comma; baht then 2 satang) for boxes with a printed baht|satang cell grid.
+    private static string Comb(decimal v)
+    {
+        var baht = Math.Truncate(v);
+        return $"{baht:0}{Math.Round((v - baht) * 100m):00}";
+    }
 
     public static byte[] Fill(WhtFormModel m, WhtFormLayout layout)
     {
@@ -101,10 +107,11 @@ public static class WhtFormFiller
             new("Text1.14", m.Province    ?? ""),
             new("Text1.15", m.PostalCode  ?? ""),
             new(layout.YearField, (m.PeriodYearCe + 543).ToString(Inv)),
-            // สรุปรายการภาษีที่นำส่ง (totals; surcharge Text2.3 blank → grand total = total WHT).
-            new("Text2.1", Money(m.TotalIncome), Right: true),
-            new("Text2.2", Money(m.TotalWht),    Right: true),
-            new("Text2.4", Money(m.TotalWht),    Right: true),
+            // สรุปรายการภาษีที่นำส่ง — comb digits placed per printed cell (baht | satang divider),
+            // surcharge Text2.3 blank → grand total Text2.4 = total WHT.
+            new("Text2.1", Comb(m.TotalIncome), Right: true),
+            new("Text2.2", Comb(m.TotalWht),    Right: true),
+            new("Text2.4", Comb(m.TotalWht),    Right: true),
         };
         var radios = new List<RdRadio>(layout.FixedRadios)
         {
