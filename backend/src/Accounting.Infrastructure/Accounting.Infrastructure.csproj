@@ -49,15 +49,21 @@
          box-cell centres (11 baht + 2 satang per box; the 3pt dash gap is not a cell). -->
     <EmbeddedResource Include="Pdf\Templates\pnd50_main.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd50_cells.json" />
-    <!-- Official RD ภ.พ.30 VAT-return AcroForm (Phase B — fill + flatten via RdAcroFormFiller). -->
+    <!-- Official RD ภ.พ.30 VAT-return AcroForm (Phase B — fill + flatten via RdAcroFormFiller).
+         _cells.json = printed comb cell-centres for the NON-uniform taxId (1-4-5-2-1) + postal combs;
+         equal-division drifts on the dash-grouped grid, so digits are placed at the real centres. -->
     <EmbeddedResource Include="Pdf\Templates\pnd30_main.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\pnd30_cells.json" />
     <!-- Official RD ภ.ง.ด.3 / ภ.ง.ด.53 WHT-remittance AcroForms — main page + ใบแนบ (Phase C/D). -->
     <EmbeddedResource Include="Pdf\Templates\pnd3_main.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd3_attach.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\pnd3_cells.json" />
     <EmbeddedResource Include="Pdf\Templates\pnd53_main.pdf" />
     <EmbeddedResource Include="Pdf\Templates\pnd53_attach.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\pnd53_cells.json" />
     <!-- Official RD ภ.ง.ด.54 foreign-remittance AcroForm (Phase E — single page, no ใบแนบ). -->
     <EmbeddedResource Include="Pdf\Templates\pnd54_main.pdf" />
+    <EmbeddedResource Include="Pdf\Templates\pnd54_cells.json" />
     <!-- Official RD ภ.พ.01 / ภ.พ.09 AcroForms (VAT registration / change of details — v1
          identity-prefill print-and-sign) + their comb-cell centres (taxid 13, postal 5). -->
     <EmbeddedResource Include="Pdf\Templates\pp01_main.pdf" />

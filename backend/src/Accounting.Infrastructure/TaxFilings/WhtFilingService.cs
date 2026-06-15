@@ -71,7 +71,8 @@ public sealed class WhtFilingService(
             .OrderBy(w => w.CertDate).ThenBy(w => w.DocNo)
             .Select(w => new WhtFilingRow(
                 w.DocNo, w.PayeeName, w.PayeeTaxId, w.IncomeTypeCode,
-                w.IncomeAmount, w.WhtRate, w.WhtAmount))
+                w.IncomeAmount, w.WhtRate, w.WhtAmount,
+                w.IncomeDescription, w.WhtCondition))
             .ToListAsync(ct);
 
         var totals = new WhtFilingTotals(
@@ -128,10 +129,16 @@ public sealed class WhtFilingService(
             .Where(c => c.CompanyId == tenant.CompanyId)
             .Select(c => new { c.TaxId, c.NameTh }).FirstAsync(ct);
 
+        // ① ประเภทเงินได้ wants the DESCRIPTION of what was paid (ค่าเช่า / ค่าบริการ …), not the bare
+        // numeric code. ② เงื่อนไข: 1 = หัก ณ ที่จ่าย, 2 = ออกภาษีให้ (see the form's หมายเหตุ ②).
         var rows = f.Rows.Select((r, i) => new WhtFormRow(
             Seq: i + 1, PayeeTaxId: r.PayeeTaxId ?? "", PayeeName: r.PayeeName,
-            IncomeTypeText: r.IncomeTypeCode, Rate: r.WhtRate,
-            Income: r.IncomeAmount, Wht: r.WhtAmount, Condition: "1")).ToList();
+            IncomeTypeText: !string.IsNullOrWhiteSpace(r.IncomeDescription)
+                ? r.IncomeDescription!
+                : $"ม.40({r.IncomeTypeCode})",
+            Rate: r.WhtRate,
+            Income: r.IncomeAmount, Wht: r.WhtAmount,
+            Condition: r.WhtCondition.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToList();
 
         var model = new WhtFormModel(
             TaxId:      prof?.TaxId ?? company.TaxId,
@@ -156,7 +163,9 @@ public sealed class WhtFilingService(
     private static readonly string[] Pnd3Months  = ["0", "4", "8", "1", "5", "9", "2", "6", "11", "3", "7", "10"];
 
     private static readonly WhtFormLayout Pnd53Layout = new(
-        MainTemplate: "pnd53_main.pdf", YearField: "Text1.17",
+        MainTemplate: "pnd53_main.pdf",
+        CellsResource: "Accounting.Infrastructure.Pdf.Templates.pnd53_cells.json",
+        YearField: "Text1.17",
         // select by on-state (export value), not positional — same-row radio pairs tie-break unreliably.
         FixedRadios: [new RdRadio("Radio Button0", "2"), new RdRadio("Radio Button2", "0")],  // ม.3เตรส · ยื่นปกติ
         MonthRadio: "Radio Button10", MonthOnStates: Pnd53Months,
@@ -168,7 +177,9 @@ public sealed class WhtFilingService(
             Income: $"Text{k}.13", Wht: $"Text{k}.14", Cond: $"Text{k}.15"));
 
     private static readonly WhtFormLayout Pnd3Layout = new(
-        MainTemplate: "pnd3_main.pdf", YearField: "Text1.18",
+        MainTemplate: "pnd3_main.pdf",
+        CellsResource: "Accounting.Infrastructure.Pdf.Templates.pnd3_cells.json",
+        YearField: "Text1.18",
         FixedRadios: [new RdRadio("Radio Button0", "0"), new RdRadio("Radio Button2", "0")],  // ยื่นปกติ · ม.3เตรส
         MonthRadio: "Radio Button10", MonthOnStates: Pnd3Months,
         AttachTemplate: "pnd3_attach.pdf", RowsPerAttachPage: 6,

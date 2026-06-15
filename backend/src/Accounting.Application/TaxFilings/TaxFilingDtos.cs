@@ -99,7 +99,9 @@ public interface ITaxFilingService
 // ── Part C — WHT filings (ภ.ง.ด.3 / ภ.ง.ด.53 / ภ.ง.ด.54) ───────────────────
 public sealed record WhtFilingRow(
     string CertNo, string PayeeName, string? PayeeTaxId,
-    string IncomeTypeCode, decimal IncomeAmount, decimal WhtRate, decimal WhtAmount);
+    string IncomeTypeCode, decimal IncomeAmount, decimal WhtRate, decimal WhtAmount,
+    string? IncomeDescription = null,   // ประเภทเงินได้ (free text — what was paid for)
+    int WhtCondition = 1);              // เงื่อนไข: 1 = หัก ณ ที่จ่าย, 2 = ออกภาษีให้
 
 public sealed record WhtFilingTotals(decimal Income, decimal Wht);
 

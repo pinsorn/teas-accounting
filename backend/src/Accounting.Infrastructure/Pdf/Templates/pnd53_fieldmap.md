@@ -42,8 +42,22 @@ Each payee row K (1-based on the page) — **schemes differ per form**:
 
 Page-header on each ใบแนบ: `Text1.0` payer taxId, `Text1.1` branch.
 
+## Comb cell-centres (`pnd53_cells.json`, `pnd3_cells.json`)
+The taxId (`Text1.0`) and postal (`Text1.15`) combs are NON-uniform: the taxId is a 1-4-5-2-1 grid
+(13 digits + 4 dash gaps), so equal division drifts. Cell-centres are extracted from the template's
+printed dividers (`_scratch/extract_cells.py` greedy walk: a wide segment = a digit cell; two narrow
+segments summing to ~one cell = a digit split by a spurious divider; a lone narrow segment = a dash)
+and passed to `RdAcroFormFiller.Render(..., cellCenters)`. The ใบแนบ payee-taxId comb is left on
+equal division (its grid has ambiguous narrow cells; co2 payees are foreign → no Thai taxId anyway).
+
+## Income type + condition (from the cert, not hard-coded)
+- ① ประเภทเงินได้ = `WhtCertificate.IncomeDescription` (e.g. "ค่าบริการ"); falls back to `ม.40(<code>)`.
+  (NOT the bare numeric income-type code.)
+- ② เงื่อนไข = `WhtCertificate.WhtCondition` — **1 = หัก ณ ที่จ่าย, 2 = ออกภาษีให้** (form's หมายเหตุ ②).
+
 ## Verification (pnd53 202606, 13 rows / co2)
-Render-verified vs official: main totals tie (รวมเงินได้ 78,309.28 / รวมภาษี 4,164.28); month=มิถุนายน;
-attach rows land in columns and foot (amount × rate% = WHT). **Caveats (v1):** pay-date column blank
-(DTO gap); the "ใบแนบ จำนวน ราย/แผ่น" count boxes left blank; co2 ภ.ง.ด.53 carries e2e-suite noise in
-payee names (data, not the filler) — filter for the manual sample.
+Render-verified vs official: taxId/postal combs land per printed cell (1-4-5-2-1); main totals tie
+(รวมเงินได้ 78,309.28 / รวมภาษี 4,164.28); month=มิถุนายน; ม.3เตรส + ยื่นปกติ ticked; attach rows show
+the income description + foot (amount × rate% = WHT). **Caveats (v1):** pay-date column blank (DTO gap);
+the "ใบแนบ จำนวน ราย/แผ่น" count boxes left blank; co2 ภ.ง.ด.53 carries e2e-suite noise in payee names
+(data, not the filler) — filter for the manual sample.
