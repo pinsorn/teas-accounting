@@ -7,10 +7,11 @@
 ## Status / scope
 | Form | Filled-PDF today | Work |
 |---|---|---|
-| **ภ.ง.ด.1** (payroll WHT) | ✅ `Pnd1FormFiller` + `/payroll/{id}/pnd1/pdf` | **Unblocked** — needs a POSTED payroll run (202602 is DRAFT). Seed+post a *separate* run (202601, MD-EMP-001/002 hired 2026-01-01) → generate. Manual 07.06. |
-| **ภ.ง.ด.3** (WHT, individuals) | ❌ none | **Build** filler + endpoint. Data: `WhtFilingService.GeneratePnd3Async` already computes rows. |
-| **ภ.ง.ด.53** (WHT, juristic) | ❌ none | **Build** (near-clone of pnd3). co2 has data (50ทวิ). |
-| **ภ.ง.ด.54** (foreign ม.70) | ❌ none | **Build** + **seed ม.70 data** (co2 = 0 rows every month). |
+| **ภ.ง.ด.1** (payroll WHT) | ✅ DONE (07.06) | `Pnd1FormFiller` + `/payroll/runs/{id}/pnd1/pdf` (works on DRAFT run — no post needed). |
+| **ภ.พ.30** (VAT return) | ❌ none (07.01 = on-screen only) | **Build** filler + endpoint. Data: `GetPnd30Async` (the 07.01 `Pnd30Filing`). Template `docs/RD-Forms/pp30/pp30_010968.pdf` = AcroForm 2p/76 widgets (+ `pp30-2/PP30.2` + `pp30-attach/AttachPP30`). Ham asked for it (2026-06-15 "30 ละ"). |
+| **ภ.ง.ด.3** (WHT, individuals) | ❌ none | **Build** filler + endpoint. Data: `WhtFilingService.GeneratePnd3Async` rows. Template `pnd3_270360.pdf` = AcroForm 2p / 54 widgets p1 (+ `pnd3_attach`). |
+| **ภ.ง.ด.53** (WHT, juristic) | ❌ none | **Build** (near-clone of pnd3). co2 has data (50ทวิ). Template `pnd53_041060.pdf` (+attach). |
+| **ภ.ง.ด.54** (foreign ม.70) | ❌ none | **Build** + **seed ม.70 data** (co2 = 0 rows every month). Template `pnd54_050369.pdf`. |
 
 ## Assets (confirmed present)
 - Templates in **`docs/RD-Forms/`** (untracked scratch — do NOT commit that dir; COPY into `Pdf/Templates/`):
@@ -39,13 +40,22 @@
 7. **Manual**: render page-1 via `render-pdf-samples.py` → embed in a ch7 walkthrough (07.0x), like 50ทวิ.
 
 ## Phasing (commit per phase)
-- **A — ภ.ง.ด.1 (now, unblocked):** seed+post 202601 run via API → `pnd1/pdf` → `render-pdf-samples.py`
-  (add pnd1) → walkthrough **07.06**. ⚠️ posting a Jan run adds a Jan row to tax-summary → **re-capture 08.02**.
-  Do NOT post 202602 (breaks 06.01).
-- **B — ภ.ง.ด.3 filler** (representative): decode → cells.json → filler → endpoint → FE button → test → manual.
-- **C — ภ.ง.ด.53** (near-clone of B).
-- **D — ภ.ง.ด.54** + seed ม.70 (foreign payment with WHT) so the form has rows.
-- **E** — openapi delta (flag Sana), progress.md, ref-modal page if needed.
+- **A — ภ.ง.ด.1 ✅ DONE (07.06):** `/payroll/runs/{id}/pnd1/pdf` works on the DRAFT run → no seed/post,
+  no 08.02 cascade. Rendered + embedded.
+- **B — ภ.พ.30 filler** (Ham-prioritised): decode `pp30_010968.pdf` (76 widgets) → map `Pnd30Filing`
+  (ขาย/ภาษีขาย, ซื้อ/ภาษีซื้อ, สุทธิ) → filler → `GET /tax-filings/pnd30/pdf?period=` → FE button on
+  `/reports/pnd30` → test → manual (07.0x). Representative AcroForm build.
+- **C — ภ.ง.ด.3 filler** (53/54 follow this shape): decode → cells.json → filler → endpoint → FE → test → manual.
+- **D — ภ.ง.ด.53** (near-clone of C).
+- **E — ภ.ง.ด.54** + seed ม.70 (foreign payment with WHT) so the form has rows.
+- **F** — openapi delta (flag Sana), progress.md, ref-modal page if needed.
+
+## Build mechanics per form (the long part)
+Field→box mapping is the cost: dump widgets (`fitz` `page.widgets()` → name + rect), render the BLANK
+template to PNG, visually map each `Text*` field to its printed box (pnd51 did this via a label-join), then
+fill + render + eyeball + nudge coordinates (comb/`cells.json` for grid amount boxes). Each form = its own
+decode + render-verify loop. Compliance-critical (a wrong box = a wrong filing) → eyeball every filled output
+against the official form before committing.
 
 ## Compliance / guardrails
 - WHT amounts on the form MUST equal the issued 50ทวิ certs (cite the คำสั่ง/section in tests).
