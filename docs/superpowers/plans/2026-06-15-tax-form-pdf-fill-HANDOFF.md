@@ -15,21 +15,23 @@
 - `TaxFormFillDiagnostic` (gated `TEAS_DIAG=1`) fills EVERY box with synthetic data → `docs/RD-Forms/_fills/_diag_*.pdf`.
 - openapi.yaml (4 GETs), smoke tests (pass 2× on teas_test).
 
-## REMAINING
-1. **Manual walkthroughs 07.07–07.10** (the main remaining work — heavy Playwright). Add render-pdf-samples
-   targets (pnd30/pnd3/pnd53/pnd54) + ch7 walkthroughs embedding `showPdfSample()`, then gen-md + mkdocs.
-   See `docs/superpowers/plans/2026-06-15-tax-form-pdf-fill.md` B8/C8/D8/E8. Filter the co2 ภ.ง.ด.53
-   e2e-noise payee names (or seed clean) for the sample.
-2. **ภ.ง.ด.54 ม.70 seed** — co2 has 0 ม.70 rows, so the REAL pnd54 shows no amounts (only the diagnostic does).
-   Seed a foreign-vendor PV with a ม.70 WHT line so `GeneratePnd54Async(period)` returns ≥1 row, then
-   render-verify the real pnd54 amounts.
-3. **ภ.ง.ด.3 ใบแนบ verify** — seed one INDIVIDUAL payee (PND3) and render-verify the ใบแนบ row layout
-   (the pnd3 attach field scheme `Text{k}.27/.1/...` is a best-guess, never exercised with data).
-4. **`docs/manual/reference-modals-buttons.md` §3** — add the new "ดาวน์โหลด PDF" buttons (Phase F2, not done).
-5. **Branch decision** — this rides on `feat/rbac-per-company-admin-ui` (unrelated RBAC + manual work).
-   Decide PR/merge scope with Ham.
-6. **(optional)** WHT total digit spacing is a bit loose (each char in a cell so the `.` lands on the divider);
-   tighten the baht cell width in `pnd3_cells.json`/`pnd53_cells.json` if Ham wants it more compact.
+## REMAINING — STATUS (updated cont.98k 2026-06-15)
+1. ✅ **DONE — Manual walkthroughs 07.07–07.10.** render-pdf-samples targets + 4 `showPdfSample()` walkthroughs +
+   run-capture register + capture 4/4 + gen-md (41wt/159steps) + mkdocs 0 err + ম=0, eyeballed 4/4. Page-1-only
+   samples = the main page, so the co2 ภ.ง.ด.53 e2e-noise (which lives on the ใบแนบ pages) never appears — no filtering needed.
+2. ⏸ **BLOCKED on Ham (DECISION 1) — ภ.ง.ด.54 ม.70.** Root cause found: **no app path ever sets FormType=Pnd54**
+   (`PaymentVoucherService.cs:302` derives it from vendor type → Pnd3/Pnd53 only), so `/tax-filings/pnd54/pdf`
+   returns 0 rows for EVERY company, not just co2. The amount-mapping is now **verified by a teas_test**
+   (`WhtFormPdfFillTests.Pnd54_maps_ma70_amounts_through_to_the_form` — inserts a Pnd54 cert, asserts totals +
+   render) without touching co2. Routing ม.70 → Pnd54 = a §4 compliance-classification change + out of this
+   plan's scope → **Ham's call**: implement (foreign no-VAT-D corporate → Pnd54) or accept as documented limitation.
+3. ✅ **DONE — ภ.ง.ด.3 ใบแนบ — and it was BROKEN.** The best-guess scheme was wrong for every row: pnd3_attach
+   uses a flat `Text1.*` namespace (header at `.0–.3`), so row-1 data is shifted +3 (taxId=`Text1.4`, not `.1`)
+   and rows 2–6's date→cond block starts at `.6` not `.9`. Fixed `Pnd3Layout.AttachRow` (k==1 branch); render-
+   verified every column + the now-filled row-1 taxId; guarded by `WhtFormPdfFillTests` (pass 2×).
+4. ✅ **DONE — `reference-modals-buttons.md` §3.7** — added the "ดาวน์โหลด PDF" buttons (ภ.พ.30 / ภ.ง.ด.3/53/54).
+5. ⏸ **DECISION 2 (Ham) — Branch scope.** Still rides on `feat/rbac-per-company-admin-ui`. Decide PR/merge.
+6. **(optional)** WHT total digit spacing slightly loose — tighten `pnd3_cells.json`/`pnd53_cells.json` if Ham wants.
 
 ## ENV (hard-won — read §6 of CLAUDE.md)
 - `subst U:`/`W:`; build/test/run from `W:`. Kill :5080 before a full solution build, restart after:
