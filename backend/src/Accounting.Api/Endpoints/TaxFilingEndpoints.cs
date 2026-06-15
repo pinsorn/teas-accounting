@@ -46,6 +46,14 @@ public static class TaxFilingEndpoints
             return deny ?? Results.Ok(await svc.GeneratePnd30Async(period, m, ct));
         }).RequireAuthorization(preview);
 
+        // ── Phase B — ภ.พ.30 filled PDF (print-and-file; no RD submission). period = YYYYMM.
+        app.MapGet("/tax-filings/pnd30/pdf", async (
+            [FromQuery] int period, ITaxFilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildPnd30PdfAsync(period, ct),
+                    "application/pdf", $"pnd30-{period}.pdf"))
+        .WithTags("TaxFilings")
+        .RequireAuthorization(preview);
+
         // ── C2/C3/C4 ภ.ง.ด.3 / ภ.ง.ด.53 / ภ.ง.ด.54
         app.MapPost("/tax-filings/pnd3", async (
             [FromQuery] int period, [FromQuery] string? mode,

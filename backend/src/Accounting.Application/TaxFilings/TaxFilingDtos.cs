@@ -89,6 +89,8 @@ public sealed record TaxFilingHistoryRow(
 public interface ITaxFilingService
 {
     Task<Pnd30Filing>      GeneratePnd30Async(int period, TaxFilingMode mode, CancellationToken ct);
+    /// <summary>Print-and-file ภ.พ.30 — the filled official RD AcroForm PDF (no RD submission).</summary>
+    Task<byte[]>           BuildPnd30PdfAsync(int period, CancellationToken ct);
     Task<InputVatRegister> InputVatRegisterAsync(int period, CancellationToken ct);
     Task<OutputVatRegister> OutputVatRegisterAsync(int period, CancellationToken ct);
     Task<IReadOnlyList<TaxFilingHistoryRow>> ListAsync(CancellationToken ct);

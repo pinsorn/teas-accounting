@@ -2,6 +2,7 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.TaxFilings;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -91,6 +92,40 @@ public sealed class TaxFilingService(
                 db, tenant, clock, "PND30", period, submissionMode, filing, ct, rd);
 
         return filing;
+    }
+
+    /// <summary>
+    /// Build the filled official ภ.พ.30 PDF (print-and-file) from the computed preview filing +
+    /// the company's registered-address profile. No RD submission — same data as the 07.01 screen.
+    /// </summary>
+    public async Task<byte[]> BuildPnd30PdfAsync(int period, CancellationToken ct)
+    {
+        var f = await GeneratePnd30Async(period, TaxFilingMode.Preview, ct);
+        var prof = await db.CompanyProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+
+        var model = new Pnd30Model(
+            TaxId:        f.Company.TaxId,
+            BranchCode:   prof?.BranchCode ?? f.Company.BranchCode,
+            OperatorName: prof?.LegalName ?? f.Company.NameTh,
+            Building:    prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
+            Village:     prof?.RegVillage, HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo,
+            Soi:         prof?.RegSoi, Road: prof?.RegStreet,
+            SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
+            Province:    prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
+            Phone:       prof?.Phone,
+            PeriodMonth:  period % 100,
+            PeriodYearCe: period / 100,
+            TotalSales:        f.Lines.TotalSales,
+            SalesZeroRated:    f.Lines.SalesZeroRated.Amount,
+            SalesExempt:       f.Lines.SalesExempt.Amount,
+            SalesTaxable:      f.Lines.SalesTaxable.Amount,
+            OutputVat:         f.Lines.OutputVatTotal,
+            PurchaseClaimable: f.Lines.PurchaseTaxable.Amount,
+            InputVat:          f.Lines.InputVatTotal,
+            CreditCarryForward: f.Lines.CreditCarryForward);
+
+        return Pnd30FormFiller.Fill(model);
     }
 
     public async Task<IReadOnlyList<TaxFilingHistoryRow>> ListAsync(CancellationToken ct) =>
