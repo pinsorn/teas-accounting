@@ -123,6 +123,10 @@ public interface IWhtFilingService
     Task<WhtFiling>   GeneratePnd53Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<WhtFiling>   GeneratePnd54Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<Pnd36Filing> GeneratePnd36Async(int period, TaxFilingMode mode, CancellationToken ct);
+    // Print-and-file filled RD-form PDFs (main page + ใบแนบ; no RD submission).
+    Task<byte[]> BuildPnd3PdfAsync(int period, CancellationToken ct);
+    Task<byte[]> BuildPnd53PdfAsync(int period, CancellationToken ct);
+    Task<byte[]> BuildPnd54PdfAsync(int period, CancellationToken ct);
 }
 
 // ── cont.82.1 P2 — WHT batch-upload file (RD โปรแกรมโอนย้ายข้อมูล / FORMAT กลาง V2.0) ──

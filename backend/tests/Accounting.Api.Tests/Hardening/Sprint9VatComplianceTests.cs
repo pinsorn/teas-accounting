@@ -174,6 +174,28 @@ public sealed class Sprint9VatComplianceTests
         System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
     }
 
+    // Phase C/D — the filled ภ.ง.ด.3 / ภ.ง.ด.53 PDFs (main page + ใบแนบ, merged) must render as a
+    // real flattened PDF even with no payee rows (header + totals only).
+    [SkippableFact]
+    public async Task Wht_pdfs_render_filled_acroforms()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+
+        foreach (var pdf in new[]
+        {
+            await svc.BuildPnd3PdfAsync(202605, default),
+            await svc.BuildPnd53PdfAsync(202605, default),
+        })
+        {
+            pdf.Should().NotBeNullOrEmpty();
+            pdf.Length.Should().BeGreaterThan(10_000, "a filled WHT AcroForm is non-trivial");
+            System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+        }
+    }
+
     [SkippableFact]
     public async Task Output_vat_register_lists_posted_ti_with_category()
     {
