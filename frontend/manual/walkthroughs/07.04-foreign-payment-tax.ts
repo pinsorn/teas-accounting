@@ -41,6 +41,15 @@ walkthrough({
   await page.locator('input[type=month]').fill('2026-06');
   await page.getByRole('button', { name: 'แสดงตัวอย่าง' }).click();
   await page.getByText('กำหนดยื่นภายใน').waitFor({ state: 'visible', timeout: 15_000 });
+  // Guard the live dependency (06.01 lesson): the value of this step IS the rows.
+  // An empty placeholder is a single <td colSpan=6>; real rows have 6 cells each.
+  const bodyRows = page.locator('main table tbody tr');
+  if ((await bodyRows.count()) === 1 && (await bodyRows.first().locator('td').count()) === 1) {
+    throw new Error(
+      '07.04 ภ.พ.36: 0 rows for 2026-06 — needs seeded foreign-vendor (no VAT-D) ' +
+      'service purchases in that period. Re-seed before capturing (do not ship an empty table).',
+    );
+  }
   await capture('step-01-pnd36-preview', {
     highlight: 'main',
     caption:
