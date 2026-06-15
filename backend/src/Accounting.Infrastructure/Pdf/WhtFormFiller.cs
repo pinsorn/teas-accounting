@@ -165,7 +165,7 @@ public static class WhtFormFiller
 
     private static string Digits(string? s) => new((s ?? "").Where(char.IsDigit).ToArray());
 
-    private static byte[] Merge(IReadOnlyList<byte[]> pdfs)
+    internal static byte[] Merge(IReadOnlyList<byte[]> pdfs)
     {
         using var outDoc = new PdfDocument();
         foreach (var bytes in pdfs)

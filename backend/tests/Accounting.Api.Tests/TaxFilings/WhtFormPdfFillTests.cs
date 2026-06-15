@@ -7,6 +7,7 @@ using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.TaxFilings;
+using PdfSharp.Pdf.IO;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -170,5 +171,39 @@ public sealed class WhtFormPdfFillTests
         System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
         pdf.Length.Should().BeGreaterThan(10_000);
         Dump("_test_pnd54.pdf", pdf);
+    }
+
+    // ภ.ง.ด.54 is one foreign payee per sheet — BuildPnd54PdfAsync must render EVERY ม.70 payment in
+    // the period, not just the first (the v1 filler took only Rows[0], silently dropping the rest).
+    [SkippableFact]
+    public async Task Pnd54_renders_one_sheet_per_ma70_payment()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+
+        static int Pages(byte[] pdf)
+        {
+            using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
+            return doc.PageCount;
+        }
+
+        // baseline: one ม.70 payment (the ภ.ง.ด.54 template is N pages/sheet — don't hard-code N).
+        var p1 = RandPeriod();
+        await AddCert(sp, p1, 5, CustomerType.Corporate, WhtFormType.Pnd54,
+            "Foreign Vendor A", "8", "ค่าบริการต่างประเทศ", 100_000m, 0.15m);
+        var single = Pages(await svc.BuildPnd54PdfAsync(p1, default));
+
+        // two ม.70 payments → twice the sheets (the v1 bug rendered only Rows[0] = one sheet).
+        var p2 = RandPeriod();
+        await AddCert(sp, p2, 5, CustomerType.Corporate, WhtFormType.Pnd54,
+            "Foreign Vendor A", "8", "ค่าบริการต่างประเทศ", 100_000m, 0.15m);
+        await AddCert(sp, p2, 6, CustomerType.Corporate, WhtFormType.Pnd54,
+            "Foreign Vendor B", "3", "ค่าสิทธิต่างประเทศ", 200_000m, 0.10m);
+        (await svc.GeneratePnd54Async(p2, TaxFilingMode.Preview, default)).Rows.Should().HaveCount(2);
+
+        Pages(await svc.BuildPnd54PdfAsync(p2, default))
+            .Should().Be(2 * single, "one ภ.ง.ด.54 sheet per ม.70 payment");
     }
 }
