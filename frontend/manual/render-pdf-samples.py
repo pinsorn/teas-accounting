@@ -63,6 +63,18 @@ def find_rent_cert(token):
     return cid(rent) if rent else (cid(items[0]) if items else None)
 
 
+def find_payroll_run(token, period="202602"):
+    """ภ.ง.ด.1 renders from a payroll run (draft is fine — it's a read). Find the
+    seeded demo run by period rather than hardcoding an id."""
+    st, _, b = call("GET", "/payroll/runs", token)
+    if st != 200:
+        return None
+    runs = json.loads(b)
+    runs = runs if isinstance(runs, list) else runs.get("items", [])
+    run = next((r for r in runs if str(r.get("periodYearMonth")) == period), None)
+    return run.get("payrollRunId") if run else None
+
+
 def render(token, key, path):
     st, ct, b = call("GET", path, token)
     if st != 200 or "pdf" not in ct:
@@ -93,6 +105,11 @@ def main():
         targets.append(("wht50tawi", f"/wht-certificates/{cert}/pdf"))
     else:
         print("  WARN no wht certificate found — 50ทวิ sample skipped")
+    run = find_payroll_run(tok)
+    if run:
+        targets.append(("pnd1", f"/payroll/runs/{run}/pnd1/pdf"))  # draft run is fine (read-only)
+    else:
+        print("  WARN no payroll run 202602 found — ภ.ง.ด.1 sample skipped")
     ok = sum(render(tok, k, p) for k, p in targets)
     print(f"rendered {ok}/{len(targets)} samples -> {OUT}")
 
