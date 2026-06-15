@@ -338,7 +338,12 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                     PayeeName        = pv.VendorName,
                     PayeeAddress     = pv.VendorAddress ?? string.Empty,
                     PayeeType        = pv.VendorType,
-                    FormType         = formType,
+                    // ภ.ง.ด.54 (ม.70 — payments to a foreign company not carrying on business in TH) is
+                    // classified by the chosen income type, not the vendor flag: a foreign co. WITH a Thai PE
+                    // files on ภ.ง.ด.53, one WITHOUT on ภ.ง.ด.54, and only the WHT/income type captures that.
+                    // So honour the WhtType's form (e.g. FOR-SVC / FOR-ROYAL = Pnd54); otherwise fall back to
+                    // the payee-kind default (Individual → Pnd3, Corporate → Pnd53).
+                    FormType         = whtType.FormType == WhtFormType.Pnd54 ? WhtFormType.Pnd54 : formType,
                     IncomeTypeCode    = whtType.IncomeTypeCode,
                     IncomeDescription = whtType.NameTh,
                     IncomeAmount      = groupIncome,

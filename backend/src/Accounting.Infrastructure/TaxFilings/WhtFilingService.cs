@@ -98,8 +98,9 @@ public sealed class WhtFilingService(
 
     public async Task<byte[]> BuildPnd54PdfAsync(int period, CancellationToken ct)
     {
-        // ภ.ง.ด.54 is a single-payment foreign-remittance form (one payee/sheet), structurally unlike
-        // the ภ.ง.ด.3/53 payee lists — v1 prefills the payer header + ม.70/ยื่นปกติ marks (+ first payee).
+        // ภ.ง.ด.54 is a single-payment foreign-remittance form (one ม.70 payee per sheet), structurally
+        // unlike the ภ.ง.ด.3/53 payee lists. Render one sheet per payment in the period and merge; with no
+        // ม.70 rows it falls back to a single header-only prefill sheet (like ภ.พ.01/09).
         var f = await GeneratePnd54Async(period, TaxFilingMode.Preview, ct);
         var prof = await db.CompanyProfiles.AsNoTracking()
             .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
@@ -107,8 +108,7 @@ public sealed class WhtFilingService(
             .Where(c => c.CompanyId == tenant.CompanyId)
             .Select(c => new { c.TaxId, c.NameTh }).FirstAsync(ct);
 
-        var first = f.Rows.Count > 0 ? f.Rows[0] : null;   // single foreign payment per sheet
-        var model = new Pnd54Model(
+        Pnd54Model ModelFor(WhtFilingRow? r) => new(
             TaxId:      prof?.TaxId ?? company.TaxId,
             BranchCode: prof?.BranchCode ?? "00000",
             PayerName:  prof?.LegalName ?? company.NameTh,
@@ -117,12 +117,15 @@ public sealed class WhtFilingService(
             Soi:        prof?.RegSoi, Yaek: null, Road: prof?.RegStreet,
             SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
             Province:    prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
-            PayeeName:  first?.PayeeName,
-            Income:     first?.IncomeAmount,
-            RatePct:    first is null ? null : (first.WhtRate <= 1m ? first.WhtRate * 100m : first.WhtRate),
-            Tax:        first?.WhtAmount);
+            PayeeName:  r?.PayeeName,
+            Income:     r?.IncomeAmount,
+            RatePct:    r is null ? null : (r.WhtRate <= 1m ? r.WhtRate * 100m : r.WhtRate),
+            Tax:        r?.WhtAmount);
 
-        return Pnd54FormFiller.Fill(model);
+        var sheets = f.Rows.Count == 0
+            ? new List<byte[]> { Pnd54FormFiller.Fill(ModelFor(null)) }
+            : f.Rows.Select(r => Pnd54FormFiller.Fill(ModelFor(r))).ToList();
+        return sheets.Count == 1 ? sheets[0] : WhtFormFiller.Merge(sheets);
     }
 
     private async Task<byte[]> BuildWhtPdfAsync(WhtFiling f, WhtFormLayout layout, CancellationToken ct)
