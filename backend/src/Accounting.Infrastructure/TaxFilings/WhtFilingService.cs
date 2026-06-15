@@ -107,6 +107,7 @@ public sealed class WhtFilingService(
             .Where(c => c.CompanyId == tenant.CompanyId)
             .Select(c => new { c.TaxId, c.NameTh }).FirstAsync(ct);
 
+        var first = f.Rows.Count > 0 ? f.Rows[0] : null;   // single foreign payment per sheet
         var model = new Pnd54Model(
             TaxId:      prof?.TaxId ?? company.TaxId,
             BranchCode: prof?.BranchCode ?? "00000",
@@ -116,7 +117,10 @@ public sealed class WhtFilingService(
             Soi:        prof?.RegSoi, Yaek: null, Road: prof?.RegStreet,
             SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
             Province:    prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
-            PayeeName:  f.Rows.Count > 0 ? f.Rows[0].PayeeName : null);
+            PayeeName:  first?.PayeeName,
+            Income:     first?.IncomeAmount,
+            RatePct:    first is null ? null : (first.WhtRate <= 1m ? first.WhtRate * 100m : first.WhtRate),
+            Tax:        first?.WhtAmount);
 
         return Pnd54FormFiller.Fill(model);
     }

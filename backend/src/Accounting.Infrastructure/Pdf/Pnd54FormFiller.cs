@@ -1,12 +1,14 @@
 namespace Accounting.Infrastructure.Pdf;
 
-/// <summary>Payer header + foreign-payee identity for ภ.ง.ด.54 (ม.70 remittance).</summary>
+/// <summary>Payer header + foreign-payee identity + ม.70 calculation for ภ.ง.ด.54.</summary>
 public sealed record Pnd54Model(
     string TaxId, string BranchCode, string PayerName,
     string? Building, string? RoomNo, string? Floor, string? Village,
     string? HouseNo, string? Moo, string? Soi, string? Yaek, string? Road,
     string? SubDistrict, string? District, string? Province, string? PostalCode,
-    string? PayeeName);
+    string? PayeeName,
+    // 2. การคำนวณภาษี (ม.70) — null ⇒ leave the amount boxes blank (header-only prefill).
+    decimal? Income = null, decimal? RatePct = null, decimal? Tax = null);
 
 /// <summary>
 /// Fills the official RD ภ.ง.ด.54 AcroForm (single page; ม.70 foreign-payment remittance) and flattens
@@ -43,6 +45,20 @@ public static class Pnd54FormFiller
             new("Text1.13", m.PostalCode  ?? ""),
             new("Text1.15", m.PayeeName   ?? ""),         // ชื่อผู้รับเงินได้ (foreign payee)
         };
+        // 2. การคำนวณภาษี — comb digits per printed cell (Text2.1/.3/.5), rate as a plain percent (Text2.2).
+        // (1) เงินได้พึงประเมิน=Text2.1 · (2) ภาษีนำส่ง ร้อยละ=Text2.2 amount=Text2.3 · (3) เงินเพิ่ม=Text2.4
+        // (blank) · (4) รวมทั้งสิ้น=Text2.5 (= tax, no surcharge).
+        if (m.Income is { } inc)
+        {
+            fields.Add(new("Text2.1", Comb(inc), Right: true));
+            if (m.RatePct is { } r)
+                fields.Add(new("Text2.2", r == Math.Truncate(r) ? r.ToString("0") : r.ToString("0.##")));
+            if (m.Tax is { } tax)
+            {
+                fields.Add(new("Text2.3", Comb(tax), Right: true));
+                fields.Add(new("Text2.5", Comb(tax), Right: true));   // รวมทั้งสิ้น = ภาษี + เงินเพิ่ม(0)
+            }
+        }
         // Select by on-state (export value), not positional index — same-row radio pairs (ยื่นปกติ/
         // เพิ่มเติม) tie-break unreliably on the geometric sort.
         var radios = new List<RdRadio>
@@ -57,6 +73,13 @@ public static class Pnd54FormFiller
         new(() => RdCells.Load("Accounting.Infrastructure.Pdf.Templates.pnd54_cells.json"));
 
     private static string Digits(string? s) => new((s ?? "").Where(char.IsDigit).ToArray());
+
+    // Amount as comb digits (no comma; baht then 2 satang) for the per-digit comb amount boxes.
+    private static string Comb(decimal v)
+    {
+        var baht = Math.Truncate(v);
+        return $"{baht:0}{Math.Round((v - baht) * 100m):00}";
+    }
 
     private static byte[] Template(string file)
     {

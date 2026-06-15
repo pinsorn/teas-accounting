@@ -72,7 +72,8 @@ public sealed class TaxFormFillDiagnostic
             TaxId, "00000", "บริษัท ตัวอย่าง ครบทุกช่อง จำกัด",
             "อาคารเอ", "ห้อง 12", "ชั้น 3", "หมู่บ้านสุข", "99/1", "5", "ลาดพร้าว 1", "ตรอกหนึ่ง",
             "พหลโยธิน", "จอมพล", "จตุจักร", "กรุงเทพมหานคร", "10900",
-            PayeeName: "Acme Overseas Ltd.");
+            PayeeName: "Acme Overseas Ltd.",
+            Income: 1234567.89m, RatePct: 15m, Tax: 185185.18m);
         Save("_diag_pnd54.pdf", Pnd54FormFiller.Fill(m));
     }
 }
