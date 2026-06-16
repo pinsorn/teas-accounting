@@ -3,6 +3,12 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-16 (cont. 98n — "merge เลย แล้วทำ manual ต่อ" [Ham]) — **✅ merge `feat/rbac-per-company-admin-ui` → main (local ff `7ec737c..87ee8c5`, 64 commits: RBAC+dashboard+manual+tax-pdf — Ham ยืนยัน RBAC เสร็จ) + manual 08.03 AP aging (operational report ตัวแรก, read-only). ยังไม่ push origin (รอ Ham).**
+
+- **merge (Ham สั่งหลังยืนยัน RBAC พร้อม):** RBAC **ไม่ conflict** กับ tax-pdf (คนละไฟล์; RbacAuthMap test ยัง validate 4 endpoint PDF ของเราว่า gate ถูก = ผ่าน). ff main ผ่าน ref (`git push . HEAD:main`) — ไม่ switch branch (working tree screenshots session อื่น dirty). **old main `7ec737c` เก็บไว้ revert. ยังไม่ push origin** (outward-facing = รอ Ham).
+- **🟣 manual 08.03 AP aging (commit `8448796`):** รายงานอายุหนี้เจ้าหนี้ — **read-only (ไม่ post = ไม่เปื้อน co2 P&L)**. co2 สะอาด 1 vendor (ออฟฟิศ ซัพพลาย 5,136 current). 2 step + CSV export + as-of/vendor filter. gen-md **42 wt / 161 steps**. eyeball 2/2 สะอาด · ম=0. (07.x md เป็น CRLF-churn เปล่า — ไม่ stage.)
+- **🔵 finding — polish ที่เหลือ gated บน co2:** post docs บน co2 = เปื้อน load-bearing P&L (กับดักเดิม) → payroll lifecycle (ต้อง post) **ไม่ทำตอนนี้**. operational อื่น: outstanding-po (by-vendor) = e2e noise · trial-balance = COA dup dev-drift · wht-receivable คนละ endpoint. **สะอาดตอนนี้แค่ ap-aging.** ที่เหลือ = หลัง co2 reseed (Ham วางแผนล้าง DB อยู่แล้ว). 08.03 = honest first operational report, prose-note ตัวอื่นไว้.
+
 ## 2026-06-16 (cont. 98m — "ต่อเลย" [Ham ตื่น]: explain merge + เก็บ reds) — **🟢 ทั้ง 11 pre-existing reds = ENVIRONMENTAL ไม่ใช่ product defect. แก้ 9 test-DI (register IFileStorageService, commit `029bb59`) + วินิจฉัย 2 RBAC = ต้อง `TEAS_REPO_ROOT` (subst quirk) ไม่ใช่ permission drift. FULL SUITE เขียวล้วน: Domain 146/146 · Api 370/0/7. merge gate (เงื่อนไข Ham) พร้อมแล้ว — รอ Ham สั่ง merge ทั้ง branch.**
 
 - **ที่มา:** Ham ตื่น ถาม merge ละเอียด → พบ branch = **62 commits ahead main** (RBAC+dashboard+manual+tax-pdf รวมกัน) ไม่ใช่แค่ tax-pdf. Ham awake + best-approach → ลุยเก็บ 11 reds (test-infra ปลอดภัย ไม่ใช่ overnight surgery). co2: Ham สั่ง **"ปล่อยไว้ จะล้าง DB ใหม่อยู่ดี"** → ไม่แตะ.
