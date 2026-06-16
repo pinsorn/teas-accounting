@@ -1,4 +1,5 @@
 using System.Text;
+using Accounting.Api;
 using Accounting.Api.Authorization;
 using Accounting.Api.BackgroundServices;
 using Accounting.Api.Endpoints;
@@ -130,7 +131,7 @@ app.MapGet("/system/info", async (ICompanyTaxConfigService taxCfg, CancellationT
     var tax = await taxCfg.GetAsync(ct);
     return new
     {
-        version = typeof(Program).Assembly.GetName().Version?.ToString(),
+        version = AppBuildInfo.Version,
         vat_mode = tax.VatMode,
         vat_rate = tax.VatRate,
         pnd30_submission_mode = tax.Pnd30SubmissionMode,

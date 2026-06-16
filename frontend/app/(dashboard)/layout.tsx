@@ -14,6 +14,7 @@ const BACKEND = process.env.BACKEND_API_URL ?? 'http://localhost:5000';
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const token = (await cookies()).get('access_token')?.value;
   let needsOnboarding = false;
+  let version: string | null = null;
   if (token) {
     try {
       const res = await fetch(`${BACKEND}/me`, {
@@ -27,6 +28,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
     } catch {
       // /me unreachable → don't block the dashboard; middleware already gated auth.
     }
+    try {
+      // App version for the footer (MinVer-stamped via /system/info). Best-effort —
+      // a failure just hides the version, never blocks the dashboard.
+      const infoRes = await fetch(`${BACKEND}/system/info`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      if (infoRes.ok) {
+        const info = await infoRes.json();
+        version = typeof info?.version === 'string' ? info.version.split('+')[0] : null;
+      }
+    } catch {
+      // ignore — footer renders without a version.
+    }
   }
   // redirect() throws a control-flow signal — call it OUTSIDE the try so it isn't swallowed.
   if (needsOnboarding) redirect('/onboarding');
@@ -37,6 +52,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
         <main className="flex-1 overflow-y-auto px-6 py-6 lg:px-8">{children}</main>
+        <footer className="border-t border-base-300 px-6 py-2 text-center text-xs text-base-content/50 lg:px-8">
+          TEAS{version ? ` · v${version}` : ''}
+        </footer>
       </div>
     </div>
   );

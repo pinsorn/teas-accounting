@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: accounting
+          POSTGRES_PASSWORD: accounting_dev_password
+          POSTGRES_DB: teas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U accounting"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # PostgresFixture reads TEAS_TEST_PG before falling back to Testcontainers.
+      TEAS_TEST_PG: "Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true"
+      # RbacAuthMap/RbacMatrix tests locate the repo root via this env (subst/CI quirk).
+      TEAS_REPO_ROOT: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so MinVer can derive the version
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build
+        run: dotnet build backend/Accounting.sln -c Release
+      - name: Test
+        run: dotnet test backend/Accounting.sln -c Release --no-build
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit

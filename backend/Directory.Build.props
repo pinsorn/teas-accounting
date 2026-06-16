@@ -12,5 +12,11 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisMode>Recommended</AnalysisMode>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- MinVer: version from git tag `vX.Y.Z`. No tag (or repo not found, e.g. a build
+         from the subst `W:` root) → falls back to 0.0.0-alpha.0, never fails the build. -->
+    <MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
 </Project>
