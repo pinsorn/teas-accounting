@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Accounting.Infrastructure.Migrations
 {
     [DbContext(typeof(AccountingDbContext))]
-    [Migration("20260531021505_AddProductPurchaseSaleAndBusinessUnit")]
-    partial class AddProductPurchaseSaleAndBusinessUnit
+    [Migration("20260616130322_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -442,6 +442,10 @@ namespace Accounting.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RoleId"));
 
+                    b.Property<int?>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -482,6 +486,10 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<int>("PermissionId")
                         .HasColumnType("integer")
                         .HasColumnName("permission_id");
+
+                    b.Property<int?>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
 
                     b.HasKey("RoleId", "PermissionId")
                         .HasName("pk_role_permissions");
@@ -1161,10 +1169,23 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name_th");
 
+                    b.Property<decimal?>("PaidUpCapital")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("paid_up_capital");
+
                     b.Property<string>("Phone")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("phone");
+
+                    b.Property<string>("Pnd30SubmissionMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("manual")
+                        .HasColumnName("pnd30_submission_mode");
 
                     b.Property<string>("PostalCode")
                         .HasMaxLength(10)
@@ -1206,6 +1227,13 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnName("tax_id")
                         .IsFixedLength();
 
+                    b.Property<decimal>("VatRate")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasDefaultValue(0.07m)
+                        .HasColumnName("vat_rate");
+
                     b.Property<DateOnly?>("VatRegisterDate")
                         .HasColumnType("date")
                         .HasColumnName("vat_register_date");
@@ -1225,7 +1253,11 @@ namespace Accounting.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("ck_companies_fiscal_month", "fiscal_year_start_month BETWEEN 1 AND 12");
 
+                            t.HasCheckConstraint("ck_companies_pnd30_submission_mode", "pnd30_submission_mode IN ('manual','auto')");
+
                             t.HasCheckConstraint("ck_companies_tax_id", "tax_id ~ '^[0-9]{13}$'");
+
+                            t.HasCheckConstraint("ck_companies_vat_rate", "vat_rate >= 0 AND vat_rate <= 1");
                         });
                 });
 
@@ -1288,6 +1320,46 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("phone");
 
+                    b.Property<string>("RegBuilding")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("reg_building");
+
+                    b.Property<string>("RegFloor")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("reg_floor");
+
+                    b.Property<string>("RegHouseNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("reg_house_no");
+
+                    b.Property<string>("RegMoo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("reg_moo");
+
+                    b.Property<string>("RegRoomNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("reg_room_no");
+
+                    b.Property<string>("RegSoi")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("reg_soi");
+
+                    b.Property<string>("RegStreet")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("reg_street");
+
+                    b.Property<string>("RegVillage")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("reg_village");
+
                     b.Property<string>("RegisteredAddressLine1")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1327,6 +1399,11 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character(13)")
                         .HasColumnName("registration_number")
                         .IsFixedLength();
+
+                    b.Property<string>("SsoEmployerAccountNo")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("sso_employer_account_no");
 
                     b.Property<string>("TaxId")
                         .IsRequired()
@@ -1482,6 +1559,186 @@ namespace Accounting.Infrastructure.Migrations
                     b.ToTable("customers", "master", t =>
                         {
                             t.HasCheckConstraint("ck_customers_type", "customer_type IN ('INDIVIDUAL','CORPORATE')");
+                        });
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Master.Employee", b =>
+                {
+                    b.Property<long>("EmployeeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("employee_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("EmployeeId"));
+
+                    b.Property<string>("AddressNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("address_no");
+
+                    b.Property<string>("BankAccountName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("bank_account_name");
+
+                    b.Property<string>("BankAccountNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bank_account_no");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("bank_name");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("base_salary");
+
+                    b.Property<int>("ChildrenCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("children_count");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("District")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("district");
+
+                    b.Property<string>("EmployeeCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("employee_code");
+
+                    b.Property<string>("FirstNameEn")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("first_name_en");
+
+                    b.Property<string>("FirstNameTh")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("first_name_th");
+
+                    b.Property<DateOnly>("HireDate")
+                        .HasColumnType("date")
+                        .HasColumnName("hire_date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("LastNameEn")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("last_name_en");
+
+                    b.Property<string>("LastNameTh")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("last_name_th");
+
+                    b.Property<string>("MaritalStatus")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("marital_status");
+
+                    b.Property<string>("Moo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("moo");
+
+                    b.Property<string>("NationalId")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("character(13)")
+                        .HasColumnName("national_id")
+                        .IsFixedLength();
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(5)
+                        .HasColumnType("character(5)")
+                        .HasColumnName("postal_code")
+                        .IsFixedLength();
+
+                    b.Property<string>("Province")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("province");
+
+                    b.Property<string>("Soi")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("soi");
+
+                    b.Property<bool>("SpouseHasIncome")
+                        .HasColumnType("boolean")
+                        .HasColumnName("spouse_has_income");
+
+                    b.Property<bool>("SsoApplicable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("sso_applicable");
+
+                    b.Property<string>("SsoNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("sso_number");
+
+                    b.Property<string>("Street")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("street");
+
+                    b.Property<string>("SubDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sub_district");
+
+                    b.Property<string>("TaxId")
+                        .HasMaxLength(13)
+                        .HasColumnType("character(13)")
+                        .HasColumnName("tax_id")
+                        .IsFixedLength();
+
+                    b.Property<DateOnly?>("TerminationDate")
+                        .HasColumnType("date")
+                        .HasColumnName("termination_date");
+
+                    b.Property<string>("TitleEn")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("title_en");
+
+                    b.Property<string>("TitleTh")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("title_th");
+
+                    b.HasKey("EmployeeId")
+                        .HasName("pk_employees");
+
+                    b.HasIndex("CompanyId", "EmployeeCode")
+                        .IsUnique()
+                        .HasDatabaseName("ix_employees_company_id_employee_code");
+
+                    b.ToTable("employees", "master", t =>
+                        {
+                            t.HasCheckConstraint("ck_employees_children_nonneg", "children_count >= 0");
+
+                            t.HasCheckConstraint("ck_employees_marital", "marital_status IN ('SINGLE','MARRIED')");
+
+                            t.HasCheckConstraint("ck_employees_salary_nonneg", "base_salary >= 0");
                         });
                 });
 
@@ -1778,6 +2035,261 @@ namespace Accounting.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Payroll.PayrollRun", b =>
+                {
+                    b.Property<long>("PayrollRunId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("payroll_run_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("PayrollRunId"));
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("approved_at");
+
+                    b.Property<long?>("ApprovedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("approved_by");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("integer")
+                        .HasColumnName("branch_id");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DocNo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("doc_no");
+
+                    b.Property<long?>("JournalId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("paid_at");
+
+                    b.Property<long?>("PaidBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paid_by");
+
+                    b.Property<DateOnly>("PayDate")
+                        .HasColumnType("date")
+                        .HasColumnName("pay_date");
+
+                    b.Property<string>("PeriodYearMonth")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character(6)")
+                        .HasColumnName("period_year_month")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("PostedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("posted_at");
+
+                    b.Property<long?>("PostedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("posted_by");
+
+                    b.Property<string>("PrefixCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("PR")
+                        .HasColumnName("prefix_code");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("DRAFT")
+                        .HasColumnName("status");
+
+                    b.Property<decimal>("TotalGrossNonTaxable")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total_gross_non_taxable");
+
+                    b.Property<decimal>("TotalGrossTaxable")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total_gross_taxable");
+
+                    b.Property<decimal>("TotalNet")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total_net");
+
+                    b.Property<decimal>("TotalOtherDeductions")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total_other_deductions");
+
+                    b.Property<decimal>("TotalPit")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total_pit");
+
+                    b.Property<decimal>("TotalSsoEmployee")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total_sso_employee");
+
+                    b.Property<decimal>("TotalSsoEmployer")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("total_sso_employer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("PayrollRunId")
+                        .HasName("pk_payroll_runs");
+
+                    b.HasIndex("CompanyId", "DocNo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_payroll_runs_company_id_doc_no")
+                        .HasFilter("doc_no IS NOT NULL");
+
+                    b.HasIndex("CompanyId", "PeriodYearMonth")
+                        .IsUnique()
+                        .HasDatabaseName("ix_payroll_runs_company_id_period_year_month");
+
+                    b.ToTable("payroll_runs", "payroll");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Payroll.Payslip", b =>
+                {
+                    b.Property<long>("PayslipId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("payslip_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("PayslipId"));
+
+                    b.Property<string>("AddressText")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)")
+                        .HasColumnName("address_text");
+
+                    b.Property<string>("BankAccountName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("bank_account_name");
+
+                    b.Property<string>("BankAccountNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bank_account_no");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("bank_name");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("EmployeeCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("employee_code");
+
+                    b.Property<long>("EmployeeId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("EmployeeName")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("employee_name");
+
+                    b.Property<decimal>("GrossNonTaxable")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("gross_non_taxable");
+
+                    b.Property<decimal>("GrossTaxable")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("gross_taxable");
+
+                    b.Property<string>("NationalId")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("character(13)")
+                        .HasColumnName("national_id")
+                        .IsFixedLength();
+
+                    b.Property<decimal>("NetPay")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("net_pay");
+
+                    b.Property<decimal>("OtherDeductions")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("other_deductions");
+
+                    b.Property<long>("PayrollRunId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("payroll_run_id");
+
+                    b.Property<decimal>("PitWithheld")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("pit_withheld");
+
+                    b.Property<decimal>("SsoEmployee")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("sso_employee");
+
+                    b.Property<decimal>("SsoEmployer")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("sso_employer");
+
+                    b.Property<decimal>("YtdIncome")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("ytd_income");
+
+                    b.Property<decimal>("YtdPit")
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("ytd_pit");
+
+                    b.HasKey("PayslipId")
+                        .HasName("pk_payslips");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_payslips_employee_id");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_payslips_payroll_run_id_employee_id");
+
+                    b.ToTable("payslips", "payroll");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Purchase.PaymentVoucher", b =>
                 {
                     b.Property<long>("PaymentVoucherId")
@@ -2000,6 +2512,14 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("numeric(19,4)")
                         .HasColumnName("wht_amount");
 
+                    b.Property<string>("WhtPayerMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("DEDUCT")
+                        .HasColumnName("wht_payer_mode");
+
                     b.HasKey("PaymentVoucherId")
                         .HasName("pk_payment_vouchers");
 
@@ -2022,7 +2542,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasDatabaseName("ix_payment_vouchers_company_id_branch_id_doc_no")
                         .HasFilter("doc_no IS NOT NULL");
 
-                    b.ToTable("payment_vouchers", "purchase");
+                    b.ToTable("payment_vouchers", "purchase", t =>
+                        {
+                            t.HasCheckConstraint("ck_payment_vouchers_wht_payer_mode", "wht_payer_mode IN ('DEDUCT','GROSS_UP_FOREVER','GROSS_UP_ONCE')");
+                        });
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Purchase.PaymentVoucherApplication", b =>
@@ -5204,6 +5727,133 @@ namespace Accounting.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Tax.CitAdjustment", b =>
+                {
+                    b.Property<long>("CitAdjustmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("cit_adjustment_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("CitAdjustmentId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("fiscal_year");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("label");
+
+                    b.Property<string>("LegalRefCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("legal_ref_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("CitAdjustmentId")
+                        .HasName("pk_cit_adjustments");
+
+                    b.HasIndex("CompanyId", "FiscalYear")
+                        .HasDatabaseName("ix_cit_adjustments_company_id_fiscal_year");
+
+                    b.ToTable("cit_adjustments", "tax");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Tax.CitYearSummary", b =>
+                {
+                    b.Property<long>("CitYearSummaryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("cit_year_summary_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("CitYearSummaryId"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<decimal?>("ComputedNetProfit")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("computed_net_profit");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("FiscalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("fiscal_year");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<decimal?>("OverrideNetProfit")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("override_net_profit");
+
+                    b.Property<decimal?>("Pnd51EstimatedProfit")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("pnd51estimated_profit");
+
+                    b.Property<decimal?>("Pnd51Prepaid")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("pnd51prepaid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("CitYearSummaryId")
+                        .HasName("pk_cit_year_summaries");
+
+                    b.HasIndex("CompanyId", "FiscalYear")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cit_year_summaries_company_id_fiscal_year");
+
+                    b.ToTable("cit_year_summaries", "tax");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.Tax.TaxCode", b =>
                 {
                     b.Property<int>("TaxCodeId")
@@ -5545,6 +6195,12 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("numeric(19,4)")
                         .HasColumnName("wht_amount");
 
+                    b.Property<int>("WhtCondition")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("wht_condition");
+
                     b.Property<decimal>("WhtRate")
                         .HasPrecision(9, 6)
                         .HasColumnType("numeric(9,6)")
@@ -5564,7 +6220,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasDatabaseName("ix_wht_certificates_company_id_doc_no")
                         .HasFilter("direction = 'P'");
 
-                    b.ToTable("wht_certificates", "tax");
+                    b.ToTable("wht_certificates", "tax", t =>
+                        {
+                            t.HasCheckConstraint("ck_wht_certificates_condition", "wht_condition IN (1, 2, 3)");
+                        });
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Tax.WhtType", b =>
@@ -5798,6 +6457,18 @@ namespace Accounting.Infrastructure.Migrations
                         .HasForeignKey("DefaultWhtTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_products_wht_types_default_wht_type_id");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Payroll.Payslip", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Payroll.PayrollRun", "Run")
+                        .WithMany("Payslips")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_payslips_payroll_runs_payroll_run_id");
+
+                    b.Navigation("Run");
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Purchase.PaymentVoucher", b =>
@@ -6154,6 +6825,11 @@ namespace Accounting.Infrastructure.Migrations
             modelBuilder.Entity("Accounting.Domain.Entities.Master.Company", b =>
                 {
                     b.Navigation("Branches");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Payroll.PayrollRun", b =>
+                {
+                    b.Navigation("Payslips");
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Purchase.PaymentVoucher", b =>
