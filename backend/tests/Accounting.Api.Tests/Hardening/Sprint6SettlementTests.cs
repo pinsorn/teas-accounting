@@ -260,10 +260,14 @@ public sealed class Sprint6SettlementTests
         await using (var s = spC2.CreateAsyncScope())
         {
             var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+            // §8 — doc_date must land in an OPEN period. The demo seed (400) closes the
+            // previous calendar month relative to CURRENT_DATE, so a hardcoded date ages
+            // into a closed period; use today (always the seeded-open current month).
+            var openDate = DateOnly.FromDateTime(DateTime.Now);
             viC2 = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
-                DocDate: new DateOnly(2026, 5, 16), VendorId: v2,
+                DocDate: openDate, VendorId: v2,
                 VendorTaxInvoiceNo: "VT-" + Guid.NewGuid().ToString("N")[..6],
-                VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
+                VendorTaxInvoiceDate: openDate, VatClaimPeriod: null,
                 CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
                 Lines: [new VendorInvoiceLineInput(c2, null, "c2", 100m, 0m)]), default);
         }
