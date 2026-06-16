@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ChevronRight, Search, Bell, Settings } from 'lucide-react';
+import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
 
 // Sprint 13j-FE — top bar: breadcrumbs + search pill (⌘K) + icon buttons.
 // Breadcrumb labels come from the `nav` i18n namespace; unknown segments
@@ -70,7 +71,10 @@ export function Topbar() {
         ))}
       </nav>
 
-      <div className="ml-auto flex w-[280px] items-center gap-2 rounded-full border border-ink-100 bg-base-300 px-3 py-1.5 text-ink-500">
+      <div className="ml-auto" />
+      <CompanySwitcher />
+
+      <div className="flex w-[280px] items-center gap-2 rounded-full border border-ink-100 bg-base-300 px-3 py-1.5 text-ink-500">
         <Search className="h-4 w-4 shrink-0" aria-hidden />
         <input
           className="min-w-0 flex-1 border-none bg-transparent text-[13px] text-ink-900 outline-none placeholder:text-ink-400"
