@@ -112,11 +112,11 @@
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/02/02.01/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "หน่วยธุรกิจ (Business Unit)" — 3 BUs จาก seed (ECOM อีคอมเมิร์ซ / LAB แล็บ / REPT สัตว์เลื้อยคลาน). คอลัมน์: รหัส, ชื่อ (ไทย), ชื่อ (อังกฤษ), ใช้งาน, [✏️ แก้ไข] [ปิดใช้งาน]</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.01/step-02-enforce-toggle.png" alt="step-02-enforce-toggle"/><figcaption>toggle "บังคับระบุหน่วยธุรกิจในเอกสารรายได้" — เมื่อเปิด: ออกใบกำกับภาษี/ใบเสร็จ/ใบลดหนี้/ใบเพิ่มหนี้ ต้องเลือก BU ทุกครั้ง (กดยังต่อไม่ได้ถ้าไม่เลือก)</figcaption></figure>
 <h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.01/step-03-add-modal.png" alt="step-03-add-modal"/><figcaption>คลิก "+ เพิ่มหน่วยธุรกิจ" → modal เปิด. Fields: รหัส* (A-Z + 0-9, ≤20), ชื่อ (ไทย)*, ชื่อ (อังกฤษ). ปุ่ม "บันทึก" จะ enable เมื่อกรอก required ครบ</figcaption></figure>
-<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.01/step-04-saved.png" alt="step-04-saved"/><figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "TPUXJQ / ทดสอบ PUXJQ / Test BU PUXJQ" ปรากฏพร้อม ✓ ใช้งาน</figcaption></figure>
-<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.01/step-05-edit.png" alt="step-05-edit"/><figcaption>คลิก ✏️ แก้ไข ใน row "TPUXJQ" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU PUXJQ (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.01/step-04-saved.png" alt="step-04-saved"/><figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "T8E2YF / ทดสอบ 8E2YF / Test BU 8E2YF" ปรากฏพร้อม ✓ ใช้งาน</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.01/step-05-edit.png" alt="step-05-edit"/><figcaption>คลิก ✏️ แก้ไข ใน row "T8E2YF" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU 8E2YF (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption></figure>
 <h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.01/step-06-confirm-dialog.png" alt="step-06-confirm-dialog"/><figcaption>กด "ปิดใช้งาน" → custom AlertDialog เปิด (Sprint 13d-P1): "⚠️ ยืนยันการทำรายการ — ปิดใช้งานหน่วยธุรกิจนี้? เอกสารเดิมยังอ้างอิงได้". 2 ปุ่ม: "ยกเลิก" (เทา) + "ยืนยัน" (สีแดง — destructive variant)</figcaption></figure>
-<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.01/step-07-disabled.png" alt="step-07-disabled"/><figcaption>ยืนยัน → DELETE 204 (soft) → "TPUXJQ" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption></figure>
-<h3>ขั้นที่ 8</h3><figure><img src="../captures/02/02.01/step-08-restored.png" alt="step-08-restored"/><figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "TPUXJQ" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.01/step-07-disabled.png" alt="step-07-disabled"/><figcaption>ยืนยัน → DELETE 204 (soft) → "T8E2YF" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption></figure>
+<h3>ขั้นที่ 8</h3><figure><img src="../captures/02/02.01/step-08-restored.png" alt="step-08-restored"/><figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "T8E2YF" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -160,9 +160,9 @@
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.02/step-02-types-overview.png" alt="step-02-types-overview"/><figcaption>สังเกตคอลัมน์ "ประเภท" — แต่ละ row บอก VAT rule: EXEMPT_GOOD (MP-EXM-* ปลา/อาหารสัตว์ = VAT 0%), GOOD (MP-GD-* อุปกรณ์ = VAT 7%), SERVICE (MP-SVC-* บริการ = VAT 7% + อาจ WHT)</figcaption></figure>
 <h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.02/step-03-add-modal.png" alt="step-03-add-modal"/><figcaption>คลิก "+ เพิ่มสินค้า/บริการ" → modal เปิด. Fields: รหัส (SKU)*, ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภท (dropdown 4 options), หน่วยนับ, ราคาตั้งต้น</figcaption></figure>
 <h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.02/step-04-type-dropdown.png" alt="step-04-type-dropdown"/><figcaption>dropdown "ประเภท" มี 4 options: GOOD (default), SERVICE, EXEMPT_GOOD, EXEMPT_SERVICE. ตัวเลือกที่ขึ้นต้น "EXEMPT_" = ไม่คิด VAT 7%</figcaption></figure>
-<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.02/step-05-saved.png" alt="step-05-saved"/><figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-Q3IPU / ค่าออกแบบเว็บไซต์ Q3IPU / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.02/step-05-saved.png" alt="step-05-saved"/><figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-8EDAR / ค่าออกแบบเว็บไซต์ 8EDAR / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption></figure>
 <h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.02/step-06-confirm-dialog.png" alt="step-06-confirm-dialog"/><figcaption>กด "ปิดใช้งาน" → AlertDialog เปิด (เหมือน BU 02.01). ถ้าเอกสารเดิมอ้างสินค้านี้ — ยังอ้างได้ (soft delete + audit trail)</figcaption></figure>
-<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.02/step-07-disabled.png" alt="step-07-disabled"/><figcaption>row "MP-SVC-Q3IPU" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.02/step-07-disabled.png" alt="step-07-disabled"/><figcaption>row "MP-SVC-8EDAR" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -261,7 +261,7 @@
 </div>
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/03/03.01/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "ลูกค้า" — รายการลูกค้าทั้งหมด. คอลัมน์: รหัส, ชื่อ, ประเภท, เลขผู้เสียภาษี, สถานะ. ปุ่ม "เพิ่มลูกค้า" มุมขวาบนเปิดฟอร์มสร้างใหม่</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/03/03.01/step-02-form.png" alt="step-02-form"/><figcaption>ฟอร์ม "เพิ่มลูกค้าใหม่" — 4 ส่วน: ข้อมูลทั่วไป, ข้อมูลภาษี, ที่อยู่/ผู้ติดต่อ, เงื่อนไขการค้า. ช่องที่มี * คือบังคับ (รหัส + ชื่อไทย)</figcaption></figure>
-<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.01/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกข้อมูลทั่วไป — รหัส "MC-R8Y8H" + ชื่อไทย. ลูกค้าที่ จดทะเบียน VAT (สวิตช์ "จดทะเบียน VAT" ในส่วนข้อมูลภาษี เปิดเป็นค่าตั้งต้น) ต้องกรอกเลขผู้เสียภาษี 13 หลัก + รหัสสาขา (ม.86/4). เสร็จแล้วกด "บันทึก" ลูกค้าจะพร้อมใช้ในเอกสารขายทันที</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.01/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกข้อมูลทั่วไป — รหัส "MC-8FSFI" + ชื่อไทย. ลูกค้าที่ จดทะเบียน VAT (สวิตช์ "จดทะเบียน VAT" ในส่วนข้อมูลภาษี เปิดเป็นค่าตั้งต้น) ต้องกรอกเลขผู้เสียภาษี 13 หลัก + รหัสสาขา (ม.86/4). เสร็จแล้วกด "บันทึก" ลูกค้าจะพร้อมใช้ในเอกสารขายทันที</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -280,7 +280,7 @@
 </div>
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/03/03.02/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "ผู้ขาย" — รายการผู้ขายทั้งหมด. ปุ่ม "เพิ่มผู้ขาย" มุมขวาบนเปิดฟอร์มสร้างใหม่</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/03/03.02/step-02-form.png" alt="step-02-form"/><figcaption>ฟอร์ม "เพิ่มผู้ขาย" — รหัสผู้ขาย*, ประเภท (นิติบุคคล/บุคคลธรรมดา), ชื่อ*, เลขผู้เสียภาษี, รหัสสาขา, เครดิต, ที่อยู่ + ข้อมูลการชำระเงิน (ธนาคาร/เลขบัญชี). มีสวิตช์ "Vendor ต่างประเทศ" / "จด VAT" สำหรับเคสพิเศษ</figcaption></figure>
-<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.02/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกรหัส "MV-QY7D4" + ชื่อไทย. เลือกประเภท/สวิตช์ VAT ให้ตรง กับสถานะจริงของผู้ขาย เพราะมีผลต่อการคิด Input VAT + WHT ตอนทำเอกสารซื้อ. กด "บันทึกผู้ขาย" เพื่อเพิ่มเข้า master</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.02/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกรหัส "MV-8FYEW" + ชื่อไทย. เลือกประเภท/สวิตช์ VAT ให้ตรง กับสถานะจริงของผู้ขาย เพราะมีผลต่อการคิด Input VAT + WHT ตอนทำเอกสารซื้อ. กด "บันทึกผู้ขาย" เพื่อเพิ่มเข้า master</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -782,7 +782,7 @@
     <div class="intro"><p>ใน 07.01 เราดู <strong>ตัวอย่างบนจอ</strong> ของ ภ.พ.30 (ภาษีขาย − ภาษีซื้อ = สุทธิ). เมื่อจะยื่นจริง<br>ระบบ <strong>กรอกแบบ ภ.พ.30 ของกรมสรรพากรให้อัตโนมัติ</strong> จากยอดชุดเดียวกัน: เลขผู้เสียภาษี ·<br>สาขา · ชื่อสถานประกอบการ · งวด (เดือน/ปี) · ยอดขายและภาษีขาย · ยอดซื้อและภาษีซื้อ ·<br>ภาษีที่ต้องชำระ/ขอคืน — <strong>VAT แสดงแยกจากฐาน</strong> (ม.86/4).</p>
 <p>เปิด <strong>/reports/pnd30 → เลือกงวด → &quot;ดาวน์โหลด PDF (ภ.พ.30)&quot;</strong> ได้ไฟล์ที่กรอกครบ<br>พิมพ์ออกยื่นที่สรรพากรได้เลย (ระบบนี้ <strong>ไม่ส่งให้สรรพากรแทน</strong> — เป็นแบบพิมพ์-แล้ว-ยื่นเอง).</p>
 </div>
-    <h3>ขั้นที่ 1</h3><figure><img src="../captures/07/07.07/step-01-pnd30-pdf.png" alt="step-01-pnd30-pdf"/><figcaption>ตัวอย่าง **ภ.พ.30** ที่ระบบกรอกให้ — หัวกระดาษ (ชื่อ/เลขผู้เสียภาษี/สาขา/งวด) + ช่องยอดขายและภาษีขาย − ยอดซื้อและภาษีซื้อ → ภาษีที่ต้องชำระสุทธิ (ตัวอย่างงวด มิ.ย.: ภาษีขาย 6,902 − ภาษีซื้อ 1,281 = ชำระสุทธิ 5,621 — ตรงกับตัวอย่างบนจอใน 07.01). VAT แสดงแยกจากฐาน</figcaption></figure>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/07/07.07/step-01-pnd30-pdf.png" alt="step-01-pnd30-pdf"/><figcaption>ตัวอย่าง **ภ.พ.30** ที่ระบบกรอกให้ — หัวกระดาษ (ชื่อ/เลขผู้เสียภาษี/สาขา/งวด) + ช่องยอดขายและภาษีขาย − ยอดซื้อและภาษีซื้อ → ภาษีที่ต้องชำระสุทธิ (ยอดตรงกับตัวอย่างบนจอใน 07.01). VAT แสดงแยกจากฐาน</figcaption></figure>
   </section>
 
   <section class="wt">
