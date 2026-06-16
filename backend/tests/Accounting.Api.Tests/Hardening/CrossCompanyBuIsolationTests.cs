@@ -71,8 +71,11 @@ public sealed class CrossCompanyBuIsolationTests
             .Select(c => c.CustomerId).FirstAsync();
     }
 
+    // §8 — doc_date must land in an OPEN period. The demo seed closes the previous
+    // calendar month relative to CURRENT_DATE, so a hardcoded date ages into a closed
+    // period (period.closed would mask the bu.invalid assertion). Use today.
     private static CreateTaxInvoiceRequest TiReq(long customerId, int? buId) =>
-        new(DocDate: new DateOnly(2026, 5, 16), CustomerId: customerId,
+        new(DocDate: DateOnly.FromDateTime(DateTime.Now), CustomerId: customerId,
             IsTaxInclusive: false, CurrencyCode: "THB", ExchangeRate: 1m,
             Notes: null, PaymentTerms: null, DueDate: null,
             Lines: [new TaxInvoiceLineInput(null, null, "สินค้า", 1m, 1, "ชิ้น", 1000m, 0m, 1, "VAT7", 0.07m)],
