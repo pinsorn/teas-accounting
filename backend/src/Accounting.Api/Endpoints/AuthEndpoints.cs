@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using Accounting.Application.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,6 +28,40 @@ public static class AuthEndpoints
         .WithName("Login")
         .Produces(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status401Unauthorized);
+
+        // Onboarding-switcher spec (2026-06-16) — SUPER-ADMIN ONLY. Re-scopes the caller's session
+        // to another company by re-issuing the JWT (RLS is pinned at the DB session, so a new token
+        // is the only way to move tenant). The endpoint is the 403 gate: .RequireAuthorization()
+        // makes an anonymous caller 401, and the explicit IsSuperAdmin check makes an authenticated
+        // non-super caller 403 (NOT 401 — that distinction is the whole point of the gate). The
+        // service re-validates super-admin as defence in depth.
+        group.MapPost("/switch-company/{companyId:int}", async (
+            int companyId,
+            ITenantContext tenant,
+            ICompanySwitchService switcher,
+            CancellationToken ct) =>
+        {
+            if (!tenant.IsSuperAdmin)
+                return Results.Problem(
+                    title: "auth.forbidden",
+                    detail: "Only a super-admin may switch company.",
+                    statusCode: StatusCodes.Status403Forbidden);
+
+            // company.not_found (missing or inactive) → 404 via DomainExceptionMiddleware.
+            var token = await switcher.SwitchAsync(companyId, ct);
+            return Results.Ok(new
+            {
+                access_token = token.Token,
+                expires_at   = token.ExpiresAt,
+                token_type   = "Bearer",
+            });
+        })
+        .RequireAuthorization()
+        .WithName("SwitchCompany")
+        .Produces(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status404NotFound);
 
         return app;
     }
