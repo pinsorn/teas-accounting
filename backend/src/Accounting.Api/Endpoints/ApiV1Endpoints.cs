@@ -141,7 +141,7 @@ public static class ApiV1Endpoints
             var tax = await taxCfg.GetAsync(ct);
             return Results.Ok(new
             {
-                version = typeof(Program).Assembly.GetName().Version?.ToString(),
+                version = AppBuildInfo.Version,
                 vat_mode = tax.VatMode,
                 vat_rate = tax.VatRate,
                 pnd30_submission_mode = tax.Pnd30SubmissionMode,

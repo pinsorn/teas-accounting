@@ -1,0 +1,23 @@
+name: release-please
+
+# Conventional-commit driven releases. On every push to main, release-please maintains a
+# release PR (bumping the version in .release-please-manifest.json + CHANGELOG.md). Merging
+# that PR creates a GitHub Release and a `vX.Y.Z` tag, which MinVer then stamps into the build.
+# Bootstrap: v1.0.0 was tagged by hand; release-please takes over for 1.0.1+.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
