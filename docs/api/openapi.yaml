@@ -1951,6 +1951,90 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorEnvelope401'
 
+  /me:
+    get:
+      summary: Get current user identity + allowed companies
+      description: |
+        Returns the authenticated caller's identity (user, current company/branch,
+        super-admin flag) plus the list of companies they may operate as. A
+        super-admin sees every ACTIVE company (same source as `GET /companies`); a
+        normal user sees only their own. Used by the frontend company switcher
+        (visible only to super-admins) and the onboarding gate
+        (`companyId === 0 && isSuperAdmin` → no company yet). No tax fields are
+        exposed (§10). Authentication only — no extra permission gate.
+      tags: [Auth]
+      responses:
+        '200':
+          description: OK — identity + allowed-company list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [userId, companyId, branchId, isSuperAdmin, allowedCompanies]
+                properties:
+                  userId: { type: integer, format: int64, nullable: true }
+                  username: { type: string, nullable: true }
+                  companyId:
+                    type: integer
+                    description: '0 = super-admin with no company yet (onboarding signal).'
+                  branchId: { type: integer }
+                  isSuperAdmin: { type: boolean }
+                  companyName:
+                    type: string
+                    nullable: true
+                    description: 'Display name (Thai) of the current company; null when companyId = 0.'
+                  allowedCompanies:
+                    type: array
+                    description: 'Companies the caller may switch to / operate as.'
+                    items:
+                      type: object
+                      required: [id, nameTh]
+                      properties:
+                        id: { type: integer }
+                        nameTh: { type: string }
+                        nameEn: { type: string, nullable: true }
+        '401':
+          $ref: '#/components/responses/ErrorEnvelope401'
+
+  /auth/switch-company/{companyId}:
+    post:
+      summary: Switch active company (super-admin only)
+      description: |
+        Re-scopes the caller's session to another company by re-issuing the JWT.
+        RLS is pinned at the DB session from the token's `company_id`, so a fresh
+        token is the only way to move tenant — there is no header swap. The new
+        token keeps `is_super_admin = true`, the same user, and a fresh expiry; its
+        `branch_id` is the target company's head office (or first active branch).
+        SUPER-ADMIN ONLY: an authenticated non-super caller receives 403; an
+        anonymous caller 401. The switch is written to `audit.activity_log`
+        (action `company_switch`). Response shape matches `POST /auth/login` so the
+        frontend auth-cookie route can reuse it.
+      tags: [Auth]
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: integer }
+          description: 'Target company id (must exist and be active).'
+      responses:
+        '200':
+          description: OK — newly issued access token scoped to the target company
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, expires_at, token_type]
+                properties:
+                  access_token: { type: string }
+                  expires_at: { type: string, format: date-time }
+                  token_type: { type: string, example: 'Bearer' }
+        '401':
+          $ref: '#/components/responses/ErrorEnvelope401'
+        '403':
+          description: Forbidden — caller is not a super-admin
+        '404':
+          description: Not Found — target company does not exist or is inactive
+
   # ============================================================
   # COMPANY PROFILE — Hybrid lock model (Sprint 13d P6, plan §6.7)
   # ============================================================
