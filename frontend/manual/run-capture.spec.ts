@@ -12,6 +12,7 @@ import { makeCapture, type StepRecord } from './lib/capture';
 import { personas, personaFor, SELF_BOOTSTRAP_IDS } from './lib/personas';
 
 // Register all walkthroughs (module side-effect).
+import './walkthroughs/00.01-onboarding-wizard';
 import './walkthroughs/01.01-login';
 import './walkthroughs/01.02-dashboard-tour';
 import './walkthroughs/01.03-language-toggle';
