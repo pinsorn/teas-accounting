@@ -56,11 +56,13 @@ public static class TestCompanyFactory
                 "(SELECT COALESCE(MAX(branch_id),0)+1 FROM master.branches), false);");
 
             var svc = s.ServiceProvider.GetRequiredService<ICompanyService>();
+            // Province + PostalCode are now required (ม.86/4 founding registered address) — every
+            // company gets a real address + an auto-created company_profile.
             companyId = await svc.CreateAsync(new CreateCompanyRequest(
                 TestIds.TaxId(), nameTh, null, LegalEntityType.LimitedCompany,
                 null, vatRegistered, vatRegistered ? new DateOnly(2020, 1, 1) : null,
-                1, "99 ถ.ทดสอบ กรุงเทพฯ 10110", null, null, null, null, null, null,
-                null, vatRate, pnd30SubmissionMode), default);
+                1, "99 ถ.ทดสอบ กรุงเทพฯ 10110", "ทุ่งมหาเมฆ", "เขตสาทร", "กรุงเทพมหานคร", "10110",
+                null, null, null, vatRate, pnd30SubmissionMode), default);
         }
 
         // Master data the sales chain needs, scoped to the NEW tenant.

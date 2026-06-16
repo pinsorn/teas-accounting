@@ -3563,7 +3563,9 @@ components:
 
     CreateCompanyRequest:
       type: object
-      required: [taxId, nameTh, legalEntityType, vatRegistered, fiscalYearStartMonth]
+      # province + postalCode are required: they form the new company's FOUNDING registered
+      # address (ม.86/4), written once into company_profile so every RD form renders an address.
+      required: [taxId, nameTh, legalEntityType, vatRegistered, fiscalYearStartMonth, province, postalCode]
       properties:
         taxId: { type: string }
         nameTh: { type: string }
@@ -3574,15 +3576,25 @@ components:
         vatRegisterDate: { type: string, format: date, nullable: true }
         fiscalYearStartMonth: { type: integer, minimum: 1, maximum: 12 }
         addressTh: { type: string, nullable: true }
-        subDistrict: { type: string, nullable: true }
-        district: { type: string, nullable: true }
-        province: { type: string, nullable: true }
-        postalCode: { type: string, nullable: true }
+        subDistrict: { type: string, nullable: true, description: ตำบล/แขวง — also written to company_profile.RegisteredSubdistrict }
+        district: { type: string, nullable: true, description: อำเภอ/เขต — also written to company_profile.RegisteredDistrict }
+        province: { type: string, description: จังหวัด (required, founding registered address) }
+        postalCode: { type: string, pattern: '^\d{5}$', description: รหัสไปรษณีย์ 5 หลัก (required, founding registered address) }
         phone: { type: string, nullable: true }
         email: { type: string, nullable: true }
         paidUpCapital: { type: number, nullable: true }
         vatRate: { type: number, minimum: 0, maximum: 1, default: 0.07 }
         pnd30SubmissionMode: { type: string, enum: [manual, auto], default: manual }
+        # Granular founding registered-address parts (ม.86/4) — additive & optional, written into
+        # company_profile.Reg* and composed into RegisteredAddressLine1 / AddressTh.
+        regHouseNo: { type: string, nullable: true, description: เลขที่ }
+        regMoo: { type: string, nullable: true, description: หมู่ที่ }
+        regSoi: { type: string, nullable: true, description: ตรอก/ซอย }
+        regStreet: { type: string, nullable: true, description: ถนน }
+        regBuilding: { type: string, nullable: true, description: อาคาร }
+        regRoomNo: { type: string, nullable: true, description: ห้องเลขที่ }
+        regFloor: { type: string, nullable: true, description: ชั้นที่ }
+        regVillage: { type: string, nullable: true, description: หมู่บ้าน }
 
     UpdateCompanyRequest:
       type: object

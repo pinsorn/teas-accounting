@@ -76,8 +76,11 @@ public sealed class CompanyProfileService(
         e.RegHouseNo = req.HouseNo; e.RegMoo = req.Moo; e.RegSoi = req.Soi; e.RegStreet = req.Street;
         e.RegisteredSubdistrict = req.Subdistrict; e.RegisteredDistrict = req.District;
         e.RegisteredProvince = req.Province; e.RegisteredPostalCode = req.PostalCode;
-        // Keep the legacy free-text Line1 in sync — Tax Invoice / e-Tax render from it.
-        e.RegisteredAddressLine1 = ComposeLine1(req);
+        // Keep the legacy free-text Line1 in sync — Tax Invoice / e-Tax render from it. Shared
+        // composer so a ภ.พ.09 edit formats identically to the founding (company-create) address.
+        e.RegisteredAddressLine1 = ThaiRegisteredAddress.ComposeLine1(
+            req.HouseNo, req.Building, req.RoomNo, req.Floor,
+            req.Village, req.Moo, req.Soi, req.Street);
         e.RegisteredAddressLine2 = null;
         e.UpdatedAt = DateTimeOffset.UtcNow;
         e.UpdatedByUserId = tenant.UserId;
@@ -86,23 +89,6 @@ public sealed class CompanyProfileService(
         activity.Record("CompanyProfile", e.CompanyId, null, e.CompanyId,
             "RegisteredAddressChanged", note: "admin-confirmed DBD (บอจ.1/บอจ.4) + ภ.พ.09 filing", module: "master");
         await db.SaveChangesAsync(ct);
-    }
-
-    private static string ComposeLine1(UpdateRegisteredAddressRequest r)
-    {
-        var parts = new[]
-        {
-            r.HouseNo,
-            string.IsNullOrWhiteSpace(r.Building) ? null : $"อาคาร{r.Building}",
-            string.IsNullOrWhiteSpace(r.RoomNo) ? null : $"ห้อง {r.RoomNo}",
-            string.IsNullOrWhiteSpace(r.Floor) ? null : $"ชั้น {r.Floor}",
-            string.IsNullOrWhiteSpace(r.Village) ? null : $"หมู่บ้าน{r.Village}",
-            string.IsNullOrWhiteSpace(r.Moo) ? null : $"หมู่ {r.Moo}",
-            string.IsNullOrWhiteSpace(r.Soi) ? null : $"ซ.{r.Soi}",
-            string.IsNullOrWhiteSpace(r.Street) ? null : $"ถ.{r.Street}",
-        }.Where(s => !string.IsNullOrWhiteSpace(s));
-        var line = string.Join(" ", parts).Trim();
-        return line.Length == 0 ? "-" : line;
     }
 
     public async Task<string> UpdateLogoAsync(

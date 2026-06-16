@@ -37,6 +37,20 @@ const schema = z
     vatRate: z.coerce.number().min(0).max(1),
     pnd30SubmissionMode: z.enum(['manual', 'auto']),
     vatRegisterDate: z.string().optional(),
+    // ม.86/4 — founding registered address. Province + 5-digit postal are required (RD forms);
+    // street-level parts are structured but optional. Mirrors the backend validator + profile map.
+    addrHouseNo: z.string().optional(),
+    addrMoo: z.string().optional(),
+    addrSoi: z.string().optional(),
+    addrStreet: z.string().optional(),
+    addrSubDistrict: z.string().optional(),
+    addrDistrict: z.string().optional(),
+    addrProvince: z.string().min(1, 'required'),
+    addrPostalCode: z.string().regex(/^\d{5}$/, 'postal5'),
+    addrBuilding: z.string().optional(),
+    addrFloor: z.string().optional(),
+    addrRoomNo: z.string().optional(),
+    addrVillage: z.string().optional(),
   })
   .superRefine((v, ctx) => {
     if (v.vatRegistered && !v.vatRegisterDate?.trim()) {
@@ -61,12 +75,25 @@ export default function OnboardingPage() {
       vatRegistered: true,
       vatRate: 0.07,
       pnd30SubmissionMode: 'manual',
+      addrHouseNo: '',
+      addrMoo: '',
+      addrSoi: '',
+      addrStreet: '',
+      addrSubDistrict: '',
+      addrDistrict: '',
+      addrProvince: '',
+      addrPostalCode: '',
+      addrBuilding: '',
+      addrFloor: '',
+      addrRoomNo: '',
+      addrVillage: '',
     },
   });
   const vat = watch('vatRegistered');
 
   async function onSubmit(v: FormValues) {
     // baseCurrency is NOT a CreateCompanyRequest field (defaults to THB server-side) — omit it.
+    const t0 = (s?: string) => s?.trim() || null;
     const payload = {
       taxId: v.taxId.trim(),
       nameTh: v.nameTh.trim(),
@@ -77,6 +104,20 @@ export default function OnboardingPage() {
       vatRegisterDate: v.vatRegistered ? v.vatRegisterDate || null : null,
       vatRate: v.vatRegistered ? Number(v.vatRate) : 0,
       pnd30SubmissionMode: v.pnd30SubmissionMode,
+      // ม.86/4 — founding registered address. Tambon/Amphoe/Province/Postal reuse the
+      // companies tails; the street-level parts go to company_profile.Reg* (composed Line1).
+      subDistrict: t0(v.addrSubDistrict),
+      district: t0(v.addrDistrict),
+      province: v.addrProvince.trim(),
+      postalCode: v.addrPostalCode.trim(),
+      regHouseNo: t0(v.addrHouseNo),
+      regMoo: t0(v.addrMoo),
+      regSoi: t0(v.addrSoi),
+      regStreet: t0(v.addrStreet),
+      regBuilding: t0(v.addrBuilding),
+      regFloor: t0(v.addrFloor),
+      regRoomNo: t0(v.addrRoomNo),
+      regVillage: t0(v.addrVillage),
     };
     try {
       const res = await fetch('/api/onboarding', {
@@ -100,7 +141,7 @@ export default function OnboardingPage() {
   // Only these messages have i18n keys; anything else (e.g. zod's default range
   // message for fiscalYearStartMonth) falls back to 'required' so next-intl never
   // throws on a missing key (which would crash the render).
-  const KNOWN_ERR = new Set(['required', 'max255', 'taxId13']);
+  const KNOWN_ERR = new Set(['required', 'max255', 'taxId13', 'postal5']);
   const err = (field: keyof FormValues) => {
     if (!errors[field]) return null;
     const raw = String(errors[field]?.message ?? 'required');
@@ -189,7 +230,9 @@ export default function OnboardingPage() {
                     aria-label={t('pnd30Mode')}
                   >
                     <option value="manual">{t('pnd30Manual')}</option>
-                    <option value="auto">{t('pnd30Auto')}</option>
+                    {/* auto is disabled in onboarding until the RD e-filing API is wired
+                        (today 'auto' only hits MockRdEfilingClient — no real submission). */}
+                    <option value="auto" disabled>{t('pnd30Auto')}</option>
                   </select>
                 </label>
                 <label className="form-control">
@@ -204,6 +247,77 @@ export default function OnboardingPage() {
                 </label>
               </div>
             )}
+          </section>
+
+          <section className="rounded-card border border-ink-100 bg-base-100 p-5 shadow-warm-sm">
+            <h2 className="mb-1 text-sm font-bold text-ink-900">{t('secAddress')}</h2>
+            <p className="mb-4 text-[11px] leading-snug text-ink-400">{t('addressHint')}</p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('addrHouseNo')}</span>
+                <input className="input input-bordered" {...register('addrHouseNo')} aria-label={t('addrHouseNo')} />
+              </label>
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('addrMoo')}</span>
+                <input className="input input-bordered" {...register('addrMoo')} aria-label={t('addrMoo')} />
+              </label>
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('addrSoi')}</span>
+                <input className="input input-bordered" {...register('addrSoi')} aria-label={t('addrSoi')} />
+              </label>
+              <label className="form-control md:col-span-2">
+                <span className="label-text text-ink-600">{t('addrStreet')}</span>
+                <input className="input input-bordered" {...register('addrStreet')} aria-label={t('addrStreet')} />
+              </label>
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('addrSubDistrict')}</span>
+                <input className="input input-bordered" {...register('addrSubDistrict')} aria-label={t('addrSubDistrict')} />
+              </label>
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('addrDistrict')}</span>
+                <input className="input input-bordered" {...register('addrDistrict')} aria-label={t('addrDistrict')} />
+              </label>
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('addrProvince')} *</span>
+                <input className="input input-bordered" {...register('addrProvince')} aria-label={t('addrProvince')} />
+                {err('addrProvince')}
+              </label>
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('addrPostalCode')} *</span>
+                <input
+                  className="input input-bordered font-mono"
+                  maxLength={5}
+                  inputMode="numeric"
+                  {...register('addrPostalCode')}
+                  aria-label={t('addrPostalCode')}
+                />
+                {err('addrPostalCode')}
+              </label>
+            </div>
+
+            <details className="mt-4">
+              <summary className="cursor-pointer text-xs font-semibold text-ink-500">
+                {t('addrOptionalGroup')}
+              </summary>
+              <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="form-control">
+                  <span className="label-text text-ink-600">{t('addrBuilding')}</span>
+                  <input className="input input-bordered" {...register('addrBuilding')} aria-label={t('addrBuilding')} />
+                </label>
+                <label className="form-control">
+                  <span className="label-text text-ink-600">{t('addrFloor')}</span>
+                  <input className="input input-bordered" {...register('addrFloor')} aria-label={t('addrFloor')} />
+                </label>
+                <label className="form-control">
+                  <span className="label-text text-ink-600">{t('addrRoomNo')}</span>
+                  <input className="input input-bordered" {...register('addrRoomNo')} aria-label={t('addrRoomNo')} />
+                </label>
+                <label className="form-control">
+                  <span className="label-text text-ink-600">{t('addrVillage')}</span>
+                  <input className="input input-bordered" {...register('addrVillage')} aria-label={t('addrVillage')} />
+                </label>
+              </div>
+            </details>
           </section>
 
           <section className="rounded-card border border-ink-100 bg-base-100 p-5 shadow-warm-sm">

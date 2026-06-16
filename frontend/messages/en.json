@@ -1550,6 +1550,21 @@
     "secIdentity": "Legal entity",
     "secTax": "Value-added tax (VAT)",
     "secFiscal": "Fiscal year & currency",
+    "secAddress": "Registered address (as per company certificate)",
+    "addressHint": "This address appears on every tax invoice and tax filing (ภ.พ.30 / ภ.ง.ด. / 50ทวิ) and must match your registration (ม.86/4).",
+    "addrHouseNo": "House/Building no.",
+    "addrMoo": "Moo",
+    "addrSoi": "Soi/Lane",
+    "addrStreet": "Street",
+    "addrSubDistrict": "Sub-district",
+    "addrDistrict": "District",
+    "addrProvince": "Province",
+    "addrPostalCode": "Postal code",
+    "addrOptionalGroup": "Building / floor / room / village (optional)",
+    "addrBuilding": "Building",
+    "addrFloor": "Floor",
+    "addrRoomNo": "Room no.",
+    "addrVillage": "Village",
     "nameTh": "Company name (Thai)",
     "nameEn": "Company name (English)",
     "taxId": "Tax ID (13 digits)",
@@ -1579,7 +1594,8 @@
     "err": {
       "required": "Required",
       "max255": "Must be 255 characters or fewer",
-      "taxId13": "Must be 13 digits"
+      "taxId13": "Must be 13 digits",
+      "postal5": "Must be 5 digits"
     }
   }
 }

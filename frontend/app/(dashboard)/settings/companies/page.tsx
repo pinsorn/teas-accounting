@@ -179,7 +179,14 @@ function CreateCompanyDialog({ onClose }: { onClose: () => void }) {
 
   const pct = Number(f.vatRatePct);
   const pctInvalid = f.vatRatePct.trim() === '' || !Number.isFinite(pct) || pct < 0 || pct > 100;
-  const canSave = /^\d{13}$/.test(f.taxId.trim()) && f.nameTh.trim() !== '' && !pctInvalid;
+  // ม.86/4 — province + 5-digit postal are the founding registered address (required server-side
+  // so the new company_profile / RD forms have a real address).
+  const canSave =
+    /^\d{13}$/.test(f.taxId.trim()) &&
+    f.nameTh.trim() !== '' &&
+    !pctInvalid &&
+    f.province.trim() !== '' &&
+    /^\d{5}$/.test(f.postalCode.trim());
 
   async function submit() {
     try {
@@ -245,8 +252,9 @@ function CreateCompanyDialog({ onClose }: { onClose: () => void }) {
           <Field label={t('addressTh')} value={f.addressTh} onChange={(v) => set({ addressTh: v })} />
           <Field label={t('subDistrict')} value={f.subDistrict} onChange={(v) => set({ subDistrict: v })} />
           <Field label={t('district')} value={f.district} onChange={(v) => set({ district: v })} />
-          <Field label={t('province')} value={f.province} onChange={(v) => set({ province: v })} />
-          <Field label={t('postalCode')} value={f.postalCode} onChange={(v) => set({ postalCode: v })} />
+          <Field label={t('province')} value={f.province} required onChange={(v) => set({ province: v })} />
+          <Field label={t('postalCode')} value={f.postalCode} required
+            onChange={(v) => set({ postalCode: v.replace(/\D/g, '').slice(0, 5) })} />
           <Field label={t('phone')} value={f.phone} onChange={(v) => set({ phone: v })} />
           <Field label={t('email')} value={f.email} type="email" onChange={(v) => set({ email: v })} />
         </div>
