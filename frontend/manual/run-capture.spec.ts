@@ -53,6 +53,7 @@ import './walkthroughs/07.09-pnd53-pdf';
 import './walkthroughs/07.10-pnd54-pdf';
 import './walkthroughs/08.01-financial-statements';
 import './walkthroughs/08.02-tax-summary';
+import './walkthroughs/08.03-ap-aging';
 
 const CAPTURES_ROOT = resolve(__dirname, '../../docs/manual/captures');
 
