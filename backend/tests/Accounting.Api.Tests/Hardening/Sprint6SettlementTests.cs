@@ -12,6 +12,7 @@ using Accounting.Infrastructure.Ledger;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.Purchase;
+using Accounting.Infrastructure.Storage;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +45,13 @@ public sealed class Sprint6SettlementTests
             .AddScoped<IActivityRecorder, ActivityRecorder>()
             .AddScoped<IPaymentVoucherService, PaymentVoucherService>()
             .AddScoped<IVendorInvoiceService, VendorInvoiceService>()
+            // PV/VI ctor needs IFileStorageService (logo-on-PDF, Sprint 13k); tests
+            // only post (never SaveAsync) so resolution is all that's required.
+            .AddSingleton(Options.Create(new FileStorageOptions
+            {
+                StorageRoot = Path.Combine(Path.GetTempPath(), "teas-test-filestore"),
+            }))
+            .AddScoped<IFileStorageService, LocalDiskFileStorage>()
             .BuildServiceProvider();
 
     private async Task<(long vendorId, int catId, long expAcct)> Seed(
