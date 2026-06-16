@@ -39,7 +39,7 @@ session limits / teardown.
   onboarding). Form captured, NOT submitted (idempotent).
 - `3c6d6c8` progress cont.98o.
 
-**Gates:** build 0/0 · tsc 0 · gen-markdown **46 walkthroughs** · Bengali ম=0 · e2e-noise=0 · full Api
+**Gates:** build 0/0 · tsc 0 · gen-markdown **46 walkthroughs** · Bengali ม=0 · e2e-noise=0 · full Api
 **376 pass / 7 skip / 1 flake**. The 1 flake = `Pnd50FilingServiceTests` (a *different* method fails each
 full run; **passes in isolation** — teas_test bloat / data-order, NOT a regression). RBAc /
 CompanySwitch / OnboardingFoundingAddress all green.
@@ -98,7 +98,7 @@ CompanySwitch / OnboardingFoundingAddress all green.
   `TEAS_TEST_PG` AND **`TEAS_REPO_ROOT`** (RbacAuthMap/Matrix throw "Could not locate the TEAS repo root"
   from the subst drive without it); FE `tsc --noEmit`; never `next build` while `next dev` runs; never stage
   `frontend/screenshots`/`docs/RD-Forms`/`docs/SSO-Forms`; commit messages slash-/§-free (use `git commit -F`
-  for bodies); grep Bengali ম (U+09AE) = 0.
+  for bodies); grep Bengali ม (U+09AE) = 0.
 - **Subagent instability this session:** session limit (resets ~12:30 Asia/Bangkok) + harness teardown ended
   agents early — but background captures they launched kept running; re-aggregate from the capture JSON
   `failure` fields rather than trusting an early-ended agent's report.
@@ -119,6 +119,6 @@ Program ของ Ham: onboarding wizard + super-admin switcher + non-VAT + ch0 
 
 env: §6 (subst W:, kill :5080 ก่อน full build, TEAS_TEST_PG + TEAS_REPO_ROOT, FE tsc). reseed procedure +
 gotchas (ห้าม post บน co2, ม.70 header-only, auto=mock, ef update ก่อน start API) อยู่ใน HANDOFF.
-commit slash/§-free, grep ম=0, ห้าม stage frontend/screenshots · docs/RD-Forms · docs/SSO-Forms.
+commit slash/§-free, grep ม=0, ห้าม stage frontend/screenshots · docs/RD-Forms · docs/SSO-Forms.
 Ham ให้ orchestrate ผ่าน subagents (main = สั่ง+validate+commit). ไม่ push origin จนกว่า Ham สั่ง.
 ```
