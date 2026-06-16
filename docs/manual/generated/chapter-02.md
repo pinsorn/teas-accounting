@@ -38,14 +38,14 @@ A-Z + ตัวเลข ≤20 ตัว) จะถูกแทรกใน pref
 
 <figure markdown="span">
   ![step-04-saved](../captures/02/02.01/step-04-saved.png)
-  <figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "T8E2YF / ทดสอบ 8E2YF / Test BU 8E2YF" ปรากฏพร้อม ✓ ใช้งาน</figcaption>
+  <figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "TA8ZK7 / ทดสอบ A8ZK7 / Test BU A8ZK7" ปรากฏพร้อม ✓ ใช้งาน</figcaption>
 </figure>
 
 ### ขั้นที่ 5
 
 <figure markdown="span">
   ![step-05-edit](../captures/02/02.01/step-05-edit.png)
-  <figcaption>คลิก ✏️ แก้ไข ใน row "T8E2YF" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU 8E2YF (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption>
+  <figcaption>คลิก ✏️ แก้ไข ใน row "TA8ZK7" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU A8ZK7 (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption>
 </figure>
 
 ### ขั้นที่ 6
@@ -59,14 +59,14 @@ A-Z + ตัวเลข ≤20 ตัว) จะถูกแทรกใน pref
 
 <figure markdown="span">
   ![step-07-disabled](../captures/02/02.01/step-07-disabled.png)
-  <figcaption>ยืนยัน → DELETE 204 (soft) → "T8E2YF" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption>
+  <figcaption>ยืนยัน → DELETE 204 (soft) → "TA8ZK7" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption>
 </figure>
 
 ### ขั้นที่ 8
 
 <figure markdown="span">
   ![step-08-restored](../captures/02/02.01/step-08-restored.png)
-  <figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "T8E2YF" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption>
+  <figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "TA8ZK7" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption>
 </figure>
 
 ## 02.02 — ตั้งค่าสินค้า/บริการ
@@ -124,7 +124,7 @@ A-Z + ตัวเลข ≤20 ตัว) จะถูกแทรกใน pref
 
 <figure markdown="span">
   ![step-05-saved](../captures/02/02.02/step-05-saved.png)
-  <figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-8EDAR / ค่าออกแบบเว็บไซต์ 8EDAR / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption>
+  <figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-A9A7W / ค่าออกแบบเว็บไซต์ A9A7W / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption>
 </figure>
 
 ### ขั้นที่ 6
@@ -138,7 +138,7 @@ A-Z + ตัวเลข ≤20 ตัว) จะถูกแทรกใน pref
 
 <figure markdown="span">
   ![step-07-disabled](../captures/02/02.02/step-07-disabled.png)
-  <figcaption>row "MP-SVC-8EDAR" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption>
+  <figcaption>row "MP-SVC-A9A7W" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption>
 </figure>
 
 ## 02.03 — ตั้งค่าประเภทหัก ณ ที่จ่าย (Admin only)
