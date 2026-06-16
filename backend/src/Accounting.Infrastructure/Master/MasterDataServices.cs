@@ -169,6 +169,20 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         if (await db.Companies.IgnoreQueryFilters().AnyAsync(c => c.TaxId == req.TaxId, ct))
             throw new DomainException("company.duplicate", $"Company with Tax ID '{req.TaxId}' already exists.");
 
+        // ม.86/4 — compose the legacy free-text registered-address line from the granular parts
+        // (shared composer, identical to the ภ.พ.09 hard-edit path). Falls back to the caller's
+        // explicit AddressTh when no street-level parts were supplied.
+        var composedLine1 = ThaiRegisteredAddress.ComposeLine1(
+            req.RegHouseNo, req.RegBuilding, req.RegRoomNo, req.RegFloor,
+            req.RegVillage, req.RegMoo, req.RegSoi, req.RegStreet);
+        var anyStreetPart = !string.IsNullOrWhiteSpace(req.RegHouseNo) || !string.IsNullOrWhiteSpace(req.RegBuilding)
+            || !string.IsNullOrWhiteSpace(req.RegRoomNo) || !string.IsNullOrWhiteSpace(req.RegFloor)
+            || !string.IsNullOrWhiteSpace(req.RegVillage) || !string.IsNullOrWhiteSpace(req.RegMoo)
+            || !string.IsNullOrWhiteSpace(req.RegSoi) || !string.IsNullOrWhiteSpace(req.RegStreet);
+        // companies.AddressTh (general display) — prefer the composed line; keep the caller's
+        // explicit AddressTh if they gave one and supplied no granular parts.
+        var addressTh = anyStreetPart ? composedLine1 : (req.AddressTh ?? composedLine1);
+
         var e = new Company
         {
             TaxId = req.TaxId, NameTh = req.NameTh, NameEn = req.NameEn,
@@ -176,12 +190,39 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
             VatRegistered = req.VatRegistered, VatRegisterDate = req.VatRegisterDate,
             VatRate = req.VatRate, Pnd30SubmissionMode = req.Pnd30SubmissionMode,
             FiscalYearStartMonth = req.FiscalYearStartMonth,
-            AddressTh = req.AddressTh, SubDistrict = req.SubDistrict, District = req.District,
+            AddressTh = addressTh, SubDistrict = req.SubDistrict, District = req.District,
             Province = req.Province, PostalCode = req.PostalCode,
             Phone = req.Phone, Email = req.Email,
             PaidUpCapital = req.PaidUpCapital,
         };
         db.Companies.Add(e);
+        await db.SaveChangesAsync(ct);
+
+        // ม.86/4 — the new company's FOUNDING tax identity. Every RD form (ภ.พ.30 / ภ.ง.ด.3/53/54 /
+        // 50ทวิ) reads these granular company_profile.Reg* boxes; without this row a freshly
+        // onboarded company renders blank address boxes. Created unconditionally (1:1 with the
+        // company) — the hard fields are read-only afterwards (changing them needs ภ.พ.09).
+        var now = DateTimeOffset.UtcNow;
+        db.CompanyProfiles.Add(new CompanyProfile
+        {
+            CompanyId = e.CompanyId,
+            // HARD — mirror the companies row + the granular registered address.
+            LegalName = req.NameTh,
+            TaxId = req.TaxId,
+            RegistrationNumber = req.TaxId,
+            RegisteredAddressLine1 = composedLine1,
+            RegisteredAddressLine2 = null,
+            RegBuilding = req.RegBuilding, RegRoomNo = req.RegRoomNo, RegFloor = req.RegFloor,
+            RegVillage = req.RegVillage, RegHouseNo = req.RegHouseNo, RegMoo = req.RegMoo,
+            RegSoi = req.RegSoi, RegStreet = req.RegStreet,
+            RegisteredSubdistrict = req.SubDistrict, RegisteredDistrict = req.District,
+            RegisteredProvince = req.Province!, RegisteredPostalCode = req.PostalCode!,
+            VatRegistrationDate = req.VatRegisterDate,
+            BranchCode = "00000",
+            // SOFT — contact mirrors the companies row; the rest set later via the profile UI.
+            Phone = req.Phone, Email = req.Email,
+            CreatedAt = now, UpdatedAt = now,
+        });
         await db.SaveChangesAsync(ct);
 
         // Sprint 8.6 (R-B5) — narrow default-set copy: the 13 standard WHT types

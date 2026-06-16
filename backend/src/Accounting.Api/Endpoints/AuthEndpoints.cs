@@ -1,6 +1,7 @@
 using Accounting.Application.Abstractions;
 using Accounting.Application.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Accounting.Api.Authorization;
 
 namespace Accounting.Api.Endpoints;
 
@@ -31,10 +32,10 @@ public static class AuthEndpoints
 
         // Onboarding-switcher spec (2026-06-16) — SUPER-ADMIN ONLY. Re-scopes the caller's session
         // to another company by re-issuing the JWT (RLS is pinned at the DB session, so a new token
-        // is the only way to move tenant). The endpoint is the 403 gate: .RequireAuthorization()
-        // makes an anonymous caller 401, and the explicit IsSuperAdmin check makes an authenticated
-        // non-super caller 403 (NOT 401 — that distinction is the whole point of the gate). The
-        // service re-validates super-admin as defence in depth.
+        // is the only way to move tenant). Gated by the super-admin-only Master.CompanyManage
+        // permission (declared so the RBAC audit map/matrix classify it as a Perm endpoint, like
+        // /companies). anonymous → 401; authenticated-without-CompanyManage → 403 at the policy; the
+        // explicit IsSuperAdmin check in the handler + service stays as defence in depth.
         group.MapPost("/switch-company/{companyId:int}", async (
             int companyId,
             ITenantContext tenant,
@@ -56,7 +57,7 @@ public static class AuthEndpoints
                 token_type   = "Bearer",
             });
         })
-        .RequireAuthorization()
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage)
         .WithName("SwitchCompany")
         .Produces(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status401Unauthorized)

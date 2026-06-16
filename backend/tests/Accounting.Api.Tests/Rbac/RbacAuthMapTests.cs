@@ -38,6 +38,7 @@ public sealed class RbacAuthMapTests
         "GET /company-profile/",
         "GET /documents/chain",
         "GET /documents/purchase-chain",
+        "GET /me",
         "GET /me/permissions",
         "GET /periods/{year:int}/{month:int}/status",
         "GET /system/info",

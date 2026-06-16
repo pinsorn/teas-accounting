@@ -8,12 +8,12 @@
 | Kind | Count |
 |---|---:|
 | Anonymous | 0 |
-| AuthnOnly | 10 |
-| Perm | 220 |
+| AuthnOnly | 11 |
+| Perm | 225 |
 | Assertion | 5 |
 | ApiKeyOnly | 18 |
 | Unprotected | 2 |
-| **TOTAL** | **255** |
+| **TOTAL** | **261** |
 
 ## Routes
 
@@ -59,6 +59,7 @@
 | DELETE | `/attachments/{id:long}` | Perm | sys.attachment.read |
 | GET | `/attachments/{id:long}/download` | Perm | sys.attachment.read |
 | POST | `/auth/login` | Unprotected | — |
+| POST | `/auth/switch-company/{companyId:int}` | Perm | master.company.manage |
 | GET | `/billing-notes/` | Perm | sales.billing_note.read |
 | POST | `/billing-notes/` | Perm | sales.billing_note.manage |
 | DELETE | `/billing-notes/{id:long}` | Perm | sales.billing_note.manage |
@@ -126,6 +127,7 @@
 | ANY | `/health` | Unprotected | — |
 | POST | `/journals/` | Perm | gl.journal.create |
 | POST | `/journals/{id:long}/post` | Perm | gl.journal.post |
+| GET | `/me` | AuthnOnly | — |
 | GET | `/me/permissions` | AuthnOnly | — |
 | GET | `/payment-vouchers/` | Perm | purchase.payment_voucher.read |
 | POST | `/payment-vouchers/` | Perm | purchase.payment_voucher.create |
@@ -232,7 +234,9 @@
 | POST | `/tax-filings/cit/years/{year:int}/compute` | Perm | tax.filing.finalize |
 | POST | `/tax-filings/pnd3` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd3/batch-file` | Perm | tax.filing.preview |
+| GET | `/tax-filings/pnd3/pdf` | Perm | tax.filing.preview |
 | POST | `/tax-filings/pnd30` | Perm | tax.filing.preview |
+| GET | `/tax-filings/pnd30/pdf` | Perm | tax.filing.preview |
 | POST | `/tax-filings/pnd36` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd50/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd50/preview` | Perm | tax.filing.preview |
@@ -240,7 +244,9 @@
 | GET | `/tax-filings/pnd51/pdf` | Perm | tax.filing.preview |
 | POST | `/tax-filings/pnd53` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd53/batch-file` | Perm | tax.filing.preview |
+| GET | `/tax-filings/pnd53/pdf` | Perm | tax.filing.preview |
 | POST | `/tax-filings/pnd54` | Perm | tax.filing.preview |
+| GET | `/tax-filings/pnd54/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pp01/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pp09/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-invoices/` | Perm | sales.tax_invoice.read |
