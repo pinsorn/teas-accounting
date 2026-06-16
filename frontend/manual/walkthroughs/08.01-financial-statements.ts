@@ -42,7 +42,9 @@ walkthrough({
   const ecomVal = await page.locator('select option')
     .filter({ hasText: /ECOM/ }).first().getAttribute('value');
   await page.locator('select').selectOption(ecomVal ?? '');
-  await page.locator('tfoot').waitFor({ state: 'visible', timeout: 15_000 });
+  // 30s: tfoot renders only after the heavy GL-aggregation React Query settles;
+  // 15s raced it ~50% under machine load (manual re-capture hardening).
+  await page.locator('tfoot').waitFor({ state: 'visible', timeout: 30_000 });
   await capture('step-01-profit-loss', {
     highlight: 'main',
     arrow: 'up',
@@ -55,7 +57,9 @@ walkthrough({
   await page.goto('/reports/sales-summary');
   await page.locator('input[type=date]').nth(0).fill('2026-06-01');
   await page.locator('input[type=date]').nth(1).fill('2026-06-30');
-  await page.locator('tfoot').waitFor({ state: 'visible', timeout: 15_000 });
+  // 30s: tfoot renders only after the heavy GL-aggregation React Query settles;
+  // 15s raced it ~50% under machine load (manual re-capture hardening).
+  await page.locator('tfoot').waitFor({ state: 'visible', timeout: 30_000 });
   await capture('step-02-sales-summary', {
     highlight: 'main',
     caption:
