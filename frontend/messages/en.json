@@ -1538,5 +1538,48 @@
     "submit": "Sign in",
     "submitting": "Signing in…",
     "mfaPrompt": "Enter the 6-digit MFA code from your Authenticator app"
+  },
+  "topbar": {
+    "switchCompany": "Switch company",
+    "currentCompany": "Current company",
+    "noCompany": "No company selected"
+  },
+  "onboarding": {
+    "title": "Set up your first company",
+    "subtitle": "Get started with TEAS by creating your company profile",
+    "secIdentity": "Legal entity",
+    "secTax": "Value-added tax (VAT)",
+    "secFiscal": "Fiscal year & currency",
+    "nameTh": "Company name (Thai)",
+    "nameEn": "Company name (English)",
+    "taxId": "Tax ID (13 digits)",
+    "legalEntityType": "Legal entity type",
+    "vatRegistered": "VAT registered",
+    "vatRate": "VAT rate",
+    "vatRateHint": "Decimal value, e.g. 0.07 = 7%",
+    "pnd30Mode": "ภ.พ.30 submission",
+    "pnd30Manual": "Manual",
+    "pnd30Auto": "Automatic",
+    "vatRegisterDate": "VAT registration date",
+    "fiscalYearStartMonth": "Fiscal year start month (1–12)",
+    "baseCurrency": "Base currency",
+    "submit": "Create company & get started",
+    "creating": "Creating company…",
+    "created": "Company created successfully",
+    "error": "Something went wrong — could not create the company",
+    "legal": {
+      "LimitedCompany": "Limited Company",
+      "PublicLimitedCompany": "Public Limited Company",
+      "LimitedPartnership": "Limited Partnership",
+      "OrdinaryPartnership": "Ordinary Partnership",
+      "JointVenture": "Joint Venture",
+      "SoleProprietor": "Sole Proprietor",
+      "Other": "Other"
+    },
+    "err": {
+      "required": "Required",
+      "max255": "Must be 255 characters or fewer",
+      "taxId13": "Must be 13 digits"
+    }
   }
 }
