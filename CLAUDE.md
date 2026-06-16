@@ -148,7 +148,10 @@ back to Testcontainers (Docker — usually unavailable here). A clean `teas_test
 PG; run from `W:\tests\Accounting.Api.Tests` with
 `$env:TEAS_TEST_PG='Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true'`.
 The fixture migrates + seeds it. If `teas_test` is missing, create the empty DB first (no psql/docker
-here → a tiny Npgsql console `CREATE DATABASE teas_test`).
+here → a tiny Npgsql console `CREATE DATABASE teas_test`). **Also set `$env:TEAS_REPO_ROOT=<repo root
+holding CLAUDE.md+docs/>`** when running the RBAC `RbacAuthMapTests`/`RbacMatrixTests` from `W:` — they
+write a generated map under `docs/rbac/` and the subst `W:` drive clamps their CLAUDE.md auto-walk, so
+without it they throw "Could not locate the TEAS repo root" and look like RBAC drift when they are not.
 
 **VAT mode toggle** (per-company since 2026-06-11 — `Tax:VatMode` config is GONE): VAT behavior
 follows `master.companies.vat_registered`/`vat_rate` of the caller's company. Dev non-VAT testing =
