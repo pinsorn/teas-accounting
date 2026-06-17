@@ -68,7 +68,19 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
         if (requiresBu && buId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
 
-        var tax = Math.Round(req.AdjustmentSubtotal * req.TaxRate, 2, MidpointRounding.AwayFromZero);
+        // §4.6 / ม.80 — the adjustment-note VAT rate is DERIVED from master data + the original
+        // document, NOT the caller's req.TaxRate (which a non-UI client can set wrong, e.g. 0 on a
+        // VAT adjustment). A CN/DN adjusts a posted Tax Invoice (ม.86/10), so its VAT treatment must
+        // mirror that invoice: a VAT-registered company adjusting a VAT-bearing TI uses the company's
+        // configured rate; if the original TI carried no output VAT (fully exempt ม.81 / zero-rated
+        // ม.80/1, or a non-VAT issuer) the adjustment carries none either.
+        var vatMode = (await _taxCfg.GetAsync(ct)).VatMode;
+        var originalCarriedVat = ti.TaxAmount > 0m || ti.TaxableAmount > 0m;
+        var effectiveRate = vatMode && originalCarriedVat
+            ? (await _taxCfg.GetAsync(ct)).VatRate
+            : 0m;
+
+        var tax = Math.Round(req.AdjustmentSubtotal * effectiveRate, 2, MidpointRounding.AwayFromZero);
         var total = req.AdjustmentSubtotal + tax;
 
         var note = new TaxAdjustmentNote
@@ -94,7 +106,7 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
             TaxAmount      = tax,
             TotalAmount    = total,
             TotalAmountThb = Math.Round(total * req.ExchangeRate, 4, MidpointRounding.AwayFromZero),
-            TaxRate        = req.TaxRate,
+            TaxRate        = effectiveRate,
             Notes          = req.Notes,
             BusinessUnitId = buId,
         };
