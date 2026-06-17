@@ -16,16 +16,31 @@ and a multi-tenant RBAC core.
 ## Features
 
 - **Sales chain** — Quotation → Sales Order → Delivery Order → **Tax Invoice** → Receipt, plus
-  Credit / Debit Notes, with sequential gap-free document numbering (ม.86/4).
-- **Purchases & WHT** — Vendor Invoice → Payment Voucher → Withholding-tax certificate (50 ทวิ).
-- **Tax filings** — generates the filled RD PDFs: ภ.พ.30, ภ.ง.ด.1 / 3 / 53 / 54, ภ.ง.ด.50 / 51 (CIT),
-  ภ.พ.01 / 09, ภ.พ.36 reverse charge.
-- **Payroll** — runs, payslips, PIT + social-security (ปกส.), ภ.ง.ด.1 / 1ก.
+  Credit / Debit Notes. Full ม.86/4 tax invoices (all 8 mandatory fields, VAT shown separately),
+  sequential gap-free numbering (`MM-YYYY-PREFIX-NNNN`, assigned on post). The per-line VAT rate is
+  **derived server-side** from the company's tax config — never trusted from the client.
+- **Purchases & withholding tax** — Vendor Invoice → Payment Voucher → WHT 50 ทวิ certificate, with
+  per-line VAT guards (non-VAT vendor → 0%; exempt / zero-rated codes → 0%; standard rate from
+  config).
+- **Tax-form PDFs** — generates print-ready, filled RD forms: VAT return **ภ.พ.30**; withholding
+  **ภ.ง.ด.1 / 1ก / 3 / 53 / 54**; corporate income tax **ภ.ง.ด.50 / 51**; VAT registration
+  **ภ.พ.01 / 09**. Reverse charge **ภ.พ.36** is computed with an automatic journal entry.
+- **Payroll** — payroll runs, payslips, PIT + social security (ปกส.), monthly / annual withholding.
 - **General ledger & reports** — journals, trial balance, P&L, balance sheet, monthly tax summary,
   AP aging.
-- **Compliance** — per-company VAT config, posted-document immutability, PostgreSQL row-level
-  security per tenant, and an append-only audit trail.
-- **RBAC** — per-company roles, super-admin company switcher, and a first-run onboarding wizard.
+- **Multi-tenant & RBAC** — one deployment serves many companies with **PostgreSQL row-level
+  security**; per-company VAT config (mode / rate / filing mode); per-company roles + fine-grained
+  permissions; super-admin company switcher; first-run onboarding wizard.
+- **Compliance** — posted documents are immutable (database trigger + application layer);
+  append-only audit trail; corrections via Credit Notes. Built around the Revenue Code
+  (ประมวลรัษฎากร) and the Accounting Act.
+
+### Architecture at a glance
+
+.NET 10 **Clean Architecture** (Domain → Application → Infrastructure → Api) plus a background
+worker host; **PostgreSQL 16** with row-level security per tenant; OAuth2 / JWT auth; EF Core
+migrations as the schema source of truth. The Next.js frontend is a **BFF proxy** to the API. The
+full picture lives in the [as-built specification](docs/accounting-system-plan.md).
 
 ---
 
