@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/public/teas-logo.png" alt="TEAS logo" width="160">
+</p>
+
 # TEAS — Thailand Enterprise Accounting System
 
 A B2B + B2C accounting platform for Thai companies, **VAT-compliant by design** and built around
@@ -41,6 +45,67 @@ and a multi-tenant RBAC core.
 worker host; **PostgreSQL 16** with row-level security per tenant; OAuth2 / JWT auth; EF Core
 migrations as the schema source of truth. The Next.js frontend is a **BFF proxy** to the API. The
 full picture lives in the [as-built specification](docs/accounting-system-plan.md).
+
+---
+
+## What the app can do — detailed function list
+
+### Master data
+- **Companies (multi-tenant):** create / edit a company + profile (registered address, branches,
+  uploaded logo); set per-company **VAT registration, rate, and ภ.พ.30 filing mode** (super-admin
+  only, every tax-field change audited).
+- **Customers & vendors:** full master records with Tax ID, branch code, VAT status, foreign flag,
+  and bank details; both individual (บุคคลธรรมดา) and juristic-person types.
+- **Products / services:** default input / output tax codes, product type (good / service /
+  exempt), purchasable / sellable flags, business-unit binding.
+- **Reference master data:** chart of accounts, expense categories, withholding-tax types, document
+  number prefixes, business units, tax codes.
+
+### Sales
+- **Document chain:** Quotation → Sales Order → Delivery Order → **Tax Invoice** → Receipt — each
+  with create / edit / list / PDF and status transitions (send, accept, issue, post); convert one
+  document into the next down the chain.
+- **Full Tax Invoice (ม.86/4):** all 8 mandatory fields, VAT shown separately, gap-free sequential
+  numbering assigned on post.
+- **Credit Note & Debit Note** (tax adjustment notes) against posted invoices.
+- **Non-VAT path:** Billing Note → Receipt for non-VAT companies (no tax invoice, no VAT line).
+- **Server-side VAT:** the per-line VAT rate is derived from company config (standard / exempt /
+  zero-rated), never trusted from the client.
+- Document **cross-references**, **print tracking**, and a **number-gap audit**.
+
+### Purchases & withholding tax
+- **Purchase Order → Vendor Invoice → Payment Voucher**, with create / approve / post + PDF.
+- **Withholding tax** computed per line with compliance guards (non-VAT vendor → 0%, exempt → 0%,
+  standard rate from config); issues the **50 ทวิ certificate** (ภ.ง.ด.3 / 53 / 54 by income type)
+  with PDF.
+- **Foreign vendor / reverse charge:** ม.70 → ภ.ง.ด.54, and ม.83/6 input-VAT reverse charge → ภ.พ.36.
+
+### Payroll
+- **Employees** master; monthly **payroll runs** (create / approve / post); **payslip** PDFs per
+  employee or as a zip.
+- **PIT** computation with allowances + **social security (ปกส.)**; SSO contribution file.
+- Withholding forms: **ภ.ง.ด.1** (monthly), **ภ.ง.ด.1ก** (annual), and per-employee **50 ทวิ**.
+
+### Tax-filing forms (print-ready RD-form PDFs)
+- **VAT:** ภ.พ.30 (return); ภ.พ.36 (reverse charge — computed with an automatic journal entry).
+- **Withholding:** ภ.ง.ด.1 / 1ก / 3 / 53 / 54.
+- **Corporate income tax:** ภ.ง.ด.51 (half-year) + ภ.ง.ด.50 (annual), with the CIT computation.
+- **VAT registration:** ภ.พ.01 / ภ.พ.09.
+
+### General ledger & reports
+- **Automatic journal entries** on posting; manual journals; accounting-**period open / close**.
+- Reports: **Trial Balance, Profit & Loss, Balance Sheet, monthly Tax Summary, Sales Summary,
+  AP aging, input / output VAT registers, WHT-receivable register & aging, number-gap audit.**
+
+### Administration & access
+- **Per-company RBAC:** roles, fine-grained permissions, user-role assignment.
+- **Super-admin company switcher**; first-run **onboarding wizard**.
+- **External API** (`/api/v1`) with API keys, idempotency, and optional business-unit binding.
+- **Audit trail** on every state change; file **attachments** on documents.
+
+### Platform
+- Multi-tenant isolation via **PostgreSQL row-level security**.
+- App version on `GET /system/info` + the dashboard footer; **Thai / English** UI (Thai primary).
 
 ---
 
