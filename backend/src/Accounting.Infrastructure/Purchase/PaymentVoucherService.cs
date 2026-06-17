@@ -117,9 +117,16 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
 
         // cont.79 — BU (GL dimension). Required when the company opted in; if supplied
         // it must be an active BU of this tenant (mirror TaxInvoiceService).
-        var requiresBu = await _db.Companies
+        // cont.94d — fetch the company's standard VAT rate in the same hop (per-company
+        // master data, §4.6) so we can validate each line's rate server-side.
+        var companyCfg = await _db.Companies
             .Where(c => c.CompanyId == _tenant.CompanyId)
-            .Select(c => c.RequiresBusinessUnit).FirstOrDefaultAsync(ct);
+            .Select(c => new { c.RequiresBusinessUnit, c.VatRate })
+            .FirstOrDefaultAsync(ct);
+        var requiresBu = companyCfg?.RequiresBusinessUnit ?? false;
+        // EF maps the CLR decimal default 0 to the DB default 0.07; mirror that here so a
+        // "0/unset" rate never collapses rule 3 into rejecting the legitimate 7% lines.
+        var standardVatRate = companyCfg is { VatRate: > 0m } ? companyCfg.VatRate : 0.07m;
         if (requiresBu && req.BusinessUnitId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
         if (req.BusinessUnitId is { } buId &&
@@ -137,14 +144,6 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             : req.SelfWithholdMode ?? autoSelfWithhold;
         var payerMode = req.WhtPayerMode
             ?? (wantsSelfWithhold ? WhtPayerModes.GrossUpForever : WhtPayerModes.Deduct);
-
-        // ม.82/5 — a non-VAT-registered vendor issues no tax invoice, so no input VAT may
-        // be charged/claimed on the purchase. Reject any VAT line (the FE also forces the
-        // per-line VAT to 0 and hides the input for such vendors). Foreign vendors stay
-        // VatRegistered=true and route VAT via ภ.พ.36 reverse charge, so they are unaffected.
-        if (!vendor.VatRegistered && req.Lines.Any(l => l.VatRate > 0m))
-            throw new DomainException("pv.vendor_not_vat_registered",
-                "Vendor is not VAT-registered — VAT cannot be charged on this purchase (ม.82/5).");
 
         var lines = new List<PaymentVoucherLine>();
         for (var i = 0; i < req.Lines.Count; i++)
@@ -164,6 +163,23 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 throw new DomainException("pv.product_type_invalid",
                     $"Line {i + 1}: product_type '{code}' must be one of " +
                     "GOOD | SERVICE | EXEMPT_GOOD | EXEMPT_SERVICE."));
+
+            // cont.94d — input VAT is derived, never typed (the FE shows it read-only).
+            // Enforce the same invariant server-side so a non-FE client cannot post a
+            // non-derivable rate. Three legal guards, in order of specificity:
+            //   ม.82/5 — a non-VAT-registered vendor issues no tax invoice → 0% only.
+            //            (Foreign vendors stay VatRegistered=true and route VAT via ภ.พ.36.)
+            //   ม.81   — a VAT-exempt product carries no VAT even from a VAT vendor.
+            //   else   — a VATable line may carry only 0% or the company's standard rate.
+            if (!vendor.VatRegistered && input.VatRate > 0m)
+                throw new DomainException("pv.vendor_not_vat_registered",
+                    "Vendor is not VAT-registered — VAT cannot be charged on this purchase (ม.82/5).");
+            if (ProductTypeCodes.IsExempt(productType) && input.VatRate > 0m)
+                throw new DomainException("pv.exempt_product_vat",
+                    $"Line {i + 1}: a VAT-exempt product cannot carry input VAT (ม.81).");
+            if (input.VatRate != 0m && input.VatRate != standardVatRate)
+                throw new DomainException("pv.vat_rate_invalid",
+                    $"Line {i + 1}: VAT rate must be 0% or the standard {standardVatRate:P0} — got {input.VatRate:P0}.");
 
             lines.Add(new PaymentVoucherLine
             {

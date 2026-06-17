@@ -38,4 +38,20 @@ public static class ProductTypeCodes
         if (!Allowed.Contains(code)) onInvalid(code);
         return code;
     }
+
+    /// <summary>
+    /// Enum → UPPER_SNAKE code (mirror of the Product entity value-converter in
+    /// ProductConfiguration). Used to surface a line's product taxonomy on read DTOs.
+    /// </summary>
+    public static string ToCode(Domain.Enums.ProductType t) => t switch
+    {
+        Domain.Enums.ProductType.Service       => "SERVICE",
+        Domain.Enums.ProductType.ExemptGood    => "EXEMPT_GOOD",
+        Domain.Enums.ProductType.ExemptService => "EXEMPT_SERVICE",
+        _                                      => "GOOD",
+    };
+
+    /// <summary>True for the ม.81 VAT-exempt product taxonomies.</summary>
+    public static bool IsExempt(string code) =>
+        code is "EXEMPT_GOOD" or "EXEMPT_SERVICE";
 }
