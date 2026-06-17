@@ -9,7 +9,7 @@
 (50 ทวิ), บัญชีแยกประเภท + รายงานการเงิน, **PDF แบบฟอร์มสรรพากรที่กรอกแล้วพร้อมพิมพ์**, เงินเดือน,
 และระบบ multi-tenant + RBAC
 
-> **Release v1.0.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
+> **Release v1.1.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
 > backend build (Windows x64 / Linux x64) + คู่มือ PDF
 >
 > Backend: **.NET 10** (ASP.NET Core Minimal APIs, EF Core 10) · DB: **PostgreSQL 16** ·
@@ -167,14 +167,13 @@ pnpm dev
 
 เปิด <http://localhost:3000>
 
-### 5. เข้าสู่ระบบ
+### 5. Onboarding / เข้าสู่ระบบ
 
-| ผู้ใช้ | รหัสผ่าน | ขอบเขต |
-|---|---|---|
-| `admin` | `Admin@1234` | บริษัท 1, super-admin |
+**ติดตั้งสะอาด (default):** ไม่มี user มาให้ — หน้าแรกจะให้ **สร้าง super-admin** (username + password)
+เองก่อน แล้วต่อด้วยสร้างบริษัทแรกใน onboarding wizard
 
-มีบริษัทตัวอย่าง 2 บริษัท: **บริษัท 2** (จด VAT) และ **บริษัท 3** (ไม่จด VAT) — super-admin สลับได้จาก
-แถบบน
+**ถ้า seed demo ไว้** (`SeedDemoData=true` ผ่าน setup script): login `admin` / `Admin@1234` (บริษัท 1)
+ได้เลย พร้อมบริษัทตัวอย่าง **บริษัท 2** (จด VAT) / **บริษัท 3** (ไม่จด VAT) — super-admin สลับได้จากแถบบน
 
 ---
 
@@ -228,11 +227,9 @@ infra/db/schema.sql             # อ้างอิงเท่านั้น 
 walkthrough ครอบคลุมการติดตั้ง / onboarding, ข้อมูลหลัก, สายขาย-ซื้อ, เงินเดือน, แบบยื่นภาษี และรายงาน
 พร้อม [API reference](docs/manual/api/index.md) แยกหมวด
 
-- **อ่านเป็น PDF** (รวมภาพในตัว):
-  [`docs/manual/AccountProject-User-Manual-TH-v0.5.pdf`](docs/manual/AccountProject-User-Manual-TH-v0.5.pdf)
-  — แนบไว้ใน [release v1.0.0](https://github.com/pinsorn/teas-accounting/releases/tag/v1.0.0) ด้วย
-- **HTML หน้าเดียว:** [`docs/manual/generated/print.html`](docs/manual/generated/print.html)
-  (เปิดพร้อมโฟลเดอร์ `docs/manual/captures/` ที่อยู่ข้างกัน)
+- **HTML หน้าเดียว (แนะนำ):** [`docs/manual/generated/print.html`](docs/manual/generated/print.html)
+  — รวมทุกบทไว้หน้าเดียว เปิดในเบราว์เซอร์ได้เลย (อยู่คู่กับโฟลเดอร์ `docs/manual/captures/`) ถ้าอยากได้ PDF
+  สั่ง Print / Save as PDF จากเบราว์เซอร์ได้
 - **เปิดเป็นเว็บ / markdown:** เริ่มที่ [`docs/manual/index.md`](docs/manual/index.md) หรือ:
 
   ```bash
