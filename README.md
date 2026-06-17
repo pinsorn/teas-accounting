@@ -160,13 +160,22 @@ the backend and type-checks the frontend.
 A step-by-step user manual (Thai, with screenshots) lives in [`docs/manual/`](docs/manual/) —
 ~46 captured walkthroughs across installation / onboarding, master data, the sales and purchase
 chains, payroll, tax filings, and reports, plus a categorized
-[API reference](docs/manual/api/index.md). Start at [`docs/manual/index.md`](docs/manual/index.md),
-or browse it as a local site:
+[API reference](docs/manual/api/index.md).
 
-```bash
-pip install mkdocs mkdocs-material
-mkdocs serve -f docs/manual/mkdocs.yml   # then open http://localhost:8000
-```
+- **Read it as a PDF** (self-contained, screenshots embedded):
+  [`docs/manual/AccountProject-User-Manual-TH-v0.5.pdf`](docs/manual/AccountProject-User-Manual-TH-v0.5.pdf)
+  — also attached to the [v1.0.0 release](https://github.com/pinsorn/teas-accounting/releases/tag/v1.0.0).
+- **Single-page HTML:** [`docs/manual/generated/print.html`](docs/manual/generated/print.html)
+  (rendered from the walkthroughs; open it with the sibling `docs/manual/captures/` folder present).
+- **Browse as a site / markdown:** start at [`docs/manual/index.md`](docs/manual/index.md), or:
+
+  ```bash
+  pip install mkdocs mkdocs-material
+  mkdocs serve -f docs/manual/mkdocs.yml   # then open http://localhost:8000
+  ```
+
+The PDF/HTML are regenerated from the Playwright captures via `frontend/manual/gen-markdown.mjs`
+(markdown + `print.html`) and `gen-pdf.mjs` (`print.html` → PDF).
 
 ---
 
