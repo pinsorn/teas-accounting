@@ -29,7 +29,10 @@ public sealed record PurchaseOrderApprovedResult(long PurchaseOrderId, string Do
 public sealed record PurchaseOrderLineDto(
     int LineNo, long? ProductId, string? ProductCode, string DescriptionTh,
     decimal Quantity, string? UomText, decimal UnitPrice, decimal LineAmount,
-    decimal TaxAmount, decimal TotalAmount);
+    decimal TaxAmount, decimal TotalAmount,
+    // cont.94d — product taxonomy (GOOD/SERVICE/EXEMPT_*) so a PV prefill derives the
+    // correct VAT. Trailing-defaulted so other positional call-sites keep compiling.
+    string ProductType = "GOOD");
 
 public sealed record PurchaseOrderListItem(
     long PurchaseOrderId, string? DocNo, string Status, DateOnly DocDate,
