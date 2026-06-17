@@ -5,6 +5,31 @@
 
 ---
 
+## Recently shipped (do not re-open — see progress.md cont.98n-98q)
+
+These landed after the RBAC sprint and are DONE; listed here only so they are not mistaken for open work:
+
+- ☑ **MinVer + release-please versioning** (cont.98p, `f1b1458`) — `/system/info` + dashboard footer stamp the version.
+- ☑ **Migration squash** (cont.98p, `3440c84`) — 41 EF migrations → one `InitialCreate` baseline (model-equivalent).
+- ☑ **Onboarding wizard + super-admin company switcher** (cont.98o, `18c49b0`/`8a49bab`) — `GET /me`,
+  `POST /auth/switch-company`, `companyId=0` gate → `/onboarding`, Topbar switcher.
+- ☑ **Server-side VAT-rate derivation (sales) + per-line PV VAT guards (purchase)** (cont.98q `1ac24c2`, cont.94c) —
+  VAT-line rate derived from company master data (§4.6/ม.80), not caller input; PV blocks VAT from non-VAT vendors (ม.82/5).
+- ☑ **Phase 6 acceptance defect fixes** (cont.98q, `ffe1b0c`) — co3 CoA GL accounts, `/reports/tax-summary` date-range
+  fix, openapi reconciled to code (camelCase bodies, real route paths).
+
+## What is genuinely LEFT (forward work)
+
+- ☐ **e-Tax live RD submission** — only Phase-1 scaffolding exists (XAdES signer inert, `MockRdEfilingClient`
+  fake-ACK, no auto-submit cron). GATED until Ham orders — see the e-Tax section + `docs/superpowers/plans/etax-xades-production-plan.md`.
+- ☐ **Fixed Assets register + depreciation** (not built).
+- ⏸ **Inventory tracking** — out of scope (CLAUDE.md §8) until requested.
+- ☐ **3-way match (PR→PO→GR)** + `bank_account` master/selector — Phase-2 tech debt (see backlog below).
+- ☐ **Sprint 13L tail** — formal migration-rollback drill + skip-audit doc (versioning + squash already shipped, above).
+- ☐ **Chapter 3 / manual re-capture tail** + Phase 6 narrative refresh (see manual track in progress.md).
+
+---
+
 ## ▶ Sprint 13k RBAC (plans: `docs/superpowers/plans/2026-06-13-rbac-{admin-ui,cartesian-audit}.md`)
 
 - ☑ **Plan 1 — per-company roles + admin UI** (cont.95, 2026-06-14, commit b8b4773) — see progress.md.
@@ -293,7 +318,8 @@ follow-ups below into the purchase work where they overlap.
    added; `DbInitializer`/`PostgresFixture` now `MigrateAsync()`. (2026-05-16)
 2. ☑ **Integration vs real Postgres** — native PG 16.4 portable (port 5433, no Docker);
    tenant-isolation test PASS. Deeper service pack (NumberSequence concurrency, PV+WHT,
-   period gating) still ☐ — see "Test depth" below; TI immutability + GL balance proven via #3.
+   period gating) ☑ DONE — see "Test depth" below (all four shipped in `Sprint1HardeningTests`);
+   TI immutability + GL balance proven via #3.
 3. ☑ **Runtime smoke** — full login→post-TI→GL→immutability verified end-to-end. (2026-05-16)
 
 ### Test depth — ☑ ALL DONE (stale list; reconciled 2026-06-12)
@@ -821,16 +847,23 @@ Do NOT touch `docs/Design(Architect).md` (per Ham).
   `ProductQuickCreateModal` inline create from the line table · DefaultWhtType flow · price
   auto-fills on pick but stays per-line editable (master does NOT lock price, per spec) ·
   purchase/sale split + BU scope on the picker.
-- ◐ **Sprint 13k (in progress)** — Security + RBAC full Cartesian + Performance +
-  Accessibility audit (Answer-30; after 13j).
+- ☑ **Sprint 13k SHIPPED** — Security + RBAC full Cartesian + Performance +
+  Accessibility audit (Answer-30). See the detailed ▶ Sprint 13k RBAC section at the top of this file
+  (Plan 1 admin UI + Plan 2 Cartesian audit + Plan 3 FE-gating e2e) — all ☑, committed (cont.95-97).
   - ☑ **Plan 1 — Role/Permission Admin UI (per-company)** SHIPPED 2026-06-14 (branch
-    `feat/rbac-per-company-admin-ui`, cont.95): per-company roles schema+reconcile (510) +
+    `feat/rbac-per-company-admin-ui`, cont.95, commit `b8b4773`): per-company roles schema+reconcile (510) +
     perm-seed-gap fix (520) + `RbacAdminService`/endpoints (23 tests) + FE `/settings/{roles,users}`.
-    Api 354/0/3, tsc 0, accounting_dev converted + visual gate. Remainder: openapi 9 paths +
-    formal Playwright spec (live browser e2e done); not yet committed.
-  - ☐ **Plan 2 — RBAC full Cartesian audit** (`docs/superpowers/plans/2026-06-13-rbac-cartesian-audit.md`).
+    openapi 9 paths + Playwright FE-gating spec done.
+  - ☑ **Plan 2 — RBAC full Cartesian audit** SHIPPED (cont.96, `docs/superpowers/plans/2026-06-13-rbac-cartesian-audit.md`)
+    — endpoint→perm map generator, role×perm matrix doc, `RbacCartesianTests` (HTTP enforcement + super bypass +
+    cross-company isolation + API-key scope), `530`/`540` grant reconcile. Plan 3 FE-gating e2e (cont.97) =
+    `e2e/rbac-ui-gating.spec.ts` (24 tests, all roles × VAT/non-VAT, 0 mismatches).
+  - ◐ **RBAC residual (small):** payroll **pay** button (needs a POSTED run) + the same detail buttons on the
+    non-VAT company + the super-only paid-up-capital card — all BE-enforced + FE-gated already (see line 41).
 - ☐ **Sprint 13L (queued)** — DevOps: migration rollback + build pipeline +
-  test skip audit (Answer-31; after 13k).
+  test skip audit (Answer-31; after 13k). **Partly addressed** — MinVer + release-please versioning + CI
+  workflow shipped (cont.98p, commit `f1b1458`); migration squash → single `InitialCreate` baseline shipped
+  (cont.98p, commit `3440c84`). Remaining: formal migration-rollback drill + skip-audit doc.
 - ☐ **Chapter 3 manual** — re-deferred per CLAUDE.md §16, authored ONLY after
   13i + 13j + 13k + 13L all ship + Sana RE-VALIDATE deep mode green on each.
 - ☐ **Tech debt — 3-way match (PR→PO→GR):** explicitly cut from Sprint 5.5
