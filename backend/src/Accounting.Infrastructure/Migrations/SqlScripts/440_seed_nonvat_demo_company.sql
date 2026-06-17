@@ -39,9 +39,20 @@ VALUES
     (3, '1110', 'เงินสด',          'ASSET',     'DR', FALSE, TRUE, now()),
     (3, '1120', 'เงินฝากธนาคาร',   'ASSET',     'DR', FALSE, TRUE, now()),
     (3, '1130', 'ลูกหนี้การค้า',   'ASSET',     'DR', FALSE, TRUE, now()),
+    -- 1170 = input VAT (ภาษีซื้อ). GlPostingService resolves InputVatAccount
+    -- UNCONDITIONALLY at the top of PostPaymentVoucher/PostVendorInvoice
+    -- before the recoverability check, so the purchase posting 422'd here
+    -- even though a non-VAT company never debits an actual input-VAT line.
+    (3, '1170', 'ภาษีซื้อ',        'ASSET',     'DR', FALSE, TRUE, now()),
     (3, '2110', 'เจ้าหนี้การค้า',  'LIABILITY', 'CR', FALSE, TRUE, now()),
     (3, '2151', 'ภาษีขายค้างจ่าย', 'LIABILITY', 'CR', FALSE, TRUE, now()),
+    -- 2152 = WHT payable (ภาษีหัก ณ ที่จ่ายค้างจ่าย). PV posting resolves
+    -- WhtPayableAccount unconditionally; a non-VAT shop still withholds WHT.
+    (3, '2152', 'ภาษีหัก ณ ที่จ่ายค้างจ่าย', 'LIABILITY', 'CR', FALSE, TRUE, now()),
     (3, '4000', 'รายได้จากการขาย', 'REVENUE',   'CR', FALSE, TRUE, now()),
+    -- 4100 = sales return / discount (SalesReturnAccount) — needed by the
+    -- Credit Note posting path so the full purchase+sales chain balances.
+    (3, '4100', 'รับคืน / ส่วนลด',  'REVENUE',   'DR', FALSE, TRUE, now()),
     (3, '5200', 'ค่าใช้จ่ายค่าบริการ', 'EXPENSE', 'DR', FALSE, TRUE, now()),
     -- 5350 = irrecoverable input VAT (non-VAT can't reclaim — ม.83/6 path)
     (3, '5350', 'ภาษีซื้อต้องห้าม/ตัดจ่าย', 'EXPENSE', 'DR', FALSE, TRUE, now())
