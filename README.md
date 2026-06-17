@@ -251,4 +251,6 @@ walkthrough ครอบคลุมการติดตั้ง / onboarding,
 
 ## License
 
-Proprietary — ติดต่อเจ้าของ repository
+[GNU AGPL-3.0](LICENSE) — ใช้ / แก้ไข / นำไปเปิดเป็นบริการได้ แต่ถ้า **แก้ไขแล้วนำไปให้บริการ** (รวมถึง
+ผ่านเครือข่าย / SaaS) **ต้องเปิดเผย source ที่แก้ไขด้วย** ยินดีรับ contribution — ดู
+[`CONTRIBUTING.md`](CONTRIBUTING.md)
