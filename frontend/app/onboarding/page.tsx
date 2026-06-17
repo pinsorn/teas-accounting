@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { Building2 } from 'lucide-react';
+import { Building2, KeyRound, ShieldCheck } from 'lucide-react';
 
 // Onboarding-switcher spec (2026-06-16) — first-company wizard. The first thing a brand-new
 // super-admin (companyId===0) sees. One clean step: create the first company. On submit, the
@@ -25,6 +25,15 @@ const LEGAL_TYPES = [
   'SoleProprietor',
   'Other',
 ] as const;
+
+// A base64 string that decodes to exactly 32 bytes (AES-256). atob throws on invalid base64.
+function isBase64_32Bytes(s: string): boolean {
+  try {
+    return atob(s).length === 32;
+  } catch {
+    return false;
+  }
+}
 
 const schema = z
   .object({
@@ -51,6 +60,11 @@ const schema = z
     addrFloor: z.string().optional(),
     addrRoomNo: z.string().optional(),
     addrVillage: z.string().optional(),
+    // First-run INSTANCE security settings (instance-wide, shown once). Written to the
+    // git-ignored appsettings.Secrets.json by POST /system/setup/instance-keys — NOT a
+    // committed file. The MFA key is a 32-byte (AES-256) base64; JWT lifetime 5–1440 min.
+    mfaAesKeyBase64: z.string().min(1, 'required').refine(isBase64_32Bytes, 'mfaKey32'),
+    jwtAccessTokenMinutes: z.coerce.number().int().min(5, 'minutesRange').max(1440, 'minutesRange'),
   })
   .superRefine((v, ctx) => {
     if (v.vatRegistered && !v.vatRegisterDate?.trim()) {
@@ -66,6 +80,7 @@ export default function OnboardingPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -75,6 +90,8 @@ export default function OnboardingPage() {
       vatRegistered: true,
       vatRate: 0.07,
       pnd30SubmissionMode: 'manual',
+      mfaAesKeyBase64: '',
+      jwtAccessTokenMinutes: 60,
       addrHouseNo: '',
       addrMoo: '',
       addrSoi: '',
@@ -91,7 +108,38 @@ export default function OnboardingPage() {
   });
   const vat = watch('vatRegistered');
 
+  // Generate a 32-byte AES-256 key with the cryptographically-secure WebCrypto RNG and
+  // base64-encode it — purely client-side, no server round-trip. Fills the field directly.
+  function generateMfaKey() {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const b64 = btoa(String.fromCharCode(...bytes));
+    setValue('mfaAesKeyBase64', b64, { shouldValidate: true, shouldDirty: true });
+    toast.success(t('mfaKeyGenerated'));
+  }
+
   async function onSubmit(v: FormValues) {
+    // 1) First-run INSTANCE security settings → git-ignored appsettings.Secrets.json.
+    //    Done BEFORE company creation while the caller is still the companyId===0 super-admin.
+    //    The instance MFA key is first-run only (the backend 409s on a second attempt), so a
+    //    benign "already configured" is tolerated; any other failure aborts onboarding.
+    try {
+      const setupRes = await fetch('/api/proxy/system/setup/instance-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mfaAesKeyBase64: v.mfaAesKeyBase64,
+          jwtAccessTokenMinutes: Number(v.jwtAccessTokenMinutes),
+        }),
+      });
+      if (!setupRes.ok && setupRes.status !== 409) {
+        const body = await setupRes.json().catch(() => null);
+        toast.error(body?.detail ?? body?.title ?? t('error'));
+        return;
+      }
+    } catch {
+      toast.error(t('error'));
+      return;
+    }
     // baseCurrency is NOT a CreateCompanyRequest field (defaults to THB server-side) — omit it.
     const t0 = (s?: string) => s?.trim() || null;
     const payload = {
@@ -141,7 +189,7 @@ export default function OnboardingPage() {
   // Only these messages have i18n keys; anything else (e.g. zod's default range
   // message for fiscalYearStartMonth) falls back to 'required' so next-intl never
   // throws on a missing key (which would crash the render).
-  const KNOWN_ERR = new Set(['required', 'max255', 'taxId13', 'postal5']);
+  const KNOWN_ERR = new Set(['required', 'max255', 'taxId13', 'postal5', 'mfaKey32', 'minutesRange']);
   const err = (field: keyof FormValues) => {
     if (!errors[field]) return null;
     const raw = String(errors[field]?.message ?? 'required');
@@ -338,6 +386,52 @@ export default function OnboardingPage() {
               <label className="form-control">
                 <span className="label-text text-ink-600">{t('baseCurrency')}</span>
                 <input className="input input-bordered bg-base-200" value="THB" readOnly aria-label={t('baseCurrency')} />
+              </label>
+            </div>
+          </section>
+
+          <section className="rounded-card border border-ink-100 bg-base-100 p-5 shadow-warm-sm">
+            <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-ink-900">
+              <ShieldCheck className="h-4 w-4 text-peach-600" aria-hidden />
+              {t('secSecurity')}
+            </h2>
+            <p className="mb-4 text-[11px] leading-snug text-ink-400">{t('securityHint')}</p>
+            <div className="grid grid-cols-1 gap-4">
+              <label className="form-control">
+                <span className="label-text text-ink-600">{t('mfaKey')} *</span>
+                <div className="flex gap-2">
+                  <input
+                    className="input input-bordered flex-1 font-mono text-xs"
+                    placeholder={t('mfaKeyPlaceholder')}
+                    autoComplete="off"
+                    spellCheck={false}
+                    {...register('mfaAesKeyBase64')}
+                    aria-label={t('mfaKey')}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-secondary gap-1 whitespace-nowrap"
+                    onClick={generateMfaKey}
+                  >
+                    <KeyRound className="h-4 w-4" aria-hidden />
+                    {t('mfaKeyGenerate')}
+                  </button>
+                </div>
+                <span className="mt-1 text-[11px] text-ink-400">{t('mfaKeyHint')}</span>
+                {err('mfaAesKeyBase64')}
+              </label>
+              <label className="form-control md:max-w-xs">
+                <span className="label-text text-ink-600">{t('jwtMinutes')}</span>
+                <input
+                  className="input input-bordered tabular-nums"
+                  type="number"
+                  min="5"
+                  max="1440"
+                  {...register('jwtAccessTokenMinutes')}
+                  aria-label={t('jwtMinutes')}
+                />
+                <span className="mt-1 text-[11px] text-ink-400">{t('jwtMinutesHint')}</span>
+                {err('jwtAccessTokenMinutes')}
               </label>
             </div>
           </section>

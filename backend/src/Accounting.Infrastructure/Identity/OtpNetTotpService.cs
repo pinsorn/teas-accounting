@@ -19,16 +19,30 @@ public sealed class MfaOptions
 /// </summary>
 public sealed class OtpNetTotpService : ITotpService
 {
-    private readonly byte[] _aesKey;
-    private readonly string _issuer;
+    private readonly IOptionsMonitor<MfaOptions> _options;
 
-    public OtpNetTotpService(IOptions<MfaOptions> options)
+    // IOptionsMonitor (not IOptions) so the key written by the first-run setup endpoint into the
+    // reloadOnChange'd appsettings.Secrets.json takes effect live, with NO app restart. The key is
+    // read LAZILY per crypto call (see ResolveKey): an unconfigured instance boots fine and only
+    // MFA *enrolment* fails with a clear error — boot and non-MFA login stay healthy.
+    public OtpNetTotpService(IOptionsMonitor<MfaOptions> options) => _options = options;
+
+    private byte[] ResolveKey()
     {
-        var opts = options.Value;
-        _aesKey = Convert.FromBase64String(opts.MfaAesKeyBase64);
-        if (_aesKey.Length != 32)
+        var b64 = _options.CurrentValue.MfaAesKeyBase64;
+        if (string.IsNullOrWhiteSpace(b64))
+            throw new InvalidOperationException(
+                "MFA encryption key is not configured. Complete first-run instance setup "
+                + "(Mfa:MfaAesKeyBase64) before enrolling MFA.");
+        byte[] key;
+        try { key = Convert.FromBase64String(b64); }
+        catch (FormatException)
+        {
+            throw new InvalidOperationException("Mfa:MfaAesKeyBase64 is not valid base64.");
+        }
+        if (key.Length != 32)
             throw new InvalidOperationException("Mfa:MfaAesKeyBase64 must decode to exactly 32 bytes (AES-256 key).");
-        _issuer = opts.Issuer;
+        return key;
     }
 
     public string GenerateSecret()
@@ -39,12 +53,13 @@ public sealed class OtpNetTotpService : ITotpService
 
     public byte[] Encrypt(string base32Secret)
     {
+        var aesKey = ResolveKey();
         var plaintext = Encoding.UTF8.GetBytes(base32Secret);
         var nonce  = RandomNumberGenerator.GetBytes(12);
         var cipher = new byte[plaintext.Length];
         var tag    = new byte[16];
 
-        using var aes = new AesGcm(_aesKey, tagSizeInBytes: 16);
+        using var aes = new AesGcm(aesKey, tagSizeInBytes: 16);
         aes.Encrypt(nonce, plaintext, cipher, tag);
 
         // Layout: nonce(12) | tag(16) | cipher(N)
@@ -60,12 +75,13 @@ public sealed class OtpNetTotpService : ITotpService
         if (cipherText.Length < 28)
             throw new CryptographicException("Encrypted MFA secret too short.");
 
+        var aesKey = ResolveKey();
         var nonce  = cipherText.AsSpan(0, 12);
         var tag    = cipherText.AsSpan(12, 16);
         var cipher = cipherText.AsSpan(28);
         var plain  = new byte[cipher.Length];
 
-        using var aes = new AesGcm(_aesKey, tagSizeInBytes: 16);
+        using var aes = new AesGcm(aesKey, tagSizeInBytes: 16);
         aes.Decrypt(nonce, cipher, tag, plain);
         return Encoding.UTF8.GetString(plain);
     }

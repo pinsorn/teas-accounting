@@ -1582,6 +1582,15 @@
     "creating": "Creating company…",
     "created": "Company created successfully",
     "error": "Something went wrong — could not create the company",
+    "secSecurity": "Instance security (first run)",
+    "securityHint": "These instance-wide settings are configured once, now. They are stored on the server only and never shown again.",
+    "mfaKey": "MFA encryption key",
+    "mfaKeyHint": "32-byte (AES-256) base64 key used to encrypt users' MFA secrets. Generate one and keep a secure backup — it cannot be changed later without re-enrolling all users.",
+    "mfaKeyPlaceholder": "Click Generate, or paste a 32-byte base64 key",
+    "mfaKeyGenerate": "Generate",
+    "mfaKeyGenerated": "A new encryption key was generated",
+    "jwtMinutes": "Sign-in session length (minutes)",
+    "jwtMinutesHint": "How long a login stays valid before re-authentication. 5–1440 minutes; default 60.",
     "legal": {
       "LimitedCompany": "Limited Company",
       "PublicLimitedCompany": "Public Limited Company",
@@ -1595,7 +1604,9 @@
       "required": "Required",
       "max255": "Must be 255 characters or fewer",
       "taxId13": "Must be 13 digits",
-      "postal5": "Must be 5 digits"
+      "postal5": "Must be 5 digits",
+      "mfaKey32": "Must be a base64 key that decodes to exactly 32 bytes (AES-256)",
+      "minutesRange": "Must be between 5 and 1440 minutes"
     }
   }
 }

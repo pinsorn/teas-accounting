@@ -28,6 +28,10 @@ next-env.d.ts
 *.key
 *.pem
 /secrets/
+# First-run instance secrets (MFA AES key, JWT lifetime) written by the onboarding
+# setup endpoint — NEVER commit. Stays a config KEY in appsettings*; the VALUE lives here.
+appsettings.Secrets.json
+**/appsettings.Secrets.json
 
 # ===== IDE =====
 .idea/

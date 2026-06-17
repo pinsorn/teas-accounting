@@ -66,7 +66,7 @@ public sealed class RbacCartesianTests
         "POST /api-keys/",
     ];
 
-    private static JwtTokenIssuer Issuer() => new(Options.Create(new JwtOptions
+    private static JwtTokenIssuer Issuer() => new(new StaticOptionsMonitor<JwtOptions>(new JwtOptions
     {
         Issuer = RbacApiFactory.JwtIssuer,
         Audience = RbacApiFactory.JwtAudience,

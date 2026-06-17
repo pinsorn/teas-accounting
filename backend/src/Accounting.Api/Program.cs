@@ -16,6 +16,14 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// First-run instance secrets (MFA AES key, JWT access-token lifetime). Loaded AFTER the
+// env-specific appsettings so it OVERRIDES them, and git-ignored so the real key is never
+// committed. The onboarding setup endpoint (POST /system/setup/instance-keys) writes this
+// file at ContentRootPath; reloadOnChange:true makes the new values take effect live via
+// IOptionsMonitor (no restart). See OtpNetTotpService / JwtTokenIssuer + InstanceSetupEndpoints.
+builder.Configuration.AddJsonFile(
+    InstanceSecrets.FileName, optional: true, reloadOnChange: true);
+
 // QuestPDF Community licence — required before any PDF is generated (TI /pdf endpoint).
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
@@ -147,6 +155,7 @@ app.MapGet("/system/vat-threshold-status",
         new { status = (await svc.CheckAsync(ct)).ToString() })
     .RequireAuthorization();
 
+app.MapInstanceSetupEndpoints();   // first-run MFA key + JWT lifetime (super-admin, writes Secrets file)
 app.MapAuthEndpoints();
 app.MapCustomerEndpoints();
 app.MapMasterEndpoints();

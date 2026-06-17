@@ -18,22 +18,24 @@ public sealed class JwtOptions
 
 public sealed class JwtTokenIssuer : IJwtTokenIssuer
 {
-    private readonly JwtOptions _opts;
-    private readonly SigningCredentials _creds;
+    private readonly IOptionsMonitor<JwtOptions> _options;
 
-    public JwtTokenIssuer(IOptions<JwtOptions> opts)
-    {
-        _opts = opts.Value;
-        var keyBytes = Encoding.UTF8.GetBytes(_opts.SigningKey);
-        if (keyBytes.Length < 32)
-            throw new InvalidOperationException("Jwt:SigningKey must be at least 32 bytes (256 bits).");
-        _creds = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256);
-    }
+    // IOptionsMonitor (not IOptions) so the AccessTokenMinutes written by the first-run setup
+    // endpoint into the reloadOnChange'd appsettings.Secrets.json takes effect live on the NEXT
+    // issued token, with NO app restart. SigningKey/Issuer/Audience are read per-call too; the JWT
+    // bearer VALIDATION wire-up in Program.cs reads them eagerly at boot (those don't change live).
+    public JwtTokenIssuer(IOptionsMonitor<JwtOptions> options) => _options = options;
 
     public AccessToken Issue(TokenClaims c)
     {
+        var opts = _options.CurrentValue;
+        var keyBytes = Encoding.UTF8.GetBytes(opts.SigningKey);
+        if (keyBytes.Length < 32)
+            throw new InvalidOperationException("Jwt:SigningKey must be at least 32 bytes (256 bits).");
+        var creds = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256);
+
         var now = DateTime.UtcNow;
-        var exp = now.AddMinutes(_opts.AccessTokenMinutes);
+        var exp = now.AddMinutes(opts.AccessTokenMinutes);
 
         var claims = new List<Claim>
         {
@@ -49,12 +51,12 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
         claims.AddRange(c.Permissions.Select(p => new Claim(TenantClaims.Permission, p)));
 
         var jwt = new JwtSecurityToken(
-            issuer: _opts.Issuer,
-            audience: _opts.Audience,
+            issuer: opts.Issuer,
+            audience: opts.Audience,
             claims: claims,
             notBefore: now,
             expires: exp,
-            signingCredentials: _creds);
+            signingCredentials: creds);
 
         var token = new JwtSecurityTokenHandler().WriteToken(jwt);
         return new AccessToken(token, new DateTimeOffset(exp, TimeSpan.Zero));

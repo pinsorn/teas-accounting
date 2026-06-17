@@ -28,7 +28,7 @@ public sealed class CompanySwitchTests
     private readonly PostgresFixture _fx;
     public CompanySwitchTests(PostgresFixture fx) => _fx = fx;
 
-    private static JwtTokenIssuer Issuer() => new(Options.Create(new JwtOptions
+    private static JwtTokenIssuer Issuer() => new(new StaticOptionsMonitor<JwtOptions>(new JwtOptions
     {
         Issuer = RbacApiFactory.JwtIssuer,
         Audience = RbacApiFactory.JwtAudience,
