@@ -189,6 +189,21 @@ public sealed class PurchaseOrderService(
                 .Where(x => x.BusinessUnitId == buId)
                 .Select(x => new { x.Code, x.NameTh }).FirstOrDefaultAsync(ct)
             : null;
+        // cont.94d — resolve each line's product taxonomy so a PV/derived-VAT prefill
+        // knows the right VAT treatment. Authoritative from the linked Product; for an
+        // ad-hoc line (no product) infer from the stored TaxRate (0 → treat as exempt so
+        // the prefill carries 0% VAT, else GOOD).
+        var productIds = po.Lines.Where(l => l.ProductId is not null)
+            .Select(l => l.ProductId!.Value).Distinct().ToList();
+        var productTypes = productIds.Count == 0
+            ? new Dictionary<long, ProductType>()
+            : await db.Products.AsNoTracking()
+                .Where(p => productIds.Contains(p.ProductId))
+                .ToDictionaryAsync(p => p.ProductId, p => p.ProductType, ct);
+        string LineProductType(PurchaseOrderLine l) =>
+            l.ProductId is { } pid && productTypes.TryGetValue(pid, out var pt)
+                ? ProductTypeCodes.ToCode(pt)
+                : (l.TaxRate > 0m ? "GOOD" : "EXEMPT_GOOD");
         return new PurchaseOrderDetail(
             po.PurchaseOrderId, po.DocNo, po.Status.ToString(), po.DocDate,
             po.ExpectedDeliveryDate, po.VendorId, po.VendorName, po.BusinessUnitId,
@@ -198,7 +213,8 @@ public sealed class PurchaseOrderService(
             linked, po.TotalAmount - linked,
             po.Lines.OrderBy(l => l.LineNo).Select(l => new PurchaseOrderLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
+                LineProductType(l))).ToList(),
             vis, bu?.Code, bu?.NameTh);   // cont.79 — BU display
     }
 

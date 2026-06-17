@@ -74,8 +74,9 @@ function PvForm() {
 
   // ITEM 9 — when arriving from a PO, seed the vendor + line rows once the PO
   // detail has loaded (guard with a ref-via-state so user edits aren't clobbered
-  // on re-render). vatRate is reconstructed from the PO line (taxAmount/lineAmount,
-  // PoLineDto has no explicit rate); description ← line description, amount ← net.
+  // on re-render). description ← line description, amount ← net, and the product
+  // identity/taxonomy (productId/code/type) carry over so the derived VAT matches the
+  // PO line's actual product (an exempt good stays 0%, not a flat 7%).
   const [poPrefilled, setPoPrefilled] = useState(false);
   useEffect(() => {
     if (!po || poPrefilled) return;
@@ -87,7 +88,9 @@ function PvForm() {
             ...emptyRow(i + 1),
             description: l.descriptionTh,
             amount: l.lineAmount,
-            // VAT is derived from product type + vendor status — not copied from the PO line.
+            productId: l.productId,
+            productCode: l.productCode,
+            productType: l.productType,
           }))
         : [emptyRow(1)],
     );
@@ -114,7 +117,8 @@ function PvForm() {
   // product is VAT-exempt (ม.81); otherwise the standard rate for that product type.
   const lineVat = (r: Row): number => (vendorVat ? taxRateForProductType(r.productType) : 0);
   const subtotal = rows.reduce((s, r) => s + r.amount, 0);
-  const vat = rows.reduce((s, r) => s + r.amount * lineVat(r), 0);
+  // Round per line (2dp) to mirror the BE's per-line VatAmount so the preview total matches.
+  const vat = rows.reduce((s, r) => s + Math.round(r.amount * lineVat(r) * 100) / 100, 0);
   // Mirrors WhtPayerModes.Compute (BE): gross-up the base under self-withhold.
   const whtFor = (amount: number, rate: number) => {
     if (rate <= 0) return 0;
@@ -317,18 +321,21 @@ function PvForm() {
       {/* ③ รายการ + self-withhold + totals */}
       <SectionCard number={3} title={t('lines')} rightMeta={tcr('lineCount', { n: rows.length })}>
         <div className="space-y-3">
-          {rows.map((r) => (
+          {rows.map((r, i) => (
             <div key={r.key} className="grid grid-cols-1 gap-3 rounded-lg border border-base-300 p-3 md:grid-cols-4">
               <label className="form-control md:col-span-2">
                 <span className="label-text">{t('item')} *</span>
                 {/* รายการดึงจาก /settings/products (purpose=purchase); พิมพ์เองได้สำหรับ ad-hoc. */}
                 <ProductPicker
                   description={r.description}
-                  ariaLabel={`รายละเอียด ${rows.indexOf(r) + 1}`}
+                  ariaLabel={`รายละเอียด ${i + 1}`}
                   purpose="purchase"
                   businessUnitId={businessUnitId}
+                  // Editing the text drops the product link (now ad-hoc) but KEEPS the chosen
+                  // productType so the derived VAT doesn't silently jump (e.g. an exempt line
+                  // staying 0% instead of flipping to 7% on the first keystroke).
                   onDescriptionChange={(text) =>
-                    setRow(r.key, { description: text, productId: null, productCode: null, productType: 'GOOD' })}
+                    setRow(r.key, { description: text, productId: null, productCode: null })}
                   onSelectProduct={(p) =>
                     setRow(r.key, {
                       description: p.nameTh, productId: p.productId, productCode: p.productCode,
