@@ -1,10 +1,13 @@
 # TEAS — Thailand Enterprise Accounting System
 
-A B2B + B2C accounting platform for Thai companies, **VAT-compliant by design** and built to
-withstand a Thai Revenue Department (สรรพากร) audit at any time. Full document chain from
-Quotation through Tax Invoice and Receipt, withholding tax (50 ทวิ), GL, the RD tax-filing forms,
-payroll, and a multi-tenant RBAC core.
+A B2B + B2C accounting platform for Thai companies, **VAT-compliant by design** and built around
+Thai Revenue Department (สรรพากร) rules. Full document chain from Quotation through Tax Invoice and
+Receipt, withholding tax (50 ทวิ), GL + financial reports, **print-ready RD tax-form PDFs**, payroll,
+and a multi-tenant RBAC core.
 
+> **Release v1.0.0** — see [Releases](https://github.com/pinsorn/teas-accounting/releases) for the
+> Windows x64 and Linux x64 backend builds.
+>
 > Backend: **.NET 10** (ASP.NET Core Minimal APIs, EF Core 10) · DB: **PostgreSQL 16** ·
 > Frontend: **Next.js 15** (App Router, TypeScript, Tailwind, shadcn/ui).
 
