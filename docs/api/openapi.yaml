@@ -462,7 +462,7 @@ paths:
       summary: รายการ CN/DN (cursor pagination, filter noteType/businessUnitId)
       tags: [Credit/Debit Notes]
       parameters:
-        - { name: noteType, in: query, schema: { type: string, enum: [CN, DN] } }
+        - { name: noteType, in: query, schema: { type: string, enum: [Credit, Debit] }, description: 'Parsed via Enum.TryParse (ignoreCase); null = both' }
         - { name: cursor, in: query, schema: { type: integer, format: int64 } }
         - { name: limit, in: query, schema: { type: integer, default: 25 } }
         - { name: businessUnitId, in: query, schema: { type: integer } }
@@ -555,8 +555,8 @@ paths:
       summary: เชน Q→SO→DO→Invoice→TI→RC ของเอกสารหนึ่งใบ (ทุก detail page ใช้)
       tags: [Documents]
       parameters:
-        - { name: docType, in: query, required: true, schema: { type: string, example: TI } }
-        - { name: docId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: type, in: query, required: true, schema: { type: string, example: TI }, description: 'Query param is `type` (reconciled to code 2026-06-16)' }
+        - { name: id, in: query, required: true, schema: { type: integer, format: int64 }, description: 'Query param is `id`' }
       responses:
         '200': { description: 'Chain nodes (docType, id, docNo, status, printedAt; adjustment-note nodes also carry noteType Credit|Debit)' }
 
@@ -584,6 +584,12 @@ paths:
     post:
       summary: สร้างใบแจ้งหนี้ draft
       tags: [Billing Notes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBillingNoteRequest'
       responses:
         '201': { description: Created (Draft) }
     get:
@@ -605,6 +611,12 @@ paths:
     put:
       summary: แก้ไข draft
       tags: [Billing Notes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBillingNoteRequest'
       responses:
         '200': { description: OK }
     delete:
@@ -898,6 +910,20 @@ paths:
             application/pdf:
               schema: { type: string, format: binary }
 
+  # WHT certificates (50ทวิ) are read-only — issued by PV post, never created here.
+  # Gated by purchase.wht.read.
+  /wht-certificates/{id}/pdf:
+    get:
+      summary: ใบรับรองหักภาษี ณ ที่จ่าย (50ทวิ) เป็น PDF
+      tags: [WHT Certificates]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
   # ============================================================
   # MASTER DATA
   # ============================================================
@@ -1027,52 +1053,36 @@ paths:
         '403':
           description: Missing `report.audit.read` permission
 
-  /reports/vat-output-register:
+  # Actual route is /reports/output-vat-register (served by TaxFilingEndpoints);
+  # single `period` (yyyymm) query param — NOT year+month. Reconciled to code 2026-06-16.
+  /reports/output-vat-register:
     get:
       summary: รายงานภาษีขาย (ม.87(1))
       tags: [Reports]
       parameters:
-        - name: year
+        - name: period
           in: query
           required: true
           schema: { type: integer }
-        - name: month
-          in: query
-          required: true
-          schema: { type: integer, minimum: 1, maximum: 12 }
+          description: yyyymm
+          example: 202605
       responses:
         '200':
           description: OK
 
-  /reports/vat-input-register:
+  # Actual route is /reports/input-vat-register (served by TaxFilingEndpoints);
+  # single `period` (yyyymm) query param — NOT year+month.
+  /reports/input-vat-register:
     get:
       summary: รายงานภาษีซื้อ (ม.87(2))
       tags: [Reports]
       parameters:
-        - name: year
+        - name: period
           in: query
           required: true
           schema: { type: integer }
-        - name: month
-          in: query
-          required: true
-          schema: { type: integer }
-      responses:
-        '200':
-          description: OK
-
-  /reports/expense-by-category:
-    get:
-      summary: รายงานค่าใช้จ่ายตาม expense category
-      tags: [Reports]
-      parameters:
-        - name: year
-          in: query
-          required: true
-          schema: { type: integer }
-        - name: month
-          in: query
-          schema: { type: integer }
+          description: yyyymm
+          example: 202605
       responses:
         '200':
           description: OK
@@ -1109,23 +1119,9 @@ paths:
                     items: { $ref: '#/components/schemas/ApAgingRow' }
                   totals: { $ref: '#/components/schemas/ApAgingRow' }
 
-  /reports/pnd30/preview:
-    get:
-      summary: Preview ภ.พ.30 ก่อน submit
-      tags: [Tax Filings]
-      parameters:
-        - name: year
-          in: query
-          required: true
-          schema: { type: integer }
-        - name: month
-          in: query
-          required: true
-          schema: { type: integer }
-      responses:
-        '200':
-          description: OK
-
+  # /reports/pnd30/preview REMOVED 2026-06-16 — not served (404). The real ภ.พ.30
+  # preview is POST /tax-filings/pnd30?mode=preview (TaxFilingEndpoints), currently
+  # undocumented in this spec.
   /reports/pnd30/submit:
     post:
       summary: Submit ภ.พ.30 (Auto mode only — call RD Open API)
@@ -2968,24 +2964,41 @@ components:
         cost_center_id: { type: integer, nullable: true }
         project_id: { type: integer, nullable: true }
 
+    # === Shared sales-chain line (camelCase; mirrors ChainLineInput) ===
+    ChainLineInput:
+      type: object
+      description: 'Shared Q/SO line shape (ChainLineInput record). camelCase JSON.'
+      required: [descriptionTh, quantity, uomText, unitPrice, discountPercent, taxCodeId, taxCode, taxRate]
+      properties:
+        productId: { type: integer, format: int64, nullable: true }
+        descriptionTh: { type: string }
+        quantity: { type: number }
+        uomText: { type: string }
+        unitPrice: { type: number }
+        discountPercent: { type: number }
+        taxCodeId: { type: integer }
+        taxCode: { type: string, example: VAT-OUT-7 }
+        taxRate: { type: number, description: 'Decimal fraction (0.07 = 7%)' }
+        productType: { type: string, nullable: true, description: 'Product master snapshot (UPPER_SNAKE)' }
+
     # === Quotation ===
     QuotationCreateRequest:
       type: object
-      required: [customer_id, valid_until, lines]
+      description: 'Shipped contract of POST /quotations (CreateQuotationRequest record; camelCase JSON).'
+      required: [docDate, validUntilDate, customerId, currencyCode, exchangeRate, lines]
       properties:
-        customer_id: { type: integer }
-        valid_until: { type: string, format: date }
-        billing_address: { type: string }
-        shipping_address: { type: string }
-        currency_code: { type: string, default: THB }
-        is_tax_inclusive: { type: boolean, default: false }
-        payment_terms: { type: string }
-        delivery_terms: { type: string }
-        notes: { type: string }
+        docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok)' }
+        validUntilDate: { type: string, format: date }
+        customerId: { type: integer, format: int64 }
+        businessUnitId: { type: integer, nullable: true }
+        currencyCode: { type: string, example: THB }
+        exchangeRate: { type: number, example: 1 }
+        notes: { type: string, nullable: true }
+        internalNotes: { type: string, nullable: true }
         lines:
           type: array
           items:
-            $ref: '#/components/schemas/LineItem'
+            $ref: '#/components/schemas/ChainLineInput'
 
     QuotationUpdateRequest:
       $ref: '#/components/schemas/QuotationCreateRequest'
@@ -3021,16 +3034,21 @@ components:
     # === Sales Order ===
     SalesOrderCreateRequest:
       type: object
-      required: [customer_id, lines]
+      description: 'Shipped contract of POST /sales-orders (CreateSalesOrderRequest record; camelCase JSON).'
+      required: [docDate, customerId, currencyCode, exchangeRate, lines]
       properties:
-        customer_id: { type: integer }
-        quotation_id: { type: integer, nullable: true }
-        customer_po_no: { type: string, nullable: true }
-        expected_delivery_date: { type: string, format: date, nullable: true }
+        docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok)' }
+        expectedDeliveryDate: { type: string, format: date, nullable: true }
+        customerId: { type: integer, format: int64 }
+        businessUnitId: { type: integer, nullable: true }
+        currencyCode: { type: string, example: THB }
+        exchangeRate: { type: number, example: 1 }
+        notes: { type: string, nullable: true }
+        fromQuotationId: { type: integer, format: int64, nullable: true, description: 'Optional clone source' }
         lines:
           type: array
           items:
-            $ref: '#/components/schemas/LineItem'
+            $ref: '#/components/schemas/ChainLineInput'
 
     SalesOrder:
       type: object
@@ -3040,40 +3058,77 @@ components:
         status: { type: string, enum: [DRAFT, CONFIRMED, PARTIAL, DELIVERED, CLOSED, CANCELLED] }
 
     # === Delivery Order ===
+    DeliveryLineInput:
+      type: object
+      description: 'DO line (DeliveryLineInput record). camelCase JSON. salesOrderLineId tracks partial delivery.'
+      required: [descriptionTh, quantity, uomText, unitPrice, discountPercent, taxCodeId, taxCode, taxRate]
+      properties:
+        salesOrderLineId: { type: integer, format: int64, nullable: true }
+        productId: { type: integer, format: int64, nullable: true }
+        descriptionTh: { type: string }
+        quantity: { type: number }
+        uomText: { type: string }
+        unitPrice: { type: number }
+        discountPercent: { type: number }
+        taxCodeId: { type: integer }
+        taxCode: { type: string, example: VAT-OUT-7 }
+        taxRate: { type: number, description: 'Decimal fraction (0.07 = 7%)' }
+        productType: { type: string, nullable: true }
+
     DeliveryOrderCreateRequest:
       type: object
-      required: [customer_id, shipping_address, lines]
+      description: 'Shipped contract of POST /delivery-orders (CreateDeliveryOrderRequest record; camelCase JSON). NOTE: no currency/exchangeRate fields.'
+      required: [docDate, customerId, isCombinedWithTi, lines]
       properties:
-        so_id: { type: integer, nullable: true }
-        customer_id: { type: integer }
-        delivery_date: { type: string, format: date }
-        shipping_address: { type: string }
-        carrier_name: { type: string }
-        vehicle_no: { type: string }
-        driver_name: { type: string }
+        docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok)' }
+        customerId: { type: integer, format: int64 }
+        businessUnitId: { type: integer, nullable: true }
+        isCombinedWithTi: { type: boolean }
+        notes: { type: string, nullable: true }
+        fromSalesOrderId: { type: integer, format: int64, nullable: true }
         lines:
           type: array
           items:
-            $ref: '#/components/schemas/LineItem'
+            $ref: '#/components/schemas/DeliveryLineInput'
 
     # === Tax Invoice ===
+    TaxInvoiceLineInput:
+      type: object
+      description: 'TI line (TaxInvoiceLineInput record). camelCase JSON.'
+      required: [descriptionTh, quantity, uomId, uomText, unitPrice, discountPercent, taxCodeId, taxCode, taxRate]
+      properties:
+        productId: { type: integer, format: int64, nullable: true }
+        productCode: { type: string, nullable: true }
+        descriptionTh: { type: string }
+        quantity: { type: number }
+        uomId: { type: integer }
+        uomText: { type: string }
+        unitPrice: { type: number }
+        discountPercent: { type: number }
+        taxCodeId: { type: integer }
+        taxCode: { type: string, example: VAT-OUT-7 }
+        taxRate: { type: number, description: 'Decimal fraction (0.07 = 7%)' }
+        productType: { type: string, nullable: true, description: 'Product master snapshot' }
+
     TaxInvoiceCreateRequest:
       type: object
-      required: [customer_id, lines]
+      description: 'Shipped contract of POST /tax-invoices (CreateTaxInvoiceRequest record; camelCase JSON).'
+      required: [docDate, customerId, isTaxInclusive, currencyCode, exchangeRate, lines]
       properties:
-        so_id: { type: integer, nullable: true }
-        do_id: { type: integer, nullable: true }
-        customer_id: { type: integer }
-        customer_po_no: { type: string, nullable: true }
-        currency_code: { type: string, default: THB }
-        exchange_rate: { type: number, default: 1 }
-        is_tax_inclusive: { type: boolean, default: false }
-        payment_terms: { type: string }
-        notes: { type: string }
+        docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok) — required' }
+        customerId: { type: integer, format: int64 }
+        isTaxInclusive: { type: boolean }
+        currencyCode: { type: string, example: THB }
+        exchangeRate: { type: number, example: 1 }
+        notes: { type: string, nullable: true }
+        paymentTerms: { type: string, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        businessUnitId: { type: integer, nullable: true, description: 'Revenue stream tag' }
+        quotationId: { type: integer, format: int64, nullable: true, description: 'Optional Q reverse-link' }
         lines:
           type: array
           items:
-            $ref: '#/components/schemas/LineItem'
+            $ref: '#/components/schemas/TaxInvoiceLineInput'
 
     TaxInvoice:
       type: object
@@ -3177,13 +3232,13 @@ components:
       description: 'Shipped contract of POST /tax-adjustment-notes (camelCase; replaces the stale CreditNoteCreateRequest/DebitNoteCreateRequest — those routes never existed).'
       required: [noteType, docDate, originalTaxInvoiceId, reasonCode, reason, adjustmentSubtotal, taxRate, currencyCode, exchangeRate]
       properties:
-        noteType: { type: string, enum: [CN, DN] }
+        noteType: { type: string, enum: [Credit, Debit], description: 'TaxAdjustmentNoteType enum (Credit = ใบลดหนี้ ม.86/10; Debit = ใบเพิ่มหนี้ ม.86/9)' }
         docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok)' }
         originalTaxInvoiceId: { type: integer, format: int64 }
         reasonCode: { type: string }
         reason: { type: string }
         adjustmentSubtotal: { type: number, description: 'Positive magnitude; sign derives from noteType' }
-        taxRate: { type: number }
+        taxRate: { type: number, minimum: 0, maximum: 1, description: 'Decimal fraction (0.07 = 7%); validator enforces InclusiveBetween(0,1)' }
         currencyCode: { type: string, example: THB }
         exchangeRate: { type: number, example: 1 }
         notes: { type: string, nullable: true }
@@ -3197,7 +3252,7 @@ components:
       properties:
         docDate: { type: string, format: date, description: 'Server enforces today (Asia/Bangkok)' }
         customerId: { type: integer, format: int64 }
-        paymentMethod: { type: string, enum: [Cash, Transfer, Cheque, CreditCard] }
+        paymentMethod: { type: string, enum: [Cash, Transfer, Cheque, CreditCard, Other] }
         chequeNo: { type: string, nullable: true }
         chequeDate: { type: string, format: date, nullable: true }
         bankAccountId: { type: integer, format: int64, nullable: true }
@@ -3245,42 +3300,89 @@ components:
               productType: { type: string, default: GOOD }
               uomText: { type: string, nullable: true }
 
-    # === Vendor Invoice — Sprint 5.5/6 shipped contract ===
+    # === Billing Note (ใบแจ้งหนี้) — shipped contract (camelCase JSON) ===
+    BillingLineInput:
+      type: object
+      description: 'BN line (BillingLineInput record). camelCase JSON.'
+      required: [descriptionTh, quantity, uomText, unitPrice, discountPercent, taxCodeId, taxCode, taxRate]
+      properties:
+        productId: { type: integer, format: int64, nullable: true }
+        taxInvoiceId: { type: integer, format: int64, nullable: true, description: 'Optional source TI for this rolled-up line' }
+        descriptionTh: { type: string }
+        quantity: { type: number }
+        uomText: { type: string }
+        unitPrice: { type: number }
+        discountPercent: { type: number }
+        taxCodeId: { type: integer }
+        taxCode: { type: string, example: VAT-OUT-7 }
+        taxRate: { type: number, description: 'Decimal fraction (0.07 = 7%)' }
+        productType: { type: string, nullable: true }
+
+    CreateBillingNoteRequest:
+      type: object
+      description: 'Shipped contract of POST/PUT /billing-notes (CreateBillingNoteRequest record; camelCase JSON).'
+      required: [docDate, dueDate, customerId, currencyCode, exchangeRate, lines]
+      properties:
+        docDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        customerId: { type: integer, format: int64 }
+        businessUnitId: { type: integer, nullable: true }
+        quotationId: { type: integer, format: int64, nullable: true }
+        taxInvoiceIds:
+          type: array
+          nullable: true
+          description: 'A BN may group N posted TIs for the same customer'
+          items: { type: integer, format: int64 }
+        currencyCode: { type: string, example: THB }
+        exchangeRate: { type: number, example: 1 }
+        notes: { type: string, nullable: true }
+        internalNotes: { type: string, nullable: true }
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingLineInput'
+
+    # === Vendor Invoice — Sprint 5.5/6 shipped contract (camelCase JSON) ===
     CreateVendorInvoiceRequest:
       type: object
-      required: [doc_date, vendor_id, vendor_tax_invoice_no, vendor_tax_invoice_date,
-                 currency_code, exchange_rate, lines]
+      description: 'Shipped contract of POST /vendor-invoices (CreateVendorInvoiceRequest record; camelCase JSON).'
+      required: [docDate, vendorId, vendorTaxInvoiceNo, vendorTaxInvoiceDate,
+                 currencyCode, exchangeRate, lines]
       properties:
-        doc_date: { type: string, format: date, description: 'Our recording date (Asia/Bangkok today)' }
-        vendor_id: { type: integer, format: int64 }
-        vendor_tax_invoice_no: { type: string, maxLength: 50, description: "Vendor's ใบกำกับภาษีซื้อ no. (snapshot)" }
-        vendor_tax_invoice_date: { type: string, format: date, description: "Vendor's TI date — anchors the ม.82/4 window" }
-        vat_claim_period:
+        docDate: { type: string, format: date, description: 'Our recording date (Asia/Bangkok today)' }
+        vendorId: { type: integer, format: int64 }
+        vendorTaxInvoiceNo: { type: string, maxLength: 50, description: "Vendor's ใบกำกับภาษีซื้อ no. (snapshot)" }
+        vendorTaxInvoiceDate: { type: string, format: date, description: "Vendor's TI date — anchors the ม.82/4 window" }
+        vatClaimPeriod:
           type: integer
           nullable: true
           description: |
             yyyymm. Must fall within [TI_month .. TI_month+6]. Null → default to period
-            of vendor_tax_invoice_date. Target period must be open.
+            of vendorTaxInvoiceDate. Target period must be open.
           example: 202604
-        currency_code: { type: string, minLength: 3, maxLength: 3, default: THB }
-        exchange_rate: { type: number, exclusiveMinimum: 0, default: 1 }
+        currencyCode: { type: string, minLength: 3, maxLength: 3, default: THB }
+        exchangeRate: { type: number, exclusiveMinimum: 0, default: 1 }
         notes: { type: string, nullable: true }
         lines:
           type: array
           minItems: 1
           items:
             type: object
-            required: [expense_category_id, description, amount, vat_rate]
+            required: [expenseCategoryId, description, amount, vatRate]
             properties:
-              expense_category_id: { type: integer, description: 'Drives is_recoverable_vat/is_capex/is_cogs snapshot' }
-              expense_account_id:
+              expenseCategoryId: { type: integer, description: 'Drives is_recoverable_vat/is_capex/is_cogs snapshot' }
+              expenseAccountId:
                 type: integer
                 format: int64
                 nullable: true
                 description: 'Null → resolve from category default at draft create'
               description: { type: string, maxLength: 500 }
               amount: { type: number, exclusiveMinimum: 0, description: 'Net, ex-VAT' }
-              vat_rate: { type: number, minimum: 0, maximum: 1, description: '0.07 = 7%, 0 = zero-rate' }
+              vatRate: { type: number, minimum: 0, maximum: 1, description: 'Decimal fraction: 0.07 = 7%, 0 = zero-rate' }
+              productType: { type: string, nullable: true, description: 'สินค้า/บริการ snapshot (UPPER_SNAKE); null → GOOD' }
+        hasInputVat: { type: boolean, nullable: true, description: 'Null = auto-derive (foreign-no-VAT-D / non-VAT vendor → false)' }
+        purchaseOrderId: { type: integer, format: int64, nullable: true, description: 'Optional retroactive PO link' }
+        businessUnitId: { type: integer, nullable: true, description: 'Required when Company.RequiresBusinessUnit; embedded in VI doc number at POST' }
 
     VendorInvoicePostedResult:
       type: object
@@ -3352,27 +3454,28 @@ components:
           type: array
           items: { $ref: '#/components/schemas/VendorInvoiceLineView' }
 
-    # === Payment Voucher — Sprint 5/6 shipped contract ===
+    # === Payment Voucher — Sprint 5/6 shipped contract (camelCase JSON) ===
     CreatePaymentVoucherRequest:
       type: object
-      required: [doc_date, vendor_id, expense_category_id, payment_method,
-                 currency_code, exchange_rate, lines]
+      description: 'Shipped contract of POST /payment-vouchers (CreatePaymentVoucherRequest record; camelCase JSON).'
+      required: [docDate, vendorId, expenseCategoryId, paymentMethod,
+                 currencyCode, exchangeRate, lines]
       properties:
-        doc_date: { type: string, format: date }
-        vendor_id: { type: integer, format: int64 }
-        expense_category_id: { type: integer, description: 'Header-level — drives PV sub-prefix (e.g. PV-RENT-NNNN)' }
-        payment_method:
+        docDate: { type: string, format: date }
+        vendorId: { type: integer, format: int64 }
+        expenseCategoryId: { type: integer, description: 'Header-level — drives PV sub-prefix (e.g. PV-RENT-NNNN)' }
+        paymentMethod:
           type: string
-          enum: [Cash, Transfer, Cheque, Credit]
-          description: 'Enum is serialized as string (JsonStringEnumConverter, runtime-gotchas §3)'
-        cheque_no: { type: string, nullable: true, description: 'Required when payment_method=Cheque' }
-        cheque_date: { type: string, format: date, nullable: true, description: 'Required when payment_method=Cheque' }
-        bank_account_id: { type: integer, format: int64, nullable: true }
-        currency_code: { type: string, minLength: 3, maxLength: 3, default: THB }
-        exchange_rate: { type: number, exclusiveMinimum: 0, default: 1 }
+          enum: [Cash, Transfer, Cheque, CreditCard, Other]
+          description: 'PaymentMethod enum, serialized as string (JsonStringEnumConverter, runtime-gotchas §3)'
+        chequeNo: { type: string, nullable: true, description: 'Required when paymentMethod=Cheque' }
+        chequeDate: { type: string, format: date, nullable: true, description: 'Required when paymentMethod=Cheque' }
+        bankAccountId: { type: integer, format: int64, nullable: true }
+        currencyCode: { type: string, minLength: 3, maxLength: 3, default: THB }
+        exchangeRate: { type: number, exclusiveMinimum: 0, default: 1 }
         description: { type: string, nullable: true }
         notes: { type: string, nullable: true }
-        vendor_invoice_id:
+        vendorInvoiceId:
           type: integer
           format: int64
           nullable: true
@@ -3381,6 +3484,7 @@ components:
           type: boolean
           nullable: true
           description: 'Sprint 8.7 — null = auto (foreign vendor without Thai VAT-D → true). true → vendor paid in full, WHT remitted by us.'
+        businessUnitId: { type: integer, nullable: true, description: 'Required when Company.RequiresBusinessUnit; embedded in PV doc number at POST' }
         whtPayerMode:
           type: string
           nullable: true
@@ -3391,20 +3495,21 @@ components:
           minItems: 1
           items:
             type: object
-            required: [description, amount, vat_rate, is_recoverable_vat, wht_rate]
+            required: [description, amount, vatRate, isRecoverableVat, whtRate]
             properties:
-              expense_account_id:
+              expenseAccountId:
                 type: integer
                 format: int64
                 nullable: true
                 description: 'Null → resolve from PV expense-category default'
               description: { type: string, maxLength: 500 }
               amount: { type: number, exclusiveMinimum: 0 }
-              tax_code_id: { type: integer, nullable: true }
-              vat_rate: { type: number, minimum: 0, maximum: 1 }
-              is_recoverable_vat: { type: boolean }
-              wht_type_id: { type: integer, nullable: true }
-              wht_rate: { type: number, minimum: 0, maximum: 1, description: 'WHT base = net of VAT per ม.50ทวิ' }
+              taxCodeId: { type: integer, nullable: true }
+              vatRate: { type: number, minimum: 0, maximum: 1, description: 'Decimal fraction (0.07 = 7%)' }
+              isRecoverableVat: { type: boolean }
+              whtTypeId: { type: integer, nullable: true }
+              whtRate: { type: number, minimum: 0, maximum: 1, description: 'Decimal fraction; WHT base = net of VAT per ม.50ทวิ' }
+              productType: { type: string, nullable: true, description: 'สินค้า/บริการ snapshot (UPPER_SNAKE); null → GOOD' }
 
     PaymentVoucherApprovedResult:
       type: object

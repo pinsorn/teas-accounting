@@ -24,12 +24,19 @@ public sealed class TaxSummaryService(
         // ── Revenue / Expense from GL, all 12 months in one grouped query ──────────
         // GlPostingService snapshots the document BU onto every journal_line (Sprint 8),
         // so a BU filter on the line is exact for revenue/expense.
+        // Half-open calendar-year range instead of `DocDate.Year == year`. EF translates the
+        // `.Year` form to `date_part('year', doc_date)::int = @year`, and that `::int` (Postgres
+        // dtoi4, double->int4) overflows int4 / throws 22003 on any out-of-int4 date_part result —
+        // GET /reports/tax-summary returned 500. A range predicate emits plain `doc_date >= ...
+        // AND doc_date < ...` (no date_part, no cast), is sargable, and keeps output identical.
+        var yearStart = new DateOnly(year, 1, 1);
+        var nextYearStart = new DateOnly(year + 1, 1, 1);
         var glRows = await (
             from l in db.JournalLines.AsNoTracking()
             join j in db.JournalEntries.AsNoTracking() on l.JournalId equals j.JournalId
             join a in db.ChartOfAccounts.AsNoTracking() on l.AccountId equals a.AccountId
             where j.Status == DocumentStatus.Posted
-                  && j.DocDate.Year == year
+                  && j.DocDate >= yearStart && j.DocDate < nextYearStart
                   && (a.AccountType == AccountType.Revenue || a.AccountType == AccountType.Expense)
                   && (businessUnitId == null || l.BusinessUnitId == businessUnitId)
             group new { l.DebitAmount, l.CreditAmount, a.AccountType } by j.DocDate.Month into g
@@ -48,7 +55,10 @@ public sealed class TaxSummaryService(
         // Direction 'P' = we withheld + remit (ภ.ง.ด.3/53/54/1); 'R' = customer withheld
         // from us (ภ.ง.ด.50 credit). Grouped by CertDate month. The cert carries no BU of
         // its own, so the BU lens resolves it via the source PV (P) / Receipt (R) header BU.
-        var certQuery = db.WhtCertificates.AsNoTracking().Where(w => w.CertDate.Year == year);
+        // Same half-open-range rewrite as glRows above — avoid `date_part('year', cert_date)::int`
+        // (dtoi4 int4-overflow → 22003). Keeps the per-year scope identical.
+        var certQuery = db.WhtCertificates.AsNoTracking()
+            .Where(w => w.CertDate >= yearStart && w.CertDate < nextYearStart);
         if (businessUnitId is { } whtBu)
         {
             certQuery = certQuery.Where(w =>
