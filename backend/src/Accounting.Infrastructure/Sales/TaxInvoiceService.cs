@@ -23,6 +23,11 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
 {
     private const string TiPrefix = "TI";
 
+    // ProductType is already snapshotted onto srcLines before rate derivation, so the
+    // backstop's product-type map is intentionally empty there (it falls back to the line's type).
+    private static readonly IReadOnlyDictionary<long, string> EmptyProductTypes =
+        new Dictionary<long, string>();
+
     private readonly AccountingDbContext     _db;
     private readonly ITenantContext          _tenant;
     private readonly IClock                  _clock;
@@ -87,9 +92,11 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate,
             l.ProductType)).ToList();
 
-        var tiId = await CreateDraftAsync(new CreateTaxInvoiceRequest(
+        // §4.6 / ม.80 — chain-copy: the BillingNote lines were already rate-derived at
+        // their own origin builder; inherit those rates, do NOT re-derive (deriveLineTax:false).
+        var tiId = await CreateDraftCoreAsync(new CreateTaxInvoiceRequest(
             bn.DocDate, bn.CustomerId, false, bn.CurrencyCode, bn.ExchangeRate,
-            bn.Notes, null, null, lines, bn.BusinessUnitId), ct);
+            bn.Notes, null, null, lines, bn.BusinessUnitId), deriveLineTax: false, ct);
 
         // Stamp the source link (CreateTaxInvoiceRequest has no BillingNoteId field).
         var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
@@ -101,7 +108,14 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         return tiId;
     }
 
-    public async Task<long> CreateDraftAsync(CreateTaxInvoiceRequest req, CancellationToken ct)
+    // Public/request-fed entry point — DERIVES the per-line VAT rate from company master
+    // data (§4.6 / ม.80). The DO→TI and Invoice→TI chain-copy paths call CreateDraftCoreAsync
+    // with deriveLineTax:false so an already-normalized source rate is inherited, not re-derived.
+    public Task<long> CreateDraftAsync(CreateTaxInvoiceRequest req, CancellationToken ct)
+        => CreateDraftCoreAsync(req, deriveLineTax: true, ct);
+
+    private async Task<long> CreateDraftCoreAsync(
+        CreateTaxInvoiceRequest req, bool deriveLineTax, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
@@ -176,6 +190,28 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                     ? l with { ProductType = pt }
                     : l).ToList();
         }
+
+        // §4.6 / ม.80 — the per-line VAT RATE is company master data, NOT caller input. For a
+        // request-fed Tax Invoice (POST /tax-invoices) this is the EXACT path that produced the
+        // "VAT7 + taxRate:0 → 0-VAT tax invoice" hole: BuildLine trusted input.TaxRate. We are
+        // VAT-registered here (EnsureVatRegisteredAsync above), so derive each line's rate/code
+        // from its tax-code classification (exempt/zero-rated → 0; standard → companies.vat_rate).
+        // Chain-copy paths (DO→TI, Invoice→TI) pass deriveLineTax:false and inherit the already-
+        // normalized source rate — re-deriving there would double-process.
+        if (deriveLineTax)
+        {
+            var vatRate = (await _taxCfg.GetAsync(ct)).VatRate;
+            var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(
+                _db, srcLines.Select(l => l.TaxCode), ct);
+            srcLines = srcLines.Select(l =>
+            {
+                var (_, rate, code) = SalesLineBackstop.Resolve(
+                    vatMode: true, vatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
+                    productTypes: EmptyProductTypes, taxCodeFlags);
+                return l with { TaxRate = rate, TaxCode = code };
+            }).ToList();
+        }
+
         var lines = srcLines.Select((l, i) => BuildLine(l, i + 1, req.IsTaxInclusive)).ToList();
 
         var subtotal  = lines.Sum(l => l.LineAmount);

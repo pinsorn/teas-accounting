@@ -38,13 +38,15 @@ public sealed class SalesOrderService(
             QuotationId = req.FromQuotationId, CurrencyCode = req.CurrencyCode,
             ExchangeRate = req.ExchangeRate, Notes = req.Notes,
         };
-        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+        // §4.6 / ม.80 — VAT rate + tax-code classification come from company master data.
+        var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
+        var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
         int n = 1;
         foreach (var l in req.Lines)
         {
             var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             so.Lines.Add(new SalesOrderLine
             {
@@ -297,6 +299,10 @@ public sealed class DeliveryOrderService(
             l.ProductId, null, l.DescriptionTh, l.Quantity, 1, l.UomText,
             l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate,
             l.ProductType)).ToList();   // Sprint 13h P7 — DO→TI cascade
+        // §4.6 / ม.80 — DERIVE the line VAT rate on the TI. A Delivery Order's lines come straight
+        // from the client request (DO builders store raw l.TaxRate, NOT a normalized source rate),
+        // so DO→TI is effectively request-fed: a "VAT7 + taxRate:0" DO would otherwise mint a posted
+        // TI coded VAT7 carrying 0 VAT. Derivation is idempotent for a correctly-coded line.
         var tiId = await taxInvoices.CreateDraftAsync(new CreateTaxInvoiceRequest(
             dord.DocDate, dord.CustomerId, false, dord.CurrencyCode, dord.ExchangeRate,
             dord.Notes, null, null, lines, dord.BusinessUnitId), ct);   // BU cascade DO→TI

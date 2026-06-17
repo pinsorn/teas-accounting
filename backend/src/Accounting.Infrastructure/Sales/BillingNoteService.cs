@@ -309,13 +309,15 @@ public sealed class BillingNoteService(
     // master and zero all VAT for a non-VAT company, whatever the request carried.
     private async Task ApplyLinesAsync(BillingNote bn, IReadOnlyList<BillingLineInput> lines, CancellationToken ct)
     {
-        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+        // §4.6 / ม.80 — VAT rate + tax-code classification come from company master data.
+        var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, lines.Select(l => l.ProductId), ct);
+        var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, lines.Select(l => l.TaxCode), ct);
         int n = 1;
         foreach (var l in lines)
         {
             var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(vatMode, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes);
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             bn.Lines.Add(new BillingNoteLine
             {

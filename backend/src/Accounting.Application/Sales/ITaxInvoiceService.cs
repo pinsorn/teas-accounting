@@ -2,7 +2,10 @@ namespace Accounting.Application.Sales;
 
 public interface ITaxInvoiceService
 {
-    /// <summary>Create a draft TI. Snapshots supplier + customer fields. Number not allocated yet.</summary>
+    /// <summary>Create a draft TI from a client request (incl. DO→TI, whose DO lines carry raw
+    /// client taxRate). Snapshots supplier + customer fields. DERIVES each line's VAT rate from
+    /// company master data (§4.6 / ม.80) — the caller's per-line taxRate is ignored. Number not
+    /// allocated yet.</summary>
     Task<long> CreateDraftAsync(CreateTaxInvoiceRequest req, CancellationToken ct);
 
     /// <summary>cont.69 Phase 1 — Invoice (BillingNote) → Tax Invoice, manual, VAT only.
