@@ -2,7 +2,7 @@
   <img src="frontend/public/teas-logo.png" alt="TEAS logo" width="160">
 </p>
 
-# TEAS — ระบบบัญชีวิสาหกิจสำหรับธุรกิจไทย
+# TEAS — Thailand Enterprise Accounting System
 
 แพลตฟอร์มบัญชี B2B + B2C สำหรับบริษัทไทย **ออกแบบให้ VAT-compliant** และยึดตามกฎกรมสรรพากร
 (ประมวลรัษฎากร) — รองรับสายเอกสารครบตั้งแต่ใบเสนอราคาจนถึงใบกำกับภาษีและใบเสร็จ, ภาษีหัก ณ ที่จ่าย
@@ -251,6 +251,5 @@ walkthrough ครอบคลุมการติดตั้ง / onboarding,
 
 ## License
 
-[GNU AGPL-3.0](LICENSE) — ใช้ / แก้ไข / นำไปเปิดเป็นบริการได้ แต่ถ้า **แก้ไขแล้วนำไปให้บริการ** (รวมถึง
-ผ่านเครือข่าย / SaaS) **ต้องเปิดเผย source ที่แก้ไขด้วย** ยินดีรับ contribution — ดู
-[`CONTRIBUTING.md`](CONTRIBUTING.md)
+[GNU AGPL-3.0](LICENSE) — โอเพนซอร์สเต็มตัว นำไปใช้ / ต่อยอด / เปิดเป็นบริการได้เลย และยินดีต้อนรับทุกคน
+มาช่วยกันพัฒนา 🙌 ดู [`CONTRIBUTING.md`](CONTRIBUTING.md)
