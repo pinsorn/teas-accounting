@@ -3,6 +3,34 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-17 (cont. 94d — code-review fixes for cont.94c PV derived-VAT) — **แก้ regression VAT + ยก validation ไปฝั่ง server.** FE tsc 0 · `next build` 0/0 · BE static-reviewed (ไม่มี dotnet บน remote → ต้องรัน BE gate ก่อน merge).
+
+- **ที่มา:** code-review (max-effort) ของ cont.94c เจอ cluster ปัญหา: VAT ที่ derive จาก `productType`
+  ฝั่ง FE อย่างเดียว ทำให้ (1) PO-prefill default ทุกบรรทัดเป็น GOOD → สินค้ายกเว้น (ม.81) โดน 7%
+  (regression — โค้ดเดิม reconstruct rate จาก PO line), (2) ad-hoc/free-text บังคับ GOOD, (3) BE เชื่อ
+  `input.VatRate` ดิบ — ไม่ validate rate-vs-type, (4) พิมพ์แก้ description รีเซ็ต productType→GOOD ทำให้
+  VAT เด้ง 0%→7% เงียบๆ.
+- **BE (source-of-truth ย้ายมาฝั่ง server):**
+  - `PaymentVoucherService.CreateDraftAsync` — guard เดิม (vendor ไม่จด VAT) แตกเป็น **3 rule ต่อบรรทัด**:
+    ม.82/5 vendor ไม่จด VAT→0% (`pv.vendor_not_vat_registered`, code เดิมคงไว้) · ม.81 สินค้ายกเว้น+VAT>0
+    → reject (`pv.exempt_product_vat`) · VATable line ต้องเป็น 0% หรือ standard rate ของบริษัทเท่านั้น
+    (`pv.vat_rate_invalid`). ดึง `companies.VatRate` มาใน hop เดียวกับ RequiresBusinessUnit.
+  - `PurchaseOrderLineDto` +`ProductType` (resolve จาก linked Product; ad-hoc line ไม่มี product →
+    infer จาก stored TaxRate: 0→EXEMPT_GOOD ไม่งั้น GOOD) ใน `GetDetailAsync` — batch-load products
+    กัน N+1. เพิ่ม `ProductTypeCodes.ToCode`/`IsExempt` helper (reuse, เลิก inline-map ซ้ำ).
+  - Tests +3 ใน Sprint87 (`…rejects_an_exempt_product_with_vat` · `…rejects_a_nonstandard_vat_rate` ·
+    `…allows_an_exempt_product_at_zero_vat`); helper `CreatePv` +param `productType`.
+- **FE (`payment-vouchers/new`):** PO-prefill carry `productId/productCode/productType` (VAT derived ตรง
+  ตาม taxonomy ของ PO) · `onDescriptionChange` เลิกรีเซ็ต productType (พิมพ์แก้ข้อความ = ad-hoc แต่คง tax
+  treatment, ไม่เด้ง) · VAT รวมปัดเศษต่อบรรทัด 2dp ให้ตรง BE · `rows.indexOf(r)` (O(n²)) → map index ·
+  ลบ comment ค้างที่อ้าง vatRate reconstruct. `PoLineDto` +`productType`.
+- **Gates:** FE `tsc --noEmit` **0** · `next build` **0/0** · openapi 422 อัปเดต 3 codes. **BE: รัน
+  build/test ที่นี่ไม่ได้ (ไม่มี dotnet บน remote container)** — review แบบ static ครบ (usings/relative-ns
+  `Domain.Enums`, positional record, EF ToDictionaryAsync, ทุก PV test ใช้ rate 0/0.07 → rule ใหม่ไม่
+  เตะ). **ต้องรัน Api gate (dotnet build + Sprint87 ×2) ก่อน merge PR.**
+- หมายเหตุ follow-up: FE `taxRateForProductType` ยัง hardcode 0.07 (sales ก็ด้วย) ขณะ BE ใช้ company
+  `VatRate` — ทุกบริษัทตอนนี้ 0.07 จึงตรงกัน; ถ้าวันหน้ามี rate อื่น FE ต้องดึง company rate.
+
 ## 2026-06-13 (cont. 94c — "หมวดซื้อ PV ไม่ควรตั้ง VAT manual + ดึงจาก products + vendor ไม่จด VAT ห้าม VAT") — **PV form product-driven + derived VAT.** Api **331/0/3** · tsc 0.
 
 - **ที่มา:** Ham ชี้ว่า PV (ใบสำคัญจ่าย) ปล่อยให้ตั้ง VAT มือ + ใช้ free-text + ProductTypeSelect manual —

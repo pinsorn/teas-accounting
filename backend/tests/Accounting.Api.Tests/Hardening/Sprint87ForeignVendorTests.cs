@@ -81,7 +81,7 @@ public sealed class Sprint87ForeignVendorTests
     private static async Task<long> CreatePv(
         ServiceProvider sp, long vendorId, int catId, long expAcct,
         decimal amount, decimal vatRate, decimal whtRate, bool? selfWithhold,
-        string? payerMode = null)
+        string? payerMode = null, string? productType = null)
     {
         var whtTypeId = whtRate > 0m ? await SvcWhtTypeId(sp) : null;
         await using var s = sp.CreateAsyncScope();
@@ -89,7 +89,7 @@ public sealed class Sprint87ForeignVendorTests
         return await svc.CreateDraftAsync(new CreatePaymentVoucherRequest(
             new DateOnly(2026, 5, 16), vendorId, catId, PaymentMethod.Transfer,
             null, null, null, "THB", 1m, "s87", null,
-            [new PaymentVoucherLineInput(expAcct, "svc", amount, null, vatRate, true, whtTypeId, whtRate)],
+            [new PaymentVoucherLineInput(expAcct, "svc", amount, null, vatRate, true, whtTypeId, whtRate, productType)],
             null, selfWithhold, null, payerMode), default);
     }
 
@@ -294,6 +294,49 @@ public sealed class Sprint87ForeignVendorTests
 
         // vatRate 0 is fine — the non-VAT vendor purchase just carries no input VAT.
         var pvId = await CreatePv(sp, v, cat, exp, 1_000m, 0m, 0m, selfWithhold: null);
+        pvId.Should().BeGreaterThan(0);
+    }
+
+    [SkippableFact]
+    public async Task Vat_registered_vendor_rejects_an_exempt_product_with_vat()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        // ม.81 — a VAT-exempt product carries no input VAT even from a VAT-registered vendor.
+        var v = await CreateVendor(sp, foreign: false, vatD: false);   // vatReg defaults true
+        var (cat, exp) = await SeedCategory(sp);
+
+        var act = async () => await CreatePv(sp, v, cat, exp, 1_000m, 0.07m, 0m,
+            selfWithhold: null, productType: "EXEMPT_GOOD");
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("pv.exempt_product_vat");
+    }
+
+    [SkippableFact]
+    public async Task Vat_registered_vendor_rejects_a_nonstandard_vat_rate()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        // A VATable line may carry only 0% or the company's standard rate — never 5%.
+        var v = await CreateVendor(sp, foreign: false, vatD: false);
+        var (cat, exp) = await SeedCategory(sp);
+
+        var act = async () => await CreatePv(sp, v, cat, exp, 1_000m, 0.05m, 0m, selfWithhold: null);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("pv.vat_rate_invalid");
+    }
+
+    [SkippableFact]
+    public async Task Vat_registered_vendor_allows_an_exempt_product_at_zero_vat()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var v = await CreateVendor(sp, foreign: false, vatD: false);
+        var (cat, exp) = await SeedCategory(sp);
+
+        // ม.81 — exempt product at 0% is the correct, accepted shape.
+        var pvId = await CreatePv(sp, v, cat, exp, 1_000m, 0m, 0m,
+            selfWithhold: null, productType: "EXEMPT_GOOD");
         pvId.Should().BeGreaterThan(0);
     }
 
