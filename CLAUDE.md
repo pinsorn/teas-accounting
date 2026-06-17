@@ -45,7 +45,7 @@ skipping the multi-tenant `company_id` filter.
 code/
 ├── CLAUDE.md            ← this file        progress.md ← session log (newest on top)
 ├── plan.md  ← forward plan                 docs/ ← specs & references
-│   ├── accounting-system-plan.md  ⭐ source of truth (§ references throughout)
+│   ├── accounting-system-plan.md  ⭐ as-built spec (architecture, compliance, modules, schema)
 │   ├── Design(UI).md · Design(Architect).md · api/openapi.yaml
 │   ├── etax-xades-spec.md · etax-environment-tiers.md · runtime-gotchas.md
 │   └── superpowers/specs/  ← design specs (brainstorm → spec → plan flow)
@@ -249,7 +249,7 @@ Two living files at repo root, the source of truth for "where are we" (not memor
   status table, what shipped, exact verification results (test counts, build status), env notes.
 - **`plan.md`** — forward plan; edit in place (tick ☑, add, re-order by impact).
 A task isn't done until recorded in `progress.md` with the `plan.md` item ticked. If either file is
-missing, recreate from `docs/accounting-system-plan.md` §22.
+missing, recreate from `progress.md` + the as-built spec `docs/accounting-system-plan.md`.
 
 ---
 
@@ -257,7 +257,7 @@ missing, recreate from `docs/accounting-system-plan.md` §22.
 
 | Topic | Location |
 |---|---|
-| Source of truth (legal, flow, schema, roadmap) | `docs/accounting-system-plan.md` (§2 legal, §6 sales, §7 PV/AP, §9 GL, §12 tax, §13 e-Tax, §15.10/.11 doc specs, §16 .env config, §17.3 expense categories + numbering, §18 compliance, §19 schema, §22 roadmap) |
+| Source of truth (as-built: architecture, compliance, modules, schema) | `docs/accounting-system-plan.md` — the **as-built spec** (§2 architecture, §3 compliance-as-implemented, §4 functional modules, §5 data model, §6 tax-form/PDF coverage, §7 versioning/release, §8 out-of-scope/not-built, §9 tech stack). Original pre-build blueprint archived at `docs/_archive/2026-06-17-pre-rewrite/`. |
 | UI per screen | `docs/Design(UI).md` |
 | Architecture decisions | `docs/Design(Architect).md` |
 | REST contract | `docs/api/openapi.yaml` |
