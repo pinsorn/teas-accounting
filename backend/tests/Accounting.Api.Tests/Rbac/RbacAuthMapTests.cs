@@ -20,11 +20,14 @@ public sealed class RbacAuthMapTests
     private readonly PostgresFixture _fx;
     public RbacAuthMapTests(PostgresFixture fx) => _fx = fx;
 
-    /// <summary>Intentionally public (no auth, by design) — login + liveness probe.</summary>
+    /// <summary>Intentionally public (no auth, by design) — login + liveness probe + first-run admin bootstrap.</summary>
     private static readonly string[] ExpectedPublic =
     [
         "POST /auth/login",
         "ANY /health",
+        // First-run only: anonymous by necessity (no user exists yet to authenticate as). The handler
+        // refuses with 409 the instant any user exists, so it can never mint an admin on a live system.
+        "POST /system/setup/bootstrap-admin",
     ];
 
     /// <summary>
@@ -42,6 +45,10 @@ public sealed class RbacAuthMapTests
         "GET /me/permissions",
         "GET /periods/{year:int}/{month:int}/status",
         "GET /system/info",
+        // First-run setup: RequireAuthorization at the policy, super-admin enforced in the handler
+        // (a permission policy would wrongly 403 the claim-less first-run super-admin). See
+        // InstanceSetupEndpoints; the Cartesian test treats it as handler-gated authn-only.
+        "POST /system/setup/instance-keys",
         "GET /system/vat-threshold-status",
         "GET /wht-types/",
         "GET /wht-types/{id:int}",

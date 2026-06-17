@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/api', '/_next', '/favicon.ico'];
+// /onboarding is public so a FRESH install (zero users — nobody can log in yet) can reach the
+// create-super-admin step. It is safe: the super-admin create calls the zero-users-gated
+// POST /system/setup/bootstrap-admin (refuses 409 once any user exists), and the create-company
+// step's BFF route still 401s without a session cookie. The page self-routes authenticated users.
+const PUBLIC_PATHS = ['/login', '/onboarding', '/api', '/_next', '/favicon.ico'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

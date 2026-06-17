@@ -29,28 +29,6 @@ JOIN sys.permissions p ON p.permission_code IN (
 WHERE r.role_code IN ('SUPER_ADMIN','COMPANY_ADMIN','CHIEF_ACCOUNTANT','ACCOUNTANT','AP_CLERK')
 ON CONFLICT DO NOTHING;
 
--- Non-super test users for the RBAC e2e (160 only seeds the super-admin
--- approver). DEV/SMOKE ONLY. Password = Admin@1234, hashed via pgcrypto bcrypt
--- (wf 12). is_super_admin = FALSE so the permission check is actually exercised.
-INSERT INTO sys.users (
-    user_id, username, email, password_hash, full_name,
-    is_super_admin, is_active, failed_login_count, must_change_password,
-    created_at, updated_at, version)
-VALUES
-    (3, 'ap_clerk', 'ap_clerk@teas.local',
-     crypt('Admin@1234', gen_salt('bf', 12)),
-     'AP Clerk', FALSE, TRUE, 0, FALSE, now(), now(), 0),
-    (4, 'sales_staff', 'sales_staff@teas.local',
-     crypt('Admin@1234', gen_salt('bf', 12)),
-     'Sales Staff', FALSE, TRUE, 0, FALSE, now(), now(), 0)
-ON CONFLICT (user_id) DO NOTHING;
-
-INSERT INTO sys.user_roles (user_id, role_id, company_id, branch_id, valid_from)
-SELECT 3, r.role_id, 1, 1, DATE '2026-01-01'
-FROM sys.roles r WHERE r.role_code = 'AP_CLERK'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO sys.user_roles (user_id, role_id, company_id, branch_id, valid_from)
-SELECT 4, r.role_id, 1, 1, DATE '2026-01-01'
-FROM sys.roles r WHERE r.role_code = 'SALES_STAFF'
-ON CONFLICT DO NOTHING;
+-- NOTE (first-run-bootstrap spec, 2026-06-17): the demo ap_clerk/sales_staff users that used
+-- to live here were moved to 181_seed_demo_pv_users.sql (DEMO allowlist) so a fresh prod clone
+-- seeds NO placeholder users. The permission catalog + grants above are SYSTEM data and stay here.

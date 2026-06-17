@@ -1,0 +1,4 @@
+<!-- Stop the MSBuild prop walk-up: this one-off dev tool must not inherit the repo's
+     MinVer / central-package-management props. Empty on purpose. -->
+<Project>
+</Project>

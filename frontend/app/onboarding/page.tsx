@@ -1,12 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import Image from 'next/image';
-import { Building2, KeyRound, ShieldCheck } from 'lucide-react';
+import { Building2, KeyRound, ShieldCheck, UserCog } from 'lucide-react';
 
 // Onboarding-switcher spec (2026-06-16) — first-company wizard. The first thing a brand-new
 // super-admin (companyId===0) sees. One clean step: create the first company. On submit, the
@@ -65,6 +65,8 @@ const schema = z
     // committed file. The MFA key is a 32-byte (AES-256) base64; JWT lifetime 5–1440 min.
     mfaAesKeyBase64: z.string().min(1, 'required').refine(isBase64_32Bytes, 'mfaKey32'),
     jwtAccessTokenMinutes: z.coerce.number().int().min(5, 'minutesRange').max(1440, 'minutesRange'),
+    // Optional: also provision a sample/demo company with example data (best chosen at install time).
+    seedDemo: z.boolean(),
   })
   .superRefine((v, ctx) => {
     if (v.vatRegistered && !v.vatRegisterDate?.trim()) {
@@ -73,8 +75,33 @@ const schema = z
   });
 type FormValues = z.input<typeof schema>;
 
+// Onboarding always runs as a 2-step wizard:
+//   1. createAdmin — ONLY on a brand-new install (no session / zero users). Creates the first
+//      super-admin via POST /system/setup/bootstrap-admin (anonymous, zero-users-gated), then logs
+//      in with those credentials so the company step runs as the companyId=0 super-admin.
+//   2. company    — the existing create-first-company step. Reached directly when the visitor is
+//      already the authenticated companyId=0 super-admin (the seeded/just-created admin).
+type Phase = 'checking' | 'createAdmin' | 'company';
+
 export default function OnboardingPage() {
   const t = useTranslations('onboarding');
+  const [phase, setPhase] = useState<Phase>('checking');
+
+  // On mount decide which step to show: do we already have a companyId=0 super-admin session?
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/proxy/me', { cache: 'no-store' });
+        if (!cancelled) setPhase(res.ok ? 'company' : 'createAdmin');
+      } catch {
+        if (!cancelled) setPhase('createAdmin');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const {
     register,
@@ -92,6 +119,7 @@ export default function OnboardingPage() {
       pnd30SubmissionMode: 'manual',
       mfaAesKeyBase64: '',
       jwtAccessTokenMinutes: 60,
+      seedDemo: false,
       addrHouseNo: '',
       addrMoo: '',
       addrSoi: '',
@@ -115,6 +143,47 @@ export default function OnboardingPage() {
     const b64 = btoa(String.fromCharCode(...bytes));
     setValue('mfaAesKeyBase64', b64, { shouldValidate: true, shouldDirty: true });
     toast.success(t('mfaKeyGenerated'));
+  }
+
+  // ── Step 1 (fresh install only): create the first super-admin, then advance to the company step.
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminFullName, setAdminFullName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminBusy, setAdminBusy] = useState(false);
+
+  async function onCreateAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (adminUsername.trim().length < 3 || adminPassword.length < 12) {
+      toast.error(t('err.required'));
+      return;
+    }
+    setAdminBusy(true);
+    try {
+      const res = await fetch('/api/setup/bootstrap-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: adminUsername.trim(),
+          password: adminPassword,
+          fullName: adminFullName.trim() || null,
+          email: adminEmail.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        // 409 = an admin already exists on this system → send them to sign in.
+        toast.error(res.status === 409 ? t('adminExists') : body?.detail ?? body?.title ?? t('error'));
+        if (res.status === 409) window.location.assign('/login');
+        return;
+      }
+      toast.success(t('adminCreated'));
+      setPhase('company'); // now authenticated as the companyId=0 super-admin
+    } catch {
+      toast.error(t('error'));
+    } finally {
+      setAdminBusy(false);
+    }
   }
 
   async function onSubmit(v: FormValues) {
@@ -171,7 +240,9 @@ export default function OnboardingPage() {
       const res = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        // seedDemo is carried alongside the company payload; the BFF forwards the real company
+        // create regardless and (when supported) triggers the optional demo-company seed.
+        body: JSON.stringify({ ...payload, seedDemo: v.seedDemo === true }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -197,6 +268,82 @@ export default function OnboardingPage() {
     return <span className="mt-1 text-xs text-status-danger">{t(`err.${key}`)}</span>;
   };
 
+  // ── Phase: deciding which step to show (brief; mount-time /me probe). ──
+  if (phase === 'checking') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-base-200 p-4">
+        <span className="loading loading-spinner loading-lg text-peach-600" aria-label="loading" />
+      </main>
+    );
+  }
+
+  // ── Phase: create the first super-admin (fresh install, zero users). ──
+  if (phase === 'createAdmin') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-base-200 p-4">
+        <div className="card w-full max-w-md bg-base-100 p-8 shadow-warm-lg">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <span className="mb-3 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-peach-100 to-peach-50 text-peach-600">
+              <UserCog className="h-8 w-8" aria-hidden />
+            </span>
+            <h1 className="text-2xl font-bold text-ink-900">{t('adminTitle')}</h1>
+            <p className="mt-1 text-sm text-ink-500">{t('adminSubtitle')}</p>
+          </div>
+          <form className="space-y-4" onSubmit={onCreateAdmin}>
+            <label className="form-control">
+              <span className="label-text text-ink-600">{t('adminUsername')} *</span>
+              <input
+                className="input input-bordered"
+                autoComplete="username"
+                value={adminUsername}
+                onChange={(e) => setAdminUsername(e.target.value)}
+                aria-label={t('adminUsername')}
+              />
+              <span className="mt-1 text-[11px] text-ink-400">{t('adminUsernameHint')}</span>
+            </label>
+            <label className="form-control">
+              <span className="label-text text-ink-600">{t('adminPassword')} *</span>
+              <input
+                className="input input-bordered"
+                type="password"
+                autoComplete="new-password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                aria-label={t('adminPassword')}
+              />
+              <span className="mt-1 text-[11px] text-ink-400">{t('adminPasswordHint')}</span>
+            </label>
+            <label className="form-control">
+              <span className="label-text text-ink-600">{t('adminFullName')}</span>
+              <input
+                className="input input-bordered"
+                autoComplete="name"
+                value={adminFullName}
+                onChange={(e) => setAdminFullName(e.target.value)}
+                aria-label={t('adminFullName')}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text text-ink-600">{t('adminEmail')}</span>
+              <input
+                className="input input-bordered"
+                type="email"
+                autoComplete="email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                aria-label={t('adminEmail')}
+              />
+            </label>
+            <button type="submit" className="btn btn-primary w-full" disabled={adminBusy}>
+              {adminBusy ? t('adminCreating') : t('adminSubmit')}
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Phase: create the first company (authenticated companyId=0 super-admin). ──
   return (
     <main className="flex min-h-screen items-center justify-center bg-base-200 p-4">
       <div className="card w-full max-w-2xl bg-base-100 p-8 shadow-warm-lg">
@@ -434,6 +581,14 @@ export default function OnboardingPage() {
                 {err('jwtAccessTokenMinutes')}
               </label>
             </div>
+          </section>
+
+          <section className="rounded-card border border-ink-100 bg-base-100 p-5 shadow-warm-sm">
+            <label className="label mb-1 cursor-pointer justify-start gap-3">
+              <input type="checkbox" className="toggle toggle-primary" {...register('seedDemo')} />
+              <span className="font-semibold text-ink-900">{t('seedDemo')}</span>
+            </label>
+            <p className="text-[11px] leading-snug text-ink-400">{t('seedDemoHint')}</p>
           </section>
 
           <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting}>

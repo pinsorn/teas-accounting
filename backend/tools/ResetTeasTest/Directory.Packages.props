@@ -1,0 +1,6 @@
+<!-- Stop the central-package-management walk-up for this isolated dev tool. -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

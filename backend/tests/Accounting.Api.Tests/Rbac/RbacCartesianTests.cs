@@ -66,6 +66,21 @@ public sealed class RbacCartesianTests
         "POST /api-keys/",
     ];
 
+    /// <summary>
+    /// First-run setup endpoints that are AuthnOnly at the POLICY (RequireAuthorization / AllowAnonymous)
+    /// but enforce super-admin INSIDE the handler — by design, because at first-run the super-admin may
+    /// carry no permission claims, so a permission policy would wrongly 403 it. The Cartesian matrix
+    /// classifies them as AuthnOnly and would therefore expect ALLOW for every authenticated role, but the
+    /// handler correctly 403s a non-super role. That 403 is the intended behaviour, not a finding, so the
+    /// ALLOW-case is skipped for these (the DENY side is meaningless here — there is no permission to lack).
+    /// See InstanceSetupEndpoints (instance-keys) and BootstrapAdminEndpoints (bootstrap-admin is Anonymous
+    /// + zero-users-gated, so it never reaches this Perm/Assertion/AuthnOnly target set at all).
+    /// </summary>
+    private static readonly HashSet<string> HandlerGatedAuthnOnly =
+    [
+        "POST /system/setup/instance-keys",
+    ];
+
     private static JwtTokenIssuer Issuer() => new(new StaticOptionsMonitor<JwtOptions>(new JwtOptions
     {
         Issuer = RbacApiFactory.JwtIssuer,
@@ -140,6 +155,11 @@ public sealed class RbacCartesianTests
 
                 if (expectAllow && SkipAllowMutation.Contains(ep.Key))
                     continue;   // committing mutation — don't execute the handler in allow-mode
+
+                // AuthnOnly-at-policy but super-admin-gated in the handler: a non-super role's 403 is
+                // correct, so don't assert ALLOW for it. Super-admin still asserts ALLOW normally.
+                if (expectAllow && !role.IsSuperAdmin && HandlerGatedAuthnOnly.Contains(ep.Key))
+                    continue;
 
                 var status = await FireAsync(client, token, ep);
 

@@ -155,6 +155,7 @@ app.MapGet("/system/vat-threshold-status",
         new { status = (await svc.CheckAsync(ct)).ToString() })
     .RequireAuthorization();
 
+app.MapBootstrapAdminEndpoints(); // first-run super-admin (anonymous, gated on zero users — fresh-install only)
 app.MapInstanceSetupEndpoints();   // first-run MFA key + JWT lifetime (super-admin, writes Secrets file)
 app.MapAuthEndpoints();
 app.MapCustomerEndpoints();
