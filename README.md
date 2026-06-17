@@ -1,108 +1,165 @@
-# Thailand Enterprise Accounting System (TEAS)
+# TEAS — Thailand Enterprise Accounting System
 
-ระบบบัญชี enterprise สำหรับธุรกิจไทย — VAT-compliant, e-Tax-ready, multi-company
+A B2B + B2C accounting platform for Thai companies, **VAT-compliant by design** and built to
+withstand a Thai Revenue Department (สรรพากร) audit at any time. Full document chain from
+Quotation through Tax Invoice and Receipt, withholding tax (50 ทวิ), GL, the RD tax-filing forms,
+payroll, and a multi-tenant RBAC core.
 
-> **For Claude Code:** Read `CLAUDE.md` first.  
-> **For humans:** Read `docs/accounting-system-plan.md` for full spec.
+> Backend: **.NET 10** (ASP.NET Core Minimal APIs, EF Core 10) · DB: **PostgreSQL 16** ·
+> Frontend: **Next.js 15** (App Router, TypeScript, Tailwind, shadcn/ui).
 
 ---
 
-## Tech Stack
+## Features
 
-- Backend: **.NET 10 LTS** + ASP.NET Core Minimal APIs + EF Core 10
-- Database: **PostgreSQL 16** (local self-hosted)
-- Frontend: **Next.js 15** + TypeScript + Tailwind CSS + shadcn/ui
-- Container: Docker Compose for local development
+- **Sales chain** — Quotation → Sales Order → Delivery Order → **Tax Invoice** → Receipt, plus
+  Credit / Debit Notes, with sequential gap-free document numbering (ม.86/4).
+- **Purchases & WHT** — Vendor Invoice → Payment Voucher → Withholding-tax certificate (50 ทวิ).
+- **Tax filings** — generates the filled RD PDFs: ภ.พ.30, ภ.ง.ด.1 / 3 / 53 / 54, ภ.ง.ด.50 / 51 (CIT),
+  ภ.พ.01 / 09, ภ.พ.36 reverse charge.
+- **Payroll** — runs, payslips, PIT + social-security (ปกส.), ภ.ง.ด.1 / 1ก.
+- **General ledger & reports** — journals, trial balance, P&L, balance sheet, monthly tax summary,
+  AP aging.
+- **Compliance** — per-company VAT config, posted-document immutability, PostgreSQL row-level
+  security per tenant, and an append-only audit trail.
+- **RBAC** — per-company roles, super-admin company switcher, and a first-run onboarding wizard.
 
-## Project Structure
+---
 
-```
-.
-├── CLAUDE.md          # Instructions for Claude Code (read first)
-├── README.md          # This file
-├── docs/              # Full specifications
-│   ├── accounting-system-plan.md     ⭐ master plan
-│   ├── Design(UI).md
-│   ├── Design(Architect).md
-│   ├── Cost-Estimate.md
-│   └── api/openapi.yaml
-├── backend/           # .NET 10 solution
-│   ├── src/
-│   │   ├── Accounting.Api/
-│   │   ├── Accounting.Application/
-│   │   ├── Accounting.Domain/
-│   │   ├── Accounting.Infrastructure/
-│   │   └── Accounting.Workers/
-│   └── tests/
-├── frontend/          # Next.js 15 app
-├── design/            # Design tokens + component patterns
-├── infra/             # Docker Compose + .env.example
-└── db/                # SQL reference (EF Migrations = source of truth)
-```
+## Tech stack
 
-## Quick Start (Local Development)
+| Layer         | Choice                                                                |
+|---------------|-----------------------------------------------------------------------|
+| Backend       | C# / .NET 10, ASP.NET Core Minimal APIs, EF Core 10 (migrations)       |
+| Database      | PostgreSQL 16 via Npgsql, row-level security                          |
+| Frontend      | Next.js 15 (App Router) + React, TypeScript 5, Tailwind 3, shadcn/ui   |
+| State / forms | React Query (TanStack) v5, React Hook Form + Zod                       |
+| Auth          | OAuth2 + JWT bearer                                                    |
+| i18n          | next-intl — Thai primary, English secondary                           |
+| Tests         | xUnit + FluentAssertions + Testcontainers (backend), Playwright (e2e)  |
 
-### 1. Prerequisites
+---
 
-- .NET 10 SDK
-- Node.js 20+ + pnpm
-- Docker Desktop
-- PostgreSQL 16 client tools (optional, `psql` for debugging)
+## Quick start
 
-### 2. Boot infrastructure
+### Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Node.js 20+](https://nodejs.org) and [pnpm](https://pnpm.io) (`corepack enable` works)
+- [Docker](https://www.docker.com) (for PostgreSQL) — or a local PostgreSQL 16
+
+### 1. Clone
 
 ```bash
-cd infra/
-cp .env.example .env
+git clone https://github.com/pinsorn/teas-accounting.git
+cd teas-accounting
+```
+
+### 2. Start PostgreSQL
+
+```bash
 docker compose up -d
 ```
 
-This starts:
-- PostgreSQL on `localhost:5432`
-- Redis on `localhost:6379`
-- MailHog (local SMTP catcher) on `localhost:1025` + UI on `localhost:8025`
+This creates an `accounting_dev` database with the credentials the backend expects (see
+`backend/src/Accounting.Api/appsettings.json`). Prefer your own PostgreSQL? Create an empty
+`accounting_dev` database with user `accounting` / password `accounting_dev_password`, or edit the
+`ConnectionStrings:Postgres` value.
 
-### 3. Backend
+### 3. Run the backend (port 5080)
 
 ```bash
-cd backend/
-dotnet restore
-dotnet ef database update --project src/Accounting.Infrastructure --startup-project src/Accounting.Api
-dotnet run --project src/Accounting.Api
+cd backend
+ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5080 \
+  dotnet run --project src/Accounting.Api
 ```
 
-API runs on `http://localhost:5000` (Swagger UI at `/swagger`).
+On first start the app applies EF migrations and the SQL bootstrap scripts (RLS, triggers, and seed
+data, including the admin user and demo companies) automatically — no manual migration step needed.
+Wait for `http://localhost:5080/health` to return `200`.
 
-### 4. Frontend
+> Windows PowerShell:
+> ```powershell
+> cd backend
+> $env:ASPNETCORE_ENVIRONMENT='Development'; $env:ASPNETCORE_URLS='http://localhost:5080'
+> dotnet run --project src\Accounting.Api
+> ```
+
+### 4. Run the frontend (port 3000)
 
 ```bash
-cd frontend/
+cd frontend
 pnpm install
-cp .env.local.example .env.local
+echo "BACKEND_API_URL=http://localhost:5080" > .env.local   # point the BFF proxy at the backend
 pnpm dev
 ```
 
-Opens at `http://localhost:3000`.
+Open <http://localhost:3000>.
 
-## Compliance Notes (สำคัญ — อ่านก่อนเขียน code)
+### 5. Log in
 
-- ทุก Tax Invoice = immutable หลัง post (กฎหมายไทย)
-- ห้ามเปิด UI แก้ VAT rate (อยู่ใน .env เท่านั้น)
-- e-Tax XML signed + email RD ทุกใบ real-time
-- ภ.พ.30 ยื่นรายเดือน, deadline วันที่ 15 ของเดือนถัดไป
-- Document number = `MM-YYYY-PREFIX-NNNN` (sequential, no gaps)
-- Multi-tenant: ทุก query บังคับ filter ตาม `company_id`
+| User    | Password     | Scope                  |
+|---------|--------------|------------------------|
+| `admin` | `Admin@1234` | Company 1, super-admin |
 
-ดูรายละเอียดที่ `docs/accounting-system-plan.md` Section 18 (Compliance Checklist)
+Two demo companies are seeded: **company 2** (VAT-registered) and **company 3** (non-VAT). A
+super-admin can switch between them from the top bar.
 
-## Status
+---
 
-Phase 0: ✓ Documentation complete  
-Phase 1 (Foundation): 🟡 Scaffolded, awaiting implementation  
-Phase 2-5: ⏳ Pending  
+## Tests
 
-ดู roadmap ที่ `docs/accounting-system-plan.md` Section 22
+Backend integration tests need a PostgreSQL database. Point them at one via `TEAS_TEST_PG` (the
+fixture migrates + seeds it), or let Testcontainers spin one up if Docker is available.
+
+```bash
+cd backend
+TEAS_TEST_PG="Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password" \
+TEAS_REPO_ROOT="$(git rev-parse --show-toplevel)" \
+  dotnet test Accounting.sln
+```
+
+Frontend type-check: `cd frontend && pnpm exec tsc --noEmit`.
+
+---
+
+## Project layout
+
+```
+backend/
+  src/
+    Accounting.Domain          # entities, enums, domain rules
+    Accounting.Application      # use cases, DTOs, abstractions
+    Accounting.Infrastructure   # EF Core, services, RD PDF fillers, SQL bootstrap scripts
+    Accounting.Api              # ASP.NET Core minimal-API host
+    Accounting.Workers          # background jobs
+  tests/                        # xUnit (Domain + Api integration) + a shared TestKit
+frontend/
+  app/(dashboard)/*             # screens   ·  components/, lib/, messages/{th,en}.json
+docs/                           # specs, OpenAPI contract, RD-form references, user manual
+infra/db/schema.sql             # reference only — EF migrations are authoritative
+```
+
+---
+
+## Versioning & releases
+
+The assembly version is derived from git tags by [MinVer](https://github.com/adamralph/minver)
+(`vX.Y.Z`), surfaced on `GET /system/info` and in the dashboard footer.
+[release-please](https://github.com/googleapis/release-please) turns conventional commits on `main`
+into release PRs (version bump + changelog + tag). CI (`.github/workflows/ci.yml`) builds and tests
+the backend and type-checks the frontend.
+
+---
+
+## Documentation & compliance
+
+- `docs/accounting-system-plan.md` — the master specification (legal references, flows, schema,
+  roadmap). `docs/api/openapi.yaml` — the REST contract. `CLAUDE.md` — engineering conventions.
+- This system encodes Thai tax law (VAT under ประมวลรัษฎากร, withholding tax, CIT, payroll PIT /
+  ปกส.). Posted tax documents are immutable; corrections are issued as Credit Notes. The seeded demo
+  data is for development only and is not tax advice.
 
 ## License
 
-Proprietary — internal use only
+Proprietary — see the repository owner.
