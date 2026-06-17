@@ -9,9 +9,13 @@
 
 - **Name:** Thailand Enterprise Accounting System (TEAS)
 - **Type:** B2B+B2C accounting platform for Thai companies, VAT-compliant by design.
-- **Stage:** Active build — substantial business logic shipped (Identity/RBAC, master data,
-  full sales chain Quotation→SO→DO→Invoice→Tax Invoice→Receipt, CN/DN, Purchase/PV, WHT 50ทวิ,
-  GL, VAT/WHT filings, e-Tax pipeline, non-VAT mode, document-chain + print tracking). See
+- **Stage:** Active build, broad feature coverage shipped — Identity/per-company RBAC (+ super-admin
+  company switcher + onboarding wizard), master data, full sales chain Quotation→SO→DO→Invoice→Tax
+  Invoice→Receipt, CN/DN, Purchase/VI→PV, WHT 50ทวิ, payroll + ภ.ง.ด.1/1ก/SSO, GL + reports, the RD
+  tax-form PDF fillers (ภ.พ.30, ภ.ง.ด.1/3/53/54/50/51, ภ.พ.01/09/36), corporate income tax (ภ.ง.ด.50/51),
+  per-company VAT config, multi-tenant RLS, non-VAT mode, document-chain + print tracking, MinVer +
+  release-please versioning, and a squashed single-`InitialCreate` migration baseline. **e-Tax is Phase-1
+  scaffolding only** (XAdES signer inert + email/mock RD client — NOT a live RD submission). See
   `progress.md` for the current frontier; `plan.md` for what's left. **Not greenfield.**
 - **Owner:** Ham (hamtawat@gmail.com)
 - **Compliance bar:** must pass a Thai Revenue Department (สรรพากร) audit at any time.

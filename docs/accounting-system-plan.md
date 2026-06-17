@@ -1281,6 +1281,15 @@ PDF, Excel, CSV, JSON, XML (e-Tax)
 
 ## 16. Tax Configuration — **Environment Variables Only**
 
+> **Implemented (superseded by §4.6, per-company-vat-mode spec 2026-06-11):** VAT mode/rate and ภ.พ.30
+> submission mode are no longer env-only — they are **per-company master data** on `master.companies`
+> (`vat_registered`, `vat_rate`, `pnd30_submission_mode`), served per request by `ICompanyTaxConfigService`
+> and settable only by super-admin (`POST/PUT /companies`, audited as `tax_config_change`). The "no
+> user-facing UI" hard rule below still holds — there is no regular settings UI for tax config; only the
+> super-admin company page can change it. Non-VAT document labels remain in appsettings (cosmetic, §4.6).
+> The env-var block below documents the original instance-wide model and remains the reference for
+> non-tenant config (numbering, e-Tax, cert paths).
+
 > **Hard rule:** ทุก tax-critical setting อยู่ใน `.env` ของ deployment เท่านั้น **ห้ามมี UI สำหรับแก้** เพื่อป้องกัน:
 > - User เผลอเปลี่ยนแล้วกระทบทั้งระบบ
 > - Compliance issue ถ้า rate change โดยไม่ผ่าน change management
@@ -3912,6 +3921,23 @@ Response:
 
 ## 22. Implementation Roadmap
 
+> **Status as of 2026-06-17 (reconciled to built reality):** This roadmap was the original 15-month
+> forward plan. In practice the work shipped **out of phase order** — the phase/month mapping below no
+> longer reflects sequence or completeness; read the per-bullet notes for each line's true status.
+> **Shipped (feature-based, not phase-based):** Identity/per-company RBAC + multi-tenancy + audit, master
+> data, full sales chain (Q→SO→DO→Invoice→Tax Invoice→Receipt) + CN/DN, Purchase (VI→PV) + WHT 50ทวิ +
+> ภ.ง.ด.3/53/54, GL + financial reports (TB/P&L/Balance Sheet), VAT (ภ.พ.30 preview/finalize + registers +
+> ภ.พ.36 reverse-charge), payroll + ภ.ง.ด.1/1ก/SSO, corporate income tax (ภ.ง.ด.50/51), the RD tax-form PDF
+> fillers, per-company VAT config, non-VAT mode, onboarding wizard + super-admin company switcher,
+> MinVer/release-please versioning, and a squashed single-`InitialCreate` migration baseline. (Several of
+> these — the RD PDF fillers, CIT, payroll forms — were never Phase-4/5 line items; they are out-of-band
+> additions.)
+> **NOT built (the Phase-4/5 line items are largely outstanding):** live e-Tax RD submission (Phase 1 =
+> scaffolding only — XAdES signer inert + mock RD client, no auto-submit cron), Fixed Assets register +
+> depreciation, bank reconciliation, multi-currency revaluation, DR drill / penetration test / pilot
+> roll-out. Also out of scope by design: Inventory (§8), 3-way match (PR→PO→GR, cut — §23.2), same-day
+> Void & Reissue (superseded by Credit Note correction — §6.5). Per-bullet notes below mark each.
+
 ### Phase 0 (Pre-development): CA + Service Provider Registration
 
 > **Lead time: 4-6 สัปดาห์** — ทำคู่ขนานกับ Phase 1
@@ -3925,38 +3951,58 @@ Response:
 ### Phase 1 (Month 1–3): Foundation
 
 - Infrastructure setup (Azure / on-prem MS SQL Server cluster)
-- Authentication, RBAC, multi-tenancy, audit
-- Master data (Company, Branch, CoA, Customer, Vendor, Product)
-- Basic GL (Journal Entry + Manual Post)
-- VAT Configuration (Super User)
-- **In-house XAdES Signing Service** (PFX-based for Phase 1, HSM-ready interface)
+  - **Implemented:** the DB is **PostgreSQL 16+ via Npgsql** (EF migrations = source of truth), NOT
+    MS SQL Server — MSSQL is explicitly forbidden (CLAUDE.md §2). The deployment target (Azure / on-prem)
+    is not yet decided — the system currently runs as a local development build (no production deploy yet).
+- Authentication, RBAC, multi-tenancy, audit — **Implemented:** shipped, with **per-company RBAC** +
+  super-admin company switcher + onboarding wizard (cont.95-98o); PostgreSQL RLS on every business table.
+- Master data (Company, Branch, CoA, Customer, Vendor, Product) — **Implemented:** shipped.
+- Basic GL (Journal Entry + Manual Post) — **Implemented:** GL + posting + period management shipped.
+- VAT Configuration (Super User) — **Implemented:** now **per-company master data** on `master.companies`
+  (`vat_registered`/`vat_rate`/`pnd30_submission_mode`), super-admin only (§4.6) — not env-only.
+- **In-house XAdES Signing Service** (PFX-based for Phase 1, HSM-ready interface) — **Implemented but inert:**
+  the XAdES-BES signer exists and emits the mandatory profile, but the pipeline is disabled (`ETaxBehaviorOptions.Enabled=false`)
+  and round-trip self-verify is open. NOT used at runtime. See §13 + the e-Tax tech-debt note in `plan.md`.
 
 ### Phase 2 (Month 4–6): Core Transactions
 
-- Sales: Quotation → SO → DO → **Full Tax Invoice (ม.86/4)** → Receipt
-- **Same-day Void & Reissue workflow** (6 gates validation + SoD)
-- Purchase: PR → PO → GR → Vendor Invoice → Payment Voucher
-- Inventory: stock card, FIFO/WAvg, stock take
-- AR / AP aging
-- WHT: 50 ทวิ + ภ.ง.ด.3/53
+- Sales: Quotation → SO → DO → **Full Tax Invoice (ม.86/4)** → Receipt — **Implemented:** full chain shipped
+  (+ Billing Note/Invoice, CN/DN, non-VAT mode, document-chain + print tracking).
+- **Same-day Void & Reissue workflow** (6 gates validation + SoD) — **Not built as a same-day void:** posted
+  Tax Invoices are immutable (§4.2); corrections are done via **Credit Note + reissue** (see §6.5), per the
+  current compliance model. No same-day void path exists.
+- Purchase: PR → PO → GR → Vendor Invoice → Payment Voucher — **Implemented (partial):** internal PO +
+  Vendor Invoice → Payment Voucher + WHT shipped. **PR and GR (3-way match) NOT built** — cut from Phase 1
+  (§23.2); SMEs go vendor-TI → VI → PV directly.
+- Inventory: stock card, FIFO/WAvg, stock take — **Not built:** Inventory is explicitly out of scope (§8).
+- AR / AP aging — **Implemented:** AR + AP aging reports shipped.
+- WHT: 50 ทวิ + ภ.ง.ด.3/53 — **Implemented:** 50ทวิ + ภ.ง.ด.3/53/54 generators + official-PDF fillers shipped.
 
 ### Phase 3 (Month 7–9): Tax Compliance & Reporting
 
-- VAT Output/Input registers
-- ภ.พ.30, ภ.พ.36
-- Credit Note / Debit Note
-- Financial statements (P&L, BS, CF, TB)
-- Budget vs Actual
+- VAT Output/Input registers — **Implemented:** shipped.
+- ภ.พ.30, ภ.พ.36 — **Implemented:** ภ.พ.30 preview/finalize + immutable filing history + PDF filler;
+  ภ.พ.36 reverse-charge auto-JV. **Also shipped beyond this list:** corporate income tax ภ.ง.ด.50/51.
+- Credit Note / Debit Note — **Implemented:** shipped (ม.86/9-10).
+- Financial statements (P&L, BS, CF, TB) — **Implemented:** Trial Balance, P&L, and real Balance Sheet shipped.
+  **Cash Flow statement not built.**
+- Budget vs Actual — **Not built.**
 
 ### Phase 4 (Month 10–12): e-Tax by Email + RD API + Fixed Asset
 
-- **e-Tax Invoice by Email** — Sign XML + email customer + cc csemail@rd.go.th
-- **RD Open API integration** สำหรับ ภ.พ.30, ภ.ง.ด.3, ภ.ง.ด.53 submission
-- Accountant review UI for monthly returns
-- Auto-submit safety net (23:00 ของ deadline date)
-- Fixed Asset (acquisition, depreciation, disposal)
-- Bank reconciliation
-- Multi-currency revaluation
+- **e-Tax Invoice by Email** — Sign XML + email customer + cc csemail@rd.go.th — **Phase-1 scaffolding only:**
+  the XAdES signer + email pipeline exist but are **inert** (`ETaxBehaviorOptions.Enabled=false`). NOT a live
+  submission. GATED until Ham orders (`docs/superpowers/plans/etax-xades-production-plan.md`).
+- **RD Open API integration** สำหรับ ภ.พ.30, ภ.ง.ด.3, ภ.ง.ด.53 submission — **Not live:** auto-mode submits
+  through `MockRdEfilingClient` (fake ACK), never the real RD endpoint. The actual filing output today is the
+  set of **filled official RD PDFs** (ภ.พ.30, ภ.ง.ด.1/3/53/54/50/51, ภ.พ.01/09) for print-and-file.
+- Accountant review UI for monthly returns — **Implemented (partial):** preview/finalize + tax-summary dashboard +
+  per-form pages shipped.
+- Auto-submit safety net (23:00 ของ deadline date) — **Not built:** only a deadline-alert job (`Pnd30DeadlineAlertJob`,
+  log-only); no auto-submit cron.
+- Fixed Asset (acquisition, depreciation, disposal) — **Not built.**
+- Bank reconciliation — **Not built.**
+- Multi-currency revaluation — **Not built.**
 
 ### Phase 6+ (Future): H2H Upgrade — เมื่อ revenue > 30M
 
@@ -3967,11 +4013,12 @@ Response:
 
 ### Phase 5 (Month 13–15): Hardening
 
-- Performance tuning, load testing
-- Disaster recovery drill
-- Penetration test + remediation
-- User training, documentation
-- Pilot 1 company → roll out
+- Performance tuning, load testing — **Not formally done** (ad-hoc only).
+- Disaster recovery drill — **Not built.**
+- Penetration test + remediation — **Not done.**
+- User training, documentation — **Implemented (partial):** a generated Thai user manual exists under
+  `docs/manual/` (chapter-by-chapter walkthroughs) and a freshly generated API reference under `docs/manual/api/`.
+- Pilot 1 company → roll out — **Not yet** (demo/onboarding companies exist for testing).
 
 ### Acceptance Criteria
 
@@ -4039,7 +4086,7 @@ need that emerges at scale and gets specced into Phase 2.
 | ~~Sprint 11~~ | ✅ **Shipped 2026-05-18** (Report-Backend16) | ~~File Attachment polymorphic~~ Done — 14/14 DoD. `sys.attachments` (10 parent_type incl. fwd-compat PURCHASE_ORDER, 11 category enum, soft-delete, filtered indexes); `IFileStorageService` + `LocalDiskFileStorage` (path-traversal blocked); `IAttachmentService` (per-type parent existence + mime/25MB + parent .read inheritance); 5 endpoints via BFF proxy; reusable AttachmentsSection on 9 detail pages. Flags carried: JV detail page deferred (no JV frontend route — Phase 1 UI gap); list-row 📎N chip Phase 2 (N+1 needs batch-count endpoint); Receipt/CN-DN missing .read perm (pre-existing RBAC gap, worked around with sys.attachment.read + RLS). |
 | ~~**Sprint 12**~~ | ✅ **Shipped 2026-05-18** (Report-Backend17) | ~~Internal Purchase Order~~ Done — 18/18 DoD, single phase. 79/79 Domain + 87/87 Api + 29/29 Playwright (3-user e2e: ap_clerk create → self-approve blocked SoD → approver approves → Outstanding lists → mark-sent → admin posts linked VI → PO auto-closes → Outstanding drops). ck_po_sod byte-mirror of ck_pv_sod. Pure PoSettlement calc (≥95% closes, >105% over-receipt chip not error). VI.purchase_order_id FK + form dropdown + line auto-fill + linked-PO badge. Outstanding-PO report with aging. AttachmentsSection on PO detail (Sprint 11 reuse). 2 mechanism notes (defensive, not improvised): PO prefix added in seed 290 (missing from 100), PURCHASING_STAFF role absent → AP_CLERK used as create-side analog per KI-01 RBAC convention. **Phase-1 backbone COMPLETE.** |
 | **Sprint 13a** ใหม่ | ✅ **Shipped 2026-05-17** (Sana parallel work) | **Test Plan documentation** — 11 files under `docs/test/`: 00 master + 01 Strategy + 02 Functional Matrix + 03 UAT Scenarios + 04 Compliance (Thai tax law) + 05 Security + 06 Performance + 07 Regression + 08 Data Migration + 09 Go-Live Checklist + 10 External API Test. Risk-based approach (HIGH/MEDIUM/LOW), test pyramid targets, gate definitions, ownership, sign-off criteria. Living document updated per sprint. |
-| **Sprint 13b** ใหม่ | Spec ready (`Answer-Sana-Backend13.md`); execute after Phase 1 fully shipped | **User Manual generator** — Playwright walkthrough scripts + CSS-injection highlight + MkDocs Material compile + wkhtmltopdf PDF. 30+ walkthroughs across ~10 chapters (sales, purchase, reports, master data, e-Tax, external API, troubleshooting). Thai-only output. `frontend/manual/` framework + `docs/manual/_site/` HTML + downloadable PDF. Deterministic `manual-demo` seed for stable screenshots. Estimate **~8-12 days**. |
+| ~~**Sprint 13b**~~ | ✅ **Largely shipped** (Sana track, ongoing) — manual framework + ~45 captured chapters | ~~**User Manual generator**~~ Built — Playwright walkthrough scripts + CSS-injection highlight + MkDocs Material compile. Chapters captured across sales/purchase/reports/master-data/payroll/tax-forms + a fresh API reference under `docs/manual/api/`. Remaining tail: chapter re-capture after the onboarding/wipe-reseed program + Phase 6 narrative refresh + e-Tax chapter 9. (Originally Thai-only output, `frontend/manual/` framework + `docs/manual/` site.) |
 | ~~**Sprint 14.5**~~ | ✅ **Shipped 2026-05-19** (Report-Backend20) — git `56c68f3 → 47ad3eb → 62cac14 → 08c14f9` on Sprint 14 wrap parent. **§14 EXTINCT.** | ~~§14 fix — Shared test-fixture randomization helper~~ Done — 10/10 DoD. `Accounting.TestKit.TestIds` (11 methods) + `frontend/e2e/helpers/test-ids.ts` mirror + 7-site retrofit (record-vendor + Sprint55VI + Sprint85VAT-threshold + Sprint9VAT + Sprint86AR-WHT + business-units-setup + external-api-microservice) + `tools/dev-db-resync.sql` one-time idempotent sequence repair + CLAUDE.md §15 "Test data discipline" as standing rule. Domain 89/89 (+6 TestIdsTests). **Honest gate deferral**: Api Testcontainers + 3× re-run + Playwright + dev-db-resync exec deferred (no Docker/psql in session; reproducible commands in progress.md cont.41 for Ham to run in dev env). Structurally extinct regardless — no fixture plants fixed identifier anymore. |
 | **Sprint 15** ใหม่ | Outline only — spec lazy-write when 14.5 + 13b close | **Claude Code Pentest** — AI-assisted security audit (in lieu of paid vendor). White-box + black-box methodology across OWASP Top 10 + Thai compliance + TEAS-specific: auth/authz/RBAC matrix/SoD/RLS leak/input validation/data integrity (immutability)/audit log integrity/idempotency replay/file upload safety/secrets handling/PDPA/tax compliance (ม.86/4 + gapless)/dependency scan/config posture. Deliverable: `docs/security/sprint15-pentest-report.md` with findings ranked Critical/High/Medium/Low. **Honest limitation flag in report**: AI audit catches ~70-80% of common issues; doesn't replace external pen-test for enterprise/compliance-mandated audits. Adequate for SME launch. Estimate **~3-5 days**. |
 | **Sprint 16** ใหม่ | Outline only — spec lazy-write when 15 closes | **Sana + Ham UAT walkthrough** — interactive QA pass on all 20 UAT scenarios (`docs/test/03-uat-scenarios.md`). Sana plays accountant role + Ham plays admin/microservice (post Sprint 14). Find UX paper-cuts + label confusing + missing prompts. Output: `docs/test/sprint16-uat-findings.md` with issues ranked + Phase-2-polish backlog. Estimate **~2 days** (interactive). |
