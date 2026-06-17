@@ -155,6 +155,21 @@ the backend and type-checks the frontend.
 
 ---
 
+## User manual
+
+A step-by-step user manual (Thai, with screenshots) lives in [`docs/manual/`](docs/manual/) —
+~46 captured walkthroughs across installation / onboarding, master data, the sales and purchase
+chains, payroll, tax filings, and reports, plus a categorized
+[API reference](docs/manual/api/index.md). Start at [`docs/manual/index.md`](docs/manual/index.md),
+or browse it as a local site:
+
+```bash
+pip install mkdocs mkdocs-material
+mkdocs serve -f docs/manual/mkdocs.yml   # then open http://localhost:8000
+```
+
+---
+
 ## Documentation & compliance
 
 - `docs/accounting-system-plan.md` — the master specification (legal references, flows, schema,
