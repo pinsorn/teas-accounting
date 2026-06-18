@@ -114,8 +114,14 @@ public static class RbacEndpointInventory
             .Select(p => p![PermissionPolicyProvider.ApiKeyPolicyPrefix.Length..])
             .ToList();
 
-        // /api/v1/* is ApiKey-scheme-only (group policy or apiperm:). A JWT → 401 there.
-        if (route.StartsWith("/api/v1", StringComparison.OrdinalIgnoreCase) || apiPermPolicies.Count > 0)
+        // /api/v1/* AND /mcp are ApiKey-scheme-only (group policy or apiperm:). A JWT → 401 there.
+        // M2 (MCP): /mcp carries the ApiKeyOnly group policy at the route (RequireAuthenticatedUser on
+        // the ApiKey scheme) — its granular apiperm:* scope checks are PER-TOOL inside the MCP dispatcher
+        // ([Authorize(Policy="apiperm:...")] on each [McpServerTool]), so they don't appear as route
+        // metadata. Like /api/v1, a JWT can't reach it → excluded from the JWT role loop, not AuthnOnly.
+        if (route.StartsWith("/api/v1", StringComparison.OrdinalIgnoreCase)
+            || route.StartsWith("/mcp", StringComparison.OrdinalIgnoreCase)
+            || apiPermPolicies.Count > 0)
             return (AuthKind.ApiKeyOnly, apiPermPolicies, "ApiKey scheme; policies=" + string.Join("|", policies));
 
         if (permPolicies.Count > 0)

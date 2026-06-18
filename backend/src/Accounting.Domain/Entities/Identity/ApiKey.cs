@@ -13,6 +13,13 @@ public class ApiKey : ITenantOwned
     /// <summary>JSON array of scope strings — stored as JSONB.</summary>
     public required string ScopesJson { get; set; }
 
+    /// <summary>M1 (MCP) — key profile: <c>integration</c> (default; other apps /
+    /// ERP / e-commerce, full scopes incl <c>.post</c>) or <c>mcp</c> (AI agents
+    /// via MCP; read + <c>.create</c> draft only, structurally barred from
+    /// <c>.post</c> at the create/grant path). Stored as text; backfilled to
+    /// <c>integration</c> for existing rows. See <see cref="ApiKeyKinds"/>.</summary>
+    public string Kind { get; set; } = ApiKeyKinds.Integration;
+
     public long CreatedBy { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ExpiresAt { get; set; }

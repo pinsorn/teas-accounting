@@ -29,6 +29,8 @@
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="QuestPDF" />
+    <!-- M2 (MCP) — hosts the in-process MCP server (AddMcpServer/MapMcp). -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <!-- OpenTelemetry removed 2026-05-16: unused (no AddOpenTelemetry wiring) and the
          OTLP exporter shipped transitive CVEs. Re-add with a patched version when
          observability is actually implemented. -->

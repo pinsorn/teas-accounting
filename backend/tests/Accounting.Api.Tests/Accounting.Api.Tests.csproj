@@ -17,6 +17,8 @@
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- M2 (MCP) — the client SDK (McpClient/HttpClientTransport) for the /mcp smoke test. -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

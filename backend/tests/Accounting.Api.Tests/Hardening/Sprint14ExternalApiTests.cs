@@ -1,11 +1,17 @@
+using System.Security.Claims;
+using Accounting.Api.Authorization;
+using Accounting.Api.Tenancy;
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Identity;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Identity;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Identity;
 using Accounting.Infrastructure.Persistence;
+using Accounting.TestKit;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -29,6 +35,35 @@ public sealed class ApiKeyGeneratorTests
         BCrypt.Net.BCrypt.Verify(m.Plaintext, m.KeyHash).Should().BeTrue();
         ApiKeyGenerator.PrefixOf(m.Plaintext).Should().Be(m.KeyPrefix);
         ApiKeyGenerator.PrefixOf("garbage").Should().BeNull();
+    }
+
+    // M1 (§4.8) — key-sourced writes previously logged a null actor (UserId null,
+    // Username null). The auth handler now emits ClaimTypes.Name = the key name,
+    // so HttpTenantContext.Username (the ActivityRecorder actor) is the key name,
+    // never null. Target the real mapping (HttpTenantContext over an ApiKey
+    // principal), NOT the StubTenant used by the DB tests.
+    [Fact]
+    public void HttpTenantContext_uses_api_key_name_as_audit_actor()
+    {
+        const string keyName = "Reptify-mcp-agent";
+        var claims = new List<Claim>
+        {
+            new(TenantClaims.CompanyId, "7"),
+            new(TenantClaims.ApiKeyId,  "42"),
+            new(TenantClaims.IsApiKey,  "true"),
+            new(ClaimTypes.Name,        keyName),
+        };
+        var principal = new ClaimsPrincipal(
+            new ClaimsIdentity(claims, ApiKeyAuthenticationHandler.SchemeName));
+        var http = new DefaultHttpContext { User = principal };
+        var accessor = new HttpContextAccessor { HttpContext = http };
+
+        var tenant = new HttpTenantContext(accessor);
+
+        tenant.IsAuthenticated.Should().BeTrue();
+        tenant.ApiKeyId.Should().Be(42);
+        tenant.UserId.Should().BeNull();           // no human user
+        tenant.Username.Should().Be(keyName);      // actor = the key name, not null
     }
 }
 
@@ -192,5 +227,92 @@ public sealed class Sprint14ExternalApiTests
             new CreateApiKeyRequest("bad-bu", ["x"], DefaultBusinessUnitId: 999_999), default);
         (await act.Should().ThrowAsync<DomainException>())
             .Which.Code.Should().Be("api_key.invalid_business_unit");
+    }
+
+    // ── M1 (MCP) — api_keys.kind ─────────────────────────────────────────────
+
+    [SkippableFact]
+    public async Task Kind_defaults_to_integration_when_unspecified()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        long id;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IApiKeyService>();
+            // Existing positional ctor (no Kind) → must default to integration.
+            id = (await svc.CreateAsync(
+                new CreateApiKeyRequest(TestIds.Name("key"), ["sales.tax_invoice.read"]), default)).ApiKeyId;
+        }
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var list = await s.ServiceProvider.GetRequiredService<IApiKeyService>().ListAsync(default);
+            list.First(k => k.ApiKeyId == id).Kind.Should().Be(ApiKeyKinds.Integration);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Mcp_kind_persists_and_lists()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        long id;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IApiKeyService>();
+            id = (await svc.CreateAsync(new CreateApiKeyRequest(
+                TestIds.Name("mcp"),
+                ["sales.tax_invoice.read", "sales.tax_invoice.create"],
+                Kind: ApiKeyKinds.Mcp), default)).ApiKeyId;
+        }
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var list = await s.ServiceProvider.GetRequiredService<IApiKeyService>().ListAsync(default);
+            list.First(k => k.ApiKeyId == id).Kind.Should().Be(ApiKeyKinds.Mcp);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Mcp_key_with_read_and_create_succeeds()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IApiKeyService>();
+        var act = () => svc.CreateAsync(new CreateApiKeyRequest(
+            TestIds.Name("mcp-ok"),
+            ["sales.tax_invoice.read", "sales.tax_invoice.create", "sales.receipt.create"],
+            Kind: ApiKeyKinds.Mcp), default);
+        await act.Should().NotThrowAsync();
+    }
+
+    [SkippableFact]
+    public async Task Mcp_key_with_post_scope_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IApiKeyService>();
+        var act = () => svc.CreateAsync(new CreateApiKeyRequest(
+            TestIds.Name("mcp-bad"),
+            ["sales.tax_invoice.create", "sales.tax_invoice.post"],
+            Kind: ApiKeyKinds.Mcp), default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("api_key.mcp_cannot_post");
+    }
+
+    [SkippableFact]
+    public async Task Integration_key_with_post_scope_still_succeeds()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IApiKeyService>();
+        // Integration keys (M2M) keep full scopes incl post — guard must not fire.
+        var act = () => svc.CreateAsync(new CreateApiKeyRequest(
+            TestIds.Name("integration"),
+            ["sales.tax_invoice.create", "sales.tax_invoice.post"],
+            Kind: ApiKeyKinds.Integration), default);
+        await act.Should().NotThrowAsync();
     }
 }

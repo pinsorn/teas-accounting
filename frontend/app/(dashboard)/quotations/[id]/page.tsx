@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -16,12 +16,14 @@ import { useQuotation, useQuotationAction, useDeleteQuotation, useCompanyProfile
 import { PAPER_DOC, paperWatermark, companyToSeller, custInfo } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useConfirm } from '@/hooks/useConfirm';
+import { useHasScope } from '@/components/PermissionGate';
 
 export default function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const qid = Number(id);
   const t = useTranslations('quotation');
   const tc = useTranslations('common');
+  const ta = useTranslations('approve');
   const router = useRouter();
   const q = useQuotation(qid);
   const act = useQuotationAction();
@@ -31,7 +33,14 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   const cust = useCustomer(q.data?.customerId ?? null);
   // ม.86/4 — non-VAT companies cannot issue a Tax Invoice from an accepted quote.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  const hasScope = useHasScope();
+  const [isApproveAction, setIsApproveAction] = useState(false);
   const d = q.data;
+
+  useEffect(() => {
+    const action = new URLSearchParams(window.location.search).get('action');
+    if (action === 'approve') setIsApproveAction(true);
+  }, []);
 
   async function run(action: string, body?: unknown) {
     try {
@@ -78,6 +87,33 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
         title={`${t('listTitle')} ${d.docNo ?? `#${d.quotationId}`}`}
         actions={<PrintMenu docType="quotations" id={qid} />}
       />
+
+      {/* ?action=approve — prominent approval banner for agent-created drafts */}
+      {isApproveAction && d.status === 'Draft' && (
+        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          <div className="mt-3">
+            {hasScope('sales.quotation.send') ? (
+              <button
+                data-testid="q-approve-cta"
+                className="btn btn-warning btn-sm"
+                disabled={act.isPending}
+                onClick={() => run('send')}
+              >
+                {ta('ctaSend')}
+              </button>
+            ) : (
+              <p className="text-sm font-medium text-error">{ta('noPermission')}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {isApproveAction && d.status !== 'Draft' && (
+        <div className="mb-4 rounded-lg border border-base-300 bg-base-200 p-3 text-sm text-base-content/60">
+          {ta('alreadyPosted')}
+        </div>
+      )}
 
       <DocActionBar
         status={d.status}

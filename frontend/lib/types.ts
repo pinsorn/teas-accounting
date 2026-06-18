@@ -965,14 +965,18 @@ export interface ApAgingRow {
 export interface ApAgingReport { asOf: string; rows: ApAgingRow[]; totals: ApAgingRow; }
 
 // ───────────────────────── Sprint 14: External API keys ────────────────────
+export type ApiKeyKind = 'integration' | 'mcp';
+
 export interface ApiKeyListItem {
   apiKeyId: number; name: string; keyPrefix: string; scopes: string[];
+  kind: ApiKeyKind;
   defaultBusinessUnitId: number | null; defaultBusinessUnitCode: string | null;
   createdAt: string; lastUsedAt: string | null; expiresAt: string | null;
   revokedAt: string | null; isActive: boolean;
 }
 export interface CreateApiKeyRequest {
   name: string; scopes: string[];
+  kind: ApiKeyKind;
   expiresAt: string | null; defaultBusinessUnitId: number | null;
 }
 export interface ApiKeyCreatedResult {

@@ -41,7 +41,7 @@ public sealed class ApiKeyService : IApiKeyService
             .Select(k => new
             {
                 k.ApiKeyId, k.Name, k.KeyPrefix, k.ScopesJson, k.DefaultBusinessUnitId,
-                k.CreatedAt, k.LastUsedAt, k.ExpiresAt, k.RevokedAt, k.IsActive,
+                k.CreatedAt, k.LastUsedAt, k.ExpiresAt, k.RevokedAt, k.IsActive, k.Kind,
             })
             .ToListAsync(ct);
 
@@ -55,12 +55,20 @@ public sealed class ApiKeyService : IApiKeyService
             r.ApiKeyId, r.Name, r.KeyPrefix, ParseScopes(r.ScopesJson),
             r.DefaultBusinessUnitId,
             r.DefaultBusinessUnitId is { } b && buCodes.TryGetValue(b, out var c) ? c : null,
-            r.CreatedAt, r.LastUsedAt, r.ExpiresAt, r.RevokedAt, r.IsActive)).ToList();
+            r.CreatedAt, r.LastUsedAt, r.ExpiresAt, r.RevokedAt, r.IsActive, r.Kind)).ToList();
     }
 
     public async Task<ApiKeyCreatedResult> CreateAsync(CreateApiKeyRequest req, CancellationToken ct)
     {
         EnsureAuth();
+        var kind = string.IsNullOrWhiteSpace(req.Kind) ? ApiKeyKinds.Integration : req.Kind.Trim();
+        if (!ApiKeyKinds.IsValid(kind))
+            throw new DomainException("api_key.invalid_kind",
+                "Kind must be 'integration' or 'mcp'.");
+        // M1 (MCP) compliance belt — an mcp key (AI agent) MUST NOT hold any
+        // post scope; it can draft (.create) but a human posts. Reject at the
+        // only grant site (CreateAsync) so the key structurally cannot post.
+        EnforceMcpNoPostGuard(kind, req.Scopes);
         await ValidateBuAsync(req.DefaultBusinessUnitId, ct);
 
         var minted = ApiKeyGenerator.New();
@@ -72,6 +80,7 @@ public sealed class ApiKeyService : IApiKeyService
             KeyHash = minted.KeyHash,
             KeyPrefix = minted.KeyPrefix,
             ScopesJson = JsonSerializer.Serialize(req.Scopes),
+            Kind = kind,
             CreatedBy = _tenant.UserId ?? 0,
             CreatedAt = now,
             ExpiresAt = req.ExpiresAt,
@@ -133,6 +142,20 @@ public sealed class ApiKeyService : IApiKeyService
                 $"Business Unit {buId} not found or inactive for this company.");
     }
 
+    /// <summary>M1 (MCP) — reject any <c>.post</c> scope for a kind=mcp key. The
+    /// guard lives on the kind, not the endpoint, so M2M (integration) keys keep
+    /// full post scopes. Throws <c>api_key.mcp_cannot_post</c>.</summary>
+    private static void EnforceMcpNoPostGuard(string kind, IReadOnlyList<string> scopes)
+    {
+        if (kind != ApiKeyKinds.Mcp || scopes is null) return;
+        var offending = scopes.FirstOrDefault(s =>
+            s is not null && s.Trim().EndsWith(".post", StringComparison.Ordinal));
+        if (offending is not null)
+            throw new DomainException("api_key.mcp_cannot_post",
+                $"An mcp key may not be granted post scope ('{offending}'). " +
+                "MCP keys draft (.create); a human posts.");
+    }
+
     private async Task AuditAsync(string type, ApiKey key, DateTimeOffset at, CancellationToken ct)
     {
         // Secret-free: name/prefix/scopes/BU only — never KeyHash or plaintext.
@@ -148,7 +171,7 @@ public sealed class ApiKeyService : IApiKeyService
             EntityDocNo = key.KeyPrefix,
             AfterValueJson = JsonSerializer.Serialize(new
             {
-                key.Name, key.KeyPrefix, scopes = ParseScopes(key.ScopesJson),
+                key.Name, key.KeyPrefix, key.Kind, scopes = ParseScopes(key.ScopesJson),
                 key.DefaultBusinessUnitId, key.ExpiresAt, key.IsActive, key.RevokedAt,
             }),
         });

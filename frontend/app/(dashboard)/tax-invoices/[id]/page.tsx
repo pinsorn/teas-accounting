@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -8,7 +8,7 @@ import { FileCode, Send, ReceiptText } from 'lucide-react';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, useHasScope } from '@/components/PermissionGate';
 import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -26,10 +26,18 @@ export default function TaxInvoiceDetailPage() {
   const id = Number(params.id);
   const t = useTranslations('ti.detail');
   const tc = useTranslations('common');
+  const ta = useTranslations('approve');
   const { data: d, isLoading, isError } = useTaxInvoice(id);
   const { data: sys } = useSystemInfo();
   const post = usePostTaxInvoice();
   const [confirmPost, setConfirmPost] = useState(false);
+  const [isApproveAction, setIsApproveAction] = useState(false);
+  const hasScope = useHasScope();
+
+  useEffect(() => {
+    const action = new URLSearchParams(window.location.search).get('action');
+    if (action === 'approve') setIsApproveAction(true);
+  }, []);
 
   if (!sys?.vatMode && sys !== undefined) return <NonVatGuard title={t('title')} />;
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
@@ -77,6 +85,33 @@ export default function TaxInvoiceDetailPage() {
           </>
         }
       />
+
+      {/* ?action=approve — prominent approval banner for agent-created drafts */}
+      {isApproveAction && d.status === 'Draft' && (
+        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          <div className="mt-3">
+            {hasScope('sales.tax_invoice.post') ? (
+              <button
+                data-testid="ti-approve-cta"
+                className="btn btn-warning btn-sm"
+                disabled={post.isPending}
+                onClick={() => setConfirmPost(true)}
+              >
+                {ta('cta')}
+              </button>
+            ) : (
+              <p className="text-sm font-medium text-error">{ta('noPermission')}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {isApproveAction && d.status !== 'Draft' && (
+        <div className="mb-4 rounded-lg border border-base-300 bg-base-200 p-3 text-sm text-base-content/60">
+          {ta('alreadyPosted')}
+        </div>
+      )}
 
       <DocActionBar
         status={d.status}

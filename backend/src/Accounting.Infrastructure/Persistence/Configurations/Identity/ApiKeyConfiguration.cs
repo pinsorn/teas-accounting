@@ -17,6 +17,12 @@ internal sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         b.Property(k => k.KeyPrefix).HasMaxLength(20).IsRequired();
         b.Property(k => k.ScopesJson).HasColumnType("jsonb").HasColumnName("scopes").IsRequired();
 
+        // M1 (MCP) — key profile (integration|mcp). Text column with a non-null
+        // SQL default so existing rows backfill to 'integration' in the migration.
+        b.Property(k => k.Kind).HasColumnName("kind").HasMaxLength(20)
+            .HasDefaultValue(Accounting.Domain.Entities.Identity.ApiKeyKinds.Integration)
+            .IsRequired();
+
         b.Property(k => k.CreatedAt).HasColumnType("timestamptz(3)");
         b.Property(k => k.ExpiresAt).HasColumnType("timestamptz(3)");
         b.Property(k => k.LastUsedAt).HasColumnType("timestamptz(3)");

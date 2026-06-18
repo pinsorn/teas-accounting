@@ -1389,7 +1389,23 @@
     "copied": "คัดลอกแล้ว",
     "secretTitle": "สร้าง API key แล้ว",
     "secretWarning": "บันทึก key นี้ทันที — จะไม่แสดงอีก",
-    "savedIt": "บันทึกแล้ว"
+    "savedIt": "บันทึกแล้ว",
+    "kind": "ประเภท key",
+    "kindIntegration": "Integration (ระบบต่อระบบ)",
+    "kindMcp": "MCP (AI Agent)",
+    "mcpSetupTitle": "วิธีตั้งค่า MCP Client",
+    "mcpEndpointLabel": "MCP Endpoint URL",
+    "mcpHeaderLabel": "Header การยืนยันตัวตน",
+    "mcpConfigLabel": "ตัวอย่าง config MCP client",
+    "mcpScopeNote": "สิทธิ์ของ MCP key: อ่านข้อมูล + สร้างร่างเอกสารเท่านั้น (ไม่สามารถ Post ได้) — AI agent สร้างร่าง จากนั้นส่งลิงก์ให้คุณอนุมัติ & Post เอง"
+  },
+  "approve": {
+    "bannerTitle": "อนุมัติเอกสารนี้",
+    "bannerDesc": "เอกสารนี้ถูกสร้างโดย AI Agent และรอการตรวจสอบ กรุณาตรวจสอบข้อมูลด้านล่างแล้วกด \"อนุมัติ & Post\"",
+    "cta": "อนุมัติ & Post",
+    "ctaSend": "อนุมัติ & ส่ง",
+    "noPermission": "ไม่มีสิทธิ์อนุมัติเอกสารนี้ — กรุณาติดต่อผู้ดูแลระบบ",
+    "alreadyPosted": "เอกสารนี้ได้รับการ Post แล้ว"
   },
   "status": {
     "Draft": "ร่าง",

@@ -56,6 +56,11 @@ public sealed class ApiKeyAuthenticationHandler
             new(TenantClaims.ApiKeyName,   k.Name),
             new(TenantClaims.IsApiKey,     "true"),
             new(TenantClaims.Scopes,       k.ScopesCsv),
+            // M1 (§4.8 fix) — key-sourced writes previously logged UserId=null and
+            // no actor name. Emit ClaimTypes.Name = the key name so the existing
+            // ITenantContext.Username → ActivityRecorder path records the key as
+            // the audit actor (no human user). Zero downstream changes.
+            new(ClaimTypes.Name,           k.Name),
         };
         if (k.DefaultBusinessUnitId is { } bu)
             claims.Add(new Claim(TenantClaims.DefaultBusinessUnit, bu.ToString()));

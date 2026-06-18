@@ -2332,7 +2332,7 @@ paths:
       tags: [API Keys]
       responses:
         '200':
-          description: OK — list of keys with prefix (NOT plaintext), scopes, default_BU, expiry, last_used_at
+          description: OK — list of keys with prefix (NOT plaintext), scopes, default_BU, expiry, last_used_at, kind
     post:
       summary: Create new API key (plaintext returned ONCE, then bcrypt hash + 16-char prefix stored)
       tags: [API Keys]
@@ -2353,6 +2353,11 @@ paths:
                   nullable: true
                   description: 'When set: docs auto-tag with this BU; request body mismatch → 409 business_unit.locked_mismatch'
                 expires_at: { type: string, format: date-time, nullable: true }
+                kind:
+                  type: string
+                  enum: [integration, mcp]
+                  default: integration
+                  description: 'Key profile. `integration` = M2M/external apps, full scopes incl. post operations. `mcp` = AI agent (Model Context Protocol), read + create-draft scopes only, cannot post/finalise documents.'
       responses:
         '201':
           description: Created — plaintext key returned ONCE. Caller MUST save it; never retrievable again.
@@ -2368,6 +2373,7 @@ paths:
                   scopes: { type: array, items: { type: string } }
                   default_business_unit_id: { type: integer, nullable: true }
                   expires_at: { type: string, format: date-time, nullable: true }
+                  kind: { type: string, enum: [integration, mcp], default: integration }
 
   /api-keys/{id}:
     parameters:
@@ -2507,6 +2513,37 @@ paths:
                   document_number_format: { type: string, example: 'MM-YYYY-PREFIX-NNNN or MM-YYYY-PREFIX-SUB-NNNN with BU' }
                   timezone: { type: string, example: 'Asia/Bangkok' }
         '401': { $ref: '#/components/responses/ErrorEnvelope401' }
+
+# ============================================================
+# /mcp — Model Context Protocol (MCP) HTTP transport (M2)
+# Auth: X-Api-Key (ApiKeyOnlyPolicy — same posture as /api/v1/*; JWT not accepted).
+# Rate-limit: per-key 120 req/min (same PerApiKeyRateLimitPolicy as /api/v1/*).
+# Intended for mcp-kind keys only (read + create-draft tools; no post/finalise operations).
+# ============================================================
+  /mcp:
+    post:
+      summary: MCP server endpoint (Model Context Protocol over HTTP — streamable transport)
+      tags: [MCP]
+      security: [{ ApiKeyAuth: [] }]
+      description: |
+        Model Context Protocol (MCP) HTTP streamable transport endpoint (M2).
+        Accepts MCP JSON-RPC 2.0 messages from AI agents (e.g. Claude). Not a conventional REST
+        resource — request/response bodies are MCP protocol envelopes, not a fixed application schema.
+        Auth: `X-Api-Key` header required (ApiKeyOnlyPolicy); JWT is rejected on this path.
+        Rate-limit: per-key sliding window 120 req/min (same policy as /api/v1/*).
+        Recommended key kind: `mcp` (read + create-draft scopes; cannot invoke post/finalise operations).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: MCP JSON-RPC 2.0 request envelope. Shape determined by the MCP protocol, not this API.
+      responses:
+        '200':
+          description: MCP JSON-RPC response or SSE stream (content-type varies by transport negotiation).
+        '401': { description: 'auth.* (missing/invalid/expired/revoked API key)' }
+        '429': { description: 'Rate limit exceeded (per-key 120 req/min)' }
 
 # ============================================================
 # COMPONENTS

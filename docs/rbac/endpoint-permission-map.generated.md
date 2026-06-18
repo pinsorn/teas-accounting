@@ -11,9 +11,9 @@
 | AuthnOnly | 12 |
 | Perm | 225 |
 | Assertion | 5 |
-| ApiKeyOnly | 18 |
+| ApiKeyOnly | 19 |
 | Unprotected | 0 |
-| **TOTAL** | **263** |
+| **TOTAL** | **264** |
 
 ## Routes
 
@@ -127,6 +127,7 @@
 | ANY | `/health` | Anonymous | — |
 | POST | `/journals/` | Perm | gl.journal.create |
 | POST | `/journals/{id:long}/post` | Perm | gl.journal.post |
+| POST | `/mcp/` | ApiKeyOnly | — |
 | GET | `/me` | AuthnOnly | — |
 | GET | `/me/permissions` | AuthnOnly | — |
 | GET | `/payment-vouchers/` | Perm | purchase.payment_voucher.read |

@@ -1389,7 +1389,23 @@
     "copied": "Copied to clipboard",
     "secretTitle": "API key created",
     "secretWarning": "Save this key now — it will NOT be shown again.",
-    "savedIt": "I saved it"
+    "savedIt": "I saved it",
+    "kind": "Key type",
+    "kindIntegration": "Integration (system-to-system)",
+    "kindMcp": "MCP (AI Agent)",
+    "mcpSetupTitle": "MCP Client Setup",
+    "mcpEndpointLabel": "MCP Endpoint URL",
+    "mcpHeaderLabel": "Authentication header",
+    "mcpConfigLabel": "MCP client config snippet",
+    "mcpScopeNote": "MCP key scope: read + create draft only (cannot Post directly). The AI agent drafts documents and returns a link for you to review and approve."
+  },
+  "approve": {
+    "bannerTitle": "Approve this document",
+    "bannerDesc": "This document was created by an AI Agent and is awaiting review. Check the details below then click \"Approve & Post\".",
+    "cta": "Approve & Post",
+    "ctaSend": "Approve & Send",
+    "noPermission": "You do not have permission to approve this document — contact your administrator.",
+    "alreadyPosted": "This document has already been posted."
   },
   "status": {
     "Draft": "Draft",

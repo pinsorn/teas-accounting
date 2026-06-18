@@ -19,6 +19,10 @@ public static class ApiV1Endpoints
 {
     public const string ApiKeyOnlyPolicy = "ApiKeyOnly";
 
+    /// <summary>M1 (MCP) — named rate-limit policy applied to the whole /api/v1
+    /// group, partitioned per API key (see Program.cs AddRateLimiter).</summary>
+    public const string PerApiKeyRateLimitPolicy = "per-api-key";
+
     // ApiKey-scheme-pinned + scope (P6). Root JWT routes keep "perm:" — the
     // scheme split IS the auth isolation (X-Api-Key can't satisfy "perm:";
     // a JWT can't satisfy "apiperm:").
@@ -26,7 +30,8 @@ public static class ApiV1Endpoints
 
     public static IEndpointRouteBuilder MapExternalApiV1(this IEndpointRouteBuilder app)
     {
-        var v1 = app.MapGroup("/api/v1").WithTags("External API v1");
+        var v1 = app.MapGroup("/api/v1").WithTags("External API v1")
+            .RequireRateLimiting(PerApiKeyRateLimitPolicy);   // M1 (MCP) — per-key 120/min
 
         // ── Tax Invoices ─────────────────────────────────────────────────────
         v1.MapPost("/tax-invoices", async (

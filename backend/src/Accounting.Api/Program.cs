@@ -48,6 +48,11 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 // Tax/VAT environment configuration — DO NOT expose via UI (see CLAUDE.md §4.6)
 builder.Services.Configure<TaxConfig>(builder.Configuration.GetSection("Tax"));
 
+// M2 (MCP) — App:BaseUrl backs the human-approval deep-link a create-draft MCP tool
+// returns ({BaseUrl}/<route>/{id}?action=approve). See Accounting.Api.Mcp.AppOptions.
+builder.Services.Configure<Accounting.Api.Mcp.AppOptions>(
+    builder.Configuration.GetSection(Accounting.Api.Mcp.AppOptions.SectionName));
+
 // Layer registrations
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -84,6 +89,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ApiKeyAuthenticationHandler.SchemeName, _ => { });
 
 builder.Services.AddPermissionAuthorization();
+
+// M2 (MCP) — in-process Model Context Protocol server. Stateless HTTP transport
+// means each tool resolves its scoped services from the per-request
+// HttpContext.RequestServices scope already populated by the X-Api-Key auth handler
+// (company_id claim → ITenantContext → RLS), so tenant isolation is automatic and
+// tools need no manual company filter. AddAuthorizationFilters() enables the
+// [Authorize(Policy = "apiperm:<scope>")] gating on each tool, resolved by the same
+// PermissionPolicyProvider the /api/v1 endpoints use. The /mcp endpoint itself is
+// pinned to the X-Api-Key scheme + per-key rate-limit at MapMcp (below).
+builder.Services.AddMcpServer()
+    .WithHttpTransport(o => o.Stateless = true)
+    .AddAuthorizationFilters()
+    .WithTools<Accounting.Api.Mcp.TeasMcpTools>();
 
 // Sprint 14 — /api/v1/* is ApiKey-scheme-only (auth isolation: root/BFF stays
 // JWT-default, so an X-Api-Key on a root route → 401, and a JWT on v1 → 401).
@@ -128,6 +146,29 @@ builder.Services.AddRateLimiter(o =>
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit          = 0;
     });
+
+    // M1 (MCP) — per-key rate-limit on the external /api/v1/* surface. The
+    // limiter runs BEFORE authentication (UseRateLimiter precedes
+    // UseAuthentication), so there is no principal yet → partition by the
+    // X-Api-Key header (its stable lookup prefix, never the full secret).
+    // Each key gets its own 120/min fixed window; unkeyed requests share one
+    // bucket (they 401 at auth anyway). No new package (native limiter).
+    o.AddPolicy(Accounting.Api.Endpoints.ApiV1Endpoints.PerApiKeyRateLimitPolicy, ctx =>
+    {
+        var presented = ctx.Request.Headers[
+            Accounting.Api.Authorization.ApiKeyAuthenticationHandler.HeaderName].ToString();
+        var partitionKey = Accounting.Infrastructure.Identity.ApiKeyGenerator.PrefixOf(presented)
+            ?? "__no_api_key";
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ =>
+            new FixedWindowRateLimiterOptions
+            {
+                PermitLimit          = 120,
+                Window               = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit           = 0,
+            });
+    });
+
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -226,6 +267,17 @@ app.MapPeriodEndpoints();
 app.MapEtaxEndpoints();
 app.MapApiKeyEndpoints();
 app.MapExternalApiV1();
+
+// M2 (MCP) — mount the in-process MCP server at /mcp. Same auth posture as /api/v1:
+//   • ApiKeyOnlyPolicy → X-Api-Key scheme required (no anonymous; a JWT can't satisfy
+//     it, an X-Api-Key principal is required). Per-tool [Authorize] then checks scopes.
+//   • PerApiKeyRateLimitPolicy → the M1 per-key 120/min window (partitions on the
+//     X-Api-Key header pre-auth, identical to /api/v1).
+// mcp-kind keys carry read + *.create scopes only (M1 guard rejects *.post), and no
+// post/issue tool is exposed → an agent can only draft; a human approves & posts.
+app.MapMcp("/mcp")
+    .RequireAuthorization(ApiV1Endpoints.ApiKeyOnlyPolicy)
+    .RequireRateLimiting(ApiV1Endpoints.PerApiKeyRateLimitPolicy);
 
 app.Run();
 
