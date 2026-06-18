@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { usePurchaseOrders, useBusinessUnitName } from '@/lib/queries';
 import type { PurchaseOrderListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
@@ -26,9 +27,12 @@ export default function PurchaseOrdersPage() {
       accessorKey: 'docNo',
       header: t('docNo'),
       cell: ({ row }) => (
-        <RowLink href={`/purchase-orders/${row.original.purchaseOrderId}`} mono>
-          {row.original.docNo ?? `#${row.original.purchaseOrderId}`}
-        </RowLink>
+        <div className="flex items-center gap-2">
+          <RowLink href={`/purchase-orders/${row.original.purchaseOrderId}`} mono>
+            {row.original.docNo ?? `#${row.original.purchaseOrderId}`}
+          </RowLink>
+          {row.original.status === 'Draft' && row.original.createdViaApiKey && <AgentPendingBadge />}
+        </div>
       ),
     },
     {

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, useHasScope } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
@@ -26,9 +26,18 @@ export default function VendorInvoiceDetailPage() {
   const router = useRouter();
   const t = useTranslations('vi');
   const tc = useTranslations('common');
+  const ta = useTranslations('approve');
   const tpt = useTranslations('productType');
   const { data: d, isLoading, isError } = useVendorInvoice(id);
   const { data: company } = useCompanyProfile();
+  const hasScope = useHasScope();
+  const [isApproveAction, setIsApproveAction] = useState(false);
+
+  useEffect(() => {
+    const action = new URLSearchParams(window.location.search).get('action');
+    if (action === 'approve') setIsApproveAction(true);
+  }, []);
+
   // C — VendorInvoiceService.PostAsync now requires ≥1 non-deleted attachment under
   // (VendorInvoice, id) before flipping Draft → Posted (ม.86/4 + ม.82/4 audit
   // evidence). Reflect that gate in the UI so Post is disabled (with a banner
@@ -107,6 +116,33 @@ export default function VendorInvoiceDetailPage() {
       {d.status === 'Posted' && d.completeness && !d.completeness.isComplete && (
         <div className="mb-4">
           <CompletenessChips missing={d.completeness.missing} />
+        </div>
+      )}
+
+      {/* ?action=approve — prominent approval banner for agent-created drafts */}
+      {isApproveAction && d.status === 'Draft' && (
+        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          <div className="mt-3">
+            {hasScope('purchase.vendor_invoice.post') ? (
+              <button
+                data-testid="vi-approve-cta"
+                className="btn btn-warning btn-sm"
+                disabled={post.isPending}
+                onClick={() => setConfirm(true)}
+              >
+                {ta('cta')}
+              </button>
+            ) : (
+              <p className="text-sm font-medium text-error">{ta('noPermission')}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {isApproveAction && d.status !== 'Draft' && (
+        <div className="mb-4 rounded-lg border border-base-300 bg-base-200 p-3 text-sm text-base-content/60">
+          {ta('alreadyPosted')}
         </div>
       )}
 

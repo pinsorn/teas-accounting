@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -19,17 +19,26 @@ import { AttachmentsSection } from '@/components/attachments/AttachmentsSection'
 import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
 import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
+import { useHasScope } from '@/components/PermissionGate';
 
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const poId = Number(id);
   const t = useTranslations('purchaseOrder');
   const tc = useTranslations('common');
+  const ta = useTranslations('approve');
   const q = usePurchaseOrder(poId);
   const act = usePurchaseOrderAction();
   const d = q.data;
   const { data: vendor } = useVendor(d?.vendorId ?? 0);
   const { data: company } = useCompanyProfile();
+  const hasScope = useHasScope();
+  const [isApproveAction, setIsApproveAction] = useState(false);
+
+  useEffect(() => {
+    const action = new URLSearchParams(window.location.search).get('action');
+    if (action === 'approve') setIsApproveAction(true);
+  }, []);
 
   async function run(action: string, body?: unknown) {
     try { await act.mutateAsync({ id: poId, action, body }); toast.success(tc('save')); }
@@ -50,6 +59,33 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         title={`${t('title')} ${d.docNo ?? `#${d.purchaseOrderId}`}`}
         actions={<PrintMenu docType="purchase-orders" id={poId} />}
       />
+
+      {/* ?action=approve — prominent approval banner for agent-created drafts */}
+      {isApproveAction && d.status === 'Draft' && (
+        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          <div className="mt-3">
+            {hasScope('purchase.purchase_order.approve') ? (
+              <button
+                data-testid="po-approve-cta"
+                className="btn btn-warning btn-sm"
+                disabled={act.isPending}
+                onClick={() => run('approve')}
+              >
+                {ta('ctaApprove')}
+              </button>
+            ) : (
+              <p className="text-sm font-medium text-error">{ta('noPermission')}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {isApproveAction && d.status !== 'Draft' && (
+        <div className="mb-4 rounded-lg border border-base-300 bg-base-200 p-3 text-sm text-base-content/60">
+          {ta('alreadyPosted')}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <span data-testid="po-status"><StatusBadge status={d.status} /></span>

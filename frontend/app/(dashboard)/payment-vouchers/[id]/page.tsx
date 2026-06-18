@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { FilePlus2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, useHasScope } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
@@ -29,12 +29,20 @@ export default function PaymentVoucherDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
   const t = useTranslations('pv');
   const tc = useTranslations('common');
+  const ta = useTranslations('approve');
   const tpt = useTranslations('productType');
   const { data: d, isLoading, isError } = usePaymentVoucher(id);
   const { data: company } = useCompanyProfile();
   const approve = useApprovePaymentVoucher();
   const post = usePostPaymentVoucher();
+  const hasScope = useHasScope();
   const [viDialog, setViDialog] = useState(false);
+  const [isApproveAction, setIsApproveAction] = useState(false);
+
+  useEffect(() => {
+    const action = new URLSearchParams(window.location.search).get('action');
+    if (action === 'approve') setIsApproveAction(true);
+  }, []);
   // PV→VI guided create is offered when the vendor is VAT-registered and there
   // is no linked VI yet (purchase-completeness D1). Vendor VAT flag comes from
   // the vendor master (advisory).
@@ -100,6 +108,33 @@ export default function PaymentVoucherDetailPage() {
           </div>
         }
       />
+      {/* ?action=approve — prominent approval banner for agent-created drafts */}
+      {isApproveAction && d.status === 'Draft' && (
+        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          <div className="mt-3">
+            {hasScope('purchase.payment_voucher.approve') ? (
+              <button
+                data-testid="pv-approve-cta"
+                className="btn btn-warning btn-sm"
+                disabled={approve.isPending}
+                onClick={doApprove}
+              >
+                {ta('ctaApprove')}
+              </button>
+            ) : (
+              <p className="text-sm font-medium text-error">{ta('noPermission')}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {isApproveAction && d.status !== 'Draft' && (
+        <div className="mb-4 rounded-lg border border-base-300 bg-base-200 p-3 text-sm text-base-content/60">
+          {ta('alreadyPosted')}
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <DocumentNumberBadge value={d.docNo} />
         <StatusBadge status={d.status} />

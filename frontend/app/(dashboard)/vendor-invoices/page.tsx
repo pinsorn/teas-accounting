@@ -9,6 +9,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
 import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { useVendorInvoices, useBusinessUnitName } from '@/lib/queries';
 import type { VendorInvoiceListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
@@ -34,6 +35,7 @@ export default function VendorInvoiceListPage() {
             {row.original.docNo ?? `#${row.original.vendorInvoiceId}`}
           </RowLink>
           {row.original.status === 'Posted' && <IncompleteFlag isComplete={row.original.isComplete} />}
+          {row.original.status === 'Draft' && row.original.createdViaApiKey && <AgentPendingBadge />}
         </div>
       ),
     },

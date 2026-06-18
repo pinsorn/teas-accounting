@@ -16,12 +16,17 @@ import { PermissionGate } from '@/components/PermissionGate';
 
 const SCOPE = 'sys.api_key.manage';
 
-// Spec §6 — the externally-exposable scope subset (NOT admin/master-delete/tax).
+// Spec §6 / E6 — the externally-exposable scope subset (NOT admin/master-delete/tax).
 const ALL_SCOPES = [
   'sales.tax_invoice.create', 'sales.tax_invoice.read', 'sales.tax_invoice.post',
   'sales.receipt.create', 'sales.receipt.read', 'sales.receipt.post',
   'sales.quotation.create', 'sales.quotation.read', 'sales.quotation.send',
-  'master.customer.read', 'master.customer.manage', 'master.product.read',
+  'master.customer.read', 'master.customer.manage',
+  'master.product.read', 'master.product.manage',
+  'master.vendor.manage',
+  'purchase.purchase_order.read', 'purchase.purchase_order.create',
+  'purchase.vendor_invoice.read', 'purchase.vendor_invoice.create',
+  'purchase.payment_voucher.read', 'purchase.payment_voucher.create',
   'sys.system_info.read',
 ] as const;
 
@@ -32,11 +37,17 @@ const POST_SCOPES = new Set([
 ]);
 
 // Default scopes pre-selected when user picks mcp kind.
+// E6: expanded to include purchase read+create and master manage scopes.
 const MCP_DEFAULT_SCOPES = [
   'sales.tax_invoice.create', 'sales.tax_invoice.read',
   'sales.receipt.create', 'sales.receipt.read',
   'sales.quotation.create', 'sales.quotation.read',
-  'master.customer.read', 'master.product.read',
+  'master.customer.read', 'master.customer.manage',
+  'master.product.read', 'master.product.manage',
+  'master.vendor.manage',
+  'purchase.purchase_order.read', 'purchase.purchase_order.create',
+  'purchase.vendor_invoice.read', 'purchase.vendor_invoice.create',
+  'purchase.payment_voucher.read', 'purchase.payment_voucher.create',
   'sys.system_info.read',
 ];
 

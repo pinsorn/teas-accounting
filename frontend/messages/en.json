@@ -1405,6 +1405,7 @@
     "bannerDesc": "This document was created by an AI Agent and is awaiting review. Check the details below then click \"Approve & Post\".",
     "cta": "Approve & Post",
     "ctaSend": "Approve & Send",
+    "ctaApprove": "Approve",
     "noPermission": "You do not have permission to approve this document — contact your administrator.",
     "alreadyPosted": "This document has already been posted."
   },

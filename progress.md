@@ -3,6 +3,13 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-18 (cont. 102 — "MCP agentic EXPANSION E1–E6 + → public" [Ham]) — **✅ E1–E6 done+gated. agent now covers sales+purchase (read+create-draft), master writes, PDF, poll. spec `docs/superpowers/specs/2026-06-18-mcp-agentic-expansion.md`. E1–E5 committed `47f2e46`; E6 this commit. Next: v1.4.0 + repo→public (scrub MFA key + gitleaks first).**
+
+- **E1** create_customer/create_product MCP tools (auto, master.*.manage). **E2** require list-only on agent create-draft (productId+customerId must exist; MCP-path only; UI keeps ad-hoc; custom price preserved). **E3** purchase agentic — read + create-draft PO/VI/PV/vendor (NO post); PV via PaymentVoucherService keeps ม.82/5/ม.81 + WHT; migration PurchaseCreatedViaApiKey. **E4** get_<doc>_pdf_url tools + api-key /api/v1/{doc}/{id}/pdf routes (posted-only). **E5** list_pending_approvals + get_document_status (agent polls for approval; E5b fixed 2 test-parse bugs). **E6** FE — purchase ?action=approve CTA (PO/VI/PV) + AgentPendingBadge on purchase lists + api-keys scopes (+master.*.manage +purchase) verified vs backend.
+- **mcp keys = read+create only, no post** (guard + per-tool apiperm; smoke-proven). Tenant via key→company+RLS. agent draft → deep-link → human approves+posts.
+- **Gate (overseer):** build 0/0 · full Api 478/0/7 ×2 (E5b) · Domain 146 · FE tsc 0 (E6) · migrations has-pending clean · ম glyph clean.
+- **ค้าง:** tag v1.4.0 + release + binaries → then **public** (Ham: backup → gitleaks → git filter-repo purge leaked MFA key from appsettings.Development.json across history → re-tag v1.0–1.4 + recreate releases → force-push → public ONLY IF gitleaks clean). vendor_invoice PDF skipped (no builder). rate-limit partitions on client header (hardening note).
+
 ## 2026-06-18 (cont. 101 — "MCP approval backstop M4" [Ham]) — **✅ M4a+M4b done+gated. agent-draft tracking + "รออนุมัติ" badge/dashboard count. UNCOMMITTED (รอ commit → v1.3.1).**
 
 - **ที่มา:** backstop ที่ defer จาก M3 — กันลืม draft ที่ agent สร้าง (deep-link ใน chat อาจพลาด → ไม่มีที่รวมงานค้าง).

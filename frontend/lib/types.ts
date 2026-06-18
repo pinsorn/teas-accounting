@@ -623,6 +623,7 @@ export interface PaymentVoucherListItem {
   totalPaid: number; whtAmount: number; status: DocStatus; currencyCode: string;
   isComplete: boolean;
   businessUnitId: number | null;   // Sprint BU-PURCH
+  createdViaApiKey: string | null; // E6 — agent-draft badge
 }
 export interface PaymentVoucherLineView {
   lineNo: number; expenseAccountId: number; description: string; amount: number;
@@ -670,6 +671,7 @@ export interface VendorInvoiceListItem {
   currencyCode: string;
   isComplete: boolean;
   businessUnitId: number | null;   // Sprint BU-PURCH
+  createdViaApiKey: string | null; // E6 — agent-draft badge
 }
 export interface VendorInvoiceLineView {
   lineNo: number; expenseCategoryId: number; expenseAccountId: number;
@@ -936,6 +938,7 @@ export interface PurchaseOrderListItem {
   purchaseOrderId: number; docNo: string | null; status: string;
   docDate: string; expectedDeliveryDate: string | null; vendorName: string;
   totalAmount: number; businessUnitId: number | null;
+  createdViaApiKey: string | null; // E6 — agent-draft badge
 }
 export interface LinkedViDto { vendorInvoiceId: number; docNo: string | null; totalAmount: number; }
 export interface PurchaseOrderDetail {
