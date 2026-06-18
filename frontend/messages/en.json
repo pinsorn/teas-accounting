@@ -111,13 +111,15 @@
     "missingWhtCert": "Missing 50ทวิ Receipts",
     "payroll": "Payroll",
     "section": {
+      "masterData": "Master Data",
       "sales": "Sales",
       "purchase": "Purchase",
       "payroll": "Payroll",
       "reports": "Reports",
       "settings": "Settings"
     },
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "openMenu": "Open menu"
   },
   "payroll": {
     "title": "Payroll",

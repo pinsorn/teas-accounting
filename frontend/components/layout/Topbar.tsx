@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ChevronRight, Search, Bell, Settings } from 'lucide-react';
+import { ChevronRight, Bell, Settings, Menu } from 'lucide-react';
 import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
 
 // Sprint 13j-FE — top bar: breadcrumbs + search pill (⌘K) + icon buttons.
@@ -62,6 +62,15 @@ export function Topbar() {
 
   return (
     <header className="flex h-topbar shrink-0 items-center gap-4 border-b border-ink-100 bg-base-100 px-6">
+      {/* Hamburger — visible only on mobile (<lg); opens the DaisyUI drawer */}
+      <label
+        htmlFor="app-drawer"
+        className="btn btn-ghost btn-sm lg:hidden"
+        aria-label={t('openMenu')}
+      >
+        <Menu className="h-5 w-5" aria-hidden />
+      </label>
+
       <nav aria-label="breadcrumb" className="flex items-center gap-1.5 text-[13px] text-ink-600">
         {crumbs.map((c, i) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -73,16 +82,6 @@ export function Topbar() {
 
       <div className="ml-auto" />
       <CompanySwitcher />
-
-      <div className="flex w-[280px] items-center gap-2 rounded-full border border-ink-100 bg-base-300 px-3 py-1.5 text-ink-500">
-        <Search className="h-4 w-4 shrink-0" aria-hidden />
-        <input
-          className="min-w-0 flex-1 border-none bg-transparent text-[13px] text-ink-900 outline-none placeholder:text-ink-400"
-          placeholder="ค้นหาเอกสาร, ลูกค้า, เลขที่..."
-          aria-label="ค้นหา"
-        />
-        <span className="rounded border border-ink-100 px-1.5 text-[11px]">⌘K</span>
-      </div>
 
       <button
         className="relative grid h-[34px] w-[34px] place-items-center rounded-lg border border-ink-100 bg-base-100 text-ink-600 hover:bg-base-300"

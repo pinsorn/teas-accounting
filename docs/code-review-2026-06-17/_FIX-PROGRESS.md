@@ -30,6 +30,13 @@ Ham ticked all ~30 remaining, but ponytail (anti-over-engineer) → ship only th
 
 ## ✅✅ ROUND 2 COMPLETE — overseer final gate (2026-06-18)
 build 0/0 · full Api **431/0/7** (overseer re-ran) · Domain 146 · FE tsc 0 · has-pending=No changes · i18n 1434/1434. All ~30 remaining findings fixed (ponytail = simplest fix, nothing skipped). ROUND2-REPORT.html sent to Ham (mobile). Tree UNCOMMITTED (await Ham). LOOP CLOSED.
+Committed + released after: commit f066915 → push main → tag v1.2.0 → GitHub release (+ win/linux binaries).
+
+## DESIGN FIXES (2026-06-18, after 2 design reviews 10+11) — plan: DESIGN-FIX-PLAN.md. Global search = REMOVED (decision A).
+- **D1** (mobile shell): ✅ DONE+GATED (tsc 0 + live Playwright: drawer works on 390px, no desktop regression). DaisyUI drawer + hamburger + removed ⌘K. overflow-x-auto already present. screens/after-D1-*.png.
+- **D2+D3**: ✅ DONE+GATED (overseer tsc 0 + viewed after-screenshots) — doc-no whitespace-nowrap (DataTable) · badge no longer overlaps doc-no link (CompletenessBadge shrink-0; PV/VI verified) · Users badges OK · skeleton loading (ActivityLog + dashboard chart) · semantic color tokens (dashboard KPI/alert, tax-summary, products) · **Master Data nav group** (ข้อมูลหลัก: customers+vendors+products; number-gaps→reports — verified on live) · quick wins (PageHeader backHref, products formatTHB). screens/after-D2D3-*.png.
+
+## ✅ DESIGN FIXES COMPLETE (2026-06-18) — all gated (tsc 0 + live Playwright visual). Global search REMOVED. Tree UNCOMMITTED (design fixes NOT in v1.2.0 commit — await Ham to commit/release v1.2.1). LOOP CLOSED.
   - **Batch T** (backend tests+feature): test hardening (posted-TI reject, draft DocNo, ApAging, e2e skip) · feature guards (receipt over-apply, DO qty-cap) + tests. ⏳ after P.
 
 **Recovery (cold resume):** `git -C Y:\ClaudePlayground\TEAS-Project status --short` shows the working-tree changes; re-gate per §9 (build 0/0 · Domain ≥146 · Api suite 0-fail 2× on teas_test · FE tsc 0); continue from the first non-✅ batch.

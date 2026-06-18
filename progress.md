@@ -3,6 +3,16 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-18 (cont. 98v — "review design (2 subagent: code + visual) → แก้ตามแผน, global search เอาออก" [Ham]) — **✅ DESIGN FIXES COMPLETE + gated (tsc 0 + live Playwright visual). UNCOMMITTED (ยังไม่อยู่ใน v1.2.0 commit — รอ Ham commit v1.2.1).**
+
+- **Review:** 2 subagent — code-level (`10-design-review.md`) + visual-on-live-app (`11-design-review-visual.md`, 16 screenshots). ทั้งคู่ตรงกัน: mobile = แย่สุด. รวม finding + plan → `DESIGN-FIX-PLAN.md`. ponytail = simplest fix ต่ออัน, no new dep.
+- **Global search ⌘K:** Ham ตัดสิน = **เอาออก** (decision A) — ปุ่ม presentational ไม่ทำงาน + per-page filter มีอยู่แล้ว → full search ไม่คุ้ม. ลบออกจาก Topbar.
+- **✅ D1 (mobile shell):** DaisyUI drawer (ไม่เพิ่ม dep) — desktop static rail / mobile off-canvas + hamburger (native checkbox toggle, ไม่ใช้ React state) + ลบ ⌘K. overflow-x-auto มีอยู่แล้ว. **live verify: 390px drawer ปิด/เปิดทำงาน, desktop ไม่ regression.**
+- **✅ D2 (table/badge bugs):** doc-no `whitespace-nowrap` (DataTable RowLink mono) · `CompletenessBadge` shrink-0 → badge ไม่ทับลิงก์เลขเอกสาร PV/VI · Users badges OK.
+- **✅ D3 (skeleton/token/IA/quick-wins):** loading→`.skeleton-shimmer` (ActivityLog + dashboard chart) · hardcoded สี→semantic token (dashboard KPI/alert, tax-summary, products) fix dark-mode · **Master Data nav group** (ข้อมูลหลัก: ลูกค้า/ผู้ขาย/สินค้า; number-gaps→reports) · PageHeader `backHref` · products `formatTHB()`.
+- **Gate (overseer):** `tsc --noEmit` 0 (รันเอง) · live screenshots ยืนยัน drawer + Master Data nav + PV badge fix · th/en parity · ম glyph clean. servers :3000/:5080 เปิดไว้ verify.
+- **ค้าง (Ham):** commit design fixes (แยกจาก v1.2.0 ที่ push แล้ว) → อาจ tag **v1.2.1**. screenshots before/after ใน `docs/code-review-2026-06-17/screens/`. servers ยังรัน (ปิดได้).
+
 ## 2026-06-18 (cont. 98u — "Round 2 จบ: แก้ finding ที่เหลือครบ (ponytail), gate เขียว, HTML ส่งมือถือ" [Ham]) — **✅ ROUND 2 COMPLETE + gated. แก้ ~30 finding ที่เหลือจาก 9-lens review ครบ (ไม่ skip) ผ่าน 5 subagent batch. full Api 431/0/7 · Domain 146 · FE tsc 0 · build 0/0 · has-pending=clean. UNCOMMITTED (รอ Ham). ROUND2-REPORT.html ส่งมือถือแล้ว.**
 
 - **ที่มา:** ต่อจาก 98t (paused ก่อนปิดคอม). เปิดคอมมา ("ทำต่อเลย") → re-gate P (รอด shutdown, เขียว) → T → close-out. ponytail = วิธีง่ายสุดต่ออัน, ทำครบไม่ drop scope, subagent ทำ, overseer gate.

@@ -34,7 +34,7 @@ export function IncompleteFlag({ isComplete }: { isComplete: boolean }) {
   const t = useTranslations('completeness');
   if (isComplete) return null;
   return (
-    <span className="badge badge-warning badge-sm gap-1" data-testid="incomplete-flag"
+    <span className="badge badge-warning badge-sm shrink-0 whitespace-nowrap gap-1" data-testid="incomplete-flag"
       title={t('incomplete')}>
       <AlertTriangle className="h-3 w-3" aria-hidden /> {t('incomplete')}
     </span>

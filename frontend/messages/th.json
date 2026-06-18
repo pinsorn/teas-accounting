@@ -111,13 +111,15 @@
     "missingWhtCert": "ใบเสร็จขาดใบทวิ 50",
     "payroll": "เงินเดือน",
     "section": {
+      "masterData": "ข้อมูลหลัก",
       "sales": "ขาย",
       "purchase": "ซื้อ",
       "payroll": "เงินเดือน",
       "reports": "รายงาน",
       "settings": "ตั้งค่า"
     },
-    "logout": "ออกจากระบบ"
+    "logout": "ออกจากระบบ",
+    "openMenu": "เปิดเมนู"
   },
   "payroll": {
     "title": "เงินเดือน (Payroll)",

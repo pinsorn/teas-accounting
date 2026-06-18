@@ -33,9 +33,19 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
     ],
   },
   {
-    key: 'sales',
+    // Master Data section (Design(UI).md §3 nav spec): Customers, Vendors, Products (SKU).
+    // Customers moved here from Sales; Vendors moved here from Purchase;
+    // Products moved here from Settings — all are reference data, not transactions.
+    key: 'masterData',
     items: [
       { href: '/customers', key: 'customers', Icon: Users, perm: 'master.customer.read' },
+      { href: '/vendors', key: 'vendors', Icon: Building2, perm: 'master.vendor.manage' },
+      { href: '/settings/products', key: 'products', Icon: Package, perm: 'master.product.manage' },
+    ],
+  },
+  {
+    key: 'sales',
+    items: [
       { href: '/quotations', key: 'quotations', Icon: FileSignature, perm: 'sales.quotation.manage' },
       { href: '/sales-orders', key: 'salesOrders', Icon: ListChecks, perm: 'sales.sales_order.manage' },
       { href: '/delivery-orders', key: 'deliveryOrders', Icon: FileInput, perm: 'sales.delivery_order.manage' },
@@ -46,15 +56,13 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       // CN/DN adjust a Tax Invoice's VAT (ม.86/10) — a non-VAT company issues none.
       { href: '/credit-notes', key: 'creditNotes', Icon: FileMinus, vatOnly: true, perm: 'sales.credit_note.read' },
       { href: '/debit-notes', key: 'debitNotes', Icon: FilePlus, vatOnly: true, perm: 'sales.debit_note.read' },
-      { href: '/number-gaps', key: 'numberGaps', Icon: ListChecks, perm: 'report.audit.read' },
     ],
   },
   {
     key: 'purchase',
     items: [
-      // Document flow order (Ham 2026-05-30): ผู้ขาย → ใบสั่งซื้อ → ใบสำคัญจ่าย →
+      // Document flow order (Ham 2026-05-30): ใบสั่งซื้อ → ใบสำคัญจ่าย →
       // ใบกำกับภาษีซื้อ → หนังสือรับรองหัก ณ ที่จ่าย.
-      { href: '/vendors', key: 'vendors', Icon: Building2, perm: 'master.vendor.manage' },
       { href: '/purchase-orders', key: 'purchaseOrders', Icon: ListChecks, perm: 'purchase.purchase_order.read' },
       { href: '/payment-vouchers', key: 'paymentVouchers', Icon: Wallet, perm: 'purchase.payment_voucher.read' },
       { href: '/vendor-invoices', key: 'vendorInvoices', Icon: FileInput, perm: 'purchase.vendor_invoice.read' },
@@ -82,6 +90,8 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/documents', key: 'documents', Icon: Files },
       { href: '/tax-filings/missing-wht-cert', key: 'missingWhtCert', Icon: FileSpreadsheet, perm: 'tax.pnd53.read' },
       { href: '/reports/wht-receivable', key: 'whtReceivable', Icon: Coins, perm: 'tax.pnd53.read' },
+      // number-gaps moved from Sales → Reports (it's an audit/admin tool, not a transactional doc).
+      { href: '/number-gaps', key: 'numberGaps', Icon: ListChecks, perm: 'report.audit.read' },
     ],
   },
   {
@@ -94,7 +104,6 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       // Per-company RBAC admin — super-admin OR a company-admin holding the grant.
       { href: '/settings/roles', key: 'roles', Icon: ShieldCheck, perm: 'sys.role.manage' },
       { href: '/settings/users', key: 'users', Icon: UsersRound, perm: 'sys.user.manage' },
-      { href: '/settings/products', key: 'products', Icon: Package, perm: 'master.product.manage' },
       { href: '/settings/business-units', key: 'businessUnits', Icon: Layers, perm: 'master.business_unit.manage' },
       { href: '/settings/employees', key: 'employees', Icon: Users, perm: 'master.employee.manage' },
       { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent, perm: 'tax.wht_type.manage' },
@@ -165,10 +174,15 @@ export function SidebarNav() {
     toast.success(next === 'th' ? 'ภาษาไทย' : 'English');
   }
 
+  function closeDrawer() {
+    const el = document.getElementById('app-drawer') as HTMLInputElement | null;
+    if (el) el.checked = false;
+  }
+
   return (
     <aside
       data-testid="app-sidebar"
-      className={`flex shrink-0 flex-col border-r border-ink-100 bg-base-100 transition-[width] duration-200 ${
+      className={`flex h-full shrink-0 flex-col border-r border-ink-100 bg-base-100 transition-[width] duration-200 ${
         collapsed ? 'w-[72px]' : 'w-64'
       }`}
     >
@@ -227,6 +241,7 @@ export function SidebarNav() {
                   key={href}
                   href={href}
                   title={t(key)}
+                  onClick={closeDrawer}
                   className={`relative flex items-center gap-3 rounded-field px-3 py-2 text-[13.5px] transition-colors ${
                     collapsed ? 'justify-center px-2.5' : ''
                   } ${

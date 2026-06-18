@@ -182,11 +182,11 @@ function vatNetCell(m: TaxSummaryMonth, t: ReturnType<typeof useTranslations>): 
 }
 
 const TONE: Record<string, string> = {
-  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  rose: 'border-rose-200 bg-rose-50 text-rose-700',
-  amber: 'border-amber-200 bg-amber-50 text-amber-700',
-  sky: 'border-sky-200 bg-sky-50 text-sky-700',
-  violet: 'border-violet-200 bg-violet-50 text-violet-700',
+  emerald: 'border-status-success/30 bg-status-success-bg text-status-success',
+  rose:    'border-status-danger/30 bg-status-danger-bg text-status-danger',
+  amber:   'border-status-warning/30 bg-status-warning-bg text-status-warning',
+  sky:     'border-status-info/30 bg-status-info-bg text-status-info',
+  violet:  'border-violet-200 bg-violet-50 text-violet-700', // ponytail: no semantic token for whtReceived
 };
 
 function KpiCard({ label, value, tone, hint }: {

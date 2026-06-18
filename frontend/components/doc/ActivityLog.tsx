@@ -46,7 +46,17 @@ export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: num
       </div>
       <div className="p-5">
         {isLoading ? (
-          <p className="text-[13px] text-ink-500">{tc('loading')}</p>
+          <div className="flex flex-col gap-3" aria-busy="true" aria-label={tc('loading')}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex gap-3">
+                <div className="skeleton-shimmer h-7 w-7 shrink-0 rounded-full" />
+                <div className="flex flex-1 flex-col gap-1.5 pt-1">
+                  <div className="skeleton-shimmer h-3 w-3/4 rounded" />
+                  <div className="skeleton-shimmer h-2.5 w-1/2 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : entries.length === 0 ? (
           <p className="text-[13px] text-ink-500">{tc('activityEmpty')}</p>
         ) : (

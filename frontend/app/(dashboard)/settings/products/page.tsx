@@ -12,6 +12,7 @@ import {
   useBusinessUnits,
 } from '@/lib/queries';
 import { apiGet } from '@/lib/api';
+import { formatTHB } from '@/lib/utils';
 import type { ProductTypeStr, ProductDetail, ProductListItem } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
 import { PermissionGate } from '@/components/PermissionGate';
@@ -89,8 +90,8 @@ export default function ProductsSettingsPage() {
       id: 'usage', header: t('usage'), enableSorting: false,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
-          {row.original.isSaleable && <span className="badge badge-sm bg-sky-100 text-sky-700">{t('saleable')}</span>}
-          {row.original.isPurchasable && <span className="badge badge-sm bg-emerald-100 text-emerald-700">{t('purchasable')}</span>}
+          {row.original.isSaleable && <span className="badge badge-sm bg-status-info-bg text-status-info">{t('saleable')}</span>}
+          {row.original.isPurchasable && <span className="badge badge-sm bg-status-success-bg text-status-success">{t('purchasable')}</span>}
         </div>
       ),
     },
@@ -103,7 +104,7 @@ export default function ProductsSettingsPage() {
       accessorKey: 'defaultUnitPrice', header: t('unitPrice'), meta: { align: 'right' },
       cell: ({ getValue }) => {
         const v = getValue<number | null>();
-        return <span className="tabular-nums">{v == null ? '—' : v.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>;
+        return <span className="tabular-nums">{v == null ? '—' : formatTHB(v)}</span>;
       },
     },
     {

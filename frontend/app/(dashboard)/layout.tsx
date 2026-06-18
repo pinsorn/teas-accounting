@@ -47,14 +47,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (needsOnboarding) redirect('/onboarding');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-base-200">
-      <SidebarNav />
-      <div className="flex min-w-0 flex-1 flex-col">
+    // DaisyUI drawer: off-canvas on mobile, static rail on desktop (lg:drawer-open).
+    // The checkbox + drawer-toggle is pure CSS — no React state needed.
+    <div className="drawer lg:drawer-open h-screen">
+      <input id="app-drawer" type="checkbox" className="drawer-toggle" />
+      {/* Main content area */}
+      <div className="drawer-content flex min-w-0 flex-col overflow-hidden">
         <Topbar />
         <main className="flex-1 overflow-y-auto px-6 py-6 lg:px-8">{children}</main>
         <footer className="border-t border-base-300 px-6 py-2 text-center text-xs text-base-content/50 lg:px-8">
           TEAS{version ? ` · v${version}` : ''}
         </footer>
+      </div>
+      {/* Sidebar drawer panel */}
+      <div className="drawer-side z-40">
+        <label htmlFor="app-drawer" aria-label="close sidebar" className="drawer-overlay" />
+        <SidebarNav />
       </div>
     </div>
   );

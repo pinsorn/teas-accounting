@@ -103,7 +103,11 @@ export default function DashboardPage() {
             </Link>
           </div>
           {summary.isLoading ? (
-            <div className="grid h-52 place-items-center text-sm text-base-content/40">{t('loading')}</div>
+            <div className="flex h-52 items-end gap-1.5 px-2" aria-busy="true" aria-label={t('loading')}>
+              {Array.from({ length: 12 }, (_, i) => (
+                <div key={i} className="skeleton-shimmer flex-1 rounded-t" style={{ height: `${30 + ((i * 37) % 60)}%` }} />
+              ))}
+            </div>
           ) : months.length === 0 ? (
             <Empty text={t('trend.empty')} />
           ) : (
@@ -164,15 +168,15 @@ export default function DashboardPage() {
 }
 
 const KPI_TONE: Record<string, string> = {
-  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  rose: 'border-rose-200 bg-rose-50 text-rose-700',
-  amber: 'border-amber-200 bg-amber-50 text-amber-700',
-  sky: 'border-sky-200 bg-sky-50 text-sky-700',
+  emerald: 'border-status-success/30 bg-status-success-bg text-status-success',
+  rose:    'border-status-danger/30 bg-status-danger-bg text-status-danger',
+  amber:   'border-status-warning/30 bg-status-warning-bg text-status-warning',
+  sky:     'border-status-info/30 bg-status-info-bg text-status-info',
 };
 const ALERT_TONE: Record<string, string> = {
-  error: 'bg-rose-50 text-rose-800 hover:bg-rose-100',
-  warning: 'bg-amber-50 text-amber-800 hover:bg-amber-100',
-  info: 'bg-sky-50 text-sky-800 hover:bg-sky-100',
+  error:   'bg-status-danger-bg text-status-danger hover:opacity-90',
+  warning: 'bg-status-warning-bg text-status-warning hover:opacity-90',
+  info:    'bg-status-info-bg text-status-info hover:opacity-90',
 };
 
 function Kpi({ label, value, icon: Icon, tone, hint }: {

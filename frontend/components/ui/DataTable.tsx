@@ -60,7 +60,7 @@ export function dateRangeFilter<T>(row: Row<T>, columnId: string, value: unknown
 /** cont.81 — the clickable primary cell (docNo / name) every list row carries. */
 export function RowLink({ href, children, mono = false }: { href: string; children: ReactNode; mono?: boolean }) {
   return (
-    <Link href={href} className={`font-medium text-peach-700 hover:underline ${mono ? 'font-mono' : ''}`}>
+    <Link href={href} className={`font-medium text-peach-700 hover:underline ${mono ? 'whitespace-nowrap font-mono' : ''}`}>
       {children}
     </Link>
   );
