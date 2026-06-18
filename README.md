@@ -9,8 +9,9 @@
 (50 ทวิ), บัญชีแยกประเภท + รายงานการเงิน, **PDF แบบฟอร์มสรรพากรที่กรอกแล้วพร้อมพิมพ์**, เงินเดือน,
 และระบบ multi-tenant + RBAC
 
-> **Release v1.1.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
-> backend build (Windows x64 / Linux x64) + คู่มือ PDF
+> **Release v1.4.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
+> backend build (Windows x64 / Linux x64). ✨ ใหม่: **MCP server** (in-process) — เชื่อม AI agent
+> ผ่าน API key (mcp-kind, read + create-draft; agent ร่างเอกสาร คนกด approve+post)
 >
 > Backend: **.NET 10** (ASP.NET Core Minimal APIs, EF Core 10) · DB: **PostgreSQL 16** ·
 > Frontend: **Next.js 15** (App Router, TypeScript, Tailwind, shadcn/ui)

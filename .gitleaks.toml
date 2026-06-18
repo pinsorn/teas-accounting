@@ -1,0 +1,13 @@
+# gitleaks config — allowlist intentional non-secrets (test fixtures + example templates).
+# The real instance key (MfaAesKeyBase64) is git-ignored per-instance; the value once
+# committed to appsettings.Development.json was purged from history (git filter-repo, 2026-06-18).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures and example templates — not real credentials"
+paths = [
+  '''backend/tests/Accounting\.Api\.Tests/Identity/InstanceSecretsReloadTests\.cs''',
+  '''backend/tests/Accounting\.Api\.Tests/Rbac/RbacApiFactory\.cs''',
+  '''infra/\.env\.example''',
+]
