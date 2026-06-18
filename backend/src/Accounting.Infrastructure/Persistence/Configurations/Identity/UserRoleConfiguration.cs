@@ -23,5 +23,10 @@ internal sealed class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
 
         b.Property(ur => ur.BranchId).HasDefaultValue(0);
         b.Property(ur => ur.ValidFrom).HasDefaultValueSql("CURRENT_DATE");
+
+        // ponytail: compound index for PermissionLookup.LoadAsync WHERE (user_id, company_id)
+        // — makes per-request RBAC lookup a covered index scan (03-L1).
+        b.HasIndex(ur => new { ur.UserId, ur.CompanyId })
+            .HasDatabaseName("ix_user_roles_user_id_company_id");
     }
 }

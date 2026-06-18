@@ -36,13 +36,17 @@ public sealed class JournalService : IJournalService
         var totalDr = req.Lines.Sum(l => l.DebitAmount);
         var totalCr = req.Lines.Sum(l => l.CreditAmount);
 
+        // §10 — a manual journal entry's DocDate / PostingDate are ALWAYS today in
+        // Asia/Bangkok, never trusted from the request.
+        var docDate = _clock.TodayInBangkok();
+
         var entity = new JournalEntry
         {
             CompanyId    = _tenant.CompanyId,
             BranchId     = _tenant.BranchId,
             PrefixCode   = JvPrefix,
-            DocDate      = req.DocDate,
-            PostingDate  = req.PostingDate,
+            DocDate      = docDate,   // §10 — pinned to Asia/Bangkok today
+            PostingDate  = docDate,   // §10 — posting date = doc date
             Description  = req.Description,
             Reference    = req.Reference,
             CurrencyCode = req.CurrencyCode,

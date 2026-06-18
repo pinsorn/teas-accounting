@@ -58,7 +58,8 @@ public sealed class ApAgingTests
             DocDate = asOf.AddDays(-ageDays),
             VendorTaxInvoiceNo = $"VTI-{TestIds.Suffix()[..6]}",
             VendorTaxInvoiceDate = asOf.AddDays(-ageDays),
-            VatClaimPeriod = 202605,
+            // VatClaimPeriod is not asserted by this test; any open period value suffices.
+            VatClaimPeriod = TestIds.FuturePeriod(),
             VendorId = vendorId,
             VendorTaxId = TestIds.TaxId(),
             VendorName = "ผู้ขายทดสอบ AP",

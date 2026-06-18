@@ -83,6 +83,17 @@ import type {
   ApiKeyListItem,
   CreateApiKeyRequest,
   ApiKeyCreatedResult,
+  CreateReceiptRequest,
+  CreateAdjustmentNoteRequest,
+  CreateProductRequest,
+  UpdateProductRequest,
+  CreateQuotationRequest,
+  UpdateQuotationRequest,
+  CreateSalesOrderRequest,
+  CreateDeliveryOrderRequest,
+  UpdateBillingNoteRequest,
+  CreateBillingNoteRequest,
+  CreatePurchaseOrderRequest,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -164,7 +175,7 @@ export function useReceipt(id: number) {
 export function useCreateReceipt() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) => apiPost<{ receipt_id: number }>('receipts/', req),
+    mutationFn: (req: CreateReceiptRequest) => apiPost<{ receipt_id: number }>('receipts/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['receipts'] }),
   });
 }
@@ -196,7 +207,7 @@ export function useAdjustmentNote(id: number) {
 export function useCreateAdjustmentNote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) => apiPost<{ note_id: number }>('tax-adjustment-notes/', req),
+    mutationFn: (req: CreateAdjustmentNoteRequest) => apiPost<{ note_id: number }>('tax-adjustment-notes/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['adjustment-notes'] }),
   });
 }
@@ -277,7 +288,7 @@ export function useVendor(id: number) {
 export function useCreateVendor() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: CreateVendorRequest) => apiPost<unknown>('vendors/', req),
+    mutationFn: (req: CreateVendorRequest) => apiPost<{ vendor_id: number }>('vendors/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['vendors'] }),
   });
 }
@@ -431,7 +442,7 @@ export function useBusinessUnit(id: number) {
 export function useCreateBusinessUnit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: CreateBusinessUnitRequest) => apiPost<unknown>('business-units/', req),
+    mutationFn: (req: CreateBusinessUnitRequest) => apiPost<{ business_unit_id: number }>('business-units/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['business-units'] }),
   });
 }
@@ -439,7 +450,7 @@ export function useUpdateBusinessUnit() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { id: number; req: UpdateBusinessUnitRequest }) =>
-      apiPut<unknown>(`business-units/${v.id}`, v.req),
+      apiPut<void>(`business-units/${v.id}`, v.req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['business-units'] }),
   });
 }
@@ -469,7 +480,7 @@ export function useEmployee(id: number) {
 export function useCreateEmployee() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: CreateEmployeeRequest) => apiPost<unknown>('employees/', req),
+    mutationFn: (req: CreateEmployeeRequest) => apiPost<{ employee_id: number }>('employees/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
   });
 }
@@ -477,7 +488,7 @@ export function useUpdateEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { id: number; req: UpdateEmployeeRequest }) =>
-      apiPut<unknown>(`employees/${v.id}`, v.req),
+      apiPut<void>(`employees/${v.id}`, v.req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
   });
 }
@@ -880,14 +891,14 @@ export function useProduct(id: number | null) {
 export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) => apiPost<{ product_id: number }>('products/', req),
+    mutationFn: (req: CreateProductRequest) => apiPost<{ product_id: number }>('products/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 }
 export function useUpdateProduct() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id: number; req: unknown }) => apiPut(`products/${v.id}`, v.req),
+    mutationFn: (v: { id: number; req: UpdateProductRequest }) => apiPut(`products/${v.id}`, v.req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 }
@@ -915,14 +926,14 @@ export function useQuotation(id: number | null) {
 export function useCreateQuotation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) => apiPost<{ quotation_id: number }>('quotations/', req),
+    mutationFn: (req: CreateQuotationRequest) => apiPost<{ quotation_id: number }>('quotations/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['quotations'] }),
   });
 }
 export function useUpdateQuotation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id: number; req: unknown }) =>
+    mutationFn: (v: { id: number; req: UpdateQuotationRequest }) =>
       apiPut(`quotations/${v.id}`, v.req),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['quotations'] });
@@ -963,7 +974,7 @@ export function useSalesOrder(id: number | null) {
 export function useCreateSalesOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) => apiPost<{ sales_order_id: number }>('sales-orders/', req),
+    mutationFn: (req: CreateSalesOrderRequest) => apiPost<{ sales_order_id: number }>('sales-orders/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sales-orders'] }),
   });
 }
@@ -980,7 +991,7 @@ export function usePostSalesOrder() {
 export function useCreateDeliveryOrderDraft() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) =>
+    mutationFn: (req: CreateDeliveryOrderRequest) =>
       apiPost<{ delivery_order_id: number }>('delivery-orders/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['delivery-orders'] }),
   });
@@ -988,7 +999,7 @@ export function useCreateDeliveryOrderDraft() {
 export function useCreateDeliveryOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { soId: number; req: unknown }) =>
+    mutationFn: (v: { soId: number; req: CreateDeliveryOrderRequest }) =>
       apiPost<{ delivery_order_id: number }>(`sales-orders/${v.soId}/delivery-orders`, v.req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['delivery-orders'] }),
   });
@@ -1046,14 +1057,14 @@ export function useBillingNote(id: number | null) {
 export function useCreateBillingNote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) => apiPost<{ billing_note_id: number }>('billing-notes/', req),
+    mutationFn: (req: CreateBillingNoteRequest) => apiPost<{ billing_note_id: number }>('billing-notes/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-notes'] }),
   });
 }
 export function useUpdateBillingNote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id: number; req: unknown }) =>
+    mutationFn: (v: { id: number; req: UpdateBillingNoteRequest }) =>
       apiPut(`billing-notes/${v.id}`, v.req),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['billing-notes'] });
@@ -1145,7 +1156,7 @@ export function usePurchaseOrder(id: number | null) {
 export function useCreatePurchaseOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: unknown) => apiPost<{ purchase_order_id: number }>('purchase-orders/', req),
+    mutationFn: (req: CreatePurchaseOrderRequest) => apiPost<{ purchase_order_id: number }>('purchase-orders/', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
   });
 }

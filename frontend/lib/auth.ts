@@ -1,4 +1,4 @@
-import { ApiError } from './api-client';
+import { ApiError } from './api';
 
 /**
  * Auth talks to same-origin BFF routes (app/api/auth/*), NOT the backend directly.

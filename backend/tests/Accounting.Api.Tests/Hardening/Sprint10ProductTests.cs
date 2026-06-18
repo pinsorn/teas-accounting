@@ -278,11 +278,15 @@ public sealed class Sprint10ProductTests
         var pid = await NewProduct(sp, "GOOD", 1234m);
         await PostTiWithProduct(sp, cust, pid, 1234m);
 
+        // TI is server-pinned to today's Bangkok date (ม.86/4(7)); query the current Bangkok month.
+        var today = new SystemClock().TodayInBangkok();
+        var from = new DateOnly(today.Year, today.Month, 1);
+        var to = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+
         await using var s = sp.CreateAsyncScope();
         var rep = s.ServiceProvider.GetRequiredService<IFinancialReportService>();
         // R-Q2 reversed — no longer throws report.product_unsupported.
-        var ss = await rep.SalesSummaryAsync(
-            new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), "product", default);
+        var ss = await rep.SalesSummaryAsync(from, to, "product", default);
         ss.GroupBy.Should().Be("product");
         ss.Rows.Should().Contain(r => r.Subtotal >= 1234m);
         ss.Totals.Total.Should().Be(ss.Rows.Sum(r => r.Total));

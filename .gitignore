@@ -91,6 +91,9 @@ graphify-out/
 # Transient API stderr logs
 *.err
 
+# Transient API response scratch files (contain tokens — never commit)
+login_resp.json
+
 # Playwright MCP browser-test scratch output (snapshots/screenshots)
 .playwright-mcp/
 

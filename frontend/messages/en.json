@@ -160,7 +160,8 @@
     "statusPosted": "Posted",
     "statusPaid": "Paid",
     "statusVoided": "Voided",
-    "wht50tawi": "50 bis (annual)"
+    "wht50tawi": "50 bis (annual)",
+    "periodPlaceholder": "YYYYMM e.g. 202601"
   },
   "businessUnit": {
     "title": "Business Unit",
@@ -429,7 +430,16 @@
       "noWhtLinesNonVat": "No items — add line items first.",
       "addWhtLine": "Add WHT category",
       "total": "total",
-      "multiCatExplain": "WHT split per service category (rent 5% / service 3% / ads 2%) — base is the ex-VAT service portion pro-rated to the amount paid; editable."
+      "multiCatExplain": "WHT split per service category (rent 5% / service 3% / ads 2%) — base is the ex-VAT service portion pro-rated to the amount paid; editable.",
+      "certTitle": "Withholding Tax Certificate (50tawi)",
+      "certNoRequired": "Enter the 50tawi certificate number",
+      "certSaved": "50tawi certificate saved",
+      "certError": "Something went wrong",
+      "certMissing": "Missing 50tawi — waiting for customer to send WHT certificate no.",
+      "certNoLabel": "50tawi cert no.",
+      "certDateLabel": "50tawi date",
+      "certSaveBtn": "Save certificate",
+      "certNote": "Attach scanned 50tawi under the Attachments section below"
     },
     "nonVat": {
       "modeLabel": "Receipt type",
@@ -445,7 +455,11 @@
       "deliveryOrder": "Delivery Order",
       "applyInvoiceHeader": "Apply to Invoice",
       "invoice": "Invoice"
-    }
+    },
+    "qty": "Qty",
+    "unitPrice": "Unit price",
+    "lineAmount": "Amount",
+    "appliedAmount": "Applied amount"
   },
   "whtType": {
     "title": "WHT Type",
@@ -514,7 +528,8 @@
     },
     "chart": {
       "revVsExp": "Revenue vs Expense by month",
-      "tax": "Monthly tax (VAT / WHT)"
+      "tax": "Monthly tax (VAT / WHT)",
+      "ariaLabel": "Tax summary chart"
     },
     "footnote": "Computed from Posted documents only · VAT from PP.30 · WHT from 50tawi certificates · PP.36 and corporate income tax: see Tax Filings"
   },
@@ -914,7 +929,11 @@
     "colTotal": "Total",
     "colOrigTi": "Orig. TI",
     "colStatus": "Status",
-    "confirmWarn": "Posting auto-sends e-Tax + customer email (when enabled) and is irreversible — confirm the reason."
+    "confirmWarn": "Posting auto-sends e-Tax + customer email (when enabled) and is irreversible — confirm the reason.",
+    "reasonRequired": "Reason is legally required",
+    "grandTotal": "Grand total",
+    "vat": "VAT",
+    "originalTiRequired": "Select original tax invoice"
   },
   "states": {
     "noAccessTitle": "Administrator access required",
@@ -1107,7 +1126,11 @@
     "confirmDelete": "Confirm delete?",
     "deactivate": "Deactivate",
     "posted": "Posted",
-    "draftSaved": "Draft saved"
+    "draftSaved": "Draft saved",
+    "close": "Close",
+    "activityLog": "Activity log",
+    "activityEmpty": "No activity yet",
+    "relatedDocs": "Related documents"
   },
   "toast": {
     "validationFailed": "Please complete all required fields",
@@ -1242,7 +1265,8 @@
     "issued": "Delivery order issued",
     "markDelivered": "Confirm delivery",
     "delivered": "Delivered",
-    "pickCustomer": "Select a customer first"
+    "pickCustomer": "Select a customer first",
+    "ariaLabel": "Delivery order reference"
   },
   "billingNote": {
     "listTitle": "Invoices",
@@ -1537,7 +1561,10 @@
     "mfa": "MFA code (6 digits)",
     "submit": "Sign in",
     "submitting": "Signing in…",
-    "mfaPrompt": "Enter the 6-digit MFA code from your Authenticator app"
+    "mfaPrompt": "Enter the 6-digit MFA code from your Authenticator app",
+    "usernameRequired": "Username is required",
+    "passwordRequired": "Password is required",
+    "genericError": "Something went wrong"
   },
   "topbar": {
     "switchCompany": "Switch company",
@@ -1622,6 +1649,14 @@
       "postal5": "Must be 5 digits",
       "mfaKey32": "Must be a base64 key that decodes to exactly 32 bytes (AES-256)",
       "minutesRange": "Must be between 5 and 1440 minutes"
-    }
+    },
+    "loading": "Loading…"
+  },
+  "chainPrint": {
+    "reprintWarn": "Original already printed — switching to copy",
+    "logFail": "Print log failed — switching to copy",
+    "printFail": "Print failed",
+    "printOriginal": "Print original",
+    "printCopy": "Print copy"
   }
 }

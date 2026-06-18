@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ShieldAlert, AlertCircle, Inbox } from 'lucide-react';
-import { ApiError } from '@/lib/api-client';
+import { ApiError } from '@/lib/api';
 import { auth } from '@/lib/auth';
 
 // Sprint 13d P2 — distinguish a failed query from an empty list. A 403 used

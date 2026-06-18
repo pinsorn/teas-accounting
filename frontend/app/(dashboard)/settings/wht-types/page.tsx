@@ -236,7 +236,7 @@ export default function WhtTypesSettingsPage() {
               </button>
             </div>
           </div>
-          <button className="modal-backdrop" aria-label="close" onClick={() => setEdit(null)} />
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setEdit(null)} />
         </div>
       )}
 
@@ -266,7 +266,7 @@ export default function WhtTypesSettingsPage() {
               </button>
             </div>
           </div>
-          <button className="modal-backdrop" aria-label="close" onClick={() => setRateChange(null)} />
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setRateChange(null)} />
         </div>
       )}
     </>

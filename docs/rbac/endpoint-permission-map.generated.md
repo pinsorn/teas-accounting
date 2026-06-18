@@ -7,13 +7,13 @@
 
 | Kind | Count |
 |---|---:|
-| Anonymous | 0 |
-| AuthnOnly | 11 |
+| Anonymous | 3 |
+| AuthnOnly | 12 |
 | Perm | 225 |
 | Assertion | 5 |
 | ApiKeyOnly | 18 |
-| Unprotected | 2 |
-| **TOTAL** | **261** |
+| Unprotected | 0 |
+| **TOTAL** | **263** |
 
 ## Routes
 
@@ -58,7 +58,7 @@
 | GET | `/attachments/categories` | Perm | sys.attachment.read |
 | DELETE | `/attachments/{id:long}` | Perm | sys.attachment.read |
 | GET | `/attachments/{id:long}/download` | Perm | sys.attachment.read |
-| POST | `/auth/login` | Unprotected | — |
+| POST | `/auth/login` | Anonymous | — |
 | POST | `/auth/switch-company/{companyId:int}` | Perm | master.company.manage |
 | GET | `/billing-notes/` | Perm | sales.billing_note.read |
 | POST | `/billing-notes/` | Perm | sales.billing_note.manage |
@@ -124,7 +124,7 @@
 | GET | `/etax/submissions` | Perm | tax.filing.read |
 | GET | `/expense-categories/` | Perm | sys.expense_category.read |
 | POST | `/expense-categories/` | Perm | sys.expense_category.manage |
-| ANY | `/health` | Unprotected | — |
+| ANY | `/health` | Anonymous | — |
 | POST | `/journals/` | Perm | gl.journal.create |
 | POST | `/journals/{id:long}/post` | Perm | gl.journal.post |
 | GET | `/me` | AuthnOnly | — |
@@ -217,6 +217,8 @@
 | GET | `/sales-orders/{id:long}/pdf` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/{id:long}/post` | Perm | sales.sales_order.manage |
 | GET | `/system/info` | AuthnOnly | — |
+| POST | `/system/setup/bootstrap-admin` | Anonymous | — |
+| POST | `/system/setup/instance-keys` | AuthnOnly | — |
 | GET | `/system/vat-threshold-status` | AuthnOnly | — |
 | GET | `/tax-adjustment-notes/` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | POST | `/tax-adjustment-notes/` | Assertion | sales.credit_note.create / sales.debit_note.create |

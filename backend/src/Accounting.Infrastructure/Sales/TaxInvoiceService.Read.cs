@@ -129,7 +129,9 @@ public sealed partial class TaxInvoiceService
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             Summary: new Pdf.PaperSummary(
                 d.SubtotalAmount, d.DiscountAmount > 0m ? d.DiscountAmount : null,
-                d.TaxableAmount, d.TaxAmount, d.TotalAmount, null, ShowVat: tax.VatMode),
+                d.TaxableAmount, d.TaxAmount, d.TotalAmount, null, ShowVat: tax.VatMode,
+                // ponytail (01-L3): pass non-taxable amount so the exempt row renders when > 0
+                NonTaxable: d.NonTaxableAmount > 0m ? d.NonTaxableAmount : null),
             SignRoles: new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: d.Notes,
             Watermark: copy

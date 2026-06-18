@@ -85,7 +85,8 @@ public sealed class GlPostingService : IGlPostingService
         var tiIds = rc.Applications.Where(a => a.TaxInvoiceId.HasValue)
             .Select(a => a.TaxInvoiceId!.Value).ToList();
         var tiBu = tiIds.Count > 0
-            ? await _db.TaxInvoices.Where(t => tiIds.Contains(t.TaxInvoiceId))
+            ? await _db.TaxInvoices.AsNoTracking() // ponytail: read-only BU lookup
+                .Where(t => tiIds.Contains(t.TaxInvoiceId))
                 .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.BusinessUnitId, ct)
             : new Dictionary<long, int?>();
         // Non-VAT receipts (DO-applied / standalone) have no prior AR — they recognize
@@ -385,6 +386,7 @@ public sealed class GlPostingService : IGlPostingService
     private async Task<long> ResolveAccountIdAsync(int companyId, string code, CancellationToken ct)
     {
         var account = await _db.ChartOfAccounts
+            .AsNoTracking() // ponytail: read-only lookup — no change tracking needed
             .FirstOrDefaultAsync(a => a.CompanyId == companyId && a.AccountCode == code, ct);
         if (account is null)
             throw new DomainException("gl.account_missing",

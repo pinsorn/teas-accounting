@@ -17,6 +17,10 @@ These landed after the RBAC sprint and are DONE; listed here only so they are no
   VAT-line rate derived from company master data (§4.6/ม.80), not caller input; PV blocks VAT from non-VAT vendors (ม.82/5).
 - ☑ **Phase 6 acceptance defect fixes** (cont.98q, `ffe1b0c`) — co3 CoA GL accounts, `/reports/tax-summary` date-range
   fix, openapi reconciled to code (camelCase bodies, real route paths).
+- ☑ **Whole-codebase review + compliance hardening** (cont.98s, 2026-06-18, UNCOMMITTED — `docs/code-review-2026-06-17/`) —
+  9-lens subagent review → 11 fixes via 5 batches: pin tax-point server-side (ม.86/4(7)/§10), THB-only create guard
+  (defers FX), periods default-closed, RLS on the sales chain (§4.7), immutability triggers on CN/DN+receipts (§4.2),
+  async-safety (MasterDataServices/PermissionLookup/ApiKeyResolver), FE i18n. Gated green (Api 426/0/7 fresh teas_test).
 
 ## What is genuinely LEFT (forward work)
 

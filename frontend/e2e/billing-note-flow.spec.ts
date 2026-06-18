@@ -47,7 +47,11 @@ test('billing note: group multiple tax invoices via join table', async ({ page }
   // Open the multi-TI picker (customer-scoped, Posted-only).
   await page.getByLabel('ใบกำกับภาษีที่รวม').click();
   const available = await page.locator('#taxinvoice-listbox button').count();
-  test.skip(available === 0, 'no posted TI for this customer in seed');
+  // ponytail: test.skip silently passes when seed has no posted TI (false-green risk).
+  // TODO: seed a posted TI via API in beforeEach so this condition is never true in CI.
+  // For now, keep the skip but make the reason explicit and loud.
+  // If you see this skip fire in CI, the seed is missing a posted TI for the demo customer.
+  test.skip(available === 0, '[ponytail] SEED MISSING: no posted TI for this customer — test skipped, not passing. Fix: seed a posted TI via API in test setup.');
 
   const toPick = Math.min(available, 2);
   for (let i = 0; i < toPick; i++) {

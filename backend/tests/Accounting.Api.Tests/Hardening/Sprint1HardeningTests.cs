@@ -5,6 +5,7 @@ using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Enums;
@@ -88,6 +89,10 @@ public sealed class Sprint1HardeningTests
     }
 
     // ── #3 Period gating: closed month rejects, open month allows ──────────────────
+    // Batch-A ③ (code-review 2026-06-17) changed the default-missing semantics: a
+    // missing period row is OPEN **only for the current Asia/Bangkok month**; every
+    // other missing month (a never-opened past month, or any future month) is CLOSED,
+    // so arbitrary back/forward-dating is no longer unbounded-open.
     [SkippableFact]
     public async Task Closed_period_blocks_posting_open_period_allows()
     {
@@ -97,20 +102,40 @@ public sealed class Sprint1HardeningTests
         await using var sp = Provider(company);
         await using var scope = sp.CreateAsyncScope();
         var period = scope.ServiceProvider.GetRequiredService<IPeriodCloseService>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
 
-        // A clean far-future month — guaranteed no draft fiscal docs.
+        // The CURRENT Bangkok month is open even with no row (the legitimate "this month,
+        // not yet closed" case) → posting today succeeds. Read-only: we NEVER mutate the
+        // current month here — after ① every document posts with DocDate=today, so the
+        // current period is load-bearing for the whole suite.
+        var today = clock.TodayInBangkok();
+        (await period.IsOpenAsync(today.Year, today.Month, default))
+            .Should().BeTrue("a missing row is OPEN for the current Bangkok month");
+
+        // A clean far-future month — guaranteed no draft fiscal docs, and with no row it
+        // is now CLOSED (③: future-dating is no longer unbounded-open).
         const int year = 2031; const int month = 7;
+        (await period.IsOpenAsync(year, month, default))
+            .Should().BeFalse("a missing future-month row is CLOSED, not open-forever");
 
-        (await period.IsOpenAsync(year, month, default)).Should().BeTrue("no period row ⇒ open");
+        var future = () => period.EnsureOpenAsync(new DateOnly(year, month, 15), default);
+        (await future.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("period.closed");
+
+        // Prove an EXPLICIT Open row makes that far-future month postable, then an explicit
+        // close blocks it — all on the isolated far-future month, never the current one.
+        db.AccountingPeriods.Add(new AccountingPeriod
+        {
+            CompanyId = company, Year = year, Month = (short)month, Status = PeriodStatus.Open,
+        });
+        await db.SaveChangesAsync();
+        (await period.IsOpenAsync(year, month, default))
+            .Should().BeTrue("an explicit Open row makes the month postable");
+
         await period.CloseAsync(year, month, "sprint1 test", default);
-
         (await period.IsOpenAsync(year, month, default)).Should().BeFalse();
-
         var act = () => period.EnsureOpenAsync(new DateOnly(year, month, 15), default);
         (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("period.closed");
-
-        // A different, untouched month stays open.
-        (await period.IsOpenAsync(year, month + 1, default)).Should().BeTrue();
     }
 
     // ── #4 PV + WHT 3% happy path → 50 ทวิ + balanced JV ───────────────────────────

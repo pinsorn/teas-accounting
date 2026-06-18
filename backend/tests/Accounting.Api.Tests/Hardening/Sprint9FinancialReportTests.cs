@@ -96,8 +96,11 @@ public sealed class Sprint9FinancialReportTests
 
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IFinancialReportService>();
-        var pl = await svc.ProfitLossAsync(
-            new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), bu, false, default);
+        // Batch-A ① — the TI is server-pinned to today's period; query the CURRENT Bangkok month.
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
+        var from = new DateOnly(today.Year, today.Month, 1);
+        var to = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+        var pl = await svc.ProfitLossAsync(from, to, bu, false, default);
 
         var g = pl.Groups.Single(x => x.BusinessUnitId == bu);
         g.Revenue.Should().BeGreaterThan(0m);
@@ -113,10 +116,14 @@ public sealed class Sprint9FinancialReportTests
         var cust = await CustomerId(sp);
         await PostTi(sp, cust, 5000m, null);
 
+        // TI is server-pinned to today's Bangkok date (ม.86/4(7)); query the current Bangkok month.
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
+        var from = new DateOnly(today.Year, today.Month, 1);
+        var to = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IFinancialReportService>();
-        var ss = await svc.SalesSummaryAsync(
-            new DateOnly(2026, 5, 1), new DateOnly(2026, 5, 31), "customer", default);
+        var ss = await svc.SalesSummaryAsync(from, to, "customer", default);
 
         ss.Rows.Should().Contain(r => r.Subtotal > 0m && r.Total >= r.Subtotal);
         ss.Totals.Total.Should().Be(ss.Rows.Sum(r => r.Total));

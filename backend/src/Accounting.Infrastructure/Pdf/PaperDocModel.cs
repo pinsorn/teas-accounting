@@ -47,7 +47,11 @@ public sealed record PaperSummary(
     // "หัก ณ ที่จ่าย · WHT" row above the grand total, and Total carries the
     // WHT-deducted net ("จ่ายสุทธิ"). null for every other doctype (additive, last
     // positional → existing callers unaffected).
-    decimal? Wht = null);
+    decimal? Wht = null,
+    // ponytail (01-L3): Tax Invoice with mixed taxable/exempt lines — when > 0 a labelled
+    // "มูลค่าสินค้าที่ได้รับยกเว้น · Exempt" row is printed so the non-taxable
+    // remainder is explicit. null/0 = suppress (Q/SO/DO/BN callers unaffected).
+    decimal? NonTaxable = null);
 
 public enum PaperWatermarkVariant { Success, Danger, Warning, Info }
 

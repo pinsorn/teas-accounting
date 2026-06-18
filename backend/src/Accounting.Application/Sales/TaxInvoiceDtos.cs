@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using FluentValidation;
 
 namespace Accounting.Application.Sales;
@@ -120,8 +121,7 @@ public sealed class CreateTaxInvoiceValidator : AbstractValidator<CreateTaxInvoi
     public CreateTaxInvoiceValidator()
     {
         RuleFor(x => x.CustomerId).GreaterThan(0);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty();
         RuleForEach(x => x.Lines).ChildRules(l =>
         {

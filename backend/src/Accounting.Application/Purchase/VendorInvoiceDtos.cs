@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using Accounting.Application.Sales; // CursorPage<T>
 using FluentValidation;
 
@@ -111,8 +112,7 @@ public sealed class CreateVendorInvoiceValidator : AbstractValidator<CreateVendo
     {
         RuleFor(x => x.VendorId).GreaterThan(0);
         RuleFor(x => x.VendorTaxInvoiceNo).NotEmpty().MaximumLength(50);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty();
         RuleForEach(x => x.Lines).ChildRules(l =>
         {

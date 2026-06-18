@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Accounting.Api;
 using Accounting.Api.Authorization;
 using Accounting.Api.BackgroundServices;
@@ -12,6 +13,7 @@ using Accounting.Infrastructure;
 using Accounting.Infrastructure.Identity;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -85,7 +87,13 @@ builder.Services.AddPermissionAuthorization();
 
 // Sprint 14 — /api/v1/* is ApiKey-scheme-only (auth isolation: root/BFF stays
 // JWT-default, so an X-Api-Key on a root route → 401, and a JWT on v1 → 401).
+// ponytail: global FallbackPolicy — any route with no auth metadata requires an authenticated
+// user by default. Intentionally-public routes must carry explicit AllowAnonymous (see below:
+// /health, /auth/login, /system/setup/bootstrap-admin). This is defense-in-depth: a future
+// endpoint that forgets RequireAuthorization is denied, not silently world-readable.
 builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser().Build())
     .AddPolicy(ApiV1Endpoints.ApiKeyOnlyPolicy, p => p
         .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
         .RequireAuthenticatedUser());
@@ -98,12 +106,30 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.CustomSchemaIds(t => t.FullName?.Replace("+", ".")));
 builder.Services.AddOpenApi();
 
-// CORS for frontend
+// CORS for frontend — origin-constrained + explicit methods/headers.
+// ponytail: AllowAnyHeader/AllowAnyMethod removed; explicit list covers all BFF + API calls.
+// Frontend:Origin must be set per-environment in production (no localhost fallback in prod).
 builder.Services.AddCors(o => o.AddPolicy("frontend", p =>
     p.WithOrigins(builder.Configuration["Frontend:Origin"] ?? "http://localhost:3000")
-     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+     .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+     .WithHeaders("Content-Type", "Authorization", "X-Api-Key", "X-Idempotency-Key", "Accept")
+     .AllowCredentials()));
 
 builder.Services.AddHealthChecks();
+
+// ponytail: fixed-window rate-limit on /auth/login only — no new packages (native ASP.NET Core).
+// 10 attempts per IP per minute is generous for human users but stops credential-stuffing bursts.
+builder.Services.AddRateLimiter(o =>
+{
+    o.AddFixedWindowLimiter("login", opt =>
+    {
+        opt.PermitLimit         = 10;
+        opt.Window              = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit          = 0;
+    });
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 var app = builder.Build();
 
@@ -124,6 +150,17 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("frontend");
 
+// ponytail: security response headers (no new package — ASP.NET Core Use/Run).
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    ctx.Response.Headers["X-Frame-Options"]        = "DENY";
+    ctx.Response.Headers["Referrer-Policy"]        = "no-referrer";
+    await next();
+});
+
+app.UseRateLimiter();
+
 app.UseDomainExceptionMapper();
 app.UseValidationErrorEnvelope();   // Sprint 13d P5 — ModelState 400 → unified v1 envelope
 app.UseAuthentication();
@@ -131,7 +168,7 @@ app.UseAuthorization();
 app.UseTenantContext();
 app.UseExternalApiIdempotency();   // Sprint 14 P4 — /api/v1/* mutations only
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous(); // ponytail: explicit AllowAnonymous — required now that FallbackPolicy requires auth by default
 // Per-company-vat-mode spec (2026-06-11): VAT mode/rate/ภ.พ.30 mode come from the
 // caller's company row, so the endpoint needs a tenant → authenticated.
 app.MapGet("/system/info", async (ICompanyTaxConfigService taxCfg, CancellationToken ct) =>

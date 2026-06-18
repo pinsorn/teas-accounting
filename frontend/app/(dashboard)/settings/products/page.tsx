@@ -103,7 +103,7 @@ export default function ProductsSettingsPage() {
       accessorKey: 'defaultUnitPrice', header: t('unitPrice'), meta: { align: 'right' },
       cell: ({ getValue }) => {
         const v = getValue<number | null>();
-        return <span className="tabular-nums">{v == null ? '—' : v.toLocaleString()}</span>;
+        return <span className="tabular-nums">{v == null ? '—' : v.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>;
       },
     },
     {

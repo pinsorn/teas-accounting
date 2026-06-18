@@ -24,14 +24,21 @@ import { SectionCard } from '@/components/create/SectionCard';
 import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
 import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 
-const schema = z.object({
+// Validation message is passed at runtime from the component (cannot call hooks at module scope)
+const buildSchema = (reasonRequired: string) => z.object({
   originalTaxInvoiceId: z.number().int().positive(),
   reasonCode: z.string().min(1),
-  reason: z.string().min(1, 'เหตุผลบังคับตามกฎหมาย'),
+  reason: z.string().min(1, reasonRequired),
   adjustmentSubtotal: z.number().positive(),
   taxRate: z.number().min(0).max(1),
 });
-type FormValues = z.infer<typeof schema>;
+type FormValues = {
+  originalTaxInvoiceId: number;
+  reasonCode: string;
+  reason: string;
+  adjustmentSubtotal: number;
+  taxRate: number;
+};
 
 // Shared CN (ม.86/10) / DN (ม.86/9) create form. Amount-based per Answer-Sana-Q4 Q2(a).
 // Customer is NOT entered — it's snapshot-copied server-side from the original TI
@@ -60,7 +67,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 
   const { control, handleSubmit, watch, formState: { isSubmitting } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(buildSchema(t('reasonRequired'))),
     defaultValues: {
       originalTaxInvoiceId: Number(sp.get('fromTaxInvoiceId')) || 0,
       reasonCode: sp.get('reason') ?? reasons[0],
@@ -107,7 +114,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
 
   const totalRows: TotalRow[] = [
     { label: t('subtotal'), value: sub },
-    { label: 'ภาษีมูลค่าเพิ่ม', value: vat },
+    { label: t('vat'), value: vat },
   ];
 
   return (
@@ -171,7 +178,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
                 ariaLabel="originalTaxInvoiceId"
                 onChange={(ti) => field.onChange(ti.taxInvoiceId)}
               />
-              {fieldState.error && <span className="mt-2 block text-sm text-error" data-field-error="true">ระบุใบกำกับภาษีเดิม</span>}
+              {fieldState.error && <span className="mt-2 block text-sm text-error" data-field-error="true">{t('originalTiRequired')}</span>}
             </div>
           )} />
         </SectionCard>
@@ -234,7 +241,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
             </div>
             <TotalsSummaryBox
               rows={totalRows}
-              grandLabel="รวมทั้งสิ้น"
+              grandLabel={t('grandTotal')}
               grandValue={sub + vat}
             />
           </div>

@@ -71,6 +71,23 @@ public sealed class DomainExceptionMiddleware
             await ErrorEnvelope.WriteAsync(ctx, StatusCodes.Status500InternalServerError,
                 "internal_error", msg);
         }
+        catch (ValidationException vex)
+        {
+            // Root / BFF — FluentValidation on non-/api/v1 paths (e.g. auth endpoints).
+            // Return 400 RFC-7807 so the frontend gets the same shape as domain errors.
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            ctx.Response.ContentType = "application/problem+json";
+            var errors = vex.Errors.Select(e => $"{e.PropertyName}: {e.ErrorMessage}");
+            var payload = new
+            {
+                type   = "urn:teas:error:validation_error",
+                title  = "validation_error",
+                status = StatusCodes.Status400BadRequest,
+                detail = string.Join("; ", errors),
+            };
+            await JsonSerializer.SerializeAsync(
+                ctx.Response.Body, payload, (JsonSerializerOptions?)null, ctx.RequestAborted);
+        }
         catch (DomainException ex)
         {
             // Root / BFF — RFC-7807. Honour the same code→status map as the v1 surface so
@@ -84,6 +101,31 @@ public sealed class DomainExceptionMiddleware
                 title  = ex.Code,
                 status = ctx.Response.StatusCode,
                 detail = ex.Message,
+            };
+            await JsonSerializer.SerializeAsync(
+                ctx.Response.Body, payload, (JsonSerializerOptions?)null, ctx.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            // Root / BFF catch-all — defense-in-depth (02-8 / 04-H2). Opaque 500 in
+            // production; detail visible in Development only (matches the v1 branch above).
+            // ponytail: mirrors the /api/v1 generic catch; keeps BFF surface consistent
+            // regardless of environment.
+            string msg = "An unexpected error occurred.";
+            if (_env.IsDevelopment())
+            {
+                msg = ex.Message;
+                for (var i = ex.InnerException; i is not null; i = i.InnerException)
+                    msg += " | " + i.Message;
+            }
+            ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            ctx.Response.ContentType = "application/problem+json";
+            var payload = new
+            {
+                type   = "urn:teas:error:internal_error",
+                title  = "internal_error",
+                status = StatusCodes.Status500InternalServerError,
+                detail = msg,
             };
             await JsonSerializer.SerializeAsync(
                 ctx.Response.Body, payload, (JsonSerializerOptions?)null, ctx.RequestAborted);

@@ -89,7 +89,10 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
         b.HasIndex(t => new { t.CompanyId, t.BranchId, t.DocNo }).IsUnique().HasFilter("doc_no IS NOT NULL");
         b.HasIndex(t => new { t.CompanyId, t.DocDate });
         b.HasIndex(t => new { t.CustomerId, t.DocDate });
-        b.HasIndex(t => new { t.Status, t.DocDate });
+        // ponytail: compound (company_id, status, doc_date) replaces the bare (status, doc_date)
+        // index — status-filter list queries are always tenant-scoped (03-L2).
+        b.HasIndex(t => new { t.CompanyId, t.Status, t.DocDate })
+            .HasDatabaseName("ix_tax_invoices_company_id_status_doc_date");
     }
 }
 

@@ -88,7 +88,10 @@ VOIDED), never reused.
 live on `master.companies` (`vat_registered`, `vat_rate`, `pnd30_submission_mode`), served per
 request by `ICompanyTaxConfigService`. Settable only via `POST/PUT /companies` (super-admin
 permission `Master.CompanyManage`); every tax-field change writes `audit.activity_log`
-(`tax_config_change`). **NEVER** a regular user-facing settings UI. Non-VAT doc labels stay in
+(`tax_config_change`). **NEVER** a regular user-facing settings UI. The §10 "don't expose VAT
+rate/mode in UI" rule targets **regular users**: the super-admin-only company-management form
+(`/settings/companies`, hidden unless `isSuperAdmin`) MAY display/edit `vat_rate` — that is the
+sanctioned `POST/PUT /companies` path (Ham ruling, 2026-06-18). Non-VAT doc labels stay in
 appsettings (cosmetic, instance-wide).
 
 **4.7 Multi-tenant isolation** — every business table has `company_id INT NOT NULL`; PostgreSQL RLS

@@ -1,5 +1,15 @@
 import { toast } from 'sonner';
-import { ApiError } from './api-client';
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Authenticated client. Every call goes through the same-origin BFF proxy
@@ -17,7 +27,7 @@ const PROXY = '/api/proxy';
  * → caller fallback → "เกิดข้อผิดพลาด". Shared so PO/PV approve/post/mark-sent all map
  * the BE Problem to a meaningful toast with one call.
  */
-export function problemToast(err: unknown, fallback = 'เกิดข้อผิดพลาด'): void {
+export function problemToast(err: unknown, fallback: string): void {
   let msg: string | undefined;
   if (err instanceof ApiError) {
     // ApiError.message is the ProblemDetails `detail` (api-client.ts ctor 3rd arg).

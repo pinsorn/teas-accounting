@@ -115,7 +115,7 @@ export default function PayrollRunsPage() {
               <label className="form-control">
                 <span className="label-text">{t('period')} *</span>
                 <input className="input input-bordered font-mono" value={period} maxLength={6}
-                  placeholder="YYYYMM"
+                  placeholder={t('periodPlaceholder')}
                   onChange={(e) => setPeriod(e.target.value.replace(/\D/g, ''))} />
                 {!periodOk && period !== '' && <span className="label-text-alt text-error">{t('periodInvalid')}</span>}
               </label>
@@ -136,7 +136,7 @@ export default function PayrollRunsPage() {
               </button>
             </div>
           </div>
-          <button className="modal-backdrop" aria-label="close" onClick={() => setOpen(false)} />
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setOpen(false)} />
         </div>
       )}
     </>

@@ -24,6 +24,9 @@ public sealed class FileStorageOptions
 /// sanitized to a safe ASCII subset; every read/delete path is re-rooted and
 /// verified to stay under StorageRoot (path-traversal block).
 /// </summary>
+// ponytail (04-M2): registered as Singleton. Constructor takes only IOptions<FileStorageOptions>
+// (Singleton-safe). No Scoped/request-stateful deps — no captive dependency. The _root field is
+// immutable after construction. Singleton registration is correct; no change needed.
 public sealed class LocalDiskFileStorage(IOptions<FileStorageOptions> opts)
     : IFileStorageService
 {

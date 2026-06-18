@@ -135,13 +135,13 @@ export function SidebarNav() {
   const gatesReady = !mePerms.isPending && !sysInfo.isPending;
 
   useEffect(() => {
-    setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1');
+    try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1'); } catch { /* incognito/restricted storage — ignore */ }
   }, []);
 
   function toggleCollapsed() {
     setCollapsed((c) => {
       const next = !c;
-      localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0'); } catch { /* incognito/restricted storage — ignore */ }
       return next;
     });
   }
@@ -159,7 +159,8 @@ export function SidebarNav() {
   function toggleLocale() {
     const current = document.cookie.match(/(?:^|; )locale=([^;]+)/)?.[1] ?? 'th';
     const next = current === 'th' ? 'en' : 'th';
-    document.cookie = `locale=${next}; path=/; max-age=31536000; samesite=lax`;
+    const secure = window.location.protocol === 'https:' ? '; secure' : '';
+    document.cookie = `locale=${next}; path=/; max-age=31536000; samesite=lax${secure}`;
     router.refresh();
     toast.success(next === 'th' ? 'ภาษาไทย' : 'English');
   }

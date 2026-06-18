@@ -215,7 +215,7 @@ export default function CompanyProfilePage() {
                     onClick={() => setConfirming(true)}>{tc('save')}</button>
                 </div>
               </div>
-              <button className="modal-backdrop" aria-label="close" onClick={() => setAddr(null)} />
+              <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setAddr(null)} />
             </div>
           )}
 

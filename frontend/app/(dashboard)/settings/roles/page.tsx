@@ -243,7 +243,7 @@ function CreateRoleDialog({
           </button>
         </div>
       </div>
-      <button className="modal-backdrop" aria-label="close" onClick={onClose} />
+      <button className="modal-backdrop" aria-label={tc('close')} onClick={onClose} />
     </div>
   );
 }
@@ -321,7 +321,7 @@ function RenameRoleDialog({ roleId, onClose }: { roleId: number; onClose: () => 
           </button>
         </div>
       </div>
-      <button className="modal-backdrop" aria-label="close" onClick={onClose} />
+      <button className="modal-backdrop" aria-label={tc('close')} onClick={onClose} />
     </div>
   );
 }
@@ -455,7 +455,7 @@ function EditPermissionsDialog({ roleId, onClose }: { roleId: number; onClose: (
           </button>
         </div>
       </div>
-      <button className="modal-backdrop" aria-label="close" onClick={onClose} />
+      <button className="modal-backdrop" aria-label={tc('close')} onClick={onClose} />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using Accounting.Domain.Enums;
 using FluentValidation;
 
@@ -96,8 +97,7 @@ public sealed class CreateReceiptValidator : AbstractValidator<CreateReceiptRequ
     public CreateReceiptValidator()
     {
         RuleFor(x => x.CustomerId).GreaterThan(0);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         // Sprint 8.6 — AR-side WHT (legacy single-category path).
         RuleFor(x => x.WhtAmount).GreaterThanOrEqualTo(0);
         RuleFor(x => x.WhtTypeId).NotNull()

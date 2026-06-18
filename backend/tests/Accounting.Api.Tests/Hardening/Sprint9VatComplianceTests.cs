@@ -86,9 +86,13 @@ public sealed class Sprint9VatComplianceTests
         await PostTi(sp, cust, 6000m, "VAT7", 0.07m);        // taxable
         await PostTi(sp, cust, 4000m, "EXEMPT-LIVE", 0m);    // exempt
 
+        // TI is server-pinned to today's Bangkok date (ม.86/4(7)); derive the current period.
+        var today = new SystemClock().TodayInBangkok();
+        var period = today.Year * 100 + today.Month;
+
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IProportionalInputVatService>();
-        var r = await svc.ComputeAsync(202605, default);
+        var r = await svc.ComputeAsync(period, default);
 
         r.TaxableSales.Should().BeGreaterThanOrEqualTo(6000m);
         r.ExemptSales.Should().BeGreaterThanOrEqualTo(4000m);
@@ -106,9 +110,13 @@ public sealed class Sprint9VatComplianceTests
         await PostTi(sp, cust, 5000m, "VAT7", 0.07m);
         await PostTi(sp, cust, 1000m, "EXEMPT-LIVE", 0m);
 
+        // TI is server-pinned to today's Bangkok date (ม.86/4(7)); derive the current period.
+        var today = new SystemClock().TodayInBangkok();
+        var period = today.Year * 100 + today.Month;
+
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<ITaxFilingService>();
-        var f = await svc.GeneratePnd30Async(202605, TaxFilingMode.Preview, default);
+        var f = await svc.GeneratePnd30Async(period, TaxFilingMode.Preview, default);
 
         f.Status.Should().Be("Preview");
         f.Lines.SalesTaxable.Amount.Should().BeGreaterThan(0m);
@@ -116,7 +124,7 @@ public sealed class Sprint9VatComplianceTests
         f.Lines.OutputVatTotal.Should().Be(f.Lines.SalesTaxable.Vat);
 
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
-        (await db.TaxFilings.AnyAsync(x => x.FormType == "PND30" && x.Period == 202605))
+        (await db.TaxFilings.AnyAsync(x => x.FormType == "PND30" && x.Period == period))
             .Should().BeFalse("preview must not persist");
     }
 
@@ -163,11 +171,15 @@ public sealed class Sprint9VatComplianceTests
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
         var cust = await CustomerId(sp);
-        await PostTi(sp, cust, 8000m, "VAT7", 0.07m);   // taxable sales land in period 202605
+        await PostTi(sp, cust, 8000m, "VAT7", 0.07m);   // taxable sales land in current Bangkok period
+
+        // TI is server-pinned to today's Bangkok date (ม.86/4(7)); derive the current period.
+        var today = new SystemClock().TodayInBangkok();
+        var period = today.Year * 100 + today.Month;
 
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<ITaxFilingService>();
-        var pdf = await svc.BuildPnd30PdfAsync(202605, default);
+        var pdf = await svc.BuildPnd30PdfAsync(period, default);
 
         pdf.Should().NotBeNullOrEmpty();
         pdf.Length.Should().BeGreaterThan(10_000, "a filled ภ.พ.30 AcroForm is ~290 KB");
@@ -205,9 +217,13 @@ public sealed class Sprint9VatComplianceTests
         var cust = await CustomerId(sp);
         await PostTi(sp, cust, 3000m, "VAT7", 0.07m);
 
+        // TI is server-pinned to today's Bangkok date (ม.86/4(7)); derive the current period.
+        var today = new SystemClock().TodayInBangkok();
+        var period = today.Year * 100 + today.Month;
+
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<ITaxFilingService>();
-        var reg = await svc.OutputVatRegisterAsync(202605, default);
+        var reg = await svc.OutputVatRegisterAsync(period, default);
 
         reg.Rows.Should().Contain(r => r.DocType == "TI" && r.Category == "TAXABLE");
         reg.VatTotal.Should().Be(reg.Rows.Sum(r => r.Vat));

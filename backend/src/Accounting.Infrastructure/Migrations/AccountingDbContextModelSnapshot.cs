@@ -643,6 +643,9 @@ namespace Accounting.Infrastructure.Migrations
                     b.HasIndex("RoleId")
                         .HasDatabaseName("ix_user_roles_role_id");
 
+                    b.HasIndex("UserId", "CompanyId")
+                        .HasDatabaseName("ix_user_roles_user_id_company_id");
+
                     b.ToTable("user_roles", "sys");
                 });
 
@@ -2228,10 +2231,12 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnName("employee_name");
 
                     b.Property<decimal>("GrossNonTaxable")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("gross_non_taxable");
 
                     b.Property<decimal>("GrossTaxable")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("gross_taxable");
 
@@ -2243,10 +2248,12 @@ namespace Accounting.Infrastructure.Migrations
                         .IsFixedLength();
 
                     b.Property<decimal>("NetPay")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("net_pay");
 
                     b.Property<decimal>("OtherDeductions")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("other_deductions");
 
@@ -2255,22 +2262,27 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnName("payroll_run_id");
 
                     b.Property<decimal>("PitWithheld")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("pit_withheld");
 
                     b.Property<decimal>("SsoEmployee")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("sso_employee");
 
                     b.Property<decimal>("SsoEmployer")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("sso_employer");
 
                     b.Property<decimal>("YtdIncome")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("ytd_income");
 
                     b.Property<decimal>("YtdPit")
+                        .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("ytd_pit");
 
@@ -5296,13 +5308,13 @@ namespace Accounting.Infrastructure.Migrations
                     b.HasIndex("CustomerId", "DocDate")
                         .HasDatabaseName("ix_tax_invoices_customer_id_doc_date");
 
-                    b.HasIndex("Status", "DocDate")
-                        .HasDatabaseName("ix_tax_invoices_status_doc_date");
-
                     b.HasIndex("CompanyId", "BranchId", "DocNo")
                         .IsUnique()
                         .HasDatabaseName("ix_tax_invoices_company_id_branch_id_doc_no")
                         .HasFilter("doc_no IS NOT NULL");
+
+                    b.HasIndex("CompanyId", "Status", "DocDate")
+                        .HasDatabaseName("ix_tax_invoices_company_id_status_doc_date");
 
                     b.ToTable("tax_invoices", "sales", t =>
                         {

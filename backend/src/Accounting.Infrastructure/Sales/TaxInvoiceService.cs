@@ -131,7 +131,11 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                 $"request specified {req.BusinessUnitId}.");
         req = req with { BusinessUnitId = effBu };
 
-        await _period.EnsureOpenAsync(req.DocDate, ct);
+        // §10 / ม.86/4(7) / ม.78 — the tax-point (issue) date is ALWAYS today in
+        // Asia/Bangkok, never trusted from the request. Derived ONCE so the period
+        // gate below and the stored DocDate/TaxPointDate are the same pinned value.
+        var docDate = _clock.TodayInBangkok();
+        await _period.EnsureOpenAsync(docDate, ct);
 
         var company = await _db.Companies
                 .Include(c => c.Branches)
@@ -234,8 +238,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         {
             CompanyId = _tenant.CompanyId,
             BranchId  = _tenant.BranchId,
-            DocDate       = req.DocDate,
-            TaxPointDate  = req.DocDate,
+            DocDate       = docDate,   // §10 — pinned to Asia/Bangkok today
+            TaxPointDate  = docDate,   // ม.86/4(7) — tax point = issue date
             SupplierTaxId      = company.TaxId,
             SupplierBranchCode = branch.BranchCode,
             SupplierBranchName = branch.IsHeadOffice ? "สำนักงานใหญ่" : $"สาขาที่ {branch.BranchCode}",

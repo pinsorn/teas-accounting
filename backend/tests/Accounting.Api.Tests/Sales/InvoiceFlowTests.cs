@@ -134,6 +134,8 @@ public sealed class InvoiceFlowTests
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var ti = await db.TaxInvoices.Include(t => t.Lines)
             .FirstAsync(t => t.TaxInvoiceId == tiId);
+        // §4.3 — doc number must NOT be assigned on Draft (only on POST/Issue).
+        ti.DocNo.Should().BeNullOrEmpty("draft must not consume a number before post — §4.3 / CLAUDE.md §4.3");
         ti.BillingNoteId.Should().Be(invId);
         ti.CustomerId.Should().Be(cust);
         ti.Lines.Should().HaveCount(1);

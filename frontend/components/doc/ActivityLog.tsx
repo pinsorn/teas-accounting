@@ -1,6 +1,7 @@
 'use client';
 
 import { Clock, FilePlus, Send, Lock, CheckCheck, ArrowRight, Truck, X, Mail, Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useDocumentActivity } from '@/lib/queries';
 import { formatDate } from '@/lib/utils';
 import type { ActivityDocType } from '@/lib/types';
@@ -33,6 +34,7 @@ function iconFor(action: string): typeof Clock {
 }
 
 export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: number }) {
+  const tc = useTranslations('common');
   const { data, isLoading } = useDocumentActivity(docType, id);
   const entries = data ?? [];
 
@@ -40,13 +42,13 @@ export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: num
     <div className="rounded-card border border-ink-100 bg-base-100 shadow-warm-sm">
       <div className="flex items-center gap-2 border-b border-ink-100 px-5 py-3.5">
         <Clock className="h-4 w-4 text-ink-600" aria-hidden />
-        <h3 className="text-[15px] font-bold text-ink-900">ประวัติกิจกรรม</h3>
+        <h3 className="text-[15px] font-bold text-ink-900">{tc('activityLog')}</h3>
       </div>
       <div className="p-5">
         {isLoading ? (
-          <p className="text-[13px] text-ink-500">กำลังโหลด…</p>
+          <p className="text-[13px] text-ink-500">{tc('loading')}</p>
         ) : entries.length === 0 ? (
-          <p className="text-[13px] text-ink-500">ยังไม่มีประวัติกิจกรรม</p>
+          <p className="text-[13px] text-ink-500">{tc('activityEmpty')}</p>
         ) : (
           <div className="flex flex-col gap-3.5">
             {entries

@@ -118,7 +118,7 @@ public sealed class PurchaseCompletenessTests
         var id = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
             DocDate: new DateOnly(2026, 5, 16), VendorId: vendorId,
             VendorTaxInvoiceNo: "VT-" + TestIds.Suffix()[..6],
-            VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
+            VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), VatClaimPeriod: null,   // ③ current open period
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
             Lines: [new VendorInvoiceLineInput(catId, null, "vi line", amount, vatRate, productType)]),
             default);
@@ -279,7 +279,7 @@ public sealed class PurchaseCompletenessTests
             viId = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
                 DocDate: new DateOnly(2026, 5, 16), VendorId: vid,
                 VendorTaxInvoiceNo: "VT-" + TestIds.Suffix()[..6],
-                VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
+                VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), VatClaimPeriod: null,   // ③ current open period
                 CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
                 Lines: [new VendorInvoiceLineInput(catId, null, "vi line", 1000m, 0m)]), default);
             db.SeedViAttachment(viId, category: AttachmentCategory.Other);
@@ -343,7 +343,7 @@ public sealed class PurchaseCompletenessTests
                 .CreateDraftAsync(new CreateVendorInvoiceRequest(
                     DocDate: new DateOnly(2026, 5, 16), VendorId: vid,
                     VendorTaxInvoiceNo: "VT-" + TestIds.Suffix()[..6],
-                    VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
+                    VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), VatClaimPeriod: null,   // ③ current open period
                     CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
                     Lines: [new VendorInvoiceLineInput(catId, null, "svc", 500m, 0m, "SERVICE")]),
                     default);
@@ -387,7 +387,7 @@ public sealed class PurchaseCompletenessTests
             viId = await s.ServiceProvider.GetRequiredService<IPaymentVoucherService>()
                 .CreateVendorInvoiceFromPvAsync(pvId, new CreateViFromPvRequest(
                     VendorTaxInvoiceNo: "VT-" + TestIds.Suffix()[..6],
-                    VendorTaxInvoiceDate: new DateOnly(2026, 5, 10)), default);
+                    VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok()), default);   // ③ current open period
 
         // PV now links the new VI; the VI is pre-filled from the PV (vendor, line + ProductType).
         (await PvDetail(sp, pvId)).VendorInvoiceId.Should().Be(viId);
@@ -415,12 +415,12 @@ public sealed class PurchaseCompletenessTests
         await using (var s = sp.CreateAsyncScope())
             await s.ServiceProvider.GetRequiredService<IPaymentVoucherService>()
                 .CreateVendorInvoiceFromPvAsync(pvId, new CreateViFromPvRequest(
-                    "VT-" + TestIds.Suffix()[..6], new DateOnly(2026, 5, 10)), default);
+                    "VT-" + TestIds.Suffix()[..6], new Accounting.Application.Abstractions.SystemClock().TodayInBangkok()), default);   // ③ current open period
 
         await using var s2 = sp.CreateAsyncScope();
         var svc = s2.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
         var act = () => svc.CreateVendorInvoiceFromPvAsync(pvId, new CreateViFromPvRequest(
-            "VT-" + TestIds.Suffix()[..6], new DateOnly(2026, 5, 10)), default);
+            "VT-" + TestIds.Suffix()[..6], new Accounting.Application.Abstractions.SystemClock().TodayInBangkok()), default);   // ③ current open period
         (await act.Should().ThrowAsync<Accounting.Domain.Common.DomainException>())
             .Which.Code.Should().Be("pv.vi_exists");
     }

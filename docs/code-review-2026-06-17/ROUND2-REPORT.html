@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEAS — Round 2 Fixes (remaining findings)</title>
+<style>
+  :root{--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--teal:#0d9488;--blue:#2563eb;
+    --crit:#dc2626;--high:#ea580c;--med:#ca8a04;--low:#94a3b8;--ok:#16a34a;--card:#fff;--codebg:#0b1220;--codeink:#e2e8f0}
+  *{box-sizing:border-box} html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Sarabun",Inter,system-ui,sans-serif;
+    color:var(--ink);background:#f1f5f9;line-height:1.6;font-size:16px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 16px 60px}
+  header{background:linear-gradient(135deg,var(--teal),var(--blue));color:#fff;padding:28px 20px;border-radius:0 0 20px 20px;margin:0 -16px 20px}
+  header h1{margin:0 0 6px;font-size:21px} header .sub{opacity:.92;font-size:13.5px}
+  .badge{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);padding:4px 11px;border-radius:999px;font-size:12.5px;margin-top:12px;font-weight:600}
+  h2{font-size:17px;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+  .cards{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .stat{flex:1 1 100px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;text-align:center}
+  .stat .n{font-size:22px;font-weight:800} .stat .l{font-size:11px;color:var(--muted);margin-top:4px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin:11px 0;box-shadow:0 1px 2px rgba(0,0,0,.04);border-left:4px solid var(--teal)}
+  .card.h{border-left-color:var(--high)}
+  .card h3{margin:0 0 3px;font-size:14.5px}
+  .meta{font-size:12px;color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;margin-bottom:7px}
+  .pill{display:inline-block;font-size:10.5px;font-weight:700;color:#fff;padding:1px 7px;border-radius:999px;margin-right:6px}
+  .p-h{background:var(--high)} .p-m{background:var(--med)} .p-l{background:var(--low)}
+  pre{background:var(--codebg);color:var(--codeink);border-radius:8px;padding:10px 11px;overflow-x:auto;font-size:12px;line-height:1.5;margin:7px 0;font-family:ui-monospace,Menlo,Consolas,monospace}
+  pre b.del{color:#fca5a5} pre b.add{color:#86efac}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}
+  th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line)} th{color:var(--muted);font-size:12px;text-transform:uppercase}
+  .ok-tick{color:var(--ok);font-weight:800}
+  code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-word}
+  .note{background:#fef9c3;border:1px solid #fde047;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:13.5px}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:24px;border-top:1px solid var(--line);padding-top:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>TEAS — Round 2: finding ที่เหลือทั้งหมด</h1>
+  <div class="sub">แก้ Medium/Low + High รอง ที่เหลือจาก 9-lens review · ponytail = วิธีง่ายสุดต่ออัน (ทำครบ ไม่ drop scope)</div>
+  <span class="badge">✅ DONE &amp; GATED · NOT committed (รอ review)</span>
+</header>
+
+<h2>สรุป</h2>
+<p>หลัง round 1 (Critical/High หลัก) Ham สั่งแก้ finding ที่เหลือ <b>ทั้งหมด</b>. ทำผ่าน 5 subagent batch — overseer gate ทุกตัว. ponytail mode = แก้ทุกอันแต่ใช้ทางง่ายสุด (ไม่เพิ่ม dependency, diff สั้น). <b>ไม่ skip อะไรเลย</b> (ตอนแรกเสนอ skip ของ cosmetic แต่ Ham ให้ทำครบ).</p>
+<div class="cards">
+  <div class="stat"><div class="n" style="color:var(--ok)">~30</div><div class="l">finding แก้</div></div>
+  <div class="stat"><div class="n">5</div><div class="l">subagent batch</div></div>
+  <div class="stat"><div class="n" style="color:var(--ok)">431</div><div class="l">Api tests pass</div></div>
+  <div class="stat"><div class="n" style="color:var(--ok)">0</div><div class="l">fail</div></div>
+</div>
+
+<h2>🔒 Security + RLS (backend)</h2>
+<div class="card h"><h3><span class="pill p-h">HIGH</span>RLS purchase chain</h3>
+  <div class="meta">573_purchase_chain_rls.sql · §4.7</div>
+  payment_vouchers + purchase_orders เดิมไม่มี RLS (sales chain ทำใน round 1 แล้ว) → เพิ่ม ENABLE/FORCE + policy mirror 572. ปิด §4.7 backstop ครบทั้ง sales+purchase.</div>
+<div class="card"><h3><span class="pill p-m">MED</span>ลบ secret ที่ commit</h3>
+  <div class="meta">login_resp.json · appsettings.json:15</div>
+  ลบ login_resp.json (มี JWT จริง) + gitignore · DB password ใน base appsettings → placeholder (Development ยังมี dev string ใช้งานได้).</div>
+<div class="card"><h3><span class="pill p-m">MED</span>Security headers + auth rate-limit + FallbackPolicy</h3>
+  <div class="meta">Program.cs · AuthEndpoints.cs (native, ไม่เพิ่ม dep)</div>
+  X-Content-Type-Options/X-Frame-Options/Referrer-Policy · login fixed-window rate-limit (429) · global auth FallbackPolicy (route protected by default, whitelist anon: login/health/bootstrap/instance-keys) · CORS/error-leak ปรับ.</div>
+
+<h2>⚡ Performance (backend)</h2>
+<div class="card h"><h3><span class="pill p-h">HIGH</span>AsNoTracking GL-posting</h3>
+  <div class="meta">GlPostingService.cs:88,388</div>
+  read-only lookup (ChartOfAccounts, TI BU dict) เพิ่ม AsNoTracking → ลด tracker pressure.</div>
+<div class="card"><h3><span class="pill p-m">MED</span>EF perf + indexes</h3>
+  <div class="meta">migration 20260618_AddPerfIndexes · BillingNoteService · IdempotencyStore</div>
+  BillingNote 2×SaveChanges→1 · IdempotencyStore.PurgeExpiredAsync awaited · index user_roles(user_id,company_id) + tax_invoices(status) ผ่าน EF migration (has-pending=clean) · CancellationToken forwarding.</div>
+
+<h2>🖥️ Frontend</h2>
+<div class="card h"><h3><span class="pill p-h">HIGH</span>ลบ legacy api-client (BFF bypass)</h3>
+  <div class="meta">lib/client.ts · login page</div>
+  ลบไฟล์ที่ยิง backend ตรง (ข้าม BFF proxy) + repoint login ไป BFF helper.</div>
+<div class="card h"><h3><span class="pill p-h">HIGH</span>Type ~30 unknown mutations</h3>
+  <div class="meta">lib/queries.ts · lib/types.ts</div>
+  <code>req: unknown</code> → CreateXRequest types จริง (แก้ ReceiptApplicationInput.taxInvoiceId→optional ให้ TI/BN branch ผ่าน). tsc 0.</div>
+<div class="card h"><h3><span class="pill p-h">HIGH</span>RSC conversion</h3>
+  <div class="meta">(dashboard) pages</div>
+  แปลง <b>10 หน้า</b> (shell wrapper ที่ render client child อย่างเดียว) เป็น server component. <b>45 หน้า คง 'use client'</b> เพราะ interactive จริง (useState/React Query/form) — ถูกต้อง ไม่ใช่ขี้เกียจ.</div>
+<div class="card"><h3><span class="pill p-l">LOW</span>i18n / locale</h3>
+  ส่วนใหญ่ correct อยู่แล้ว (ไม่มี Buddhist-era, kBaht/problemToast/toLocaleString แก้ไปก่อนแล้ว). useEffect form-seed คงไว้ (useState ไม่ใช่ RHF → values N/A). th/en 1434/1434.</div>
+
+<h2>🧪 Tests + Feature guards</h2>
+<div class="card h"><h3><span class="pill p-h">HIGH</span>CN/DN GL-balance test</h3>
+  <div class="meta">CnDnGlBalanceTests.cs · ม.86/9-10</div>
+  test ใหม่: CN + DN posted journal Σdebit == Σcredit (round 1 ขาด coverage นี้).</div>
+<div class="card"><h3><span class="pill p-m">MED</span>Receipt over-apply guard</h3>
+  <div class="meta">ReceiptService.cs · err receipt.over_applied</div>
+  <pre>group-by-TI re-check:
+<b class="add">if (AmountPaid + applied &gt; TotalAmount + 0.01m)
+   throw "receipt.over_applied"</b>
+// ponytail: app-level check; row-lock if concurrent over-apply seen</pre>
+  + test TOCTOU (2 concurrent receipt, ตัวที่สอง reject).</div>
+<div class="card"><h3><span class="pill p-l">LOW</span>DO over-deliver cap</h3>
+  <div class="meta">SalesOrderDeliveryServices.cs · err do.over_delivered</div>
+  <pre><b class="add">if (DeliveredQuantity + qty &gt; sol.Quantity)
+   throw "do.over_delivered"</b></pre>
+  + test (SO=3, DO 2+2 → reject).</div>
+<div class="card"><h3><span class="pill p-m">MED</span>Test hardening</h3>
+  posted-TI re-post reject test (immutability @API) · draft DocNo=null assert (§4.3) · ApAging 202605→TestIds.FuturePeriod() · e2e billing-note skip ทำให้ loud (ponytail TODO).</div>
+
+<h2>✅ Gate (overseer re-ran เอง)</h2>
+<table>
+  <tr><th>Check</th><th>ผล</th></tr>
+  <tr><td><code>dotnet build</code></td><td><span class="ok-tick">0 / 0</span></td></tr>
+  <tr><td>Full Api suite</td><td><span class="ok-tick">Passed 431 / Failed 0 / Skip 7</span></td></tr>
+  <tr><td>Domain suite</td><td><span class="ok-tick">146 / 0</span></td></tr>
+  <tr><td>Frontend <code>tsc --noEmit</code></td><td><span class="ok-tick">0</span></td></tr>
+  <tr><td>migration has-pending</td><td><span class="ok-tick">No changes</span></td></tr>
+  <tr><td>i18n th/en parity</td><td><span class="ok-tick">1434 / 1434</span></td></tr>
+</table>
+
+<div class="note">📌 <b>หมายเหตุ shutdown:</b> ระหว่าง round 2 Ham ปิดคอม 1 รอบตอน Batch P กำลังรัน. P ตาย (process exit) แต่เขียนงานครบบน disk ก่อนแล้ว — เปิดคอมมา overseer <b>re-gate P เขียว</b> (build 0/0 · Api 428 · has-pending clean) แล้วต่อ T จนจบ. ไม่มีงานหาย.</div>
+
+<h2>📦 สถานะ</h2>
+<p><b>ยังไม่ commit</b> (§10 — รอ Ham). ทุกอย่าง gated. รวม round 1+2: <code>backend/src</code> + tests + 4 SqlScript (570-573) + 1 migration + frontend. ดู <code>git status</code> · รายละเอียด <code>docs/code-review-2026-06-17/_FIX-PROGRESS.md</code>.</p>
+
+<div class="foot">ponytail mode: simplest fix per item, no new deps. ไฟล์คู่กัน: <code>REVIEW-9LENS-SUMMARY.html</code> (review เจออะไร) · <code>REVIEW-REPORT.html</code> (round 1) · ไฟล์นี้ (round 2). สร้างโดย overseer agent 2026-06-18.</div>
+</div>
+</body>
+</html>

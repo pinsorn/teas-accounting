@@ -41,10 +41,10 @@ public sealed class BranchService(AccountingDbContext db, ITenantContext tenant)
         await db.SaveChangesAsync(ct);
     }
 
-    public Task<IReadOnlyList<BranchDto>> ListAsync(CancellationToken ct) =>
-        db.Branches.OrderBy(b => b.BranchCode)
+    public async Task<IReadOnlyList<BranchDto>> ListAsync(CancellationToken ct) =>
+        await db.Branches.OrderBy(b => b.BranchCode)
             .Select(b => new BranchDto(b.BranchId, b.BranchCode, b.NameTh, b.NameEn, b.IsHeadOffice, b.IsActive))
-            .ToListAsync(ct).ContinueWith<IReadOnlyList<BranchDto>>(t => t.Result, TaskContinuationOptions.OnlyOnRanToCompletion);
+            .ToListAsync(ct);
 }
 
 public sealed class VendorService(AccountingDbContext db, ITenantContext tenant) : IVendorService
@@ -340,12 +340,12 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         await db.SaveChangesAsync(ct);
     }
 
-    public Task<IReadOnlyList<CompanyDto>> ListAsync(CancellationToken ct) =>
-        db.Companies.IgnoreQueryFilters().OrderBy(c => c.NameTh)
+    public async Task<IReadOnlyList<CompanyDto>> ListAsync(CancellationToken ct) =>
+        await db.Companies.IgnoreQueryFilters().OrderBy(c => c.NameTh)
             .Select(c => new CompanyDto(c.CompanyId, c.TaxId, c.NameTh, c.NameEn, c.LegalEntityType,
                 c.VatRegistered, c.BaseCurrency, c.IsActive, c.PaidUpCapital,
                 c.VatRate, c.Pnd30SubmissionMode))
-            .ToListAsync(ct).ContinueWith<IReadOnlyList<CompanyDto>>(t => t.Result, TaskContinuationOptions.OnlyOnRanToCompletion);
+            .ToListAsync(ct);
 
     public async Task<CompanyDetailDto> GetAsync(int companyId, CancellationToken ct) =>
         await db.Companies.IgnoreQueryFilters().Where(c => c.CompanyId == companyId)
@@ -376,11 +376,11 @@ public sealed class DocumentPrefixService(AccountingDbContext db) : IDocumentPre
         return e.PrefixId;
     }
 
-    public Task<IReadOnlyList<DocumentPrefixDto>> ListAsync(CancellationToken ct) =>
-        db.DocumentPrefixes.OrderBy(p => p.PrefixCode)
+    public async Task<IReadOnlyList<DocumentPrefixDto>> ListAsync(CancellationToken ct) =>
+        await db.DocumentPrefixes.OrderBy(p => p.PrefixCode)
             .Select(p => new DocumentPrefixDto(p.PrefixId, p.PrefixCode, p.DocumentType, p.DescriptionTh,
                 p.RequiresEtax, p.IsFiscalDoc, p.IsExpense, p.IsActive))
-            .ToListAsync(ct).ContinueWith<IReadOnlyList<DocumentPrefixDto>>(t => t.Result, TaskContinuationOptions.OnlyOnRanToCompletion);
+            .ToListAsync(ct);
 }
 
 public sealed class ExpenseCategoryService(AccountingDbContext db, ITenantContext tenant) : IExpenseCategoryService
@@ -413,10 +413,10 @@ public sealed class ExpenseCategoryService(AccountingDbContext db, ITenantContex
     // show every company's categories — surfacing apparent "duplicate" codes
     // (company 1's ADS + company 2's ADS, etc.). A settings list must show only
     // the current tenant's set. Narrowing only — never widens, so no §4.7 leak.
-    public Task<IReadOnlyList<ExpenseCategoryDto>> ListAsync(CancellationToken ct) =>
-        db.ExpenseCategories.Where(c => c.CompanyId == tenant.CompanyId)
+    public async Task<IReadOnlyList<ExpenseCategoryDto>> ListAsync(CancellationToken ct) =>
+        await db.ExpenseCategories.Where(c => c.CompanyId == tenant.CompanyId)
             .OrderBy(c => c.CategoryCode)
             .Select(c => new ExpenseCategoryDto(c.CategoryId, c.CategoryCode, c.NameTh, c.NameEn,
                 c.DefaultIsRecoverableVat, c.IsCapex, c.IsCogs, c.IsActive))
-            .ToListAsync(ct).ContinueWith<IReadOnlyList<ExpenseCategoryDto>>(t => t.Result, TaskContinuationOptions.OnlyOnRanToCompletion);
+            .ToListAsync(ct);
 }

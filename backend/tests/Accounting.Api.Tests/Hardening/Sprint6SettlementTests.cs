@@ -90,7 +90,7 @@ public sealed class Sprint6SettlementTests
         var id = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
             DocDate: new DateOnly(2026, 5, 16), VendorId: vendorId,
             VendorTaxInvoiceNo: "VT-" + Guid.NewGuid().ToString("N")[..6],
-            VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
+            VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), VatClaimPeriod: null,   // ③ current open period
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
             Lines: [new VendorInvoiceLineInput(catId, null, "vi line", amount, vatRate)]), default);
         db.SeedViAttachment(id); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
@@ -225,7 +225,7 @@ public sealed class Sprint6SettlementTests
             draftViId = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
                 DocDate: new DateOnly(2026, 5, 16), VendorId: vendorId,
                 VendorTaxInvoiceNo: "VT-" + Guid.NewGuid().ToString("N")[..6],
-                VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
+                VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), VatClaimPeriod: null,   // ③ current open period
                 CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
                 Lines: [new VendorInvoiceLineInput(catId, null, "draft", 500m, 0m)]), default);
             // NOT posted.

@@ -54,7 +54,9 @@ public sealed partial class ReceiptService : IReceiptService
         // so the apply/standalone branches below can treat it uniformly.
         req = req with { BusinessUnitId = effBu, Applications = req.Applications ?? Array.Empty<ReceiptApplicationInput>() };
 
-        await _period.EnsureOpenAsync(req.DocDate, ct);
+        // §10 — the receipt date is ALWAYS today in Asia/Bangkok, never from the request.
+        var docDate = _clock.TodayInBangkok();
+        await _period.EnsureOpenAsync(docDate, ct);
 
         var customer = await _db.Customers
                 .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
@@ -213,7 +215,7 @@ public sealed partial class ReceiptService : IReceiptService
         {
             CompanyId       = _tenant.CompanyId,
             BranchId        = _tenant.BranchId,
-            DocDate         = req.DocDate,
+            DocDate         = docDate,   // §10 — pinned to Asia/Bangkok today
             CustomerId      = customer.CustomerId,
             CustomerName    = customer.NameTh,
             CustomerAddress = customer.BillingAddress ?? string.Empty,
@@ -317,10 +319,21 @@ public sealed partial class ReceiptService : IReceiptService
         // Apply payments → update each TI's AmountPaid / PaymentStatus. Only TI
         // applications settle AR; DO applications + standalone lines recognize revenue
         // at receipt (no prior AR to settle — see GlPostingService.PostReceiptAsync).
-        foreach (var app in rc.Applications.Where(a => a.TaxInvoiceId.HasValue))
+        // ponytail: app-level check; add a row lock / unique constraint if concurrent
+        // over-apply is seen in practice (mirrors PaymentVoucherService.PostAsync 409-414).
+        var tiApps = rc.Applications
+            .Where(a => a.TaxInvoiceId.HasValue)
+            .GroupBy(a => a.TaxInvoiceId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.AppliedAmount));
+
+        foreach (var (tiId, applied) in tiApps)
         {
-            var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == app.TaxInvoiceId!.Value, ct);
-            ti.AmountPaid += app.AppliedAmount;
+            var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
+            if (ti.AmountPaid + applied > ti.TotalAmount + 0.01m)
+                throw new DomainException("receipt.over_applied",
+                    $"Applying {applied} to Tax Invoice {ti.DocNo} would exceed its total " +
+                    $"{ti.TotalAmount} (already paid: {ti.AmountPaid}).");
+            ti.AmountPaid += applied;
             ti.PaymentStatus = ti.AmountPaid >= ti.TotalAmount ? "PAID" : "PARTIAL";
         }
 

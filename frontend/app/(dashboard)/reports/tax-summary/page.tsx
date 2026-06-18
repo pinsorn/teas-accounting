@@ -2,25 +2,24 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useTaxSummary, useBusinessUnits } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { TaxSummaryMonth } from '@/lib/types';
 
-const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+function monthShort(locale: string, month1: number): string {
+  return new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(2000, month1 - 1, 1));
+}
 
-function kBaht(n: number): string {
-  const a = Math.abs(n);
-  if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (a >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return n.toFixed(0);
+function kBaht(n: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
 
 export default function TaxSummaryPage() {
   const t = useTranslations('taxSummary');
   const tc = useTranslations('common');
+  const locale = useLocale();
   const nowYear = new Date().getFullYear();
   const [year, setYear] = useState(nowYear);
   const [buId, setBuId] = useState<number | undefined>(undefined);
@@ -40,7 +39,7 @@ export default function TaxSummaryPage() {
           <select className="select select-bordered select-sm w-32" data-testid="ts-year"
             value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {Array.from({ length: 6 }, (_, i) => nowYear - i).map((y) => (
-              <option key={y} value={y}>{y} ({y + 543})</option>
+              <option key={y} value={y}>{y}</option>
             ))}
           </select>
         </label>
@@ -80,14 +79,14 @@ export default function TaxSummaryPage() {
       {totals && (
         <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <ChartCard title={t('chart.revVsExp')}>
-            <GroupedBars months={months}
+            <GroupedBars months={months} ariaLabel={t('chart.revVsExp')} locale={locale}
               series={[
                 { key: 'revenue', label: t('revenue'), className: 'fill-emerald-500' },
                 { key: 'expense', label: t('expense'), className: 'fill-rose-400' },
               ]} />
           </ChartCard>
           <ChartCard title={t('chart.tax')}>
-            <GroupedBars months={months}
+            <GroupedBars months={months} ariaLabel={t('chart.tax')} locale={locale}
               series={[
                 { key: 'vatPayable', label: t('vatPayable'), className: 'fill-amber-500' },
                 { key: 'whtPaidTotal', label: t('whtPaid'), className: 'fill-sky-500' },
@@ -120,7 +119,7 @@ export default function TaxSummaryPage() {
           <tbody>
             {months.map((m) => (
               <tr key={m.month}>
-                <td className="font-medium">{THAI_MONTHS[m.month - 1]}</td>
+                <td className="font-medium">{monthShort(locale, m.month)}</td>
                 <td className="text-right tabular-nums">{cell(m.revenue)}</td>
                 <td className="text-right tabular-nums">{cell(m.expense)}</td>
                 <td className={`text-right tabular-nums ${m.netProfit < 0 ? 'text-error' : ''}`}>{cell(m.netProfit)}</td>
@@ -212,9 +211,11 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 // Inline SVG grouped bars — no chart dependency. 12 month groups, N series each.
-function GroupedBars({ months, series }: {
+function GroupedBars({ months, series, ariaLabel, locale = 'th' }: {
   months: TaxSummaryMonth[];
   series: { key: keyof TaxSummaryMonth; label: string; className: string }[];
+  ariaLabel?: string;
+  locale?: string;
 }) {
   const W = 560, H = 200, padL = 8, padB = 24, padT = 8;
   const plotH = H - padB - padT;
@@ -224,7 +225,7 @@ function GroupedBars({ months, series }: {
 
   return (
     <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-52 w-full" role="img">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-52 w-full" role="img" aria-label={ariaLabel}>
         {/* baseline */}
         <line x1={padL} y1={padT + plotH} x2={W - padL} y2={padT + plotH}
           className="stroke-base-300" strokeWidth={1} />
@@ -239,18 +240,18 @@ function GroupedBars({ months, series }: {
                   <rect key={s.key} className={s.className}
                     x={gx + si * barW} y={padT + plotH - h}
                     width={barW - 1} height={h} rx={1}>
-                    <title>{`${THAI_MONTHS[m.month - 1]} · ${s.label}: ${formatTHB(Number(m[s.key]))}`}</title>
+                    <title>{`${monthShort(locale, m.month)} · ${s.label}: ${formatTHB(Number(m[s.key]))}`}</title>
                   </rect>
                 );
               })}
               <text x={gx + (groupW - 4) / 2} y={H - 8} textAnchor="middle"
-                className="fill-base-content/50 text-[8px]">{THAI_MONTHS[m.month - 1]}</text>
+                className="fill-base-content/50 text-[8px]">{monthShort(locale, m.month)}</text>
             </g>
           );
         })}
         {/* max gridline label */}
         <text x={W - padL} y={padT + 8} textAnchor="end"
-          className="fill-base-content/40 text-[9px]">{kBaht(max)}</text>
+          className="fill-base-content/40 text-[9px]">{kBaht(max, locale)}</text>
       </svg>
       <div className="mt-2 flex flex-wrap gap-3">
         {series.map((s) => (

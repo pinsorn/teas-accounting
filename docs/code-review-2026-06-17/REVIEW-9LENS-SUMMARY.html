@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEAS — 9-Lens Review Summary</title>
+<style>
+  :root{--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--teal:#0d9488;--blue:#2563eb;
+    --crit:#dc2626;--high:#ea580c;--med:#ca8a04;--low:#94a3b8;--ok:#16a34a;--card:#fff}
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Sarabun",Inter,system-ui,sans-serif;
+    color:var(--ink);background:#f1f5f9;line-height:1.6;font-size:16px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 16px 60px}
+  header{background:linear-gradient(135deg,var(--teal),var(--blue));color:#fff;
+    padding:28px 20px;border-radius:0 0 20px 20px;margin:0 -16px 20px}
+  header h1{margin:0 0 6px;font-size:21px}
+  header .sub{opacity:.92;font-size:13.5px}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .legend span{font-size:11px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);
+    padding:2px 8px;border-radius:999px}
+  h2{font-size:17px;margin:26px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+  .cards{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .stat{flex:1 1 90px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px;text-align:center}
+  .stat .n{font-size:22px;font-weight:800}
+  .stat .l{font-size:11px;color:var(--muted);margin-top:3px}
+  .lens{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin:12px 0;
+    box-shadow:0 1px 3px rgba(0,0,0,.05);border-left:5px solid var(--teal)}
+  .lens.crit{border-left-color:var(--crit)} .lens.high{border-left-color:var(--high)}
+  .lens.clean{border-left-color:var(--ok)}
+  .lhead{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .num{flex:0 0 28px;width:28px;height:28px;border-radius:8px;background:var(--blue);color:#fff;
+    font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center}
+  .lhead h3{margin:0;font-size:15.5px;flex:1}
+  .scope{font-size:12.5px;color:var(--muted);margin:4px 0 9px}
+  .post{font-size:13px;font-weight:700;margin:0 0 8px}
+  .post.strong{color:var(--ok)} .post.mod{color:var(--high)} .post.good{color:var(--blue)}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0}
+  .chip{font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:999px}
+  .ch-c{background:var(--crit)} .ch-h{background:var(--high)} .ch-m{background:var(--med)} .ch-l{background:var(--low)}
+  .find{font-size:14px;margin:8px 0 4px}
+  .find b{color:var(--crit)}
+  .ok{font-size:12.5px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;
+    padding:8px 10px;margin-top:8px}
+  .ok b{color:#166534}
+  code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:12.5px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-word}
+  .note{background:#fef9c3;border:1px solid #fde047;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:13.5px}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:24px;border-top:1px solid var(--line);padding-top:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>TEAS — รีวิว 9 มุม (subagent fleet)</h1>
+  <div class="sub">Whole-codebase review · 2026-06-17 · แต่ละ agent อ่าน read-only + บังคับหลักฐาน (file:line + quote + confidence)</div>
+  <div class="legend"><span>🔴 Critical</span><span>🟠 High</span><span>🟡 Medium</span><span>⚪ Low</span></div>
+</header>
+
+<p style="font-size:14.5px">รีวิวทั้ง codebase 9 มุมขนานกันด้วย subagent. รวม <b>7 Critical / 17 High</b> (raw). overseer gate ภายหลัง → เหลือ 2 compliance Critical จริง + จับ false-positive 1. ด้านล่าง = แต่ละ agent <b>รีวิวอะไร + เจออะไร</b>.</p>
+<div class="cards">
+  <div class="stat"><div class="n">9</div><div class="l">lens</div></div>
+  <div class="stat"><div class="n" style="color:var(--crit)">7</div><div class="l">Critical</div></div>
+  <div class="stat"><div class="n" style="color:var(--high)">17</div><div class="l">High</div></div>
+  <div class="stat"><div class="n">~37</div><div class="l">รวมทุก sev</div></div>
+</div>
+
+<h2>รายมุม</h2>
+
+<div class="lens crit">
+  <div class="lhead"><div class="num">1</div><h3>Compliance / Thai law</h3></div>
+  <div class="scope">รีวิว: ม.86/4 ครบ 8 field · immutability หลัง post · doc numbering · VAT math (7/107) · WHT · tax point · audit trail · CE calendar · decimal money</div>
+  <div class="post strong">Posture: Strong</div>
+  <div class="chips"><span class="chip ch-c">C 1</span><span class="chip ch-m">M 1</span><span class="chip ch-l">L 1</span></div>
+  <div class="find">🔴 <b>tax-point doc_date เชื่อค่าจาก request</b> ไม่ pin "วันนี้ Asia/Bangkok" (ขัด §10 + ม.86/4#7); period guard ถือ missing = OPEN → back/forward-date ได้.</div>
+  <div class="ok"><b>verified ถูก:</b> immutability double-lock (trigger+app), numbering gap-free POST-only, audit append-only, RLS+FORCE, VAT derive server-side, 8-field ใน issue+PDF, decimal money</div>
+</div>
+
+<div class="lens high">
+  <div class="lhead"><div class="num">2</div><h3>Security</h3></div>
+  <div class="scope">รีวิว: JWT/authN · RBAC ทุก endpoint · tenant isolation เป็น attack surface · secrets committed · SQL injection · PII/crypto · CORS</div>
+  <div class="post good">Posture: Solid</div>
+  <div class="chips"><span class="chip ch-h">H 1</span><span class="chip ch-m">M 4</span><span class="chip ch-l">L 3</span></div>
+  <div class="find">🟠 <b>~15 sales/purchase table ไม่มี RLS</b> (กันด้วย EF filter อย่างเดียว) — defense-in-depth gap, ขัด §4.7. ปกติ isolate ถูก แต่ลืม WHERE ทีเดียว DB ไม่กัน.</div>
+  <div class="ok"><b>verified ถูก:</b> JWT config ครบ · tenant pin = parameterized จาก token ไม่ใช่ user input · BCrypt wf12 + lockout · setup endpoint zero-state gate (advisory lock) · API key super-admin ไม่ได้ · ไม่มี secret committed · sweep ครบ 34 endpoint file (anon แค่ 3 route)</div>
+</div>
+
+<div class="lens crit">
+  <div class="lhead"><div class="num">3</div><h3>Performance</h3></div>
+  <div class="scope">รีวิว: async discipline (.Result/.Wait/Task.Run) · EF N+1 / AsNoTracking / pagination · indexing · caching · งานหนักบน request thread · FE</div>
+  <div class="post mod">Posture: Moderate risk</div>
+  <div class="chips"><span class="chip ch-c">C 1</span><span class="chip ch-h">H 3</span><span class="chip ch-m">M 4</span><span class="chip ch-l">L 2</span></div>
+  <div class="find">🔴 <b>sync DB call บน e-Tax XML path</b> (block thread-pool). 🟠 PermissionLookup query 2 รอบ/ทุก request · GL-posting บางตัวขาด AsNoTracking. ไม่เจอ N+1 ร้ายแรง.</div>
+</div>
+
+<div class="lens crit">
+  <div class="lhead"><div class="num">4</div><h3>Backend architecture &amp; quality</h3></div>
+  <div class="scope">รีวิว: Clean Arch boundaries · circular deps · antipatterns · dead code · DI lifetimes · error handling (ใช้ Roslyn MCP)</div>
+  <div class="post good">Posture: Good (+2 Critical async)</div>
+  <div class="chips"><span class="chip ch-c">C 2</span><span class="chip ch-h">H 2</span><span class="chip ch-m">M 3</span><span class="chip ch-l">L 2</span></div>
+  <div class="find">🔴 <b>ContinueWith(t=&gt;t.Result) ×4</b> ใน MasterDataServices · 🔴 <b>empty catch</b> ใน ApiKeyResolver (กลืน exception).</div>
+  <div class="ok"><b>verified ถูก (Roslyn):</b> Domain ไม่มี dep ภายนอก · 0 circular cycle · layering ถูกทิศ · 150 antipattern scan, dead-code 55 ส่วนใหญ่ false-positive (EF config)</div>
+</div>
+
+<div class="lens crit">
+  <div class="lhead"><div class="num">5</div><h3>Feature correctness &amp; calculations</h3></div>
+  <div class="scope">รีวิว: sales/purchase chain state machine · CN/DN · payroll/SSO · GL double-entry · ความแม่นเลข (VAT/WHT/rounding) · reports</div>
+  <div class="post strong">Posture: Strong</div>
+  <div class="chips"><span class="chip ch-c">C 1</span><span class="chip ch-h">H 1</span><span class="chip ch-m">M 1</span><span class="chip ch-l">L 2</span></div>
+  <div class="find">🔴 <b>FX VAT เข้า ภ.พ.30/VAT register ไม่แปลงบาท</b> + 🟠 GL post ตามสกุลต่างประเทศ — root เดียว: เอกสาร FX ไม่ convert THB ปลายน้ำ (เก็บ TotalAmountThb ไว้แต่ GL/register ไม่อ่าน).</div>
+  <div class="ok"><b>verified ถูก:</b> line VAT, inclusive 7/107, WHT gross-up, PIT ม.50(1), CIT ladder, payroll net, double-entry sign; state machine กัน double-conversion</div>
+</div>
+
+<div class="lens high">
+  <div class="lhead"><div class="num">6</div><h3>Frontend code quality</h3></div>
+  <div class="scope">รีวิว: RSC boundary ('use client') · React Query · RHF+Zod · TS typing/any · security-adjacent (localStorage/token) · dead code</div>
+  <div class="post mod">Posture: Moderate (ฐานดี)</div>
+  <div class="chips"><span class="chip ch-h">H 3</span><span class="chip ch-m">M 5</span><span class="chip ch-l">L 4</span></div>
+  <div class="find">🟠 legacy <code>api-client.ts</code> bypass BFF (login ยัง import) · typing <code>unknown</code> ~30 mutation · 75/76 page เป็น <code>'use client'</code> · ~10 hardcoded TH string.</div>
+  <div class="ok"><b>verified ถูก:</b> JWT = httpOnly cookie ผ่าน BFF proxy (ไม่อยู่ localStorage) · React Query invalidation wired</div>
+</div>
+
+<div class="lens crit">
+  <div class="lhead"><div class="num">7</div><h3>UI/UX &amp; i18n</h3></div>
+  <div class="scope">รีวิว: i18n key parity (th/en) · locale format (number/date/CE) · consistency · a11y · loading/empty/error state · responsive</div>
+  <div class="post good">Posture: Good foundation</div>
+  <div class="chips"><span class="chip ch-c">C 1</span><span class="chip ch-h">H 3</span><span class="chip ch-m">M 5</span><span class="chip ch-l">L 3</span></div>
+  <div class="find">🔴 <b>vat_rate แก้ได้ในหน้า super-admin Companies</b> (อ้าง compliance-UI) · hardcoded strings · a11y gap (SVG ไม่มี aria, modal close อังกฤษ). <i>หมายเหตุ: vat_rate = false-positive (overseer + Ham ruling คงไว้, super-admin only).</i></div>
+  <div class="ok"><b>verified ถูก:</b> i18n key parity เป๊ะ (1401/1401, 0 diff ตอนรีวิว) · shadcn/DaisyUI ใช้ consistent</div>
+</div>
+
+<div class="lens crit">
+  <div class="lhead"><div class="num">8</div><h3>Data model / EF / RLS</h3></div>
+  <div class="scope">รีวิว: company_id ทุก business table · RLS coverage · immutability trigger · EF mapping (decimal/timestamptz/BIGINT) · migration integrity · constraint/index</div>
+  <div class="post good">Posture: Good (+2 gap)</div>
+  <div class="chips"><span class="chip ch-c">C 1</span><span class="chip ch-h">H 1</span><span class="chip ch-m">M 2</span><span class="chip ch-l">L 1</span></div>
+  <div class="find">🔴 <b>RLS หายบน pre-fiscal sales chain</b> (quotations/SO/DO/receipts) · 🟠 <b>ไม่มี immutability trigger บน CN/DN + receipts</b> (TI/VI มี).</div>
+  <div class="ok"><b>verified ถูก:</b> ทุก entity = ITenantOwned · EF filter universal (reflection) · money HasPrecision(19,4) · timestamptz · id BIGINT · audit/e-Tax append-only</div>
+</div>
+
+<div class="lens high">
+  <div class="lhead"><div class="num">9</div><h3>Test coverage &amp; quality</h3></div>
+  <div class="scope">รีวิว: coverage path บังคับกฎ · TestIds discipline (§8) · flakiness (hardcoded date) · legal-section citation · assertion strength</div>
+  <div class="post good">Posture: Good (gap เฉพาะจุด)</div>
+  <div class="chips"><span class="chip ch-h">H 3</span><span class="chip ch-m">M 4</span><span class="chip ch-l">L 2</span></div>
+  <div class="find">🟠 ไม่มี test assert ม.86/4 ครบ 8 field บน TI · ไม่มี CN/DN GL-balance test · บาง test hardcode period (2026-xx) เสี่ยง flaky.</div>
+  <div class="ok"><b>verified ถูก:</b> TestIds discipline สม่ำเสมอ · ไม่มี test ถูก skip · legal citation มีตามที่ต้อง · doc-number/GL/WHT/multi-tenant coverage แน่น</div>
+</div>
+
+<div class="note">📌 นี่คือ <b>snapshot ตอนรีวิว</b> (ก่อนแก้). ของที่อนุมัติแก้ทำเสร็จหมดแล้ว → ดูไฟล์ <b>REVIEW-REPORT.html</b> (before/after + วิธีแก้). ตัวเลขบางอย่างเปลี่ยนหลังแก้ (เช่น i18n 1401→1434, RLS เพิ่มแล้ว, doc_date pin แล้ว).</div>
+
+<div class="foot">
+  รายงานเต็มต่อ lens: <code>docs/code-review-2026-06-17/01..09-*.md</code> + <code>00-INDEX.md</code> (gated, de-dup). ทุก agent อ่าน read-only + บังคับ evidence (file:line + quoted code + Confirmed/Suspected). overseer = main agent gate ทุก finding กับ live code.
+</div>
+
+</div>
+</body>
+</html>

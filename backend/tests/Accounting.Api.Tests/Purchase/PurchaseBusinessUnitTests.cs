@@ -125,7 +125,7 @@ public sealed class PurchaseBusinessUnitTests
         new(
             DocDate: new DateOnly(2026, 5, 16), VendorId: vendorId,
             VendorTaxInvoiceNo: "VT-" + TestIds.Suffix()[..6],
-            VendorTaxInvoiceDate: new DateOnly(2026, 5, 10), VatClaimPeriod: null,
+            VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), VatClaimPeriod: null,   // ③ current open period
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
             Lines: [new VendorInvoiceLineInput(catId, null, "vi line", 1000m, 0m)],
             BusinessUnitId: buId);

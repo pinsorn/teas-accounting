@@ -449,15 +449,15 @@ export default function NewReceiptPage() {
                         />
                       </td>
                       <td>
-                        <AmountInput value={l.quantity} step={1} aria-label={`qty ${i + 1}`}
+                        <AmountInput value={l.quantity} step={1} aria-label={`${t('qty')} ${i + 1}`}
                           onValueChange={(q) => setLineRow(i, { quantity: q, amount: q * l.unitPrice })} />
                       </td>
                       <td>
-                        <AmountInput value={l.unitPrice} aria-label={`unitPrice ${i + 1}`}
+                        <AmountInput value={l.unitPrice} aria-label={`${t('unitPrice')} ${i + 1}`}
                           onValueChange={(up) => setLineRow(i, { unitPrice: up, amount: l.quantity * up })} />
                       </td>
                       <td>
-                        <AmountInput value={l.amount} aria-label={`lineAmount ${i + 1}`}
+                        <AmountInput value={l.amount} aria-label={`${t('lineAmount')} ${i + 1}`}
                           onValueChange={(amt) => setLineRow(i, { amount: amt })} />
                       </td>
                       <td>
@@ -485,7 +485,7 @@ export default function NewReceiptPage() {
             <div className="overflow-x-auto rounded-lg border border-base-300">
               <table className="table">
                 <thead><tr>
-                  <th>{mode === 'invoice' ? t('nonVat.invoice') : 'ใบกำกับภาษี'}</th>
+                  <th>{mode === 'invoice' ? t('nonVat.invoice') : t('applyTo')}</th>
                   <th className="text-right">{t('amount')}</th>
                   <th className="w-10" />
                 </tr></thead>
@@ -513,7 +513,7 @@ export default function NewReceiptPage() {
                         )}
                       </td>
                       <td>
-                        <AmountInput value={a.appliedAmount} aria-label={`appliedAmount ${i + 1}`}
+                        <AmountInput value={a.appliedAmount} aria-label={`${t('appliedAmount')} ${i + 1}`}
                           onValueChange={(amt) => setApp(i, { appliedAmount: amt })} />
                       </td>
                       <td>

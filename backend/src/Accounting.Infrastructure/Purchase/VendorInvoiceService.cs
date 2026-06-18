@@ -60,7 +60,11 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
-        await _period.EnsureOpenAsync(req.DocDate, ct);
+        // §10 / ม.86/4(7) — vi.DocDate (the AP-accrual / posting date) is ALWAYS today
+        // in Asia/Bangkok, never trusted from the request. (VendorTaxInvoiceDate, which
+        // drives the ม.82/4 claim window, stays the counterparty's date.)
+        var docDate = _clock.TodayInBangkok();
+        await _period.EnsureOpenAsync(docDate, ct);
 
         var vendor = await _db.Vendors.FirstOrDefaultAsync(v => v.VendorId == req.VendorId, ct)
             ?? throw new DomainException("vi.vendor_missing", $"Vendor {req.VendorId} not found.");
@@ -85,7 +89,7 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
             CompanyId = _tenant.CompanyId,
             BranchId  = _tenant.BranchId,
             BusinessUnitId = req.BusinessUnitId,   // cont.79 — GL dimension snapshot
-            DocDate              = req.DocDate,
+            DocDate              = docDate,   // §10 — pinned to Asia/Bangkok today
             VendorTaxInvoiceNo   = req.VendorTaxInvoiceNo,
             VendorTaxInvoiceDate = req.VendorTaxInvoiceDate,
             VatClaimPeriod       = claim,
@@ -184,7 +188,7 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         var claim = req.VatClaimPeriod ?? PeriodOf(req.VendorTaxInvoiceDate);
         EnsureClaimInWindow(claim, req.VendorTaxInvoiceDate);
 
-        vi.DocDate              = req.DocDate;
+        vi.DocDate              = _clock.TodayInBangkok();   // §10 — re-pin on edit
         vi.VendorTaxInvoiceNo   = req.VendorTaxInvoiceNo;
         vi.VendorTaxInvoiceDate = req.VendorTaxInvoiceDate;
         vi.VatClaimPeriod       = claim;

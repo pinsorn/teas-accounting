@@ -69,7 +69,8 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 $"Payment Voucher {paymentVoucherId} already has a linked Vendor Invoice " +
                 $"({pv.VendorInvoiceId}).");
 
-        var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime.AddHours(7));   // Asia/Bangkok = UTC+7
+        // §10 — VI service re-pins DocDate to Bangkok-today anyway; pass the canonical value.
+        var today = _clock.TodayInBangkok();
         var viReq = new CreateVendorInvoiceRequest(
             DocDate:              today,
             VendorId:             pv.VendorId,
@@ -105,7 +106,10 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
-        await _period.EnsureOpenAsync(req.DocDate, ct);
+        // §10 — pv.DocDate / PostingDate are ALWAYS today in Asia/Bangkok, never trusted
+        // from the request. Derived once so the period gate and stored dates agree.
+        var docDate = _clock.TodayInBangkok();
+        await _period.EnsureOpenAsync(docDate, ct);
 
         var vendor = await _db.Vendors.FirstOrDefaultAsync(v => v.VendorId == req.VendorId, ct)
             ?? throw new DomainException("pv.vendor_missing", $"Vendor {req.VendorId} not found.");
@@ -220,8 +224,8 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             BranchId           = _tenant.BranchId,
             BusinessUnitId     = req.BusinessUnitId,   // cont.79 — GL dimension snapshot
             SubPrefix          = category.CategoryCode,
-            DocDate            = req.DocDate,
-            PostingDate        = req.DocDate,
+            DocDate            = docDate,   // §10 — pinned to Asia/Bangkok today
+            PostingDate        = docDate,   // §10 — posting date = doc date
             VendorId           = vendor.VendorId,
             ExpenseCategoryId  = category.CategoryId,
             VendorInvoiceId    = req.VendorInvoiceId,

@@ -7,7 +7,7 @@
 // i18n-key messages. This module normalizes either into one structure so
 // callers stop branching on shape.
 
-import { ApiError } from '@/lib/api-client';
+import { ApiError } from '@/lib/api';
 import { resolveValidationKey, currentLocale } from '@/lib/i18n/validation';
 
 export interface FieldError {

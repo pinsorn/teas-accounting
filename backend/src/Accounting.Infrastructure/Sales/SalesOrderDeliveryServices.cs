@@ -121,7 +121,14 @@ public sealed class SalesOrderService(
             if (l.SalesOrderLineId is { } solId)
             {
                 var sol = so.Lines.FirstOrDefault(x => x.LineId == solId);
-                if (sol is not null) sol.DeliveredQuantity += l.Quantity;
+                if (sol is not null)
+                {
+                    if (sol.DeliveredQuantity + l.Quantity > sol.Quantity)
+                        throw new DomainException("do.over_delivered",
+                            $"Delivery quantity {l.Quantity} for SO line {solId} would exceed " +
+                            $"the ordered quantity {sol.Quantity} (already delivered: {sol.DeliveredQuantity}).");
+                    sol.DeliveredQuantity += l.Quantity;
+                }
             }
         }
         db.DeliveryOrders.Add(dord);

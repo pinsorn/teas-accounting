@@ -15,26 +15,27 @@ public sealed class PermissionLookup : IPermissionLookup
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var roles = await _db.UserRoles
+        // Single round-trip: fetch the active UserRole rows with their role code and
+        // all permission codes, then split in-memory. Previously two identical WHERE
+        // queries were issued sequentially (double round-trip on every authed request).
+        var rows = await _db.UserRoles
+            .AsNoTracking()
             .IgnoreQueryFilters()
             .Where(ur => ur.UserId == userId
                       && (companyId == 0 || ur.CompanyId == companyId)
                       && ur.ValidFrom <= today
                       && (ur.ValidTo == null || ur.ValidTo >= today))
-            .Select(ur => ur.Role!.RoleCode)
-            .Distinct()
+            .Select(ur => new
+            {
+                RoleCode = ur.Role!.RoleCode,
+                PermissionCodes = ur.Role.Permissions
+                    .Select(rp => rp.Permission!.PermissionCode)
+                    .ToList()
+            })
             .ToListAsync(ct);
 
-        var permissions = await _db.UserRoles
-            .IgnoreQueryFilters()
-            .Where(ur => ur.UserId == userId
-                      && (companyId == 0 || ur.CompanyId == companyId)
-                      && ur.ValidFrom <= today
-                      && (ur.ValidTo == null || ur.ValidTo >= today))
-            .SelectMany(ur => ur.Role!.Permissions)
-            .Select(rp => rp.Permission!.PermissionCode)
-            .Distinct()
-            .ToListAsync(ct);
+        var roles       = rows.Select(r => r.RoleCode).Distinct().ToList();
+        var permissions = rows.SelectMany(r => r.PermissionCodes).Distinct().ToList();
 
         return (roles, permissions);
     }

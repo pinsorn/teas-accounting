@@ -309,7 +309,7 @@ export default function EmployeesSettingsPage() {
               <button className="btn btn-primary" disabled={!canSave} onClick={save}>{tc('save')}</button>
             </div>
           </div>
-          <button className="modal-backdrop" aria-label="close" onClick={close} />
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={close} />
         </div>
       )}
     </>

@@ -272,7 +272,7 @@ export default function OnboardingPage() {
   if (phase === 'checking') {
     return (
       <main className="flex min-h-screen items-center justify-center bg-base-200 p-4">
-        <span className="loading loading-spinner loading-lg text-peach-600" aria-label="loading" />
+        <span className="loading loading-spinner loading-lg text-peach-600" aria-label={t('loading')} />
       </main>
     );
   }

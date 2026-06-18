@@ -188,7 +188,7 @@ export default function ApiKeysSettingsPage() {
                 onClick={submit}>{t('create')}</button>
             </div>
           </div>
-          <button className="modal-backdrop" aria-label="close" onClick={() => setOpen(false)} />
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setOpen(false)} />
         </div>
       )}
 

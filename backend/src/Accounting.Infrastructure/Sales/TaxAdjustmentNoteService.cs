@@ -45,7 +45,10 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
                 $"request specified {req.BusinessUnitId}.");
         req = req with { BusinessUnitId = effBu };
 
-        await _period.EnsureOpenAsync(req.DocDate, ct);
+        // §10 / ม.86/10 — CN/DN DocDate / TaxPointDate are ALWAYS today in Asia/Bangkok,
+        // never trusted from the request. Derived once so the period gate and stored dates agree.
+        var docDate = _clock.TodayInBangkok();
+        await _period.EnsureOpenAsync(docDate, ct);
 
         var ti = await _db.TaxInvoices
                 .FirstOrDefaultAsync(t => t.TaxInvoiceId == req.OriginalTaxInvoiceId, ct)
@@ -89,8 +92,8 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
             BranchId   = _tenant.BranchId,
             PrefixCode = req.NoteType == TaxAdjustmentNoteType.Credit ? "CN" : "DN",
             NoteType   = req.NoteType,
-            DocDate       = req.DocDate,
-            TaxPointDate  = req.DocDate,
+            DocDate       = docDate,   // §10 — pinned to Asia/Bangkok today
+            TaxPointDate  = docDate,   // ม.86/10 — tax point = issue date
             OriginalTaxInvoiceId = ti.TaxInvoiceId,
             ReasonCode = req.ReasonCode,
             Reason     = req.Reason,

@@ -295,7 +295,7 @@ function CreateCompanyDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-      <button className="modal-backdrop" aria-label="close" onClick={onClose} />
+      <button className="modal-backdrop" aria-label={tc('close')} onClick={onClose} />
     </div>
   );
 }
@@ -444,7 +444,7 @@ function EditCompanyDialog({ id, onClose }: { id: number; onClose: () => void })
           </button>
         </div>
       </div>
-      <button className="modal-backdrop" aria-label="close" onClick={onClose} />
+      <button className="modal-backdrop" aria-label={tc('close')} onClick={onClose} />
     </div>
   );
 }

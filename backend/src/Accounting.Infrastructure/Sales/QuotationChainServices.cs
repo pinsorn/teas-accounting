@@ -233,7 +233,8 @@ public sealed class QuotationService(
         var so = new SalesOrder
         {
             CompanyId = q.CompanyId, BranchId = q.BranchId,
-            Status = SalesOrderStatus.Draft, DocDate = clock.UtcNow.UtcDateTime.ToDateOnly(),
+            // §5/§10 — use Asia/Bangkok "today", not raw UTC (UTC could be the prior day near midnight).
+            Status = SalesOrderStatus.Draft, DocDate = clock.TodayInBangkok(),
             CustomerId = q.CustomerId, CustomerName = q.CustomerName,
             CustomerAddress = q.CustomerAddress, CustomerTaxId = q.CustomerTaxId,
             CustomerType = q.CustomerType, BusinessUnitId = q.BusinessUnitId,
@@ -302,9 +303,4 @@ public sealed class QuotationService(
             : null;
         return await numbers.NextAsync(tenant.CompanyId, tenant.BranchId, prefix, buCode, docDate, ct);
     }
-}
-
-internal static class ClockDateExt
-{
-    public static DateOnly ToDateOnly(this DateTime dt) => DateOnly.FromDateTime(dt);
 }

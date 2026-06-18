@@ -355,7 +355,8 @@ public sealed class Sprint87ForeignVendorTests
             var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
             viId = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
                 new DateOnly(2026, 5, 16), v, "VT-" + Sfx(),
-                new DateOnly(2026, 5, 10), null, "THB", 1m, null,
+                // ③ — vendor-TI date in the CURRENT open Bangkok month (a past month is now closed).
+                new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), null, "THB", 1m, null,
                 [new VendorInvoiceLineInput(cat, null, "x", 1000m, 0.07m)]), default);
             var dbInner = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             var vi = await dbInner.VendorInvoices.FirstAsync(x => x.VendorInvoiceId == viId);

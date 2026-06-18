@@ -206,7 +206,7 @@ export default function BusinessUnitsSettingsPage() {
               </button>
             </div>
           </div>
-          <button className="modal-backdrop" aria-label="close" onClick={() => setEdit(null)} />
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setEdit(null)} />
         </div>
       )}
     </>

@@ -60,6 +60,33 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         await db.Database.ExecuteSqlRawAsync(
             "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";");
+
+        // Bootstrap the EF migrations history so MigrateAsync works on a DB that was
+        // previously initialized by DbInitializer (SQL scripts, not EF migrations).
+        // Strategy: if the schema already exists (master.companies present) but the EF
+        // history table has no InitialCreate entry, mark it as applied so MigrateAsync
+        // only runs subsequent migrations (e.g. AddPerfIndexes). Without this, MigrateAsync
+        // tries to run InitialCreate which fails because the tables already exist.
+        // ponytail: EF history table = sys.__ef_migrations (MigrationsHistoryTable config in DI).
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE SCHEMA IF NOT EXISTS sys;
+            CREATE TABLE IF NOT EXISTS sys.__ef_migrations (
+                migration_id    character varying(150) NOT NULL,
+                product_version character varying(32)  NOT NULL,
+                CONSTRAINT pk___ef_migrations PRIMARY KEY (migration_id)
+            );
+            """);
+        // If schema was bootstrapped via SQL scripts, mark InitialCreate as applied.
+        var schemaExists = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*)::int AS \"Value\" FROM information_schema.tables WHERE table_schema = 'master' AND table_name = 'companies'")
+            .FirstOrDefaultAsync();
+        if (schemaExists > 0)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO sys.__ef_migrations(migration_id, product_version) " +
+                "VALUES ('20260616130322_InitialCreate', '10.0.0') ON CONFLICT DO NOTHING");
+        }
+
         await db.Database.MigrateAsync();
 
         // RLS + triggers + append-only + seed, in lexical order — applied ONCE per DB, tracked in
@@ -104,7 +131,12 @@ public sealed class PostgresFixture : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AccountingDbContext>(opt =>
-            opt.UseNpgsql(ConnectionString).UseSnakeCaseNamingConvention());
+            opt.UseNpgsql(ConnectionString, npg =>
+            {
+                // ponytail: must match DependencyInjection.cs so MigrateAsync uses sys.__ef_migrations
+                npg.MigrationsHistoryTable("__ef_migrations", "sys");
+            })
+            .UseSnakeCaseNamingConvention());
         if (tenant is not null) services.AddSingleton(tenant);
         return services.BuildServiceProvider();
     }

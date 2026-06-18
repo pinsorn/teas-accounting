@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Accounting.Application.Abstractions;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Accounting.Infrastructure.Identity;
 
@@ -18,7 +19,13 @@ public sealed class ApiKeyResolver : IApiKeyResolver
     private static readonly TimeSpan TouchEvery = TimeSpan.FromMinutes(5);
 
     private readonly AccountingDbContext _db;
-    public ApiKeyResolver(AccountingDbContext db) => _db = db;
+    private readonly ILogger<ApiKeyResolver> _logger;
+
+    public ApiKeyResolver(AccountingDbContext db, ILogger<ApiKeyResolver> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     public async Task<ApiKeyAuthResult> AuthenticateAsync(string presentedKey, CancellationToken ct)
     {
@@ -67,7 +74,16 @@ public sealed class ApiKeyResolver : IApiKeyResolver
                 .Where(k => k.ApiKeyId == apiKeyId)
                 .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAt, now), ct);
         }
-        catch { /* best-effort telemetry; never fail auth on this */ }
+        catch (OperationCanceledException)
+        {
+            // Propagate cancellation — caller requested it.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Best-effort telemetry write: never fail auth because a timestamp update failed.
+            _logger.LogWarning(ex, "ApiKeyResolver: failed to update LastUsedAt for key {ApiKeyId}", apiKeyId);
+        }
     }
 
     /// <summary>ScopesJson is a JSON string array — flatten to CSV for the claim.</summary>

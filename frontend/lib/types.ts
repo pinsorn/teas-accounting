@@ -1131,3 +1131,108 @@ export interface UpdateCustomerRequest {
   defaultCurrency: string;
   isActive: boolean;
 }
+
+// ── Request types for Task 2 type-safety (06-H3) ──────────────────────────
+
+export interface ReceiptApplicationInput {
+  taxInvoiceId?: number | null;
+  appliedAmount: number;
+  deliveryOrderId?: number | null;
+  billingNoteId?: number | null;
+}
+export interface ReceiptWhtLineInput { whtTypeId: number; baseAmount: number; }
+export interface ReceiptLineInput {
+  descriptionTh: string; quantity: number; unitPrice: number; amount: number;
+  productId?: number | null; productCode?: string | null;
+  productType?: string; uomText?: string | null;
+}
+export interface CreateReceiptRequest {
+  docDate: string; customerId: number; paymentMethod: string;
+  chequeNo: string | null; chequeDate: string | null;
+  bankAccountId: number | null; currencyCode: string; exchangeRate: number;
+  notes: string | null; applications: ReceiptApplicationInput[];
+  businessUnitId?: number | null;
+  whtAmount?: number; whtTypeId?: number | null;
+  customerWhtCertNo?: string | null; customerWhtCertDate?: string | null;
+  whtLines?: ReceiptWhtLineInput[] | null;
+  lines?: ReceiptLineInput[] | null;
+}
+
+export interface CreateAdjustmentNoteRequest {
+  noteType: string; docDate: string; originalTaxInvoiceId: number;
+  reasonCode: string; reason: string;
+  adjustmentSubtotal: number; taxRate: number;
+  currencyCode: string; exchangeRate: number;
+  notes: string | null; businessUnitId?: number | null;
+}
+
+export interface CreateProductRequest {
+  productCode: string; nameTh: string; nameEn?: string | null;
+  productType: string; defaultUomText?: string | null;
+  defaultUnitPrice?: number | null;
+  defaultOutputTaxCodeId?: number | null; defaultInputTaxCodeId?: number | null;
+  defaultWhtTypeId?: number | null;
+  descriptionTh?: string | null; notes?: string | null;
+  isSaleable?: boolean; isPurchasable?: boolean; businessUnitId?: number | null;
+}
+export interface UpdateProductRequest {
+  nameTh: string; nameEn?: string | null; productType: string;
+  defaultUomText?: string | null; defaultUnitPrice?: number | null;
+  defaultOutputTaxCodeId?: number | null; defaultInputTaxCodeId?: number | null;
+  defaultWhtTypeId?: number | null;
+  descriptionTh?: string | null; notes?: string | null;
+  isActive: boolean; isSaleable?: boolean; isPurchasable?: boolean;
+  businessUnitId?: number | null;
+}
+
+export interface ChainLineInput {
+  productId?: number | null; descriptionTh: string;
+  quantity: number; uomText: string; unitPrice: number; discountPercent: number;
+  taxCodeId: number; taxCode: string; taxRate: number; productType?: string | null;
+}
+export interface CreateQuotationRequest {
+  docDate: string; validUntilDate: string; customerId: number;
+  businessUnitId?: number | null; currencyCode: string; exchangeRate: number;
+  notes?: string | null; internalNotes?: string | null; lines: ChainLineInput[];
+}
+export interface UpdateQuotationRequest {
+  docDate: string; validUntilDate: string; customerId: number;
+  businessUnitId?: number | null; currencyCode: string; exchangeRate: number;
+  notes?: string | null; internalNotes?: string | null; lines: ChainLineInput[];
+}
+export interface CreateSalesOrderRequest {
+  docDate: string; expectedDeliveryDate?: string | null; customerId: number;
+  businessUnitId?: number | null; currencyCode: string; exchangeRate: number;
+  notes?: string | null; fromQuotationId?: number | null; lines: ChainLineInput[];
+}
+
+export interface DeliveryLineInput {
+  salesOrderLineId?: number | null; productId?: number | null;
+  descriptionTh: string; quantity: number; uomText: string;
+  unitPrice: number; discountPercent: number;
+  taxCodeId: number; taxCode: string; taxRate: number; productType?: string | null;
+}
+export interface CreateDeliveryOrderRequest {
+  docDate: string; customerId: number; businessUnitId?: number | null;
+  isCombinedWithTi: boolean; notes?: string | null;
+  fromSalesOrderId?: number | null; lines: DeliveryLineInput[];
+}
+
+export interface UpdateBillingNoteRequest {
+  docDate: string; dueDate: string; customerId: number;
+  businessUnitId?: number | null; quotationId?: number | null;
+  taxInvoiceIds?: number[] | null;
+  currencyCode: string; exchangeRate: number;
+  notes?: string | null; internalNotes?: string | null; lines: BillingLineInput[];
+}
+
+export interface PurchaseOrderLineInput {
+  productId?: number | null; descriptionTh: string; quantity: number;
+  uomText?: string | null; unitPrice: number; discountPercent: number;
+  taxCodeId?: number | null; taxCode?: string | null; taxRate: number; notes?: string | null;
+}
+export interface CreatePurchaseOrderRequest {
+  docDate: string; expectedDeliveryDate?: string | null; vendorId: number;
+  businessUnitId?: number | null; currencyCode: string; exchangeRate: number;
+  notes?: string | null; internalNotes?: string | null; lines: PurchaseOrderLineInput[];
+}

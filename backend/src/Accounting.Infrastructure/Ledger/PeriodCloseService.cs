@@ -23,7 +23,19 @@ public sealed class PeriodCloseService : IPeriodCloseService
     {
         var period = await _db.AccountingPeriods
             .FirstOrDefaultAsync(p => p.Year == year && p.Month == (short)month, ct);
-        return period is null || period.Status == PeriodStatus.Open;
+
+        // §10 / ม.86/4(7) amplifier — an EXPLICIT period row is authoritative.
+        if (period is not null)
+            return period.Status == PeriodStatus.Open;
+
+        // No row exists. Previously this was treated as OPEN-forever, which left every
+        // never-opened past or future month unbounded-postable (arbitrary back/forward-dating).
+        // A missing row is now OPEN only for the CURRENT Asia/Bangkok month — the legitimate
+        // "this month, not yet closed" case. Every other missing month (a never-opened past
+        // month, or any future month) is CLOSED. The 400-seed closes the previous month
+        // explicitly, so a real row still governs that one; this only bounds the gaps.
+        var today = _clock.TodayInBangkok();
+        return year == today.Year && month == today.Month;
     }
 
     public async Task EnsureOpenAsync(DateOnly docDate, CancellationToken ct)

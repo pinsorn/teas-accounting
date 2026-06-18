@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEAS — Code Review &amp; Fixes (2026-06-18)</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --teal:#0d9488; --blue:#2563eb; --crit:#dc2626; --high:#ea580c; --med:#ca8a04;
+    --low:#64748b; --ok:#16a34a; --codebg:#0b1220; --codeink:#e2e8f0;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Sarabun",Inter,system-ui,sans-serif;
+    color:var(--ink);background:#f1f5f9;line-height:1.62;font-size:16px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 16px 64px}
+  header{background:linear-gradient(135deg,var(--teal),var(--blue));color:#fff;
+    padding:30px 20px;border-radius:0 0 20px 20px;margin:0 -16px 22px}
+  header h1{margin:0 0 6px;font-size:22px;line-height:1.3}
+  header .sub{opacity:.92;font-size:14px}
+  .badge{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);
+    padding:4px 11px;border-radius:999px;font-size:12.5px;margin-top:12px;font-weight:600}
+  h2{font-size:18px;margin:30px 0 12px;padding-bottom:7px;border-bottom:2px solid var(--line)}
+  h3{font-size:15.5px;margin:0 0 8px}
+  p{margin:0 0 12px}
+  .cards{display:grep;display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .stat{flex:1 1 130px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .stat .n{font-size:24px;font-weight:800;line-height:1}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:13px 0;
+    box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;color:#fff;padding:2px 9px;border-radius:999px;
+    vertical-align:middle;margin-right:7px}
+  .c-crit{background:var(--crit)} .c-high{background:var(--high)} .c-med{background:var(--med)}
+  .c-low{background:var(--low)} .c-ok{background:var(--ok)} .c-fp{background:#7c3aed}
+  .meta{font-size:12.5px;color:var(--muted);margin:2px 0 10px;font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+  pre{background:var(--codebg);color:var(--codeink);border-radius:10px;padding:12px 13px;overflow-x:auto;
+    font-size:12.5px;line-height:1.55;margin:8px 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre b.del{color:#fca5a5} pre b.add{color:#86efac}
+  .lbl{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 2px}
+  .note{background:#fef9c3;border:1px solid #fde047;border-radius:12px;padding:13px 15px;margin:13px 0;font-size:14.5px}
+  .catch{background:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:13px 15px;margin:13px 0}
+  .catch h3{color:#b91c1c}
+  .good{background:#dcfce7;border:1px solid #86efac;border-radius:12px;padding:13px 15px;margin:13px 0;font-size:14.5px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}
+  th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  .ok-tick{color:var(--ok);font-weight:800}
+  code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:13px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-word}
+  .foot{color:var(--muted);font-size:13px;margin-top:26px;border-top:1px solid var(--line);padding-top:14px}
+  .tag{font-size:12px;color:var(--teal);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>TEAS — Whole-Codebase Review &amp; Fixes</h1>
+  <div class="sub">9-lens subagent review → 11 fixes · 2026-06-17 → 18 (overnight, autonomous)</div>
+  <span class="badge">✅ ALL DONE &amp; GATED · NOT committed (รอ review)</span>
+</header>
+
+<h2>สรุป (TL;DR)</h2>
+<p>Review ทั้ง codebase 9 มุมด้วย subagent → raw <b>7 Critical / ~17 High</b>. หลัง overseer gate กับ live code จริง เหลือ <b>2 compliance Critical จริง</b> + จับ <b>1 false-positive</b> ได้. Ham อนุมัติแก้ 11 ข้อ → ทำผ่าน 5 subagent batch (A–E), gate ทุก batch. Final: full Api <b>426/0/7</b> บน fresh teas_test.</p>
+<div class="cards">
+  <div class="stat"><div class="n" style="color:var(--crit)">2</div><div class="l">Critical จริง (แก้แล้ว)</div></div>
+  <div class="stat"><div class="n" style="color:var(--high)">5</div><div class="l">High (แก้แล้ว)</div></div>
+  <div class="stat"><div class="n" style="color:#7c3aed">1</div><div class="l">False-positive (จับได้)</div></div>
+  <div class="stat"><div class="n" style="color:var(--ok)">11</div><div class="l">Fix เสร็จ + gated</div></div>
+</div>
+<div class="note">📌 <b>กฎหมายสรรพากร/DBD:</b> ถ้าใช้งานปกติ (THB ล้วน + ลงวันที่วันนี้) <b>ไม่มีความผิด</b>ที่พบ. 2 จุดเป็น "ช่องโหว่ control" (ลงวันที่ย้อนหลังได้ / รับสกุลต่างประเทศได้) — ตอนนี้ปิดประตูทั้งสองแล้ว. <i>หมายเหตุ: นี่คือ code review ไม่ใช่ legal audit โดยนักบัญชีภาษี.</i></div>
+
+<h2>🔴 Compliance Critical (สรรพากร) — แก้แล้ว</h2>
+
+<div class="card">
+  <h3><span class="pill c-crit">CRITICAL</span>① Tax-point (doc_date) เชื่อค่าจากผู้ใช้</h3>
+  <div class="meta">TaxInvoiceService.cs:237 (+ อีก 7 doc service) · ม.86/4(7), ม.78, §10</div>
+  <p><b>ปัญหา:</b> วันที่ tax-point มาจาก request ตรงๆ → ลงวันที่ย้อนหลัง/ล่วงหน้าข้ามงวด ภ.พ.30 ที่ยื่นไปแล้วได้. (review เดิมบอก "VI/PV pin อยู่แล้ว" — <b>stale, จริงไม่มีตัวไหน pin</b>.)</p>
+  <div class="lbl">Before</div>
+  <pre><b class="del">DocDate       = req.DocDate;</b>
+<b class="del">TaxPointDate  = req.DocDate;</b></pre>
+  <div class="lbl">After — pin ที่ server ครบ 8 service</div>
+  <pre>var docDate = _clock.TodayInBangkok();   // §10
+<b class="add">DocDate       = docDate;</b>
+<b class="add">TaxPointDate  = docDate;</b></pre>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-crit">CRITICAL</span>② Foreign-currency VAT เข้า ภ.พ.30 ไม่แปลงบาท</h3>
+  <div class="meta">VatReportService.cs:64 · validator รับทุกสกุล · ม.79/87 (latent)</div>
+  <p><b>ปัญหา:</b> register sum <code>TaxAmount</code> สกุลเอกสารตรงๆ ไม่ × ExchangeRate; validator รับ currency/rate อะไรก็ได้ → USD invoice rate 35 ทำ ภ.พ.30 ผิด. <b>แก้:</b> บล็อก non-THB ตอน create (เลื่อน multi-currency) — ปิดทั้ง VAT + GL ทีเดียว.</p>
+  <div class="lbl">Before</div>
+  <pre><b class="del">RuleFor(x =&gt; x.CurrencyCode).NotEmpty().Length(3);</b>
+<b class="del">RuleFor(x =&gt; x.ExchangeRate).GreaterThan(0);</b></pre>
+  <div class="lbl">After — ThbOnly() guard ทุก fiscal-doc</div>
+  <pre><b class="add">validator.ThbOnly(x =&gt; x.CurrencyCode, x =&gt; x.ExchangeRate);</b>
+// CurrencyCode == "THB" &amp;&amp; ExchangeRate == 1  →  err "currency.thb_only"</pre>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-med">MEDIUM</span>③ งวดบัญชีที่ไม่มี row ถือว่า "เปิด" ตลอด (amplifier ของ ①)</h3>
+  <div class="meta">PeriodCloseService.cs:26</div>
+  <div class="lbl">Before</div>
+  <pre><b class="del">return period is null || period.Status == PeriodStatus.Open;</b></pre>
+  <div class="lbl">After</div>
+  <pre>if (period is not null) return period.Status == PeriodStatus.Open;
+<b class="add">// missing row = open เฉพาะเดือนปัจจุบัน Asia/Bangkok เท่านั้น</b></pre>
+</div>
+
+<h2>🟠 High / Medium — แก้แล้ว</h2>
+
+<div class="card">
+  <h3><span class="pill c-high">HIGH</span>④ RLS หายบน sales chain</h3>
+  <div class="meta">quotations / sales_orders / delivery_orders / receipts / tax_adjustment_notes · §4.7</div>
+  <p>เดิมกั้น tenant ด้วย EF filter ชั้น app เท่านั้น (ไม่พบ leak จริงเพราะ company_id มาจาก token แต่ DB backstop หาย). <b>แก้:</b> SqlScript ใหม่ <code>570/571/572</code> — <code>ENABLE + FORCE ROW LEVEL SECURITY</code> + policy <code>app.company_id</code> (mirror ของเดิม 010/322). ทดสอบจริง: drop policy → test FAIL (พิสูจน์ว่ากันที่ DB ไม่ใช่ EF filter).</p>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-high">HIGH</span>⑤ Immutability trigger หายบน CN/DN + Receipt</h3>
+  <div class="meta">tax_adjustment_notes, receipts · §4.2 / ม.86/9-10</div>
+  <p>TI/VI มี DB trigger กันแก้หลัง post แล้ว แต่ CN/DN + Receipt มีแค่ชั้น app. <b>แก้:</b> เพิ่ม <code>BEFORE UPDATE/DELETE</code> trigger ใน 570/571 (เลียนแบบ 040/060).</p>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-high">HIGH</span>⑥ Sync-over-async (.Result) ×4</h3>
+  <div class="meta">MasterDataServices.cs:47/348/383/421 · §5</div>
+  <div class="lbl">Before</div>
+  <pre><b class="del">.ToListAsync(ct).ContinueWith&lt;...&gt;(t =&gt; t.Result,</b>
+<b class="del">    TaskContinuationOptions.OnlyOnRanToCompletion);</b></pre>
+  <div class="lbl">After</div>
+  <pre>public async Task&lt;...&gt; ListAsync(CancellationToken ct) =&gt;
+    <b class="add">await</b> db.Branches...<b class="add">.ToListAsync(ct);</b></pre>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-high">HIGH</span>⑦ PermissionLookup query 2 รอบ/ทุก request</h3>
+  <div class="meta">PermissionLookup.cs:18-37</div>
+  <p>เดิมยิง 2 query WHERE เหมือนกันทุก authenticated request. <b>แก้:</b> รวมเป็น query เดียว + <code>AsNoTracking()</code> → ลด DB round-trip ครึ่งนึงทั้งระบบ (return role+permission set เดิมเป๊ะ).</p>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-med">MEDIUM</span>⑧ ApiKeyResolver กลืน exception เงียบ</h3>
+  <div class="meta">ApiKeyResolver.cs:70</div>
+  <div class="lbl">Before</div>
+  <pre><b class="del">catch { /* best-effort telemetry */ }</b></pre>
+  <div class="lbl">After</div>
+  <pre><b class="add">catch (OperationCanceledException) { throw; }</b>
+<b class="add">catch (Exception ex) { _logger.LogWarning(ex, ...); }</b></pre>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-high">HIGH</span>⑨ Frontend i18n — hardcoded TH strings</h3>
+  <div class="meta">18 ไฟล์ · messages/th.json + en.json</div>
+  <p>ย้าย hardcoded ไทย → <code>next-intl</code>, +33 key, sync drift จนเหลือ <b>th/en = 1434/1434, 0 drift</b>. tsc 0.</p>
+</div>
+
+<div class="card">
+  <h3><span class="pill c-high">HIGH</span>⑪ Frontend quality</h3>
+  <div class="meta">report 06</div>
+  <p>RSC boundary, typing/any, a11y (aria-label), localStorage try/catch + secure cookie. (บางข้อ defer = judgment call: RSC refactor, Buddhist-era display — non-compliance.)</p>
+</div>
+
+<h2>🟣 False-positive ที่ overseer จับได้</h2>
+<div class="card">
+  <h3><span class="pill c-fp">FALSE-POSITIVE</span>vat_rate "editable ใน UI" (review บอก Critical)</h3>
+  <div class="meta">settings/companies/page.tsx:42-55</div>
+  <p>Agent บอก "ผู้ใช้ที่มี Master.CompanyManage แก้ vat_rate ได้" = <b>ผิด</b>. หน้านั้น <b>super-admin-only</b> (ซ่อน body ถ้าไม่ใช่ <code>isSuperAdmin</code>) = path ที่ §3.4 อนุญาตอยู่แล้ว. <b>Ham ruling: คงไว้</b> (super-admin ตั้งได้). ไม่แก้ code — บันทึกใน CLAUDE.md §4.6 แล้ว.</p>
+</div>
+<p style="font-size:13.5px;color:var(--muted)">+ <b>ETaxXmlBuilder sync query</b> → downgrade เป็น Medium (e-Tax ยัง inert) → Ham ข้าม ไม่แก้.</p>
+
+<h2>🔎 จุดสำคัญ: catch การ misdiagnose</h2>
+<div class="catch">
+  <h3>Subagent 2 ตัววินิจฉัยผิด — overseer แก้</h3>
+  <p>Batch B + C ทั้งคู่บอก "5 test fail บน fresh DB = co2/co3 tax_codes gap (pre-existing, ไม่ใช่ของเรา)". <b>ผมอ่าน test จริงแล้วพบว่าผิด:</b> test ใช้ <b>company 1</b> (มี 12 tax_codes ไม่ใช่ co2/co3), <code>PostTi</code> hardcode <code>DateOnly(2026,5,16)</code> แล้ว query period <code>202605</code> — แต่ ① pin doc_date=วันนี้ → TI ลงเดือนปัจจุบัน → report 202605 ว่าง → fail. = ผลจาก ① <b>เราเอง</b> ไม่ใช่ pre-existing.</p>
+  <p><b>แก้ถูกจุด (Batch E):</b> migrate 6 test ใช้ clock-derived period (tests-only) — ไม่ปล่อยให้ force-green ทับ regression จริง. บันทึกบทเรียนใน memory.</p>
+</div>
+
+<h2>✅ Gate (overseer re-run เอง)</h2>
+<table>
+  <tr><th>Check</th><th>ผล</th></tr>
+  <tr><td><code>dotnet build</code></td><td><span class="ok-tick">0 error / 0 warning</span></td></tr>
+  <tr><td>Full Api suite (fresh teas_test)</td><td><span class="ok-tick">Failed 0 / Passed 426 / Skip 7</span></td></tr>
+  <tr><td>Domain suite</td><td><span class="ok-tick">146 / 0</span></td></tr>
+  <tr><td>Frontend <code>tsc --noEmit</code></td><td><span class="ok-tick">0 error</span></td></tr>
+  <tr><td>i18n th/en parity</td><td><span class="ok-tick">1434 / 1434 · 0 drift</span></td></tr>
+  <tr><td>Bengali ম glyph</td><td><span class="ok-tick">clean</span></td></tr>
+  <tr><td>backend/src เปลี่ยน</td><td>24 ไฟล์ (= A18 + B3 + C3)</td></tr>
+</table>
+
+<h2>📦 สถานะ &amp; ค้างให้ Ham</h2>
+<div class="good">
+  <b>ยังไม่ commit</b> (ตาม §10 — รอ Ham review). Tree gated ครบ. แก้ผ่าน 5 subagent batch — main agent = overseer ล้วน (Ham สั่ง "ห้ามทำเอง").
+</div>
+<ol style="font-size:14.5px;padding-left:22px">
+  <li><b>review + commit</b> — ดู <code>git status</code>; รายละเอียด <code>docs/code-review-2026-06-17/_FIX-PROGRESS.md</code> + <code>00-INDEX.md</code></li>
+  <li><b>FE quality deferred</b> — RSC refactor, Buddhist-era display (judgment call, non-compliance)</li>
+  <li><b>co2/co3 demo-seed tax_codes gap</b> — ค้างเดิมจาก Phase 6 (ไม่เกี่ยว batch นี้)</li>
+</ol>
+
+<div class="foot">
+  <p class="tag">รายงานเต็ม (ต่อ lens):</p>
+  <p>docs/code-review-2026-06-17/ — 00-INDEX.md + 01..09 (compliance, security, performance, backend-arch, feature-correctness, frontend, ui/ux-i18n, data-model, test-coverage). progress.md = entry 98s.</p>
+  <p style="margin-top:10px;color:#94a3b8">ℹ️ Review เป็น code-only (read-only) — ไม่มี UI screenshot จริง; ใช้ before/after code แทน. สร้าง 2026-06-18 ~02:4x โดย overseer agent.</p>
+</div>
+
+</div>
+</body>
+</html>

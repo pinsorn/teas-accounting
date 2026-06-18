@@ -26,7 +26,7 @@ internal sealed class PayslipConfiguration : IEntityTypeConfiguration<Payslip>
                      nameof(Payslip.SsoEmployer), nameof(Payslip.OtherDeductions),
                      nameof(Payslip.NetPay), nameof(Payslip.YtdIncome), nameof(Payslip.YtdPit),
                  })
-            b.Property(p).HasColumnType("numeric(18,4)");
+            b.Property(p).HasPrecision(18, 4); // ponytail: 08-M1 — EF typed over raw SQL literal
 
         // One payslip per employee per run.
         b.HasIndex(p => new { p.PayrollRunId, p.EmployeeId }).IsUnique();

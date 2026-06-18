@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Link2, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { DocumentCrossRefs } from '@/lib/types';
 
 // Sprint 13j-FE D4 — related-document chips (Pattern X chain) for the detail
@@ -33,12 +34,13 @@ export function crossRefsToItems(refs: DocumentCrossRefs | undefined): RelatedDo
 }
 
 export function RelatedDocs({ items }: { items: RelatedDocItem[] }) {
+  const tc = useTranslations('common');
   if (!items || items.length === 0) return null;
   return (
     <div className="rounded-card border border-ink-100 bg-base-100 shadow-warm-sm">
       <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
         <h3 className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
-          <Link2 className="h-4 w-4 text-ink-600" aria-hidden /> เอกสารที่เกี่ยวข้อง
+          <Link2 className="h-4 w-4 text-ink-600" aria-hidden /> {tc('relatedDocs')}
         </h3>
         <span className="text-[12px] text-ink-500">{items.length}</span>
       </div>

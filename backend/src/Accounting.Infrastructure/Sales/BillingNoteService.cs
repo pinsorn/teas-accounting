@@ -46,7 +46,8 @@ public sealed class BillingNoteService(
         var bn = new BillingNote
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
-            Status = BillingNoteStatus.Draft, DocDate = req.DocDate, DueDate = req.DueDate,
+            // §10 — DocDate pinned to Asia/Bangkok today; DueDate stays the caller's future date.
+            Status = BillingNoteStatus.Draft, DocDate = clock.TodayInBangkok(), DueDate = req.DueDate,
             CustomerId = cust.CustomerId, CustomerName = cust.NameTh,
             CustomerAddress = cust.BillingAddress, CustomerTaxId = cust.TaxId,
             CustomerType = cust.CustomerType, BusinessUnitId = req.BusinessUnitId,
@@ -58,9 +59,9 @@ public sealed class BillingNoteService(
         foreach (var link in await BuildTaxInvoiceLinksAsync(req.TaxInvoiceIds, ct))
             bn.TaxInvoiceLinks.Add(link);
         db.BillingNotes.Add(bn);
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);    // assigns BillingNoteId — activity.Record needs it
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Created", toStatus: "Draft");
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);    // ponytail: second save needed (activity row staged after ID assigned)
         return bn.BillingNoteId;
     }
 
@@ -84,7 +85,8 @@ public sealed class BillingNoteService(
         var bn = new BillingNote
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
-            Status = BillingNoteStatus.Draft, DocDate = dord.DocDate, DueDate = dord.DocDate,
+            // §10 — chain-copy re-derives DocDate deterministically to Asia/Bangkok today.
+            Status = BillingNoteStatus.Draft, DocDate = clock.TodayInBangkok(), DueDate = clock.TodayInBangkok(),
             CustomerId = dord.CustomerId, CustomerName = dord.CustomerName,
             CustomerAddress = dord.CustomerAddress, CustomerTaxId = dord.CustomerTaxId,
             CustomerType = dord.CustomerType, BusinessUnitId = dord.BusinessUnitId,
@@ -108,10 +110,10 @@ public sealed class BillingNoteService(
             bn.SubtotalAmount += l.LineAmount; bn.VatAmount += l.TaxAmount; bn.TotalAmount += l.TotalAmount;
         }
         db.BillingNotes.Add(bn);
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);    // assigns BillingNoteId — activity.Record needs it
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Created",
             toStatus: "Draft", note: $"จากใบส่งของ {dord.DocNo ?? dord.DeliveryOrderId.ToString()}");
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);    // ponytail: second save needed (activity row staged after ID assigned)
         return bn.BillingNoteId;
     }
 
@@ -154,7 +156,7 @@ public sealed class BillingNoteService(
                 && c.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
 
-        bn.DocDate = req.DocDate; bn.DueDate = req.DueDate;
+        bn.DocDate = clock.TodayInBangkok(); bn.DueDate = req.DueDate;   // §10 — re-pin on edit
         bn.CustomerId = cust.CustomerId; bn.CustomerName = cust.NameTh;
         bn.CustomerAddress = cust.BillingAddress; bn.CustomerTaxId = cust.TaxId;
         bn.CustomerType = cust.CustomerType; bn.BusinessUnitId = req.BusinessUnitId;

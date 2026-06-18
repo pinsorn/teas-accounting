@@ -246,6 +246,10 @@ public static class PaperDocumentPdf
                     if (m.Summary.Discount is { } disc)
                         TotalRow(tot, "ส่วนลดรวม · Discount", Num(disc));
                     TotalRow(tot, "มูลค่าก่อนภาษี · Before VAT", Num(beforeVat));
+                    // ponytail (01-L3): explicit exempt-remainder row so the non-taxable portion
+                    // is labelled (ม.86/4 #5 — each line must be identifiable; mixed TI needs both).
+                    if (m.Summary.NonTaxable is { } ntx && ntx > 0m)
+                        TotalRow(tot, "มูลค่าสินค้าที่ได้รับยกเว้น · Exempt", Num(ntx));
                     TotalRow(tot, $"ภาษีมูลค่าเพิ่ม {vatRate.ToString("0.##", Th)}% · VAT", Num(m.Summary.Vat));
                 }
 

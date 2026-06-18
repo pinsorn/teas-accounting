@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   TrendingUp, TrendingDown, Wallet, Receipt, Coins, ListChecks, FileInput,
   AlertTriangle, CheckCircle2, ArrowRight, FileText, Plus,
@@ -14,20 +14,22 @@ import {
 import { formatTHB } from '@/lib/utils';
 import type { TaxSummaryMonth } from '@/lib/types';
 
-const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-const THAI_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+/** Format a 1-based month number as a short label (e.g. ม.ค. / Jan) using the active locale. */
+function monthShort(locale: string, month1: number): string {
+  return new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(2000, month1 - 1, 1));
+}
+/** Format a 1-based month number as a long label (e.g. มกราคม / January) using the active locale. */
+function monthFull(locale: string, month1: number): string {
+  return new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(2000, month1 - 1, 1));
+}
 
-function kBaht(n: number): string {
-  const a = Math.abs(n);
-  if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (a >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return n.toFixed(0);
+function kBaht(n: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
+  const locale = useLocale();
   const now = new Date();
   const year = now.getFullYear();
   const monthNo = now.getMonth() + 1;
@@ -61,7 +63,7 @@ export default function DashboardPage() {
   if (incompleteVi > 0)
     alerts.push({ key: 'vi', tone: 'warning', icon: FileInput, text: t('alerts.incompletePurchase', { n: incompleteVi }), href: '/vendor-invoices', cta: t('alerts.complete') });
   if (pnd30Due)
-    alerts.push({ key: 'pnd30', tone: 'info', icon: Receipt, text: t('alerts.pnd30Due', { day: 15, month: THAI_MONTHS_FULL[monthNo % 12] }), href: '/reports/pnd30', cta: t('alerts.prepare') });
+    alerts.push({ key: 'pnd30', tone: 'info', icon: Receipt, text: t('alerts.pnd30Due', { day: 15, month: monthFull(locale, (monthNo % 12) + 1) }), href: '/reports/pnd30', cta: t('alerts.prepare') });
 
   return (
     <div className="space-y-6">
@@ -72,7 +74,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-base-content">{companyName}</h1>
         </div>
         <p className="text-sm font-medium text-base-content/70">
-          {t('overviewFor', { month: THAI_MONTHS_FULL[monthNo - 1], year })}
+          {t('overviewFor', { month: monthFull(locale, monthNo), year })}
         </p>
       </header>
 
@@ -105,7 +107,7 @@ export default function DashboardPage() {
           ) : months.length === 0 ? (
             <Empty text={t('trend.empty')} />
           ) : (
-            <TrendBars months={months} t={t} />
+            <TrendBars months={months} t={t} locale={locale} />
           )}
         </section>
 
@@ -203,7 +205,7 @@ function Empty({ text }: { text: string }) {
 
 // Inline SVG dual-series bars (revenue vs expense) — no chart dependency, mirrors
 // the reports/tax-summary GroupedBars so the dashboard reads consistently.
-function TrendBars({ months, t }: { months: TaxSummaryMonth[]; t: ReturnType<typeof useTranslations> }) {
+function TrendBars({ months, t, locale }: { months: TaxSummaryMonth[]; t: ReturnType<typeof useTranslations>; locale: string }) {
   const series = [
     { key: 'revenue' as const, label: t('kpi.revenue'), className: 'fill-emerald-500' },
     { key: 'expense' as const, label: t('kpi.expense'), className: 'fill-rose-400' },
@@ -220,6 +222,7 @@ function TrendBars({ months, t }: { months: TaxSummaryMonth[]; t: ReturnType<typ
         <line x1={padL} y1={padT + plotH} x2={W - padL} y2={padT + plotH} className="stroke-base-300" strokeWidth={1} />
         {months.map((m, gi) => {
           const gx = padL + gi * groupW + 2;
+          const label = monthShort(locale, m.month);
           return (
             <g key={m.month}>
               {series.map((s, si) => {
@@ -228,16 +231,16 @@ function TrendBars({ months, t }: { months: TaxSummaryMonth[]; t: ReturnType<typ
                 return (
                   <rect key={s.key} className={s.className} x={gx + si * barW} y={padT + plotH - h}
                     width={barW - 1} height={h} rx={1}>
-                    <title>{`${THAI_MONTHS[m.month - 1]} · ${s.label}: ${formatTHB(Number(m[s.key]))}`}</title>
+                    <title>{`${label} · ${s.label}: ${formatTHB(Number(m[s.key]))}`}</title>
                   </rect>
                 );
               })}
               <text x={gx + (groupW - 4) / 2} y={H - 8} textAnchor="middle"
-                className="fill-base-content/50 text-[8px]">{THAI_MONTHS[m.month - 1]}</text>
+                className="fill-base-content/50 text-[8px]">{label}</text>
             </g>
           );
         })}
-        <text x={W - padL} y={padT + 8} textAnchor="end" className="fill-base-content/40 text-[9px]">{kBaht(max)}</text>
+        <text x={W - padL} y={padT + 8} textAnchor="end" className="fill-base-content/40 text-[9px]">{kBaht(max, locale)}</text>
       </svg>
       <div className="mt-2 flex flex-wrap gap-3">
         {series.map((s) => (

@@ -4,6 +4,7 @@ using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Enums;
@@ -86,6 +87,12 @@ public sealed class Sprint55VendorInvoiceTests
         return (vendor.VendorId, cat.CategoryId);
     }
 
+    // Batch-A ① — DocDate is server-pinned to Asia/Bangkok today, so a posted VI's doc number
+    // embeds the CURRENT month, not the request's. Derive the expected prefix from the clock.
+    private static readonly DateOnly TodayBkk =
+        new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
+    private static string ViDocPrefix => $"{TodayBkk.Month:D2}-{TodayBkk.Year}-VI-";
+
     private static CreateVendorInvoiceRequest Req(
         long vendorId, int categoryId, decimal amount, decimal vatRate,
         DateOnly? docDate = null, DateOnly? vendorTiDate = null, int? claim = null) =>
@@ -93,7 +100,8 @@ public sealed class Sprint55VendorInvoiceTests
             DocDate: docDate ?? new DateOnly(2026, 5, 16),
             VendorId: vendorId,
             VendorTaxInvoiceNo: $"VTI-{TestIds.Suffix()[..6]}",
-            VendorTaxInvoiceDate: vendorTiDate ?? new DateOnly(2026, 5, 10),
+            // ③ — default vendor-TI date is the CURRENT (open) Bangkok month; explicit overrides honored.
+            VendorTaxInvoiceDate: vendorTiDate ?? TodayBkk,
             VatClaimPeriod: claim,
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
             Lines: [new VendorInvoiceLineInput(categoryId, null, "line", amount, vatRate)]);
@@ -115,7 +123,7 @@ public sealed class Sprint55VendorInvoiceTests
             db.SeedViAttachment(id); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
             posted = await svc.PostAsync(id, default);
         }
-        posted.DocNo.Should().StartWith("05-2026-VI-");
+        posted.DocNo.Should().StartWith(ViDocPrefix);   // ① — current Bangkok month
         posted.VatAmount.Should().Be(70m);
 
         await using (var s = sp.CreateAsyncScope())
@@ -223,22 +231,37 @@ public sealed class Sprint55VendorInvoiceTests
 
         // Far-future, randomized to stay re-runnable (runtime-gotchas §14).
         var yr = 2040 + Random.Shared.Next(0, 40);
-        var tiDate = new DateOnly(yr, 1, 15);          // window yr01..yr07
-        var docDate = new DateOnly(yr, 5, 20);          // kept OPEN
+        var tiDate = new DateOnly(yr, 1, 15);          // ม.82/4 window yr01..yr07
         var closedClaim = yr * 100 + 3;                 // yr-03, in window
 
         await using var s = sp.CreateAsyncScope();
         var period = s.ServiceProvider.GetRequiredService<IPeriodCloseService>();
         var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+        var db0 = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
 
-        // teas_test persists + only 40 candidate years → a prior run may have
-        // already closed yr-03. The test only needs the period CLOSED, not to be
-        // the closer — tolerate an already-closed period (pre-existing flakiness).
-        try { await period.CloseAsync(yr, 3, "sprint5.5 test", default); }
-        catch (DomainException e) when (e.Message.Contains("already closed")) { }
+        // Batch-A ③ — a missing far-future period row is now CLOSED, so the hint search
+        // (which scans for the next OPEN period in the window) would otherwise find none.
+        // Build the topology explicitly: window months yr-01..yr-07 OPEN, except yr-03 CLOSED.
+        // The hint must then resolve to yr-04 (the next OPEN period after the closed claim).
+        for (int mo = 1; mo <= 7; mo++)
+        {
+            if (!await db0.AccountingPeriods.AnyAsync(p => p.Year == yr && p.Month == (short)mo))
+                db0.AccountingPeriods.Add(new AccountingPeriod
+                {
+                    CompanyId = 1, Year = yr, Month = (short)mo,
+                    Status = mo == 3 ? PeriodStatus.Closed : PeriodStatus.Open,
+                });
+        }
+        await db0.SaveChangesAsync();
+        // If yr-03 pre-exists OPEN from a prior run on the shared DB, force it CLOSED.
+        var p3 = await db0.AccountingPeriods.FirstOrDefaultAsync(p => p.Year == yr && p.Month == 3);
+        if (p3 is not null && p3.Status != PeriodStatus.Closed)
+        {
+            p3.Status = PeriodStatus.Closed; await db0.SaveChangesAsync();
+        }
 
         var id = await svc.CreateDraftAsync(
-            Req(vendorId, catId, 1000m, 0.07m, docDate: docDate,
+            Req(vendorId, catId, 1000m, 0.07m,
                 vendorTiDate: tiDate, claim: closedClaim), default);
         // Seed the required attachment so the closed-period check is what trips Post,
         // not the (newer) vi.attachment_required guard. The test is about §5.
@@ -271,7 +294,7 @@ public sealed class Sprint55VendorInvoiceTests
 
         // No attachment → Post now succeeds (no hard gate).
         var posted = await svc.PostAsync(id, default);
-        posted.DocNo.Should().StartWith("05-2026-VI-");
+        posted.DocNo.Should().StartWith(ViDocPrefix);   // ① — current Bangkok month
         (await db.VendorInvoices.AsNoTracking().FirstAsync(v => v.VendorInvoiceId == id))
             .Status.Should().Be(DocumentStatus.Posted);
 

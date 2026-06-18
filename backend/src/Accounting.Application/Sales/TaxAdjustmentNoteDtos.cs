@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using Accounting.Domain.Enums;
 using FluentValidation;
 
@@ -34,8 +35,7 @@ public sealed class CreateTaxAdjustmentNoteValidator : AbstractValidator<CreateT
             .WithMessage("Reason is mandatory per ม.86/9 / ม.86/10.");
         RuleFor(x => x.AdjustmentSubtotal).GreaterThan(0);
         RuleFor(x => x.TaxRate).InclusiveBetween(0m, 1m);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
     }
 }
 

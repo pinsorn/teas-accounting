@@ -28,7 +28,9 @@ public static class AuthEndpoints
         })
         .WithName("Login")
         .Produces(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status401Unauthorized);
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .AllowAnonymous()  // ponytail: explicit — FallbackPolicy now requires auth by default
+        .RequireRateLimiting("login"); // ponytail: 10 req/min/IP fixed-window (Program.cs)
 
         // Onboarding-switcher spec (2026-06-16) — SUPER-ADMIN ONLY. Re-scopes the caller's session
         // to another company by re-issuing the JWT (RLS is pinned at the DB session, so a new token

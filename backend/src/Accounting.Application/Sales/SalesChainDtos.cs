@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using FluentValidation;
 
 namespace Accounting.Application.Sales;
@@ -146,8 +147,7 @@ public sealed class CreateQuotationValidator : AbstractValidator<CreateQuotation
     public CreateQuotationValidator()
     {
         RuleFor(x => x.CustomerId).GreaterThan(0);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty();
         RuleFor(x => x.ValidUntilDate).GreaterThanOrEqualTo(x => x.DocDate);
     }
@@ -158,8 +158,7 @@ public sealed class CreateSalesOrderValidator : AbstractValidator<CreateSalesOrd
     public CreateSalesOrderValidator()
     {
         RuleFor(x => x.CustomerId).GreaterThan(0);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty();
     }
 }

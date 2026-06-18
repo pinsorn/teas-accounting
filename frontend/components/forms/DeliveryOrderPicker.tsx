@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiGet, qs } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 import { FloatingListbox } from '@/components/ui/FloatingListbox';
@@ -51,8 +52,8 @@ export function DeliveryOrderPicker({
   onChange,
   customerId = null,
   disabled = false,
-  disabledHint = 'เลือกลูกค้าก่อน',
-  ariaLabel = 'อ้างอิงใบส่งของ',
+  disabledHint,
+  ariaLabel,
 }: {
   value: number | null;
   onChange: (d: DeliveryOrderLite) => void;
@@ -62,6 +63,9 @@ export function DeliveryOrderPicker({
   disabledHint?: string;
   ariaLabel?: string;
 }) {
+  const td = useTranslations('deliveryOrder');
+  const resolvedDisabledHint = disabledHint ?? td('pickCustomer');
+  const resolvedAriaLabel = ariaLabel ?? td('ariaLabel');
   const [term, setTerm] = useState('');
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<DeliveryOrderLite[]>([]);
@@ -140,11 +144,11 @@ export function DeliveryOrderPicker({
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         aria-expanded={open}
-        aria-label={ariaLabel}
+        aria-label={resolvedAriaLabel}
         role="combobox"
         aria-controls="deliveryorder-listbox"
       />
-      {disabled && <span className="mt-1 text-xs text-base-content/50">{disabledHint}</span>}
+      {disabled && <span className="mt-1 text-xs text-base-content/50">{resolvedDisabledHint}</span>}
       <FloatingListbox anchorRef={inputRef} open={open && !disabled} listboxId="deliveryorder-listbox">
         {loading && <li className="px-3 py-2 text-sm text-base-content/50">กำลังค้นหา…</li>}
         {!loading && items.length === 0 && (

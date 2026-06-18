@@ -4,6 +4,7 @@ using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Purchase;
 using Accounting.Application.Reports;
+using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Enums;
@@ -91,10 +92,31 @@ public sealed class Sprint6VatRegisterTests
             Lines: [new VendorInvoiceLineInput(catId, null, "l", amount, vatRate)]), default);
         if (post)
         {
+            // Batch-A ③ — a missing claim-period row is now CLOSED (only the current Bangkok
+            // month is open-when-missing). These tests deliberately post into historical
+            // periods, so seed an explicit OPEN row for the claim period the VI will post to.
+            await EnsureClaimPeriodOpen(db, id, claim, vendorTiDate);
             db.SeedViAttachment(id); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
             await svc.PostAsync(id, default);
         }
         return no;
+    }
+
+    // Batch-A ③ — seed an explicit OPEN row for the VI's claim period (company 1) so a
+    // deliberately-historical claim period is postable. claim ?? month-of(vendorTiDate).
+    private static async Task EnsureClaimPeriodOpen(
+        AccountingDbContext db, long viId, int? claim, DateOnly vendorTiDate)
+    {
+        var cp = claim ?? (vendorTiDate.Year * 100 + vendorTiDate.Month);
+        int yr = cp / 100, mo = cp % 100;
+        if (!await db.AccountingPeriods.AnyAsync(p => p.Year == yr && p.Month == (short)mo))
+        {
+            db.AccountingPeriods.Add(new AccountingPeriod
+            {
+                CompanyId = 1, Year = yr, Month = (short)mo, Status = PeriodStatus.Open,
+            });
+            await db.SaveChangesAsync();
+        }
     }
 
     [SkippableFact]

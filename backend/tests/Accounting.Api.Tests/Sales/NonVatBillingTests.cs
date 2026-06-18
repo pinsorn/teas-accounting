@@ -36,6 +36,16 @@ public sealed class NonVatBillingTests
     private Task<TestCompanyFactory.SeededCompany> NonVatCompanyAsync() =>
         TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
 
+    // Batch-A ① — every posted doc now lands in the CURRENT Asia/Bangkok period (DocDate is
+    // server-pinned, no longer caller-chosen). Pnd36 Finalize keys off the PV's posting period,
+    // so the test period MUST be the current month; isolation moves from "unique far-future
+    // period" (now impossible) to "fresh company per run" (the factory already gives that).
+    private static int CurrentPeriod()
+    {
+        var t = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
+        return t.Year * 100 + t.Month;
+    }
+
     // ภ.พ.36 finalize is IMMUTABLE per (FormType, Period). On the shared teas_test DB
     // a fixed (or small-range) period collides across re-runs (§14) → "already_finalized".
     // Draw from a wide far-future space so two tests in a run, and many runs, never clash.
@@ -193,7 +203,8 @@ public sealed class NonVatBillingTests
         var c = await NonVatCompanyAsync();
         await using var sp = Provider(c.CompanyId, c.BranchId, userId: 1);
         await using var sp2 = Provider(c.CompanyId, c.BranchId, userId: 2);
-        var period = UniquePeriod();
+        // ① — PV posts into the current period; the fresh company isolates the aggregation.
+        var period = CurrentPeriod();
         var docDate = new DateOnly(period / 100, period % 100, 15);
         await ForeignPvPosted(sp, sp2, c.CompanyId, docDate);
 
@@ -221,12 +232,16 @@ public sealed class NonVatBillingTests
     public async Task Pnd36_vat_finalize_debits_input_vat_1170()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        // VAT-mode case — seeded company 1 (vat_registered = TRUE).
-        await using var sp = Provider(companyId: 1, branchId: 1, userId: 1);
-        await using var sp2 = Provider(companyId: 1, branchId: 1, userId: 2);
-        var period = UniquePeriod();
+        // VAT-mode case. Batch-A ①: the PV now posts into the CURRENT period regardless of the
+        // request date, so far-future-period isolation is impossible — and Pnd36 Finalize sums
+        // every foreign PV in the period. Use a FRESH VAT company (factory seeds 1170/2151/5200)
+        // per run so the current-month aggregation sees only this run's single PV (2×-gate safe).
+        var c = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(c.CompanyId, c.BranchId, userId: 1);
+        await using var sp2 = Provider(c.CompanyId, c.BranchId, userId: 2);
+        var period = CurrentPeriod();
         var docDate = new DateOnly(period / 100, period % 100, 15);
-        await ForeignPvPosted(sp, sp2, 1, docDate);
+        await ForeignPvPosted(sp, sp2, c.CompanyId, docDate);
 
         await using var s = sp.CreateAsyncScope();
         var fsvc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();

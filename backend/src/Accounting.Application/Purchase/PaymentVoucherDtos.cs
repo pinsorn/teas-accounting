@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using Accounting.Domain.Enums;
 using FluentValidation;
 
@@ -62,8 +63,7 @@ public sealed class CreatePaymentVoucherValidator : AbstractValidator<CreatePaym
     {
         RuleFor(x => x.VendorId).GreaterThan(0);
         RuleFor(x => x.ExpenseCategoryId).GreaterThan(0);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty();
         RuleForEach(x => x.Lines).ChildRules(l =>
         {

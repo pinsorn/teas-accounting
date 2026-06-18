@@ -140,7 +140,8 @@ public sealed class PurchaseAuditTests
             DocDate: new DateOnly(2026, 5, 16),
             VendorId: vendorId,
             VendorTaxInvoiceNo: $"VTI-{TestIds.Suffix()[..6]}",
-            VendorTaxInvoiceDate: new DateOnly(2026, 5, 10),
+            // Batch-A ③ — claim period must be the CURRENT (open) Bangkok month; a past month is now closed.
+            VendorTaxInvoiceDate: new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(),
             VatClaimPeriod: null,
             CurrencyCode: "THB", ExchangeRate: 1m, Notes: null,
             Lines: [new VendorInvoiceLineInput(catId, null, "line", 1000m, 0.07m)]);

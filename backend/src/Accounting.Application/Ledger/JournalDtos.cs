@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using FluentValidation;
 
 namespace Accounting.Application.Ledger;
@@ -26,8 +27,7 @@ public sealed class CreateJournalValidator : AbstractValidator<CreateJournalRequ
     public CreateJournalValidator()
     {
         RuleFor(x => x.Description).NotEmpty().MaximumLength(500);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty().Must(l => l.Count >= 2)
             .WithMessage("A journal needs at least 2 lines (debit + credit).");
 

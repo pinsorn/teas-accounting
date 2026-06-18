@@ -32,7 +32,7 @@ export type DetailIds = {
   payrollRunId: number;  // Payroll DRAFT run → pr-approve (run.post), pr-delete (run.manage)
 };
 
-async function postOk(page: Page, path: string, data: unknown, label: string): Promise<any> {
+async function postOk(page: Page, path: string, data: unknown, label: string): Promise<Record<string, number> | null> {
   const r = await page.request.post(`${API}${path}`, data === undefined ? undefined : { data });
   if (r.status() >= 300) throw new Error(`${label} → ${r.status()} ${await r.text()}`);
   // Some creates (e.g. POST /vendors/) return 201 with an EMPTY body, and the
@@ -77,8 +77,8 @@ export async function seedDetailFixtures(page: Page, userPrefix: string): Promis
     exchangeRate: 1, description: desc, notes: null,
     lines: [{ expenseAccountId: null, description: desc, amount: 1000, taxCodeId: 1, vatRate: 0.07, isRecoverableVat: true }],
   });
-  const pvDraftId = (await postOk(page, '/payment-vouchers/', pvBody('PV draft (rbac-ui)'), 'PV draft')).payment_voucher_id;
-  const pvApprovedId = (await postOk(page, '/payment-vouchers/', pvBody('PV approved (rbac-ui)'), 'PV for-approve')).payment_voucher_id;
+  const pvDraftId = (await postOk(page, '/payment-vouchers/', pvBody('PV draft (rbac-ui)'), 'PV draft'))!.payment_voucher_id;
+  const pvApprovedId = (await postOk(page, '/payment-vouchers/', pvBody('PV approved (rbac-ui)'), 'PV for-approve'))!.payment_voucher_id;
   await postOk(page, `/payment-vouchers/${pvApprovedId}/approve`, undefined, 'PV approve');
 
   const viDraftId = (await postOk(page, '/vendor-invoices/', {
@@ -86,13 +86,13 @@ export async function seedDetailFixtures(page: Page, userPrefix: string): Promis
     vatClaimPeriod: claimPeriod, currencyCode: 'THB', exchangeRate: 1, notes: null, purchaseOrderId: null,
     lines: [{ expenseCategoryId: categoryId, expenseAccountId: null, description: 'VI draft (rbac-ui)', amount: 1000, vatRate: 0.07 }],
     hasInputVat: true,
-  }, 'VI draft')).vendor_invoice_id;
+  }, 'VI draft'))!.vendor_invoice_id;
 
   const tiDraftId = (await postOk(page, '/tax-invoices/', {
     docDate: today, customerId, isTaxInclusive: false, currencyCode: 'THB', exchangeRate: 1,
     notes: null, paymentTerms: null, dueDate: null,
     lines: [{ productId: null, productCode: null, descriptionTh: 'TI draft (rbac-ui)', quantity: 1, uomId: 1, uomText: 'ชิ้น', unitPrice: 1000, discountPercent: 0, taxCodeId: 1, taxCode: 'VAT7', taxRate: 0.07 }],
-  }, 'TI draft')).tax_invoice_id;
+  }, 'TI draft'))!.tax_invoice_id;
 
   // ── payroll: ensure ≥1 employee, then reuse/create a DRAFT run (company admin
   //    holds master.employee.manage + payroll.run.manage). Idempotent across
@@ -119,7 +119,7 @@ export async function seedDetailFixtures(page: Page, userPrefix: string): Promis
     payrollRunId = existingRun.payrollRunId;
   } else {
     const created = await postOk(page, '/payroll/runs/', { periodYearMonth: runPeriod, payDate: today, notes: null }, 'payroll run create');
-    payrollRunId = created?.payrollRunId ?? created?.payroll_run_id ?? created?.id;
+    payrollRunId = (created?.payrollRunId ?? created?.payroll_run_id ?? created?.id) as number;
     if (!payrollRunId) {
       const after = await (await page.request.get(`${API}/payroll/runs/`)).json();
       payrollRunId = (Array.isArray(after) ? after : after.items ?? [])
@@ -134,12 +134,20 @@ export async function seedDetailFixtures(page: Page, userPrefix: string): Promis
     lines: [{ productId: null, descriptionTh: note, quantity: 1, uomText: 'ชิ้น', unitPrice: 1000, discountPercent: 0, taxCodeId: 1, taxCode: 'VAT7', taxRate: 0.07, notes: null }],
   });
   await login(page, apClerk);
-  const poDraftId = (await postOk(page, '/purchase-orders/', poBody('PO draft (rbac-ui)'), 'PO draft')).purchase_order_id;
-  const poApprovedId = (await postOk(page, '/purchase-orders/', poBody('PO approved (rbac-ui)'), 'PO for-approve')).purchase_order_id;
+  const poDraftId = (await postOk(page, '/purchase-orders/', poBody('PO draft (rbac-ui)'), 'PO draft'))!.purchase_order_id;
+  const poApprovedId = (await postOk(page, '/purchase-orders/', poBody('PO approved (rbac-ui)'), 'PO for-approve'))!.purchase_order_id;
   await login(page, approver);
   await postOk(page, `/purchase-orders/${poApprovedId}/approve`, undefined, 'PO approve');
 
-  return { pvDraftId, pvApprovedId, poDraftId, poApprovedId, viDraftId, tiDraftId, payrollRunId };
+  return {
+    pvDraftId: pvDraftId as number,
+    pvApprovedId: pvApprovedId as number,
+    poDraftId: poDraftId as number,
+    poApprovedId: poApprovedId as number,
+    viDraftId: viDraftId as number,
+    tiDraftId: tiDraftId as number,
+    payrollRunId,
+  };
 }
 
 /** Build the detail-page Controls for the seeded ids (VAT reference company). */
