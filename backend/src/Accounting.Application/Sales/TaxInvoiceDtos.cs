@@ -61,7 +61,9 @@ public sealed record TaxInvoiceListItem(
     string   CurrencyCode,
     // Sprint 13i C3 — for client-side BU/customer filtering on the list page.
     long     CustomerId = 0,
-    int?     BusinessUnitId = null);
+    int?     BusinessUnitId = null,
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string?  CreatedViaApiKey = null);
 
 /// <summary>Cursor page. <see cref="NextCursor"/> is null when there are no more rows.</summary>
 public sealed record CursorPage<T>(IReadOnlyList<T> Items, long? NextCursor, bool HasMore);
@@ -111,7 +113,9 @@ public sealed record TaxInvoiceDetail(
     int?     BusinessUnitId,
     string?  BusinessUnitCode,
     IReadOnlyList<TaxInvoiceDetailLine> Lines,
-    long?    QuotationId = null);   // Sprint 13h P6.1 — cross-ref to originating Q
+    long?    QuotationId = null,   // Sprint 13h P6.1 — cross-ref to originating Q
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string?  CreatedViaApiKey = null);
 
 /// <summary>Result of a (currently inert) e-Tax resend attempt.</summary>
 public sealed record TaxInvoiceResendResult(long TaxInvoiceId, bool Sent, string Message);

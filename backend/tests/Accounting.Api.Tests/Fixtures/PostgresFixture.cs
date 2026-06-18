@@ -154,6 +154,7 @@ public sealed class StubTenant : ITenantContext
     public string? Username { get; init; }
     public bool IsSuperAdmin { get; init; }
     public long? ApiKeyId { get; init; }
+    public string? ApiKeyName { get; init; }
     public int? ApiKeyDefaultBusinessUnitId { get; init; }
     public bool IsAuthenticated => UserId is not null || ApiKeyId is not null;
 }

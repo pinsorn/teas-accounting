@@ -8,6 +8,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { useTaxInvoices, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
@@ -59,7 +60,12 @@ export default function TaxInvoiceListPage() {
     },
     {
       accessorKey: 'status', header: t('list.status'), meta: { filter: 'select', filterLabel: tc('status') },
-      cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
+      cell: ({ row }) => (
+        <span className="inline-flex flex-wrap gap-1">
+          <StatusBadge status={row.original.status} />
+          {row.original.status === 'Draft' && row.original.createdViaApiKey && <AgentPendingBadge />}
+        </span>
+      ),
     },
     {
       accessorKey: 'paymentStatus', header: t('list.payment'), meta: { filter: 'select', filterLabel: t('list.payment') },

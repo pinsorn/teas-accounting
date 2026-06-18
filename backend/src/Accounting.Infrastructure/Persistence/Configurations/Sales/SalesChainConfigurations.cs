@@ -33,6 +33,7 @@ internal sealed class QuotationConfiguration : IEntityTypeConfiguration<Quotatio
         b.Property(x => x.TotalAmount).HasPrecision(19, 4);
         b.Property(x => x.Notes).HasMaxLength(2000);
         b.Property(x => x.InternalNotes).HasMaxLength(2000);
+        b.Property(x => x.CreatedViaApiKeyName).HasMaxLength(120);
         b.Property(x => x.RejectedReason).HasMaxLength(500);
         b.Property(x => x.CancelledReason).HasMaxLength(500);
         b.Property(x => x.SentAt).HasColumnType("timestamptz(3)");

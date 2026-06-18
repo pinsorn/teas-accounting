@@ -109,6 +109,9 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
             RequiresPnd36ReverseCharge = vendor.IsForeign && !vendor.HasThaiVatDReg,
             PurchaseOrderId  = req.PurchaseOrderId,   // Sprint 12 — validated at Post
             Lines        = await BuildLinesAsync(req.Lines, ct),
+            // M4 (MCP) — stamp the key name when created by an API-key principal (agent). Null for JWT.
+            // Also covers the PV→VI guided path (CreateVendorInvoiceFromPvAsync routes through here).
+            CreatedViaApiKeyName = _tenant.ApiKeyName,
         };
         RollUp(vi);
 

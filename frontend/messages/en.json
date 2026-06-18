@@ -1129,6 +1129,7 @@
     "deactivate": "Deactivate",
     "posted": "Posted",
     "draftSaved": "Draft saved",
+    "agentPending": "Pending approval (agent)",
     "close": "Close",
     "activityLog": "Activity log",
     "activityEmpty": "No activity yet",
@@ -1496,7 +1497,8 @@
       "view": "View",
       "review": "Review",
       "complete": "Complete",
-      "prepare": "Prepare"
+      "prepare": "Prepare",
+      "agentApprovals": "{n} document(s) pending agent approval"
     },
     "quick": {
       "title": "Quick actions",

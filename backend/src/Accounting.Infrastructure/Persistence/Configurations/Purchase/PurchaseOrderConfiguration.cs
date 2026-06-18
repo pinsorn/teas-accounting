@@ -16,6 +16,7 @@ internal sealed class PurchaseOrderConfiguration : IEntityTypeConfiguration<Purc
         b.HasKey(x => x.PurchaseOrderId);
 
         b.Property(x => x.DocNo).HasMaxLength(40);
+        b.Property(x => x.CreatedViaApiKeyName).HasMaxLength(120);   // M4 (MCP) — agent draft attribution
         b.Property(x => x.Status).HasConversion(
             v => v.ToString().ToUpperInvariant(),
             v => Enum.Parse<PurchaseOrderStatus>(v, true)).HasMaxLength(20);

@@ -26,7 +26,7 @@ public sealed partial class ReceiptService
             .Select(r => new ReceiptListItem(
                 r.ReceiptId, r.DocNo, r.DocDate, r.CustomerName, r.Amount,
                 r.Status.ToString(), r.CurrencyCode, r.WhtAmount,
-                r.CustomerId, r.BusinessUnitId))
+                r.CustomerId, r.BusinessUnitId, r.CreatedViaApiKeyName))
             .ToListAsync(ct);
         var more = rows.Count > lim;
         if (more) rows.RemoveAt(rows.Count - 1);
@@ -189,7 +189,8 @@ public sealed partial class ReceiptService
             r.WhtAmount, whtCode, whtRate, whtBase, r.CashReceived,
             r.CustomerWhtCertNo, r.CustomerWhtCertDate,
             lineRows, whtLineViews,
-            custParty?.BillingAddress, custParty?.BranchCode);
+            custParty?.BillingAddress, custParty?.BranchCode,
+            r.CreatedViaApiKeyName);
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)

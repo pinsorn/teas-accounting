@@ -42,6 +42,7 @@ internal sealed class ReceiptConfiguration : IEntityTypeConfiguration<Receipt>
             .HasDefaultValue(DocumentStatus.Draft);
 
         b.Property(r => r.Notes).HasColumnType("text");
+        b.Property(r => r.CreatedViaApiKeyName).HasMaxLength(120);
 
         b.Property(r => r.PostedAt).HasColumnType("timestamptz(3)");
         b.Property(r => r.CreatedAt).HasColumnType("timestamptz(3)");

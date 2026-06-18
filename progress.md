@@ -3,6 +3,14 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-18 (cont. 101 — "MCP approval backstop M4" [Ham]) — **✅ M4a+M4b done+gated. agent-draft tracking + "รออนุมัติ" badge/dashboard count. UNCOMMITTED (รอ commit → v1.3.1).**
+
+- **ที่มา:** backstop ที่ defer จาก M3 — กันลืม draft ที่ agent สร้าง (deep-link ใน chat อาจพลาด → ไม่มีที่รวมงานค้าง).
+- **✅ M4a (backend):** nullable `created_via_api_key_name` บน TaxInvoice/Quotation/Receipt + migration `20260618114811_DraftCreatedViaApiKey` · `ITenantContext.ApiKeyName` set ใน CreateDraftAsync เมื่อ principal=API key (null ถ้า JWT/คน) · expose `createdViaApiKey` บน list+detail DTO · count endpoint `GET /reports/pending-agent-approvals` → `{count, taxInvoices, quotations, receipts}` (JWT, sales.tax_invoice.read). 6 tests. Api 447/0/7 ×2 · has-pending clean.
+- **✅ M4b (frontend):** badge "รออนุมัติ (agent)" บน draft row (TI/quotation/receipt) ที่ createdViaApiKey!=null · dashboard "ต้องทำ/แจ้งเตือน" widget โชว์ count + link (`usePendingAgentApprovals`). tsc 0 · parity 1452/1452. (ไม่มี screenshot — ไม่มี agent-draft จริงให้ seed.)
+- **Gate (overseer):** build 0/0 · Api 447/0/7 ×2 · Domain 146 · migration has-pending clean · FE tsc 0 · count endpoint verified · ম glyph clean.
+- **ค้าง (Ham):** commit M4 → v1.3.1 release.
+
 ## 2026-06-18 (cont. 100 — "MCP feature COMPLETE: M1+M2+M3" [Ham]) — **✅ MCP server feature done + gated. agentic via API key, in-process. UNCOMMITTED (รอ Ham commit → v1.3.0).** (M2 detail = cont.99 below.)
 
 - **Feature:** in-process MCP server บน TEAS backend (ใช้ API key, รองรับ agentic). spec `docs/code-review-2026-06-17/12-mcp-feasibility.md`. Design: 2 key profiles (integration full / **mcp = read+create no-post**), agent create-draft → tool คืน deep-link `?action=approve` → คน login+post (gate = user session+perm; agent key ไม่มี .post).

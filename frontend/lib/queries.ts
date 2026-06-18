@@ -680,6 +680,22 @@ export function useVatThresholdStatus() {
   });
 }
 
+/** M4b — count of DRAFT docs created via API key, awaiting human approval. */
+export interface PendingAgentApprovals {
+  count: number;
+  taxInvoices: number;
+  quotations: number;
+  receipts: number;
+}
+
+export function usePendingAgentApprovals() {
+  return useQuery({
+    queryKey: ['pending-agent-approvals'],
+    queryFn: () => apiGet<PendingAgentApprovals>('reports/pending-agent-approvals'),
+    staleTime: 60_000,
+  });
+}
+
 // ───────────────────────── Sprint 8.6 — AR-side WHT ─────────────────────────
 
 export function useWhtTypes(includeInactive = false) {

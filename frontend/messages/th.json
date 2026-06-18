@@ -1129,6 +1129,7 @@
     "deactivate": "ปิดใช้งาน",
     "posted": "บันทึก (Post) สำเร็จ",
     "draftSaved": "บันทึกร่างแล้ว",
+    "agentPending": "รออนุมัติ (agent)",
     "close": "ปิด",
     "activityLog": "ประวัติกิจกรรม",
     "activityEmpty": "ยังไม่มีประวัติกิจกรรม",
@@ -1496,7 +1497,8 @@
       "view": "ดู",
       "review": "ตรวจ",
       "complete": "เติมให้ครบ",
-      "prepare": "เตรียมยื่น"
+      "prepare": "เตรียมยื่น",
+      "agentApprovals": "{n} เอกสารรออนุมัติจาก agent"
     },
     "quick": {
       "title": "ทางลัด",

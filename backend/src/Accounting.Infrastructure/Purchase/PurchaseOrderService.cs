@@ -54,6 +54,8 @@ public sealed class PurchaseOrderService(
             VendorType = v.VendorType, BusinessUnitId = req.BusinessUnitId,
             CurrencyCode = req.CurrencyCode, ExchangeRate = req.ExchangeRate,
             Notes = req.Notes, InternalNotes = req.InternalNotes,
+            // M4 (MCP) — stamp the key name when created by an API-key principal (agent). Null for JWT.
+            CreatedViaApiKeyName = tenant.ApiKeyName,
         };
         Fill(po, req);
         db.PurchaseOrders.Add(po);

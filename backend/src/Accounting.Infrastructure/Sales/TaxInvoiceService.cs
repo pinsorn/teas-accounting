@@ -268,6 +268,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             BusinessUnitId   = req.BusinessUnitId,
             QuotationId      = req.QuotationId,   // Sprint 13h P6.1
             Lines            = lines,
+            // M4a — stamp the key name when created by an API-key principal (MCP agent).
+            CreatedViaApiKeyName = _tenant.ApiKeyName,
         };
 
         _db.TaxInvoices.Add(ti);

@@ -35,6 +35,10 @@ public class Quotation : ITenantOwned, IAuditable, IConcurrencyVersioned
     public string? Notes { get; set; }
     public string? InternalNotes { get; set; }
 
+    /// <summary>M4a — non-null when this draft was created by an API key (MCP agent).
+    /// Value = the key name (TenantClaims.ApiKeyName). Null for JWT/human creates.</summary>
+    public string? CreatedViaApiKeyName { get; set; }
+
     /// <summary>Auto from CustomerType (CORPORATE=true). WHT note computed at
     /// PDF time, never stored.</summary>
     public bool ShowWhtNote { get; set; }

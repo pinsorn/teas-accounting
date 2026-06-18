@@ -251,6 +251,8 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             Description        = req.Description,
             Notes              = req.Notes,
             Lines              = lines,
+            // M4 (MCP) — stamp the key name when created by an API-key principal (agent). Null for JWT.
+            CreatedViaApiKeyName = _tenant.ApiKeyName,
         };
 
         _db.PaymentVouchers.Add(pv);

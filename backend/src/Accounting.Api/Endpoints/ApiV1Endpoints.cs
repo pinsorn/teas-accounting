@@ -1,6 +1,7 @@
 using Accounting.Api.Authorization;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Master;
+using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -154,6 +155,71 @@ public static class ApiV1Endpoints
                 timezone = "Asia/Bangkok",
             });
         }).RequireAuthorization(P("sys.system_info.read"));
+
+        // ── E4 PDF download — api-key-gated (apiperm:*.read) ────────────────
+        // These routes serve PDF bytes for POSTED/non-draft documents only.
+        // DRAFT docs return 404 (defense-in-depth: the MCP tool also rejects drafts
+        // before returning the URL). Reuse existing PDF builders — no new rendering.
+        // gated by same *.read apiperm as the corresponding get-detail routes above.
+
+        v1.MapGet("/tax-invoices/{id:long}/pdf", async (long id, ITaxInvoiceService svc, CancellationToken ct) =>
+        {
+            var d = await svc.GetDetailAsync(id, ct);
+            if (d is null) return Results.NotFound();
+            if (d.Status == "Draft") return Results.NotFound();
+            return Results.File(await svc.BuildPdfAsync(id, ct), "application/pdf", $"tax-invoice-{id}.pdf");
+        }).RequireAuthorization(P("sales.tax_invoice.read"));
+
+        v1.MapGet("/receipts/{id:long}/pdf", async (long id, IReceiptService svc, CancellationToken ct) =>
+        {
+            var d = await svc.GetDetailAsync(id, ct);
+            if (d is null) return Results.NotFound();
+            if (d.Status == "Draft") return Results.NotFound();
+            return Results.File(await svc.BuildPdfAsync(id, ct), "application/pdf", $"receipt-{id}.pdf");
+        }).RequireAuthorization(P("sales.receipt.read"));
+
+        v1.MapGet("/quotations/{id:long}/pdf", async (long id, ISalesChainPdfService pdfSvc, IQuotationService svc, CancellationToken ct) =>
+        {
+            var d = await svc.GetAsync(id, ct);
+            if (d is null) return Results.NotFound();
+            if (d.Status == "Draft") return Results.NotFound();
+            return Results.File(await pdfSvc.QuotationPdfAsync(id, ct), "application/pdf", $"quotation-{id}.pdf");
+        }).RequireAuthorization(P("sales.quotation.read"));
+
+        // Billing Note (invoice). No separate *.read scope for billing-note in apiperm catalog —
+        // billing_note.read is the correct scope (mirrors the JWT-gated BFF route).
+        v1.MapGet("/billing-notes/{id:long}/pdf", async (long id, IBillingNoteService svc, CancellationToken ct) =>
+        {
+            var d = await svc.GetAsync(id, ct);
+            if (d is null) return Results.NotFound();
+            if (d.Status == "Draft") return Results.NotFound();
+            return Results.File(await svc.BuildPdfAsync(id, ct), "application/pdf", $"billing-note-{id}.pdf");
+        }).RequireAuthorization(P("sales.billing_note.read"));
+
+        // Delivery Order. No *.read scope exists — only sales.delivery_order.manage (mirrors BFF).
+        v1.MapGet("/delivery-orders/{id:long}/pdf", async (long id, ISalesChainPdfService pdfSvc, IDeliveryOrderService svc, CancellationToken ct) =>
+        {
+            var d = await svc.GetAsync(id, ct);
+            if (d is null) return Results.NotFound();
+            if (d.Status == "Draft") return Results.NotFound();
+            return Results.File(await pdfSvc.DeliveryOrderPdfAsync(id, ct), "application/pdf", $"delivery-order-{id}.pdf");
+        }).RequireAuthorization(P("sales.delivery_order.manage"));
+
+        v1.MapGet("/purchase-orders/{id:long}/pdf", async (long id, IPurchaseOrderService svc, CancellationToken ct) =>
+        {
+            var d = await svc.GetDetailAsync(id, ct);
+            if (d is null) return Results.NotFound();
+            if (d.Status == "Draft") return Results.NotFound();
+            return Results.File(await svc.BuildPdfAsync(id, ct), "application/pdf", $"purchase-order-{id}.pdf");
+        }).RequireAuthorization(P("purchase.purchase_order.read"));
+
+        v1.MapGet("/payment-vouchers/{id:long}/pdf", async (long id, IPaymentVoucherService svc, CancellationToken ct) =>
+        {
+            var d = await svc.GetDetailAsync(id, ct);
+            if (d is null) return Results.NotFound();
+            if (d.Status == "Draft") return Results.NotFound();
+            return Results.File(await svc.BuildPdfAsync(id, ct), "application/pdf", $"payment-voucher-{id}.pdf");
+        }).RequireAuthorization(P("purchase.payment_voucher.read"));
 
         return app;
     }

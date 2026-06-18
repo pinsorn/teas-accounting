@@ -13,6 +13,7 @@ internal sealed class VendorInvoiceConfiguration : IEntityTypeConfiguration<Vend
         b.HasKey(v => v.VendorInvoiceId);
 
         b.Property(v => v.DocNo).HasMaxLength(50);
+        b.Property(v => v.CreatedViaApiKeyName).HasMaxLength(120);   // M4 (MCP) — agent draft attribution
         b.Property(v => v.VendorTaxInvoiceNo).HasMaxLength(50).IsRequired();
 
         b.Property(v => v.VendorTaxId).IsFixedLength().HasMaxLength(13);

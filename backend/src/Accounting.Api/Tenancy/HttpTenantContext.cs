@@ -41,6 +41,11 @@ public sealed class HttpTenantContext : ITenantContext
     public long? ApiKeyId => Authed
         && long.TryParse(User!.FindFirst(TenantClaims.ApiKeyId)?.Value, out var k) ? k : null;
 
+    // M4a — the key name stamped on agent-created drafts (CreatedViaApiKeyName).
+    public string? ApiKeyName => Authed && ApiKeyId is not null
+        ? User!.FindFirst(TenantClaims.ApiKeyName)?.Value
+        : null;
+
     public int? ApiKeyDefaultBusinessUnitId => Authed
         && int.TryParse(User!.FindFirst(TenantClaims.DefaultBusinessUnit)?.Value, out var b) ? b : null;
 

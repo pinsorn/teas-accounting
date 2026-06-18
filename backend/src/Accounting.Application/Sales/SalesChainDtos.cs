@@ -70,14 +70,18 @@ public sealed record ChainLineDto(
 public sealed record QuotationListItem(
     long QuotationId, string? DocNo, string Status, DateOnly DocDate,
     DateOnly ValidUntilDate, string CustomerName, decimal TotalAmount,
-    long? ConvertedToSoId);
+    long? ConvertedToSoId,
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string? CreatedViaApiKey = null);
 
 public sealed record QuotationDetail(
     long QuotationId, string? DocNo, string Status, DateOnly DocDate,
     DateOnly ValidUntilDate, long CustomerId, string CustomerName,
     int? BusinessUnitId, string CurrencyCode, decimal SubtotalAmount,
     decimal VatAmount, decimal TotalAmount, bool ShowWhtNote,
-    long? ConvertedToSoId, string? Notes, IReadOnlyList<ChainLineDto> Lines);
+    long? ConvertedToSoId, string? Notes, IReadOnlyList<ChainLineDto> Lines,
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string? CreatedViaApiKey = null);
 
 public sealed record SalesOrderListItem(
     long SalesOrderId, string? DocNo, string Status, DateOnly DocDate,

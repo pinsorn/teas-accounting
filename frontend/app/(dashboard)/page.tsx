@@ -4,12 +4,12 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import {
   TrendingUp, TrendingDown, Wallet, Receipt, Coins, ListChecks, FileInput,
-  AlertTriangle, CheckCircle2, ArrowRight, FileText, Plus,
+  AlertTriangle, CheckCircle2, ArrowRight, FileText, Plus, Bot,
 } from 'lucide-react';
 import { PermissionGate } from '@/components/PermissionGate';
 import {
   useTaxSummary, useNumberGaps, useVatThresholdStatus, useVendorInvoices,
-  useSystemInfo, useCompanyProfile,
+  useSystemInfo, useCompanyProfile, usePendingAgentApprovals,
 } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { TaxSummaryMonth } from '@/lib/types';
@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const gapCount = gaps.data?.gaps.length ?? 0;
   const threshold = useVatThresholdStatus().data?.status;
   const incompleteVi = useVendorInvoices(true).data?.length ?? 0;
+  const agentApprovals = usePendingAgentApprovals().data;
 
   const companyName = profile?.tradeName || profile?.legalName || t('title');
   const netVat = (cur?.vatPayable ?? 0) - (cur?.vatRefundable ?? 0);
@@ -64,6 +65,8 @@ export default function DashboardPage() {
     alerts.push({ key: 'vi', tone: 'warning', icon: FileInput, text: t('alerts.incompletePurchase', { n: incompleteVi }), href: '/vendor-invoices', cta: t('alerts.complete') });
   if (pnd30Due)
     alerts.push({ key: 'pnd30', tone: 'info', icon: Receipt, text: t('alerts.pnd30Due', { day: 15, month: monthFull(locale, (monthNo % 12) + 1) }), href: '/reports/pnd30', cta: t('alerts.prepare') });
+  if ((agentApprovals?.count ?? 0) > 0)
+    alerts.push({ key: 'agent', tone: 'info', icon: Bot, text: t('alerts.agentApprovals', { n: agentApprovals!.count }), href: '/tax-invoices', cta: t('alerts.review') });
 
   return (
     <div className="space-y-6">

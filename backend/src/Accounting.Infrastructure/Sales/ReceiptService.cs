@@ -236,6 +236,8 @@ public sealed partial class ReceiptService : IReceiptService
             TotalAmount     = amount,
             TotalAmountThb  = Math.Round(amount * req.ExchangeRate, 4, MidpointRounding.AwayFromZero),
             Notes           = req.Notes,
+            // M4a — stamp the key name when created by an API-key principal (MCP agent).
+            CreatedViaApiKeyName = _tenant.ApiKeyName,
             Applications = req.Applications.Select(a => new ReceiptApplication
             {
                 TaxInvoiceId    = a.TaxInvoiceId,

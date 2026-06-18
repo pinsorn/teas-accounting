@@ -56,6 +56,10 @@ public class Receipt : ITenantOwned, IAuditable, IConcurrencyVersioned
 
     public string? Notes { get; set; }
 
+    /// <summary>M4a — non-null when this draft was created by an API key (MCP agent).
+    /// Value = the key name (TenantClaims.ApiKeyName). Null for JWT/human creates.</summary>
+    public string? CreatedViaApiKeyName { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public long? CreatedBy { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

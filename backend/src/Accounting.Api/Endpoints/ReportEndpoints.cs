@@ -1,6 +1,8 @@
 using Accounting.Api.Authorization;
 using Accounting.Application.Reports;
+using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Api.Endpoints;
 
@@ -79,6 +81,39 @@ public static class ReportEndpoints
             Accounting.Application.Abstractions.IClock clock, CancellationToken ct) =>
                 Results.Ok(await svc.GetAsync(year ?? clock.TodayInBangkok().Year, ct, businessUnitId)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.ProfitLoss);
+
+        // M4a — count of DRAFT documents created via API key (MCP agent) awaiting human approval.
+        // Tenant-scoped (global query filter). RBAC: any user who can read tax invoices can see
+        // the badge count. FE: GET /reports/pending-agent-approvals → { count: N }.
+        group.MapGet("/pending-agent-approvals", async (AccountingDbContext db, CancellationToken ct) =>
+        {
+            var tiCount = await db.TaxInvoices
+                .Where(t => t.CreatedViaApiKeyName != null && t.Status == Accounting.Domain.Enums.DocumentStatus.Draft)
+                .CountAsync(ct);
+            var qCount = await db.Quotations
+                .Where(q => q.CreatedViaApiKeyName != null && q.Status == Accounting.Domain.Enums.QuotationStatus.Draft)
+                .CountAsync(ct);
+            var rcCount = await db.Receipts
+                .Where(r => r.CreatedViaApiKeyName != null && r.Status == Accounting.Domain.Enums.DocumentStatus.Draft)
+                .CountAsync(ct);
+            // E3 — agent-created purchase drafts awaiting human approval + post.
+            var poCount = await db.PurchaseOrders
+                .Where(p => p.CreatedViaApiKeyName != null && p.Status == Accounting.Domain.Enums.PurchaseOrderStatus.Draft)
+                .CountAsync(ct);
+            var viCount = await db.VendorInvoices
+                .Where(v => v.CreatedViaApiKeyName != null && v.Status == Accounting.Domain.Enums.DocumentStatus.Draft)
+                .CountAsync(ct);
+            var pvCount = await db.PaymentVouchers
+                .Where(p => p.CreatedViaApiKeyName != null && p.Status == Accounting.Domain.Enums.DocumentStatus.Draft)
+                .CountAsync(ct);
+            return Results.Ok(new
+            {
+                count = tiCount + qCount + rcCount + poCount + viCount + pvCount,
+                taxInvoices = tiCount, quotations = qCount, receipts = rcCount,
+                purchaseOrders = poCount, vendorInvoices = viCount, paymentVouchers = pvCount,
+            });
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
 
         // Number-gap audit (CLAUDE.md §4.3 / plan §17.6). Empty result = compliant.
         group.MapGet("/number-gaps", async (

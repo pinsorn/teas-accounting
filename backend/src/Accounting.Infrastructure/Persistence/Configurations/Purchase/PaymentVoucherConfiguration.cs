@@ -16,6 +16,7 @@ internal sealed class PaymentVoucherConfiguration : IEntityTypeConfiguration<Pay
         b.HasKey(p => p.PaymentVoucherId);
 
         b.Property(p => p.DocNo).HasMaxLength(50);
+        b.Property(p => p.CreatedViaApiKeyName).HasMaxLength(120);   // M4 (MCP) — agent draft attribution
         b.Property(p => p.PrefixCode).HasMaxLength(20).HasDefaultValue("PV");
         b.Property(p => p.SubPrefix).HasMaxLength(20).IsRequired();
 

@@ -67,6 +67,8 @@ public sealed class QuotationService(
             ExchangeRate = req.ExchangeRate, Notes = req.Notes,
             InternalNotes = req.InternalNotes,
             ShowWhtNote = cust.CustomerType == CustomerType.Corporate,
+            // M4a — stamp the key name when created by an API-key principal (MCP agent).
+            CreatedViaApiKeyName = tenant.ApiKeyName,
         };
         // §4.6 / ม.80 — VAT rate + tax-code classification come from company master data.
         var cfg = await taxCfg.GetAsync(ct);
@@ -275,7 +277,8 @@ public sealed class QuotationService(
         return await qy.OrderByDescending(x => x.QuotationId)
             .Select(x => new QuotationListItem(
                 x.QuotationId, x.DocNo, x.Status.ToString(), x.DocDate,
-                x.ValidUntilDate, x.CustomerName, x.TotalAmount, x.ConvertedToSoId))
+                x.ValidUntilDate, x.CustomerName, x.TotalAmount, x.ConvertedToSoId,
+                x.CreatedViaApiKeyName))
             .ToListAsync(ct);
     }
 
@@ -291,7 +294,8 @@ public sealed class QuotationService(
             q.ConvertedToSoId, q.Notes,
             q.Lines.OrderBy(l => l.LineNo).Select(l => new ChainLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList());
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+            q.CreatedViaApiKeyName);
     }
 
     private async Task<string> SubPrefixNumberAsync(

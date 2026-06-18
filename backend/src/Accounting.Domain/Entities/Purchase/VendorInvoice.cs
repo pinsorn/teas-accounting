@@ -83,6 +83,11 @@ public class VendorInvoice : ITenantOwned, IAuditable, IConcurrencyVersioned
 
     public ICollection<VendorInvoiceLine> Lines { get; set; } = new List<VendorInvoiceLine>();
 
+    /// <summary>M4 (MCP) — name of the API key that created this draft (TenantClaims.ApiKeyName).
+    /// Value = the key name. Null for JWT/human creates. Lets the agent-approval dashboard
+    /// count purchase drafts awaiting a human review + post.</summary>
+    public string? CreatedViaApiKeyName { get; set; }
+
     public void MarkPosted(string docNo, long userId, DateTimeOffset postedAt)
     {
         if (Status != DocumentStatus.Draft)

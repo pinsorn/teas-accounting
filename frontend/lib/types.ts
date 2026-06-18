@@ -16,6 +16,7 @@ export interface TaxInvoiceListItem {
   currencyCode: string;
   customerId: number;
   businessUnitId: number | null;
+  createdViaApiKey: string | null;
 }
 
 export interface CursorPage<T> {
@@ -345,6 +346,7 @@ export interface ReceiptListItem {
   customerName: string; amount: number; status: DocStatus; currencyCode: string;
   whtAmount: number;
   customerId: number; businessUnitId: number | null;
+  createdViaApiKey: string | null;
 }
 // Sprint 8.6 — AR-side WHT
 export interface WhtTypeListItem {
@@ -845,6 +847,7 @@ export interface QuotationListItem {
   validUntilDate: string; customerName: string; totalAmount: number;
   convertedToSoId: number | null;
   customerId: number; businessUnitId: number | null;
+  createdViaApiKey: string | null;
 }
 export interface QuotationDetail {
   quotationId: number; docNo: string | null; status: string; docDate: string;

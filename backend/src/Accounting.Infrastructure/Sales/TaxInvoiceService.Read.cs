@@ -58,7 +58,7 @@ public sealed partial class TaxInvoiceService
             .Select(t => new TaxInvoiceListItem(
                 t.TaxInvoiceId, t.DocNo, t.DocDate, t.CustomerName, t.CustomerTaxId,
                 t.TotalAmount, t.TaxAmount, t.Status.ToString(), t.PaymentStatus, t.CurrencyCode,
-                t.CustomerId, t.BusinessUnitId))
+                t.CustomerId, t.BusinessUnitId, t.CreatedViaApiKeyName))
             .ToListAsync(ct);
 
         var hasMore = rows.Count > limit;
@@ -96,7 +96,8 @@ public sealed partial class TaxInvoiceService
                 l.LineNo, l.ProductCode, l.DescriptionTh, l.Quantity, l.UomText,
                 l.UnitPrice, l.DiscountAmount, l.LineAmount, l.TaxCode, l.TaxRate,
                 l.TaxAmount, l.TotalAmount)).ToList(),
-            t.QuotationId);   // Sprint 13h P6.1 — cross-ref
+            t.QuotationId,   // Sprint 13h P6.1 — cross-ref
+            t.CreatedViaApiKeyName);
     }
 
     public Task<string> BuildXmlAsync(long id, CancellationToken ct) =>

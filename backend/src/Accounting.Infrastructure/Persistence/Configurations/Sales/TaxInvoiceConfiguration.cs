@@ -57,6 +57,7 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
         b.Property(t => t.DeliveryMethod).HasMaxLength(20);
         b.Property(t => t.PaymentTerms).HasMaxLength(500);
         b.Property(t => t.Notes).HasColumnType("text");
+        b.Property(t => t.CreatedViaApiKeyName).HasMaxLength(120);
 
         b.Property(t => t.PostedAt).HasColumnType("timestamptz(3)");
         b.Property(t => t.ETaxSignedAt).HasColumnType("timestamptz(3)");

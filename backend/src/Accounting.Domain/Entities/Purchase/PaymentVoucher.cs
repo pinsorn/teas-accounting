@@ -96,6 +96,11 @@ public class PaymentVoucher : ITenantOwned, IAuditable, IConcurrencyVersioned
 
     public ICollection<PaymentVoucherLine> Lines { get; set; } = new List<PaymentVoucherLine>();
 
+    /// <summary>M4 (MCP) — name of the API key that created this draft (TenantClaims.ApiKeyName).
+    /// Value = the key name. Null for JWT/human creates. Lets the agent-approval dashboard
+    /// count purchase drafts awaiting a human review + post.</summary>
+    public string? CreatedViaApiKeyName { get; set; }
+
     /// <summary>
     /// Approval gate. cont.77 (Ham 2026-05-30) — approval is now **permission-based only**:
     /// any user holding <c>purchase.payment_voucher.approve</c> may approve, INCLUDING the

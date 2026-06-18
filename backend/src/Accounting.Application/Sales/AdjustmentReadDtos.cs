@@ -6,7 +6,9 @@ public sealed record ReceiptListItem(
     long ReceiptId, string? DocNo, DateOnly DocDate, string CustomerName,
     decimal Amount, string Status, string CurrencyCode, decimal WhtAmount,
     // Sprint 13i C3 — for client-side BU/customer filtering on the list page.
-    long CustomerId = 0, int? BusinessUnitId = null);
+    long CustomerId = 0, int? BusinessUnitId = null,
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string? CreatedViaApiKey = null);
 
 public sealed record ReceiptAppliedTo(
     long TaxInvoiceId, string? TiDocNo, decimal AppliedAmount, string? BusinessUnitCode);
@@ -39,7 +41,9 @@ public sealed record ReceiptDetail(
     IReadOnlyList<ReceiptWhtLineView>? WhtLines = null,
     // cont.70 — customer billing address + branch (live from master) so the receipt
     // header shows the buyer's address like every other document.
-    string? CustomerAddress = null, string? CustomerBranchCode = null);
+    string? CustomerAddress = null, string? CustomerBranchCode = null,
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string? CreatedViaApiKey = null);
 
 public sealed record AdjustmentNoteListItem(
     long NoteId, string? DocNo, string NoteType, DateOnly DocDate,

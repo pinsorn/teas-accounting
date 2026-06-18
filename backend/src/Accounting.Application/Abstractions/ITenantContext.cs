@@ -21,6 +21,11 @@ public interface ITenantContext
     /// <see cref="UserId"/>); null for JWT users. Used for audit + scope checks.</summary>
     long? ApiKeyId { get; }
 
+    /// <summary>M4a — the name of the API key in use (from TenantClaims.ApiKeyName).
+    /// Non-null only when <see cref="ApiKeyId"/> is non-null. Used to stamp
+    /// CreatedViaApiKeyName on agent-created drafts.</summary>
+    string? ApiKeyName { get; }
+
     /// <summary>Sprint 14 P7 — the API key's bound Business Unit, if any.
     /// Null for JWT users or keys without a default. Drives auto-fill + lock.</summary>
     int? ApiKeyDefaultBusinessUnitId { get; }

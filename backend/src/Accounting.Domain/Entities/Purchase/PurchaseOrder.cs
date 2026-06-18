@@ -55,6 +55,11 @@ public class PurchaseOrder : ITenantOwned, IAuditable, IConcurrencyVersioned
 
     public ICollection<PurchaseOrderLine> Lines { get; set; } = new List<PurchaseOrderLine>();
 
+    /// <summary>M4 (MCP) — name of the API key that created this draft (TenantClaims.ApiKeyName).
+    /// Value = the key name. Null for JWT/human creates. Lets the agent-approval dashboard
+    /// count purchase drafts awaiting a human review + post.</summary>
+    public string? CreatedViaApiKeyName { get; set; }
+
     /// <summary>Draft → Approved. cont.77 (Ham 2026-05-30) — approval is now permission-based
     /// only (holder of <c>purchase.purchase_order.approve</c>), the creator may approve their
     /// own PO; the creator≠approver SoD rule (+ DB CHECK ck_po_sod) is removed. doc_no allocated

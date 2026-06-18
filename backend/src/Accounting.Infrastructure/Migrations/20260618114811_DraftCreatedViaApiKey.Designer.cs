@@ -4,6 +4,7 @@ using System.Net;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Accounting.Infrastructure.Migrations
 {
     [DbContext(typeof(AccountingDbContext))]
-    partial class AccountingDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618114811_DraftCreatedViaApiKey")]
+    partial class DraftCreatedViaApiKey
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2357,11 +2360,6 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("created_by");
 
-                    b.Property<string>("CreatedViaApiKeyName")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("created_via_api_key_name");
-
                     b.Property<string>("CurrencyCode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -2734,11 +2732,6 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("created_by");
 
-                    b.Property<string>("CreatedViaApiKeyName")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("created_via_api_key_name");
-
                     b.Property<string>("CurrencyCode")
                         .IsRequired()
                         .HasMaxLength(3)
@@ -2985,11 +2978,6 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("CreatedBy")
                         .HasColumnType("bigint")
                         .HasColumnName("created_by");
-
-                    b.Property<string>("CreatedViaApiKeyName")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("created_via_api_key_name");
 
                     b.Property<string>("CurrencyCode")
                         .IsRequired()

@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 3 |
 | AuthnOnly | 12 |
-| Perm | 225 |
+| Perm | 226 |
 | Assertion | 5 |
-| ApiKeyOnly | 19 |
+| ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **264** |
+| **TOTAL** | **272** |
 
 ## Routes
 
@@ -35,23 +35,30 @@
 | POST | `/api-keys/` | Perm | sys.api_key.manage |
 | DELETE | `/api-keys/{id:long}` | Perm | sys.api_key.manage |
 | POST | `/api-keys/{id:long}/rotate` | Perm | sys.api_key.manage |
+| GET | `/api/v1/billing-notes/{id:long}/pdf` | ApiKeyOnly | sales.billing_note.read |
 | GET | `/api/v1/customers` | ApiKeyOnly | master.customer.read |
 | POST | `/api/v1/customers` | ApiKeyOnly | master.customer.manage |
 | GET | `/api/v1/customers/{id:long}` | ApiKeyOnly | master.customer.read |
+| GET | `/api/v1/delivery-orders/{id:long}/pdf` | ApiKeyOnly | sales.delivery_order.manage |
+| GET | `/api/v1/payment-vouchers/{id:long}/pdf` | ApiKeyOnly | purchase.payment_voucher.read |
 | GET | `/api/v1/products` | ApiKeyOnly | master.product.read |
 | GET | `/api/v1/products/{id:long}` | ApiKeyOnly | master.product.read |
+| GET | `/api/v1/purchase-orders/{id:long}/pdf` | ApiKeyOnly | purchase.purchase_order.read |
 | GET | `/api/v1/quotations` | ApiKeyOnly | sales.quotation.read |
 | POST | `/api/v1/quotations` | ApiKeyOnly | sales.quotation.create |
 | GET | `/api/v1/quotations/{id:long}` | ApiKeyOnly | sales.quotation.read |
+| GET | `/api/v1/quotations/{id:long}/pdf` | ApiKeyOnly | sales.quotation.read |
 | POST | `/api/v1/quotations/{id:long}/send` | ApiKeyOnly | sales.quotation.send |
 | GET | `/api/v1/receipts` | ApiKeyOnly | sales.receipt.read |
 | POST | `/api/v1/receipts` | ApiKeyOnly | sales.receipt.create |
 | GET | `/api/v1/receipts/{id:long}` | ApiKeyOnly | sales.receipt.read |
+| GET | `/api/v1/receipts/{id:long}/pdf` | ApiKeyOnly | sales.receipt.read |
 | POST | `/api/v1/receipts/{id:long}/post` | ApiKeyOnly | sales.receipt.post |
 | GET | `/api/v1/system/info` | ApiKeyOnly | sys.system_info.read |
 | GET | `/api/v1/tax-invoices` | ApiKeyOnly | sales.tax_invoice.read |
 | POST | `/api/v1/tax-invoices` | ApiKeyOnly | sales.tax_invoice.create |
 | GET | `/api/v1/tax-invoices/{id:long}` | ApiKeyOnly | sales.tax_invoice.read |
+| GET | `/api/v1/tax-invoices/{id:long}/pdf` | ApiKeyOnly | sales.tax_invoice.read |
 | POST | `/api/v1/tax-invoices/{id:long}/post` | ApiKeyOnly | sales.tax_invoice.post |
 | GET | `/attachments/` | Perm | sys.attachment.read |
 | POST | `/attachments/` | Perm | sys.attachment.upload |
@@ -200,6 +207,7 @@
 | GET | `/reports/number-gaps` | Perm | report.audit.read |
 | GET | `/reports/output-vat-register` | Perm | tax.vat_register.read |
 | GET | `/reports/outstanding-po` | Perm | purchase.purchase_order.read |
+| GET | `/reports/pending-agent-approvals` | Perm | sales.tax_invoice.read |
 | GET | `/reports/pnd30` | Perm | tax.pnd30.read |
 | GET | `/reports/profit-loss` | Perm | report.profit_loss.read |
 | GET | `/reports/sales-summary` | Perm | report.profit_loss.read |
