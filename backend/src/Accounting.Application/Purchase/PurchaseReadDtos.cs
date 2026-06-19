@@ -46,7 +46,9 @@ public sealed record PaymentVoucherDetail(
     string? BusinessUnitCode = null,
     string? BusinessUnitName = null,
     // 2026-06-12 (wht-grossup spec) — DEDUCT | GROSS_UP_FOREVER | GROSS_UP_ONCE.
-    string WhtPayerMode = "DEDUCT");
+    string WhtPayerMode = "DEDUCT",
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string? CreatedViaApiKey = null);
 
 public sealed record WhtCertificateListItem(
     long WhtCertificateId, string DocNo, DateOnly CertDate, long? PaymentVoucherId,

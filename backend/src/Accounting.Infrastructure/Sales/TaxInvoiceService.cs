@@ -165,13 +165,14 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                 && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
-        // cont.69 — snapshot ProductType from the product when a line references a
-        // productId but the caller didn't supply the type. The WHT service/goods split
-        // (SuggestWhtBaseAsync) reads line.ProductType; without this a product-linked
-        // service line silently defaulted to "GOOD" → ServiceSubtotal 0.
+        // cont.69 / B2 (2026-06-19) — ProductType is master data for any product-linked line:
+        // ALWAYS resolve it from the Product master and OVERRIDE caller input. A caller (MCP agent)
+        // sending a wrong type (e.g. Service→"GOOD") must not corrupt the goods/service split that
+        // the WHT base + ภ.พ.30 reporting depend on. Free-text lines (no ProductId) keep the
+        // caller-supplied type. The WHT service/goods split (SuggestWhtBaseAsync) reads line.ProductType.
         var srcLines = req.Lines;
         var needType = req.Lines
-            .Where(l => l.ProductId is not null && string.IsNullOrEmpty(l.ProductType))
+            .Where(l => l.ProductId is not null)
             .Select(l => l.ProductId!.Value).Distinct().ToList();
         if (needType.Count > 0)
         {
@@ -189,9 +190,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                 _                                       => "GOOD",
             });
             srcLines = req.Lines.Select(l =>
-                l.ProductId is { } pid && string.IsNullOrEmpty(l.ProductType)
-                    && ptypes.TryGetValue(pid, out var pt)
-                    ? l with { ProductType = pt }
+                l.ProductId is { } pid && ptypes.TryGetValue(pid, out var pt)
+                    ? l with { ProductType = pt }   // master overrides caller input (authoritative)
                     : l).ToList();
         }
 
@@ -293,14 +293,21 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             .FirstOrDefaultAsync(t => t.TaxInvoiceId == taxInvoiceId, ct)
             ?? throw new DomainException("ti.not_found", $"Tax Invoice {taxInvoiceId} not found.");
 
-        await _period.EnsureOpenAsync(ti.DocDate, ct);
+        // §4.3 / ม.78 / ม.86/4(7) — the tax-point (issue) date is the POST date, not the
+        // stale draft-creation date. Re-pin to server today in Asia/Bangkok so a draft created
+        // last month and posted today gets THIS month's period bucket + sequential number +
+        // tax point. Same-day flow = no-op. (DocDate == TaxPointDate keeps MarkPosted's guard.)
+        var postDate = _clock.TodayInBangkok();
+        ti.DocDate      = postDate;
+        ti.TaxPointDate = postDate;
+        await _period.EnsureOpenAsync(postDate, ct);
 
         var buCode = ti.BusinessUnitId is { } bid
             ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == bid)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
         var docNo = await _numbers.NextAsync(
-            ti.CompanyId, ti.BranchId, TiPrefix, subPrefix: buCode, ti.DocDate, ct);
+            ti.CompanyId, ti.BranchId, TiPrefix, subPrefix: buCode, postDate, ct);
 
         // Sprint 10 A3 — snapshot Product.ProductCode onto each linked line so a
         // POSTED TI stays immutable even if the Product master is later edited /
@@ -317,6 +324,14 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                 if (codes.TryGetValue(l.ProductId!.Value, out var pc))
                     l.ProductCode = pc;
         }
+
+        // Flush ALL pending line writes (the product_code snapshot above, plus the re-pinned header
+        // dates) while the TI is still DRAFT, BEFORE MarkPosted — so the *_lines posted-immutability
+        // trigger (SqlScripts/580_posted_lines_immutability.sql) never blocks a legitimate post-time
+        // line write. Unconditional (not just when product lines exist): a no-op when nothing changed,
+        // but it guarantees any future post-time line mutation also lands while still DRAFT. All later
+        // mutations to a POSTED line are out-of-band → blocked.
+        await _db.SaveChangesAsync(ct);
 
         var now = _clock.UtcNow;
         ti.MarkPosted(docNo, _tenant.UserId ?? 0, now);

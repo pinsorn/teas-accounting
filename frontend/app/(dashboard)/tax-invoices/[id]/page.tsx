@@ -8,6 +8,7 @@ import { FileCode, Send, ReceiptText } from 'lucide-react';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { PermissionGate, useHasScope } from '@/components/PermissionGate';
 import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
@@ -85,6 +86,11 @@ export default function TaxInvoiceDetailPage() {
           </>
         }
       />
+
+      {/* B3 — agent-draft badge on normal navigation (independent of ?action=approve). */}
+      {d.status === 'Draft' && d.createdViaApiKey && (
+        <div className="mb-4"><AgentPendingBadge /></div>
+      )}
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Pencil, Trash2 } from 'lucide-react';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
@@ -87,6 +88,11 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
         title={`${t('listTitle')} ${d.docNo ?? `#${d.quotationId}`}`}
         actions={<PrintMenu docType="quotations" id={qid} />}
       />
+
+      {/* B3 — agent-draft badge on normal navigation (independent of ?action=approve). */}
+      {d.status === 'Draft' && d.createdViaApiKey && (
+        <div className="mb-4"><AgentPendingBadge /></div>
+      )}
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (

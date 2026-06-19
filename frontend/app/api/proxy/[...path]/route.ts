@@ -29,13 +29,22 @@ async function forward(req: NextRequest, pathParts: string[]) {
   headers.set('accept', req.headers.get('accept') ?? 'application/json');
 
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
-  const upstream = await fetch(target, {
-    method: req.method,
-    headers,
-    body: hasBody ? await req.arrayBuffer() : undefined,
-    cache: 'no-store',
-    redirect: 'manual',
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: req.method,
+      headers,
+      body: hasBody ? await req.arrayBuffer() : undefined,
+      cache: 'no-store',
+      redirect: 'manual',
+    });
+  } catch (e) {
+    console.error('[/api/proxy] upstream fetch failed:', e);
+    return NextResponse.json(
+      { title: 'gateway.error', detail: 'Connection to backend failed.' },
+      { status: 502 },
+    );
+  }
 
   // Pass through status + content-type + body (works for JSON and binary downloads).
   const respHeaders = new Headers();

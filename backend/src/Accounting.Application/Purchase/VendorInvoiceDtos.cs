@@ -92,7 +92,9 @@ public sealed record VendorInvoiceDetail(
     CompletenessView Completeness,   // cont.76 — advisory completeness (POSTED only)
     int? BusinessUnitId = null,      // cont.79 — BU GL dimension
     string? BusinessUnitCode = null,
-    string? BusinessUnitName = null);
+    string? BusinessUnitName = null,
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string? CreatedViaApiKey = null);
 
 public interface IVendorInvoiceService
 {

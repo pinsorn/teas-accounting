@@ -295,7 +295,14 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 .FirstOrDefaultAsync(p => p.PaymentVoucherId == paymentVoucherId, ct)
             ?? throw new DomainException("pv.not_found", $"PV {paymentVoucherId} not found.");
 
-        await _period.EnsureOpenAsync(pv.DocDate, ct);
+        // §4.3 / ม.78 — re-pin the doc / posting date to server today in Asia/Bangkok at POST,
+        // not the stale draft-creation date, so a draft created last month and posted today gets
+        // THIS month's period bucket + PV/WT sequence numbers. The 50 ทวิ CertDate reads
+        // pv.DocDate (below) so it follows the post date too. Same-day flow = no-op.
+        var postDate = _clock.TodayInBangkok();
+        pv.DocDate     = postDate;
+        pv.PostingDate = postDate;
+        await _period.EnsureOpenAsync(postDate, ct);
 
         // cont.79 — embed the BU code into the doc-number sub-prefix at POST:
         // MM-YYYY-PV-{BU}-{CATEGORY}-NNNN. No BU → unchanged (…-PV-{CATEGORY}-…).
@@ -305,7 +312,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             : null;
         var subPrefix = buCode is null ? pv.SubPrefix : $"{buCode}-{pv.SubPrefix}";
         var pvNo = await _numbers.NextAsync(
-            pv.CompanyId, pv.BranchId, PvPrefix, subPrefix, pv.DocDate, ct);
+            pv.CompanyId, pv.BranchId, PvPrefix, subPrefix, postDate, ct);
 
         var now = _clock.UtcNow;
         pv.MarkPosted(pvNo, _tenant.UserId ?? 0, now);
@@ -343,7 +350,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                     WhtPayerModes.Compute(l.Amount, l.WhtRate, pv.WhtPayerMode).CertIncome);
                 var groupWht    = grp.Sum(l => l.WhtAmount);
                 var grpNo = (await _numbers.NextAsync(
-                    pv.CompanyId, pv.BranchId, WtPrefix, subPrefix: null, pv.DocDate, ct)).Value;
+                    pv.CompanyId, pv.BranchId, WtPrefix, subPrefix: null, postDate, ct)).Value;
 
                 var cert = new WhtCertificate
                 {

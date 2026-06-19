@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { FilePlus2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { PermissionGate, useHasScope } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
@@ -108,6 +109,10 @@ export default function PaymentVoucherDetailPage() {
           </div>
         }
       />
+      {/* B3 — agent-draft badge on normal navigation (independent of ?action=approve). */}
+      {d.status === 'Draft' && d.createdViaApiKey && (
+        <div className="mb-4"><AgentPendingBadge /></div>
+      )}
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (
         <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">

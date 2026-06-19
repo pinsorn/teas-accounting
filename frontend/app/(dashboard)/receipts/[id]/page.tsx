@@ -16,9 +16,11 @@ import { formatTHB, formatTaxId } from '@/lib/utils';
 import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useHasScope } from '@/components/PermissionGate';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 
 export default function ReceiptDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
+  const tr = useTranslations('rc');
   const tc = useTranslations('common');
   const tw = useTranslations('rc.wht');
   const ta = useTranslations('approve');
@@ -33,6 +35,18 @@ export default function ReceiptDetailPage() {
     if (action === 'approve') setIsApproveAction(true);
   }, []);
 
+  // Shared post handler — reused by the ?action=approve banner CTA and the normal
+  // DocActionBar Post CTA (B8: a human-saved Draft must be postable without the
+  // agent-approval deep-link).
+  async function doPost() {
+    try {
+      await post.mutateAsync(id);
+      toast.success(tc('posted'));
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
+
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
   if (isError || !d) return <p className="text-error">{tc('error')}</p>;
 
@@ -40,7 +54,7 @@ export default function ReceiptDetailPage() {
 
   const extraMeta = (
     <>
-      <dt>วิธีชำระ</dt>
+      <dt>{tr('method')}</dt>
       <dd>{d.paymentMethod}{d.chequeNo ? ` (${d.chequeNo})` : ''}</dd>
       {d.whtAmount > 0 && (
         <>
@@ -56,10 +70,15 @@ export default function ReceiptDetailPage() {
   return (
     <>
       <PageHeader
-        title="ใบเสร็จรับเงิน"
+        title={tr('title')}
         subtitle={d.docNo ?? undefined}
         actions={<PrintMenu docType="receipts" id={id} fiscal />}
       />
+
+      {/* B3 — agent-draft badge on normal navigation (independent of ?action=approve). */}
+      {d.status === 'Draft' && d.createdViaApiKey && (
+        <div className="mb-4"><AgentPendingBadge /></div>
+      )}
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (
@@ -72,14 +91,7 @@ export default function ReceiptDetailPage() {
                 data-testid="rc-approve-cta"
                 className="btn btn-warning btn-sm"
                 disabled={post.isPending}
-                onClick={async () => {
-                  try {
-                    await post.mutateAsync(id);
-                    toast.success(tc('posted'));
-                  } catch (e) {
-                    toast.error((e as { detail?: string })?.detail ?? tc('error'));
-                  }
-                }}
+                onClick={doPost}
               >
                 {ta('cta')}
               </button>
@@ -95,7 +107,24 @@ export default function ReceiptDetailPage() {
         </div>
       )}
 
-      <DocActionBar status={d.status} docNo={d.docNo ?? `#${d.receiptId}`} />
+      <DocActionBar
+        status={d.status}
+        docNo={d.docNo ?? `#${d.receiptId}`}
+        actions={
+          // B8 — a human-saved Draft receipt must be postable via normal
+          // navigation, not only the agent ?action=approve deep-link.
+          d.status === 'Draft' && hasScope('sales.receipt.post') ? (
+            <button
+              data-testid="rc-post-action"
+              className="btn btn-primary btn-sm"
+              disabled={post.isPending}
+              onClick={doPost}
+            >
+              {tr('post')}
+            </button>
+          ) : undefined
+        }
+      />
 
       <div className="detail-grid">
         <div className="paper-wrap">
@@ -121,7 +150,7 @@ export default function ReceiptDetailPage() {
                   amount: l.lineAmount,
                 }))
               : d.appliedTo.map((a) => ({
-                  description: `ใบกำกับภาษี ${a.tiDocNo ?? `#${a.taxInvoiceId}`}`,
+                  description: tr('appliedTiRef', { ref: a.tiDocNo ?? `#${a.taxInvoiceId}` }),
                   descriptionSub: a.businessUnitCode ?? undefined,
                   amount: a.appliedAmount,
                 })))}

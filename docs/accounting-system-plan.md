@@ -361,11 +361,18 @@ Summary all read one `Pnd30Filing`).
 
 Stated plainly so the as-built claim holds. The following are **not** implemented:
 
-- **Live e-Tax / RD e-filing.** Only Phase-1 scaffolding exists: an `ETaxSubmissionPipeline`,
-  `ETaxXmlBuilder`, `ETaxSigner` (XAdES helpers), `ETaxEmailSender`, retry worker, and a
-  `MockRdEfilingClient`. There is **no live submission** to the RD, **no real signing certificate
-  wired**, and **no auto-submit cron**. (`RdHttpEfilingClient` exists but is not the active path.)
-  Reference: `docs/etax-xades-spec.md`, `docs/etax-environment-tiers.md`.
+- **Live e-Tax / RD e-filing (default-inert; wireable by config).** Phase-1 scaffolding exists: an
+  `ETaxSubmissionPipeline`, `ETaxXmlBuilder`, `ETaxSigner` (XAdES helpers), `ETaxEmailSender`, retry
+  worker, and a `MockRdEfilingClient`. By **default** there is no live submission to the RD and no
+  auto-submit cron: the signer is inert (`ETaxBehaviorOptions.Enabled = false` — never signs/sends at
+  runtime) with **no real signing certificate wired**, and the RD client is the `MockRdEfilingClient`
+  (synthetic ACK). However, this is a **config toggle, not a hard wall**: `AddInfrastructure`
+  (`DependencyInjection.cs:131-134`) registers `RdHttpEfilingClient` as the active `IRdEfilingClient`
+  whenever `RdApi:Provider != "Mock"` — at which point the client makes **real outbound HTTP calls** to
+  the configured `RdApi:BaseUrl`. The Phase-1 default keeps `Provider = "Mock"` (inert); flipping it to
+  a real provider + wiring a cert (`ETax:Signing:PfxPath/PfxPassword`) + `ETax:Enabled = true` enables a
+  live path. See the tier matrix in `docs/etax-environment-tiers.md` (Tier 1 mock → Tier 2 UAT → Tier 3
+  prod, config-only). Reference: `docs/etax-xades-spec.md`, `docs/etax-environment-tiers.md`.
 - **Automatic ภ.พ.30 submission.** `auto` mode is inert (§3.5) — print-and-file only.
 - **Simplified Tax Invoice (ม.86/6).** Intentionally not supported — full ม.86/4 only.
 - **Inventory / stock management.** No FIFO/perpetual stock, warehouses, or stock balances. (LIFO

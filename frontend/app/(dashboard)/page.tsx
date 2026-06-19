@@ -65,8 +65,23 @@ export default function DashboardPage() {
     alerts.push({ key: 'vi', tone: 'warning', icon: FileInput, text: t('alerts.incompletePurchase', { n: incompleteVi }), href: '/vendor-invoices', cta: t('alerts.complete') });
   if (pnd30Due)
     alerts.push({ key: 'pnd30', tone: 'info', icon: Receipt, text: t('alerts.pnd30Due', { day: 15, month: monthFull(locale, (monthNo % 12) + 1) }), href: '/reports/pnd30', cta: t('alerts.prepare') });
-  if ((agentApprovals?.count ?? 0) > 0)
-    alerts.push({ key: 'agent', tone: 'info', icon: Bot, text: t('alerts.agentApprovals', { n: agentApprovals!.count }), href: '/tax-invoices', cta: t('alerts.review') });
+  // Agent-created drafts pending human approval — one alert per doc type, each
+  // linking to its OWN list (the DTO breaks the count out by type; a single
+  // /tax-invoices link sent receipt/quotation drafts to the wrong list).
+  if (agentApprovals) {
+    const agentTypes: { key: string; n: number; href: string; type: string }[] = [
+      { key: 'agentTi', n: agentApprovals.taxInvoices, href: '/tax-invoices', type: t('alerts.agentType.taxInvoice') },
+      { key: 'agentQt', n: agentApprovals.quotations, href: '/quotations', type: t('alerts.agentType.quotation') },
+      { key: 'agentRc', n: agentApprovals.receipts, href: '/receipts', type: t('alerts.agentType.receipt') },
+      { key: 'agentPo', n: agentApprovals.purchaseOrders, href: '/purchase-orders', type: t('alerts.agentType.purchaseOrder') },
+      { key: 'agentVi', n: agentApprovals.vendorInvoices, href: '/vendor-invoices', type: t('alerts.agentType.vendorInvoice') },
+      { key: 'agentPv', n: agentApprovals.paymentVouchers, href: '/payment-vouchers', type: t('alerts.agentType.paymentVoucher') },
+    ];
+    for (const a of agentTypes) {
+      if (a.n > 0)
+        alerts.push({ key: a.key, tone: 'info', icon: Bot, text: t('alerts.agentApprovalsTyped', { n: a.n, type: a.type }), href: a.href, cta: t('alerts.review') });
+    }
+  }
 
   return (
     <div className="space-y-6">

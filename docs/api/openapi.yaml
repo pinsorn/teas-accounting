@@ -13,9 +13,11 @@ info:
     email: api-support@example.com
 
 servers:
-  - url: https://api.accounting.example.com/v1
+  # Host root only — paths carry their own prefix. BFF/JWT routes are bare
+  # (e.g. /quotations); the external API key surface is under /api/v1/*; MCP at /mcp.
+  - url: https://api.accounting.example.com
     description: Production
-  - url: https://api-staging.accounting.example.com/v1
+  - url: https://api-staging.accounting.example.com
     description: Staging
 
 security:
@@ -109,7 +111,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Quotation'
 
-  /quotations/{id}/submit:
+  /quotations/{id}/send:
     parameters:
       - $ref: '#/components/parameters/DocId'
     post:
@@ -150,20 +152,6 @@ paths:
         '200':
           description: OK
 
-  /quotations/{id}/revise:
-    parameters:
-      - $ref: '#/components/parameters/DocId'
-    post:
-      summary: สร้างเวอร์ชันใหม่ (v2) ของใบเสนอราคา
-      tags: [Quotations]
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Quotation'
-
   /quotations/{id}/pdf:
     parameters:
       - $ref: '#/components/parameters/DocId'
@@ -199,21 +187,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/SalesOrder'
 
-  /sales-orders/{id}/confirm:
+  /sales-orders/{id}/post:
     parameters:
       - $ref: '#/components/parameters/DocId'
     post:
-      summary: ยืนยัน Sales Order
-      tags: [Sales Orders]
-      responses:
-        '200':
-          description: OK
-
-  /sales-orders/{id}/cancel:
-    parameters:
-      - $ref: '#/components/parameters/DocId'
-    post:
-      summary: ยกเลิก Sales Order
+      summary: ยืนยัน/Post Sales Order (was confirm; now post)
       tags: [Sales Orders]
       responses:
         '200':
@@ -252,11 +230,21 @@ paths:
         '201':
           description: Created
 
-  /delivery-orders/{id}/post:
+  /delivery-orders/{id}/issue:
     parameters:
       - $ref: '#/components/parameters/DocId'
     post:
-      summary: Post DO (mark shipped, no stock impact)
+      summary: Issue DO (Draft → Issued; 4-state machine, no stock impact)
+      tags: [Delivery Orders]
+      responses:
+        '200':
+          description: OK
+
+  /delivery-orders/{id}/mark-delivered:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: Mark DO delivered (Issued → Delivered)
       tags: [Delivery Orders]
       responses:
         '200':
@@ -640,8 +628,19 @@ paths:
       tags: [Billing Notes]
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        description: 'Cancellation reason (SalesChainEndpoints.ReasonBody — the endpoint deserializes a body).'
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
       responses:
         '200': { description: Cancelled }
+        '400': { $ref: '#/components/responses/BadRequest' }
 
   /billing-notes/{id}/mark-settled:
     post:
@@ -2402,6 +2401,21 @@ paths:
 # Error responses use the standard envelope (Sprint 14 P5; v1 only — root keeps RFC 7807).
 # ============================================================
   /api/v1/tax-invoices:
+    get:
+      summary: '[v1] List tax invoices (cursor-paginated; scope sales.tax_invoice.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: dateFrom, in: query, schema: { type: string, format: date } }
+        - { name: dateTo, in: query, schema: { type: string, format: date } }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: businessUnitId, in: query, schema: { type: integer } }
+        - { name: cursor, in: query, schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+      responses:
+        '200': { description: OK }
+        '401': { $ref: '#/components/responses/ErrorEnvelope401' }
     post:
       summary: '[v1] Create Tax Invoice (microservice integration)'
       tags: [External API v1]
@@ -2460,6 +2474,15 @@ paths:
         - $ref: '#/components/parameters/IdempotencyKey'
 
   /api/v1/receipts:
+    get:
+      summary: '[v1] List receipts (cursor-paginated; scope sales.receipt.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: cursor, in: query, schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+      responses:
+        '200': { description: OK }
     post:
       summary: '[v1] Create Receipt'
       tags: [External API v1]
@@ -2467,7 +2490,36 @@ paths:
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
 
+  /api/v1/receipts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: '[v1] Get Receipt (scope sales.receipt.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/receipts/{id}/post:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: '[v1] Post Receipt (scope sales.receipt.post)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+
   /api/v1/quotations:
+    get:
+      summary: '[v1] List quotations (scope sales.quotation.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK }
     post:
       summary: '[v1] Create Quotation'
       tags: [External API v1]
@@ -2475,23 +2527,154 @@ paths:
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
 
-  /api/v1/customers:
+  /api/v1/quotations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
     get:
-      summary: '[v1] List/search customers (microservice maps external email/code → TEAS customer_id)'
+      summary: '[v1] Get Quotation (scope sales.quotation.read)'
       tags: [External API v1]
       security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/quotations/{id}/send:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
     post:
-      summary: '[v1] Create customer'
+      summary: '[v1] Send Quotation (Draft → Sent; scope sales.quotation.send)'
       tags: [External API v1]
       security: [{ ApiKeyAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
 
-  /api/v1/products:
+  /api/v1/customers:
     get:
-      summary: '[v1] List products (microservice maps SKU → TEAS product_id)'
+      summary: '[v1] List/search customers (microservice maps external email/code → TEAS customer_id; scope master.customer.read)'
       tags: [External API v1]
       security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        '200': { description: OK }
+    post:
+      summary: '[v1] Create customer (scope master.customer.manage)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+
+  /api/v1/customers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: '[v1] Get customer (scope master.customer.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/products:
+    get:
+      summary: '[v1] List products (microservice maps SKU → TEAS product_id; scope master.product.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: includeInactive, in: query, schema: { type: boolean } }
+        - { name: purpose, in: query, schema: { type: string } }
+        - { name: businessUnitId, in: query, schema: { type: integer } }
+        - { name: productType, in: query, schema: { type: string } }
+        - { name: isActive, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: '[v1] Get product (scope master.product.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── /api/v1 PDF download routes (api-key-gated; posted/non-draft only — Draft → 404) ──
+  # Real form is /api/v1/{doc}/{id}/pdf (ApiV1Endpoints.cs:165–222). Each gated by the
+  # same *.read scope as its get-detail route (DO uses sales.delivery_order.manage).
+  /api/v1/tax-invoices/{id}/pdf:
+    parameters: [ { $ref: '#/components/parameters/DocId' } ]
+    get:
+      summary: '[v1] Download posted tax-invoice PDF (scope sales.tax_invoice.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: PDF stream, content: { application/pdf: {} } }
+        '404': { description: 'Not found or still Draft' }
+
+  /api/v1/receipts/{id}/pdf:
+    parameters: [ { $ref: '#/components/parameters/DocId' } ]
+    get:
+      summary: '[v1] Download posted receipt PDF (scope sales.receipt.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: PDF stream, content: { application/pdf: {} } }
+        '404': { description: 'Not found or still Draft' }
+
+  /api/v1/quotations/{id}/pdf:
+    parameters: [ { $ref: '#/components/parameters/DocId' } ]
+    get:
+      summary: '[v1] Download sent/accepted quotation PDF (scope sales.quotation.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: PDF stream, content: { application/pdf: {} } }
+        '404': { description: 'Not found or still Draft' }
+
+  /api/v1/billing-notes/{id}/pdf:
+    parameters: [ { $ref: '#/components/parameters/DocId' } ]
+    get:
+      summary: '[v1] Download issued billing-note PDF (scope sales.billing_note.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: PDF stream, content: { application/pdf: {} } }
+        '404': { description: 'Not found or still Draft' }
+
+  /api/v1/delivery-orders/{id}/pdf:
+    parameters: [ { $ref: '#/components/parameters/DocId' } ]
+    get:
+      summary: '[v1] Download issued delivery-order PDF (scope sales.delivery_order.manage)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: PDF stream, content: { application/pdf: {} } }
+        '404': { description: 'Not found or still Draft' }
+
+  /api/v1/purchase-orders/{id}/pdf:
+    parameters: [ { $ref: '#/components/parameters/DocId' } ]
+    get:
+      summary: '[v1] Download approved purchase-order PDF (scope purchase.purchase_order.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: PDF stream, content: { application/pdf: {} } }
+        '404': { description: 'Not found or still Draft' }
+
+  /api/v1/payment-vouchers/{id}/pdf:
+    parameters: [ { $ref: '#/components/parameters/DocId' } ]
+    get:
+      summary: '[v1] Download posted payment-voucher PDF (scope purchase.payment_voucher.read)'
+      tags: [External API v1]
+      security: [{ ApiKeyAuth: [] }]
+      responses:
+        '200': { description: PDF stream, content: { application/pdf: {} } }
+        '404': { description: 'Not found or still Draft' }
 
   /api/v1/system/info:
     get:
@@ -2532,6 +2715,44 @@ paths:
         Auth: `X-Api-Key` header required (ApiKeyOnlyPolicy); JWT is rejected on this path.
         Rate-limit: per-key sliding window 120 req/min (same policy as /api/v1/*).
         Recommended key kind: `mcp` (read + create-draft scopes; cannot invoke post/finalise operations).
+
+        **Tool surface (TeasMcpTools.cs).** Each tool carries `[Authorize(Policy = "apiperm:<scope>")]`
+        and is a thin wrapper over the same Application services as /api/v1. WRITE SAFETY: only
+        read + create-draft tools exist — no post/issue/send tool — and `mcp`-kind keys structurally
+        hold no `.post` scope (M1 guard), so an agent can only DRAFT; a human posts under their own session.
+
+        | Tool | Scope |
+        |---|---|
+        | list_tax_invoices / get_tax_invoice | sales.tax_invoice.read |
+        | create_tax_invoice_draft | sales.tax_invoice.create |
+        | list_receipts / get_receipt | sales.receipt.read |
+        | create_receipt_draft | sales.receipt.create |
+        | list_quotations / get_quotation | sales.quotation.read |
+        | create_quotation_draft | sales.quotation.create |
+        | list_customers / get_customer | master.customer.read |
+        | create_customer | master.customer.manage |
+        | list_products / get_product | master.product.read |
+        | create_product | master.product.manage |
+        | list_purchase_orders / get_purchase_order | purchase.purchase_order.read |
+        | create_purchase_order_draft | purchase.purchase_order.create |
+        | list_vendor_invoices / get_vendor_invoice | purchase.vendor_invoice.read |
+        | create_vendor_invoice_draft | purchase.vendor_invoice.create |
+        | list_payment_vouchers / get_payment_voucher | purchase.payment_voucher.read |
+        | create_payment_voucher_draft | purchase.payment_voucher.create |
+        | list_vendors / get_vendor / create_vendor | master.vendor.manage |
+        | get_tax_invoice_pdf_url | sales.tax_invoice.read |
+        | get_receipt_pdf_url | sales.receipt.read |
+        | get_quotation_pdf_url | sales.quotation.read |
+        | get_invoice_pdf_url | sales.billing_note.read |
+        | get_delivery_order_pdf_url | sales.delivery_order.manage |
+        | get_purchase_order_pdf_url | purchase.purchase_order.read |
+        | get_payment_voucher_pdf_url | purchase.payment_voucher.read |
+        | list_pending_approvals | sales.tax_invoice.read |
+        | get_document_status | sales.tax_invoice.read |
+
+        Create-draft tools return `{ id, approvalUrl }`; master-data create tools return `{ id, code, nameTh }`;
+        pdf-url tools return `{ id, url }` (Draft → mcp.pdf_not_posted error). The PDF URL points at the
+        `/api/v1/{doc}/{id}/pdf` routes above (fetch with `X-Api-Key`).
       requestBody:
         required: true
         content:
@@ -3773,6 +3994,8 @@ tags:
     description: 'Admin (BFF/JWT, perm: sys.api_key.manage) — manage X-Api-Key credentials for microservice integration (Sprint 14 P2).'
   - name: External API v1
     description: '/api/v1/* — service-to-service integration (X-Api-Key auth ONLY; JWT rejected). Idempotency-Key REQUIRED on mutations. Error responses use standard envelope per plan §20.7 (Sprint 14 P3-P8).'
+  - name: MCP
+    description: 'Model Context Protocol surface (/mcp) — read + create-draft tools for AI agents; mcp-kind API keys only.'
   - name: Reports
   - name: Tax Filings
   - name: System

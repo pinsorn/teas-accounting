@@ -1,6 +1,8 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
+using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
@@ -223,4 +225,62 @@ public sealed class M4aDraftCreatedViaApiKeyTests
         rcCount.Should().BeGreaterThanOrEqualTo(0);
         total.Should().Be(tiCount + qCount + rcCount);
     }
+
+    // ── 7. PurchaseOrderDetail DTO exposes createdViaApiKey (agent-drafted badge) ──
+    // Mirrors the sales detail projection: the entity's CreatedViaApiKeyName flows onto
+    // PurchaseOrderDetail.CreatedViaApiKey — non-null for an API-key (agent) create, null for human.
+    [SkippableFact]
+    public async Task PurchaseOrder_detail_exposes_createdViaApiKey()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true, vatRate: 0.07m);
+        const string keyName = "mcp-agent-test-key-po";
+
+        // (a) API-key (agent) PO draft → detail.CreatedViaApiKey == keyName.
+        await using var agentSp = ApiKeyProvider(c.CompanyId, c.BranchId, keyName);
+        long agentPoId;
+        await using (var scope = agentSp.CreateAsyncScope())
+        {
+            var vid = await NewVendor(scope.ServiceProvider, c.CompanyId);
+            var svc = scope.ServiceProvider.GetRequiredService<IPurchaseOrderService>();
+            agentPoId = await svc.CreateDraftAsync(PoReq(vid), default);
+
+            var detail = await svc.GetDetailAsync(agentPoId, default);
+            detail.Should().NotBeNull();
+            detail!.CreatedViaApiKey.Should().Be(keyName);
+        }
+
+        // (b) human (JWT) PO draft → detail.CreatedViaApiKey is null.
+        await using var humanSp = HumanProvider(c.CompanyId, c.BranchId);
+        await using (var scope = humanSp.CreateAsyncScope())
+        {
+            var vid = await NewVendor(scope.ServiceProvider, c.CompanyId);
+            var svc = scope.ServiceProvider.GetRequiredService<IPurchaseOrderService>();
+            var humanPoId = await svc.CreateDraftAsync(PoReq(vid), default);
+
+            var detail = await svc.GetDetailAsync(humanPoId, default);
+            detail.Should().NotBeNull();
+            detail!.CreatedViaApiKey.Should().BeNull();
+        }
+    }
+
+    private static async Task<long> NewVendor(IServiceProvider sp, int companyId)
+    {
+        var db = sp.GetRequiredService<AccountingDbContext>();
+        var v = new Vendor
+        {
+            CompanyId = companyId,
+            VendorCode = "V-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
+            NameTh = "ผู้ขายทดสอบ M4a",
+            VendorType = CustomerType.Corporate,
+            IsForeign = false,
+        };
+        db.Vendors.Add(v);
+        await db.SaveChangesAsync(default);
+        return v.VendorId;
+    }
+
+    private static CreatePurchaseOrderRequest PoReq(long vendorId) =>
+        new(DateOnly.FromDateTime(DateTime.UtcNow), null, vendorId, null, "THB", 1m, null, null,
+            [new PurchaseOrderLineInput(null, "สินค้าทดสอบ", 1m, "ชิ้น", 100m, 0m, null, "VAT7", 0.07m, null)]);
 }

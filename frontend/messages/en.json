@@ -441,7 +441,9 @@
       "certNoLabel": "50tawi cert no.",
       "certDateLabel": "50tawi date",
       "certSaveBtn": "Save certificate",
-      "certNote": "Attach scanned 50tawi under the Attachments section below"
+      "certNote": "Attach scanned 50tawi under the Attachments section below",
+      "certNoOptionalHint": "(can fill in later)",
+      "certNoPlaceholder": "Fill in later from the detail page"
     },
     "nonVat": {
       "modeLabel": "Receipt type",
@@ -461,7 +463,10 @@
     "qty": "Qty",
     "unitPrice": "Unit price",
     "lineAmount": "Amount",
-    "appliedAmount": "Applied amount"
+    "appliedAmount": "Applied amount",
+    "appliedTiRef": "Tax Invoice {ref}",
+    "invoiceRef": "Invoice #{ref}",
+    "taxInvoiceRef": "Tax Invoice #{ref}"
   },
   "whtType": {
     "title": "WHT Type",
@@ -1133,7 +1138,9 @@
     "close": "Close",
     "activityLog": "Activity log",
     "activityEmpty": "No activity yet",
-    "relatedDocs": "Related documents"
+    "relatedDocs": "Related documents",
+    "draftPreview": "(Draft)",
+    "selectCustomer": "Select a customer"
   },
   "toast": {
     "validationFailed": "Please complete all required fields",
@@ -1407,7 +1414,8 @@
     "ctaSend": "Approve & Send",
     "ctaApprove": "Approve",
     "noPermission": "You do not have permission to approve this document — contact your administrator.",
-    "alreadyPosted": "This document has already been posted."
+    "alreadyPosted": "This document has already been posted.",
+    "reviewHint": "This draft was created by {name} — please review before posting"
   },
   "status": {
     "Draft": "Draft",
@@ -1499,7 +1507,15 @@
       "review": "Review",
       "complete": "Complete",
       "prepare": "Prepare",
-      "agentApprovals": "{n} document(s) pending agent approval"
+      "agentApprovalsTyped": "{n} {type} pending agent approval",
+      "agentType": {
+        "taxInvoice": "tax invoice(s)",
+        "quotation": "quotation(s)",
+        "receipt": "receipt(s)",
+        "purchaseOrder": "purchase order(s)",
+        "vendorInvoice": "vendor invoice(s)",
+        "paymentVoucher": "payment voucher(s)"
+      }
     },
     "quick": {
       "title": "Quick actions",
@@ -1561,7 +1577,10 @@
       "taxRate": "Tax rate",
       "taxRateLocked": "Tax rate is locked to the selected product/service",
       "saveDraft": "Save draft",
-      "post": "Post"
+      "post": "Post",
+      "beforeVat": "Amount before VAT",
+      "vatLabel": "VAT 7%",
+      "grandTotal": "Grand total"
     }
   },
   "numberGaps": {

@@ -9,6 +9,8 @@ public class DocumentNumberTests
     [InlineData("05-2026-TI-0001",  2026, 5, "TI", null,   1)]
     [InlineData("12-2026-CN-0042",  2026, 12, "CN", null,  42)]
     [InlineData("05-2026-PV-RENT-0007", 2026, 5, "PV", "RENT", 7)]
+    // B1 (2026-06-19) — hyphen-joined sub-prefix (PV with BOTH business-unit AND category).
+    [InlineData("05-2026-PV-MKT-RENT-0001", 2026, 5, "PV", "MKT-RENT", 1)]
     public void Parses_valid_numbers(string input, int year, int month, string prefix, string? sub, int seq)
     {
         DocumentNumber.TryParse(input, out var doc).Should().BeTrue();

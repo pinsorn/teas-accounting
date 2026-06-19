@@ -441,7 +441,9 @@
       "certNoLabel": "เลขที่ใบ 50ทวิ",
       "certDateLabel": "วันที่ใบ 50ทวิ",
       "certSaveBtn": "บันทึกใบ 50ทวิ",
-      "certNote": "แนบไฟล์สแกนใบ 50ทวิ ได้ที่ส่วน “เอกสารแนบ” ด้านล่าง"
+      "certNote": "แนบไฟล์สแกนใบ 50ทวิ ได้ที่ส่วน “เอกสารแนบ” ด้านล่าง",
+      "certNoOptionalHint": "(ใส่ทีหลังได้)",
+      "certNoPlaceholder": "ระบุภายหลังจากหน้ารายละเอียด"
     },
     "nonVat": {
       "modeLabel": "ประเภทการรับเงิน",
@@ -461,7 +463,10 @@
     "qty": "จำนวน",
     "unitPrice": "ราคา/หน่วย",
     "lineAmount": "จำนวนเงิน",
-    "appliedAmount": "ยอดชำระ"
+    "appliedAmount": "ยอดชำระ",
+    "appliedTiRef": "ใบกำกับภาษี {ref}",
+    "invoiceRef": "ใบแจ้งหนี้ #{ref}",
+    "taxInvoiceRef": "ใบกำกับภาษี #{ref}"
   },
   "whtType": {
     "title": "ประเภทหัก ณ ที่จ่าย",
@@ -1133,7 +1138,9 @@
     "close": "ปิด",
     "activityLog": "ประวัติกิจกรรม",
     "activityEmpty": "ยังไม่มีประวัติกิจกรรม",
-    "relatedDocs": "เอกสารที่เกี่ยวข้อง"
+    "relatedDocs": "เอกสารที่เกี่ยวข้อง",
+    "draftPreview": "(ฉบับร่าง)",
+    "selectCustomer": "เลือกลูกค้า"
   },
   "toast": {
     "validationFailed": "กรุณากรอกข้อมูลให้ครบถ้วน",
@@ -1407,7 +1414,8 @@
     "ctaSend": "อนุมัติ & ส่ง",
     "ctaApprove": "อนุมัติ",
     "noPermission": "ไม่มีสิทธิ์อนุมัติเอกสารนี้ — กรุณาติดต่อผู้ดูแลระบบ",
-    "alreadyPosted": "เอกสารนี้ได้รับการ Post แล้ว"
+    "alreadyPosted": "เอกสารนี้ได้รับการ Post แล้ว",
+    "reviewHint": "ร่างนี้สร้างโดย {name} — กรุณาตรวจสอบก่อน Post"
   },
   "status": {
     "Draft": "ร่าง",
@@ -1499,7 +1507,15 @@
       "review": "ตรวจ",
       "complete": "เติมให้ครบ",
       "prepare": "เตรียมยื่น",
-      "agentApprovals": "{n} เอกสารรออนุมัติจาก agent"
+      "agentApprovalsTyped": "{n} {type}รออนุมัติจาก agent",
+      "agentType": {
+        "taxInvoice": "ใบกำกับภาษี",
+        "quotation": "ใบเสนอราคา",
+        "receipt": "ใบเสร็จรับเงิน",
+        "purchaseOrder": "ใบสั่งซื้อ",
+        "vendorInvoice": "บันทึกใบกำกับภาษีซื้อ",
+        "paymentVoucher": "ใบสำคัญจ่าย"
+      }
     },
     "quick": {
       "title": "ทางลัด",
@@ -1561,7 +1577,10 @@
       "taxRate": "อัตราภาษี",
       "taxRateLocked": "อัตราภาษีล็อกตามสินค้า/บริการที่เลือก",
       "saveDraft": "บันทึกร่าง",
-      "post": "บันทึกเอกสาร (Post)"
+      "post": "บันทึกเอกสาร (Post)",
+      "beforeVat": "มูลค่าก่อนภาษี",
+      "vatLabel": "ภาษีมูลค่าเพิ่ม 7%",
+      "grandTotal": "รวมทั้งสิ้น"
     }
   },
   "numberGaps": {

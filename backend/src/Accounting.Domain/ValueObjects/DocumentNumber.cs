@@ -8,8 +8,11 @@ namespace Accounting.Domain.ValueObjects;
 /// </summary>
 public readonly record struct DocumentNumber
 {
+    // The sub group accepts hyphen-joined, ALPHANUMERIC sub-prefixes: a BU code or expense-category
+    // code may contain digits (e.g. "BU01"), and PV is the only doc with BOTH a business-unit AND a
+    // category, emitting e.g. "05-2026-PV-BU01-RENT-0001" (sub = "BU01-RENT").
     private static readonly Regex Pattern =
-        new(@"^(?<month>0[1-9]|1[0-2])-(?<year>\d{4})-(?<prefix>[A-Z]{2,5})(?:-(?<sub>[A-Z]{2,10}))?-(?<seq>\d{4,6})$",
+        new(@"^(?<month>0[1-9]|1[0-2])-(?<year>\d{4})-(?<prefix>[A-Z]{2,5})(?:-(?<sub>[A-Z0-9]{1,10}(?:-[A-Z0-9]{1,10})*))?-(?<seq>\d{4,6})$",
             RegexOptions.Compiled);
 
     public string Value { get; }

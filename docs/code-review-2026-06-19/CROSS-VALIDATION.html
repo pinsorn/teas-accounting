@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEAS — Dual Code Review Cross-Validation (2026-06-19)</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#171c24; --panel2:#1d242e; --line:#2a323d;
+    --txt:#e6edf3; --mut:#9aa7b4; --acc:#5eb1ff;
+    --crit:#ff5c5c; --major:#ff9f43; --minor:#ffd24d; --ok:#3ddc91; --rej:#8b95a1;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:15px/1.6 -apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 22px 80px}
+  h1{font-size:26px;margin:0 0 4px;letter-spacing:-.3px}
+  .sub{color:var(--mut);font-size:14px;margin-bottom:24px}
+  h2{font-size:19px;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+  h2 .n{color:var(--acc)}
+  a{color:var(--acc)}
+  code{background:#0b0e12;border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;font:12.5px/1.4 "SF Mono",Consolas,monospace;color:#bcd}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:8px 0 4px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;text-align:center}
+  .stat b{display:block;font-size:30px;line-height:1.1}
+  .stat span{color:var(--mut);font-size:12.5px}
+  .c-crit b{color:var(--crit)} .c-major b{color:var(--major)} .c-minor b{color:var(--minor)}
+  .c-ok b{color:var(--ok)} .c-rej b{color:var(--rej)}
+  .card{background:var(--panel);border:1px solid var(--line);border-left-width:4px;
+    border-radius:9px;padding:13px 16px;margin:10px 0}
+  .card.crit{border-left-color:var(--crit)} .card.major{border-left-color:var(--major)}
+  .card.minor{border-left-color:var(--minor)} .card.ok{border-left-color:var(--ok)}
+  .card.rej{border-left-color:var(--rej)}
+  .head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+  .tag{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+    padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .t-crit{background:rgba(255,92,92,.16);color:var(--crit)}
+  .t-major{background:rgba(255,159,67,.16);color:var(--major)}
+  .t-minor{background:rgba(255,210,77,.15);color:var(--minor)}
+  .t-ok{background:rgba(61,220,145,.15);color:var(--ok)}
+  .t-rej{background:rgba(139,149,161,.18);color:var(--rej)}
+  .who{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
+  .title{font-weight:600}
+  .card p{margin:5px 0 0;color:var(--txt)}
+  .card .ev{color:var(--mut);font-size:13.5px;margin-top:6px}
+  .fix{color:var(--ok);font-size:13.5px;margin-top:6px}
+  ol.pri{counter-reset:p;list-style:none;padding:0;margin:6px 0}
+  ol.pri li{counter-increment:p;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:11px 14px 11px 50px;position:relative;margin:7px 0}
+  ol.pri li::before{content:counter(p);position:absolute;left:12px;top:11px;
+    width:25px;height:25px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+    color:var(--acc);font-weight:700;font-size:13px;display:grid;place-items:center}
+  .pill{font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;margin-right:6px}
+  .p-comp{background:rgba(94,177,255,.15);color:var(--acc)}
+  .p-sec{background:rgba(255,92,92,.15);color:var(--crit)}
+  .p-corr{background:rgba(61,220,145,.15);color:var(--ok)}
+  .p-ux{background:rgba(255,159,67,.15);color:var(--major)}
+  .p-spec{background:rgba(255,210,77,.14);color:var(--minor)}
+  .note{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    padding:13px 16px;color:var(--mut);font-size:13.5px;margin-top:14px}
+  .files code{display:inline-block;margin:2px 0}
+  table{width:100%;border-collapse:collapse;margin:6px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:6px 9px;text-align:left}
+  th{background:var(--panel2);color:var(--mut);font-weight:600}
+  td.n{text-align:center;font-variant-numeric:tabular-nums}
+  .foot{color:var(--mut);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>TEAS — Dual Code Review × Cross-Validation</h1>
+  <div class="sub">2026-06-19 · Claude (3 subagents) + AGY/Gemini, rubric ร่วม 4 มิติ · ตัดสินข้อขัดแย้งด้วยไฟล์จริง (BE 6 + FE 4) · review-only, ยังไม่แตะ source</div>
+
+  <div class="grid">
+    <div class="stat c-crit"><b>0</b><span>Critical (หลัง adjudicate)</span></div>
+    <div class="stat c-major"><b>8</b><span>Major</span></div>
+    <div class="stat c-minor"><b>7+</b><span>Minor</span></div>
+    <div class="stat c-rej"><b>1</b><span>Rejected (false +)</span></div>
+    <div class="stat c-ok"><b>2</b><span>Downgraded</span></div>
+  </div>
+  <div class="note">2 Critical ที่ลิสต์ตอนแรก (DocumentNumber regex, FE approve-bypass) ถูก <b>ปรับลง</b>หลังตรวจ source — ไม่มี Critical หลงเหลือ; แต่กลุ่ม Major ด้าน compliance/security ของจริงและควรแก้ก่อน production.</div>
+
+  <h2><span class="n">D.</span> Consolidated fix list — เรียงตาม priority</h2>
+  <ol class="pri">
+    <li><span class="pill p-comp">COMPLIANCE</span><span class="pill p-sec">MAJOR</span> <b>Stale doc-date ตอน POST (TI+PV)</b> — re-pin <code>DocDate</code>/<code>TaxPointDate</code> + number-period เป็นวัน post; หรือบล็อกการ post draft ที่ doc-date ค้างคนละเดือน. <i>ใหม่: MCP draft-now/post-later เข้าถึงได้</i></li>
+    <li><span class="pill p-sec">SECURITY · MAJOR</span> <b><code>get_document_status</code> cross-type enumeration</b> — gate per-type read scope หรือจำกัดเฉพาะ draft ของ key ตัวเอง; เลิกให้ scope เดียวเห็น status+DocNo ทั้ง 6 type ทั่ว tenant</li>
+    <li><span class="pill p-comp">COMPLIANCE</span><span class="pill p-sec">MAJOR</span> <b>ไม่มี immutability trigger บน <code>*_lines</code></b> — เพิ่ม <code>BEFORE UPDATE/DELETE</code> trigger บน lines เมื่อ parent posted (§4.2 ต้อง DB+app); เช็ค CN/DN header ด้วย</li>
+    <li><span class="pill p-comp">COMPLIANCE</span><span class="pill p-sec">MAJOR</span> <b>ProductType ที่ caller ส่ง ถูก trust</b> — line ที่ link product ให้ resolve จาก Product master เสมอ (mirror การ derive VAT rate)</li>
+    <li><span class="pill p-sec">SECURITY · MAJOR</span> <b>Login route leak <code>e.stack</code></b> — log ฝั่ง server, ส่ง message/code อย่างเดียว + เพิ่ม try/catch→502 ใน BFF proxy (agy)</li>
+    <li><span class="pill p-ux">UX · MAJOR</span> <b>Agent-draft / receipt approve</b> — ขับ banner+approve CTA จาก <code>createdViaApiKeyName</code> ไม่ใช่ URL param; ใส่ Post CTA ใน receipt <code>DocActionBar</code> ทุก Draft; แก้ dashboard ลิงก์ตายไป <code>/tax-invoices</code></li>
+    <li><span class="pill p-corr">CORRECTNESS · MAJOR</span> <b>React Query invalidation</b> (agy) — post mutation ต้อง invalidate <code>[doc,id]</code> + report keys (tax-summary / profit-loss / VAT registers)</li>
+    <li><span class="pill p-spec">SPEC · MAJOR</span> <b>openapi.yaml drift</b> — sync api/v1 + MCP + lifecycle path names + base path <code>/v1</code> vs <code>/api/v1</code></li>
+    <li><span class="pill p-spec">MINOR batch</span> regex widen · list_pending_approvals scope · EnforceMcpNoPostGuard whitelist · PO DocDate · companies loading gate · hardcoded Thai strings · e-Tax doc drift</li>
+  </ol>
+
+  <h2><span class="n">A.</span> ทั้งคู่เห็นตรงกัน → confidence สูงสุด</h2>
+  <div class="card ok">
+    <div class="head"><span class="tag t-major">Major</span><span class="who">Claude + AGY</span><span class="title">A1 · openapi.yaml drift</span></div>
+    <p>api/v1 (list/detail/PDF) + MCP tools ไม่ documented; lifecycle path เพี้ยน (quotations <code>send</code> vs spec <code>submit/revise</code>; SO <code>post</code> vs <code>confirm</code>; DO <code>issue/mark-delivered</code> vs <code>post</code>).</p>
+  </div>
+  <div class="card ok">
+    <div class="head"><span class="tag t-ok">PASS</span><span class="who">Claude + AGY</span><span class="title">A2 · i18n parity สะอาด</span></div>
+    <p>th.json = en.json = 1453 keys, key drift = 0 (นับแยกกันได้ตรงกัน).</p>
+  </div>
+  <div class="card major">
+    <div class="head"><span class="tag t-major">Major</span><span class="who">Claude + AGY</span><span class="title">A4 · Login route leak e.stack</span></div>
+    <p>ส่ง stack trace กลับ client ตอน 500.</p>
+    <div class="ev">✅ verified <code>app/api/auth/login/route.ts:67</code> — <b>unguarded</b> (ไม่มี NODE_ENV gate; cookie <code>secure</code> gate แต่ stack ไม่)</div>
+  </div>
+
+  <h2><span class="n">B.</span> ข้อขัดแย้ง — ตัดสินด้วย source (ของจริงของงานนี้)</h2>
+
+  <div class="card minor">
+    <div class="head"><span class="tag t-minor">Crit→Minor</span><span class="who">AGY</span><span class="title">B1 · DocumentNumber regex crash</span></div>
+    <p>regex <code>(?&lt;sub&gt;[A-Z]{2,10})</code> ไม่รับ hyphen ที่ <code>PaymentVoucherService:306</code> สร้าง (<code>MKT-RENT</code>).</p>
+    <div class="ev">⬇️ hyphenated sub จริง แต่ <code>grep DocumentNumber.(Parse|TryParse)</code> = <b>0 callers</b> ใน backend → ไม่มี crash จริงตอนนี้, เป็น landmine. </div>
+    <div class="fix">Fix: widen → <code>(?&lt;sub&gt;[A-Z]{2,10}(?:-[A-Z]{2,10})*)</code></div>
+  </div>
+
+  <div class="card major">
+    <div class="head"><span class="tag t-major">Crit→Major</span><span class="who">AGY · กลไกแก้</span><span class="title">B2 · ProductType caller-trust</span></div>
+    <p>agy อ้าง <code>EmptyProductTypes</code> บล็อก master lookup — <b>ผิด</b>: master ถูก fetch ตอน ProductType ว่าง (<code>:178-195</code>). Kernel จริง: caller ส่ง type non-empty ผิด → trust.</p>
+    <div class="ev">VAT rate ไม่ถูก trust (derive จาก tax-code) — hole obs 8084 ปิดแล้ว. Sales path → กระทบ goods/service-split integrity ไม่ใช่ WHT evasion.</div>
+    <div class="fix">Fix: product-linked line resolve ProductType จาก master เสมอ</div>
+  </div>
+
+  <div class="card major">
+    <div class="head"><span class="tag t-major">Crit→Major</span><span class="who">AGY vs Claude(PASS)</span><span class="title">B3 · FE approve-gate bypass</span></div>
+    <p>agy=CRITICAL bypass, Claude=PASS. ความจริงตรงกลาง: hard gate อยู่ฝั่ง server.</p>
+    <div class="ev">✅ <code>ApiKeyService.EnforceMcpNoPostGuard:148</code> รันที่ grant site (<code>:71</code>) reject <code>.post</code> ทุก mcp key → agent post ไม่ได้เชิงโครงสร้าง. คนกด = approval. แต่หน้า detail ไม่บอกว่า draft มาจาก agent → UX gap.</div>
+    <div class="fix">Fix: ขับ banner จาก <code>createdViaApiKeyName</code> ไม่ใช่ <code>?action=approve</code></div>
+  </div>
+
+  <div class="card rej">
+    <div class="head"><span class="tag t-rej">Rejected</span><span class="who">AGY</span><span class="title">B4 · Buddhist calendar = ผิด compliance</span></div>
+    <p>agy ว่า <code>formatDate</code> ใช้ปี พ.ศ. ผิดกฎ.</p>
+    <div class="ev">❌ verified <code>lib/utils.ts:24-44</code>: <code>formatDate</code> display-only; ค่า <code>bangkokToday()</code> เป็น Gregorian; doc_date server-authoritative. พ.ศ. ไม่เคยป้อน backend/filename/key. §5 ห้ามแค่ "internal" — display พ.ศ. คือ convention ไทย (RD forms ก็ใช้).</div>
+  </div>
+
+  <div class="card major">
+    <div class="head"><span class="tag t-major">Major</span><span class="who">Claude · confirm</span><span class="title">B5 · get_document_status cross-type</span></div>
+    <p>✅ <code>TeasMcpTools:833</code> gate แค่ <code>TaxInvoiceRead</code> + <code>Where(id==id)</code> ไม่กรอง <code>CreatedViaApiKeyName</code> → key เดียว enumerate ทั้ง 6 type ทั่ว tenant. ส่วน <code>list_pending_approvals:760</code> กรอง own-key แล้ว → <b>downgrade Minor</b>.</p>
+  </div>
+
+  <div class="card major">
+    <div class="head"><span class="tag t-major">Major</span><span class="who">Claude · confirm (obs 8329)</span><span class="title">B6 · Stale doc-date ตอน POST</span></div>
+    <p>✅ <code>PostAsync</code>: <code>:296 EnsureOpenAsync(ti.DocDate)</code> + <code>:302 NextAsync(...,ti.DocDate)</code> ใช้วันที่ตอน draft (pin <code>:241-242</code>). draft 31 พ.ค. → post 1 มิ.ย. ได้เลข+tax-point เดือน พ.ค. ม.78/ม.86/4(7). ใหม่: MCP เข้าถึง.</p>
+  </div>
+
+  <div class="card major">
+    <div class="head"><span class="tag t-major">Major</span><span class="who">Claude · confirm</span><span class="title">B7 · ไม่มี trigger บน *_lines</span></div>
+    <p>✅ header trigger มี (040/060/570) แต่ไม่มีบน lines (<code>060:53</code>/<code>322:3</code> ยืนยัน lines พึ่ง FK+app). raw <code>UPDATE ..._lines SET line_amount</code> ไม่โดน DB trigger.</p>
+    <div class="ev">nuance: header total trigger-protected → tamper desyncs และ <b>detectable</b> ด้วย totals-reconcile, ไม่ใช่ silent-corruption.</div>
+  </div>
+
+  <div class="card major">
+    <div class="head"><span class="tag t-major">Major (restored)</span><span class="who">AGY · advisor จับ</span><span class="title">B8 · receipt Post button</span></div>
+    <p>✅ <code>receipts/new:332/374</code> มี saveDraft → คนสร้าง draft ได้; แต่ Post CTA (<code>[id]:65</code>) โผล่เฉพาะ <code>?action=approve</code>. <code>DocActionBar:98</code> ไม่มี post callback → draft ที่คนสร้างเอง post ไม่ได้ผ่าน nav ปกติ. Claude "all sales pages carry post" ไม่แม่นสำหรับ receipts.</p>
+    <div class="ev">หมายเหตุ: ตอนแรกผมตกหล่นข้อนี้ — advisor จับได้ → กู้คืน+ยืนยัน</div>
+  </div>
+
+  <h2><span class="n">C.</span> ข้อ single-source ที่ควรเก็บ (plausible, ยังไม่ขัด)</h2>
+  <table>
+    <tr><th>ที่มา</th><th>Finding</th><th>Sev</th></tr>
+    <tr><td>AGY</td><td>BillingNote cancel ต้องการ body แต่ openapi ไม่มี → 400</td><td>Major</td></tr>
+    <tr><td>AGY</td><td>BFF proxy <code>forward</code> ไม่มี try/catch → throw ตอน upstream ล่ม</td><td>Major</td></tr>
+    <tr><td>AGY</td><td>React Query post ไม่ invalidate <code>[doc,id]</code> + report keys</td><td>Major</td></tr>
+    <tr><td>AGY</td><td><code>RdHttpEfilingClient</code> active เมื่อ <code>Provider!=Mock</code> ขัด §8 "inert"; ETaxSigner single-sig vs two-sig (e-Tax ยัง inert)</td><td>Minor/spec</td></tr>
+    <tr><td>AGY</td><td>companies page render super-admin UI ช่วง permissions loading (backend ยัง enforce)</td><td>Minor</td></tr>
+    <tr><td>Claude</td><td><code>EnforceMcpNoPostGuard</code> blacklist แค่ <code>.post</code> — <code>.approve/.issue/.send/.void</code> หลุด (latent)</td><td>Minor</td></tr>
+    <tr><td>Claude</td><td><code>PurchaseOrderService:51,100</code> trust <code>req.DocDate</code> → agent backdate PO</td><td>Minor</td></tr>
+    <tr><td>Claude</td><td>dashboard pending-approvals ลิงก์ทุก type ไป <code>/tax-invoices</code></td><td>Major(UX)</td></tr>
+  </table>
+
+  <div class="note files">
+    <b>ไฟล์ deliverable</b> (<code>docs/code-review-2026-06-19/</code>):<br>
+    <code>CROSS-VALIDATION.md</code> ← ตัวหลัก · <code>RUBRIC.md</code><br>
+    <code>claude/spec.md</code> · <code>claude/backend.md</code> · <code>claude/frontend.md</code><br>
+    <code>agy/spec-backend.md</code> · <code>agy/frontend.md</code>
+  </div>
+
+  <div class="foot">
+    Method: overseer + 3 Claude subagents (ขนาน) + AGY/Gemini ผ่าน winpty bridge (<code>-NoProfile</code> เลี่ยง profile Remove-Item guard; agy เดินหลง 2 รอบ → บังคับ emit ด้วย <code>-Continue</code>). Cross-validation = เปิดไฟล์จริงตัดสิน ไม่ใช่รวมลิสต์. ยังไม่แตะ source / commit.
+  </div>
+
+</div>
+</body>
+</html>

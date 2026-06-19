@@ -142,18 +142,24 @@ public sealed class ApiKeyService : IApiKeyService
                 $"Business Unit {buId} not found or inactive for this company.");
     }
 
-    /// <summary>M1 (MCP) — reject any <c>.post</c> scope for a kind=mcp key. The
-    /// guard lives on the kind, not the endpoint, so M2M (integration) keys keep
-    /// full post scopes. Throws <c>api_key.mcp_cannot_post</c>.</summary>
+    /// <summary>M1 (MCP) — reject ANY state-advancing (post-like) scope for a kind=mcp key:
+    /// <c>.post/.approve/.issue/.send/.void/.cancel/.reject</c>. An mcp key may hold only
+    /// <c>.read/.create/.manage</c> — it drafts; a human advances the document. The guard lives
+    /// on the kind, not the endpoint, so M2M (integration) keys keep full action scopes. Throws
+    /// <c>api_key.mcp_cannot_post</c>. (All catalog mcp scopes today end .read/.create/.manage.)</summary>
+    private static readonly string[] McpForbiddenSuffixes =
+        [".post", ".approve", ".issue", ".send", ".void", ".cancel", ".reject"];
+
     private static void EnforceMcpNoPostGuard(string kind, IReadOnlyList<string> scopes)
     {
         if (kind != ApiKeyKinds.Mcp || scopes is null) return;
         var offending = scopes.FirstOrDefault(s =>
-            s is not null && s.Trim().EndsWith(".post", StringComparison.Ordinal));
+            s is not null && McpForbiddenSuffixes.Any(suffix =>
+                s.Trim().EndsWith(suffix, StringComparison.OrdinalIgnoreCase)));
         if (offending is not null)
             throw new DomainException("api_key.mcp_cannot_post",
-                $"An mcp key may not be granted post scope ('{offending}'). " +
-                "MCP keys draft (.create); a human posts.");
+                $"An mcp key may not be granted a state-advancing scope ('{offending}'). " +
+                "MCP keys draft (.read/.create/.manage); a human posts/approves/issues/sends/voids.");
     }
 
     private async Task AuditAsync(string type, ApiKey key, DateTimeOffset at, CancellationToken ct)

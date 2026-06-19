@@ -136,7 +136,8 @@ public sealed partial class PaymentVoucherService
                 l.ProductType)).ToList(),
             whtCerts, completeness,
             p.BusinessUnitId, bu?.Code, bu?.NameTh,   // cont.79 — BU id + display
-            p.WhtPayerMode);                          // 2026-06-12 wht-grossup spec
+            p.WhtPayerMode,                           // 2026-06-12 wht-grossup spec
+            p.CreatedViaApiKeyName);                  // M4a — agent-drafted badge
     }
 
     /// <summary>

@@ -14,12 +14,14 @@ import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useAdjustmentNotes, useAdjustmentNote, useCompanyProfile, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
+import { useAdjustmentNotes, useAdjustmentNote, usePostAdjustmentNote, useCompanyProfile, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
 import type { AdjustmentNoteListItem } from '@/lib/types';
 import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
 import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
+import { useHasScope } from '@/components/PermissionGate';
+import { toast } from 'sonner';
 
 type Kind = 'Credit' | 'Debit';
 const cfg = (k: Kind) =>
@@ -121,6 +123,21 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
   const { data: d, isLoading, isError } = useAdjustmentNote(id);
   const company = useCompanyProfile();
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  const post = usePostAdjustmentNote();
+  const hasScope = useHasScope();
+  const postScope = kind === 'Credit' ? 'sales.credit_note.post' : 'sales.debit_note.post';
+
+  // B8 (parity) — a human-saved Draft CN/DN must be postable via normal
+  // navigation. The CN/DN form offers a Save-as-Draft path, but the detail's
+  // DocActionBar previously carried no actions → drafts were un-postable.
+  async function doPost() {
+    try {
+      await post.mutateAsync(id);
+      toast.success(tc('posted'));
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
 
   if (!vatMode) return <NonVatGuard title={t(c.titleKey)} />;
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
@@ -149,7 +166,22 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
         actions={<PrintMenu docType={activityType} id={id} fiscal />}
       />
 
-      <DocActionBar status={d.status} docNo={d.docNo ?? `#${d.noteId}`} />
+      <DocActionBar
+        status={d.status}
+        docNo={d.docNo ?? `#${d.noteId}`}
+        actions={
+          d.status === 'Draft' && hasScope(postScope) ? (
+            <button
+              data-testid="note-post-action"
+              className="btn btn-primary btn-sm"
+              disabled={post.isPending}
+              onClick={doPost}
+            >
+              {t('post')}
+            </button>
+          ) : undefined
+        }
+      />
 
       <div className="detail-grid">
         <div className="paper-wrap">

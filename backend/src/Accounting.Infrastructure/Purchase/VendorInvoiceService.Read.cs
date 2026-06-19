@@ -114,7 +114,8 @@ public sealed partial class VendorInvoiceService
                 l.Amount, l.VatRate, l.VatAmount,
                 l.IsRecoverableVat, l.IsCapex, l.IsCogs, l.ProductType)).ToList(),
             settlingPvs, completeness,
-            v.BusinessUnitId, bu?.Code, bu?.NameTh);   // cont.79 — BU id + display
+            v.BusinessUnitId, bu?.Code, bu?.NameTh,   // cont.79 — BU id + display
+            v.CreatedViaApiKeyName);                  // M4a — agent-drafted badge
     }
 
     /// <summary>
