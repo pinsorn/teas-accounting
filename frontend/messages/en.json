@@ -1511,7 +1511,10 @@
       "agentType": {
         "taxInvoice": "tax invoice(s)",
         "quotation": "quotation(s)",
-        "receipt": "receipt(s)"
+        "receipt": "receipt(s)",
+        "purchaseOrder": "purchase order(s)",
+        "vendorInvoice": "vendor invoice(s)",
+        "paymentVoucher": "payment voucher(s)"
       }
     },
     "quick": {

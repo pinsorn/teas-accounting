@@ -1511,7 +1511,10 @@
       "agentType": {
         "taxInvoice": "ใบกำกับภาษี",
         "quotation": "ใบเสนอราคา",
-        "receipt": "ใบเสร็จรับเงิน"
+        "receipt": "ใบเสร็จรับเงิน",
+        "purchaseOrder": "ใบสั่งซื้อ",
+        "vendorInvoice": "บันทึกใบกำกับภาษีซื้อ",
+        "paymentVoucher": "ใบสำคัญจ่าย"
       }
     },
     "quick": {

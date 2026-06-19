@@ -52,7 +52,9 @@ public sealed record PurchaseOrderDetail(
     IReadOnlyList<PurchaseOrderLineDto> Lines,
     IReadOnlyList<LinkedViDto> LinkedVis,
     string? BusinessUnitCode = null,   // cont.79 — BU display (id already present above)
-    string? BusinessUnitName = null);
+    string? BusinessUnitName = null,
+    // M4a — non-null when draft was created by an MCP/API-key agent.
+    string? CreatedViaApiKey = null);
 
 public sealed record OutstandingPoRow(
     long PoId, string? DocNo, string VendorName, DateOnly? ExpectedDeliveryDate,

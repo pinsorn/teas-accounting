@@ -734,6 +734,9 @@ export interface PendingAgentApprovals {
   taxInvoices: number;
   quotations: number;
   receipts: number;
+  purchaseOrders: number;
+  vendorInvoices: number;
+  paymentVouchers: number;
 }
 
 export function usePendingAgentApprovals() {

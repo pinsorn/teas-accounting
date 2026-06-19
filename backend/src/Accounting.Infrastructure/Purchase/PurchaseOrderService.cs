@@ -226,7 +226,8 @@ public sealed class PurchaseOrderService(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
                 l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
                 LineProductType(l))).ToList(),
-            vis, bu?.Code, bu?.NameTh);   // cont.79 — BU display
+            vis, bu?.Code, bu?.NameTh,   // cont.79 — BU display
+            po.CreatedViaApiKeyName);    // M4a — agent-drafted badge
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)

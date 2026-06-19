@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { PermissionGate, useHasScope } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
@@ -93,6 +94,8 @@ export default function VendorInvoiceDetailPage() {
       <div className="mb-4 flex items-center gap-3">
         <DocumentNumberBadge value={d.docNo} />
         <StatusBadge status={d.status} />
+        {/* B3 — agent-draft badge on normal navigation (independent of ?action=approve). */}
+        {d.status === 'Draft' && d.createdViaApiKey && <AgentPendingBadge />}
         {/* ITEM 6 — payments are full-amount, so the settlement-status badge is
             noise on the detail. Keep `settlementStatus` in types/queries (AP-aging
             still uses it) but only surface it once the doc is settled (PAID). */}

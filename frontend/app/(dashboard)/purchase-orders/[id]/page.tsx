@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
@@ -59,6 +60,11 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         title={`${t('title')} ${d.docNo ?? `#${d.purchaseOrderId}`}`}
         actions={<PrintMenu docType="purchase-orders" id={poId} />}
       />
+
+      {/* B3 — agent-draft badge on normal navigation (independent of ?action=approve). */}
+      {d.status === 'Draft' && d.createdViaApiKey && (
+        <div className="mb-4"><AgentPendingBadge /></div>
+      )}
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (

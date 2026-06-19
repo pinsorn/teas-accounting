@@ -16,6 +16,7 @@ import { formatTHB, formatTaxId } from '@/lib/utils';
 import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useHasScope } from '@/components/PermissionGate';
+import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 
 export default function ReceiptDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
@@ -73,6 +74,11 @@ export default function ReceiptDetailPage() {
         subtitle={d.docNo ?? undefined}
         actions={<PrintMenu docType="receipts" id={id} fiscal />}
       />
+
+      {/* B3 — agent-draft badge on normal navigation (independent of ?action=approve). */}
+      {d.status === 'Draft' && d.createdViaApiKey && (
+        <div className="mb-4"><AgentPendingBadge /></div>
+      )}
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (

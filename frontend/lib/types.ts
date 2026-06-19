@@ -290,6 +290,7 @@ export interface TaxInvoiceDetail {
   businessUnitCode: string | null;
   lines: TaxInvoiceDetailLine[];
   quotationId?: number | null;   // Sprint 13h P6.1 — Q cross-ref
+  createdViaApiKey?: string | null; // E6/B3 — agent-draft badge
 }
 
 export interface NumberGapRow {
@@ -536,6 +537,7 @@ export interface ReceiptDetail {
   // cont.70 — buyer billing address + branch for the header block.
   customerAddress: string | null;
   customerBranchCode: string | null;
+  createdViaApiKey?: string | null; // E6/B3 — agent-draft badge
 }
 
 export type AdjustmentNoteType = 'Credit' | 'Debit';
@@ -654,6 +656,7 @@ export interface PaymentVoucherDetail {
   whtCertificates: PaymentVoucherWhtCertificateRef[];
   // purchase-completeness — advisory, populated for POSTED PVs only.
   completeness?: Completeness;
+  createdViaApiKey?: string | null; // E6/B3 — agent-draft badge
 }
 export interface PaymentVoucherWhtCertificateRef {
   whtCertificateId: number; docNo: string; status: DocStatus;
@@ -697,6 +700,7 @@ export interface VendorInvoiceDetail {
   settlingPvs: VendorInvoiceSettlingPvRef[];
   // purchase-completeness — advisory, populated for POSTED VIs only.
   completeness?: Completeness;
+  createdViaApiKey?: string | null; // E6/B3 — agent-draft badge
 }
 export interface VendorInvoiceSettlingPvRef {
   paymentVoucherId: number; docNo: string | null; status: DocStatus;
@@ -857,6 +861,7 @@ export interface QuotationDetail {
   businessUnitId: number | null; currencyCode: string; subtotalAmount: number;
   vatAmount: number; totalAmount: number; showWhtNote: boolean;
   convertedToSoId: number | null; notes: string | null; lines: ChainLineDto[];
+  createdViaApiKey?: string | null; // E6/B3 — agent-draft badge
 }
 export interface SalesOrderListItem {
   salesOrderId: number; docNo: string | null; status: string; docDate: string;
@@ -953,6 +958,7 @@ export interface PurchaseOrderDetail {
   cancellationReason: string | null;
   linkedViTotal: number; remaining: number;
   lines: PoLineDto[]; linkedVis: LinkedViDto[];
+  createdViaApiKey?: string | null; // E6/B3 — agent-draft badge
 }
 export interface OutstandingPoRow {
   poId: number; docNo: string | null; vendorName: string;

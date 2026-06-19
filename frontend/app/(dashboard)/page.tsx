@@ -73,6 +73,9 @@ export default function DashboardPage() {
       { key: 'agentTi', n: agentApprovals.taxInvoices, href: '/tax-invoices', type: t('alerts.agentType.taxInvoice') },
       { key: 'agentQt', n: agentApprovals.quotations, href: '/quotations', type: t('alerts.agentType.quotation') },
       { key: 'agentRc', n: agentApprovals.receipts, href: '/receipts', type: t('alerts.agentType.receipt') },
+      { key: 'agentPo', n: agentApprovals.purchaseOrders, href: '/purchase-orders', type: t('alerts.agentType.purchaseOrder') },
+      { key: 'agentVi', n: agentApprovals.vendorInvoices, href: '/vendor-invoices', type: t('alerts.agentType.vendorInvoice') },
+      { key: 'agentPv', n: agentApprovals.paymentVouchers, href: '/payment-vouchers', type: t('alerts.agentType.paymentVoucher') },
     ];
     for (const a of agentTypes) {
       if (a.n > 0)
