@@ -41,7 +41,17 @@ export default function CompaniesSettingsPage() {
 
   // Super-admin only — BE enforces master.company.manage on /companies; the FE
   // hides the page body entirely (same hidden-not-disabled rule as PermissionGate).
-  if (perms.data && !perms.data.isSuperAdmin) {
+  // Gate on the loading window first so the super-admin UI never flashes before
+  // permissions resolve.
+  if (perms.isLoading) {
+    return (
+      <>
+        <PageHeader title={t('title')} />
+        <div className="py-12 text-center text-base-content/50">{tc('loading')}</div>
+      </>
+    );
+  }
+  if (!perms.data?.isSuperAdmin) {
     return (
       <>
         <PageHeader title={t('title')} />

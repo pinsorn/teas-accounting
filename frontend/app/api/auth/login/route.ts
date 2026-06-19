@@ -64,9 +64,9 @@ export async function POST(request: Request) {
     // Sprint 13h ckpt4 — surface server-side errors so the FE 500 isn't an
     // opaque "Internal Server Error" body. Logged to fe3.log too.
     console.error('[/api/auth/login] handler threw:', e);
-    const detail = e instanceof Error ? `${e.name}: ${e.message}\n${e.stack ?? ''}` : String(e);
+    // Never leak the stack/message to the browser — log server-side, return a generic detail.
     return NextResponse.json(
-      { title: 'auth.handler_error', detail },
+      { title: 'auth.handler_error', detail: 'Internal error' },
       { status: 500 },
     );
   }

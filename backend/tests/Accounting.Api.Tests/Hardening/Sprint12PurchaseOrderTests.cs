@@ -58,6 +58,42 @@ public sealed class Sprint12PurchaseOrderTests
         new(new DateOnly(2026, 5, 1), expected, vendorId, null, "THB", 1m, null, null,
             [new PurchaseOrderLineInput(null, "สินค้า", 10m, "ชิ้น", 100m, 0m, 1, "VAT7", 0.07m, null)]);
 
+    // §4.3 (agy review 2026-06-19) — Approve re-pins DocDate to today, when the doc-no is
+    // allocated, so a draft created in a prior month doesn't keep a DocDate whose month ≠ the
+    // doc-no period bucket.
+    [SkippableFact]
+    public async Task Approve_repins_docdate_and_buckets_docno_to_today()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider(userId: 1);
+        var vid = await NewVendor(sp);
+        long poId;
+        await using (var s = sp.CreateAsyncScope())
+            poId = await s.ServiceProvider.GetRequiredService<IPurchaseOrderService>()
+                .CreateDraftAsync(Req(vid), default);
+
+        // Simulate a stale draft created last month (Draft = mutable).
+        var stale = new SystemClock().TodayInBangkok().AddMonths(-1);
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var po = await db.PurchaseOrders.FirstAsync(p => p.PurchaseOrderId == poId);
+            po.DocDate = stale;
+            await db.SaveChangesAsync(default);
+        }
+
+        await using (var s = sp.CreateAsyncScope())
+            await s.ServiceProvider.GetRequiredService<IPurchaseOrderService>().ApproveAsync(poId, default);
+
+        await using var rs = sp.CreateAsyncScope();
+        var rdb = rs.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var today = new SystemClock().TodayInBangkok();
+        var approved = await rdb.PurchaseOrders.AsNoTracking().FirstAsync(p => p.PurchaseOrderId == poId);
+        approved.DocDate.Should().Be(today, "Approve re-pins DocDate to today (§4.3)");
+        approved.DocNo!.Should().StartWith($"{today.Month:D2}-{today.Year:D4}-",
+            "the PO number must be bucketed on the approval-date period");
+    }
+
     [SkippableFact]
     public async Task Approve_allocates_docno_creator_may_approve_permission_based()
     {
@@ -102,6 +138,24 @@ public sealed class Sprint12PurchaseOrderTests
         db.PurchaseOrders.Add(po);
         await db.SaveChangesAsync(default);          // no longer throws
         po.PurchaseOrderId.Should().BeGreaterThan(0);
+    }
+
+    // BE-4b (2026-06-19) — §10 pin-to-today: the caller cannot back-date a PO. Req() supplies a
+    // back-dated DocDate (2026-05-01); the service must overwrite it with today in Asia/Bangkok.
+    [SkippableFact]
+    public async Task Create_pins_docdate_to_today_ignoring_caller_value()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var vid = await NewVendor(sp);
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPurchaseOrderService>();
+        var poId = await svc.CreateDraftAsync(Req(vid), default);   // Req back-dates to 2026-05-01
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var po = await db.PurchaseOrders.AsNoTracking().FirstAsync(p => p.PurchaseOrderId == poId);
+        po.DocDate.Should().Be(new SystemClock().TodayInBangkok(),
+            "§10 — DocDate is server-today; a back-dated request value must be ignored");
     }
 
     [SkippableFact]

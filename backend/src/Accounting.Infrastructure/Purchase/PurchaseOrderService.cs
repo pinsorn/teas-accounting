@@ -45,10 +45,13 @@ public sealed class PurchaseOrderService(
                 && x.CompanyId == tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
+        // §10 — DocDate is ALWAYS today in Asia/Bangkok, never trusted from the request
+        // (an agent must not back-date a PO). doc_no is allocated on Approve in this month's bucket.
+        var docDate = clock.TodayInBangkok();
         var po = new PurchaseOrder
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
-            Status = PurchaseOrderStatus.Draft, DocDate = req.DocDate,
+            Status = PurchaseOrderStatus.Draft, DocDate = docDate,
             ExpectedDeliveryDate = req.ExpectedDeliveryDate,
             VendorId = v.VendorId, VendorName = v.NameTh, VendorTaxId = v.TaxId,
             VendorType = v.VendorType, BusinessUnitId = req.BusinessUnitId,
@@ -97,7 +100,8 @@ public sealed class PurchaseOrderService(
         var po = await LoadAsync(id, ct);
         if (po.Status != PurchaseOrderStatus.Draft)
             throw new DomainException("po.not_draft", "Only a Draft PO can be edited.");
-        po.DocDate = req.DocDate; po.ExpectedDeliveryDate = req.ExpectedDeliveryDate;
+        // §10 — re-pin to today on edit too (never trust req.DocDate); else the rule is half-applied.
+        po.DocDate = clock.TodayInBangkok(); po.ExpectedDeliveryDate = req.ExpectedDeliveryDate;
         po.BusinessUnitId = req.BusinessUnitId; po.CurrencyCode = req.CurrencyCode;
         po.ExchangeRate = req.ExchangeRate; po.Notes = req.Notes;
         po.InternalNotes = req.InternalNotes;
@@ -109,6 +113,10 @@ public sealed class PurchaseOrderService(
     {
         Auth();
         var po = await LoadAsync(id, ct);
+        // §4.3 — re-pin DocDate to today AT APPROVAL, when the sequential number is allocated, so the
+        // doc-no period bucket (MM-YYYY) always matches DocDate even if the draft was created in a
+        // prior month (agy review 2026-06-19: a June draft approved in July must not keep June's date).
+        po.DocDate = clock.TodayInBangkok();
         string? buCode = po.BusinessUnitId is { } b
             ? await db.BusinessUnits.Where(x => x.BusinessUnitId == b)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)

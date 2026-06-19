@@ -298,10 +298,10 @@ export default function NewReceiptPage() {
       : mode === 'invoice'
         ? derivedInvoiceItems.length > 0
           ? derivedInvoiceItems
-          : apps.map((a) => ({ description: `ใบแจ้งหนี้ #${a.docId || '—'}`, amount: a.appliedAmount || 0 }))
+          : apps.map((a) => ({ description: t('invoiceRef', { ref: a.docId || '—' }), amount: a.appliedAmount || 0 }))
         : derivedItems.length > 0
           ? derivedItems
-          : apps.map((a) => ({ description: `ใบกำกับภาษี #${a.docId || '—'}`, amount: a.appliedAmount || 0 }));
+          : apps.map((a) => ({ description: t('taxInvoiceRef', { ref: a.docId || '—' }), amount: a.appliedAmount || 0 }));
 
   const totalRows: TotalRow[] = whtOn && whtAmount > 0
     ? [
@@ -348,7 +348,7 @@ export default function NewReceiptPage() {
             <PaperDocument
               docType={rcCfg.docType}
               docTypeEn={rcCfg.docTypeEn}
-              docNo="(ฉบับร่าง)"
+              docNo={tc('draftPreview')}
               issueDate={docDate}
               seller={companyToSeller(company.data)}
               customer={{ name: customerLabel || '—' }}
@@ -357,7 +357,7 @@ export default function NewReceiptPage() {
               signRoles={rcCfg.signRoles}
               extraMetaBlock={
                 <>
-                  <dt>วิธีชำระ</dt>
+                  <dt>{t('method')}</dt>
                   <dd>Transfer</dd>
                   {whtOn && whtAmount > 0 && (
                     <>
@@ -380,7 +380,7 @@ export default function NewReceiptPage() {
               party={field.value || null}
               onChange={(id, label) => { field.onChange(id); setCustomerLabel(label); }}
             />
-            {fieldState.error && <span className="mt-2 block text-sm text-error" data-field-error="true">เลือกลูกค้า</span>}
+            {fieldState.error && <span className="mt-2 block text-sm text-error" data-field-error="true">{tc('selectCustomer')}</span>}
           </SectionCard>
         )} />
 
@@ -619,9 +619,9 @@ export default function NewReceiptPage() {
                     value={cashReceived.toFixed(2)} />
                 </label>
                 <label className="form-control">
-                  <span className="label-text">{tw('certNo')} <span className="text-ink-400">(ใส่ทีหลังได้)</span></span>
+                  <span className="label-text">{tw('certNo')} <span className="text-ink-400">{tw('certNoOptionalHint')}</span></span>
                   <input className="input input-bordered input-sm" value={whtCertNo}
-                    placeholder="ระบุภายหลังจากหน้ารายละเอียด"
+                    placeholder={tw('certNoPlaceholder')}
                     onChange={(e) => setWhtCertNo(e.target.value)} />
                 </label>
                 <label className="form-control">

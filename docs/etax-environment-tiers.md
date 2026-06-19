@@ -11,20 +11,20 @@
 | Component | File | Test→Prod-swap readiness | Notes |
 |---|---|---|---|
 | **`IETaxSigner`** interface | `Application/Abstractions/IETaxGateway.cs` | ✅ Ready | Clean abstraction; HSM impl can swap via DI |
-| **`ETaxSigner`** PFX impl | `Infrastructure/ETax/ETaxSigner.cs` | ✅ Ready | Loads PFX from config; fail-fast if missing — production safe |
+| **`ETaxSigner`** PFX impl | `Infrastructure/ETax/ETaxSigner.cs` | ⚠ Present but **inert** | Loads PFX from config; fail-fast if missing. **No cert wired today** and `ETaxBehaviorOptions.Enabled = false`, so it never signs at runtime — code is swap-ready (production-safe shape) but not on a live path until a real PFX + `ETax:Enabled = true` are configured (plan.md §8). |
 | **`XadesBesSigner`** pure logic | `Infrastructure/ETax/ETaxSigner.cs` | ✅ Ready | No IO/config; works with self-signed or CA cert identically |
 | **`IETaxEmailSender`** interface | `Application/Abstractions/IETaxGateway.cs` | ✅ Ready | Clean abstraction |
 | **`ETaxEmailSender`** MailKit impl | `Infrastructure/ETax/ETaxEmailSender.cs` | ✅ Ready | Supports plain SMTP (Tier 1 MailHog port 1025) + StartTLS auth (Tier 3) |
 | **`IETaxXmlBuilder`** interface | `Application/Abstractions/IETaxGateway.cs` | ✅ Ready | Concrete impl is `ETaxXmlBuilder.cs` |
 | **`ETaxBehaviorOptions`** kill switch | `Infrastructure/ETax/ETaxBehaviorOptions.cs` | ✅ Ready | Default `Enabled=false`; opt-in per env |
-| **PFX path defensive check** | `ETaxSigner.SignAsync` | ✅ Ready | Throws clear `DomainException` if PFX missing — production safe |
+| **PFX path defensive check** | `ETaxSigner.SignAsync` | ✅ Ready | Throws clear `DomainException` if PFX missing (correct fail-fast shape) — but note the signer is inert by default (`Enabled = false`), so this guard only fires once e-Tax is switched on with a cert configured. |
 | **`IFileStorageService`** (Sprint 11) | `Infrastructure/Storage/...` | ✅ Ready | LocalDisk Phase 1, Blob/S3 Phase 2 via DI swap |
 | **`GlAccountsOptions`** | `appsettings` `GlAccounts` section | ✅ Ready | All GL codes via config |
 | **RD Open API client** (for ภ.พ.30 auto-submit) | ❌ doesn't exist | ❌ **Gap** | Sprint 9 implemented Manual mode only; Auto-submit stubbed |
 | **XSD schema validation** | ❌ doesn't exist | ❌ **Gap** | Signed XML goes to email without local schema validation; ETDA mกค.14-2563 XSD not in repo |
 | **e-Tax submission audit trail** (`etax_submissions` table) | ❌ doesn't exist | ❌ **Gap** | Send result returned ephemerally, not persisted; cannot reconstruct history |
-| **RD email dedup config** | `Tax:EtaxDeliveryEmailCc` + `ETax:RdCcAddress` | ⚠ **Duplicated** | Same value in 2 config keys — drift hazard |
-| **e-Tax enable switch** | `Tax:EtaxEnabled` + `ETax:Enabled` + `ETax:AutoSendOnTaxInvoicePost` | ⚠ **Duplicated** | 3 booleans for similar concern — confusion hazard |
+| **RD email dedup config** | `ETax:Email:RdCcAddress` | ✅ **Resolved (Sprint 13c)** | `Tax:EtaxDeliveryEmailCc` + `ETaxBehaviorOptions.RdCcAddress` deleted; single-source `ETax:Email:RdCcAddress` (grep-clean, plan.md §23.11). |
+| **e-Tax enable switch** | `ETax:Enabled` + `ETax:AutoSendOnTaxInvoicePost` | ✅ **Resolved (Sprint 13c)** | `Tax:EtaxEnabled` deleted; two-tier remains (master capability + per-trigger). |
 | **Customer-email override** (prevent accidental sends in Tier 2) | ❌ doesn't exist | ❌ **Gap** | UAT shouldn't email real customers — need redirect/whitelist |
 | **Retry queue / dead-letter** for failed sends | ❌ doesn't exist | ❌ **Gap** | One-shot send + log; no automated retry per plan §13.1.2 intent |
 | **HSM adapter implementation** | ❌ doesn't exist (only PFX impl) | ⚠ **Phase 2** | Interface allows; concrete `HsmETaxSigner` is Phase 2 work |
@@ -32,13 +32,22 @@
 | **Tier 1 dev infrastructure** (MailHog + MockServer) | ⚠ Partial | ⚠ **Gap** | appsettings.Development uses port 1025 (MailHog ready) but no Docker-compose set up; MockServer absent |
 | **Self-signed test cert generator script** | ❌ doesn't exist | ❌ **Gap** | Devs must `openssl req -x509` manually; one-line script needed |
 
-**Summary:** 11 ✅ ready, 4 ⚠ minor drift/duplication, 8 ❌ gaps. Foundation strong (abstractions are correct); gaps are infrastructure + persistence + dev ergonomics.
+**Summary (original audit, post Sprint 11):** 11 ✅ ready, 4 ⚠ minor drift/duplication, 8 ❌ gaps.
+**Status update (post Sprint 13c, 2026-05-18):** the two ⚠ config-duplication rows are **resolved**
+(see updated rows above) and the §3 Tier-2 gaps shipped — see plan.md §23.11. Remaining caveat: the
+`ETaxSigner` is present but **inert by default** (no cert wired, `Enabled = false`), so the e-Tax path is
+config-gated, not live. Foundation strong (abstractions correct); the live RD path stays off until Ham orders.
 
 ---
 
-## 2. Drift / duplication clean-up (Tier-0 housekeeping)
+## 2. Drift / duplication clean-up (Tier-0 housekeeping) — ✅ SHIPPED (Sprint 13c, 2026-05-18)
 
-Two config-key duplications must consolidate to single source before Tier 2/3:
+> **Status:** both clean-ups below are DONE (plan.md §23.11): `Tax:EtaxDeliveryEmailCc`,
+> `ETaxBehaviorOptions.RdCcAddress` and `Tax:EtaxEnabled` were deleted (grep-clean); single-source
+> `ETax:Email:RdCcAddress` + two-tier `ETax:Enabled`/`ETax:AutoSendOnTaxInvoicePost` remain. The
+> diffs below are retained as the historical record of what was consolidated.
+
+Two config-key duplications were consolidated to single source before Tier 2/3:
 
 ### 2.1 Email CC for RD
 

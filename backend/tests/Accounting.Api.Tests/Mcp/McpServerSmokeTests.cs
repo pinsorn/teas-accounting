@@ -1713,4 +1713,54 @@ public sealed class McpServerSmokeTests
         badTypeResult.IsError.Should().BeTrue("unknown type must return error");
         // ponytail: SDK sanitizes — IsError only, no content text assertion.
     }
+
+    // (ac) BE-2a (B5, 2026-06-19) — get_document_status is OWN-KEY scoped: a key may NOT poll
+    // the status/DocNo of a document it did not create (cross-type enumeration is blocked).
+    // Key B creates a quotation; key A (different key, same company) must get not-found.
+    [SkippableFact]
+    public async Task E5_get_document_status_rejects_other_keys_document()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var keyA = await MintMcpKeyAsync();
+        var keyB = await MintMcpKeyAsync();
+        var customerId = await SeedCustomerAsync();
+        var productId  = await SeedProductAsync();
+
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+
+        // Key B creates a quotation draft.
+        long qIdB;
+        {
+            using var httpB = factory.CreateClient();
+            httpB.DefaultRequestHeaders.Add(ApiKeyHeader, keyB);
+            await using var clientB = await ConnectAsync(httpB);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var req = new
+            {
+                docDate = today, validUntilDate = today.AddDays(30), customerId,
+                businessUnitId = (int?)null, currencyCode = "THB", exchangeRate = 1m,
+                notes = (string?)null, internalNotes = (string?)null,
+                lines = new[]
+                {
+                    new { productId, descriptionTh = "B5 other-key", quantity = 1m,
+                          uomText = "ครั้ง", unitPrice = 500m, discountPercent = 0m,
+                          taxCodeId = 0, taxCode = "NONE", taxRate = 0m, productType = (string?)null },
+                },
+            };
+            var r = await clientB.CallToolAsync("create_quotation_draft",
+                new Dictionary<string, object?> { ["request"] = req });
+            r.IsError.Should().NotBe(true);
+            qIdB = JsonDocument.Parse(r.Content.OfType<TextContentBlock>().Single().Text)
+                .RootElement.GetProperty("id").GetInt64();
+        }
+
+        // Key A polls key B's quotation by id → must be rejected (not-found, cannot enumerate).
+        using var httpA = factory.CreateClient();
+        httpA.DefaultRequestHeaders.Add(ApiKeyHeader, keyA);
+        await using var clientA = await ConnectAsync(httpA);
+        var statusResult = await clientA.CallToolAsync("get_document_status",
+            new Dictionary<string, object?> { ["type"] = "quotation", ["id"] = qIdB });
+        statusResult.IsError.Should().BeTrue(
+            "a key must not read the status/DocNo of a document another key created (B5 own-key scope)");
+    }
 }

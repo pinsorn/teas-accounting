@@ -301,6 +301,30 @@ public sealed class Sprint14ExternalApiTests
             .Which.Code.Should().Be("api_key.mcp_cannot_post");
     }
 
+    // BE-2b (2026-06-19) — the mcp no-post guard now rejects ALL state-advancing suffixes,
+    // not only .post (.approve/.issue/.send/.void/.cancel/.reject). An mcp key may hold only
+    // .read/.create/.manage. (No catalog mcp scope ends in these suffixes today.)
+    [SkippableTheory]
+    [InlineData("sales.tax_invoice.approve")]
+    [InlineData("sales.tax_invoice.issue")]
+    [InlineData("sales.quotation.send")]
+    [InlineData("sales.tax_invoice.void")]
+    [InlineData("purchase.purchase_order.cancel")]
+    [InlineData("sales.quotation.reject")]
+    public async Task Mcp_key_with_state_advancing_scope_is_rejected(string offendingScope)
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IApiKeyService>();
+        var act = () => svc.CreateAsync(new CreateApiKeyRequest(
+            TestIds.Name("mcp-adv"),
+            ["sales.tax_invoice.create", offendingScope],
+            Kind: ApiKeyKinds.Mcp), default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("api_key.mcp_cannot_post");
+    }
+
     [SkippableFact]
     public async Task Integration_key_with_post_scope_still_succeeds()
     {

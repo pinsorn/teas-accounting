@@ -831,49 +831,58 @@ public sealed class TeasMcpTools
     }
 
     [McpServerTool(Name = "get_document_status"), Authorize(Policy = TaxInvoiceRead)]
-    [Description("Get the current status of a document by type and id. Returns status string, whether it has been posted/approved, and the document number (null if still a draft). Returns not-found error for documents in other companies. Use this to poll whether a draft the agent created has been approved and posted by a human.")]
+    [Description("Get the current status of a document THIS API key created, by type and id. Returns status string, whether it has been posted/approved, and the document number (null if still a draft). Returns not-found for documents in other companies OR not created by this key. Use this to poll whether a draft the agent created has been approved and posted by a human.")]
     public static async Task<DocumentStatusResult> GetDocumentStatusAsync(
         [Description("Document type: tax-invoice | quotation | receipt | purchase-order | vendor-invoice | payment-voucher.")] string type,
         [Description("Document id.")] long id,
+        ITenantContext tenant,
         AccountingDbContext db,
         CancellationToken ct)
     {
-        // Tenant isolation automatic via RLS + EF global query filter.
-        // Returns not-found for docs in other companies (filtered out before we check).
+        // B5 (2026-06-19) — restrict to the calling key's OWN documents
+        // (CreatedViaApiKeyName == this key) so a single read scope cannot enumerate
+        // status + DocNo of ANY of the 6 doc types tenant-wide. CreatedViaApiKeyName
+        // persists after post, so the agent can still poll its own doc to completion.
+        // Tenant isolation (RLS + EF global query filter) still applies on top.
+        var keyName = tenant.ApiKeyName;
+        // A non-api-key (JWT) caller has no ApiKeyName; without this guard the EF filter would be
+        // `CreatedViaApiKeyName == null`, matching HUMAN-created docs → status/DocNo disclosure.
+        if (string.IsNullOrEmpty(keyName))
+            throw new McpE2Exception("mcp.not_found", $"{type} {id} not found.");
         return type switch
         {
             "tax-invoice" => await db.TaxInvoices
-                .Where(t => t.TaxInvoiceId == id)
+                .Where(t => t.TaxInvoiceId == id && t.CreatedViaApiKeyName == keyName)
                 .Select(t => new DocumentStatusResult(t.Status.ToString(), t.Status != DocumentStatus.Draft, t.DocNo))
                 .FirstOrDefaultAsync(ct)
                 ?? throw new McpE2Exception("mcp.not_found", $"Tax invoice {id} not found."),
 
             "quotation" => await db.Quotations
-                .Where(q => q.QuotationId == id)
+                .Where(q => q.QuotationId == id && q.CreatedViaApiKeyName == keyName)
                 .Select(q => new DocumentStatusResult(q.Status.ToString(), q.Status != QuotationStatus.Draft, q.DocNo))
                 .FirstOrDefaultAsync(ct)
                 ?? throw new McpE2Exception("mcp.not_found", $"Quotation {id} not found."),
 
             "receipt" => await db.Receipts
-                .Where(r => r.ReceiptId == id)
+                .Where(r => r.ReceiptId == id && r.CreatedViaApiKeyName == keyName)
                 .Select(r => new DocumentStatusResult(r.Status.ToString(), r.Status != DocumentStatus.Draft, r.DocNo))
                 .FirstOrDefaultAsync(ct)
                 ?? throw new McpE2Exception("mcp.not_found", $"Receipt {id} not found."),
 
             "purchase-order" => await db.PurchaseOrders
-                .Where(p => p.PurchaseOrderId == id)
+                .Where(p => p.PurchaseOrderId == id && p.CreatedViaApiKeyName == keyName)
                 .Select(p => new DocumentStatusResult(p.Status.ToString(), p.Status != PurchaseOrderStatus.Draft, p.DocNo))
                 .FirstOrDefaultAsync(ct)
                 ?? throw new McpE2Exception("mcp.not_found", $"Purchase order {id} not found."),
 
             "vendor-invoice" => await db.VendorInvoices
-                .Where(v => v.VendorInvoiceId == id)
+                .Where(v => v.VendorInvoiceId == id && v.CreatedViaApiKeyName == keyName)
                 .Select(v => new DocumentStatusResult(v.Status.ToString(), v.Status != DocumentStatus.Draft, v.DocNo))
                 .FirstOrDefaultAsync(ct)
                 ?? throw new McpE2Exception("mcp.not_found", $"Vendor invoice {id} not found."),
 
             "payment-voucher" => await db.PaymentVouchers
-                .Where(p => p.PaymentVoucherId == id)
+                .Where(p => p.PaymentVoucherId == id && p.CreatedViaApiKeyName == keyName)
                 .Select(p => new DocumentStatusResult(p.Status.ToString(), p.Status != DocumentStatus.Draft, p.DocNo))
                 .FirstOrDefaultAsync(ct)
                 ?? throw new McpE2Exception("mcp.not_found", $"Payment voucher {id} not found."),

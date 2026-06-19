@@ -203,7 +203,7 @@ export default function CreateTaxInvoicePage() {
             <PaperDocument
               docType={cfg.docType}
               docTypeEn={cfg.docTypeEn}
-              docNo="(ฉบับร่าง)"
+              docNo={tc('draftPreview')}
               issueDate={docDate}
               seller={companyToSeller(company.data)}
               customer={{ name: customerLabel || '—' }}
@@ -236,7 +236,7 @@ export default function CreateTaxInvoicePage() {
                 />
                 {fieldState.error && (
                   <span className="mt-2 block text-sm text-error" data-field-error="true">
-                    เลือกลูกค้า
+                    {tc('selectCustomer')}
                   </span>
                 )}
               </SectionCard>
@@ -245,7 +245,7 @@ export default function CreateTaxInvoicePage() {
 
           {/* ② ข้อมูลเอกสาร — docDate (locked) + BU. The TI page intentionally has
               no terms/dueDate fields (hardcoded null in the payload). */}
-          <SectionCard number={2} title="ข้อมูลเอกสาร">
+          <SectionCard number={2} title={tcr('docInfo')}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <DateInput value={docDate} locked label={t('docDate')} />
               <BusinessUnitSelector
@@ -279,10 +279,10 @@ export default function CreateTaxInvoicePage() {
                   )}
                   <TotalsSummaryBox
                     rows={[
-                      { label: 'มูลค่าก่อนภาษี', value: subtotal },
-                      { label: 'ภาษีมูลค่าเพิ่ม 7%', value: vat },
+                      { label: t('beforeVat'), value: subtotal },
+                      { label: t('vatLabel'), value: vat },
                     ]}
-                    grandLabel="รวมทั้งสิ้น"
+                    grandLabel={t('grandTotal')}
                     grandValue={total}
                   />
                 </div>

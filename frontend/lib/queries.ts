@@ -140,6 +140,7 @@ export function usePostTaxInvoice() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['tax-invoices'] });
       qc.invalidateQueries({ queryKey: ['tax-invoice', id] });
+      invalidateTaxReports(qc);
     },
   });
 }
@@ -183,7 +184,12 @@ export function usePostReceipt() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => apiPost(`receipts/${id}/post`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['receipts'] }),
+    onSuccess: (_r, id) => {
+      qc.invalidateQueries({ queryKey: ['receipts'] });
+      qc.invalidateQueries({ queryKey: ['receipt', id] });
+      // A receipt is a counted agent-approval type (not VAT/P&L-affecting).
+      qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
+    },
   });
 }
 
@@ -215,9 +221,41 @@ export function usePostAdjustmentNote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => apiPost(`tax-adjustment-notes/${id}/post`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['adjustment-notes'] }),
+    onSuccess: (_r, id) => {
+      qc.invalidateQueries({ queryKey: ['adjustment-notes'] });
+      qc.invalidateQueries({ queryKey: ['adjustment-note', id] });
+      // CN/DN alter VAT + P&L → refresh the affected reports/dashboard.
+      invalidateTaxReports(qc);
+    },
   });
 }
+
+// Report/dashboard keys touched by a VAT-affecting post (TI/VI/PV/CN-DN).
+// Prefix-matches the keys defined elsewhere in this file: ['tax-summary',…],
+// ['profit-loss',…], ['input-vat-register',…], ['output-vat-register',…].
+function invalidateTaxReports(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['tax-summary'] });
+  qc.invalidateQueries({ queryKey: ['profit-loss'] });
+  qc.invalidateQueries({ queryKey: ['input-vat-register'] });
+  qc.invalidateQueries({ queryKey: ['output-vat-register'] });
+  qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
+}
+
+// Plural route segment (used by mark-printed / activity) → singular detail
+// query key. CN/DN both render via the ['adjustment-note', id] detail key.
+const DETAIL_KEY_FOR: Record<string, string> = {
+  'tax-invoices': 'tax-invoice',
+  'receipts': 'receipt',
+  'payment-vouchers': 'payment-voucher',
+  'vendor-invoices': 'vendor-invoice',
+  'quotations': 'quotation',
+  'sales-orders': 'sales-order',
+  'delivery-orders': 'delivery-order',
+  'billing-notes': 'billing-note',
+  'purchase-orders': 'purchase-order',
+  'credit-notes': 'adjustment-note',
+  'debit-notes': 'adjustment-note',
+};
 
 // ───────────────────────── Sprint 5: Purchase (AP) ─────────────────────────
 // /vendors + /expense-categories return plain arrays; PV + WHT use CursorPage.
@@ -264,8 +302,16 @@ export function useSetReceiptWhtCert(id: number) {
 // Sprint 13j-FE — record a print (original/copy) for a fiscal doc.
 import type { PrintMarkResult } from './types';
 export function useMarkPrinted(docType: string, id: number) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (copy: boolean) => apiPost<PrintMarkResult>(`${docType}/${id}/mark-printed?copy=${copy}`),
+    onSuccess: () => {
+      // Refresh the print watermark/state on the detail (singular key) and the
+      // audit trail rail (['activity', <plural docType>, id]).
+      const detailKey = DETAIL_KEY_FOR[docType] ?? docType;
+      qc.invalidateQueries({ queryKey: [detailKey, id] });
+      qc.invalidateQueries({ queryKey: ['activity', docType, id] });
+    },
   });
 }
 export function useUpdateCustomer(id: number) {
@@ -386,6 +432,7 @@ export function usePostVendorInvoice() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['vendor-invoices'] });
       qc.invalidateQueries({ queryKey: ['vendor-invoice', id] });
+      invalidateTaxReports(qc);
     },
   });
 }
@@ -408,6 +455,7 @@ export function usePostPaymentVoucher() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
       qc.invalidateQueries({ queryKey: ['payment-voucher', id] });
+      invalidateTaxReports(qc);
     },
   });
 }
@@ -972,6 +1020,8 @@ export function useQuotationAction() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['quotations'] });
       qc.invalidateQueries({ queryKey: ['quotation', v.id] });
+      // 'send' clears a quotation off the pending-agent-approvals count.
+      qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
     },
   });
 }
