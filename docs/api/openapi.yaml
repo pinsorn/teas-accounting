@@ -135,6 +135,33 @@ paths:
         '200':
           description: OK
 
+  /quotations/{id}/reject:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: Mark ใบเสนอราคาว่า rejected (พร้อมเหตุผล)
+      tags: [Quotations]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: OK
+
+  /quotations/{id}/convert-to-so:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: แปลงใบเสนอราคา (accepted) เป็น Sales Order
+      tags: [Quotations]
+      responses:
+        '200':
+          description: 'SO created — returns { sales_order_id }'
+
   /quotations/{id}/cancel:
     parameters:
       - $ref: '#/components/parameters/DocId'
@@ -197,6 +224,22 @@ paths:
         '200':
           description: OK
 
+  /sales-orders/{id}/delivery-orders:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: สร้าง Delivery Order จาก Sales Order
+      tags: [Sales Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryOrderCreateRequest'
+      responses:
+        '200':
+          description: 'DO created — returns { delivery_order_id }'
+
   /sales-orders/{id}/pdf:
     parameters:
       - $ref: '#/components/parameters/DocId'
@@ -249,6 +292,16 @@ paths:
       responses:
         '200':
           description: OK
+
+  /delivery-orders/{id}/create-ti:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: สร้างใบกำกับภาษีจาก Delivery Order (VAT-registered เท่านั้น — ม.86)
+      tags: [Delivery Orders]
+      responses:
+        '200':
+          description: 'TI draft created — returns { tax_invoice_id }'
 
   /delivery-orders/{id}/pdf:
     parameters:
