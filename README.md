@@ -9,9 +9,11 @@
 (50 ทวิ), บัญชีแยกประเภท + รายงานการเงิน, **PDF แบบฟอร์มสรรพากรที่กรอกแล้วพร้อมพิมพ์**, เงินเดือน,
 และระบบ multi-tenant + RBAC
 
-> **Release v1.4.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
-> backend build (Windows x64 / Linux x64). ✨ ใหม่: **MCP server** (in-process) — เชื่อม AI agent
-> ผ่าน API key (mcp-kind, read + create-draft; agent ร่างเอกสาร คนกด approve+post)
+> **Release v1.5.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
+> backend build (Windows x64 / Linux x64). ✨ ใหม่ใน v1.5: **code-review hardening** (dual review) —
+> re-pin tax-point + เลขเอกสารตอน post (ออกเดือนที่ post จริง), DB immutability trigger **ระดับบรรทัด**,
+> MCP API-key scope รัดกุมขึ้น, และ **badge เอกสารที่ AI agent ร่าง** บนหน้า detail + dashboard ·
+> **MCP server** (in-process) เชื่อม AI agent ผ่าน API key (read + create-draft; agent ร่าง คนกด approve+post)
 >
 > Backend: **.NET 10** (ASP.NET Core Minimal APIs, EF Core 10) · DB: **PostgreSQL 16** ·
 > Frontend: **Next.js 15** (App Router, TypeScript, Tailwind, shadcn/ui)
@@ -33,7 +35,7 @@
   สรุปยอดขาย, อายุหนี้เจ้าหนี้
 - **Multi-tenant + RBAC** — หนึ่ง deployment รองรับหลายบริษัทด้วย **PostgreSQL row-level security**;
   ค่าตั้ง VAT ต่อบริษัท; บทบาท + สิทธิ์ละเอียดต่อบริษัท; super-admin สลับบริษัท; onboarding wizard
-- **Compliance** — เอกสารที่ post แล้วแก้ไม่ได้ (DB trigger + app layer), audit trail แบบ append-only,
+- **Compliance** — เอกสารที่ post แล้วแก้ไม่ได้ (DB trigger ระดับ header + บรรทัด + app layer), audit trail แบบ append-only,
   แก้ไขผ่านใบลดหนี้ — ยึดตามประมวลรัษฎากร + พ.ร.บ. การบัญชี
 
 ### สถาปัตยกรรมโดยสรุป
