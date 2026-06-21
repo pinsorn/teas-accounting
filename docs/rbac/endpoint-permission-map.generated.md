@@ -7,13 +7,13 @@
 
 | Kind | Count |
 |---|---:|
-| Anonymous | 3 |
+| Anonymous | 4 |
 | AuthnOnly | 12 |
 | Perm | 228 |
 | Assertion | 5 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **274** |
+| **TOTAL** | **275** |
 
 ## Routes
 
@@ -229,6 +229,7 @@
 | GET | `/system/info` | AuthnOnly | — |
 | POST | `/system/setup/bootstrap-admin` | Anonymous | — |
 | POST | `/system/setup/instance-keys` | AuthnOnly | — |
+| GET | `/system/setup/status` | Anonymous | — |
 | GET | `/system/vat-threshold-status` | AuthnOnly | — |
 | GET | `/tax-adjustment-notes/` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | POST | `/tax-adjustment-notes/` | Assertion | sales.credit_note.create / sales.debit_note.create |

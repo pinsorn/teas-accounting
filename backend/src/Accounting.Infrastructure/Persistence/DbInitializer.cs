@@ -42,18 +42,40 @@ public static class DbInitializer
     /// Everything NOT in this set is SYSTEM/reference and always applies. The reconcile scripts
     /// 530 (rbac grant reconcile) and 560 (identity-sequence fix) reference company 1 but are
     /// idempotent no-ops when it is absent (SELECT…JOIN / MAX), so they stay SYSTEM safely.
+    ///
+    /// CONTRACT: a SYSTEM script must be company-AGNOSTIC or a no-op when company 1 is absent.
+    /// A SYSTEM script that hard-inserts a literal company-1 row breaks a SeedDemoData=false
+    /// install on a least-privilege DB role: dev/tests connect as a Postgres SUPERUSER (RLS
+    /// bypassed) so they never noticed, but a real prod role is RLS-subject + non-superuser, so
+    /// those inserts fail with 42501 (RLS WITH CHECK, app.company_id unset) or an FK violation
+    /// (company 1 absent). The company-1 reference seeds below (expense categories 150/430/460,
+    /// wht types 220/250, tax codes 240, irrecoverable-VAT account) did exactly that — they only
+    /// provision the SQL-built demo company; a REAL company gets the identical set from
+    /// <c>CompanyService.CreateAsync</c> (DefaultWhtTypes/DefaultTaxCodes/CoA) at onboarding. So
+    /// they are DEMO. A MIXED script that also seeds global data (230: company-1 CoA 1180 PLUS the
+    /// global tax.wht_type.manage permission) stays SYSTEM but guards its company-1 insert with
+    /// WHERE EXISTS(company 1) so the global part still applies. Net: a fresh false install seeds
+    /// NO tenant rows and boots clean under a least-privilege RLS role
+    /// (regression-guarded by FirstRunBootstrapTests).
     /// </summary>
     public static readonly IReadOnlySet<string> DemoScripts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "120_seed_demo_company.sql",                 // demo company 2 + minimal CoA
         "130_seed_admin_and_customer.sql",           // the seeded 'admin'/Admin@1234 + demo customer (co1)
+        "150_seed_expense_categories.sql",           // company-1 expense categories (5-code starter) — hard-inserts co1
         "160_seed_approver_user.sql",                // SoD approver (super-admin, co1)
         "181_seed_demo_pv_users.sql",                // ap_clerk / sales_staff demo users (split out of 180)
+        "220_seed_wht_types_full.sql",               // company-1 13 domestic wht types (CreateAsync DefaultWhtTypes)
+        "240_seed_exempt_tax_codes.sql",             // company-1 12 VAT tax codes (CreateAsync DefaultTaxCodes)
+        "240_seed_irrecoverable_vat_account.sql",    // company-1 CoA 5350 irrecoverable-VAT expense
+        "250_seed_foreign_wht_types.sql",            // company-1 2 foreign (PND54) wht types (CreateAsync)
         "400_seed_manual_demo_company.sql",          // manual-demo company (co1 tenant data)
         "410_seed_manual_demo_company_profile.sql",
         "420_seed_company1_profile.sql",             // company_id=1 profile (demo admin tenant)
+        "430_seed_expense_categories_full.sql",      // company-1 expense categories (§17.3 full set) — hard-inserts co1
         "440_seed_nonvat_demo_company.sql",          // demo company 3 (non-VAT)
         "450_seed_demo_company_tax_codes.sql",       // tax codes for demo cos
+        "460_seed_wage_wht_type.sql",                // company-1 WAGE wht_type + default wiring — hard-inserts co1
         "490_seed_company1_structured_address.sql",  // company_id=1 structured address (demo)
         "550_seed_rbac_e2e_users.sql",               // one login per role (co1/co3) — e2e only
         "561_seed_manual_demo_employees.sql",        // payroll demo employees (co1)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Api.Tests.Rbac;
@@ -110,6 +111,34 @@ public sealed class FirstRunBootstrapTests
                     .SqlQueryRaw<int>("SELECT COUNT(*)::int AS \"Value\" FROM sys.roles")
                     .SingleAsync();
                 roleCount.Should().BeGreaterThan(0, "RBAC roles are SYSTEM data and must always seed");
+
+                // REGRESSION (deploy 2026-06-21): a SYSTEM script must seed NO tenant data. These tests
+                // connect as a Postgres SUPERUSER (RLS bypassed), so a mis-classified company-1 seed
+                // (150/430/460 expense categories + WAGE wht) inserted ORPHAN company-1 rows here unnoticed
+                // — and crashed a real least-privilege (non-superuser, RLS-subject) prod install at startup
+                // with 42501 (RLS WITH CHECK) / FK violation. Sweep every company-scoped base table and
+                // assert it holds no real-tenant (company_id >= 1) rows after a false boot. This catches the
+                // current offenders AND any future SYSTEM script that hard-inserts a company row.
+                var leaked = await db.Database
+                    .SqlQueryRaw<string>("""
+                        SELECT format('%s.%s=%s', c.table_schema, c.table_name, x.n) AS "Value"
+                        FROM information_schema.columns c
+                        JOIN information_schema.tables t
+                          ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+                         AND t.table_type = 'BASE TABLE'
+                        CROSS JOIN LATERAL (
+                            SELECT (xpath('/row/c/text()',
+                                query_to_xml(format('SELECT count(*) AS c FROM %I.%I WHERE company_id >= 1',
+                                    c.table_schema, c.table_name), false, true, '')))[1]::text::int AS n
+                        ) x
+                        WHERE c.column_name = 'company_id'
+                          AND c.table_schema NOT IN ('pg_catalog','information_schema')
+                          AND x.n > 0
+                        """)
+                    .ToListAsync();
+                leaked.Should().BeEmpty(
+                    "SeedDemoData=false must seed NO company-scoped rows — else a non-superuser RLS install "
+                    + "fails at startup. Leaked tenant rows in: " + string.Join(", ", leaked));
             }
         }
         finally
@@ -135,11 +164,27 @@ public sealed class FirstRunBootstrapTests
             await using var factory = new RbacApiFactory(conn);
             using var client = factory.CreateClient();
 
+            // First-run probe BEFORE bootstrap: zero users → needs_setup=true (login page routes to /onboarding).
+            using (var st0 = await client.GetAsync("/system/setup/status"))
+            {
+                st0.StatusCode.Should().Be(HttpStatusCode.OK);
+                var j0 = await st0.Content.ReadFromJsonAsync<JsonElement>();
+                j0.GetProperty("needs_setup").GetBoolean().Should().BeTrue("a fresh install has zero users");
+            }
+
             // First call: succeeds, creates the first super-admin.
             using (var resp1 = await client.PostAsJsonAsync("/system/setup/bootstrap-admin",
                 new { username = "owner", password = "Sup3rSecret!2026", email = (string?)null, fullName = "Owner" }))
             {
                 resp1.StatusCode.Should().Be(HttpStatusCode.OK, "the first-run bootstrap must succeed on an empty system");
+            }
+
+            // First-run probe AFTER bootstrap: a user now exists → needs_setup=false (routes to /login).
+            using (var st1 = await client.GetAsync("/system/setup/status"))
+            {
+                st1.StatusCode.Should().Be(HttpStatusCode.OK);
+                var j1 = await st1.Content.ReadFromJsonAsync<JsonElement>();
+                j1.GetProperty("needs_setup").GetBoolean().Should().BeFalse("once any user exists the system is set up");
             }
 
             // Second call: a user now exists → the gate refuses with 409.
