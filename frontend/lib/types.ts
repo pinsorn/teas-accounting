@@ -65,6 +65,24 @@ export interface UpdateRegisteredAddressRequest {
   subdistrict: string | null; district: string | null; province: string; postalCode: string;
 }
 
+// Full company-info edit (super-admin) — founding legal identity + tax config + registered address.
+// Mirrors BE UpdateCompanyInfoRequest (JSON camelCase). §4.2-safe: affects future documents only.
+export interface UpdateCompanyInfoRequest {
+  legalName: string;
+  nameEn: string | null;
+  taxId: string;
+  registrationNumber: string | null;
+  legalEntityType: LegalEntityType;
+  branchCode: string;
+  vatRegistered: boolean;
+  vatRate: number;
+  pnd30SubmissionMode: Pnd30SubmissionMode;
+  vatRegisterDate: string | null;
+  building: string | null; roomNo: string | null; floor: string | null; village: string | null;
+  houseNo: string | null; moo: string | null; soi: string | null; street: string | null;
+  subdistrict: string | null; district: string | null; province: string; postalCode: string;
+}
+
 // Sprint 13d P3 — current user's effective scopes (drives PermissionGate).
 export interface MePermissions {
   permissions: string[];

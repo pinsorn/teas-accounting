@@ -2193,6 +2193,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelopeV1'
 
+  /company-profile/company-info:
+    put:
+      summary: Edit full company info (super-admin) — founding identity + tax config + registered address
+      description: |
+        Super-admin (`master.company.manage`). Implements the previously-deferred /hard path: corrects
+        the founding legal identity (legal name, 13-digit tax id, registration number, branch code,
+        legal entity type), the VAT/tax config (§4.6) and the registered address in ONE call. Writes
+        BOTH master.companies and company_profiles; every change is audited (tax_config_change +
+        CompanyInfoChanged). §4.2-safe — posted tax invoices snapshot the supplier identity at
+        post-time, so this affects FUTURE documents only.
+      tags: [Company Profile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [legalName, taxId, branchCode, legalEntityType, province, postalCode]
+              properties:
+                legalName: { type: string }
+                nameEn: { type: string, nullable: true }
+                taxId: { type: string, description: 13-digit with valid checksum }
+                registrationNumber: { type: string, nullable: true }
+                legalEntityType: { type: string }
+                branchCode: { type: string, description: 5 digits (00000 = head office) }
+                vatRegistered: { type: boolean }
+                vatRate: { type: number }
+                pnd30SubmissionMode: { type: string, enum: [manual, auto] }
+                vatRegisterDate: { type: string, format: date, nullable: true }
+                building: { type: string, nullable: true }
+                roomNo: { type: string, nullable: true }
+                floor: { type: string, nullable: true }
+                village: { type: string, nullable: true }
+                houseNo: { type: string, nullable: true }
+                moo: { type: string, nullable: true }
+                soi: { type: string, nullable: true }
+                street: { type: string, nullable: true }
+                subdistrict: { type: string, nullable: true }
+                district: { type: string, nullable: true }
+                province: { type: string }
+                postalCode: { type: string }
+      responses:
+        '204':
+          description: Updated
+        '400':
+          description: Validation failure (tax id checksum, branch 5 digits, vat rate 0–1)
+        '403':
+          description: Missing master.company.manage scope
+
   /company-profile/hard:
     put:
       summary: Update hard fields (Phase 1 = 501 Not Implemented)

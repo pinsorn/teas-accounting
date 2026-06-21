@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 4 |
 | AuthnOnly | 12 |
-| Perm | 228 |
+| Perm | 229 |
 | Assertion | 5 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **275** |
+| **TOTAL** | **276** |
 
 ## Routes
 
@@ -94,6 +94,7 @@
 | GET | `/companies/{id:int}` | Perm | master.company.manage |
 | PUT | `/companies/{id:int}` | Perm | master.company.manage |
 | GET | `/company-profile/` | AuthnOnly | — |
+| PUT | `/company-profile/company-info` | Perm | master.company.manage |
 | PUT | `/company-profile/hard` | Perm | master.company_profile.manage |
 | POST | `/company-profile/logo` | Perm | master.company_profile.manage |
 | PUT | `/company-profile/registered-address` | Perm | master.company_profile.manage |

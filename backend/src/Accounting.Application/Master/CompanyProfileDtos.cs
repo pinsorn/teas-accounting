@@ -1,3 +1,4 @@
+using Accounting.Domain.Enums;
 using FluentValidation;
 
 namespace Accounting.Application.Master;
@@ -61,6 +62,20 @@ public sealed record UpdateRegisteredAddressRequest(
     string? HouseNo, string? Moo, string? Soi, string? Street,
     string? Subdistrict, string? District, string Province, string PostalCode);
 
+// Full company-info edit — founding legal identity + tax config + registered address in one call.
+// Super-admin only (Master.CompanyManage / §4.6). Implements what the deferred /hard endpoint 501'd:
+// a fresh install commonly has a data-entry mistake in the founding identity. §4.2-SAFE — posted tax
+// invoices snapshot supplier identity at post-time (TaxInvoice.Supplier* frozen columns), so this only
+// affects FUTURE documents. Writes BOTH master.companies and company_profiles; every change is audited
+// (tax_config_change for §4.6 VAT fields + CompanyInfoChanged for the identity per §4.8).
+public sealed record UpdateCompanyInfoRequest(
+    string LegalName, string? NameEn, string TaxId, string? RegistrationNumber,
+    LegalEntityType LegalEntityType, string BranchCode,
+    bool VatRegistered, decimal VatRate, string Pnd30SubmissionMode, DateOnly? VatRegisterDate,
+    string? Building, string? RoomNo, string? Floor, string? Village, string? HouseNo,
+    string? Moo, string? Soi, string? Street, string? Subdistrict, string? District,
+    string Province, string PostalCode);
+
 public interface ICompanyProfileService
 {
     /// <summary>Profile for the current tenant's company. Any authenticated
@@ -72,6 +87,11 @@ public interface ICompanyProfileService
 
     /// <summary>Update the HARD registered address (admin-confirmed DBD/ภ.พ.09 filing). Audited.</summary>
     Task UpdateRegisteredAddressAsync(UpdateRegisteredAddressRequest req, CancellationToken ct);
+
+    /// <summary>Update the full founding identity + tax config + registered address for the current
+    /// tenant (super-admin / Master.CompanyManage). Writes both master.companies and company_profiles,
+    /// validated + audited. §4.2-safe — posted documents keep their snapshotted supplier identity.</summary>
+    Task UpdateCompanyInfoAsync(UpdateCompanyInfoRequest req, CancellationToken ct);
 
     /// <summary>Sprint 13h P10 — upload a company logo. Stores the file via
     /// the polymorphic attachment service (parent_type=COMPANY_PROFILE) and

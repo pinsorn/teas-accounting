@@ -1112,7 +1112,29 @@
     "loadError": "Failed to load company profile",
     "paidUpCapital": "Paid-up capital (THB)",
     "paidUpCapitalHelp": "Used for SME classification for corporate income tax (capital ≤ 5M and revenue ≤ 30M)",
-    "paidUpCapitalSaved": "Paid-up capital saved"
+    "paidUpCapitalSaved": "Paid-up capital saved",
+    "editCompanyInfo": "Edit company info",
+    "nameEn": "Name (English)",
+    "legalEntityType": "Legal entity type",
+    "vatRegistered": "VAT registered",
+    "vatRate": "VAT rate",
+    "vatRegisterDate": "VAT registration date",
+    "pnd30SubmissionMode": "ภ.พ.30 filing mode",
+    "sectionIdentity": "Legal identity",
+    "sectionVat": "VAT",
+    "sectionAddress": "Registered address",
+    "ciWarnTitle": "⚠ Changing legal company info",
+    "ciWarnBody": "These are the company's registered legal details (name / 13-digit tax ID / branch code / VAT).\n\nIf the entity is already registered, changing them requires filing an amendment with the DBD (บอจ.1/บอจ.4) and, if VAT-registered, notifying the Revenue Department via ภ.พ.09 within 15 days.\n\nAlready-issued documents (tax invoices, etc.) keep their original details — this change affects FUTURE documents only, and is written to the audit log.\n\nConfirm only if the data is correct.",
+    "ciWarnConfirm": "Confirm — save company info",
+    "legalType": {
+      "LimitedCompany": "Limited Company",
+      "PublicLimitedCompany": "Public Limited Company",
+      "LimitedPartnership": "Limited Partnership",
+      "OrdinaryPartnership": "Ordinary Partnership",
+      "JointVenture": "Joint Venture",
+      "SoleProprietor": "Sole Proprietor",
+      "Other": "Other"
+    }
   },
   "common": {
     "loading": "Loading…",
