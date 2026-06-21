@@ -1379,6 +1379,28 @@ paths:
           content:
             application/pdf: {}
 
+  /tax-filings/pnd30/batch-file:
+    get:
+      summary: ภ.พ.30 (VAT return) — RD Prep "Format กลาง" batch-upload file (.txt, no RD submission)
+      description: >
+        The pipe-delimited UTF-8 (no BOM, CR/LF) text file the user imports into RD Prep
+        (โปรแกรมโอนย้ายข้อมูล, plugin vat/pp30-trn) for bulk e-filing. ภ.พ.30 is a per-branch SUMMARY,
+        so the file is DETAIL rows only (no header record) — one row per branch (TEAS files company-level
+        → one HQ row). 16 fields per the RD config order: SEQ, BRANCH_NO(≤5), NUMBER(addr ≤20),
+        POSTAL_CODE(5), then ข้อ1 ยอดขาย, ข้อ1.1/1.2 (empty on a normal filing), ข้อ2 0%, ข้อ3 ยกเว้น,
+        ข้อ4 ต้องเสีย (=ข้อ1−2−3), ข้อ5 ภาษีขาย, ข้อ6 ยอดซื้อ, ข้อ6.1/6.2 (empty normal), ข้อ7 ภาษีซื้อ,
+        ข้อ8/9 net (payable positive / overpaid negative). Reuses the Pnd30Filing figures (no GL recompute);
+        address from the company profile. Read-only export — gated on the FilingPreview permission.
+        Throws pp30_batch.no_data (no sales) / pp30_batch.missing_address (เลขที่/ไปรษณีย์ absent).
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: ภ.พ.30 Format-กลาง text file
+          content:
+            text/plain: {}
+
   /tax-filings/pnd3/pdf:
     get:
       summary: ภ.ง.ด.3 (WHT, individuals) — filled main page + ใบแนบ, print-and-file
@@ -1662,6 +1684,28 @@ paths:
                   liabilitiesAndEquityTotal: { type: number }
                   balanced: { type: boolean }
                   note: { type: string }
+
+  /reports/financial-statements/pdf:
+    get:
+      summary: Financial-statement supporting report PDF (งบฐานะการเงิน + งบกำไรขาดทุน)
+      description: >
+        งบแสดงฐานะการเงิน + งบกำไรขาดทุน for a fiscal year (CE) as a SUPPORTING / management report to
+        attach to / reference when filing ภ.ง.ด.50. Derived from posted GL via the same FY-end and the
+        same BalanceSheetAsync/ProfitLossAsync the ภ.ง.ด.50 form uses (figures match). NOT the audited
+        DBD/XBRL statutory งบการเงิน — the PDF is labeled "เอกสารประกอบ — มิใช่งบการเงินที่ผ่านการตรวจสอบ
+        โดยผู้สอบบัญชี". Read-only. Permission = report.trial_balance (same as /reports/balance-sheet).
+      tags: [Reports]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+          description: Fiscal year (CE). FY-end derived from the company fiscal-year-start month.
+      responses:
+        '200':
+          description: financial-statements_{year}.pdf
+          content:
+            application/pdf: {}
 
   /reports/pnd30/file:
     get:

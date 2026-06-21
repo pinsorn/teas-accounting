@@ -198,6 +198,9 @@ export default function CitYearDataPage() {
   const [attestBlankSchedules, setAttestBlankSchedules] = useState(false);
   const [pnd50Busy, setPnd50Busy] = useState(false);
 
+  // Financial-statement supporting report (งบฐานะการเงิน + งบกำไรขาดทุน) for the same FY — read-only.
+  const [fsBusy, setFsBusy] = useState(false);
+
   // adjustment add/edit form (editId = null → add mode)
   const [editId, setEditId] = useState<number | null>(null);
   const [refCode, setRefCode] = useState('');
@@ -278,6 +281,17 @@ export default function CitYearDataPage() {
       toast.error(t('pnd50Error'));
     } finally {
       setPnd50Busy(false);
+    }
+  }
+
+  async function downloadFinancialStatements() {
+    setFsBusy(true);
+    try {
+      await openPdf(`reports/financial-statements/pdf?year=${year}`);
+    } catch {
+      toast.error(t('fsError'));
+    } finally {
+      setFsBusy(false);
     }
   }
 
@@ -580,6 +594,20 @@ export default function CitYearDataPage() {
           )}
         </div>
       )}
+
+      {/* ── Financial-statement supporting report PDF (งบฐานะการเงิน + งบกำไรขาดทุน) ── */}
+      <div className="mb-4 rounded-lg border border-base-300 p-4">
+        <h2 className="font-semibold">{t('fsTitle')}</h2>
+        <p className="mb-2 text-xs text-base-content/60">{t('fsHint')}</p>
+        <button
+          className="btn btn-sm btn-outline"
+          disabled={fsBusy || loading}
+          onClick={() => void downloadFinancialStatements()}
+        >
+          {fsBusy && <span className="loading loading-spinner loading-xs" />}
+          {t('fsDownload')}
+        </button>
+      </div>
 
       {/* ── ภ.ง.ด.50 C-D PDF (p1-p6 + p7 header) ── */}
       <div className="mb-4 rounded-lg border border-base-300 p-4">

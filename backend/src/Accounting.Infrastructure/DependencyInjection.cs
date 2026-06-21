@@ -88,6 +88,7 @@ public static class DependencyInjection
         services.AddScoped<Application.TaxFilings.ITaxFilingService,         TaxFilings.TaxFilingService>();
         services.AddScoped<Application.TaxFilings.IWhtFilingService,         TaxFilings.WhtFilingService>();
         services.AddScoped<Application.TaxFilings.IWhtBatchExportService,    TaxFilings.WhtBatchExportService>();
+        services.AddScoped<Application.TaxFilings.IPp30BatchExportService,   TaxFilings.Pp30BatchExportService>();
         services.AddScoped<Application.Ledger.IPeriodCloseService,       Ledger.PeriodCloseService>();
 
         // GL auto-posting — bind account-code map then register the poster.
@@ -105,6 +106,8 @@ public static class DependencyInjection
         services.AddScoped<Application.Tax.IPnd50FilingService, Tax.Pnd50FilingService>();
         services.AddScoped<Application.Tax.ICitYearDataService, Tax.CitYearDataService>();
         services.AddScoped<Application.Tax.IVatRegFormService, Tax.VatRegFormService>();
+        // Financial-statement supporting report PDF (งบฐานะการเงิน + งบกำไรขาดทุน) for ภ.ง.ด.50 — read-only.
+        services.AddScoped<Application.Reports.IFinancialStatementPdfService, Reports.FinancialStatementPdfService>();
 
         // Sprint 8.5 — VAT-mode + non-VAT doc labels (bound from the same "Tax"
         // section as API TaxConfig; Infra can't reference the API assembly).
