@@ -1746,6 +1746,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/SystemInfo'
 
+  /system/setup/status:
+    get:
+      summary: First-run probe (anonymous) — needs_setup=true when the instance has ZERO users
+      description: >
+        Anonymous. Drives the login page's first-run routing: when needs_setup is true (a fresh
+        install with no user yet) the frontend sends the visitor to the /onboarding wizard instead
+        of /login. Leaks only a single boolean — no data, no user info. Same zero-users invariant the
+        POST /system/setup/bootstrap-admin gate enforces.
+      tags: [System]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  needs_setup: { type: boolean }
+
   /companies:
     get:
       summary: List companies (super-admin, permission master.company.manage)

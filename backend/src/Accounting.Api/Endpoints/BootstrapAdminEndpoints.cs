@@ -115,6 +115,18 @@ public static class BootstrapAdminEndpoints
         .AllowAnonymous()   // first-run: there is no user to authenticate as. The zero-users gate is the guard.
         .WithTags("System");
 
+        // Anonymous first-run probe. The frontend login page calls this to decide where to send a
+        // visitor with no session: needs_setup=true (ZERO users → fresh install) routes to the
+        // /onboarding wizard; false routes to /login. Leaks a single boolean (no data, no user info),
+        // safe to expose pre-auth — and it is the same zero-users invariant the bootstrap gate enforces.
+        app.MapGet("/system/setup/status", async (AccountingDbContext db, CancellationToken ct) =>
+        {
+            var anyUser = await db.Users.IgnoreQueryFilters().AnyAsync(ct);
+            return Results.Ok(new { needs_setup = !anyUser });
+        })
+        .AllowAnonymous()
+        .WithTags("System");
+
         return app;
     }
 }

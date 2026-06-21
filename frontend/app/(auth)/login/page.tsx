@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -21,6 +21,31 @@ export default function LoginPage() {
   const router = useRouter();
   const t = useTranslations('login');
   const [needMfa, setNeedMfa] = useState(false);
+
+  // First-run gate: a FRESH install (zero users) has no admin to log in as — route the visitor
+  // straight to the /onboarding wizard instead of a dead login form. `ready` keeps the form hidden
+  // until the probe resolves so a brand-new visitor never flashes the login page. Fails SAFE
+  // (shows login) on any error so a returning user is never trapped in onboarding.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/setup/status', { cache: 'no-store' });
+        const body = await res.json().catch(() => null);
+        if (!cancelled && body?.needs_setup === true) {
+          router.replace('/onboarding');
+          return;
+        }
+      } catch {
+        /* fall through to showing the login form */
+      }
+      if (!cancelled) setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   // Build schema inside the component so validation messages go through i18n
   const schema = z.object({
@@ -50,6 +75,14 @@ export default function LoginPage() {
       const msg = err instanceof ApiError ? err.message : t('genericError');
       toast.error(msg);
     }
+  }
+
+  if (!ready) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-base-200 p-4">
+        <span className="loading loading-spinner loading-lg text-primary" aria-label="Loading" />
+      </main>
+    );
   }
 
   return (
