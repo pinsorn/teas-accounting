@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/pinsorn/teas-accounting/compare/v1.6.0...v1.7.0) (2026-06-21)
+
+
+### Features
+
+* RLS-safe SeedDemoData=false clean install + first-run onboarding entry ([60cc975](https://github.com/pinsorn/teas-accounting/commit/60cc975be06934d2b1cbde36a07c2de89a319fa2))
+* RLS-safe SeedDemoData=false clean install + first-run onboarding entry ([7cf12d4](https://github.com/pinsorn/teas-accounting/commit/7cf12d4c67c5da1815d35b16632f07b67bd95f5f))
+
 ## [1.6.0](https://github.com/pinsorn/teas-accounting/compare/v1.5.0...v1.6.0) (2026-06-21)
 
 
