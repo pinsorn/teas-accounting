@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.2](https://github.com/pinsorn/teas-accounting/compare/v1.7.1...v1.7.2) (2026-06-21)
+
+
+### Bug Fixes
+
+* super-admin with companies stuck in /onboarding loop (auto-switch instead) ([3702451](https://github.com/pinsorn/teas-accounting/commit/370245150478a9fdbafb5850dd7dd6ac3f8160a3))
+* super-admin with companies stuck in /onboarding loop (auto-switch instead) ([3f489f8](https://github.com/pinsorn/teas-accounting/commit/3f489f8c50eba2811f9322cb13daea4beb2ab208))
+
 ## [1.7.1](https://github.com/pinsorn/teas-accounting/compare/v1.7.0...v1.7.1) (2026-06-21)
 
 
