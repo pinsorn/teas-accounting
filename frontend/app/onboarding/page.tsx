@@ -93,7 +93,24 @@ export default function OnboardingPage() {
     (async () => {
       try {
         const res = await fetch('/api/proxy/me', { cache: 'no-store' });
-        if (!cancelled) setPhase(res.ok ? 'company' : 'createAdmin');
+        if (!res.ok) { if (!cancelled) setPhase('createAdmin'); return; }
+        // A super-admin lands here at companyId=0. If companies ALREADY exist this is NOT a fresh
+        // install — they just have no home company (LoginService primary-scope=0). Switch into one
+        // (the existing super-admin switcher path) and go to the dashboard instead of showing the
+        // create-first-company form again — which was looping back here on every re-login. Only a
+        // truly empty instance (zero companies) reaches the 'company' step to create the first.
+        const me = await res.json().catch(() => null);
+        const companies = (me?.allowedCompanies ?? []) as { id: number }[];
+        const first = companies[0];
+        if (first) {
+          const sw = await fetch('/api/auth/switch-company', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyId: first.id }),
+          }).catch(() => null);
+          if (sw?.ok) { window.location.replace('/'); return; }
+        }
+        if (!cancelled) setPhase('company');
       } catch {
         if (!cancelled) setPhase('createAdmin');
       }
