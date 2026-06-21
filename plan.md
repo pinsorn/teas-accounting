@@ -26,6 +26,16 @@ These landed after the RBAC sprint and are DONE; listed here only so they are no
 
 - ☐ **e-Tax live RD submission** — only Phase-1 scaffolding exists (XAdES signer inert, `MockRdEfilingClient`
   fake-ACK, no auto-submit cron). GATED until Ham orders — see the e-Tax section + `docs/superpowers/plans/etax-xades-production-plan.md`.
+- ☑ **RD Prep "Format กลาง" text exporters (WHT + VAT)** — `.txt` → RD Prep → `.rdx` → upload e-Filing.
+  - ☑ **WHT** ภ.ง.ด.53 (full) + ภ.ง.ด.3 (address blank) — SHIPPED cont.82.1 (`WhtBatchFormat`, `/tax-filings/pnd{53,3}/batch-file`).
+  - ☑ **ภ.พ.30 (VAT return)** — cont.104, 2026-06-21 (`Pp30BatchFormat`, `/tax-filings/pnd30/batch-file` + FE). Layout verified vs
+    RD Prep's `offline.db` `MASTER_PP30_TRN_CONFIG`. Gates: build 0/0 · 13/13 ×2 · tsc 0. UNCOMMITTED.
+  - 🔴 **ภ.ง.ด.50/51 = INFEASIBLE** (RD Prep has no `-trn`/text import for CIT; filed via form GUI / e-Filing web). Stay PDF.
+  - ☑ **Financial-statement supporting PDF** (cont.104, for ภ.ง.ด.50 attach/reference) — `FinancialStatementPdf` (งบดุล+P&L,
+    QuestPDF) + `GET /reports/financial-statements/pdf?year=`, FY-end = ภ.ง.ด.50's, labeled "เอกสารประกอบ มิใช่งบที่ตรวจสอบ".
+    Gates: build 0/0 · 2/2 ×2 · tsc 0. UNCOMMITTED. (NOT the audited DBD/XBRL งบการเงิน — that stays out of scope; ภ.ง.ด.51 needs no attach.)
+  Docs: `docs/superpowers/specs/2026-06-20-rd-prep-wht-exporter.md` + `docs/RD-Forms/rd-prep-efiling-research.md` (+ spec PDFs).
+  **Residual:** one real-RD-Prep import pass per form; ภ.ง.ด.3 structured Vendor address (schema → ASK Ham); ภ.ง.ด.1/1ก/3ก feasible later.
 - ☐ **Fixed Assets register + depreciation** (not built).
 - ⏸ **Inventory tracking** — out of scope (CLAUDE.md §8) until requested.
 - ☐ **3-way match (PR→PO→GR)** + `bank_account` master/selector — Phase-2 tech debt (see backlog below).

@@ -147,3 +147,12 @@ public interface IWhtBatchExportService
     /// <param name="period">yyyymm.</param>
     Task<WhtBatchFile> BuildAsync(string formType, int period, CancellationToken ct);
 }
+
+// ── ภ.พ.30 (VAT return) batch-upload file (RD Prep "Format กลาง" / plugin vat/pp30-trn) ──
+// Per-branch SUMMARY return — DETAIL rows only (no header record). Reuses GeneratePnd30Async's
+// figures (never recomputes VAT); address (NUMBER/POSTAL_CODE) comes from the company profile.
+public interface IPp30BatchExportService
+{
+    /// <param name="period">yyyymm.</param>
+    Task<WhtBatchFile> BuildAsync(int period, CancellationToken ct);
+}

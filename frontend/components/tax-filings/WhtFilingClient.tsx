@@ -9,8 +9,11 @@ import { downloadFile, openPdf } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 import type { WhtFiling } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
+import { RdPrepSteps } from './RdPrepSteps';
 
 const HOOKS = { pnd3: usePnd3, pnd53: usePnd53, pnd54: usePnd54 } as const;
+
+const FORM_LABEL = { pnd3: 'ภ.ง.ด.3', pnd53: 'ภ.ง.ด.53', pnd54: 'ภ.ง.ด.54' } as const;
 
 function thisMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -100,6 +103,10 @@ export function WhtFilingClient({
           </span>
         )}
       </div>
+
+      {canBatch && (
+        <RdPrepSteps formLabel={FORM_LABEL[form]} showPnd3Note={form === 'pnd3'} />
+      )}
 
       {filing && (
         <>

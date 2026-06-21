@@ -121,6 +121,15 @@ public static class TaxFilingEndpoints
                 BatchFileAsync("PND3", period, svc, ct))
         .RequireAuthorization(preview);
 
+        // ภ.พ.30 (VAT return) RD-Prep "Format กลาง" batch file — per-branch summary, detail rows only.
+        // Reuses GeneratePnd30Async figures; read-only export → same FilingPreview gate as WHT above.
+        app.MapGet("/tax-filings/pnd30/batch-file", async (
+            [FromQuery] int period, IPp30BatchExportService svc, CancellationToken ct) =>
+        {
+            var file = await svc.BuildAsync(period, ct);
+            return Results.File(file.Content, "text/plain; charset=utf-8", file.FileName);
+        }).RequireAuthorization(preview);
+
         // ── C5 ภ.พ.36 reverse-charge (+ auto-JV on finalize)
         app.MapPost("/tax-filings/pnd36", async (
             [FromQuery] int period, [FromQuery] string? mode,

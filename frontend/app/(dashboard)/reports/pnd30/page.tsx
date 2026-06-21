@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { openPdf } from '@/lib/api';
+import { openPdf, downloadFile } from '@/lib/api';
 import { usePnd30, useSystemInfo } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { Pnd30Filing } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
+import { RdPrepSteps } from '@/components/tax-filings/RdPrepSteps';
 
 function thisMonth() {
   return new Date().toISOString().slice(0, 7); // yyyy-MM
@@ -76,6 +77,15 @@ export default function Pnd30Page() {
             .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
           {t('pnd30DownloadPdf')}
         </button>
+        {/* RD Prep "Format กลาง" bulk e-filing .txt (โปรแกรมโอนย้ายข้อมูล) */}
+        <button className="btn btn-sm btn-outline" data-testid="pnd30-download-batch"
+          title={t('pnd30BatchFileHint')}
+          onClick={() => downloadFile(
+            `tax-filings/pnd30/batch-file?period=${toPeriod(ym)}`,
+            `PP30_${toPeriod(ym)}.txt`)
+            .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
+          {t('pnd30DownloadBatch')}
+        </button>
         {filing && (
           <span data-testid="pnd30-status"
             className={`badge ${filing.status === 'Preview' ? 'badge-ghost' : 'badge-success'}`}>
@@ -83,6 +93,8 @@ export default function Pnd30Page() {
           </span>
         )}
       </div>
+
+      <RdPrepSteps formLabel="ภ.พ.30" />
 
       {L && (
         <>

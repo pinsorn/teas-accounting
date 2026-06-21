@@ -540,6 +540,19 @@
     },
     "footnote": "Computed from Posted documents only · VAT from PP.30 · WHT from 50tawi certificates · PP.36 and corporate income tax: see Tax Filings"
   },
+  "rdPrep": {
+    "summary": "ℹ️ This .txt is NOT the final filing file — you must process it in the RD Prep program (see steps)",
+    "intro": "The {form} .txt is the “Format กลาง” data file for import into RD Prep, not a file you can upload directly. Follow these steps:",
+    "steps": [
+      "Open or install the RD Prep program (โปรแกรมโอนย้ายข้อมูล) from the Revenue Department",
+      "In RD Prep, select the form (ภ.ง.ด.3/53 or ภ.พ.30) and import this .txt file — set the delimiter to | (pipe) and choose no header row",
+      "Validate the data inside the program",
+      "RD Prep generates an encrypted .rdx file automatically",
+      "Go to efiling.rd.go.th, select the form, upload the .rdx file, and submit"
+    ],
+    "downloadLinkLabel": "Download RD Prep:",
+    "pnd3Note": "ภ.ง.ด.3 note: if any payee address fields were left blank, fill them in RD Prep before validating"
+  },
   "report": {
     "tbTitle": "Trial Balance",
     "plTitle": "Profit & Loss by Business Unit",
@@ -578,6 +591,8 @@
     "pnd30Finalized": "ภ.พ.30 finalized",
     "pnd30Previewed": "ภ.พ.30 preview generated",
     "pnd30DownloadPdf": "Download PDF (ภ.พ.30)",
+    "pnd30DownloadBatch": "Download batch file (.txt)",
+    "pnd30BatchFileHint": "RD Prep Format-กลาง file for bulk e-filing import (ภ.พ.30)",
     "pnd30Due": "Filing due by",
     "salesTaxable": "Taxable sales",
     "salesZeroRated": "Zero-rated sales (ม.80/1)",
@@ -695,6 +710,10 @@
     "pnd50HasRelatedParty": "Related parties under s.71 bis (revenue > 200M)",
     "pnd50Download": "Download P.N.D.50 (PDF)",
     "pnd50Error": "P.N.D.50 generation failed — see the conditions blocking it above",
+    "fsTitle": "Financial statements (supporting document)",
+    "fsHint": "Balance sheet + profit & loss from posted GL, to attach to / reference when filing P.N.D.50 — NOT auditor-reviewed statutory financial statements",
+    "fsDownload": "Download supporting statements (PDF)",
+    "fsError": "Failed to generate the supporting financial statements",
     "ladderTitle": "P.N.D.50 tax computation ladder",
     "ladderDirectRevenue": "Direct business revenue",
     "ladderSellingAdmin": "Less selling & admin expenses",

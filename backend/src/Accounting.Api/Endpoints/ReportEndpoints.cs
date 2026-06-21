@@ -60,6 +60,15 @@ public static class ReportEndpoints
                     asOfDate ?? DateOnly.FromDateTime(DateTime.UtcNow), ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.TrialBalance);
 
+        // Financial-statement SUPPORTING report PDF (งบแสดงฐานะการเงิน + งบกำไรขาดทุน) for a fiscal year —
+        // attach to / reference when filing ภ.ง.ด.50. Read-only, from posted GL; NOT the audited DBD งบการเงิน.
+        // Same FY-end + figures as the ภ.ง.ด.50 form; gated on the same perm as /balance-sheet.
+        group.MapGet("/financial-statements/pdf", async (
+            [FromQuery] int year, IFinancialStatementPdfService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildAsync(year, ct), "application/pdf",
+                    $"financial-statements_{year}.pdf"))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.TrialBalance);
+
         group.MapGet("/profit-loss", async (
             [FromQuery] DateOnly from, [FromQuery] DateOnly to,
             [FromQuery] int? businessUnitId, [FromQuery] bool? includeUnspecified,

@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 3 |
 | AuthnOnly | 12 |
-| Perm | 226 |
+| Perm | 228 |
 | Assertion | 5 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **272** |
+| **TOTAL** | **274** |
 
 ## Routes
 
@@ -203,6 +203,7 @@
 | POST | `/receipts/{id:long}/wht-cert` | Perm | sales.receipt.create |
 | GET | `/reports/ap-aging` | Perm | purchase.purchase_order.read |
 | GET | `/reports/balance-sheet` | Perm | report.trial_balance.read |
+| GET | `/reports/financial-statements/pdf` | Perm | report.trial_balance.read |
 | GET | `/reports/input-vat-register` | Perm | tax.vat_register.read |
 | GET | `/reports/number-gaps` | Perm | report.audit.read |
 | GET | `/reports/output-vat-register` | Perm | tax.vat_register.read |
@@ -247,6 +248,7 @@
 | GET | `/tax-filings/pnd3/batch-file` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd3/pdf` | Perm | tax.filing.preview |
 | POST | `/tax-filings/pnd30` | Perm | tax.filing.preview |
+| GET | `/tax-filings/pnd30/batch-file` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd30/pdf` | Perm | tax.filing.preview |
 | POST | `/tax-filings/pnd36` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd50/pdf` | Perm | tax.filing.preview |

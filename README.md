@@ -9,11 +9,12 @@
 (50 ทวิ), บัญชีแยกประเภท + รายงานการเงิน, **PDF แบบฟอร์มสรรพากรที่กรอกแล้วพร้อมพิมพ์**, เงินเดือน,
 และระบบ multi-tenant + RBAC
 
-> **Release v1.5.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
-> backend build (Windows x64 / Linux x64). ✨ ใหม่ใน v1.5: **code-review hardening** (dual review) —
-> re-pin tax-point + เลขเอกสารตอน post (ออกเดือนที่ post จริง), DB immutability trigger **ระดับบรรทัด**,
-> MCP API-key scope รัดกุมขึ้น, และ **badge เอกสารที่ AI agent ร่าง** บนหน้า detail + dashboard ·
-> **MCP server** (in-process) เชื่อม AI agent ผ่าน API key (read + create-draft; agent ร่าง คนกด approve+post)
+> **Release v1.6.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
+> backend build (Windows x64 / Linux x64). ✨ ใหม่ใน v1.6: **ส่งออกไฟล์ "Format กลาง" (.txt) สำหรับ
+> โปรแกรม RD Prep** — **ภ.ง.ด.3 / ภ.ง.ด.53** (หัก ณ ที่จ่าย) + **ภ.พ.30** (VAT) นำเข้า RD Prep →
+> ได้ไฟล์ `.rdx` → อัปโหลดยื่น e-Filing (มีแผงคำแนะนำขั้นตอนถัดไปในหน้าจอ; layout ตรวจเทียบกับ importer
+> ของ RD Prep จริง) · **PDF งบการเงินประกอบการยื่น ภ.ง.ด.50** (งบดุล + งบกำไรขาดทุน — เอกสารประกอบ,
+> มิใช่งบที่ตรวจสอบโดยผู้สอบบัญชี). (v1.5: code-review hardening + in-process **MCP server** สำหรับ AI agent.)
 >
 > Backend: **.NET 10** (ASP.NET Core Minimal APIs, EF Core 10) · DB: **PostgreSQL 16** ·
 > Frontend: **Next.js 15** (App Router, TypeScript, Tailwind, shadcn/ui)
@@ -30,6 +31,9 @@
   (50 ทวิ), มี guard ต่อบรรทัด (ผู้ขายไม่จด VAT → 0%, รหัสยกเว้น/0% → 0%, อัตรามาตรฐานจากค่าตั้ง)
 - **PDF แบบฟอร์มสรรพากร** (กรอกแล้ว พร้อมพิมพ์) — ภ.พ.30; ภ.ง.ด.1 / 1ก / 3 / 53 / 54;
   ภ.ง.ด.50 / 51 (ภาษีเงินได้นิติบุคคล); ภ.พ.01 / 09; ภ.พ.36 (reverse charge — คำนวณ + ลง JV อัตโนมัติ)
+- **ส่งออกไฟล์ยื่น e-Filing (Format กลาง .txt)** — ภ.ง.ด.3 / 53 + ภ.พ.30 สำหรับนำเข้าโปรแกรม **RD Prep**
+  → `.rdx` → อัปโหลดที่ efiling.rd.go.th (มีคำแนะนำขั้นตอนในหน้าจอ); + **PDF งบการเงินประกอบ ภ.ง.ด.50**
+  (งบดุล + งบกำไรขาดทุน, เอกสารประกอบ). หมายเหตุ: ภ.ง.ด.50 / 51 ยื่นผ่านฟอร์ม/เว็บ e-Filing (RD Prep ไม่รับนำเข้าไฟล์)
 - **เงินเดือน** — รอบจ่าย, สลิป, ภาษีเงินได้บุคคล + ประกันสังคม (ปกส.), ภ.ง.ด.1 / 1ก
 - **บัญชีแยกประเภท + รายงาน** — สมุดรายวัน, งบทดลอง, งบกำไรขาดทุน, งบดุล, สรุปภาษีรายเดือน,
   สรุปยอดขาย, อายุหนี้เจ้าหนี้
