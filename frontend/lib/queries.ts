@@ -54,6 +54,7 @@ import type {
   CompanyProfile,
   UpdateCompanyProfileSoftRequest,
   UpdateRegisteredAddressRequest,
+  UpdateCompanyInfoRequest,
   CompanyListItem,
   CompanyDetail,
   CreateCompanyRequest,
@@ -621,6 +622,22 @@ export function useUpdateRegisteredAddress() {
     mutationFn: (req: UpdateRegisteredAddressRequest) =>
       apiPut<unknown>('company-profile/registered-address', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+  });
+}
+
+// Full company-info edit (founding identity + tax config + registered address) — super-admin.
+// Affects FUTURE documents only (posted docs snapshot supplier identity). Invalidates the profile,
+// the companies list (VAT/name) and system-info (footer version / VAT mode).
+export function useUpdateCompanyInfo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateCompanyInfoRequest) =>
+      apiPut<unknown>('company-profile/company-info', req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-profile'] });
+      qc.invalidateQueries({ queryKey: ['companies'] });
+      qc.invalidateQueries({ queryKey: ['system-info'] });
+    },
   });
 }
 

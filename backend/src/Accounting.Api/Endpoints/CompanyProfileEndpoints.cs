@@ -53,6 +53,19 @@ public static class CompanyProfileEndpoints
         }).RequireAuthorization(
             PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyProfileManage);
 
+        // Full company-info edit (founding legal identity + tax config + registered address) —
+        // SUPER-ADMIN only (Master.CompanyManage / §4.6: tax config stays super-only). Implements the
+        // previously-deferred /hard path so a fresh install can correct a data-entry mistake. §4.2-safe:
+        // posted tax invoices snapshot the supplier identity at post-time, so this only changes FUTURE
+        // documents. Validated + audited (tax_config_change + CompanyInfoChanged) in the service.
+        g.MapPut("/company-info", async ([FromBody] UpdateCompanyInfoRequest req,
+            ICompanyProfileService svc, CancellationToken ct) =>
+        {
+            await svc.UpdateCompanyInfoAsync(req, ct);
+            return Results.NoContent();
+        }).RequireAuthorization(
+            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyManage);
+
         // Hard update — Phase-1 not implemented (ภ.พ.20-bound, see body).
         g.MapPut("/hard", () => Results.Json(new
         {

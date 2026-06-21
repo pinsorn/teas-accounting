@@ -7,12 +7,12 @@ import { Lock, AlertTriangle, Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import {
-  useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo, useUpdateRegisteredAddress,
+  useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo, useUpdateCompanyInfo,
 } from '@/lib/queries';
 import { apiGet, apiPut } from '@/lib/api';
 import type {
-  CompanyDto, CompanyProfile, UpdateCompanyProfileSoftRequest,
-  UpdateCompanyRequest, UpdateRegisteredAddressRequest,
+  CompanyDto, CompanyProfile, LegalEntityType, UpdateCompanyProfileSoftRequest,
+  UpdateCompanyRequest, UpdateCompanyInfoRequest,
 } from '@/lib/types';
 
 type SoftForm = UpdateCompanyProfileSoftRequest;
@@ -23,45 +23,20 @@ const EMPTY_SOFT: SoftForm = {
   ssoEmployerAccountNo: '',
 };
 
+const LEGAL_TYPES: LegalEntityType[] = [
+  'LimitedCompany', 'PublicLimitedCompany', 'LimitedPartnership',
+  'OrdinaryPartnership', 'JointVenture', 'SoleProprietor', 'Other',
+];
+
 export default function CompanyProfilePage() {
   const t = useTranslations('companyProfile');
   const tc = useTranslations('common');
   const q = useCompanyProfile();
   const save = useUpdateCompanyProfileSoft();
   const upload = useUploadCompanyLogo();
-  const saveAddr = useUpdateRegisteredAddress();
   const [form, setForm] = useState<SoftForm>(EMPTY_SOFT);
-  const [addr, setAddr] = useState<UpdateRegisteredAddressRequest | null>(null);
-  const [confirming, setConfirming] = useState(false);
 
   const p = q.data;
-
-  function openAddr() {
-    if (!p) return;
-    setAddr({
-      building: p.regBuilding ?? '', roomNo: p.regRoomNo ?? '', floor: p.regFloor ?? '',
-      village: p.regVillage ?? '', houseNo: p.regHouseNo ?? '', moo: p.regMoo ?? '',
-      soi: p.regSoi ?? '', street: p.regStreet ?? '',
-      subdistrict: p.registeredSubdistrict ?? '', district: p.registeredDistrict ?? '',
-      province: p.registeredProvince ?? '', postalCode: p.registeredPostalCode ?? '',
-    });
-  }
-  const setA = (patch: Partial<UpdateRegisteredAddressRequest>) =>
-    setAddr((a) => (a ? { ...a, ...patch } : a));
-
-  async function commitAddr() {
-    if (!addr) return;
-    try {
-      const payload = Object.fromEntries(
-        Object.entries(addr).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v]),
-      ) as unknown as UpdateRegisteredAddressRequest;
-      await saveAddr.mutateAsync(payload);
-      toast.success(t('saved'));
-      setConfirming(false); setAddr(null);
-    } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
-    }
-  }
 
   useEffect(() => {
     if (!p) return;
@@ -86,7 +61,8 @@ export default function CompanyProfilePage() {
 
   async function onSave() {
     try {
-      // normalise empty strings → null (the API treats both as "unset").
+      // normalise empty strings → null (the API treats both as "unset"). logoUrl is kept as-is
+      // (managed by the upload button) so saving the soft section never wipes an uploaded logo.
       const payload = Object.fromEntries(
         Object.entries(form).map(([k, v]) => [k, v?.trim() ? v.trim() : null]),
       ) as unknown as SoftForm;
@@ -151,17 +127,15 @@ export default function CompanyProfilePage() {
 
       {p && (
         <div className="space-y-6">
-          {/* ── HARD (read-only, Phase 1) ── */}
+          {/* ── Legal identity (super-admin may edit the whole company) ── */}
           <section className="card bg-base-100 shadow-sm">
             <div className="card-body">
               <div className="flex items-center justify-between">
                 <h2 className="card-title flex items-center gap-2 text-base">
                   <Lock className="h-4 w-4" aria-hidden /> {t('legalSection')}
                 </h2>
-                <PermissionGate scope="master.company_profile.manage">
-                  <button data-testid="cp-edit-address" className="btn btn-ghost btn-xs gap-1" onClick={openAddr}>
-                    <Pencil className="h-3 w-3" aria-hidden /> {t('editRegisteredAddress')}
-                  </button>
+                <PermissionGate scope="master.company.manage">
+                  <EditCompanyInfo profile={p} />
                 </PermissionGate>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -189,54 +163,6 @@ export default function CompanyProfilePage() {
             </div>
           </section>
 
-          {/* ── Edit registered address (HARD) modal ── */}
-          {addr && !confirming && (
-            <div className="modal modal-open" role="dialog" aria-modal="true">
-              <div className="modal-box max-w-2xl">
-                <h3 className="text-lg font-bold">{t('editRegisteredAddress')}</h3>
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {([
-                    ['building', t('building')], ['roomNo', t('roomNo')], ['floor', t('floor')],
-                    ['village', t('village')], ['houseNo', t('houseNo')], ['moo', t('moo')],
-                    ['soi', t('soi')], ['street', t('street')], ['subdistrict', t('subdistrict')],
-                    ['district', t('district')], ['province', t('province')], ['postalCode', t('postalCode')],
-                  ] as [keyof UpdateRegisteredAddressRequest, string][]).map(([k, label]) => (
-                    <label className="form-control" key={k}>
-                      <span className="label-text">{label}</span>
-                      <input className="input input-bordered" value={addr[k] ?? ''}
-                        onChange={(e) => setA({ [k]: e.target.value })} />
-                    </label>
-                  ))}
-                </div>
-                <div className="modal-action">
-                  <button className="btn btn-ghost" onClick={() => setAddr(null)}>{tc('cancel')}</button>
-                  <button className="btn btn-primary"
-                    disabled={!addr.province.trim() || !addr.postalCode.trim()}
-                    onClick={() => setConfirming(true)}>{tc('save')}</button>
-                </div>
-              </div>
-              <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setAddr(null)} />
-            </div>
-          )}
-
-          {/* ── DBD/ภ.พ.09 warning before committing a HARD address change ── */}
-          {addr && confirming && (
-            <div className="modal modal-open" role="dialog" aria-modal="true">
-              <div className="modal-box border-2 border-warning">
-                <h3 className="flex items-center gap-2 text-lg font-bold text-warning">
-                  <AlertTriangle className="h-6 w-6" aria-hidden /> {t('addrWarnTitle')}
-                </h3>
-                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">{t('addrWarnBody')}</p>
-                <div className="modal-action">
-                  <button className="btn btn-ghost" onClick={() => setConfirming(false)}>{tc('cancel')}</button>
-                  <button className="btn btn-warning" disabled={saveAddr.isPending} onClick={commitAddr}>
-                    {t('addrWarnConfirm')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* ── SOFT (admin-editable) ── */}
           <section className="card bg-base-100 shadow-sm">
             <div className="card-body">
@@ -247,15 +173,15 @@ export default function CompanyProfilePage() {
                 <SoftField k="phone" label={t('phone')} />
                 <SoftField k="email" label={t('email')} type="email" />
                 <SoftField k="website" label={t('website')} />
-                <SoftField k="logoUrl" label={t('logoUrl')} />
                 <SoftField k="bankName" label={t('bankName')} />
                 <SoftField k="bankAccountNo" label={t('bankAccountNo')} />
                 <SoftField k="bankAccountName" label={t('bankAccountName')} />
                 <SoftField k="ssoEmployerAccountNo" label={t('ssoEmployerAccountNo')} />
               </div>
 
-              {/* Sprint 13h P10 — logo upload (multipart). 1 MB max,
-                  png/jpeg/svg/webp. Writes attachment + LogoUrl back. */}
+              {/* Sprint 13h P10 — logo upload (multipart). 1 MB max, png/jpeg/svg/webp.
+                  Writes attachment + LogoUrl back. (The free-text Logo URL field was removed —
+                  upload is the single source so a pasted URL can't break document rendering.) */}
               <PermissionGate scope="master.company_profile.manage">
                 <div className="mt-2 flex items-end gap-3">
                   <label className="form-control">
@@ -322,14 +248,212 @@ export default function CompanyProfilePage() {
   );
 }
 
+type InfoForm = Omit<UpdateCompanyInfoRequest, 'vatRegistered' | 'vatRate'> & {
+  vatRegistered: boolean;
+  vatRate: string; // kept as a string in the input, parsed on submit
+};
+
+/**
+ * Super-admin full company-info editor. Replaces the deferred "edit registered address" path: a
+ * fresh install commonly has a data-entry mistake in the founding legal identity. Edits BOTH the
+ * master companies row (VAT/tax config — §4.6) and the company profile (what documents render) via
+ * PUT /company-profile/company-info. §4.2-SAFE — posted tax invoices snapshot the supplier identity
+ * at post-time, so this only changes FUTURE documents. A big confirm warning gates the write.
+ */
+function EditCompanyInfo({ profile }: { profile: CompanyProfile }) {
+  const t = useTranslations('companyProfile');
+  const tc = useTranslations('common');
+  const mutate = useUpdateCompanyInfo();
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [f, setF] = useState<InfoForm | null>(null);
+  const set = (patch: Partial<InfoForm>) => setF((s) => (s ? { ...s, ...patch } : s));
+
+  async function openEditor() {
+    // The legal-form + VAT config live on the master `companies` row, not the profile.
+    let company: CompanyDto | null = null;
+    try {
+      const list = await apiGet<CompanyDto[]>('companies');
+      company = list.find((c) => c.companyId === profile.companyId) ?? null;
+    } catch {
+      toast.error(tc('error'));
+      return;
+    }
+    setF({
+      legalName: profile.legalName ?? '',
+      nameEn: company?.nameEn ?? null,
+      taxId: profile.taxId ?? '',
+      registrationNumber: profile.registrationNumber ?? null,
+      legalEntityType: company?.legalEntityType ?? 'LimitedCompany',
+      branchCode: profile.branchCode ?? '00000',
+      vatRegistered: company?.vatRegistered ?? false,
+      vatRate: company?.vatRate != null ? String(company.vatRate) : '0.07',
+      pnd30SubmissionMode: company?.pnd30SubmissionMode ?? 'manual',
+      vatRegisterDate: profile.vatRegistrationDate ?? null,
+      building: profile.regBuilding ?? null, roomNo: profile.regRoomNo ?? null,
+      floor: profile.regFloor ?? null, village: profile.regVillage ?? null,
+      houseNo: profile.regHouseNo ?? null, moo: profile.regMoo ?? null,
+      soi: profile.regSoi ?? null, street: profile.regStreet ?? null,
+      subdistrict: profile.registeredSubdistrict ?? null, district: profile.registeredDistrict ?? null,
+      province: profile.registeredProvince ?? '', postalCode: profile.registeredPostalCode ?? '',
+    });
+    setOpen(true);
+  }
+
+  const valid = !!f
+    && f.legalName.trim().length > 0
+    && /^\d{13}$/.test(f.taxId.trim())
+    && /^\d{5}$/.test(f.branchCode.trim())
+    && f.province.trim().length > 0
+    && /^\d{5}$/.test(f.postalCode.trim());
+
+  async function commit() {
+    if (!f) return;
+    const norm = (v: string | null) => (typeof v === 'string' && v.trim() === '' ? null : v);
+    const payload: UpdateCompanyInfoRequest = {
+      legalName: f.legalName.trim(),
+      nameEn: norm(f.nameEn),
+      taxId: f.taxId.trim(),
+      registrationNumber: norm(f.registrationNumber),
+      legalEntityType: f.legalEntityType,
+      branchCode: f.branchCode.trim(),
+      vatRegistered: f.vatRegistered,
+      vatRate: f.vatRegistered ? Number(f.vatRate) || 0 : 0,
+      pnd30SubmissionMode: f.pnd30SubmissionMode,
+      vatRegisterDate: f.vatRegistered ? norm(f.vatRegisterDate) : null,
+      building: norm(f.building), roomNo: norm(f.roomNo), floor: norm(f.floor), village: norm(f.village),
+      houseNo: norm(f.houseNo), moo: norm(f.moo), soi: norm(f.soi), street: norm(f.street),
+      subdistrict: norm(f.subdistrict), district: norm(f.district),
+      province: f.province.trim(), postalCode: f.postalCode.trim(),
+    };
+    try {
+      await mutate.mutateAsync(payload);
+      toast.success(t('saved'));
+      setConfirming(false); setOpen(false); setF(null);
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
+
+  const Text = ({ k, label, required }: { k: keyof InfoForm; label: string; required?: boolean }) => (
+    <label className="form-control">
+      <span className="label-text">{label}{required && ' *'}</span>
+      <input className="input input-bordered" value={(f?.[k] as string) ?? ''}
+        onChange={(e) => set({ [k]: e.target.value } as Partial<InfoForm>)} />
+    </label>
+  );
+
+  return (
+    <>
+      <button data-testid="cp-edit-company-info" className="btn btn-ghost btn-xs gap-1" onClick={openEditor}>
+        <Pencil className="h-3 w-3" aria-hidden /> {t('editCompanyInfo')}
+      </button>
+
+      {/* ── Full edit form ── */}
+      {open && f && !confirming && (
+        <div className="modal modal-open" role="dialog" aria-modal="true">
+          <div className="modal-box max-w-3xl">
+            <h3 className="text-lg font-bold">{t('editCompanyInfo')}</h3>
+
+            <h4 className="mt-4 text-sm font-semibold text-base-content/70">{t('sectionIdentity')}</h4>
+            <div className="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Text k="legalName" label={t('legalName')} required />
+              <Text k="nameEn" label={t('nameEn')} />
+              <Text k="taxId" label={t('taxId')} required />
+              <Text k="registrationNumber" label={t('registrationNumber')} />
+              <label className="form-control">
+                <span className="label-text">{t('legalEntityType')}</span>
+                <select className="select select-bordered" value={f.legalEntityType}
+                  onChange={(e) => set({ legalEntityType: e.target.value as LegalEntityType })}>
+                  {LEGAL_TYPES.map((lt) => <option key={lt} value={lt}>{t(`legalType.${lt}`)}</option>)}
+                </select>
+              </label>
+              <Text k="branchCode" label={t('branchCode')} required />
+            </div>
+
+            <h4 className="mt-4 text-sm font-semibold text-base-content/70">{t('sectionVat')}</h4>
+            <div className="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="form-control">
+                <span className="label-text">{t('vatRegistered')}</span>
+                <input type="checkbox" className="toggle toggle-primary mt-2" checked={f.vatRegistered}
+                  onChange={(e) => set({ vatRegistered: e.target.checked })} />
+              </label>
+              {f.vatRegistered && (
+                <>
+                  <label className="form-control">
+                    <span className="label-text">{t('vatRate')}</span>
+                    <input type="number" step="0.01" min="0" max="1" className="input input-bordered"
+                      value={f.vatRate} onChange={(e) => set({ vatRate: e.target.value })} />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text">{t('vatRegisterDate')}</span>
+                    <input type="date" className="input input-bordered" value={f.vatRegisterDate ?? ''}
+                      onChange={(e) => set({ vatRegisterDate: e.target.value })} />
+                  </label>
+                </>
+              )}
+              <label className="form-control">
+                <span className="label-text">{t('pnd30SubmissionMode')}</span>
+                <select className="select select-bordered" value={f.pnd30SubmissionMode}
+                  onChange={(e) => set({ pnd30SubmissionMode: e.target.value as 'manual' | 'auto' })}>
+                  <option value="manual">manual</option>
+                  <option value="auto">auto</option>
+                </select>
+              </label>
+            </div>
+
+            <h4 className="mt-4 text-sm font-semibold text-base-content/70">{t('sectionAddress')}</h4>
+            <div className="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Text k="building" label={t('building')} />
+              <Text k="roomNo" label={t('roomNo')} />
+              <Text k="floor" label={t('floor')} />
+              <Text k="village" label={t('village')} />
+              <Text k="houseNo" label={t('houseNo')} />
+              <Text k="moo" label={t('moo')} />
+              <Text k="soi" label={t('soi')} />
+              <Text k="street" label={t('street')} />
+              <Text k="subdistrict" label={t('subdistrict')} />
+              <Text k="district" label={t('district')} />
+              <Text k="province" label={t('province')} required />
+              <Text k="postalCode" label={t('postalCode')} required />
+            </div>
+
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => { setOpen(false); setF(null); }}>{tc('cancel')}</button>
+              <button className="btn btn-primary" disabled={!valid} onClick={() => setConfirming(true)}>{tc('save')}</button>
+            </div>
+          </div>
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => { setOpen(false); setF(null); }} />
+        </div>
+      )}
+
+      {/* ── BIG warning before committing a founding-identity change ── */}
+      {open && f && confirming && (
+        <div className="modal modal-open" role="dialog" aria-modal="true">
+          <div className="modal-box border-4 border-error">
+            <div className="flex flex-col items-center text-center">
+              <AlertTriangle className="h-16 w-16 text-error" aria-hidden />
+              <h3 className="mt-2 text-2xl font-extrabold uppercase text-error">{t('ciWarnTitle')}</h3>
+            </div>
+            <p className="mt-3 whitespace-pre-line text-sm font-medium leading-relaxed">{t('ciWarnBody')}</p>
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setConfirming(false)}>{tc('cancel')}</button>
+              <button className="btn btn-error" disabled={mutate.isPending} onClick={commit}>
+                {mutate.isPending && <span className="loading loading-spinner loading-sm" />}
+                {t('ciWarnConfirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /**
  * Phase C-C — Company.PaidUpCapital lives on the master `companies` table (NOT
  * company_profiles), so it is read via GET /companies and saved via the
- * super-admin full-overwrite PUT /companies/{id}. CompanyDto omits the address/
- * phone/email/vatRegisterDate columns, so the PUT body reconstructs them from
- * the company-profile (registered address Line1 is kept in sync with the
- * structured parts; nothing renders from companies.address_th — documents use
- * company_profiles). Hidden entirely when GET /companies is forbidden (403).
+ * super-admin full-overwrite PUT /companies/{id}.
  */
 function PaidUpCapitalCard({ profile }: { profile: CompanyProfile }) {
   const t = useTranslations('companyProfile');
@@ -374,8 +498,6 @@ function PaidUpCapitalCard({ profile }: { profile: CompanyProfile }) {
         email: profile.email,
         isActive: row.isActive,
         paidUpCapital: parsed,
-        // Per-company VAT mode — PUT is a full-row replace; echo the current tax
-        // config or the BE would reset it to defaults (0.07 / manual).
         vatRate: row.vatRate,
         pnd30SubmissionMode: row.pnd30SubmissionMode,
       };
