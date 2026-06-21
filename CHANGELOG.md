@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/pinsorn/teas-accounting/compare/v1.5.0...v1.6.0) (2026-06-21)
+
+
+### Features
+
+* RD Prep "Format กลาง" .txt export for ภ.พ.30 + financial-statement PDF ([73c0257](https://github.com/pinsorn/teas-accounting/commit/73c0257a04db04e03b94c1bf5659a5985af7ca03))
+* RD Prep Format-กลาง .txt export (ภ.พ.30) + financial-statement PDF ([ddcfae2](https://github.com/pinsorn/teas-accounting/commit/ddcfae28d3875cee2b87da2002cd47ea4695e53e))
+
 ## [1.5.0](https://github.com/pinsorn/teas-accounting/compare/v1.4.0...v1.5.0) (2026-06-19)
 
 
