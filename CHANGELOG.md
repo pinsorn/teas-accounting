@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.1](https://github.com/pinsorn/teas-accounting/compare/v1.7.0...v1.7.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* editable company info — correct founding identity / branch / VAT on a fresh install ([b8a93d5](https://github.com/pinsorn/teas-accounting/commit/b8a93d593ac79e53072602e670982c15280eae05))
+* editable company info — correct founding identity / branch / VAT on a fresh install ([4cd03fe](https://github.com/pinsorn/teas-accounting/commit/4cd03fe7e8ee99895490374433eb97b4fa293a6c))
+
 ## [1.7.0](https://github.com/pinsorn/teas-accounting/compare/v1.6.0...v1.7.0) (2026-06-21)
 
 
