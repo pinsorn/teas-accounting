@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.5](https://github.com/pinsorn/teas-accounting/compare/v1.8.4...v1.8.5) (2026-06-22)
+
+
+### Bug Fixes
+
+* **ui:** @tailwindcss/forms strategy:class — DaisyUI checkboxes/radios/toggles render correctly site-wide ([#26](https://github.com/pinsorn/teas-accounting/issues/26)) ([4d8f696](https://github.com/pinsorn/teas-accounting/commit/4d8f69693b6ef47c81c5ee341847b6bc4f195993))
+
 ## [1.8.4](https://github.com/pinsorn/teas-accounting/compare/v1.8.3...v1.8.4) (2026-06-22)
 
 
