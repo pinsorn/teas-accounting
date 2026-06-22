@@ -3,6 +3,15 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-22 (cont. 113 — "Test infra: a NOBYPASSRLS test role so the suite can catch RLS-dependent prod bugs (closes the cont.105/112 blind spot)" [Ham]) — **✅ Added a regression guard that runs under real RLS in CI — caught nothing new, but would have caught cont.112. Test-only, no deploy.**
+
+- **Why:** the whole integration suite connects as a Postgres **superuser** (the dev/CI `accounting` user has BYPASSRLS), so RLS-dependent **prod-only** bugs are invisible to tests — masked cont.105 (SeedDemoData=false → 42501) and cont.112 (empty token at login). 3rd occurrence → close the gap.
+- **✅ `PostgresFixture`** now provisions a non-superuser **NOBYPASSRLS** role `teas_rls_test` (idempotent, best-effort). The DEV box's `accounting` lacks `CREATEROLE` → `RlsRoleSkip` set → RLS tests Skip; but **in CI `POSTGRES_USER=accounting` is a superuser** → it provisions and the test **runs for real**.
+- **✅ `PermissionLookupRlsTests`:** `SET ROLE teas_rls_test` with `app.company_id` UNSET (the exact anonymous-login condition) → asserts `PermissionLookup.LoadAsync` still resolves the `ACCOUNTANT` role + all 43 grants. Mirrors the prod proof (`SET ROLE teas`: 0 unset vs 43 set).
+- **Proven genuine (not vacuous):** in CI it first **FAILED** (a `sys.users` identity-sequence collision on the fresh DB — fixed with `setval` like `TestCompanyFactory`), then **PASSED** after the fix — so it actually executes the RLS assertion. Final CI: **Passed 528 / Skipped 7 (unchanged → did NOT skip) / Failed 0**. Without the cont.112 fix it would resolve 0 → red.
+- **Note (latent, flagged):** the cont.111 Phase-D `CreateUser_*` tests don't `setval` the users sequence either → order-dependent flakiness on a fresh DB (passed in CI only because a sequence-aligning test ran first). Low priority; align them when next touching that file.
+- **Ship:** PR #18 → CI green → main (`test:` → no release/deploy). `PostgresFixture.RlsTestRole` is reusable for future RLS-dependent tests.
+
 ## 2026-06-22 (cont. 112 — "Fix: non-super users logged in with an EMPTY token (RLS hides roles/perms during anon login) → v1.8.1, deployed + prod-verified" [Ham]) — **✅ Root-caused the cont.111 follow-up (accountant1 had 0 perms). RLS-during-anonymous-login bug; fixed PermissionLookup; RELEASED v1.8.1, deployed (API-only, no wipe). accountant1 now resolves 43 perms on prod.**
 
 - **Symptom (from cont.111):** the freshly-created non-super user `accountant1` logged in with `companyId=2` correct but **0 roles / 0 permissions** in the JWT — yet the DB held `ACCOUNTANT`=43 grants and the resolution query returned 43.
