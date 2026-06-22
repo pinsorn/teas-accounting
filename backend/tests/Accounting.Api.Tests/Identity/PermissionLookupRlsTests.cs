@@ -40,6 +40,12 @@ public sealed class PermissionLookupRlsTests
         await using (var s0 = sp0.CreateAsyncScope())
         {
             var db0 = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            // Align the users identity sequence past the explicit-id seeds — a FRESH teas_test
+            // (every CI run) starts the sequence at 1, colliding with the seeded admin (user_id=1).
+            // Same gotcha TestCompanyFactory handles for company/branch ids.
+            await db0.Database.ExecuteSqlRawAsync(
+                "SELECT setval(pg_get_serial_sequence('sys.users','user_id'), " +
+                "(SELECT COALESCE(MAX(user_id),0)+1 FROM sys.users), false);");
             var roleId = await db0.Roles
                 .Where(r => r.CompanyId == co.CompanyId && r.RoleCode == "ACCOUNTANT")
                 .Select(r => r.RoleId).FirstAsync();
