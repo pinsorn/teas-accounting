@@ -6,6 +6,27 @@
 @tailwind utilities;
 
 /* ====================================================================
+   DaisyUI toggle × @tailwindcss/forms fix
+   The forms plugin applies a :focus box-shadow ring to [type=checkbox].
+   DaisyUI draws the toggle THUMB with box-shadow too, so focusing a toggle
+   (i.e. the moment you click it) replaced the thumb with the focus ring →
+   the pill went blank/white. Re-assert DaisyUI's exact thumb box-shadow on
+   focus (this un-layered rule beats the forms base layer) and surface focus
+   via an outline instead. Background (primary when checked / track when not)
+   is untouched, and --handleoffsetcalculator keeps the thumb on the correct
+   side for both states.
+   ==================================================================== */
+.toggle:focus,
+.toggle:focus-visible {
+  box-shadow:
+    var(--handleoffsetcalculator) 0 0 2px var(--tglbg) inset,
+    0 0 0 2px var(--tglbg) inset,
+    var(--togglehandleborder);
+  outline: 2px solid oklch(var(--bc) / 0.35);
+  outline-offset: 2px;
+}
+
+/* ====================================================================
    Base — typography + DaisyUI cohabitation
    ==================================================================== */
 
