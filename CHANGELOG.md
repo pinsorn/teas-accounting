@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/pinsorn/teas-accounting/compare/v1.7.3...v1.8.0) (2026-06-22)
+
+
+### Features
+
+* **rbac:** admin user management — create user, toggle active, reset password ([#14](https://github.com/pinsorn/teas-accounting/issues/14)) ([0f37e10](https://github.com/pinsorn/teas-accounting/commit/0f37e107b80aabb78a8ff004e6a235fe5403b538))
+
 ## [1.7.3](https://github.com/pinsorn/teas-accounting/compare/v1.7.2...v1.7.3) (2026-06-22)
 
 
