@@ -27,6 +27,23 @@
 }
 
 /* ====================================================================
+   …and the same conflict in the CHECKED + hover/focus state.
+   @tailwindcss/forms re-asserts `background-color: currentColor` on
+   input[type=checkbox|radio]:checked:hover and :checked:focus. Its
+   `:where([type=…])` selector is specificity (0,2,1) — it beats DaisyUI's
+   .toggle/.radio:checked (0,2,0) and so blanks the control to white (the
+   theme's `color` for a checked control = primary-content #fff) the
+   moment you hover or focus a checked toggle/radio. The RESTING checked
+   state is unaffected (DaisyUI wins there), so re-assert only each used
+   variant's checked colour for those two states, at (0,3,0). ==========
+   ==================================================================== */
+.toggle-primary:checked:hover,   .toggle-primary:checked:focus   { background-color: oklch(var(--p)); }
+.toggle-warning:checked:hover,   .toggle-warning:checked:focus   { background-color: oklch(var(--wa)); }
+.toggle-success:checked:hover,   .toggle-success:checked:focus   { background-color: oklch(var(--su)); }
+.radio-warning:checked:hover,    .radio-warning:checked:focus    { background-color: oklch(var(--wa)); }
+.radio-secondary:checked:hover,  .radio-secondary:checked:focus  { background-color: oklch(var(--s)); }
+
+/* ====================================================================
    Base — typography + DaisyUI cohabitation
    ==================================================================== */
 
