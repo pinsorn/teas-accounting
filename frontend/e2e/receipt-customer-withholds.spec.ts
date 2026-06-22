@@ -13,7 +13,9 @@ test('receipt: customer withholds WHT (manual base override)', async ({ page }) 
   await pickCustomer(page);
   // Redesign: taxInvoiceId is a typeahead picker keyed by doc_no, not id.
   await pickTaxInvoice(page, 1, tiDocNo);
-  await page.getByLabel('appliedAmount 1').fill('1070');
+  // Redesign: the applied-amount cell's aria-label is t('appliedAmount') = "ยอดชำระ"
+  // (rc.appliedAmount in messages/th.json), rendered as spinbutton "ยอดชำระ N".
+  await page.getByLabel('ยอดชำระ 1').fill('1070');
 
   // Toggle WHT on. Redesign: the WHT section is now PER-LINE — a WhtTypeSelect
   // (custom listbox, aria-label "ประเภทเงินได้ N") + base input ("ฐาน WHT N")

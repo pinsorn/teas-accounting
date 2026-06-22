@@ -15,17 +15,15 @@ test('domestic online subscription — manual self-withhold gross-up', async ({ 
     .locator('xpath=following::select[1]').selectOption({ label: 'ค่าบริการ (SVC)' });
 
   // Domestic → toggle is editable + default OFF; turn it ON manually.
-  const swToggle = page.locator('label:has-text("Self-withhold mode") input[type="checkbox"]');
+  // Toggle is now a daisyUI checkbox labelled by the Thai self-withhold text.
+  const swToggle = page.getByRole('checkbox', { name: /ออกภาษีให้เอง/ });
   await expect(swToggle).toBeEnabled();
   await swToggle.check();
   await expect(swToggle).toBeChecked();
 
-  await page.getByText(/^รายละเอียด|^Description/).first()
-    .locator('xpath=following::input[1]').fill('Meta ads auto-charge');
-  await page.getByText(/^มูลค่าก่อนภาษี|^Subtotal/).first()
-    .locator('xpath=following::input[1]').fill('10000');
-  await page.getByText(/^หัก ณ ที่จ่าย|^WHT$/).first()
-    .locator('xpath=following::input[1]').fill('0.03');
+  await page.getByRole('textbox', { name: /^รายละเอียด/ }).first().fill('Meta ads auto-charge');
+  await page.getByRole('spinbutton', { name: /^มูลค่าก่อนภาษี/ }).first().fill('10000');
+  await page.getByRole('spinbutton', { name: /หัก ณ ที่จ่าย/ }).first().fill('0.03');
 
   await page.getByRole('button', { name: /^บันทึก$|^Save$/ }).click();
   await page.waitForURL(/\/payment-vouchers\/\d+$/, { timeout: 15_000 });
@@ -45,5 +43,6 @@ test('domestic online subscription — manual self-withhold gross-up', async ({ 
       { timeout: 3_000 });
   }).toPass({ timeout: 25_000 });
   await expect(page.locator('body')).toContainText(/บันทึกแล้ว|Posted/, { timeout: 10_000 });
-  await expect(page.locator('body')).toContainText(/Self-withhold/);
+  // Self-withhold detail badge is Thai-only now.
+  await expect(page.locator('body')).toContainText(/ออกภาษีให้เอง/);
 });

@@ -52,7 +52,10 @@ test.describe('RBAC admin — per-company roles', () => {
     // ── /settings/users — assign the new role to a non-super user ──
     await page.goto('/settings/users');
     await expect(page.getByRole('heading', { name: /ผู้ใช้และบทบาท/ })).toBeVisible();
-    const userRow = page.getByRole('row', { name: /sales_staff/ });
+    // Anchor to the canonical `sales_staff` user — a bare /sales_staff/ also matches
+    // the E2E-seeded `rbac_sales_staff` row (strict-mode violation: 2 rows). The row's
+    // accessible name begins with the username, so ^sales_staff\b excludes the prefixed one.
+    const userRow = page.getByRole('row', { name: /^sales_staff\b/ });
     await expect(userRow).toBeVisible({ timeout: 15_000 });
     await userRow.getByRole('button', { name: /แก้ไขบทบาท/ }).click();
 

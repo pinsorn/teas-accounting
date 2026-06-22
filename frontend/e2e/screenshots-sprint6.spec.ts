@@ -49,14 +49,14 @@ test('capture sprint-6 screens', async ({ page }) => {
   await page.screenshot({ path: `${DIR}/s6-04-vendor-invoice-detail.png`, fullPage: true });
 
   // A PV draft detail showing the Approve button + SoD hint.
+  // PV /new redesign: expense category is the testid select; the line
+  // description + subtotal are role-labelled inputs (no visible text label).
   await page.goto('/payment-vouchers/new');
   await pickVendor(page, code);
-  await page.getByText(/หมวดค่าใช้จ่าย|Expense Category/)
-    .locator('xpath=following::select[1]').selectOption({ label: 'ค่าบริการ (SVC)' });
-  await page.getByText(/^รายละเอียด|^Description/).first()
-    .locator('xpath=following::input[1]').fill('shot pv');
-  await page.getByText(/^มูลค่าก่อนภาษี|^Subtotal/).first()
-    .locator('xpath=following::input[1]').fill('500');
+  await page.getByTestId('expense-category-select').first()
+    .selectOption({ label: 'ค่าบริการ (SVC)' });
+  await page.getByRole('textbox', { name: /^รายละเอียด/ }).first().fill('shot pv');
+  await page.getByRole('spinbutton', { name: /^มูลค่าก่อนภาษี/ }).first().fill('500');
   await page.getByRole('button', { name: /^บันทึก$|^Save$/ }).click();
   await page.waitForURL(/\/payment-vouchers\/\d+$/, { timeout: 15_000 });
   await page.waitForTimeout(1200); // networkidle never settles since the design swap (topbar polling)

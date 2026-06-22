@@ -1,23 +1,37 @@
 import { test, expect } from '@playwright/test';
-import { login } from './_helpers';
+import { login, createAndPostTaxInvoice, pickCustomer, pickTaxInvoice, detailDocNo } from './_helpers';
 
 // Sprint 13h E2E (ckpt4) — P8 cross-reference chips. Posted Receipt should
 // render the linked Tax Invoice as a chip on RC detail, and the TI detail
 // should render the linked Receipt with its applied amount.
+//
+// Repair (UI redesign): the old version clicked the FIRST /receipts row and
+// asserted the chain card. But DocumentChain returns null when rows.length===0
+// (component: `if (rows.length === 0) return null`), and a standalone non-VAT
+// cash receipt (the seeded first row) has no applied TI → no chain → no testid.
+// So build the chain deterministically in-test: post a TI, then a receipt
+// applied to it (rows≥2 → DocumentChain renders data-testid="document-chain").
 test('receipt cross-ref: RC detail shows linked TI chip', async ({ page }) => {
+  test.setTimeout(60_000);
   await login(page);
-  await page.goto('/receipts');
-  await expect(page.locator('table')).toBeVisible({ timeout: 10_000 });
+  await createAndPostTaxInvoice(page);
+  const tiDocNo = await detailDocNo(page, 'TI');
 
-  const rows = await page.locator('tbody tr').count();
-  if (rows > 0) {
-    await page.locator('tbody tr').first().getByRole('link').first().click();
-    await page.waitForURL(/\/receipts\/\d+$/, { timeout: 15_000 });
-    // Redesign: the "ชำระสำหรับ" header is gone — applied docs now render as
-    // PaperDocument line rows plus the DocumentChain card ("เอกสารอ้างอิง",
-    // data-testid="document-chain") that carries the linked TI/IV references.
-    await expect(page.getByTestId('document-chain')).toBeVisible({ timeout: 10_000 });
-  }
+  await page.goto('/receipts/new');
+  await pickCustomer(page);
+  await pickTaxInvoice(page, 1, tiDocNo);
+  // Applied-amount aria-label is t('appliedAmount') = "ยอดชำระ" (rc.appliedAmount).
+  await page.getByLabel('ยอดชำระ 1').fill('1070');
+
+  await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
+  await page.waitForURL(/\/receipts\/\d+$/, { timeout: 15_000 });
+
+  // The receipt-applied-to-a-TI now carries the DocumentChain card
+  // ("เอกสารอ้างอิง", data-testid="document-chain") with the linked TI row.
+  await expect(page.getByTestId('document-chain')).toBeVisible({ timeout: 10_000 });
 });
 
 test('tax invoice cross-ref: TI detail shows linked RC chip after post', async ({ page }) => {
