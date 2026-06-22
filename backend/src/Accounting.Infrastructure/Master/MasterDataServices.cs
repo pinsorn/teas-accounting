@@ -237,13 +237,20 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
                 IncomeTypeCode = inc, FormType = form, Rate = rate,
                 EffectiveFrom = from, EffectiveTo = null, IsActive = true,
             });
-        db.ChartOfAccounts.Add(new ChartOfAccount
-        {
-            CompanyId = e.CompanyId, AccountCode = "1180",
-            AccountNameTh = "ภาษีหัก ณ ที่จ่ายค้างรับ", AccountNameEn = "WHT Receivable",
-            AccountType = AccountType.Asset, NormalBalance = NormalBalance.Debit,
-            IsHeader = false, IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
-        });
+        // §ledger — seed the FULL default chart of accounts the GL posting engine resolves
+        // (every code in GlAccountsOptions). Previously only 1180 was added, on the assumption
+        // a SQL demo seed supplied the rest — but those scripts only run for the demo company,
+        // so a real onboarded tenant had an empty CoA and EVERY posting failed with
+        // gl.account_missing (422). Kept in sync with 120_seed_demo_company.sql + the 230/240/482
+        // account seeds and GlAccountsOptions.
+        foreach (var (code, th, en, type, normal) in DefaultChartOfAccounts)
+            db.ChartOfAccounts.Add(new ChartOfAccount
+            {
+                CompanyId = e.CompanyId, AccountCode = code,
+                AccountNameTh = th, AccountNameEn = en,
+                AccountType = type, NormalBalance = normal,
+                IsHeader = false, IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
+            });
 
         // Sprint 9 B2 — copy the default VAT tax-code set into the new tenant
         // (mirrors seed 240 for company 1). Category is derived from the
@@ -290,6 +297,34 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("EXEMPT-BOOK",       "หนังสือ นิตยสาร",            TaxDirection.Output, true,  false, "ม.81(1)(ฉ)"),
         ("EXEMPT-EDU",        "การศึกษา",                   TaxDirection.Output, true,  false, "ม.81(1)(ช)"),
         ("EXEMPT-MED",        "การแพทย์",                   TaxDirection.Output, true,  false, "ม.81(1)(ญ)"),
+    ];
+
+    // Default chart of accounts seeded into every new tenant. MUST cover every code in
+    // GlAccountsOptions — the posting engine resolves account_id by these codes, so a
+    // missing one fails the whole journal entry (gl.account_missing, 422). Kept in sync
+    // with 120_seed_demo_company.sql and the 230/240/482 account seeds.
+    private static readonly (string Code, string Th, string? En, AccountType Type, NormalBalance Normal)[]
+        DefaultChartOfAccounts =
+    [
+        ("1110", "เงินสด",                          "Cash",                      AccountType.Asset,     NormalBalance.Debit),
+        ("1120", "เงินฝากธนาคาร",                   "Bank",                      AccountType.Asset,     NormalBalance.Debit),
+        ("1130", "ลูกหนี้การค้า",                   "Accounts Receivable",       AccountType.Asset,     NormalBalance.Debit),
+        ("1170", "ภาษีซื้อ",                        "Input VAT",                 AccountType.Asset,     NormalBalance.Debit),
+        ("1180", "ภาษีหัก ณ ที่จ่ายค้างรับ",         "WHT Receivable",            AccountType.Asset,     NormalBalance.Debit),
+        ("2110", "เจ้าหนี้การค้า",                  "Accounts Payable",          AccountType.Liability, NormalBalance.Credit),
+        ("2151", "ภาษีขายค้างจ่าย",                "Output VAT Payable",        AccountType.Liability, NormalBalance.Credit),
+        ("2152", "ภาษีหัก ณ ที่จ่ายค้างจ่าย",       "WHT Payable",               AccountType.Liability, NormalBalance.Credit),
+        ("2153", "ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง",  "PIT Payable (PND1)",        AccountType.Liability, NormalBalance.Credit),
+        ("2160", "เงินสมทบประกันสังคมค้างนำส่ง",    "SSO Payable",               AccountType.Liability, NormalBalance.Credit),
+        ("2170", "เงินเดือนค้างจ่าย",              "Net Wages Payable",         AccountType.Liability, NormalBalance.Credit),
+        ("4000", "รายได้จากการขาย",                "Sales Revenue",             AccountType.Revenue,   NormalBalance.Credit),
+        ("4100", "รับคืน / ส่วนลด",                "Sales Return / Discount",   AccountType.Revenue,   NormalBalance.Debit),
+        ("5100", "ค่าใช้จ่ายค่าเช่า",               "Rental Expense",            AccountType.Expense,   NormalBalance.Debit),
+        ("5200", "ค่าใช้จ่ายค่าบริการ",             "Service Expense",           AccountType.Expense,   NormalBalance.Debit),
+        ("5300", "ค่าใช้จ่ายโฆษณา",                "Advertising Expense",       AccountType.Expense,   NormalBalance.Debit),
+        ("5350", "ภาษีซื้อขอคืนไม่ได้",             "Irrecoverable Input VAT",   AccountType.Expense,   NormalBalance.Debit),
+        ("5400", "เงินเดือนและค่าจ้าง",             "Salary & Wages",            AccountType.Expense,   NormalBalance.Debit),
+        ("5410", "เงินสมทบประกันสังคม-นายจ้าง",     "Employer SSO Contribution", AccountType.Expense,   NormalBalance.Debit),
     ];
 
     // Canonical 13 domestic WHT types (kept in sync with seed 220).

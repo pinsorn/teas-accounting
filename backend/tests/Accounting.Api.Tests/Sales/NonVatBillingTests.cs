@@ -302,4 +302,99 @@ public sealed class NonVatBillingTests
         line.TaxAmount.Should().Be(0m);
         line.TaxCode.Should().Be("VAT0");
     }
+
+    // ── 5. Non-VAT SO→DO backstop ───────────────────────────────────────────
+    // The production bug: the "create Delivery Order" action hardcoded VAT7 / taxRate 0.07
+    // and IsCombinedWithTi=true, so a non-VAT company's DO (and the Invoice + Receipt it
+    // cascades into) silently grew a 7% VAT. DO creation is request-fed, so the server must
+    // re-derive the rate from the company VAT mode (ม.86 / §4.6) and refuse to combine a
+    // non-VAT DO with a Tax Invoice (a VAT-only document), regardless of the client payload.
+    [SkippableFact]
+    public async Task NonVat_so_to_do_zeros_vat_and_forbids_combined_ti()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var cust = c.CustomerId;
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
+
+        long soId;
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var sosvc = s0.ServiceProvider.GetRequiredService<ISalesOrderService>();
+            soId = await sosvc.CreateDraftAsync(new CreateSalesOrderRequest(
+                today, null, cust, null, "THB", 1m, null, null,
+                [new ChainLineInput(null, "งานบริการ", 1m, "หน่วย", 1200m, 0m, 1, "VAT7", 0.07m)]),
+                default);
+            await sosvc.PostAsync(soId, default);
+        }
+
+        long doId;
+        await using (var s1 = sp.CreateAsyncScope())
+        {
+            var sosvc = s1.ServiceProvider.GetRequiredService<ISalesOrderService>();
+            // The lying client: VAT7 + 0.07 + IsCombinedWithTi for a non-VAT company.
+            doId = await sosvc.CreateDeliveryOrderAsync(soId, new CreateDeliveryOrderRequest(
+                today, cust, null, IsCombinedWithTi: true, null, soId,
+                [new DeliveryLineInput(null, null, "งานบริการ", 1m, "หน่วย", 1200m, 0m, 1, "VAT7", 0.07m)]),
+                default);
+        }
+
+        await using (var s2 = sp.CreateAsyncScope())
+        {
+            var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var dord = await db.DeliveryOrders.Include(x => x.Lines).FirstAsync(x => x.DeliveryOrderId == doId);
+            dord.VatAmount.Should().Be(0m);
+            dord.TotalAmount.Should().Be(1200m);          // no phantom 84-baht VAT
+            dord.IsCombinedWithTi.Should().BeFalse();      // ม.86 — non-VAT issues no Tax Invoice
+            var line = dord.Lines.Single();
+            line.TaxRate.Should().Be(0m);
+            line.TaxAmount.Should().Be(0m);
+            line.TaxCode.Should().Be("VAT0");
+        }
+
+        // …and the cascade: the Invoice created from the DO must inherit 0 VAT (the prod
+        // symptom was 1284 on the Invoice/Receipt, not just the DO). CreateFromDeliveryOrder
+        // is a pure chain-copy of the now-zeroed DO lines.
+        await using var s3 = sp.CreateAsyncScope();
+        var bnsvc = s3.ServiceProvider.GetRequiredService<IBillingNoteService>();
+        var invId = await bnsvc.CreateFromDeliveryOrderAsync(doId, default);
+        var db3 = s3.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var inv = await db3.BillingNotes.Include(b => b.Lines).FirstAsync(b => b.BillingNoteId == invId);
+        inv.VatAmount.Should().Be(0m);
+        inv.TotalAmount.Should().Be(1200m);
+        inv.Lines.Single().TaxAmount.Should().Be(0m);
+    }
+
+    // ── 6. Same backstop on the standalone DO draft builder. ────────────────
+    [SkippableFact]
+    public async Task NonVat_standalone_do_draft_zeros_vat_and_forbids_combined_ti()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var cust = c.CustomerId;
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
+
+        long doId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var dosvc = s.ServiceProvider.GetRequiredService<IDeliveryOrderService>();
+            doId = await dosvc.CreateDraftAsync(new CreateDeliveryOrderRequest(
+                today, cust, null, IsCombinedWithTi: true, null, null,
+                [new DeliveryLineInput(null, null, "ส่งของ", 1m, "ชิ้น", 1000m, 0m, 1, "VAT7", 0.07m)]),
+                default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var dord = await db.DeliveryOrders.Include(x => x.Lines).FirstAsync(x => x.DeliveryOrderId == doId);
+        dord.VatAmount.Should().Be(0m);
+        dord.TotalAmount.Should().Be(1000m);
+        dord.IsCombinedWithTi.Should().BeFalse();
+        var line = dord.Lines.Single();
+        line.TaxRate.Should().Be(0m);
+        line.TaxAmount.Should().Be(0m);
+        line.TaxCode.Should().Be("VAT0");
+    }
 }

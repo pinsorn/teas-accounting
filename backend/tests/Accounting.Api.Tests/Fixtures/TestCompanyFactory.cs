@@ -21,10 +21,9 @@ namespace Accounting.Api.Tests.Fixtures;
 /// collections assume company 1 is VAT-registered with the seeded master data.
 ///
 /// Creation path: <see cref="ICompanyService.CreateAsync"/> (the real onboarding
-/// path — copies the 13 default WHT types incl. SVC, the 1180 WHT-Receivable
-/// account and the default tax-code set), then mirrors what company 1 got from
-/// SQL seeds 120/130/240: HQ branch 00000, the minimum CoA set (+5350
-/// irrecoverable-VAT expense) and one VAT-registered demo customer.
+/// path — copies the 13 default WHT types incl. SVC, the default tax-code set, and
+/// the full default chart of accounts covering every GlAccountsOptions code), then
+/// adds an HQ branch 00000 and one VAT-registered demo customer for the sales chain.
 /// </summary>
 public static class TestCompanyFactory
 {
@@ -76,14 +75,9 @@ public static class TestCompanyFactory
             NameTh = "สำนักงานใหญ่", IsHeadOffice = true, IsActive = true,
         };
         db2.Branches.Add(branch);
-
-        foreach (var (code, th, type, bal) in SeedAccounts)
-            db2.ChartOfAccounts.Add(new ChartOfAccount
-            {
-                CompanyId = companyId, AccountCode = code, AccountNameTh = th,
-                AccountType = type, NormalBalance = bal,
-                IsHeader = false, IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
-            });
+        // CoA is fully seeded by ICompanyService.CreateAsync above (every GlAccountsOptions
+        // code). The factory no longer mirrors a CoA subset — doing so now collides on the
+        // unique (company_id, account_code).
 
         var customer = new Customer
         {
@@ -118,22 +112,4 @@ public static class TestCompanyFactory
             .BuildServiceProvider();
     }
 
-    // Mirror of seed 120 (minimum CoA) + seed 240 (5350 irrecoverable input VAT).
-    // 1180 WHT-Receivable is NOT listed — CompanyService.CreateAsync already adds it.
-    private static readonly (string Code, string NameTh, AccountType Type, NormalBalance Bal)[] SeedAccounts =
-    [
-        ("1110", "เงินสด",                     AccountType.Asset,     NormalBalance.Debit),
-        ("1120", "เงินฝากธนาคาร",              AccountType.Asset,     NormalBalance.Debit),
-        ("1130", "ลูกหนี้การค้า",              AccountType.Asset,     NormalBalance.Debit),
-        ("1170", "ภาษีซื้อ",                   AccountType.Asset,     NormalBalance.Debit),
-        ("2110", "เจ้าหนี้การค้า",             AccountType.Liability, NormalBalance.Credit),
-        ("2151", "ภาษีขายค้างจ่าย",            AccountType.Liability, NormalBalance.Credit),
-        ("2152", "ภาษีหัก ณ ที่จ่ายค้างจ่าย",   AccountType.Liability, NormalBalance.Credit),
-        ("4000", "รายได้จากการขาย",            AccountType.Revenue,   NormalBalance.Credit),
-        ("4100", "รับคืน / ส่วนลด",            AccountType.Revenue,   NormalBalance.Debit),
-        ("5100", "ค่าใช้จ่ายค่าเช่า",           AccountType.Expense,   NormalBalance.Debit),
-        ("5200", "ค่าใช้จ่ายค่าบริการ",         AccountType.Expense,   NormalBalance.Debit),
-        ("5300", "ค่าใช้จ่ายโฆษณา",            AccountType.Expense,   NormalBalance.Debit),
-        ("5350", "ภาษีซื้อขอคืนไม่ได้",         AccountType.Expense,   NormalBalance.Debit),
-    ];
 }
