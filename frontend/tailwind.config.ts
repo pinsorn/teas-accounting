@@ -96,7 +96,12 @@ const config: Config = {
     },
   },
   plugins: [
-    forms,
+    // strategy:'class' — @tailwindcss/forms must NOT auto-style [type=checkbox|radio]
+    // globally: its base rules (esp. `:checked:hover/:focus { background-color: currentColor }`)
+    // fight DaisyUI's .toggle/.checkbox/.radio and repaint them (white for colour variants,
+    // forms-blue for plain) on hover/focus. DaisyUI already styles every control here, so opt
+    // forms into class-mode (form-input/form-checkbox/…) — which we don't use — to disable it.
+    forms({ strategy: 'class' }),
     typography,
     daisyui,
   ],
