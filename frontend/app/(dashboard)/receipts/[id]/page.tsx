@@ -165,6 +165,9 @@ export default function ReceiptDetailPage() {
           {d.whtLines && d.whtLines.length > 0 && (
             <div className="rounded-lg border border-base-300 p-3">
               <h3 className="mb-2 text-sm font-semibold">{tw('title')}</h3>
+              {/* overflow-x-auto: narrow 2-col side column (~320px) is thinner than the
+                  table's min-content — scroll inside the card instead of spilling out. */}
+              <div className="overflow-x-auto">
               <table className="table table-sm">
                 <thead><tr>
                   <th>{tw('type')}</th>
@@ -183,6 +186,7 @@ export default function ReceiptDetailPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
           <DocumentChain type="receipt" id={id} />
