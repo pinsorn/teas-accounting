@@ -143,6 +143,18 @@ export function SidebarNav() {
   // zero UX impact.
   const gatesReady = !mePerms.isPending && !sysInfo.isPending;
 
+  // Sidebar active state: the MOST-SPECIFIC matching nav href wins, so a child route
+  // (e.g. /tax-filings/missing-wht-cert) highlights ONLY itself, not its sibling prefix
+  // (/tax-filings) — while a detail route with no nav item of its own (e.g. /quotations/1)
+  // still highlights its parent (/quotations). startsWith(h + '/') keeps the match on a
+  // segment boundary (/tax-filings never matches /tax-filings-foo).
+  const activeHref = (() => {
+    if (pathname === '/') return '/';
+    const matches = SECTIONS.flatMap((s) => s.items.map((i) => i.href))
+      .filter((h) => h !== '/' && (pathname === h || pathname.startsWith(h + '/')));
+    return matches.sort((a, b) => b.length - a.length)[0] ?? null;
+  })();
+
   useEffect(() => {
     try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1'); } catch { /* incognito/restricted storage — ignore */ }
   }, []);
@@ -235,7 +247,7 @@ export function SidebarNav() {
                 && (!it.superAdminOnly || isSuperAdmin)
                 && (!it.perm || isSuperAdmin || myPerms.includes(it.perm)))
               .map(({ href, key, Icon, badge }) => {
-              const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+              const active = href === activeHref;
               return (
                 <Link
                   key={href}
