@@ -91,6 +91,14 @@ public sealed class SalesOrderService(
             throw new DomainException("so.not_posted",
                 "Sales Order must be Posted before creating a Delivery Order.");
 
+        // §4.6 / ม.86 / ม.80 — DO creation is request-fed (the client picks the line tax rate),
+        // so the company VAT mode is the authoritative backstop here, exactly as the SO/Quotation
+        // origin builders do. A non-VAT company carries 0 VAT on every line (rate forced to 0,
+        // code VAT0) and the DO can never be combined with a Tax Invoice (a VAT-only document).
+        var cfg = await taxCfg.GetAsync(ct);
+        var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
+        var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+
         var dord = new DeliveryOrder
         {
             CompanyId = so.CompanyId, BranchId = so.BranchId,
@@ -100,20 +108,23 @@ public sealed class SalesOrderService(
             CustomerType = so.CustomerType,
             BusinessUnitId = so.BusinessUnitId,           // BU cascade SO→DO
             SalesOrderId = so.SalesOrderId,
-            IsCombinedWithTi = req.IsCombinedWithTi, Notes = req.Notes,
+            IsCombinedWithTi = req.IsCombinedWithTi && cfg.VatMode, Notes = req.Notes,
             CurrencyCode = so.CurrencyCode, ExchangeRate = so.ExchangeRate,
         };
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, l.TaxRate);
+            var (prodType, taxRate, taxCode) = SalesLineBackstop.Resolve(
+                cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
+                productTypes, taxCodeFlags);
+            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             dord.Lines.Add(new DeliveryOrderLine
             {
                 LineNo = n++, SalesOrderLineId = l.SalesOrderLineId,
-                ProductId = l.ProductId, ProductType = l.ProductType ?? "GOOD", DescriptionTh = l.DescriptionTh,
+                ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             dord.SubtotalAmount += net; dord.VatAmount += vat; dord.TotalAmount += total;
@@ -193,7 +204,7 @@ public sealed class SalesOrderService(
 public sealed class DeliveryOrderService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, ITaxInvoiceService taxInvoices,
-    IActivityRecorder activity)
+    IActivityRecorder activity, ICompanyTaxConfigService taxCfg)
     : IDeliveryOrderService
 {
     private void Auth()
@@ -208,6 +219,12 @@ public sealed class DeliveryOrderService(
         var cust = await db.Customers.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
+        // §4.6 / ม.86 / ม.80 — same request-fed backstop as the SO→DO path: derive the line
+        // VAT from company master data, never the caller's rate. Non-VAT → 0 VAT, no combined TI.
+        var cfg = await taxCfg.GetAsync(ct);
+        var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
+        var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+
         var dord = new DeliveryOrder
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
@@ -215,20 +232,23 @@ public sealed class DeliveryOrderService(
             CustomerId = cust.CustomerId, CustomerName = cust.NameTh,
             CustomerAddress = cust.BillingAddress, CustomerTaxId = cust.TaxId,
             CustomerType = cust.CustomerType, BusinessUnitId = req.BusinessUnitId,
-            SalesOrderId = req.FromSalesOrderId, IsCombinedWithTi = req.IsCombinedWithTi,
+            SalesOrderId = req.FromSalesOrderId, IsCombinedWithTi = req.IsCombinedWithTi && cfg.VatMode,
             Notes = req.Notes,
         };
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, l.TaxRate);
+            var (prodType, taxRate, taxCode) = SalesLineBackstop.Resolve(
+                cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
+                productTypes, taxCodeFlags);
+            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             dord.Lines.Add(new DeliveryOrderLine
             {
                 LineNo = n++, SalesOrderLineId = l.SalesOrderLineId,
-                ProductId = l.ProductId, ProductType = l.ProductType ?? "GOOD", DescriptionTh = l.DescriptionTh,
+                ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             dord.SubtotalAmount += net; dord.VatAmount += vat; dord.TotalAmount += total;

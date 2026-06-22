@@ -1,6 +1,7 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Master;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Ledger;
 using Accounting.Infrastructure.Persistence;
 using Accounting.TestKit;
 using FluentAssertions;
@@ -106,6 +107,60 @@ public sealed class OnboardingFoundingAddressTests
         var company = await rdb.Companies.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CompanyId == companyId);
         company!.AddressTh.Should().Be(prof.RegisteredAddressLine1);
+    }
+
+    // A freshly onboarded company must get the FULL chart of accounts the GL posting engine
+    // resolves (every GlAccountsOptions code) — not just 1180. The prod bug: a receipt post on a
+    // real onboarded tenant 422'd with gl.account_missing '1130' (AR) because CreateAsync seeded
+    // only 1180, on the (wrong) assumption a SQL demo seed supplied the rest.
+    [SkippableFact]
+    public async Task CreateAsync_seeds_full_chart_of_accounts_for_gl_posting()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        var taxId = TestIds.TaxId();
+        int companyId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, companyId: 1, branchId: 1))
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT setval(pg_get_serial_sequence('master.companies','company_id'), " +
+                "(SELECT COALESCE(MAX(company_id),0)+1 FROM master.companies), false);");
+
+            var svc = s.ServiceProvider.GetRequiredService<ICompanyService>();
+            companyId = await svc.CreateAsync(new CreateCompanyRequest(
+                TaxId: taxId, NameTh: $"บ.ผังบัญชี {TestIds.Suffix()}", NameEn: null,
+                LegalEntityType: LegalEntityType.LimitedCompany,
+                RegistrationDate: null, VatRegistered: true, VatRegisterDate: new DateOnly(2024, 1, 1),
+                FiscalYearStartMonth: 1,
+                AddressTh: null, SubDistrict: "x", District: "y",
+                Province: "กรุงเทพมหานคร", PostalCode: "10110", Phone: null, Email: null,
+                PaidUpCapital: null, VatRate: 0.07m, Pnd30SubmissionMode: "manual"),
+                default);
+        }
+
+        var opts = new DbContextOptionsBuilder<AccountingDbContext>()
+            .UseNpgsql(_fx.ConnectionString).UseSnakeCaseNamingConvention()
+            .Options;
+        await using var rdb = new AccountingDbContext(
+            opts, new StubTenant { CompanyId = 1, BranchId = 1, UserId = 1, IsSuperAdmin = true });
+
+        var codes = await rdb.ChartOfAccounts.AsNoTracking()
+            .Where(a => a.CompanyId == companyId).Select(a => a.AccountCode).ToListAsync();
+
+        // Every GL role the posting engine resolves must exist, or the first journal entry 422s.
+        var gl = new GlAccountsOptions();
+        var required = new[]
+        {
+            gl.ArAccount, gl.ApAccount, gl.CashAccount, gl.BankAccount, gl.SalesAccount,
+            gl.OutputVatAccount, gl.InputVatAccount, gl.WhtPayableAccount, gl.WhtReceivableAccount,
+            gl.SalesReturnAccount, gl.IrrecoverableVatExpenseAccount, gl.SalaryExpenseAccount,
+            gl.EmployerSsoExpenseAccount, gl.PitPayableAccount, gl.SsoPayableAccount, gl.NetWagesPayableAccount,
+        };
+        codes.Should().Contain(required,
+            "a freshly onboarded company must carry every GlAccountsOptions code (else GL posting 422s)");
+        codes.Should().Contain("1130", "AR is the account the prod receipt-post hit");
     }
 
     [SkippableFact]

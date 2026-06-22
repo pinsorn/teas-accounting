@@ -9,7 +9,7 @@ import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCompanyProfile, useCustomer } from '@/lib/queries';
+import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCompanyProfile, useCustomer, useSystemInfo } from '@/lib/queries';
 import { PAPER_DOC, paperWatermark, companyToSeller, custInfo } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
@@ -25,6 +25,10 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
   const makeDo = useCreateDeliveryOrder();
   const company = useCompanyProfile();
   const cust = useCustomer(q.data?.customerId ?? null);
+  // §4.6 / ม.86 — a non-VAT company carries no VAT and can't issue a Tax Invoice,
+  // so the DO must not be VAT-coded nor combined with a TI. (Backend re-derives this
+  // too; this keeps the request honest.)
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
   const d = q.data;
 
   async function doPost() {
@@ -40,12 +44,12 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
         req: {
           docDate: new Date().toISOString().slice(0, 10),
           customerId: d.customerId, businessUnitId: d.businessUnitId,
-          isCombinedWithTi: true, notes: null, fromSalesOrderId: soId,
+          isCombinedWithTi: vatMode, notes: null, fromSalesOrderId: soId,
           lines: d.lines.map((l) => ({
             salesOrderLineId: null, productId: l.productId,
             descriptionTh: l.descriptionTh, quantity: l.quantity,
             uomText: l.uomText, unitPrice: l.unitPrice, discountPercent: 0,
-            taxCodeId: 1, taxCode: 'VAT7', taxRate: 0.07,
+            taxCodeId: 1, taxCode: vatMode ? 'VAT7' : 'VAT0', taxRate: vatMode ? 0.07 : 0,
           })),
         },
       }) as { delivery_order_id: number };
