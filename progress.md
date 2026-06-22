@@ -3,6 +3,14 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-22 (cont. 110 — "Ship + deploy v1.7.3 to prod, wipe+re-onboard, full-chain Playwright proof" [Ham]) — **✅ cont.108+109 RELEASED v1.7.3 and DEPLOYED to teas.kazaki-rio.com. DB wiped + re-onboarded a non-VAT company. Both fixes proven end-to-end on prod via Playwright (QT→SO→DO→Invoice→Receipt+WHT, posted, zero 422, zero phantom VAT).**
+
+- **Ship:** PR #12 (fix) squash-merged to main (`29a8e7d`), CI green → release-please **PR #13** merged → **tag v1.7.3**. API published self-contained linux-x64 from the tag at the REAL path → MinVer **1.7.3+4aa50ec** (not 0.0.0). Ham supplied the server password this turn (was the blocker last turn).
+- **Deploy (pm2 host, OVH `158.69.197.154`):** pscp the 84 MB API zip → unpack `api/unpacked`; pscp the one changed FE file (`sales-orders/[id]/page.tsx` — only FE delta v1.7.2→v1.7.3) → `next build`; **wipe DB** (`DROP DATABASE teas WITH (FORCE); CREATE … OWNER teas`) per the runbook; `pm2 restart teas-api teas-web; pm2 save`. Boots clean (`/system/setup/status` → needs_setup:true), then re-onboarded. DEPLOY-INFO.md bumped to 1.7.3. nginx-proxy-manager + biomed-next untouched. (Server has no SSH key — password-only; plink/pscp `-pw`.)
+- **Re-onboard (Playwright):** new super-admin `ham_chatsang`; company **non-VAT** (Reptown Pet Solution, `vatRegistered=false`). **Verified the cont.109 fix live:** `/accounts` = **19 accounts incl. 1130 + 4000** (was only 1180 before) — onboarded tenant now has a full CoA.
+- **Full-chain prod proof (screenshots step1–7 sent to Ham):** QT 1200 (no VAT) → SO 1200 → **DO 1200 `vatAmount=0` `isCombinedWithTi=false`** (cont.108 — old bug was 1284/true) → Invoice 1200 → Receipt+WHT: line stays **SERVICE**, auto **SVC 3%** = ฿36, cash ฿1,164 → **POSTED `06-2026-RC-0001` with NO 422** (cont.109 — old bug was `gl.account_missing '1130'`). productType-GOOD confirmed a non-issue on the fresh path.
+- repro/build artifacts local-only (`_publish/`, step*.png) — untracked, not committed.
+
 ## 2026-06-22 (cont. 109 — "Fix: onboarded company has empty CoA → every GL post 422s (gl.account_missing); + productType-GOOD traced to the cont.108 SO→DO gap" [Ham]) — **✅ Onboarding now seeds the FULL chart of accounts (every GlAccountsOptions code), so a freshly onboarded tenant can post. Reproduced the prod 422 end-to-end via Playwright. NOT deployed; Ham will wipe+reseed prod.**
 
 - **🔴 bug (Ham, prod): Invoice→Receipt, tick WHT → line shows "GOOD" (must re-pick service), then Post → 422.** Reproduced via Playwright on company 2 (non-VAT).
