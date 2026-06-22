@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/pinsorn/teas-accounting/compare/v1.8.0...v1.8.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* **auth:** resolve RLS-hidden roles/permissions during login → non-super users got an empty token ([#16](https://github.com/pinsorn/teas-accounting/issues/16)) ([1940f9c](https://github.com/pinsorn/teas-accounting/commit/1940f9cdc8369c878b09cf12b1c1c9366a3fda0c))
+
 ## [1.8.0](https://github.com/pinsorn/teas-accounting/compare/v1.7.3...v1.8.0) (2026-06-22)
 
 
