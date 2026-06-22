@@ -3,6 +3,16 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-22 (cont. 114 — "Fix: toggles go blank/white after click (@tailwindcss/forms focus ring clobbers the DaisyUI thumb) → v1.8.2, deployed + prod-verified" [Ham]) — **✅ Every toggle site-wide went blank white the moment you clicked it. Root-caused (NOT oklch), fixed in globals.css, RELEASED v1.8.2, deployed + verified on prod.**
+
+- **🔴 bug (Ham, "toggle ทั้งเว็บ ... toggle แล้วขาวหมด, ต้อง toggle ก่อนถึงขาว"):** every DaisyUI toggle turns into a blank white pill **after you click it** — the static/initial state renders fine, so it was easy to miss (I checked only static state at first → didn't repro).
+- **Ruled out first (good discipline, advisor-flagged):** oklch browser-compat (Ham is on modern Chrome = supports oklch; Playwright same Chromium renders fine + theme has non-oklch fallbacks), service worker (none), stale CSS (hashed assets). The discriminating clue was Ham's "ต้อง toggle ก่อน" → it's an **interaction/focus** bug.
+- **🔴 ROOT CAUSE (repro'd in Playwright by clicking):** DaisyUI v4 draws the toggle **THUMB with `box-shadow`**; `@tailwindcss/forms` applies a `:focus` **box-shadow ring** to `[type=checkbox]`. Clicking a toggle focuses it → the forms ring **replaces** the thumb's box-shadow → thumb vanishes → blank/white pill. (Confirmed: focused toggle's `box-shadow` = `rgb(255,255,255) 0 0 0 2px,…` ring instead of the DaisyUI inset thumb.)
+- **✅ fix (`app/globals.css`, CSS-only):** an **un-layered** `.toggle:focus, .toggle:focus-visible` rule (beats the forms `base` layer) that re-asserts DaisyUI's exact thumb box-shadow (`var(--handleoffsetcalculator) 0 0 2px var(--tglbg) inset, …`) and surfaces focus via `outline`. Background untouched; `--handleoffsetcalculator` keeps the thumb on the correct side for checked/unchecked.
+- **Verified TWICE:** (1) injected the rule live on prod before shipping → focused toggle's thumb returns; (2) after deploy, clicked the real prod toggle → `box-shadow` = DaisyUI thumb (`oklch(1 0 0) -24px … inset`), `thumbRestored:true`, `injectedStyleStillThere:false` (= the deployed CSS) + screenshot.
+- **Ship+deploy:** PR #20 → CI green → main (`fix:`) → release-please **PR #21** → **tag v1.8.2** (patch). API published from tag (MinVer **1.8.2+a125146**); deployed API + the one changed FE file (`globals.css`) → `next build` → swap API → `pm2 restart` both. DEPLOY-INFO → 1.8.2.
+- **prod re-wiped clean** after verification (the throwaway `tmpadmin2` used to reach the onboarding toggle is gone) → `needs_setup:true`, companies=0. Ready for Ham's real onboarding.
+
 ## 2026-06-22 (cont. 113 — "Test infra: a NOBYPASSRLS test role so the suite can catch RLS-dependent prod bugs (closes the cont.105/112 blind spot)" [Ham]) — **✅ Added a regression guard that runs under real RLS in CI — caught nothing new, but would have caught cont.112. Test-only, no deploy.**
 
 - **Why:** the whole integration suite connects as a Postgres **superuser** (the dev/CI `accounting` user has BYPASSRLS), so RLS-dependent **prod-only** bugs are invisible to tests — masked cont.105 (SeedDemoData=false → 42501) and cont.112 (empty token at login). 3rd occurrence → close the gap.
