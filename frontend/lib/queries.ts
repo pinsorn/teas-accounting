@@ -1361,6 +1361,7 @@ import type {
   SetRolePermissionsRequest,
   RbacUserListItem,
   SetUserRolesRequest,
+  CreateUserRequest as RbacCreateUserRequest,
 } from './types';
 
 /** 66-item permission catalog — the source of permission labels (labelTh/labelEn). */
@@ -1444,5 +1445,30 @@ export function useSetUserRoles() {
     mutationFn: (v: { id: number; req: SetUserRolesRequest }) =>
       apiPut<void>(`admin/rbac/users/${v.id}/roles`, v.req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-users'] }),
+  });
+}
+
+// Phase D — user lifecycle (gate sys.user.manage).
+export function useCreateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: RbacCreateUserRequest) => apiPost<{ user_id: number }>('admin/rbac/users', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-users'] }),
+  });
+}
+
+export function useSetUserActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; isActive: boolean }) =>
+      apiPut<void>(`admin/rbac/users/${v.id}/active`, { isActive: v.isActive }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-users'] }),
+  });
+}
+
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: (v: { id: number; password: string }) =>
+      apiPut<void>(`admin/rbac/users/${v.id}/password`, { password: v.password }),
   });
 }

@@ -526,4 +526,188 @@ public sealed class RbacAdminServiceTests
         (await act.Should().ThrowAsync<DomainException>())
             .Which.Code.Should().Be("rbac.cross_company.scope_required");
     }
+
+    // ---- Phase D: user lifecycle (create / active / reset) -----------------
+
+    private const string GoodPw = "Str0ng#Password!";   // ≥ 12 chars
+
+    [Fact]
+    public async Task CreateUser_creates_active_user_with_roles_and_usable_password()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var roleAcct = await SystemRoleIdAsync(co.CompanyId, Role.SystemRoles.Accountant);
+
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var username = "u" + TestIds.Suffix();
+        var uid = await svc.CreateUserAsync(new CreateUserRequest(
+            username, GoodPw, "ผู้ใช้ใหม่", null, IsActive: true, new[] { roleAcct }), default);
+        uid.Should().BeGreaterThan(0);
+
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var user = await db.Users.AsNoTracking().FirstAsync(u => u.UserId == uid);
+        user.Username.Should().Be(username);
+        user.IsActive.Should().BeTrue();
+        user.IsSuperAdmin.Should().BeFalse("a super-admin is only minted by the first-run bootstrap");
+        user.Email.Should().Be($"{username}@teas.local");   // defaulted when omitted
+
+        // Password is hashed + verifiable → a real login would succeed.
+        var hasher = sp.GetRequiredService<IPasswordHasher>();
+        hasher.Verify(GoodPw, user.PasswordHash).Should().BeTrue();
+        user.PasswordHash.Should().NotBe(GoodPw);
+
+        var roleIds = await db.UserRoles.AsNoTracking()
+            .Where(ur => ur.UserId == uid && ur.CompanyId == co.CompanyId).Select(ur => ur.RoleId).ToListAsync();
+        roleIds.Should().Equal(roleAcct);
+
+        var listed = (await svc.ListUsersAsync(null, default)).Single(x => x.UserId == uid);
+        listed.Roles.Select(r => r.RoleId).Should().Contain(roleAcct);
+    }
+
+    [Fact]
+    public async Task CreateUser_duplicate_username_rejected()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var username = "dup" + TestIds.Suffix();
+        await svc.CreateUserAsync(new CreateUserRequest(username, GoodPw, "n", null, true, Array.Empty<int>()), default);
+
+        var act = () => svc.CreateUserAsync(
+            new CreateUserRequest(username, GoodPw, "n", null, true, Array.Empty<int>()), default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("user.username_duplicate");
+    }
+
+    [Fact]
+    public async Task CreateUser_short_password_rejected()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var act = () => svc.CreateUserAsync(
+            new CreateUserRequest("u" + TestIds.Suffix(), "short", "n", null, true, Array.Empty<int>()), default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("user.password_too_short");
+    }
+
+    [Fact]
+    public async Task CreateUser_invalid_username_rejected()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var act = () => svc.CreateUserAsync(
+            new CreateUserRequest("bad name!", GoodPw, "n", null, true, Array.Empty<int>()), default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("user.username_invalid");
+    }
+
+    [Fact]
+    public async Task CreateUser_role_from_other_company_rejected()
+    {
+        var coA = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var coB = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var roleInB = await SystemRoleIdAsync(coB.CompanyId, Role.SystemRoles.Accountant);
+
+        await using var sp = BuildProvider(coA.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var act = () => svc.CreateUserAsync(
+            new CreateUserRequest("u" + TestIds.Suffix(), GoodPw, "n", null, true, new[] { roleInB }), default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("rbac.role_company_mismatch");
+    }
+
+    [Fact]
+    public async Task CreateUser_company_admin_cross_company_scope_required()
+    {
+        var coA = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var coB = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+
+        await using var sp = BuildProvider(coA.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var act = () => svc.CreateUserAsync(new CreateUserRequest(
+            "u" + TestIds.Suffix(), GoodPw, "n", null, true, Array.Empty<int>(), CompanyId: coB.CompanyId), default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("rbac.cross_company.scope_required");
+    }
+
+    [Fact]
+    public async Task SetUserActive_deactivate_then_reactivate()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var role = await SystemRoleIdAsync(co.CompanyId, Role.SystemRoles.Accountant);
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        // A company-admin manages users who belong to their company (have a role there).
+        var uid = await svc.CreateUserAsync(
+            new CreateUserRequest("u" + TestIds.Suffix(), GoodPw, "n", null, true, new[] { role }), default);
+
+        await svc.SetUserActiveAsync(uid, false, default);
+        (await IsActiveAsync(sp, uid)).Should().BeFalse();
+
+        await svc.SetUserActiveAsync(uid, true, default);
+        (await IsActiveAsync(sp, uid)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SetUserActive_self_deactivate_rejected()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var role = await SystemRoleIdAsync(co.CompanyId, Role.SystemRoles.CompanyAdmin);
+        var uid = await CreateUserWithRolesAsync(co.CompanyId, role);
+
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false, userId: uid);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var act = () => svc.SetUserActiveAsync(uid, false, default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("rbac.self_lockout");
+    }
+
+    [Fact]
+    public async Task ResetUserPassword_changes_and_verifies()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var role = await SystemRoleIdAsync(co.CompanyId, Role.SystemRoles.Accountant);
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+        var hasher = sp.GetRequiredService<IPasswordHasher>();
+
+        var uid = await svc.CreateUserAsync(
+            new CreateUserRequest("u" + TestIds.Suffix(), GoodPw, "n", null, true, new[] { role }), default);
+
+        const string newPw = "Rotated#Password9";
+        await svc.ResetUserPasswordAsync(uid, newPw, default);
+
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var hash = await db.Users.AsNoTracking().Where(u => u.UserId == uid).Select(u => u.PasswordHash).FirstAsync();
+        hasher.Verify(newPw, hash).Should().BeTrue();
+        hasher.Verify(GoodPw, hash).Should().BeFalse("the old password no longer works");
+    }
+
+    [Fact]
+    public async Task ResetUserPassword_short_rejected()
+    {
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = BuildProvider(co.CompanyId, isSuperAdmin: false);
+        var svc = sp.GetRequiredService<IRbacAdminService>();
+
+        var uid = await svc.CreateUserAsync(
+            new CreateUserRequest("u" + TestIds.Suffix(), GoodPw, "n", null, true, Array.Empty<int>()), default);
+
+        var act = () => svc.ResetUserPasswordAsync(uid, "short", default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("user.password_too_short");
+    }
+
+    private static async Task<bool> IsActiveAsync(ServiceProvider sp, long uid)
+    {
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        return await db.Users.AsNoTracking().Where(u => u.UserId == uid).Select(u => u.IsActive).FirstAsync();
+    }
 }

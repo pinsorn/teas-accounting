@@ -157,6 +157,16 @@ export interface SetUserRolesRequest {
   companyId?: number | null;
 }
 
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  fullName: string;
+  email: string | null;
+  isActive: boolean;
+  roleIds: number[];
+  companyId?: number | null;
+}
+
 export interface UpdateCompanyProfileSoftRequest {
   tradeName: string | null;
   logoUrl: string | null;

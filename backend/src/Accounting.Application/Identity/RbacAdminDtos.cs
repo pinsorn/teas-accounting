@@ -39,6 +39,21 @@ public sealed record UserListItem(
 /// are pinned to their own (a foreign id → <c>rbac.cross_company.scope_required</c>).</summary>
 public sealed record SetUserRolesRequest(int[] RoleIds, int? CompanyId = null);
 
+/// <summary>Create a new login user + assign initial per-company roles. Never mints a
+/// super-admin (that is first-run-only via the bootstrap endpoint). <c>CompanyId</c> is the
+/// company the user joins (its roles are assigned); super-admins may target any company,
+/// company-admins are pinned to their own.</summary>
+public sealed record CreateUserRequest(
+    string Username, string Password, string FullName, string? Email,
+    bool IsActive, int[] RoleIds, int? CompanyId = null);
+
+/// <summary>Enable / disable a user account (deactivation is the safe alternative to delete).</summary>
+public sealed record SetUserActiveRequest(bool IsActive);
+
+/// <summary>Admin-set a new password for a user (clears lockout/failed-count). The password is
+/// never logged or echoed back.</summary>
+public sealed record ResetUserPasswordRequest(string Password);
+
 /// <summary>
 /// Per-company RBAC admin service. Every method resolves a target company through
 /// <c>ResolveTargetCompany</c>: non-super-admins are pinned to their own company and
@@ -60,4 +75,9 @@ public interface IRbacAdminService
     // Phase C — user-role assignment (gate sys.user.manage)
     Task<IReadOnlyList<UserListItem>> ListUsersAsync(int? companyId, CancellationToken ct);
     Task SetUserRolesAsync(long userId, SetUserRolesRequest req, CancellationToken ct);
+
+    // Phase D — user lifecycle (gate sys.user.manage)
+    Task<long> CreateUserAsync(CreateUserRequest req, CancellationToken ct);
+    Task SetUserActiveAsync(long userId, bool isActive, CancellationToken ct);
+    Task ResetUserPasswordAsync(long userId, string newPassword, CancellationToken ct);
 }
