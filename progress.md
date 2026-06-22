@@ -3,6 +3,14 @@
 > Append-only running log of what has been built and verified. Newest entry on top.
 > Update this file at the end of every working session (see CLAUDE.md §13).
 
+## 2026-06-22 (cont. 115 — "Fix: sidebar highlights BOTH parent and child on a child route (prefix match) → v1.8.3, deployed" [Ham]) — **✅ Selecting 'ใบเสร็จขาดใบทวิ 50' also lit up its sibling 'แบบยื่นภาษี'. Fixed the active-link logic, RELEASED v1.8.3, deployed (Ham's REAL onboarded data preserved — NO wipe).**
+
+- **🔴 bug (Ham screenshot):** on `/tax-filings/missing-wht-cert` the sidebar highlighted BOTH 'ใบเสร็จขาดใบทวิ 50' AND its sibling-prefix 'แบบยื่นภาษี' (`/tax-filings`).
+- **Root cause (`SidebarNav.tsx:238`):** `active = pathname.startsWith(href)` — `/tax-filings/missing-wht-cert` starts with `/tax-filings`, so the parent link also matched.
+- **✅ fix:** most-specific-match-wins — compute `activeHref` = the LONGEST nav href that matches the pathname on a segment boundary (`=== href` or `startsWith(href + '/')`), then `active = href === activeHref`. A detail route with no nav item of its own (e.g. `/quotations/1`) still highlights its parent. FE `tsc` 0 · CI green.
+- **Ship:** PR #22 → release-please **PR #23** → **tag v1.8.3** (patch). API MinVer **1.8.3+441859f**; deployed API + the one FE file (`SidebarNav.tsx`) → `next build` → restart both. DEPLOY-INFO → 1.8.3.
+- **⚠️ prod now holds Ham's REAL data:** between cont.114's wipe and this deploy, Ham onboarded their real company (the screenshot's `06-2026-RC-LAB-0001` receipt is live data) → `needs_setup:false`. The deploy is API/FE-only (NO DB wipe), so the data is preserved. Couldn't Playwright-verify the sidebar (no creds for Ham's own account) — fix is built+deployed (grep-confirmed + next build OK) + CI/tsc green; Ham hard-refreshes to see it.
+
 ## 2026-06-22 (cont. 114 — "Fix: toggles go blank/white after click (@tailwindcss/forms focus ring clobbers the DaisyUI thumb) → v1.8.2, deployed + prod-verified" [Ham]) — **✅ Every toggle site-wide went blank white the moment you clicked it. Root-caused (NOT oklch), fixed in globals.css, RELEASED v1.8.2, deployed + verified on prod.**
 
 - **🔴 bug (Ham, "toggle ทั้งเว็บ ... toggle แล้วขาวหมด, ต้อง toggle ก่อนถึงขาว"):** every DaisyUI toggle turns into a blank white pill **after you click it** — the static/initial state renders fine, so it was easy to miss (I checked only static state at first → didn't repro).
