@@ -64,10 +64,30 @@ public static class RbacAdminEndpoints
         users.MapGet("/users", async ([FromQuery] int? companyId, IRbacAdminService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListUsersAsync(companyId, ct)));
 
+        users.MapPost("/users", async ([FromBody] CreateUserRequest req, IRbacAdminService svc, CancellationToken ct) =>
+        {
+            var id = await svc.CreateUserAsync(req, ct);
+            return Results.Created($"/admin/rbac/users/{id}", new { userId = id });
+        });
+
         users.MapPut("/users/{id:long}/roles", async (long id, [FromBody] SetUserRolesRequest req,
             IRbacAdminService svc, CancellationToken ct) =>
         {
             await svc.SetUserRolesAsync(id, req, ct);
+            return Results.NoContent();
+        });
+
+        users.MapPut("/users/{id:long}/active", async (long id, [FromBody] SetUserActiveRequest req,
+            IRbacAdminService svc, CancellationToken ct) =>
+        {
+            await svc.SetUserActiveAsync(id, req.IsActive, ct);
+            return Results.NoContent();
+        });
+
+        users.MapPut("/users/{id:long}/password", async (long id, [FromBody] ResetUserPasswordRequest req,
+            IRbacAdminService svc, CancellationToken ct) =>
+        {
+            await svc.ResetUserPasswordAsync(id, req.Password, ct);
             return Results.NoContent();
         });
 

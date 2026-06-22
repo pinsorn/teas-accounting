@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 4 |
 | AuthnOnly | 12 |
-| Perm | 229 |
+| Perm | 232 |
 | Assertion | 5 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **276** |
+| **TOTAL** | **279** |
 
 ## Routes
 
@@ -30,6 +30,9 @@
 | PUT | `/admin/rbac/roles/{id:int}` | Perm | sys.role.manage |
 | PUT | `/admin/rbac/roles/{id:int}/permissions` | Perm | sys.role.manage |
 | GET | `/admin/rbac/users` | Perm | sys.user.manage |
+| POST | `/admin/rbac/users` | Perm | sys.user.manage |
+| PUT | `/admin/rbac/users/{id:long}/active` | Perm | sys.user.manage |
+| PUT | `/admin/rbac/users/{id:long}/password` | Perm | sys.user.manage |
 | PUT | `/admin/rbac/users/{id:long}/roles` | Perm | sys.user.manage |
 | GET | `/api-keys/` | Perm | sys.api_key.manage |
 | POST | `/api-keys/` | Perm | sys.api_key.manage |

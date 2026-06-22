@@ -1982,6 +1982,28 @@ paths:
                           roleCode: { type: string }
                           nameTh: { type: string }
         '403': { description: Forbidden (cross-company) }
+    post:
+      summary: Create a login user + assign initial company-scoped roles (never mints a super-admin) — perm sys.user.manage
+      tags: [RBAC Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, fullName, isActive, roleIds]
+              properties:
+                username: { type: string, description: '3-64 chars [A-Za-z0-9_.-]' }
+                password: { type: string, description: 'min 12 chars; never logged or returned' }
+                fullName: { type: string }
+                email: { type: string, nullable: true }
+                isActive: { type: boolean }
+                roleIds: { type: array, items: { type: integer } }
+                companyId: { type: integer, nullable: true, description: 'super-admin target; omitted = caller company' }
+      responses:
+        '201': { description: 'Created (returns { userId })' }
+        '403': { description: Forbidden (cross-company) }
+        '422': { description: user.username_invalid / user.password_too_short / user.username_duplicate / rbac.role_company_mismatch }
   /admin/rbac/users/{id}/roles:
     put:
       summary: Replace a user's whole role set for the target company (audit user_role_change) — perm sys.user.manage
@@ -2003,6 +2025,46 @@ paths:
         '403': { description: Forbidden (cross-company) }
         '404': { description: User not found }
         '422': { description: rbac.role_company_mismatch / rbac.self_lockout }
+  /admin/rbac/users/{id}/active:
+    put:
+      summary: Enable / disable a user account (deactivate = safe alternative to delete) — perm sys.user.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              properties:
+                isActive: { type: boolean }
+      responses:
+        '204': { description: Updated }
+        '403': { description: Forbidden (cross-company / super-admin) }
+        '404': { description: User not found }
+        '422': { description: rbac.self_lockout (cannot deactivate self) }
+  /admin/rbac/users/{id}/password:
+    put:
+      summary: Admin-set a new password for a user (clears lockout/failed-count; never logged) — perm sys.user.manage
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, description: 'min 12 chars; never logged or returned' }
+      responses:
+        '204': { description: Updated }
+        '403': { description: Forbidden (cross-company / super-admin) }
+        '404': { description: User not found }
+        '422': { description: user.password_too_short }
 
   /document-prefixes:
     get:

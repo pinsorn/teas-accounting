@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
 using Accounting.Application.Identity;
@@ -15,10 +16,15 @@ namespace Accounting.Infrastructure.Identity;
 /// system-global SUPER_ADMIN row (company_id IS NULL). §4.7 multi-tenant isolation,
 /// §4.8 audit trail.
 /// </summary>
-public sealed class RbacAdminService(AccountingDbContext db, ITenantContext tenant, IActivityRecorder activity)
+public sealed class RbacAdminService(
+    AccountingDbContext db, ITenantContext tenant, IActivityRecorder activity, IPasswordHasher hasher)
     : IRbacAdminService
 {
     private const string SuperAdmin = Role.SystemRoles.SuperAdmin;
+
+    // Mirror the first-run bootstrap rules so every user-creation path is consistent.
+    private const int MinUsernameLen = 3, MaxUsernameLen = 64, MinPasswordLen = 12;
+    private static readonly Regex UsernameRx = new("^[A-Za-z0-9_.-]+$", RegexOptions.Compiled);
 
     /// <summary>Compliance-critical (§4.7). Non-super-admins may only touch their own
     /// company; a mismatching explicit request is a scope violation (→ 403 on /api/v1).
@@ -311,6 +317,117 @@ public sealed class RbacAdminService(AccountingDbContext db, ITenantContext tena
             note: $"[{string.Join(",", beforeCodes)}] -> [{string.Join(",", afterCodes)}]",
             module: "sys");
         await db.SaveChangesAsync(ct);
+    }
+
+    // ---- Phase D: user lifecycle -------------------------------------------
+
+    public async Task<long> CreateUserAsync(CreateUserRequest req, CancellationToken ct)
+    {
+        // The new user JOINS this company (its roles get assigned). Super-admins target any
+        // company; company-admins are pinned to their own (cross-company → scope_required, §4.7).
+        var target = ResolveTargetCompany(req.CompanyId);
+
+        var username = (req.Username ?? string.Empty).Trim();
+        if (username.Length < MinUsernameLen || username.Length > MaxUsernameLen || !UsernameRx.IsMatch(username))
+            throw new DomainException("user.username_invalid",
+                $"Username must be {MinUsernameLen}-{MaxUsernameLen} chars (letters, digits, . _ -).");
+        if ((req.Password ?? string.Empty).Length < MinPasswordLen)
+            throw new DomainException("user.password_too_short",
+                $"Password must be at least {MinPasswordLen} characters.");
+        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username, ct))
+            throw new DomainException("user.username_duplicate", $"Username '{username}' already exists.");
+
+        // Every requested role MUST belong to the target company (SUPER_ADMIN is company NULL →
+        // never matches → never assignable here; the new user is never a super-admin).
+        var requestedRoleIds = (req.RoleIds ?? []).Distinct().ToArray();
+        var validRoles = await db.Roles.AsNoTracking()
+            .Where(r => requestedRoleIds.Contains(r.RoleId) && r.CompanyId == target)
+            .Select(r => new { r.RoleId, r.RoleCode })
+            .ToListAsync(ct);
+        if (validRoles.Count != requestedRoleIds.Length)
+            throw new DomainException("rbac.role_company_mismatch",
+                "One or more roles do not belong to this company.");
+
+        var now = DateTimeOffset.UtcNow;
+        var user = new User
+        {
+            Username = username,
+            Email = string.IsNullOrWhiteSpace(req.Email) ? $"{username}@teas.local" : req.Email.Trim(),
+            PasswordHash = hasher.Hash(req.Password!),
+            FullName = string.IsNullOrWhiteSpace(req.FullName) ? username : req.FullName.Trim(),
+            IsSuperAdmin = false,         // ม.: never mint a super-admin here (bootstrap-only)
+            IsActive = req.IsActive,
+            FailedLoginCount = 0,
+            MustChangePassword = false,
+            CreatedAt = now, UpdatedAt = now, Version = 0,
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);   // assign UserId before role rows + audit
+
+        var today = Today;
+        foreach (var r in validRoles)
+            db.UserRoles.Add(new UserRole
+            {
+                UserId = user.UserId, RoleId = r.RoleId, CompanyId = target,
+                BranchId = 0, ValidFrom = today, ValidTo = null,
+            });
+
+        activity.Record("user", user.UserId, username, target, "user_created",
+            note: $"roles=[{string.Join(",", validRoles.Select(r => r.RoleCode).OrderBy(c => c))}]",
+            module: "sys");
+        await db.SaveChangesAsync(ct);
+        return user.UserId;
+    }
+
+    public async Task SetUserActiveAsync(long userId, bool isActive, CancellationToken ct)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
+            ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
+        await GuardManageUserAsync(user, ct);
+
+        // Anti-lockout (§4.7): never let an admin disable their own account.
+        if (!isActive && tenant.UserId == userId)
+            throw new DomainException("rbac.self_lockout", "You cannot deactivate your own account.");
+
+        if (user.IsActive == isActive) return;   // no-op
+        user.IsActive = isActive;
+        activity.Record("user", userId, user.Username, tenant.CompanyId,
+            isActive ? "user_activated" : "user_deactivated", module: "sys");
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task ResetUserPasswordAsync(long userId, string newPassword, CancellationToken ct)
+    {
+        if ((newPassword ?? string.Empty).Length < MinPasswordLen)
+            throw new DomainException("user.password_too_short",
+                $"Password must be at least {MinPasswordLen} characters.");
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
+            ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
+        await GuardManageUserAsync(user, ct);
+
+        user.PasswordHash = hasher.Hash(newPassword!);
+        user.PasswordChangedAt = DateTimeOffset.UtcNow;
+        user.FailedLoginCount = 0;
+        user.LockedUntil = null;
+        // NEVER log the password — only that a reset happened.
+        activity.Record("user", userId, user.Username, tenant.CompanyId, "user_password_reset", module: "sys");
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>A company-admin may only manage users who belong to THEIR company (have a role in
+    /// it), and never a super-admin. Super-admins may manage anyone. A foreign user → not_found so
+    /// no cross-company existence leaks (§4.7).</summary>
+    private async Task GuardManageUserAsync(User user, CancellationToken ct)
+    {
+        if (tenant.IsSuperAdmin) return;
+        if (user.IsSuperAdmin)
+            throw new DomainException("rbac.super_admin_locked",
+                "Only a super-admin can manage a super-admin account.");
+        var inMyCompany = await db.UserRoles.AsNoTracking()
+            .AnyAsync(ur => ur.UserId == user.UserId && ur.CompanyId == tenant.CompanyId, ct);
+        if (!inMyCompany)
+            throw new DomainException("rbac.user.not_found", $"User {user.UserId} not found.");
     }
 
     // ---- helpers -----------------------------------------------------------
