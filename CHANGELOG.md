@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/pinsorn/teas-accounting/compare/v1.7.2...v1.7.3) (2026-06-22)
+
+
+### Bug Fixes
+
+* non-VAT sales chain — DO VAT backstop + full CoA on onboarding ([#12](https://github.com/pinsorn/teas-accounting/issues/12)) ([29a8e7d](https://github.com/pinsorn/teas-accounting/commit/29a8e7d1e9ff75f2b0e1aeab79c7e85086885c75))
+
 ## [1.7.2](https://github.com/pinsorn/teas-accounting/compare/v1.7.1...v1.7.2) (2026-06-21)
 
 
