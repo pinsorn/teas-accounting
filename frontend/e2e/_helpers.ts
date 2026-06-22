@@ -6,7 +6,12 @@ export async function login(page: Page, username = 'admin') {
   await page.getByRole('textbox', { name: /ชื่อผู้ใช้|username/i }).fill(username);
   await page.locator('input[type="password"]').fill('Admin@1234');
   await page.getByRole('button', { name: /เข้าสู่ระบบ|sign in/i }).click();
-  await page.waitForURL('**/', { timeout: 15_000 });
+  // Robust redirect wait: `waitForURL('**/')` raced the dashboard redirect under
+  // load / repeated logout→login cycles (false "login timeout"). Wait until we've
+  // actually LEFT /login, then block on the dashboard's nav-gates sentinel so the
+  // shell has fully settled before the test proceeds.
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 30_000 });
+  await waitForNavGates(page);
 }
 
 export async function logout(page: Page) {

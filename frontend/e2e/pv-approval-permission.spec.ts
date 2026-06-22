@@ -16,10 +16,11 @@ test('PV approval is permission-based: creator can self-approve', async ({ page 
   await page.getByText(/หมวดค่าใช้จ่าย|Expense Category/)
     .locator('xpath=following::select[1]')
     .selectOption({ label: 'ค่าบริการ (SVC)' });
-  await page.getByText(/^รายละเอียด|^Description/).first()
-    .locator('xpath=following::input[1]').fill('e2e permission-based approve');
-  await page.getByText(/^มูลค่าก่อนภาษี|^Subtotal/).first()
-    .locator('xpath=following::input[1]').fill('500');
+  // Create-form redesign: line-item fields are now accessible-named controls
+  // (see payment-voucher-with-wht.spec.ts) — the old getByText(...).xpath=
+  // following::input[1] pattern no longer resolves.
+  await page.getByRole('textbox', { name: 'รายละเอียด 1' }).fill('e2e permission-based approve');
+  await page.getByRole('spinbutton', { name: /^มูลค่าก่อนภาษี/ }).fill('500');
 
   await page.getByRole('button', { name: /^บันทึก$|^Save$/ }).click();
   await page.waitForURL(/\/payment-vouchers\/\d+$/, { timeout: 15_000 });

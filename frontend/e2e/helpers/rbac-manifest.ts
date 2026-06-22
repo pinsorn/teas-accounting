@@ -95,9 +95,13 @@ export const CREATE_BUTTONS: Control[] = [
 // gating story is already proven by the super-only "Companies (tax cfg)" nav +
 // the backend RbacCartesianTests. It is listed in the manual's super-only appendix.
 export const SETTINGS_COMPANY_BUTTONS: Control[] = [
-  { feature: 'Edit registered address', kind: 'button', route: '/settings/company', locate: { testId: 'cp-edit-address' }, perm: 'master.company_profile.manage' },
-  { feature: 'Upload logo',             kind: 'button', route: '/settings/company', locate: { testId: 'cp-logo-upload' },  perm: 'master.company_profile.manage' },
-  { feature: 'Save company profile',    kind: 'button', route: '/settings/company', locate: { testId: 'cp-soft-save' },    perm: 'master.company_profile.manage' },
+  // The founding legal-identity editor (PUT /company-profile/company-info) is gated by
+  // master.company.manage — SUPER_ADMIN-only by design (§4.6, role-permission-matrix †).
+  // It replaced the old soft "Edit registered address" button (testid cp-edit-address),
+  // which no longer exists in settings/company/page.tsx.
+  { feature: 'Edit company info', kind: 'button', route: '/settings/company', locate: { testId: 'cp-edit-company-info' }, perm: 'master.company.manage' },
+  { feature: 'Upload logo',       kind: 'button', route: '/settings/company', locate: { testId: 'cp-logo-upload' },       perm: 'master.company_profile.manage' },
+  { feature: 'Save company profile', kind: 'button', route: '/settings/company', locate: { testId: 'cp-soft-save' },      perm: 'master.company_profile.manage' },
 ];
 
 // Detail-page lifecycle buttons need a seeded document in the right STATUS; the spec

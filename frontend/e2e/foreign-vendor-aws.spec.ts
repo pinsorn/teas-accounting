@@ -29,17 +29,15 @@ test('foreign vendor (AWS) — auto self-withhold 15% gross-up + PND.36', async 
     .locator('xpath=following::select[1]').selectOption({ label: 'ค่าบริการ (SVC)' });
 
   // Self-withhold auto-ON + locked + warning chip for foreign-no-VAT-D.
-  const swToggle = page.locator('label:has-text("Self-withhold mode") input[type="checkbox"]');
+  // Toggle is now a daisyUI checkbox labelled by the Thai self-withhold text.
+  const swToggle = page.getByRole('checkbox', { name: /ออกภาษีให้เอง/ });
   await expect(swToggle).toBeChecked();
   await expect(swToggle).toBeDisabled();
   await expect(page.locator('body')).toContainText(/ภ.พ.36|PND\.36/);
 
-  await page.getByText(/^รายละเอียด|^Description/).first()
-    .locator('xpath=following::input[1]').fill('AWS cloud');
-  await page.getByText(/^มูลค่าก่อนภาษี|^Subtotal/).first()
-    .locator('xpath=following::input[1]').fill('3500');
-  await page.getByText(/^หัก ณ ที่จ่าย|^WHT$/).first()
-    .locator('xpath=following::input[1]').fill('0.15');
+  await page.getByRole('textbox', { name: /^รายละเอียด/ }).first().fill('AWS cloud');
+  await page.getByRole('spinbutton', { name: /^มูลค่าก่อนภาษี/ }).first().fill('3500');
+  await page.getByRole('spinbutton', { name: /หัก ณ ที่จ่าย/ }).first().fill('0.15');
 
   await page.getByRole('button', { name: /^บันทึก$|^Save$/ }).click();
   await page.waitForURL(/\/payment-vouchers\/\d+$/, { timeout: 15_000 });
@@ -60,6 +58,6 @@ test('foreign vendor (AWS) — auto self-withhold 15% gross-up + PND.36', async 
   }).toPass({ timeout: 25_000 });
   await expect(page.locator('body')).toContainText(/บันทึกแล้ว|Posted/, { timeout: 10_000 });
 
-  // Self-withhold badge visible at audit time.
-  await expect(page.locator('body')).toContainText(/Self-withhold/);
+  // Self-withhold badge visible at audit time (detail badge is Thai-only now).
+  await expect(page.locator('body')).toContainText(/ออกภาษีให้เอง/);
 });

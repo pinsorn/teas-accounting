@@ -16,7 +16,9 @@ test('issue a receipt against a posted tax invoice', async ({ page }) => {
   await page.goto('/receipts/new');
   await pickCustomer(page);
   await pickTaxInvoice(page, 1, tiDocNo);
-  await page.getByLabel('appliedAmount 1').fill('1070'); // 1000 + 7% VAT
+  // Redesign: the applied-amount cell's aria-label is the i18n value t('appliedAmount')
+  // = "ยอดชำระ" (rc.appliedAmount in messages/th.json), rendered as spinbutton "ยอดชำระ N".
+  await page.getByLabel('ยอดชำระ 1').fill('1070'); // 1000 + 7% VAT
 
   await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();
   const dialog = page.getByRole('dialog');

@@ -54,10 +54,12 @@ test('cross-BU receipt posts and shows the cross-BU warning', async ({ page }) =
 
   // Redesign: taxInvoiceId is a typeahead picker keyed by doc_no, not id.
   await pickTaxInvoice(page, 1, tiA);
-  await page.getByLabel('appliedAmount 1').fill('1070');
+  // Redesign: applied-amount aria-label is t('appliedAmount') = "ยอดชำระ"
+  // (rc.appliedAmount in messages/th.json), rendered as spinbutton "ยอดชำระ N".
+  await page.getByLabel('ยอดชำระ 1').fill('1070');
   await page.getByRole('button', { name: /เพิ่มรายการ|addApply|Add/ }).first().click();
   await pickTaxInvoice(page, 2, tiB);
-  await page.getByLabel('appliedAmount 2').fill('1070');
+  await page.getByLabel('ยอดชำระ 2').fill('1070');
 
   await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();
   const dialog = page.getByRole('dialog');

@@ -17,13 +17,15 @@ test('payment voucher with WHT: SoD create→approve→post + 50 tawi', async ({
     .locator('xpath=following::select[1]')
     .selectOption({ label: 'ค่าบริการ (SVC)' });
 
-  await page.getByText(/^รายละเอียด|^Description/).first()
-    .locator('xpath=following::input[1]').fill('e2e consulting');
-  await page.getByText(/^มูลค่าก่อนภาษี|^Subtotal/).first()
-    .locator('xpath=following::input[1]').fill('1000');
-  // WHT 3% (last numeric input in the line row).
-  await page.getByText(/^หัก ณ ที่จ่าย|^WHT$/).first()
-    .locator('xpath=following::input[1]').fill('0.03');
+  // Create-form redesign: line-item fields are now accessible-named controls —
+  // the ProductPicker exposes `รายละเอียด N` (textbox), and the numeric inputs
+  // are spinbuttons labelled by their (label-text + suffix) "มูลค่าก่อนภาษี *"
+  // and "หัก ณ ที่จ่าย %". The old getByText(...).xpath=following::input[1]
+  // pattern no longer resolves (and "มูลค่าก่อนภาษี" also appears in the totals).
+  await page.getByRole('textbox', { name: 'รายละเอียด 1' }).fill('e2e consulting');
+  await page.getByRole('spinbutton', { name: /^มูลค่าก่อนภาษี/ }).fill('1000');
+  // WHT 3% (the per-line "หัก ณ ที่จ่าย %" numeric input).
+  await page.getByRole('spinbutton', { name: /^หัก ณ ที่จ่าย/ }).fill('0.03');
 
   await page.getByRole('button', { name: /^บันทึก$|^Save$/ }).click();
   await page.waitForURL(/\/payment-vouchers\/\d+$/, { timeout: 15_000 });
