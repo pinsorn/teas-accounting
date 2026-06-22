@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.4](https://github.com/pinsorn/teas-accounting/compare/v1.8.3...v1.8.4) (2026-06-22)
+
+
+### Bug Fixes
+
+* **ui:** checked toggle/radio stay visible on hover/focus + WHT table fits its card ([#24](https://github.com/pinsorn/teas-accounting/issues/24)) ([2fb688c](https://github.com/pinsorn/teas-accounting/commit/2fb688c78825b2c0248c32eec1f45b8eb604c498))
+
 ## [1.8.3](https://github.com/pinsorn/teas-accounting/compare/v1.8.2...v1.8.3) (2026-06-22)
 
 
