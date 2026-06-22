@@ -25,6 +25,15 @@ public sealed class PostgresFixture : IAsyncLifetime
     public string ConnectionString =>
         _connectionString ?? throw new InvalidOperationException(SkipReason ?? "Postgres not initialised.");
 
+    /// <summary>A NON-superuser, NOBYPASSRLS role provisioned for tests that must exercise REAL
+    /// Postgres RLS (the test connection is a superuser that bypasses it — masking a whole class
+    /// of prod-only bugs, e.g. the empty-token-at-login bug). Tests `SET ROLE` to this on their
+    /// own connection. See <see cref="RlsRoleSkip"/>.</summary>
+    public const string RlsTestRole = "teas_rls_test";
+    /// <summary>Non-null when the RLS test role could NOT be provisioned (e.g. the test user lacks
+    /// CREATEROLE) — RLS-dependent tests should <c>Skip.If</c> on it.</summary>
+    public string? RlsRoleSkip { get; private set; } = "RLS test role not initialised.";
+
     public async Task InitializeAsync()
     {
         var envConn = Environment.GetEnvironmentVariable("TEAS_TEST_PG");
@@ -121,6 +130,29 @@ public sealed class PostgresFixture : IAsyncLifetime
             await db.Database.ExecuteSqlRawAsync(sql);
             await db.Database.ExecuteSqlRawAsync(
                 "INSERT INTO sys.applied_sql_scripts(script_name) VALUES ({0})", name);
+        }
+
+        // Provision a NON-superuser, NOBYPASSRLS role so RLS-dependent tests can reproduce prod
+        // behaviour (the test connection is a superuser that bypasses RLS). Idempotent + best-effort:
+        // if the test user can't CREATE ROLE, leave RlsRoleSkip set so those tests Skip instead of
+        // failing. No curly braces in the SQL (EF ExecuteSqlRaw treats them as format placeholders).
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                DO $rls$ BEGIN
+                    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'teas_rls_test') THEN
+                        CREATE ROLE teas_rls_test NOLOGIN NOBYPASSRLS;
+                    END IF;
+                END $rls$;
+                GRANT USAGE ON SCHEMA sys, master, audit TO teas_rls_test;
+                GRANT SELECT ON ALL TABLES IN SCHEMA sys, master, audit TO teas_rls_test;
+                """);
+            RlsRoleSkip = null;
+        }
+        catch (Exception ex)
+        {
+            RlsRoleSkip = $"RLS test role '{RlsTestRole}' unavailable ({ex.GetType().Name}: {ex.Message}). " +
+                          "Needs a TEAS_TEST_PG user with CREATEROLE/superuser.";
         }
     }
 
