@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.3](https://github.com/pinsorn/teas-accounting/compare/v1.8.2...v1.8.3) (2026-06-22)
+
+
+### Bug Fixes
+
+* **ui:** sidebar highlights parent + child when on a child route (prefix match) ([#22](https://github.com/pinsorn/teas-accounting/issues/22)) ([00b46b4](https://github.com/pinsorn/teas-accounting/commit/00b46b49b74dce256c3dfbb94ca450d7a5c4e745))
+
 ## [1.8.2](https://github.com/pinsorn/teas-accounting/compare/v1.8.1...v1.8.2) (2026-06-22)
 
 
