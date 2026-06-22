@@ -45,14 +45,17 @@ public static class TestCompanyFactory
         await using (var s = sp.CreateAsyncScope())
         {
             var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
-            // Seeds 120/400 insert company_id 1/2 and branch_id 1/2 with EXPLICIT ids,
-            // which does not advance the identity sequences — on a fresh teas_test the
-            // first EF-generated id would collide (23505). Align sequences to MAX+1.
+            // Seeds insert companies/branches AND users (130/160/181/550/562 admin/approver/etc.)
+            // with EXPLICIT ids, which does not advance the identity sequences — on a fresh
+            // teas_test the first EF-generated id collides (23505). Align all three to MAX+1 so any
+            // test that later creates a user (RBAC CreateUserAsync) is order-independent.
             await db.Database.ExecuteSqlRawAsync(
                 "SELECT setval(pg_get_serial_sequence('master.companies','company_id'), " +
                 "(SELECT COALESCE(MAX(company_id),0)+1 FROM master.companies), false);" +
                 "SELECT setval(pg_get_serial_sequence('master.branches','branch_id'), " +
-                "(SELECT COALESCE(MAX(branch_id),0)+1 FROM master.branches), false);");
+                "(SELECT COALESCE(MAX(branch_id),0)+1 FROM master.branches), false);" +
+                "SELECT setval(pg_get_serial_sequence('sys.users','user_id'), " +
+                "(SELECT COALESCE(MAX(user_id),0)+1 FROM sys.users), false);");
 
             var svc = s.ServiceProvider.GetRequiredService<ICompanyService>();
             // Province + PostalCode are now required (ม.86/4 founding registered address) — every
