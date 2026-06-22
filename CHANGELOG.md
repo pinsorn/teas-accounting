@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2](https://github.com/pinsorn/teas-accounting/compare/v1.8.1...v1.8.2) (2026-06-22)
+
+
+### Bug Fixes
+
+* **ui:** toggle goes blank/white after click — @tailwindcss/forms focus ring clobbered the DaisyUI thumb ([#20](https://github.com/pinsorn/teas-accounting/issues/20)) ([4df10aa](https://github.com/pinsorn/teas-accounting/commit/4df10aaaf0a66a7f14fcfcbc90160665d1e04838))
+
 ## [1.8.1](https://github.com/pinsorn/teas-accounting/compare/v1.8.0...v1.8.1) (2026-06-22)
 
 
