@@ -16,6 +16,8 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- Direct ref forces Microsoft.OpenApi 2.7.5 (patched) over the vulnerable 2.4.1 transitive. -->
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <!-- M2 (MCP) — the client SDK (McpClient/HttpClientTransport) for the /mcp smoke test. -->
     <PackageReference Include="ModelContextProtocol.AspNetCore" />

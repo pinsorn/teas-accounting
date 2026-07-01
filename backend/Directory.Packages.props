@@ -30,6 +30,12 @@
     <PackageVersion Include="Mapster" Version="7.4.0" />
     <!-- JSON / Swagger -->
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+    <!-- Security pin (NU1903 / GHSA-v5pm-xwqc-g5wc): Microsoft.OpenApi <= 2.7.4 has a DoS-on-parse
+         (circular $ref → stack overflow); 2.7.5 patches it. Pulled transitively by
+         Microsoft.AspNetCore.OpenApi/Swashbuckle; forced via a direct PackageReference in Api +
+         Api.Tests. We only GENERATE OpenAPI (never parse untrusted docs) so exposure is nil, but
+         TreatWarningsAsErrors requires the fix to build. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Auth / Crypto -->
     <PackageVersion Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageVersion Include="Otp.NET" Version="1.4.0" />

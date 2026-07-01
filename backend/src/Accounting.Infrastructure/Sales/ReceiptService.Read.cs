@@ -216,9 +216,11 @@ public sealed partial class ReceiptService
 
         var tiRefs = string.Join(", ", d.AppliedTo
             .Select(a => a.TiDocNo ?? $"#{a.TaxInvoiceId}").Distinct());
-        var notes = string.IsNullOrWhiteSpace(d.Notes)
-            ? $"อ้างอิงใบกำกับภาษี: {tiRefs}"
-            : $"{d.Notes}\nอ้างอิงใบกำกับภาษี: {tiRefs}";
+        // Only add the "อ้างอิงใบกำกับภาษี" line when there ARE applied tax invoices — a non-VAT /
+        // standalone-cash receipt has none, so appending it printed a dangling blank reference.
+        var refLine = string.IsNullOrWhiteSpace(tiRefs) ? null : $"อ้างอิงใบกำกับภาษี: {tiRefs}";
+        var notes = string.Join("\n",
+            new[] { d.Notes, refLine }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
         var model = new Pdf.PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,

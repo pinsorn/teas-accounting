@@ -222,7 +222,6 @@ public static class PaperDocumentPdf
     private static void Foot(ColumnDescriptor col, PaperDocModel m)
     {
         var vatRate = Math.Round(m.Summary.VatRate ?? 7m, 2);
-        var beforeVat = m.Summary.BeforeVat ?? (m.Summary.Subtotal - (m.Summary.Discount ?? 0m));
         var words = string.IsNullOrEmpty(m.AmountWords) ? BahtText.Of(m.Summary.Total) : m.AmountWords!;
 
         col.Item().PaddingTop(Px(8)).Row(row =>
@@ -239,32 +238,37 @@ public static class PaperDocumentPdf
             row.ConstantItem(Px(24));
             row.RelativeItem(1f).Column(tot =>
             {
-                // Non-VAT (ม.86): single Total row only — no Subtotal/Before-VAT/VAT.
-                if (m.Summary.ShowVat)
+                // Footer sequence (Ham 2026-07-01): Subtotal·VAT (only if the company charges VAT) →
+                // Grand Total (always, = Subtotal+VAT) → หัก WHT → Net (only if WHT withheld). Lines
+                // that would duplicate the Grand Total anchor are hidden. Same rule (PaperFootPlan)
+                // the on-screen React PaperDocument uses, so the print matches the screen.
+                foreach (var fr in PaperFootPlan.Build(m.Summary))
                 {
-                    TotalRow(tot, "มูลค่าก่อนหักส่วนลด · Subtotal", Num(m.Summary.Subtotal));
-                    if (m.Summary.Discount is { } disc)
-                        TotalRow(tot, "ส่วนลดรวม · Discount", Num(disc));
-                    TotalRow(tot, "มูลค่าก่อนภาษี · Before VAT", Num(beforeVat));
-                    // ponytail (01-L3): explicit exempt-remainder row so the non-taxable portion
-                    // is labelled (ม.86/4 #5 — each line must be identifiable; mixed TI needs both).
-                    if (m.Summary.NonTaxable is { } ntx && ntx > 0m)
-                        TotalRow(tot, "มูลค่าสินค้าที่ได้รับยกเว้น · Exempt", Num(ntx));
-                    TotalRow(tot, $"ภาษีมูลค่าเพิ่ม {vatRate.ToString("0.##", Th)}% · VAT", Num(m.Summary.Vat));
+                    var (label, value) = fr.Line switch
+                    {
+                        FootLine.Subtotal   => ("มูลค่าก่อนหักส่วนลด · Subtotal", Num(fr.Value)),
+                        FootLine.Discount   => ("ส่วนลดรวม · Discount", Num(fr.Value)),
+                        FootLine.BeforeVat  => ("มูลค่าก่อนภาษี · Before VAT", Num(fr.Value)),
+                        // ม.86/4 #5 — label the non-taxable remainder on a mixed Tax Invoice.
+                        FootLine.Exempt     => ("มูลค่าสินค้าที่ได้รับยกเว้น · Exempt", Num(fr.Value)),
+                        FootLine.Vat        => ($"ภาษีมูลค่าเพิ่ม {vatRate.ToString("0.##", Th)}% · VAT", Num(fr.Value)),
+                        FootLine.GrandTotal => ("จำนวนเงินรวมทั้งสิ้น · Grand Total", Num(fr.Value)),
+                        FootLine.Wht        => ("หัก ณ ที่จ่าย · WHT", $"-{Num(fr.Value)}"),
+                        FootLine.Net        => ("ยอดเงินรับสุทธิ · Net Payable", Num(fr.Value)),
+                        _                   => (fr.Line.ToString(), Num(fr.Value)),
+                    };
+
+                    if (fr.Emphasized)
+                        tot.Item().PaddingTop(Px(8)).Background(PaperColors.Peach50)
+                            .Border(Px(1.5f)).BorderColor(PaperColors.Peach400).Padding(Px(10)).Row(r =>
+                        {
+                            r.RelativeItem().Text(label).FontSize(Px(18)).Bold();
+                            r.AutoItem().Text($"฿ {value}").FontSize(Px(18)).Bold().FontColor(PaperColors.Peach700);
+                        });
+                    else
+                        TotalRow(tot, label, value);
                 }
 
-                // Payment Voucher (Phase C): WHT-deducted net. The "หัก ณ ที่จ่าย"
-                // row sits above the grand total, which then reads "จ่ายสุทธิ".
-                if (m.Summary.Wht is { } wht)
-                    TotalRow(tot, "หัก ณ ที่จ่าย · WHT", $"-{Num(wht)}");
-
-                var totalLabel = m.Summary.Wht is null ? "รวมทั้งสิ้น · Total" : "จ่ายสุทธิ · Net Paid";
-                tot.Item().PaddingTop(Px(8)).Background(PaperColors.Peach50)
-                    .Border(Px(1.5f)).BorderColor(PaperColors.Peach400).Padding(Px(10)).Row(r =>
-                {
-                    r.RelativeItem().Text(totalLabel).FontSize(Px(18)).Bold();
-                    r.AutoItem().Text($"฿ {Num(m.Summary.Total)}").FontSize(Px(18)).Bold().FontColor(PaperColors.Peach700);
-                });
                 tot.Item().PaddingTop(Px(8)).AlignRight().Text($"({words})")
                     .Italic().FontSize(Px(14)).FontColor(PaperColors.Ink600);
             });
