@@ -7,18 +7,19 @@
 
 | Kind | Count |
 |---|---:|
-| Anonymous | 4 |
-| AuthnOnly | 12 |
+| Anonymous | 6 |
+| AuthnOnly | 13 |
 | Perm | 232 |
 | Assertion | 5 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **279** |
+| **TOTAL** | **282** |
 
 ## Routes
 
 | Method | Route | Gate | Permission(s) |
 |---|---|---|---|
+| GET | `/.well-known/oauth-protected-resource` | Anonymous | — |
 | GET | `/accounts/` | Perm | master.coa.manage |
 | POST | `/accounts/` | Perm | master.coa.manage |
 | PUT | `/accounts/{id:long}` | Perm | master.coa.manage |
@@ -141,6 +142,8 @@
 | POST | `/mcp/` | ApiKeyOnly | — |
 | GET | `/me` | AuthnOnly | — |
 | GET | `/me/permissions` | AuthnOnly | — |
+| GET | `/oauth/authorize` | Anonymous | — |
+| POST | `/oauth/authorize` | AuthnOnly | — |
 | GET | `/payment-vouchers/` | Perm | purchase.payment_voucher.read |
 | POST | `/payment-vouchers/` | Perm | purchase.payment_voucher.create |
 | GET | `/payment-vouchers/{id:long}` | Perm | purchase.payment_voucher.read |
