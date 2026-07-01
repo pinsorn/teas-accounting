@@ -42,6 +42,9 @@ public static class McpPrincipalFactory
         identity.SetClaim(TenantClaims.BranchId, branchId.ToString(CultureInfo.InvariantCulture));
         identity.SetClaim(TenantClaims.IsApiKey, "true");                    // load-bearing (PermissionHandler)
         identity.SetClaim(TenantClaims.Scopes, string.Join(',', grantedScopes));
+        // Actor name = draft provenance (CreatedViaApiKeyName) + the E5 own-drafts filter key, so an
+        // OAuth agent is first-class (can poll its own drafts) — NOT an api_key_id.
+        identity.SetClaim(TenantClaims.ApiKeyName, actorName);
         // NEVER TenantClaims.IsSuperAdmin, NEVER TenantClaims.ApiKeyId.
 
         var principal = new ClaimsPrincipal(identity);
