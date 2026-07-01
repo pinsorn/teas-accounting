@@ -16,10 +16,15 @@
     <!-- M2 (MCP) — in-process Model Context Protocol server (official Microsoft+Anthropic SDK).
          The ASP.NET Core package pulls ModelContextProtocol + .Core transitively. -->
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
+    <!-- OAuth 2.1 Authorization Server (TEAS Connect MCP native-connector auth).
+         AspNetCore = server+validation integration; EntityFrameworkCore = stores (pulls Core/Server/Validation). -->
+    <PackageVersion Include="OpenIddict.AspNetCore" Version="7.5.0" />
+    <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.5.0" />
     <!-- EF Core + Npgsql -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.4" />
+    <!-- EF Core 10.0.7 (was 10.0.4): OpenIddict.EntityFrameworkCore 7.5.0 floors Relational at 10.0.7. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
     <!-- Validation -->
@@ -30,6 +35,12 @@
     <PackageVersion Include="Mapster" Version="7.4.0" />
     <!-- JSON / Swagger -->
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+    <!-- Security pin (NU1903 / GHSA-v5pm-xwqc-g5wc): Microsoft.OpenApi <= 2.7.4 has a DoS-on-parse
+         (circular $ref → stack overflow); 2.7.5 patches it. Pulled transitively by
+         Microsoft.AspNetCore.OpenApi/Swashbuckle; forced via a direct PackageReference in Api +
+         Api.Tests. We only GENERATE OpenAPI (never parse untrusted docs) so exposure is nil, but
+         TreatWarningsAsErrors requires the fix to build. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <!-- Auth / Crypto -->
     <PackageVersion Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageVersion Include="Otp.NET" Version="1.4.0" />

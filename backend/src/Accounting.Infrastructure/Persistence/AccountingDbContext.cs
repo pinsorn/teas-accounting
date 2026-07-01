@@ -116,6 +116,14 @@ public class AccountingDbContext : DbContext
 
         ApplyTenantFilters(modelBuilder);
 
+        // OAuth 2.1 stores (TEAS Connect MCP). Added here (not via options.UseOpenIddict) so the
+        // entities are in the model synchronously and can be placed in a dedicated `oauth` schema.
+        // They are NOT ITenantOwned → excluded from the tenant query filter (no company_id, no RLS).
+        modelBuilder.UseOpenIddict();
+        foreach (var entity in modelBuilder.Model.GetEntityTypes()
+                     .Where(e => e.ClrType.Namespace?.StartsWith("OpenIddict", StringComparison.Ordinal) == true))
+            entity.SetSchema("oauth");
+
         base.OnModelCreating(modelBuilder);
     }
 

@@ -24,6 +24,13 @@ public static class DependencyInjection
             })
             .UseSnakeCaseNamingConvention());
 
+        // OAuth 2.1 AS (TEAS Connect MCP) — EF Core stores on AccountingDbContext (oauth schema).
+        // Server + validation schemes are wired in Program.cs (Api owns OpenIddict.AspNetCore).
+        services.AddOpenIddict()
+            .AddCore(o => o.UseEntityFrameworkCore().UseDbContext<AccountingDbContext>());
+        // The scope/client seeder (OpenIddictSeeder) is a hosted service registered in the API
+        // composition root (Program.cs) — Infrastructure stays hosting-free.
+
         services.AddSingleton<IClock, SystemClock>();
 
         // Identity primitives — see Program.cs for JWT bearer wire-up.

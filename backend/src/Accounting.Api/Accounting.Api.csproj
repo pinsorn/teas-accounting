@@ -25,12 +25,16 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" />
+    <!-- Direct ref forces Microsoft.OpenApi 2.7.5 (patched) over the vulnerable 2.4.1 transitive. -->
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="FluentValidation.AspNetCore" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="QuestPDF" />
     <!-- M2 (MCP) — hosts the in-process MCP server (AddMcpServer/MapMcp). -->
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <!-- OAuth 2.1 AS (TEAS Connect native-connector auth) — server + validation integration. -->
+    <PackageReference Include="OpenIddict.AspNetCore" />
     <!-- OpenTelemetry removed 2026-05-16: unused (no AddOpenTelemetry wiring) and the
          OTLP exporter shipped transitive CVEs. Re-add with a patched version when
          observability is actually implemented. -->

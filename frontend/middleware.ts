@@ -7,7 +7,15 @@ import { NextResponse, type NextRequest } from 'next/server';
 // '/mcp' is public so the X-Api-Key-authed MCP passthrough (app/mcp/route.ts) is not
 // 307-redirected to /login by the session-cookie gate. Auth is the X-Api-Key the route
 // forwards to the backend ApiKeyOnly policy — no session cookie is involved.
-const PUBLIC_PATHS = ['/login', '/onboarding', '/api', '/mcp', '/_next', '/favicon.ico'];
+// The OAuth passthroughs are public too: '/.well-known' (anonymous discovery), '/oauth/token'
+// and '/oauth/register' (client-authenticated, no cookie), and '/oauth/authorize' (a logged-out
+// MCP client MUST reach it — the missing cookie is what makes the backend redirect to /login).
+// NOTE: '/oauth/consent' is deliberately NOT public — it needs the session (no blanket '/oauth').
+const PUBLIC_PATHS = [
+  '/login', '/onboarding', '/api', '/mcp',
+  '/.well-known', '/oauth/authorize', '/oauth/token', '/oauth/register',
+  '/_next', '/favicon.ico',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
