@@ -224,6 +224,30 @@ export default function ApiKeysSettingsPage() {
         </div>
       </QueryState>
 
+      {/* Native connector (OAuth) — URL-only setup for Claude Desktop/Mobile, Codex, Gemini.
+          No API key: the client runs the standard MCP OAuth flow against {origin}/mcp. */}
+      <div className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-4">
+        <h3 className="font-semibold text-primary">{t('nativeTitle')}</h3>
+        <p className="mt-1 text-sm text-base-content/70">{t('nativeIntro')}</p>
+        <div className="mt-3">
+          <p className="mb-1 text-xs font-medium text-base-content/70">{t('nativeUrlLabel')}</p>
+          <div className="flex items-center gap-2 rounded border border-base-300 bg-base-200 p-2">
+            <code className="flex-1 font-mono text-sm" data-testid="native-mcp-url">
+              {mcpOrigin()}/mcp
+            </code>
+            <button className="btn btn-ghost btn-sm" aria-label={t('copy')}
+              onClick={() => copy(`${mcpOrigin()}/mcp`)}>
+              <Copy className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-base-content/70">
+          <li>{t('nativeClaude')}</li>
+          <li>{t('nativeCodex')}</li>
+          <li>{t('nativeGemini')}</li>
+        </ul>
+      </div>
+
       {/* Create dialog */}
       {open && (
         <div className="modal modal-open" role="dialog" aria-modal="true">

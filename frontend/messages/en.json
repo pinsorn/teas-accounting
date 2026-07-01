@@ -1465,7 +1465,26 @@
     "mcpConfigLabel": "Claude Code (CLI or .mcp.json)",
     "mcpDesktopLabel": "Claude Desktop (claude_desktop_config.json — via mcp-remote)",
     "mcpMobileNote": "Claude Mobile / in-app Custom Connector: requires OAuth — not yet supported with an API key (in development).",
-    "mcpScopeNote": "MCP key scope: read + create draft only (cannot Post directly). The AI agent drafts documents and returns a link for you to review and approve."
+    "mcpScopeNote": "MCP key scope: read + create draft only (cannot Post directly). The AI agent drafts documents and returns a link for you to review and approve.",
+    "nativeTitle": "Native connector (Claude Desktop/Mobile · Codex · Gemini)",
+    "nativeIntro": "Connect via OAuth — just the URL below, no API key needed. You'll sign in to TEAS and pick a company before authorizing.",
+    "nativeUrlLabel": "MCP Endpoint URL",
+    "nativeClaude": "Claude Desktop/Mobile: paste this URL into \"Add custom connector\".",
+    "nativeCodex": "Codex CLI: run codex mcp login teas (or edit ~/.codex/config.toml).",
+    "nativeGemini": "Gemini Spark: add it under \"Connected Apps\" in the web UI."
+  },
+  "oauthConsent": {
+    "title": "Authorize connection",
+    "clientLabel": "Application requesting access",
+    "description": "TEAS Connect will read and draft documents (it cannot post).",
+    "companyLabel": "Select company",
+    "approve": "Approve",
+    "deny": "Deny",
+    "selectCompany": "Please select a company",
+    "noCompanies": "You have no companies available to authorize",
+    "invalidRequest": "Invalid connection request",
+    "error": "Something went wrong. Please try again.",
+    "loading": "Loading..."
   },
   "approve": {
     "bannerTitle": "Approve this document",
