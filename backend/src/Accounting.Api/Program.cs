@@ -99,6 +99,9 @@ builder.Services.AddPermissionAuthorization();
 // AddOpenIddict() is safe to call again — it augments the same registration.
 // DCR (RFC 7591 /oauth/register) is deferred: clients fall back to the pre-registered `teas-mcp`
 // application the seeder installs (spec §6/§6b — pre-registration is the sanctioned fallback).
+// The single MCP resource (RFC 8707 aud). Registered on the server (so a client `resource` param
+// validates) and enforced on validation (AddAudiences). Matches McpPrincipalFactory + the seeder.
+var mcpResource = $"{(builder.Configuration["App:BaseUrl"] ?? "http://localhost:3000").TrimEnd('/')}/mcp";
 builder.Services.AddOpenIddict()
     .AddServer(o =>
     {
@@ -109,6 +112,7 @@ builder.Services.AddOpenIddict()
         o.AllowAuthorizationCodeFlow().AllowRefreshTokenFlow();
         o.RequireProofKeyForCodeExchange();                 // PKCE S256 mandatory
         o.RegisterScopes(McpScopes.All.ToArray());
+        o.RegisterResources(mcpResource);   // RFC 8707 — else invalid_target/ID2190 on a `resource` param
         o.SetAccessTokenLifetime(TimeSpan.FromMinutes(10)); // 5–15 min (spec §6b)
         o.SetRefreshTokenLifetime(TimeSpan.FromHours(8));   // ~1 workday absolute
         o.UseReferenceRefreshTokens();                      // reference refresh → family revocation
@@ -117,7 +121,9 @@ builder.Services.AddOpenIddict()
         o.AddEphemeralEncryptionKey().AddEphemeralSigningKey();
         o.UseAspNetCore()
          .EnableAuthorizationEndpointPassthrough()          // /oauth/authorize handled by our endpoint
-         .EnableTokenEndpointPassthrough()
+         // Token endpoint is NOT passed through: OpenIddict auto-issues the access token from the
+         // stored authorization-code principal (code→token). Refresh-flow hardening (T4) hooks the
+         // server's token-request event, not a passthrough handler.
          // TLS is terminated upstream (Cloudflare → Next passthrough → this backend over HTTP), so
          // OpenIddict must not reject the plain-HTTP hop. Same posture as the rest of the API.
          .DisableTransportSecurityRequirement();
@@ -125,10 +131,13 @@ builder.Services.AddOpenIddict()
     .AddValidation(o =>
     {
         o.UseLocalServer();                                 // validate access tokens in-process
+        o.AddAudiences(mcpResource);                        // RFC 8707 — token aud MUST be our /mcp
         o.UseAspNetCore();
     });
 // Seeds OAuth scopes + the pre-registered `teas-mcp` client (server-fixed permissions).
 builder.Services.AddHostedService<OpenIddictSeeder>();
+// Defense-in-depth on the /mcp Bearer principal (reject company/branch<=0, super-admin — spec §6b).
+builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, McpBearerClaimsTransform>();
 
 // M2 (MCP) — in-process Model Context Protocol server. Stateless HTTP transport
 // means each tool resolves its scoped services from the per-request
@@ -154,6 +163,12 @@ builder.Services.AddAuthorizationBuilder()
         .RequireAuthenticatedUser().Build())
     .AddPolicy(ApiV1Endpoints.ApiKeyOnlyPolicy, p => p
         .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
+        .RequireAuthenticatedUser())
+    // /mcp mount — ApiKey OR the OAuth Bearer (per-tool scopes gated by mcpperm:*).
+    .AddPolicy(ApiV1Endpoints.McpAuthPolicy, p => p
+        .AddAuthenticationSchemes(
+            ApiKeyAuthenticationHandler.SchemeName,
+            OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
         .RequireAuthenticatedUser());
 
 // Swagger / OpenAPI
@@ -197,8 +212,19 @@ builder.Services.AddRateLimiter(o =>
     {
         var presented = ctx.Request.Headers[
             Accounting.Api.Authorization.ApiKeyAuthenticationHandler.HeaderName].ToString();
-        var partitionKey = Accounting.Infrastructure.Identity.ApiKeyGenerator.PrefixOf(presented)
-            ?? "__no_api_key";
+        string partitionKey;
+        if (Accounting.Infrastructure.Identity.ApiKeyGenerator.PrefixOf(presented) is { } prefix)
+            partitionKey = prefix;
+        else
+        {
+            // OAuth Bearer (on /mcp) — partition per token (stable hash, never logged) so it never
+            // shares the unkeyed "__no_api_key" bucket with anonymous callers.
+            var auth = ctx.Request.Headers.Authorization.ToString();
+            partitionKey = auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? "bearer:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(auth["Bearer ".Length..])))[..16]
+                : "__no_api_key";
+        }
         return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ =>
             new FixedWindowRateLimiterOptions
             {
@@ -237,6 +263,40 @@ app.Use(async (ctx, next) =>
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
     ctx.Response.Headers["X-Frame-Options"]        = "DENY";
     ctx.Response.Headers["Referrer-Policy"]        = "no-referrer";
+    await next();
+});
+
+// /mcp credential guard (OAuth): reject BOTH credentials at once (X-Api-Key + Bearer → 400), and
+// ensure a /mcp 401 carries WWW-Authenticate: Bearer resource_metadata=… so MCP native connectors
+// (Claude Desktop/Mobile, Codex, Gemini) can discover the AS (RFC 9728).
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/mcp"))
+    {
+        var hasApiKey = ctx.Request.Headers.ContainsKey(ApiKeyAuthenticationHandler.HeaderName);
+        var hasBearer = ctx.Request.Headers.Authorization
+            .Any(h => h is not null && h.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase));
+        if (hasApiKey && hasBearer)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                error = "invalid_request",
+                error_description = "Present exactly one credential — X-Api-Key or Bearer, not both.",
+            });
+            return;
+        }
+        var baseUrl = ctx.RequestServices
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<Accounting.Api.Mcp.AppOptions>>()
+            .Value.BaseUrl.TrimEnd('/');
+        ctx.Response.OnStarting(() =>
+        {
+            if (ctx.Response.StatusCode == StatusCodes.Status401Unauthorized)
+                ctx.Response.Headers["WWW-Authenticate"] =
+                    $"Bearer resource_metadata=\"{baseUrl}/.well-known/oauth-protected-resource\"";
+            return Task.CompletedTask;
+        });
+    }
     await next();
 });
 
@@ -321,7 +381,7 @@ app.MapOAuthMetadata();
 app.MapOAuthAuthorize();
 
 app.MapMcp("/mcp")
-    .RequireAuthorization(ApiV1Endpoints.ApiKeyOnlyPolicy)
+    .RequireAuthorization(ApiV1Endpoints.McpAuthPolicy)   // ApiKey XOR Bearer (guard middleware rejects both)
     .RequireRateLimiting(ApiV1Endpoints.PerApiKeyRateLimitPolicy);
 
 app.Run();

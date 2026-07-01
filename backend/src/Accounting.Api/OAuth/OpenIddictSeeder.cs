@@ -1,4 +1,6 @@
+using Accounting.Api.Mcp;
 using Accounting.Application.Abstractions;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -22,11 +24,19 @@ public sealed class OpenIddictSeeder(IServiceProvider services) : IHostedService
     {
         using var scope = services.CreateScope();
 
+        // RFC 8707: the MCP resource each scope grants access to. Registering it on the scopes lets
+        // OpenIddict accept the client's `resource` param and encode it in the token aud. Env-specific
+        // (public base URL) → re-asserted each startup so a base-URL change (or a stale teas_test row)
+        // is reconciled. Must equal what McpPrincipalFactory sets + what the resource server checks.
+        var mcpResource = $"{scope.ServiceProvider.GetRequiredService<IOptions<AppOptions>>().Value.BaseUrl.TrimEnd('/')}/mcp";
+
         var scopeMgr = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
         foreach (var name in McpScopes.All)
         {
-            if (await scopeMgr.FindByNameAsync(name, ct) is not null) continue;
-            await scopeMgr.CreateAsync(new OpenIddictScopeDescriptor { Name = name }, ct);
+            var scopeDescriptor = new OpenIddictScopeDescriptor { Name = name, Resources = { mcpResource } };
+            var existingScope = await scopeMgr.FindByNameAsync(name, ct);
+            if (existingScope is null) await scopeMgr.CreateAsync(scopeDescriptor, ct);
+            else await scopeMgr.UpdateAsync(existingScope, scopeDescriptor, ct);   // reconcile the resource
         }
 
         var descriptor = new OpenIddictApplicationDescriptor
@@ -48,6 +58,8 @@ public sealed class OpenIddictSeeder(IServiceProvider services) : IHostedService
         foreach (var uri in RedirectUris) descriptor.RedirectUris.Add(new Uri(uri));
         // Grant ONLY the fixed MCP scope set (server-authoritative — clients can never add *.post).
         foreach (var s in McpScopes.All) descriptor.Permissions.Add(Permissions.Prefixes.Scope + s);
+        // Permit the client to target the MCP resource (RFC 8707) — else invalid_request on `resource`.
+        descriptor.Permissions.Add(Permissions.Prefixes.Resource + mcpResource);
 
         var appMgr = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
         var existing = await appMgr.FindByClientIdAsync(McpClientId, ct);

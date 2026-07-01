@@ -185,10 +185,11 @@ public sealed record McpCreatePurchaseOrderRequest(
 [McpServerToolType]
 public sealed class TeasMcpTools
 {
-    // Policy literals must be compile-time constants for [Authorize(Policy=...)],
-    // so we can't reuse ApiV1Endpoints.P(...). Build the SAME "apiperm:<scope>"
-    // names from the shared prefix constant (resolved by PermissionPolicyProvider).
-    private const string Pfx = PermissionPolicyProvider.ApiKeyPolicyPrefix;
+    // Policy literals must be compile-time constants for [Authorize(Policy=...)], so we can't reuse
+    // ApiV1Endpoints.P(...). Build "mcpperm:<scope>" names from the shared prefix (resolved by
+    // PermissionPolicyProvider) — the /mcp surface accepts ApiKey OR the OAuth Bearer, unlike
+    // /api/v1's apiperm: (ApiKey only).
+    private const string Pfx = PermissionPolicyProvider.McpPolicyPrefix;
 
     private const string TaxInvoiceRead   = Pfx + "sales.tax_invoice.read";
     private const string TaxInvoiceCreate = Pfx + "sales.tax_invoice.create";
