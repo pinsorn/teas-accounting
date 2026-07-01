@@ -1462,7 +1462,9 @@
     "mcpSetupTitle": "วิธีตั้งค่า MCP Client",
     "mcpEndpointLabel": "MCP Endpoint URL",
     "mcpHeaderLabel": "Header การยืนยันตัวตน",
-    "mcpConfigLabel": "ตัวอย่าง config MCP client",
+    "mcpConfigLabel": "Claude Code (CLI หรือ .mcp.json)",
+    "mcpDesktopLabel": "Claude Desktop (claude_desktop_config.json — ผ่าน mcp-remote)",
+    "mcpMobileNote": "Claude Mobile / ตัวเชื่อมต่อในแอป (Custom Connector): ต้องใช้ OAuth — ยังไม่รองรับด้วย API key (อยู่ระหว่างพัฒนา)",
     "mcpScopeNote": "สิทธิ์ของ MCP key: อ่านข้อมูล + สร้างร่างเอกสารเท่านั้น (ไม่สามารถ Post ได้) — AI agent สร้างร่าง จากนั้นส่งลิงก์ให้คุณอนุมัติ & Post เอง"
   },
   "approve": {

@@ -24,6 +24,15 @@ These landed after the RBAC sprint and are DONE; listed here only so they are no
 
 ## What is genuinely LEFT (forward work)
 
+- **▶ TEAS Connect (MCP)** — see `docs/superpowers/specs/2026-07-01-mcp-connectivity-and-oauth-design.md` (cont.119).
+  - ☑ **P1 connectivity** — `frontend/app/mcp/route.ts` single-origin X-Api-Key passthrough (streams SSE) + `/mcp` in `middleware.ts` PUBLIC_PATHS. Verified local (:3000→:5080). *Backend `/mcp` was never publicly reachable — Cloudflare fronts Next.js only.*
+  - ☑ **P3 tool ergonomics** — optional params on the 9 list tools made optional in the schema (`Mcp/TeasMcpTools.cs`). Verified.
+  - ☑ **FE setup panel** — correct Claude Code + Desktop(mcp-remote) snippets + Mobile/OAuth note. Verified (tsc 0).
+  - ☑ **P4 PDF-URL + `/api/v1` reachability** — `PdfApiUrl`→`BaseUrl` (not `req.Host`=localhost) + GET-only `frontend/app/api/v1/[...path]/route.ts` passthrough. Codex-reviewed (dot-guard, Location passthrough, middleware boundary applied). Verified vs prod build: PDF fetch → 200 application/pdf.
+  - ☐ **DEPLOY (Ham):** republish API (P3) + FE rebuild/deploy (P1+panel) to the VPS; then verify `https://teas.kazaki-rio.com/mcp` over real internet (Cloudflare SSE passthrough — the one thing unverifiable locally). Nothing committed yet (§10).
+  - ☐ **P2 — OAuth 2.1+PKCE AS (for Claude Mobile + native connectors)** — OpenIddict: anonymous `.well-known/oauth-protected-resource`+`oauth-authorization-server` (RFC 9728/8414), `/authorize`(+consent, reuse login)/`/token`/`/register`(DCR), 401 `WWW-Authenticate` on `/mcp`, Bearer→company+scopes. **New dep + schema migration → §11 ASK-Ham + §6 migration-footgun; build on a branch w/ tests, Ham approves deploy.** Confirmed mandatory (Mobile = OAuth-only).
+
+
 - ☐ **e-Tax live RD submission** — only Phase-1 scaffolding exists (XAdES signer inert, `MockRdEfilingClient`
   fake-ACK, no auto-submit cron). GATED until Ham orders — see the e-Tax section + `docs/superpowers/plans/etax-xades-production-plan.md`.
 - ☑ **RD Prep "Format กลาง" text exporters (WHT + VAT)** — `.txt` → RD Prep → `.rdx` → upload e-Filing.

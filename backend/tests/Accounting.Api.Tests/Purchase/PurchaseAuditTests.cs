@@ -281,8 +281,11 @@ public sealed class PurchaseAuditTests
         {
             var svc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
             viId = await svc.CreateDraftAsync(ViReq(vid, catId), default);
-            // TI dated 2026-05-10 → window 202605..202611; +1 month is in window.
-            await svc.SetClaimPeriodAsync(viId, 202606, default);
+            // Claim period = the VI's own (current Bangkok) month — always inside the ม.82/4
+            // window [TI month .. +6]. Hardcoding a fixed period (was 202606) broke at the
+            // month boundary once "today" passed that month.
+            var vtiMonth = new SystemClock().TodayInBangkok();
+            await svc.SetClaimPeriodAsync(viId, vtiMonth.Year * 100 + vtiMonth.Month, default);
         }
         await AssertOneLog(sp, "VendorInvoice", viId, "ClaimedPeriod",
             fromStatus: "Draft", toStatus: "Draft");

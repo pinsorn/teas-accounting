@@ -125,11 +125,31 @@ export default function ApiKeysSettingsPage() {
     navigator.clipboard?.writeText(v); toast.success(t('copied'));
   }
 
-  // Build the MCP client config snippet from the current origin (client-side only).
+  // Claude Code — remote HTTP MCP with a static header (.mcp.json shape; or `claude mcp add
+  // --transport http teas <url> --header "X-Api-Key: <key>"`).
   function mcpConfigSnippet(key: string): string {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return JSON.stringify(
-      { mcpServers: { teas: { url: `${origin}/mcp`, headers: { 'X-Api-Key': key } } } },
+      { mcpServers: { teas: { type: 'http', url: `${origin}/mcp`, headers: { 'X-Api-Key': key } } } },
+      null, 2,
+    );
+  }
+
+  // Claude Desktop has no static-header field in its config — bridge via mcp-remote (stdio).
+  // The key goes in env; the header uses NO space after the colon to dodge a known Windows
+  // arg-mangling bug in npx. (Mobile / the in-app Custom Connector can't do this — OAuth only.)
+  function mcpDesktopSnippet(key: string): string {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return JSON.stringify(
+      {
+        mcpServers: {
+          teas: {
+            command: 'npx',
+            args: ['mcp-remote', `${origin}/mcp`, '--header', 'X-Api-Key:${TEAS_API_KEY}'],
+            env: { TEAS_API_KEY: key },
+          },
+        },
+      },
       null, 2,
     );
   }
@@ -334,7 +354,7 @@ export default function ApiKeysSettingsPage() {
                   </div>
                 </div>
 
-                {/* Config snippet */}
+                {/* Claude Code config snippet (static X-Api-Key, remote HTTP) */}
                 <div>
                   <p className="mb-1 text-xs font-medium text-base-content/70">{t('mcpConfigLabel')}</p>
                   <div className="relative rounded border border-base-300 bg-base-200">
@@ -347,6 +367,23 @@ export default function ApiKeysSettingsPage() {
                     </pre>
                   </div>
                 </div>
+
+                {/* Claude Desktop config snippet (via mcp-remote stdio bridge) */}
+                <div>
+                  <p className="mb-1 text-xs font-medium text-base-content/70">{t('mcpDesktopLabel')}</p>
+                  <div className="relative rounded border border-base-300 bg-base-200">
+                    <button className="btn btn-ghost btn-sm absolute right-1 top-1" aria-label={t('copy')}
+                      onClick={() => copy(mcpDesktopSnippet(secret.plaintext))}>
+                      <Copy className="h-4 w-4" aria-hidden />
+                    </button>
+                    <pre className="overflow-x-auto p-3 pr-12 font-mono text-xs" data-testid="mcp-desktop-snippet">
+                      {mcpDesktopSnippet(secret.plaintext)}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Mobile / in-app connector — OAuth only, not yet supported with an API key */}
+                <p className="text-xs text-warning/90" data-testid="mcp-mobile-note">{t('mcpMobileNote')}</p>
 
                 {/* Scope note */}
                 <p className="text-xs text-base-content/60">{t('mcpScopeNote')}</p>

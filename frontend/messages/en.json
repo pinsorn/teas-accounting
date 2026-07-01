@@ -1462,7 +1462,9 @@
     "mcpSetupTitle": "MCP Client Setup",
     "mcpEndpointLabel": "MCP Endpoint URL",
     "mcpHeaderLabel": "Authentication header",
-    "mcpConfigLabel": "MCP client config snippet",
+    "mcpConfigLabel": "Claude Code (CLI or .mcp.json)",
+    "mcpDesktopLabel": "Claude Desktop (claude_desktop_config.json — via mcp-remote)",
+    "mcpMobileNote": "Claude Mobile / in-app Custom Connector: requires OAuth — not yet supported with an API key (in development).",
     "mcpScopeNote": "MCP key scope: read + create draft only (cannot Post directly). The AI agent drafts documents and returns a link for you to review and approve."
   },
   "approve": {
