@@ -15,10 +15,9 @@ export function PaperFoot({
   // prints cleanly on fiscal documents.
   const vatRate = Math.round((summary.vatRate ?? 7) * 100) / 100;
   const beforeVat = summary.beforeVat ?? summary.subtotal - (summary.discount ?? 0);
-  // Sprint 13j-PURCH D-supplement — WHT deduction (Payment Voucher). When set,
-  // mirror the QuestPDF PaperFoot: a "หัก ณ ที่จ่าย · WHT" row (−amount) sits
-  // above the grand total, and the grand total reads "จ่ายสุทธิ · Net Paid"
-  // (value = total − wht). The amount-in-words follows the net-paid figure.
+  // Footer sequence (Ham 2026-07-01) — mirrors the QuestPDF PaperDocumentPdf.Foot / PaperFootPlan so
+  // the print matches this screen: Subtotal·VAT (only if VAT) → Grand Total (ALWAYS, = summary.total)
+  // → หัก WHT → Net (only if WHT). Here summary.total is the Grand Total; Net = total − wht.
   const hasWht = summary.wht != null;
   const netTotal = hasWht ? summary.total - (summary.wht ?? 0) : summary.total;
   const words = amountWords ?? bathText(netTotal);
@@ -57,16 +56,27 @@ export function PaperFoot({
             </div>
           </>
         )}
-        {hasWht && (
-          <div className="row">
-            <span>หัก ณ ที่จ่าย · WHT</span>
-            <span className="v">−{fmtPaperNum(summary.wht)}</span>
+        {hasWht ? (
+          <>
+            <div className="row">
+              <span>จำนวนเงินรวมทั้งสิ้น · Grand Total</span>
+              <span className="v">{fmtPaperNum(summary.total)}</span>
+            </div>
+            <div className="row">
+              <span>หัก ณ ที่จ่าย · WHT</span>
+              <span className="v">−{fmtPaperNum(summary.wht)}</span>
+            </div>
+            <div className="row total">
+              <span>ยอดเงินรับสุทธิ · Net Payable</span>
+              <span className="v">฿&nbsp;{fmtPaperNum(netTotal)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="row total">
+            <span>จำนวนเงินรวมทั้งสิ้น · Grand Total</span>
+            <span className="v">฿&nbsp;{fmtPaperNum(summary.total)}</span>
           </div>
         )}
-        <div className="row total">
-          <span>{hasWht ? 'จ่ายสุทธิ · Net Paid' : 'รวมทั้งสิ้น · Total'}</span>
-          <span className="v">฿&nbsp;{fmtPaperNum(netTotal)}</span>
-        </div>
         <div className="amount-words">({words})</div>
       </div>
     </div>
