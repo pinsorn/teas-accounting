@@ -256,11 +256,11 @@ public sealed class TeasMcpTools
     [Description("List tax invoices for the caller's company (newest first, cursor-paginated). Supports date, customer and status filters. Returns drafts and posted documents.")]
     public static Task<CursorPage<TaxInvoiceListItem>> ListTaxInvoicesAsync(
         ITaxInvoiceService svc,
-        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor,
-        [Description("Max rows to return (default 25).")] int? limit,
-        [Description("Filter: include only this customer's tax invoices.")] long? customerId,
-        [Description("Filter: document status, e.g. DRAFT or POSTED.")] string? status,
-        CancellationToken ct) =>
+        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor = null,
+        [Description("Max rows to return (default 25).")] int? limit = null,
+        [Description("Filter: include only this customer's tax invoices.")] long? customerId = null,
+        [Description("Filter: document status, e.g. DRAFT or POSTED.")] string? status = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(new TaxInvoiceListQuery(
             DateFrom: null, DateTo: null, CustomerId: customerId, Status: status,
             Cursor: cursor, Limit: limit ?? 25), ct);
@@ -311,9 +311,9 @@ public sealed class TeasMcpTools
     [Description("List receipts for the caller's company (newest first, cursor-paginated).")]
     public static Task<CursorPage<ReceiptListItem>> ListReceiptsAsync(
         IReceiptService svc,
-        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor,
-        [Description("Max rows to return (default 25).")] int? limit,
-        CancellationToken ct) =>
+        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor = null,
+        [Description("Max rows to return (default 25).")] int? limit = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(cursor, limit ?? 25, ct);
 
     [McpServerTool(Name = "get_receipt"), Authorize(Policy = ReceiptRead)]
@@ -367,8 +367,8 @@ public sealed class TeasMcpTools
     [Description("List quotations for the caller's company, optionally filtered by status.")]
     public static Task<IReadOnlyList<QuotationListItem>> ListQuotationsAsync(
         IQuotationService svc,
-        [Description("Filter: quotation status, e.g. DRAFT or SENT.")] string? status,
-        CancellationToken ct) =>
+        [Description("Filter: quotation status, e.g. DRAFT or SENT.")] string? status = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(status, ct);
 
     [McpServerTool(Name = "get_quotation"), Authorize(Policy = QuotationRead)]
@@ -416,10 +416,10 @@ public sealed class TeasMcpTools
     [Description("Search/list customers for the caller's company (paged). Use to resolve a customer name to its id before drafting a document.")]
     public static Task<IReadOnlyList<CustomerDto>> ListCustomersAsync(
         ICustomerService svc,
-        [Description("Free-text search over customer name/code; omit for all.")] string? search,
-        [Description("1-based page number (default 1).")] int? page,
-        [Description("Page size (default 50).")] int? pageSize,
-        CancellationToken ct) =>
+        [Description("Free-text search over customer name/code; omit for all.")] string? search = null,
+        [Description("1-based page number (default 1).")] int? page = null,
+        [Description("Page size (default 50).")] int? pageSize = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(search, page is null or 0 ? 1 : page.Value,
             pageSize is null or 0 ? 50 : pageSize.Value, ct);
 
@@ -450,9 +450,9 @@ public sealed class TeasMcpTools
     [Description("Search/list products (goods & services) for the caller's company. Use to resolve a SKU/name to its product id before drafting a document line.")]
     public static Task<IReadOnlyList<ProductListItem>> ListProductsAsync(
         IProductService svc,
-        [Description("Free-text search over product code/name; omit for all.")] string? search,
-        [Description("Include inactive products as well (default false = active only).")] bool? includeInactive,
-        CancellationToken ct) =>
+        [Description("Free-text search over product code/name; omit for all.")] string? search = null,
+        [Description("Include inactive products as well (default false = active only).")] bool? includeInactive = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(includeInactive ?? false, search,
             purpose: null, businessUnitId: null, productType: null, isActive: null, ct);
 
@@ -483,9 +483,9 @@ public sealed class TeasMcpTools
     [Description("List internal purchase orders for the caller's company, optionally filtered by status and vendor.")]
     public static Task<IReadOnlyList<PurchaseOrderListItem>> ListPurchaseOrdersAsync(
         IPurchaseOrderService svc,
-        [Description("Filter: PO status, e.g. DRAFT or APPROVED.")] string? status,
-        [Description("Filter: include only this vendor's purchase orders.")] long? vendorId,
-        CancellationToken ct) =>
+        [Description("Filter: PO status, e.g. DRAFT or APPROVED.")] string? status = null,
+        [Description("Filter: include only this vendor's purchase orders.")] long? vendorId = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(status, vendorId, ct);
 
     [McpServerTool(Name = "get_purchase_order"), Authorize(Policy = PurchaseOrderRead)]
@@ -532,9 +532,9 @@ public sealed class TeasMcpTools
     [Description("List vendor invoices (บันทึกใบกำกับภาษีซื้อ / AP accruals) for the caller's company (newest first, cursor-paginated).")]
     public static Task<CursorPage<VendorInvoiceListItem>> ListVendorInvoicesAsync(
         IVendorInvoiceService svc,
-        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor,
-        [Description("Max rows to return (default 25).")] int? limit,
-        CancellationToken ct) =>
+        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor = null,
+        [Description("Max rows to return (default 25).")] int? limit = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(cursor, limit ?? 25, ct);
 
     [McpServerTool(Name = "get_vendor_invoice"), Authorize(Policy = VendorInvoiceRead)]
@@ -569,9 +569,9 @@ public sealed class TeasMcpTools
     [Description("List payment vouchers for the caller's company (newest first, cursor-paginated).")]
     public static Task<CursorPage<PaymentVoucherListItem>> ListPaymentVouchersAsync(
         IPaymentVoucherService svc,
-        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor,
-        [Description("Max rows to return (default 25).")] int? limit,
-        CancellationToken ct) =>
+        [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor = null,
+        [Description("Max rows to return (default 25).")] int? limit = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(cursor, limit ?? 25, ct);
 
     [McpServerTool(Name = "get_payment_voucher"), Authorize(Policy = PaymentVoucherRead)]
@@ -609,10 +609,10 @@ public sealed class TeasMcpTools
     [Description("Search/list vendors for the caller's company (paged). Use to resolve a vendor name to its id before drafting a purchase document.")]
     public static Task<IReadOnlyList<VendorDto>> ListVendorsAsync(
         IVendorService svc,
-        [Description("Free-text search over vendor name/code; omit for all.")] string? search,
-        [Description("1-based page number (default 1).")] int? page,
-        [Description("Page size (default 50).")] int? pageSize,
-        CancellationToken ct) =>
+        [Description("Free-text search over vendor name/code; omit for all.")] string? search = null,
+        [Description("1-based page number (default 1).")] int? page = null,
+        [Description("Page size (default 50).")] int? pageSize = null,
+        CancellationToken ct = default) =>
         svc.ListAsync(search, page is null or 0 ? 1 : page.Value,
             pageSize is null or 0 ? 50 : pageSize.Value, ct);
 
@@ -648,7 +648,7 @@ public sealed class TeasMcpTools
     public static async Task<PdfUrl> GetTaxInvoicePdfUrlAsync(
         [Description("The tax invoice id.")] long id,
         ITaxInvoiceService svc,
-        IHttpContextAccessor http,
+        IOptions<AppOptions> app,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -656,7 +656,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Tax invoice {id} is still a DRAFT — post it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(http, $"tax-invoices/{id}/pdf"));
+        return new PdfUrl(id, PdfApiUrl(app.Value,$"tax-invoices/{id}/pdf"));
     }
 
     [McpServerTool(Name = "get_receipt_pdf_url"), Authorize(Policy = ReceiptRead)]
@@ -664,7 +664,7 @@ public sealed class TeasMcpTools
     public static async Task<PdfUrl> GetReceiptPdfUrlAsync(
         [Description("The receipt id.")] long id,
         IReceiptService svc,
-        IHttpContextAccessor http,
+        IOptions<AppOptions> app,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -672,7 +672,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Receipt {id} is still a DRAFT — post it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(http, $"receipts/{id}/pdf"));
+        return new PdfUrl(id, PdfApiUrl(app.Value,$"receipts/{id}/pdf"));
     }
 
     [McpServerTool(Name = "get_quotation_pdf_url"), Authorize(Policy = QuotationRead)]
@@ -680,7 +680,7 @@ public sealed class TeasMcpTools
     public static async Task<PdfUrl> GetQuotationPdfUrlAsync(
         [Description("The quotation id.")] long id,
         IQuotationService svc,
-        IHttpContextAccessor http,
+        IOptions<AppOptions> app,
         CancellationToken ct)
     {
         var d = await svc.GetAsync(id, ct)
@@ -688,7 +688,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Quotation {id} is still a DRAFT — send it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(http, $"quotations/{id}/pdf"));
+        return new PdfUrl(id, PdfApiUrl(app.Value,$"quotations/{id}/pdf"));
     }
 
     [McpServerTool(Name = "get_invoice_pdf_url"), Authorize(Policy = BillingNoteRead)]
@@ -696,7 +696,7 @@ public sealed class TeasMcpTools
     public static async Task<PdfUrl> GetInvoicePdfUrlAsync(
         [Description("The billing note (invoice) id.")] long id,
         IBillingNoteService svc,
-        IHttpContextAccessor http,
+        IOptions<AppOptions> app,
         CancellationToken ct)
     {
         var d = await svc.GetAsync(id, ct)
@@ -704,7 +704,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Billing note {id} is still a DRAFT — issue it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(http, $"billing-notes/{id}/pdf"));
+        return new PdfUrl(id, PdfApiUrl(app.Value,$"billing-notes/{id}/pdf"));
     }
 
     [McpServerTool(Name = "get_delivery_order_pdf_url"), Authorize(Policy = DeliveryOrderManage)]
@@ -712,7 +712,7 @@ public sealed class TeasMcpTools
     public static async Task<PdfUrl> GetDeliveryOrderPdfUrlAsync(
         [Description("The delivery order id.")] long id,
         IDeliveryOrderService svc,
-        IHttpContextAccessor http,
+        IOptions<AppOptions> app,
         CancellationToken ct)
     {
         var d = await svc.GetAsync(id, ct)
@@ -720,7 +720,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Delivery order {id} is still a DRAFT — issue it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(http, $"delivery-orders/{id}/pdf"));
+        return new PdfUrl(id, PdfApiUrl(app.Value,$"delivery-orders/{id}/pdf"));
     }
 
     [McpServerTool(Name = "get_purchase_order_pdf_url"), Authorize(Policy = PurchaseOrderRead)]
@@ -728,7 +728,7 @@ public sealed class TeasMcpTools
     public static async Task<PdfUrl> GetPurchaseOrderPdfUrlAsync(
         [Description("The purchase order id.")] long id,
         IPurchaseOrderService svc,
-        IHttpContextAccessor http,
+        IOptions<AppOptions> app,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -736,7 +736,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Purchase order {id} is still a DRAFT — approve it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(http, $"purchase-orders/{id}/pdf"));
+        return new PdfUrl(id, PdfApiUrl(app.Value,$"purchase-orders/{id}/pdf"));
     }
 
     [McpServerTool(Name = "get_payment_voucher_pdf_url"), Authorize(Policy = PaymentVoucherRead)]
@@ -744,7 +744,7 @@ public sealed class TeasMcpTools
     public static async Task<PdfUrl> GetPaymentVoucherPdfUrlAsync(
         [Description("The payment voucher id.")] long id,
         IPaymentVoucherService svc,
-        IHttpContextAccessor http,
+        IOptions<AppOptions> app,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -752,7 +752,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Payment voucher {id} is still a DRAFT — post it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(http, $"payment-vouchers/{id}/pdf"));
+        return new PdfUrl(id, PdfApiUrl(app.Value,$"payment-vouchers/{id}/pdf"));
     }
 
     // ── E5 Approval-status poll tools ────────────────────────────────────────
@@ -901,12 +901,12 @@ public sealed class TeasMcpTools
         $"{app.BaseUrl.TrimEnd('/')}/{route}/{id}?action=approve";
 
     /// <summary>E4 — build the absolute API URL for a PDF download route under <c>/api/v1/</c>.
-    /// Uses the current request's scheme+host so the URL resolves correctly in any environment.</summary>
-    private static string PdfApiUrl(IHttpContextAccessor http, string path)
-    {
-        var req = http.HttpContext!.Request;
-        return $"{req.Scheme}://{req.Host}/api/v1/{path}";
-    }
+    /// Uses the PUBLIC origin (<see cref="AppOptions.BaseUrl"/>), NOT the request host: through the
+    /// single-origin MCP passthrough the backend sees <c>localhost</c> as its host, so a request-host
+    /// URL would be unreachable by the remote agent. The agent fetches this URL with X-Api-Key; the
+    /// public <c>/api/v1</c> read passthrough forwards it to the backend (same posture as <c>/mcp</c>).</summary>
+    private static string PdfApiUrl(AppOptions app, string path) =>
+        $"{app.BaseUrl.TrimEnd('/')}/api/v1/{path}";
 
     // ── E2 list-only guards (MCP path only — never called from shared service/UI) ──
 

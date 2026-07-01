@@ -4,11 +4,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 // create-super-admin step. It is safe: the super-admin create calls the zero-users-gated
 // POST /system/setup/bootstrap-admin (refuses 409 once any user exists), and the create-company
 // step's BFF route still 401s without a session cookie. The page self-routes authenticated users.
-const PUBLIC_PATHS = ['/login', '/onboarding', '/api', '/_next', '/favicon.ico'];
+// '/mcp' is public so the X-Api-Key-authed MCP passthrough (app/mcp/route.ts) is not
+// 307-redirected to /login by the session-cookie gate. Auth is the X-Api-Key the route
+// forwards to the backend ApiKeyOnly policy — no session cookie is involved.
+const PUBLIC_PATHS = ['/login', '/onboarding', '/api', '/mcp', '/_next', '/favicon.ico'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  // Segment-boundary match (=== p or under p/) so a public prefix like '/mcp' or '/api'
+  // can't be widened by a lookalike path (e.g. '/mcp-admin'). Downstream auth still applies.
+  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
     return NextResponse.next();
   }
 
