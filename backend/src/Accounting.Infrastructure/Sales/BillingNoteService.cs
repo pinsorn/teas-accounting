@@ -249,7 +249,8 @@ public sealed class BillingNoteService(
         var model = new Pdf.PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, tenant.CompanyId, ct, storage),
-            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(cust?.TaxId), cust?.BranchCode, cust?.BillingAddress),
+            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(cust?.TaxId), cust?.BranchCode,
+                cust?.BillingAddress, cust?.ContactPerson, cust?.Phone),
             d.Lines.Select(l => new Pdf.PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             new Pdf.PaperSummary(d.SubtotalAmount, null, null, d.VatAmount, d.TotalAmount, null, showVat),
