@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.6](https://github.com/pinsorn/teas-accounting/compare/v1.8.5...v1.8.6) (2026-07-01)
+
+
+### Bug Fixes
+
+* **mcp:** make TEAS Connect reachable (Claude Code + Desktop) and tools usable ([#29](https://github.com/pinsorn/teas-accounting/issues/29)) ([43b4c45](https://github.com/pinsorn/teas-accounting/commit/43b4c450a331887c4339be99500a5077aedced05))
+
 ## [1.8.5](https://github.com/pinsorn/teas-accounting/compare/v1.8.4...v1.8.5) (2026-06-22)
 
 
