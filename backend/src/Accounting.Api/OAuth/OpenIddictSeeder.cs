@@ -52,6 +52,7 @@ public sealed class OpenIddictSeeder(IServiceProvider services) : IHostedService
                 Permissions.GrantTypes.AuthorizationCode,
                 Permissions.GrantTypes.RefreshToken,
                 Permissions.ResponseTypes.Code,
+                Permissions.Prefixes.Scope + Scopes.OfflineAccess,   // long-running agents: refresh
             },
             Requirements = { Requirements.Features.ProofKeyForCodeExchange },
         };

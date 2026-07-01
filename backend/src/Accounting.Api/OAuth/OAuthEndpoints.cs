@@ -117,6 +117,12 @@ public static class OAuthEndpoints
             var actor = $"oauth:{tenant.Username ?? userId.ToString()}";
             var principal = McpPrincipalFactory.Build(userId, actor, companyId, branchId, granted, resource);
 
+            // offline_access → OpenIddict issues a rotating refresh token (long-running agents). Added
+            // to the principal's OpenIddict scopes only — NOT the CSV `scopes` claim (it is not a tool
+            // scope). company_id stays baked in the principal, so a refresh keeps the ORIGINAL company.
+            if (request.HasScope(OpenIddictConstants.Scopes.OfflineAccess))
+                principal.SetScopes(principal.GetScopes().Append(OpenIddictConstants.Scopes.OfflineAccess));
+
             // §4.8 audit — user + client + company (token id assigned by OpenIddict downstream).
             activity.Record(
                 entityType: "oauth_grant", entityId: companyId, docNo: request.ClientId,

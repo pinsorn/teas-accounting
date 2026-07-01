@@ -218,6 +218,85 @@ public sealed class BearerMcpRoundTripTests
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    // Acquire (access, refresh) — requests offline_access so OpenIddict issues a rotating refresh token.
+    private static async Task<(string access, string refresh)> AcquireTokensWithOfflineAsync(HttpClient c)
+    {
+        var verifier = B64Url(RandomNumberGenerator.GetBytes(32));
+        var challenge = B64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
+        using var acceptReq = new HttpRequestMessage(HttpMethod.Post, "/oauth/authorize")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["client_id"] = ClientId, ["redirect_uri"] = RedirectUri, ["response_type"] = "code",
+                ["code_challenge"] = challenge, ["code_challenge_method"] = "S256",
+                ["scope"] = string.Join(' ', McpScopes.All.Append("offline_access")),
+                ["state"] = "s", ["resource"] = "http://localhost:3000/mcp",
+                ["company_id"] = "1", ["approve"] = "true",
+            }),
+        };
+        acceptReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", SessionJwt(1, "admin", 1, true));
+        using var acceptResp = await c.SendAsync(acceptReq);
+        acceptResp.StatusCode.Should().Be(HttpStatusCode.Found, await acceptResp.Content.ReadAsStringAsync());
+        var code = QueryHelpers.ParseQuery(new Uri(acceptResp.Headers.Location!.ToString()).Query)["code"].ToString();
+        using var tokenResp = await c.PostAsync("/oauth/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code", ["code"] = code, ["redirect_uri"] = RedirectUri,
+            ["client_id"] = ClientId, ["code_verifier"] = verifier,
+        }));
+        tokenResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await tokenResp.Content.ReadAsStringAsync());
+        return (doc.RootElement.GetProperty("access_token").GetString()!,
+                doc.RootElement.GetProperty("refresh_token").GetString()!);
+    }
+
+    // (f) A rotating refresh token yields a new WORKING access token (company baked at grant → preserved).
+    [SkippableFact]
+    public async Task Refresh_token_issues_a_new_working_access_token()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var (_, refresh) = await AcquireTokensWithOfflineAsync(client);
+
+        using var refreshResp = await client.PostAsync("/oauth/token", new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["grant_type"] = "refresh_token", ["refresh_token"] = refresh, ["client_id"] = ClientId,
+            }));
+        refreshResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var newAccess = JsonDocument.Parse(await refreshResp.Content.ReadAsStringAsync())
+            .RootElement.GetProperty("access_token").GetString();
+        newAccess.Should().NotBeNullOrEmpty();
+
+        using var mcpHttp = factory.CreateClient();
+        mcpHttp.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", newAccess);
+        await using var mcp = await ConnectAsync(mcpHttp);
+        (await mcp.CallToolAsync("list_customers", new Dictionary<string, object?>()))
+            .IsError.Should().NotBe(true, "the refreshed token must still resolve scopes + tenant");
+    }
+
+    // (g) Reusing a rotated (redeemed) refresh token is rejected (rotation + reuse detection).
+    [SkippableFact]
+    public async Task Reused_refresh_token_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var (_, refresh) = await AcquireTokensWithOfflineAsync(client);
+
+        using var r1 = await client.PostAsync("/oauth/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token", ["refresh_token"] = refresh, ["client_id"] = ClientId,
+        }));
+        r1.StatusCode.Should().Be(HttpStatusCode.OK);   // rotates: original token is now redeemed
+
+        using var r2 = await client.PostAsync("/oauth/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token", ["refresh_token"] = refresh, ["client_id"] = ClientId,
+        }));
+        r2.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a reused (redeemed) refresh token must be rejected");
+    }
+
     // ── seed helpers (company 1, via a stub-tenant SP — mirrors McpServerSmokeTests) ──
     private ServiceProvider Sp() =>
         (ServiceProvider)new ServiceCollection()

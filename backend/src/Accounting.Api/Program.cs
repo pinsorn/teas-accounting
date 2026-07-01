@@ -116,6 +116,7 @@ builder.Services.AddOpenIddict()
         o.SetAccessTokenLifetime(TimeSpan.FromMinutes(10)); // 5–15 min (spec §6b)
         o.SetRefreshTokenLifetime(TimeSpan.FromHours(8));   // ~1 workday absolute
         o.UseReferenceRefreshTokens();                      // reference refresh → family revocation
+        o.SetRefreshTokenReuseLeeway(TimeSpan.Zero);        // strict reuse detection (no replay window)
         // ponytail: ephemeral DEV keys — Ham installs persistent X509 signing+encryption certs
         // (SetSigningCertificate/SetEncryptionCertificate) before prod deploy (P5 deploy gate).
         o.AddEphemeralEncryptionKey().AddEphemeralSigningKey();
