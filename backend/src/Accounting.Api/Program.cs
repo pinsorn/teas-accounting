@@ -5,6 +5,7 @@ using Accounting.Api.Authorization;
 using Accounting.Api.BackgroundServices;
 using Accounting.Api.Endpoints;
 using Accounting.Api.Middleware;
+using Accounting.Api.OAuth;
 using Accounting.Api.Tenancy;
 using Accounting.Application;
 using Accounting.Application.Abstractions;
@@ -15,6 +16,8 @@ using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Server.AspNetCore;
+using OpenIddict.Validation.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -89,6 +92,43 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ApiKeyAuthenticationHandler.SchemeName, _ => { });
 
 builder.Services.AddPermissionAuthorization();
+
+// OAuth 2.1 Authorization Server (TEAS Connect MCP native-connector auth). Core (EF stores on the
+// oauth schema) is registered in Infrastructure; here we add the server (authorize/token +
+// RFC 8414/OIDC discovery, PKCE, refresh) and the token-VALIDATION scheme /mcp uses for Bearer.
+// AddOpenIddict() is safe to call again — it augments the same registration.
+// DCR (RFC 7591 /oauth/register) is deferred: clients fall back to the pre-registered `teas-mcp`
+// application the seeder installs (spec §6/§6b — pre-registration is the sanctioned fallback).
+builder.Services.AddOpenIddict()
+    .AddServer(o =>
+    {
+        o.SetAuthorizationEndpointUris("oauth/authorize")
+         .SetTokenEndpointUris("oauth/token")
+         .SetConfigurationEndpointUris(".well-known/openid-configuration",
+                                        ".well-known/oauth-authorization-server");
+        o.AllowAuthorizationCodeFlow().AllowRefreshTokenFlow();
+        o.RequireProofKeyForCodeExchange();                 // PKCE S256 mandatory
+        o.RegisterScopes(McpScopes.All.ToArray());
+        o.SetAccessTokenLifetime(TimeSpan.FromMinutes(10)); // 5–15 min (spec §6b)
+        o.SetRefreshTokenLifetime(TimeSpan.FromHours(8));   // ~1 workday absolute
+        o.UseReferenceRefreshTokens();                      // reference refresh → family revocation
+        // ponytail: ephemeral DEV keys — Ham installs persistent X509 signing+encryption certs
+        // (SetSigningCertificate/SetEncryptionCertificate) before prod deploy (P5 deploy gate).
+        o.AddEphemeralEncryptionKey().AddEphemeralSigningKey();
+        o.UseAspNetCore()
+         .EnableAuthorizationEndpointPassthrough()          // /oauth/authorize handled by our endpoint (T2)
+         .EnableTokenEndpointPassthrough()
+         // TLS is terminated upstream (Cloudflare → Next passthrough → this backend over HTTP), so
+         // OpenIddict must not reject the plain-HTTP hop. Same posture as the rest of the API.
+         .DisableTransportSecurityRequirement();
+    })
+    .AddValidation(o =>
+    {
+        o.UseLocalServer();                                 // validate access tokens in-process
+        o.UseAspNetCore();
+    });
+// Seeds OAuth scopes + the pre-registered `teas-mcp` client (server-fixed permissions).
+builder.Services.AddHostedService<OpenIddictSeeder>();
 
 // M2 (MCP) — in-process Model Context Protocol server. Stateless HTTP transport
 // means each tool resolves its scoped services from the per-request
@@ -275,6 +315,10 @@ app.MapExternalApiV1();
 //     X-Api-Key header pre-auth, identical to /api/v1).
 // mcp-kind keys carry read + *.create scopes only (M1 guard rejects *.post), and no
 // post/issue tool is exposed → an agent can only draft; a human approves & posts.
+// OAuth 2.1 — RFC 9728 protected-resource metadata (anonymous). RFC 8414 / OIDC discovery,
+// /oauth/token and (T2) /oauth/authorize are served by the OpenIddict middleware.
+app.MapOAuthMetadata();
+
 app.MapMcp("/mcp")
     .RequireAuthorization(ApiV1Endpoints.ApiKeyOnlyPolicy)
     .RequireRateLimiting(ApiV1Endpoints.PerApiKeyRateLimitPolicy);
