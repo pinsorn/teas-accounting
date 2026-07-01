@@ -116,7 +116,7 @@ builder.Services.AddOpenIddict()
         // (SetSigningCertificate/SetEncryptionCertificate) before prod deploy (P5 deploy gate).
         o.AddEphemeralEncryptionKey().AddEphemeralSigningKey();
         o.UseAspNetCore()
-         .EnableAuthorizationEndpointPassthrough()          // /oauth/authorize handled by our endpoint (T2)
+         .EnableAuthorizationEndpointPassthrough()          // /oauth/authorize handled by our endpoint
          .EnableTokenEndpointPassthrough()
          // TLS is terminated upstream (Cloudflare → Next passthrough → this backend over HTTP), so
          // OpenIddict must not reject the plain-HTTP hop. Same posture as the rest of the API.
@@ -315,9 +315,10 @@ app.MapExternalApiV1();
 //     X-Api-Key header pre-auth, identical to /api/v1).
 // mcp-kind keys carry read + *.create scopes only (M1 guard rejects *.post), and no
 // post/issue tool is exposed → an agent can only draft; a human approves & posts.
-// OAuth 2.1 — RFC 9728 protected-resource metadata (anonymous). RFC 8414 / OIDC discovery,
-// /oauth/token and (T2) /oauth/authorize are served by the OpenIddict middleware.
+// OAuth 2.1 — RFC 9728 protected-resource metadata (anonymous) + the interactive authorize/consent
+// bridge. RFC 8414 / OIDC discovery + /oauth/token are served by the OpenIddict middleware.
 app.MapOAuthMetadata();
+app.MapOAuthAuthorize();
 
 app.MapMcp("/mcp")
     .RequireAuthorization(ApiV1Endpoints.ApiKeyOnlyPolicy)
