@@ -66,14 +66,22 @@
 }
 .paper-company { display: flex; gap: 14px; align-items: flex-start; }
 .paper-company .mark {
-  width: 56px; height: 56px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--peach-100), var(--peach-300));
+  height: 56px;
   display: grid; place-items: center;
   overflow: hidden;
   flex-shrink: 0;
 }
-.paper-company .mark img { width: 100%; height: 100%; object-fit: cover; }
+/* Fallback mascot — branded peach square. */
+.paper-company .mark.is-fallback {
+  width: 56px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--peach-100), var(--peach-300));
+}
+.paper-company .mark.is-fallback img { width: 100%; height: 100%; object-fit: cover; }
+/* Uploaded logo — no peach backdrop (transparent PNGs stay transparent), contained so a
+   wide / non-square logo is not cropped (Ham 2026-07-01). */
+.paper-company .mark.is-logo { background: transparent; border-radius: 0; }
+.paper-company .mark.is-logo img { height: 56px; width: auto; max-width: 180px; object-fit: contain; }
 .paper-company .info .name {
   font-size: 18px;
   font-weight: 700;

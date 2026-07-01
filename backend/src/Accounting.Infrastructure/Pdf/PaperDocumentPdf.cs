@@ -41,7 +41,7 @@ public static class PaperDocumentPdf
             page.Size(PageSizes.A4);
             page.Margin(0);
             page.DefaultTextStyle(s => s
-                .FontFamily(Font).FontSize(Px(15)).FontColor(PaperColors.Ink900).LineHeight(1.3f));
+                .FontFamily(Font).FontSize(Px(15)).FontColor(PaperColors.Ink900).LineHeight(1.15f));
 
             page.Content().Layers(layers =>
             {
@@ -58,7 +58,7 @@ public static class PaperDocumentPdf
                         r.RelativeItem(35).Background(PaperColors.Ink900);
                         r.RelativeItem(65).Background(PaperColors.Peach400);
                     });
-                    root.Item().PaddingVertical(Px(48)).PaddingHorizontal(Px(56)).Column(body =>
+                    root.Item().PaddingVertical(Px(28)).PaddingHorizontal(Px(52)).Column(body =>
                     {
                         Head(body, m);
                         Meta(body, m);
@@ -72,15 +72,24 @@ public static class PaperDocumentPdf
 
     private static void Head(ColumnDescriptor col, PaperDocModel m)
     {
-        col.Item().PaddingBottom(Px(20)).BorderBottom(Px(1.5f)).BorderColor(PaperColors.Ink900)
+        col.Item().PaddingBottom(Px(12)).BorderBottom(Px(1.5f)).BorderColor(PaperColors.Ink900)
             .Row(row =>
             {
                 row.RelativeItem().Row(c =>
                 {
-                    var mark = c.ConstantItem(Px(56)).Height(Px(56)).Background(PaperColors.Peach200);
-                    var logo = m.Seller.Logo is { Length: > 0 } own ? own : FallbackLogo.Value;
-                    if (logo is { Length: > 0 })
-                        mark.Image(logo).FitArea();
+                    // An uploaded logo renders clean: natural aspect at 56pt tall, no peach
+                    // backdrop — so a transparent PNG stays transparent (no orange square) and
+                    // a wide / non-square logo is contained, not cropped (Ham 2026-07-01). The
+                    // box is sized to the logo's own aspect (capped at 180pt wide) so there is
+                    // no empty gap before the company name. Only the bundled fallback mascot
+                    // keeps the branded peach square.
+                    if (m.Seller.Logo is { Length: > 0 } own)
+                        c.ConstantItem(Math.Min(Px(180), Px(56) * ImageProbe.AspectRatio(own)))
+                            .Height(Px(56)).Image(own).FitArea();
+                    else if (FallbackLogo.Value is { Length: > 0 } fb)
+                        c.ConstantItem(Px(56)).Height(Px(56)).Background(PaperColors.Peach200).Image(fb).FitArea();
+                    else
+                        c.ConstantItem(Px(56)).Height(Px(56)).Background(PaperColors.Peach200);
                     c.RelativeItem().PaddingLeft(Px(14)).Column(info =>
                     {
                         info.Item().Text(m.Seller.Name).FontSize(Px(18)).Bold();
@@ -103,8 +112,8 @@ public static class PaperDocumentPdf
                     title.Item().AlignRight().Text(m.DocTypeEn)
                         .FontSize(Px(13)).Bold().LetterSpacing(0.15f).FontColor(PaperColors.Peach600);
                     title.Item().AlignRight().Text(m.DocType)
-                        .FontSize(Px(28)).Bold().FontColor(PaperColors.Ink900);
-                    title.Item().PaddingTop(Px(12)).AlignRight().Text(string.IsNullOrEmpty(m.DocNo) ? "—" : m.DocNo)
+                        .FontSize(Px(25)).Bold().FontColor(PaperColors.Ink900);
+                    title.Item().PaddingTop(Px(6)).AlignRight().Text(string.IsNullOrEmpty(m.DocNo) ? "—" : m.DocNo)
                         .FontSize(Px(16)).SemiBold().FontColor(PaperColors.Ink700);
                 });
             });
@@ -112,10 +121,10 @@ public static class PaperDocumentPdf
 
     private static void Meta(ColumnDescriptor col, PaperDocModel m)
     {
-        col.Item().PaddingTop(Px(28)).Row(row =>
+        col.Item().PaddingTop(Px(14)).Row(row =>
         {
             row.RelativeItem(1.4f).Border(Px(1)).BorderColor(PaperColors.Ink100)
-                .Padding(Px(14)).Column(b =>
+                .Padding(Px(9)).Column(b =>
             {
                 b.Item().Text("ลูกค้า / Customer")
                     .FontSize(Px(12)).Bold().LetterSpacing(0.1f).FontColor(PaperColors.Peach600);
@@ -149,10 +158,10 @@ public static class PaperDocumentPdf
         });
 
     private static IContainer HeadCell(IContainer c) =>
-        c.Background(PaperColors.Ink900).PaddingVertical(Px(10)).PaddingHorizontal(Px(12));
+        c.Background(PaperColors.Ink900).PaddingVertical(Px(7)).PaddingHorizontal(Px(12));
 
     private static IContainer BodyCell(IContainer c) =>
-        c.BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).Padding(Px(12));
+        c.BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).PaddingVertical(Px(6)).PaddingHorizontal(Px(12));
 
     private static void HeadText(IContainer cell, string text, bool right = false, bool center = false)
     {
@@ -163,7 +172,7 @@ public static class PaperDocumentPdf
 
     private static void Items(ColumnDescriptor col, PaperDocModel m)
     {
-        col.Item().PaddingTop(Px(24)).Table(table =>
+        col.Item().PaddingTop(Px(14)).Table(table =>
         {
             table.ColumnsDefinition(c =>
             {
@@ -215,7 +224,7 @@ public static class PaperDocumentPdf
             // .empty-row transparent so the ลายน้ำ shows through).
             for (int i = m.Items.Count; i < 3; i++)
                 table.Cell().ColumnSpan(7)
-                    .BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).Height(Px(32)).Text(string.Empty);
+                    .BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).Height(Px(22)).Text(string.Empty);
         });
     }
 
@@ -261,8 +270,8 @@ public static class PaperDocumentPdf
                     };
 
                     if (fr.Emphasized)
-                        tot.Item().PaddingTop(Px(8)).Background(PaperColors.Peach50)
-                            .Border(Px(1.5f)).BorderColor(PaperColors.Peach400).Padding(Px(10)).Row(r =>
+                        tot.Item().PaddingTop(Px(6)).Background(PaperColors.Peach50)
+                            .Border(Px(1.5f)).BorderColor(PaperColors.Peach400).Padding(Px(8)).Row(r =>
                         {
                             r.RelativeItem().AlignMiddle().Column(c =>
                             {
@@ -275,14 +284,14 @@ public static class PaperDocumentPdf
                         TotalRow(tot, th, en, value);
                 }
 
-                tot.Item().PaddingTop(Px(8)).AlignRight().Text($"({words})")
+                tot.Item().PaddingTop(Px(5)).AlignRight().Text($"({words})")
                     .Italic().FontSize(Px(14)).FontColor(PaperColors.Ink600);
             });
         });
     }
 
     private static void TotalRow(ColumnDescriptor col, string th, string en, string value) =>
-        col.Item().BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).PaddingVertical(Px(6)).Row(r =>
+        col.Item().BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).PaddingVertical(Px(4)).Row(r =>
         {
             r.RelativeItem().AlignMiddle().Column(c =>
             {
@@ -294,7 +303,7 @@ public static class PaperDocumentPdf
 
     private static void Sign(ColumnDescriptor col, PaperDocModel m)
     {
-        col.Item().PaddingTop(Px(36)).Row(row =>
+        col.Item().PaddingTop(Px(14)).Row(row =>
         {
             // Left = issuer/seller (ผู้ขาย / ผู้ส่งของ / ผู้ออก…) → our name sits here;
             // Right = the counterparty's sign-and-date line.
@@ -316,7 +325,7 @@ public static class PaperDocumentPdf
     private static void SignBox(RowDescriptor row, string role, string sub, string? name = null) =>
         row.RelativeItem().Column(box =>
         {
-            box.Item().Height(Px(50));
+            box.Item().Height(Px(26));
             box.Item().BorderTop(Px(1)).BorderColor(PaperColors.Ink900).PaddingTop(Px(8))
                 .AlignCenter().Text(role).Bold().FontSize(Px(14)).FontColor(PaperColors.Ink900);
             if (!string.IsNullOrEmpty(name))
