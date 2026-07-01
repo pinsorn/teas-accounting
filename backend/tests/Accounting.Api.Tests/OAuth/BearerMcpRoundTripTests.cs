@@ -297,6 +297,48 @@ public sealed class BearerMcpRoundTripTests
         r2.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a reused (redeemed) refresh token must be rejected");
     }
 
+    // Build a valid authorize query string (the entry point a real client hits in the browser).
+    private static string AuthorizeQuery()
+    {
+        var challenge = B64Url(SHA256.HashData(Encoding.ASCII.GetBytes(B64Url(RandomNumberGenerator.GetBytes(32)))));
+        return $"?client_id={ClientId}&redirect_uri={Uri.EscapeDataString(RedirectUri)}&response_type=code" +
+               $"&code_challenge={challenge}&code_challenge_method=S256" +
+               $"&scope={Uri.EscapeDataString(string.Join(' ', McpScopes.All))}&state=xyz" +
+               $"&resource={Uri.EscapeDataString("http://localhost:3000/mcp")}";
+    }
+
+    // (h) GET /oauth/authorize with NO session → 302 to the Next /login carrying returnTo=/oauth/consent
+    // (the logged-out first-connect entry point — executes the interactive-flow code, not just the POST).
+    [SkippableFact]
+    public async Task Get_authorize_without_session_redirects_to_login_returnTo_consent()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var resp = await client.GetAsync("/oauth/authorize" + AuthorizeQuery());
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Found);
+        var location = Uri.UnescapeDataString(resp.Headers.Location!.ToString());
+        location.Should().Contain("/login").And.Contain("/oauth/consent");
+    }
+
+    // (i) GET /oauth/authorize WITH a session (JWT forwarded by the BFF) → 302 straight to the consent page.
+    [SkippableFact]
+    public async Task Get_authorize_with_session_redirects_to_consent()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/oauth/authorize" + AuthorizeQuery());
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", SessionJwt(1, "admin", 1, true));
+        var resp = await client.SendAsync(req);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Found);
+        resp.Headers.Location!.ToString().Should().Contain("/oauth/consent");
+    }
+
     // ── seed helpers (company 1, via a stub-tenant SP — mirrors McpServerSmokeTests) ──
     private ServiceProvider Sp() =>
         (ServiceProvider)new ServiceCollection()
