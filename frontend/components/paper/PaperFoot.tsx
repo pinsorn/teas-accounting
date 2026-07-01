@@ -1,6 +1,18 @@
 import { bathText } from '@/lib/bath-text';
 import { fmtPaperNum, type PaperSummary } from './types';
 
+// Bilingual total label — Thai on top, English on the line below (Ham 2026-07-01),
+// mirrored by the PDF (PaperDocumentPdf.Foot). Keeps the two languages from colliding
+// on one line.
+function Bi({ th, en }: { th: string; en: string }) {
+  return (
+    <span className="bi">
+      <span>{th}</span>
+      <span className="en">{en}</span>
+    </span>
+  );
+}
+
 // ม.86/4 #6 — VAT shown SEPARATELY in totals (compliance, never folded in).
 export function PaperFoot({
   summary,
@@ -37,21 +49,21 @@ export function PaperFoot({
         {showVat && (
           <>
             <div className="row">
-              <span>มูลค่าก่อนหักส่วนลด · Subtotal</span>
+              <Bi th="มูลค่าก่อนหักส่วนลด" en="Subtotal" />
               <span className="v">{fmtPaperNum(summary.subtotal)}</span>
             </div>
             {summary.discount != null && (
               <div className="row">
-                <span>ส่วนลดรวม · Discount</span>
+                <Bi th="ส่วนลดรวม" en="Discount" />
                 <span className="v">{fmtPaperNum(summary.discount)}</span>
               </div>
             )}
             <div className="row">
-              <span>มูลค่าก่อนภาษี · Before VAT</span>
+              <Bi th="มูลค่าก่อนภาษี" en="Before VAT" />
               <span className="v">{fmtPaperNum(beforeVat)}</span>
             </div>
             <div className="row">
-              <span>ภาษีมูลค่าเพิ่ม {vatRate}% · VAT</span>
+              <Bi th={`ภาษีมูลค่าเพิ่ม ${vatRate}%`} en="VAT" />
               <span className="v">{fmtPaperNum(summary.vat)}</span>
             </div>
           </>
@@ -59,21 +71,21 @@ export function PaperFoot({
         {hasWht ? (
           <>
             <div className="row">
-              <span>จำนวนเงินรวมทั้งสิ้น · Grand Total</span>
+              <Bi th="จำนวนเงินรวมทั้งสิ้น" en="Grand Total" />
               <span className="v">{fmtPaperNum(summary.total)}</span>
             </div>
             <div className="row">
-              <span>หัก ณ ที่จ่าย · WHT</span>
+              <Bi th="หัก ณ ที่จ่าย" en="WHT" />
               <span className="v">−{fmtPaperNum(summary.wht)}</span>
             </div>
             <div className="row total">
-              <span>ยอดเงินรับสุทธิ · Net Payable</span>
+              <Bi th="ยอดเงินรับสุทธิ" en="Net Payable" />
               <span className="v">฿&nbsp;{fmtPaperNum(netTotal)}</span>
             </div>
           </>
         ) : (
           <div className="row total">
-            <span>จำนวนเงินรวมทั้งสิ้น · Grand Total</span>
+            <Bi th="จำนวนเงินรวมทั้งสิ้น" en="Grand Total" />
             <span className="v">฿&nbsp;{fmtPaperNum(summary.total)}</span>
           </div>
         )}

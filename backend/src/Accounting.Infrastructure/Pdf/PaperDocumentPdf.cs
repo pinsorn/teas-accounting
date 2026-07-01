@@ -244,29 +244,35 @@ public static class PaperDocumentPdf
                 // the on-screen React PaperDocument uses, so the print matches the screen.
                 foreach (var fr in PaperFootPlan.Build(m.Summary))
                 {
-                    var (label, value) = fr.Line switch
+                    // Thai label over its English label (Ham 2026-07-01), mirrored by the FE
+                    // PaperFoot .bi span so the print matches the screen.
+                    var (th, en, value) = fr.Line switch
                     {
-                        FootLine.Subtotal   => ("มูลค่าก่อนหักส่วนลด · Subtotal", Num(fr.Value)),
-                        FootLine.Discount   => ("ส่วนลดรวม · Discount", Num(fr.Value)),
-                        FootLine.BeforeVat  => ("มูลค่าก่อนภาษี · Before VAT", Num(fr.Value)),
+                        FootLine.Subtotal   => ("มูลค่าก่อนหักส่วนลด", "Subtotal", Num(fr.Value)),
+                        FootLine.Discount   => ("ส่วนลดรวม", "Discount", Num(fr.Value)),
+                        FootLine.BeforeVat  => ("มูลค่าก่อนภาษี", "Before VAT", Num(fr.Value)),
                         // ม.86/4 #5 — label the non-taxable remainder on a mixed Tax Invoice.
-                        FootLine.Exempt     => ("มูลค่าสินค้าที่ได้รับยกเว้น · Exempt", Num(fr.Value)),
-                        FootLine.Vat        => ($"ภาษีมูลค่าเพิ่ม {vatRate.ToString("0.##", Th)}% · VAT", Num(fr.Value)),
-                        FootLine.GrandTotal => ("จำนวนเงินรวมทั้งสิ้น · Grand Total", Num(fr.Value)),
-                        FootLine.Wht        => ("หัก ณ ที่จ่าย · WHT", $"-{Num(fr.Value)}"),
-                        FootLine.Net        => ("ยอดเงินรับสุทธิ · Net Payable", Num(fr.Value)),
-                        _                   => (fr.Line.ToString(), Num(fr.Value)),
+                        FootLine.Exempt     => ("มูลค่าสินค้าที่ได้รับยกเว้น", "Exempt", Num(fr.Value)),
+                        FootLine.Vat        => ($"ภาษีมูลค่าเพิ่ม {vatRate.ToString("0.##", Th)}%", "VAT", Num(fr.Value)),
+                        FootLine.GrandTotal => ("จำนวนเงินรวมทั้งสิ้น", "Grand Total", Num(fr.Value)),
+                        FootLine.Wht        => ("หัก ณ ที่จ่าย", "WHT", $"-{Num(fr.Value)}"),
+                        FootLine.Net        => ("ยอดเงินรับสุทธิ", "Net Payable", Num(fr.Value)),
+                        _                   => (fr.Line.ToString(), string.Empty, Num(fr.Value)),
                     };
 
                     if (fr.Emphasized)
                         tot.Item().PaddingTop(Px(8)).Background(PaperColors.Peach50)
                             .Border(Px(1.5f)).BorderColor(PaperColors.Peach400).Padding(Px(10)).Row(r =>
                         {
-                            r.RelativeItem().Text(label).FontSize(Px(18)).Bold();
-                            r.AutoItem().Text($"฿ {value}").FontSize(Px(18)).Bold().FontColor(PaperColors.Peach700);
+                            r.RelativeItem().AlignMiddle().Column(c =>
+                            {
+                                c.Item().Text(th).FontSize(Px(18)).Bold();
+                                c.Item().Text(en).FontSize(Px(12)).FontColor(PaperColors.Ink500).LetterSpacing(0.02f);
+                            });
+                            r.AutoItem().AlignMiddle().Text($"฿ {value}").FontSize(Px(18)).Bold().FontColor(PaperColors.Peach700);
                         });
                     else
-                        TotalRow(tot, label, value);
+                        TotalRow(tot, th, en, value);
                 }
 
                 tot.Item().PaddingTop(Px(8)).AlignRight().Text($"({words})")
@@ -275,11 +281,15 @@ public static class PaperDocumentPdf
         });
     }
 
-    private static void TotalRow(ColumnDescriptor col, string label, string value) =>
+    private static void TotalRow(ColumnDescriptor col, string th, string en, string value) =>
         col.Item().BorderBottom(Px(1)).BorderColor(PaperColors.Ink100).PaddingVertical(Px(6)).Row(r =>
         {
-            r.RelativeItem().Text(label).FontSize(Px(15));
-            r.AutoItem().Text(value).FontSize(Px(15));
+            r.RelativeItem().AlignMiddle().Column(c =>
+            {
+                c.Item().Text(th).FontSize(Px(15));
+                c.Item().Text(en).FontSize(Px(11)).FontColor(PaperColors.Ink500).LetterSpacing(0.02f);
+            });
+            r.AutoItem().AlignMiddle().Text(value).FontSize(Px(15));
         });
 
     private static void Sign(ColumnDescriptor col, PaperDocModel m)

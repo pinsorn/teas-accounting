@@ -154,8 +154,17 @@ export default function ReceiptDetailPage() {
                   descriptionSub: a.businessUnitCode ?? undefined,
                   amount: a.appliedAmount,
                 })))}
-            summary={{ subtotal: d.amount, vat: 0, total: d.amount }}
-            notes={d.notes}
+            // cont.119 — footer parity with the PDF (PaperFootPlan): total is the Grand
+            // (net = total − wht = cashReceived). showVat off when no VAT was paid so a
+            // non-VAT / all-exempt receipt shows a single Grand row (no "VAT 0.00").
+            summary={{
+              subtotal: d.subtotalAmount,
+              vat: d.vatAmount,
+              total: d.amount,
+              showVat: d.vatAmount > 0,
+              wht: d.whtAmount > 0 ? d.whtAmount : undefined,
+            }}
+            notes={d.displayNotes}
             signRoles={cfg.signRoles}
             watermark={paperWatermark('receipt', d.status)}
             extraMetaBlock={extraMeta}

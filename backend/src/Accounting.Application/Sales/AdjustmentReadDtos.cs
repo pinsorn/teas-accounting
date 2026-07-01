@@ -43,7 +43,13 @@ public sealed record ReceiptDetail(
     // header shows the buyer's address like every other document.
     string? CustomerAddress = null, string? CustomerBranchCode = null,
     // M4a — non-null when draft was created by an MCP/API-key agent.
-    string? CreatedViaApiKey = null);
+    string? CreatedViaApiKey = null,
+    // cont.119 — receipt footer parity (Ham 2026-07-01): the VAT breakdown of the paid
+    // amount (VatAmount pro-rated from the settled Tax Invoices; SubtotalAmount = Amount −
+    // VatAmount so Grand == Amount exactly) and the display notes composed ONCE (raw Notes +
+    // "อ้างอิงใบกำกับภาษี" ref line) so the PDF and the on-screen PaperDocument render an
+    // identical footer + notes. VatAmount == 0 for non-VAT (BillingNote/DO) receipts.
+    decimal SubtotalAmount = 0m, decimal VatAmount = 0m, string? DisplayNotes = null);
 
 public sealed record AdjustmentNoteListItem(
     long NoteId, string? DocNo, string NoteType, DateOnly DocDate,

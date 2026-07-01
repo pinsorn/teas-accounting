@@ -166,13 +166,16 @@
 .paper-totals .row {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   padding: 6px 0;
   border-bottom: 1px dotted var(--ink-100);
 }
 .paper-totals .row > span:first-child { text-align: left; }
 .paper-totals .row .v { white-space: nowrap; text-align: right; }
+/* Bilingual label — Thai over English (mirrors the PDF foot). */
+.paper-totals .bi { display: inline-flex; flex-direction: column; line-height: 1.2; text-align: left; }
+.paper-totals .bi .en { font-size: 0.72em; font-weight: 400; color: var(--ink-500); letter-spacing: 0.02em; }
 .paper-totals .row.total {
   background: var(--peach-50);
   border: 1.5px solid var(--peach-400);
