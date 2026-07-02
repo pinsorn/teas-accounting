@@ -11,6 +11,12 @@ public sealed record PaperSeller(
     string BranchCode,
     string Address,
     byte[]? Logo = null,
+    // Sprint 13k — an uploaded SVG company logo, surfaced as raw UTF-8 markup so the
+    // PDF header can render it via QuestPDF's native .Svg() (vector, no raster loss).
+    // Mutually exclusive with Logo in practice (a logo is one file); the renderer
+    // prefers LogoSvg when both are set. Additive after Logo → positional callers
+    // that pass Phone/Email by NAME (the only ones) are unaffected.
+    string? LogoSvg = null,
     string? Phone = null,
     string? Email = null);
 

@@ -77,13 +77,45 @@ public static class PaperDocumentPdf
             {
                 row.RelativeItem().Row(c =>
                 {
+                    // A native SVG logo (validated at read time) renders as crisp vector —
+                    // transparent, no peach backdrop — sized to its own intrinsic aspect just
+                    // like the raster branch, so a wide mark is contained (not cropped) with no
+                    // gap before the company name. QuestPDF 2024.10 exposes no size on SvgImage,
+                    // so the aspect is read from the SVG's own viewBox (else its width/height,
+                    // else 1:1). Preferred over Logo when both are set.
+                    if (m.Seller.LogoSvg is { Length: > 0 } svg)
+                    {
+                        c.ConstantItem(Math.Min(Px(180), Px(56) * SvgAspect(svg)))
+                            .Height(Px(56)).Svg(svg).FitArea();
+
+                        static float SvgAspect(string s)
+                        {
+                            // viewBox = "minX minY width height" → aspect = width / height.
+                            var vb = System.Text.RegularExpressions.Regex.Match(s,
+                                @"viewBox\s*=\s*[""']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)",
+                                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            float w = vb.Success ? F(vb.Groups[1].Value) : Attr(s, "width");
+                            float h = vb.Success ? F(vb.Groups[2].Value) : Attr(s, "height");
+                            return w > 0 && h > 0 ? w / h : 1f;
+
+                            static float Attr(string s, string a)
+                            {
+                                var m2 = System.Text.RegularExpressions.Regex.Match(s,
+                                    @"<svg\b[^>]*\b" + a + @"\s*=\s*[""']\s*([\d.]+)",
+                                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                return m2.Success ? F(m2.Groups[1].Value) : 0f;
+                            }
+                            static float F(string v) => float.TryParse(v,
+                                NumberStyles.Float, CultureInfo.InvariantCulture, out var r) ? r : 0f;
+                        }
+                    }
                     // An uploaded logo renders clean: natural aspect at 56pt tall, no peach
                     // backdrop — so a transparent PNG stays transparent (no orange square) and
                     // a wide / non-square logo is contained, not cropped (Ham 2026-07-01). The
                     // box is sized to the logo's own aspect (capped at 180pt wide) so there is
                     // no empty gap before the company name. Only the bundled fallback mascot
                     // keeps the branded peach square.
-                    if (m.Seller.Logo is { Length: > 0 } own)
+                    else if (m.Seller.Logo is { Length: > 0 } own)
                         c.ConstantItem(Math.Min(Px(180), Px(56) * ImageProbe.AspectRatio(own)))
                             .Height(Px(56)).Image(own).FitArea();
                     else if (FallbackLogo.Value is { Length: > 0 } fb)
