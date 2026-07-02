@@ -30,6 +30,10 @@ public interface ITaxInvoiceService
     /// copy=true stamps the "สำเนา" watermark (reprint / copy — ม.86/4).</summary>
     Task<byte[]> BuildPdfAsync(long taxInvoiceId, CancellationToken ct, bool copy = false);
 
+    /// <summary>cont.121 — the canonical paper composition (posted snapshot, ม.86/4)
+    /// the PDF renders, exposed as JSON for the FE PaperDocument.</summary>
+    Task<Pdf.PaperDocModel> BuildPaperAsync(long taxInvoiceId, CancellationToken ct, bool copy = false);
+
     /// <summary>Re-send the e-Tax email. No-op while the e-Tax pipeline is inert.</summary>
     Task<TaxInvoiceResendResult> ResendAsync(long taxInvoiceId, CancellationToken ct);
 }

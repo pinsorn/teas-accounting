@@ -31,6 +31,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
     private readonly IActivityRecorder       _activity;
     private readonly IVendorInvoiceService   _viService;   // cont.76 — PV→VI guided create
     private readonly IFileStorageService     _storage;     // Sprint 13k — logo on PDF
+    private readonly ICompanyTaxConfigService _taxCfg;     // cont.120 — PDF ShowVat follows VAT mode
 
     public PaymentVoucherService(
         AccountingDbContext db,
@@ -41,11 +42,12 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         IPeriodCloseService period,
         IActivityRecorder activity,
         IVendorInvoiceService viService,
-        IFileStorageService storage)
+        IFileStorageService storage,
+        ICompanyTaxConfigService taxCfg)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period; _activity = activity; _viService = viService;
-        _storage = storage;
+        _storage = storage; _taxCfg = taxCfg;
     }
 
     /// <summary>

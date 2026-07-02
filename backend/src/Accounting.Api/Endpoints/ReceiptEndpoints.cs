@@ -68,6 +68,11 @@ public static class ReceiptEndpoints
             Results.File(await svc.BuildPdfAsync(id, ct, copy ?? false), "application/pdf", $"receipt-{id}.pdf"))
         .RequireAuthorization(readPol);
 
+        // cont.121 — canonical paper DTO (JSON twin of /pdf) for the FE PaperDocument.
+        group.MapGet("/{id:long}/paper", async (long id, [FromQuery] bool? copy, IReceiptService svc, CancellationToken ct) =>
+            Results.Ok(await svc.BuildPaperAsync(id, ct, copy ?? false)))
+        .RequireAuthorization(readPol);
+
         return app;
     }
 }

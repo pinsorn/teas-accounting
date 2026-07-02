@@ -1,3 +1,4 @@
+using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
@@ -48,7 +49,7 @@ public sealed partial class ReceiptService
             .Select(a => a.TaxInvoiceId!.Value).ToList();
         var ti = await _db.TaxInvoices.AsNoTracking()
             .Where(t => tiIds.Contains(t.TaxInvoiceId))
-            .Select(t => new { t.TaxInvoiceId, t.DocNo, t.BusinessUnitId })
+            .Select(t => new { t.TaxInvoiceId, t.DocNo, t.BusinessUnitId, t.TotalAmount, t.TaxAmount })
             .ToListAsync(ct);
         var tiNo = ti.ToDictionary(x => x.TaxInvoiceId, x => x.DocNo);
 
@@ -176,6 +177,29 @@ public sealed partial class ReceiptService
             .Select(c => new { c.BillingAddress, c.BranchCode })
             .FirstOrDefaultAsync(ct);
 
+        // cont.119 (Ham 2026-07-01) — receipt footer parity. VAT of the paid amount is the
+        // per-application share of each settled TI's TaxAmount, pro-rated by the fraction
+        // actually paid toward that TI (partial payments scale the VAT). Anchor Subtotal to
+        // the authoritative gross (Amount − VAT) so the printed Grand Total == Amount exactly.
+        var tiAmounts = ti.ToDictionary(x => x.TaxInvoiceId, x => (x.TotalAmount, x.TaxAmount));
+        decimal vatAmount = 0m;
+        foreach (var a in r.Applications.Where(a => a.TaxInvoiceId.HasValue))
+            if (tiAmounts.TryGetValue(a.TaxInvoiceId!.Value, out var amt) && amt.TotalAmount > 0m)
+                vatAmount += Math.Round(a.AppliedAmount / amt.TotalAmount * amt.TaxAmount,
+                    2, MidpointRounding.AwayFromZero);
+        var subtotalAmount = r.Amount - vatAmount;
+
+        // Compose the display notes ONCE (was built in BuildPdf): raw notes + the
+        // "อ้างอิงใบกำกับภาษี" line when there ARE settled TIs — a non-VAT / standalone-cash
+        // receipt has none, so appending it printed a dangling blank reference. Both the PDF
+        // and the FE receipt page consume this single field (no FE-side re-composition).
+        var tiRefs = string.Join(", ", r.Applications.Where(a => a.TaxInvoiceId.HasValue)
+            .Select(a => tiNo.GetValueOrDefault(a.TaxInvoiceId!.Value) ?? $"#{a.TaxInvoiceId}").Distinct());
+        var refLine = string.IsNullOrWhiteSpace(tiRefs) ? null : $"อ้างอิงใบกำกับภาษี: {tiRefs}";
+        var displayNotes = string.Join("\n",
+            new[] { r.Notes, refLine }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        if (string.IsNullOrWhiteSpace(displayNotes)) displayNotes = null;
+
         return new ReceiptDetail(
             r.ReceiptId, r.DocNo, r.Status.ToString(), r.DocDate, r.CustomerName,
             r.CustomerTaxId, r.PaymentMethod.ToString(), r.ChequeNo, r.Amount,
@@ -190,50 +214,58 @@ public sealed partial class ReceiptService
             r.CustomerWhtCertNo, r.CustomerWhtCertDate,
             lineRows, whtLineViews,
             custParty?.BillingAddress, custParty?.BranchCode,
-            r.CreatedViaApiKeyName);
+            r.CreatedViaApiKeyName,
+            subtotalAmount, vatAmount, displayNotes);
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("rc.not_found", $"Receipt {id} not found.");
 
         // Sprint (receipt itemize, 2026-05-22) — list the goods/service line items the
-        // customer paid for (derived from the applied immutable Tax Invoices). The
-        // applied TI number(s) go in the notes (Ham 2026-05-22). No VAT row (the
-        // receipt settles already-VAT'd invoices). WHT is NOT printed on the receipt
-        // (only recorded: WhtAmount + per-category WhtLines + the customer 50ทวิ).
+        // customer paid for (derived from the applied immutable Tax Invoices). The applied
+        // TI number(s) go in the notes. cont.119 (Ham 2026-07-01): the receipt footer now
+        // restates the VAT breakdown of the paid amount and, when the customer withheld tax,
+        // the หัก ณ ที่จ่าย → ยอดรับสุทธิ sequence — sourced from the DTO (SubtotalAmount /
+        // VatAmount / WhtAmount / CashReceived / DisplayNotes) so the print == the screen.
         var cfg = Pdf.PaperDoc.Config[Pdf.PaperDocKind.Receipt];
 
         // Prefer the derived line items; fall back to one row per applied TI for
         // legacy receipts whose source TIs have no line rows.
         var lines = d.Lines is { Count: > 0 }
-            ? d.Lines.Select(l => new Pdf.PaperLine(
+            ? d.Lines.Select(l => new PaperLine(
                 l.DescriptionTh, l.TiDocNo, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList()
-            : d.AppliedTo.Select(a => new Pdf.PaperLine(
+            : d.AppliedTo.Select(a => new PaperLine(
                 $"ใบกำกับภาษี {a.TiDocNo ?? $"#{a.TaxInvoiceId}"}",
                 a.BusinessUnitCode, null, null, null, null, a.AppliedAmount)).ToList();
 
-        var tiRefs = string.Join(", ", d.AppliedTo
-            .Select(a => a.TiDocNo ?? $"#{a.TaxInvoiceId}").Distinct());
-        var notes = string.IsNullOrWhiteSpace(d.Notes)
-            ? $"อ้างอิงใบกำกับภาษี: {tiRefs}"
-            : $"{d.Notes}\nอ้างอิงใบกำกับภาษี: {tiRefs}";
-
-        var model = new Pdf.PaperDocModel(
+        var model = new PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage),
-            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId),
+            new PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId),
                 d.CustomerBranchCode, d.CustomerAddress),
             lines,
-            new Pdf.PaperSummary(d.Amount, null, null, 0m, d.Amount, null,
-                ShowVat: (await _taxCfg.GetAsync(ct)).VatMode),
-            new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
-            Notes: notes,
+            // Money semantics (PaperFootPlan): Total is the NET when Wht is set, else the
+            // Grand. So Grand = Total + Wht = Amount, Net = Total = CashReceived. ShowVat is
+            // driven by the actual paid VAT (0 on non-VAT / all-exempt receipts → single
+            // Grand row, no misleading "VAT 0.00"). VatRate null → the foot prints 7% like
+            // the Tax Invoice page.
+            new PaperSummary(
+                d.SubtotalAmount, null, null, d.VatAmount,
+                d.WhtAmount > 0m ? d.CashReceived : d.Amount, null,
+                ShowVat: d.VatAmount > 0m,
+                Wht: d.WhtAmount > 0m ? d.WhtAmount : null),
+            new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
+            Notes: d.DisplayNotes,
             Watermark: copy
-                ? new Pdf.PaperWatermark("สำเนา", Pdf.PaperWatermarkVariant.Warning)
+                ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
                 : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.Receipt, d.Status));
-        return Pdf.PaperDocumentPdf.Render(model);
+        return model;
     }
 
     // Sprint (multi-category WHT, 2026-05-22) — replaces the single-rate suggestion.

@@ -8,8 +8,10 @@ using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure;
 using Accounting.Infrastructure.Audit;
 using Accounting.Infrastructure.Ledger;
+using Accounting.Infrastructure.Master;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.Purchase;
@@ -58,6 +60,10 @@ public sealed class Sprint55VendorInvoiceTests
                 StorageRoot = Path.Combine(Path.GetTempPath(), "teas-test-filestore"),
             }))
             .AddScoped<IFileStorageService, LocalDiskFileStorage>()
+            // cont.120 — PV ctor needs ICompanyTaxConfigService (PDF ShowVat follows the
+            // company VAT mode); registration is all these post/settle tests require.
+            .AddSingleton(Options.Create(new VatModeOptions()))
+            .AddScoped<ICompanyTaxConfigService, CompanyTaxConfigService>()
             .BuildServiceProvider();
 
     private async Task<(long vendorId, int categoryId)> SeedVendorAndCategory(

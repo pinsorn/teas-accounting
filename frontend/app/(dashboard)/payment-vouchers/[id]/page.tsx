@@ -19,12 +19,12 @@ import { ActivityLog } from '@/components/doc/ActivityLog';
 import { CreateViFromPvDialog } from '@/components/forms/CreateViFromPvDialog';
 import {
   usePaymentVoucher, useApprovePaymentVoucher, usePostPaymentVoucher,
-  useCompanyProfile, useVendor,
+  useCompanyProfile, useVendor, usePaperDoc,
 } from '@/lib/queries';
-import { formatDate, formatTaxId } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
-import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 
 export default function PaymentVoucherDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
@@ -33,7 +33,11 @@ export default function PaymentVoucherDetailPage() {
   const ta = useTranslations('approve');
   const tpt = useTranslations('productType');
   const { data: d, isLoading, isError } = usePaymentVoucher(id);
+  // cont.121 — paper preview data (vendor party block, WHT row, 3-box sign)
+  // comes from the canonical /paper DTO (screen == print); the company profile
+  // stays ONLY as the logo source (not in the DTO).
   const { data: company } = useCompanyProfile();
+  const paper = usePaperDoc('payment-vouchers', id);
   const approve = useApprovePaymentVoucher();
   const post = usePostPaymentVoucher();
   const hasScope = useHasScope();
@@ -49,8 +53,8 @@ export default function PaymentVoucherDetailPage() {
   // the vendor master (advisory).
   const vendor = useVendor(d?.vendorId ?? 0).data;
 
-  if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
-  if (isError || !d) return <p className="text-error">{tc('error')}</p>;
+  if (isLoading || paper.isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
+  if (isError || !d || !paper.data) return <p className="text-error">{tc('error')}</p>;
 
   async function doApprove() {
     try { await approve.mutateAsync(id); toast.success(t('approve')); }
@@ -61,14 +65,9 @@ export default function PaymentVoucherDetailPage() {
     catch (e) { problemToast(e, tc('error')); }
   }
 
-  // Sprint 13j-PURCH D-supplement — PV renders as a PaperDocument. A PV is
-  // buyer-issued: seller block = our company, customer block = the vendor we pay.
-  // Foot uses the new optional WHT row + net-paid (whtAmount / totalPaid). The PV
+  // Sprint 13j-PURCH D-supplement — PV renders as a PaperDocument. The PV
   // is view-only here regardless of status (no editable inputs on the paper —
   // §4.2; posted PV is immutable).
-  const cfg = PAPER_DOC['payment-voucher'];
-  const seller = companyToSeller(company);
-  const hasWht = d.whtAmount > 0;
   // D1 — offer guided VI create when vendor is VAT-registered & no VI linked yet.
   const canCreateVi = !!vendor?.vatRegistered && d.vendorInvoiceId === null;
 
@@ -175,33 +174,7 @@ export default function PaymentVoucherDetailPage() {
       <div className="detail-grid">
         <div className="paper-wrap">
           <PaperDocument
-            docType={cfg.docType}
-            docTypeEn={cfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.paymentVoucherId}`}
-            issueDate={d.docDate}
-            seller={seller}
-            partyLabel={{ th: 'ผู้ขาย', en: 'Vendor' }}
-            customer={{
-              name: d.vendorName,
-              taxId: d.vendorTaxId ? formatTaxId(d.vendorTaxId) : null,
-              branchCode: d.vendorBranchCode ?? null,
-              address: d.vendorAddress ?? null,
-            }}
-            items={d.lines.map((l) => ({
-              description: l.description,
-              amount: l.amount,
-            }))}
-            summary={{
-              subtotal: d.subtotalAmount,
-              beforeVat: d.subtotalAmount,
-              vat: d.vatAmount,
-              // Pre-WHT gross; PaperFoot derives net-paid = total − wht = totalPaid.
-              total: d.subtotalAmount + d.vatAmount,
-              wht: hasWht ? d.whtAmount : null,
-            }}
-            notes={d.notes}
-            signRoles={cfg.signRoles}
-            watermark={paperWatermark('payment-voucher', d.status)}
+            {...paperDtoToProps(paper.data, { logo: company?.logoUrl })}
             extraMetaBlock={
               <div className="text-[12px] leading-relaxed text-ink-700">
                 <div><b>{t('method')}:</b> {d.paymentMethod}

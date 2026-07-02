@@ -9,8 +9,8 @@ import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCompanyProfile, useCustomer, useSystemInfo } from '@/lib/queries';
-import { PAPER_DOC, paperWatermark, companyToSeller, custInfo } from '@/lib/paper-doc-config';
+import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCompanyProfile, usePaperDoc, useSystemInfo } from '@/lib/queries';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 
@@ -23,8 +23,10 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
   const q = useSalesOrder(soId);
   const post = usePostSalesOrder();
   const makeDo = useCreateDeliveryOrder();
+  // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
+  // print); the company profile stays ONLY as the logo source (not in the DTO).
   const company = useCompanyProfile();
-  const cust = useCustomer(q.data?.customerId ?? null);
+  const paper = usePaperDoc('sales-orders', soId);
   // §4.6 / ม.86 — a non-VAT company carries no VAT and can't issue a Tax Invoice,
   // so the DO must not be VAT-coded nor combined with a TI. (Backend re-derives this
   // too; this keeps the request honest.)
@@ -60,9 +62,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
     }
   }
 
-  if (!d) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
-
-  const cfg = PAPER_DOC['sales-order'];
+  if (!d || !paper.data) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
 
   return (
     <>
@@ -93,24 +93,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
 
       <div className="detail-grid">
         <div className="paper-wrap">
-          <PaperDocument
-            docType={cfg.docType}
-            docTypeEn={cfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.salesOrderId}`}
-            issueDate={d.docDate}
-            seller={companyToSeller(company.data)}
-            customer={custInfo(d.customerName, cust.data)}
-            items={d.lines.map((l) => ({
-              description: l.descriptionTh,
-              quantity: l.quantity,
-              unit: l.uomText,
-              unitPrice: l.unitPrice,
-              amount: l.lineAmount,
-            }))}
-            summary={{ subtotal: d.subtotalAmount, vat: d.vatAmount, total: d.totalAmount }}
-            signRoles={cfg.signRoles}
-            watermark={paperWatermark('sales-order', d.status)}
-          />
+          <PaperDocument {...paperDtoToProps(paper.data, { logo: company.data?.logoUrl })} />
         </div>
         <div className="detail-side">
           <DocumentChain type="sales-order" id={soId} />

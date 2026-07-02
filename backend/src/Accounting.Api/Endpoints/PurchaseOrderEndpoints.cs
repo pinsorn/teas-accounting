@@ -69,6 +69,12 @@ public static class PurchaseOrderEndpoints
                 $"purchase-order-{id}.pdf"))
             .RequireAuthorization(read);
 
+        // cont.121 — canonical paper DTO (JSON twin of /pdf) for the FE PaperDocument.
+        g.MapGet("/{id:long}/paper", async (long id, [FromQuery] bool? copy,
+            IPurchaseOrderService s, CancellationToken ct) =>
+            Results.Ok(await s.BuildPaperAsync(id, ct, copy ?? false)))
+            .RequireAuthorization(read);
+
         app.MapGet("/reports/outstanding-po", async (
             [FromQuery(Name = "as_of")] DateOnly? asOf, [FromQuery] long? vendorId,
             [FromQuery(Name = "overdue_only")] bool? overdueOnly,

@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut, apiDelete, apiUploadFile, qs, fetchAllPages } from './api';
+import type { PaperDocDto } from '@/components/paper/types';
 import type {
   CreateTaxInvoiceRequest,
   NumberGapReport,
@@ -141,6 +142,7 @@ export function usePostTaxInvoice() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['tax-invoices'] });
       qc.invalidateQueries({ queryKey: ['tax-invoice', id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
       invalidateTaxReports(qc);
     },
   });
@@ -188,6 +190,7 @@ export function usePostReceipt() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['receipts'] });
       qc.invalidateQueries({ queryKey: ['receipt', id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
       // A receipt is a counted agent-approval type (not VAT/P&L-affecting).
       qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
     },
@@ -225,6 +228,7 @@ export function usePostAdjustmentNote() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['adjustment-notes'] });
       qc.invalidateQueries({ queryKey: ['adjustment-note', id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
       // CN/DN alter VAT + P&L → refresh the affected reports/dashboard.
       invalidateTaxReports(qc);
     },
@@ -240,6 +244,21 @@ function invalidateTaxReports(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['input-vat-register'] });
   qc.invalidateQueries({ queryKey: ['output-vat-register'] });
   qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
+}
+
+// cont.121 — canonical paper DTO (GET /{doc}/{id}/paper, spec 2026-07-02):
+// the SAME server-side composition the QuestPDF renderer consumes, so the
+// on-screen PaperDocument shows exactly what prints (watermark included).
+// `docPath` is the plural route segment ('quotations', 'tax-adjustment-notes',
+// …); `copy=true` requests the สำเนา watermark variant. Status-changing
+// mutations invalidate the ['paper-doc'] prefix so watermark/docNo refresh
+// after post/issue/cancel.
+export function usePaperDoc(docPath: string, id: number | undefined, copy?: boolean) {
+  return useQuery({
+    queryKey: ['paper-doc', docPath, id, !!copy],
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    queryFn: () => apiGet<PaperDocDto>(`${docPath}/${id}/paper${copy ? '?copy=true' : ''}`),
+  });
 }
 
 // Plural route segment (used by mark-printed / activity) → singular detail
@@ -446,6 +465,7 @@ export function useApprovePaymentVoucher() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
       qc.invalidateQueries({ queryKey: ['payment-voucher', id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -456,6 +476,7 @@ export function usePostPaymentVoucher() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
       qc.invalidateQueries({ queryKey: ['payment-voucher', id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
       invalidateTaxReports(qc);
     },
   });
@@ -1040,6 +1061,7 @@ export function useQuotationAction() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['quotations'] });
       qc.invalidateQueries({ queryKey: ['quotation', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
       // 'send' clears a quotation off the pending-agent-approvals count.
       qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
     },
@@ -1071,6 +1093,7 @@ export function usePostSalesOrder() {
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       qc.invalidateQueries({ queryKey: ['sales-order', id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -1110,6 +1133,7 @@ export function useDeliveryOrderAction() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['delivery-orders'] });
       qc.invalidateQueries({ queryKey: ['delivery-order', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -1173,6 +1197,7 @@ export function useBillingNoteAction() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['billing-notes'] });
       qc.invalidateQueries({ queryKey: ['billing-note', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -1254,6 +1279,7 @@ export function usePurchaseOrderAction() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['purchase-orders'] });
       qc.invalidateQueries({ queryKey: ['purchase-order', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }

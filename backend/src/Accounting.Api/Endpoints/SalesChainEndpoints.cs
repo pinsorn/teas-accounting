@@ -52,6 +52,9 @@ public static class SalesChainEndpoints
             { var d = await s.GetAsync(id, ct); return d is null ? Results.NotFound() : Results.Ok(d); });
         q.MapGet("/{id:long}/pdf", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
             Results.File(await pdf.QuotationPdfAsync(id, ct, copy ?? false), "application/pdf", $"quotation-{id}.pdf"));
+        // cont.121 — canonical paper DTO (JSON twin of /pdf) for the FE PaperDocument.
+        q.MapGet("/{id:long}/paper", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
+            Results.Ok(await pdf.QuotationPaperAsync(id, ct, copy ?? false)));
 
         // ── Sales Orders ────────────────────────────────────────────────────
         var so = app.MapGroup("/sales-orders").WithTags("Sales Orders").RequireAuthorization(soPol);
@@ -74,6 +77,8 @@ public static class SalesChainEndpoints
             { var d = await s.GetAsync(id, ct); return d is null ? Results.NotFound() : Results.Ok(d); });
         so.MapGet("/{id:long}/pdf", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
             Results.File(await pdf.SalesOrderPdfAsync(id, ct, copy ?? false), "application/pdf", $"sales-order-{id}.pdf"));
+        so.MapGet("/{id:long}/paper", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
+            Results.Ok(await pdf.SalesOrderPaperAsync(id, ct, copy ?? false)));
 
         // ── Delivery Orders ─────────────────────────────────────────────────
         var d0 = app.MapGroup("/delivery-orders").WithTags("Delivery Orders").RequireAuthorization(doPol);
@@ -99,6 +104,8 @@ public static class SalesChainEndpoints
             { var d = await s.GetAsync(id, ct); return d is null ? Results.NotFound() : Results.Ok(d); });
         d0.MapGet("/{id:long}/pdf", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
             Results.File(await pdf.DeliveryOrderPdfAsync(id, ct, copy ?? false), "application/pdf", $"delivery-order-{id}.pdf"));
+        d0.MapGet("/{id:long}/paper", async (long id, bool? copy, ISalesChainPdfService pdf, CancellationToken ct) =>
+            Results.Ok(await pdf.DeliveryOrderPaperAsync(id, ct, copy ?? false)));
 
         return app;
     }

@@ -68,6 +68,8 @@ public static class RbacEndpointInventory
             ["GET /tax-adjustment-notes/"] = CnDnRead,
             ["GET /tax-adjustment-notes/{id:long}"] = CnDnRead,
             ["GET /tax-adjustment-notes/{id:long}/pdf"] = CnDnRead,
+            // cont.121 — canonical paper DTO, same assertion gate as its /pdf sibling.
+            ["GET /tax-adjustment-notes/{id:long}/paper"] = CnDnRead,
         };
 
     public static IReadOnlyList<EndpointAuth> Build(IServiceProvider services)

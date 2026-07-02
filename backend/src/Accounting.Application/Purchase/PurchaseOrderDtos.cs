@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using FluentValidation;
 
 namespace Accounting.Application.Purchase;
@@ -74,6 +75,8 @@ public interface IPurchaseOrderService
     Task<IReadOnlyList<PurchaseOrderListItem>> ListAsync(string? status, long? vendorId, CancellationToken ct);
     Task<PurchaseOrderDetail?> GetDetailAsync(long id, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false);
+    // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /purchase-orders/{id}/paper.
+    Task<Pdf.PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false);
     Task<OutstandingPoReport> OutstandingAsync(DateOnly asOf, long? vendorId, bool overdueOnly, CancellationToken ct);
 }
 
@@ -82,8 +85,11 @@ public sealed class CreatePurchaseOrderValidator : AbstractValidator<CreatePurch
     public CreatePurchaseOrderValidator()
     {
         RuleFor(x => x.VendorId).GreaterThan(0);
-        RuleFor(x => x.CurrencyCode).NotEmpty().Length(3);
-        RuleFor(x => x.ExchangeRate).GreaterThan(0);
+        // cont.120 — PO was the ONLY document create validator missing ThbOnly (every
+        // other doc: JE/PV/VI/BN/Receipt/Q/SO/CN/DN/TI). The FE always sends THB, but an
+        // API-key/MCP caller could create a USD PO that both renderers would then print
+        // with ฿ and Thai baht words. Locked like the rest until multi-currency ships.
+        this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty();
     }
 }

@@ -9,8 +9,8 @@ import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useBillingNote, useBillingNoteAction, useCreateTaxInvoiceFromBillingNote, useDeleteBillingNote, useCompanyProfile, useCustomer, useSystemInfo } from '@/lib/queries';
-import { PAPER_DOC, paperWatermark, companyToSeller, custInfo } from '@/lib/paper-doc-config';
+import { useBillingNote, useBillingNoteAction, useCreateTaxInvoiceFromBillingNote, useDeleteBillingNote, useCompanyProfile, usePaperDoc, useSystemInfo } from '@/lib/queries';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useConfirm } from '@/hooks/useConfirm';
 import { PrintMenu } from '@/components/ui/PrintMenu';
@@ -28,8 +28,10 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
   const createTi = useCreateTaxInvoiceFromBillingNote();
   const del = useDeleteBillingNote();
   const confirm = useConfirm();
+  // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
+  // print); the company profile stays ONLY as the logo source (not in the DTO).
   const company = useCompanyProfile();
-  const cust = useCustomer(q.data?.customerId ?? null);
+  const paper = usePaperDoc('billing-notes', bnId);
   // ม.86/4 — only a VAT-registered company issues a Tax Invoice from the Invoice.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const [cancelReason, setCancelReason] = useState('');
@@ -66,9 +68,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
     }
   }
 
-  if (!d) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
-
-  const cfg = PAPER_DOC['billing-note'];
+  if (!d || !paper.data) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
 
   return (
     <>
@@ -148,27 +148,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
 
       <div className="detail-grid">
         <div className="paper-wrap">
-          <PaperDocument
-            docType={cfg.docType}
-            docTypeEn={cfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.billingNoteId}`}
-            issueDate={d.docDate}
-            validUntil={d.dueDate}
-            validUntilLabel={cfg.validUntilLabel}
-            seller={companyToSeller(company.data)}
-            customer={custInfo(d.customerName, cust.data)}
-            items={d.lines.map((l) => ({
-              description: l.descriptionTh,
-              quantity: l.quantity,
-              unit: l.uomText,
-              unitPrice: l.unitPrice,
-              amount: l.lineAmount,
-            }))}
-            summary={{ subtotal: d.subtotalAmount, vat: d.vatAmount, total: d.totalAmount }}
-            notes={d.notes}
-            signRoles={cfg.signRoles}
-            watermark={paperWatermark('billing-note', d.status)}
-          />
+          <PaperDocument {...paperDtoToProps(paper.data, { logo: company.data?.logoUrl })} />
         </div>
         <div className="detail-side">
           <DocumentChain type="billing-note" id={bnId} />

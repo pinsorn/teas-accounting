@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
@@ -34,6 +35,25 @@ public sealed class SalesChainPdfService(
     private Task<PaperSeller> SellerAsync(CancellationToken ct) =>
         PaperSellerSource.FromCompanyProfileAsync(db, tenant.CompanyId, ct, storage);
 
+    // Customer block for Q/SO/DO. Mirrors the FE custInfo (paper-doc-config.ts): the doc
+    // snapshot only carries the customerId + name, so taxId / branch / address / contact /
+    // phone come from the LIVE customer master exactly like the on-screen useCustomer merge —
+    // so the print == the screen (and both track the same source, killing the old drift where
+    // the PDF showed the stale snapshot while the screen showed the current master). If the
+    // master row is gone, fall back to the doc snapshot (name/taxId/address) rather than blanks.
+    private async Task<PaperCustomer> CustomerAsync(
+        long customerId, string name, string? snapTaxId, string? snapAddress, CancellationToken ct)
+    {
+        var c = await db.Customers.AsNoTracking()
+            .Where(x => x.CustomerId == customerId && x.CompanyId == tenant.CompanyId)
+            .Select(x => new { x.TaxId, x.BranchCode, x.BillingAddress, x.ContactPerson, x.Phone })
+            .FirstOrDefaultAsync(ct);
+        return c is null
+            ? new PaperCustomer(name, PaperFormat.TaxId(snapTaxId), null, snapAddress)
+            : new PaperCustomer(name, PaperFormat.TaxId(c.TaxId), c.BranchCode,
+                c.BillingAddress, c.ContactPerson, c.Phone);
+    }
+
     // Mirror the FE detail line mapping EXACTLY (must be identical text — Ham
     // 2026-05-22): {description, quantity, unit, unitPrice, amount: lineAmount}.
     // No descriptionSub, no discountPercent column; amount = net LINE amount (not
@@ -52,6 +72,10 @@ public sealed class SalesChainPdfService(
         copy ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning) : statusWm;
 
     public async Task<byte[]> QuotationPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => PaperDocumentPdf.Render(await QuotationPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> QuotationPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var q = await db.Quotations.AsNoTracking().Include(x => x.Lines)
@@ -67,7 +91,7 @@ public sealed class SalesChainPdfService(
         var model = new PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, q.DocNo ?? string.Empty, q.DocDate,
             await SellerAsync(ct),
-            new PaperCustomer(q.CustomerName, PaperFormat.TaxId(q.CustomerTaxId), null, q.CustomerAddress),
+            await CustomerAsync(q.CustomerId, q.CustomerName, q.CustomerTaxId, q.CustomerAddress, ct),
             q.Lines.OrderBy(l => l.LineNo).Select(l =>
                 Line(l.Quantity, l.DescriptionTh, l.UomText, l.UnitPrice, l.LineAmount)).ToList(),
             Summary(q.SubtotalAmount, q.VatAmount, q.TotalAmount, await ShowVatAsync(ct)),
@@ -75,10 +99,13 @@ public sealed class SalesChainPdfService(
             ValidUntil: q.ValidUntilDate, ValidUntilLabel: cfg.ValidUntilLabel,
             Notes: notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.Quotation, q.Status.ToString())));
-        return PaperDocumentPdf.Render(model);
+        return model;
     }
 
     public async Task<byte[]> SalesOrderPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => PaperDocumentPdf.Render(await SalesOrderPaperAsync(id, ct, copy));
+
+    public async Task<PaperDocModel> SalesOrderPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var so = await db.SalesOrders.AsNoTracking().Include(x => x.Lines)
@@ -88,17 +115,20 @@ public sealed class SalesChainPdfService(
         var model = new PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, so.DocNo ?? string.Empty, so.DocDate,
             await SellerAsync(ct),
-            new PaperCustomer(so.CustomerName, PaperFormat.TaxId(so.CustomerTaxId), null, so.CustomerAddress),
+            await CustomerAsync(so.CustomerId, so.CustomerName, so.CustomerTaxId, so.CustomerAddress, ct),
             so.Lines.OrderBy(l => l.LineNo).Select(l =>
                 Line(l.Quantity, l.DescriptionTh, l.UomText, l.UnitPrice, l.LineAmount)).ToList(),
             Summary(so.SubtotalAmount, so.VatAmount, so.TotalAmount, await ShowVatAsync(ct)),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: so.Notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.SalesOrder, so.Status.ToString())));
-        return PaperDocumentPdf.Render(model);
+        return model;
     }
 
     public async Task<byte[]> DeliveryOrderPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => PaperDocumentPdf.Render(await DeliveryOrderPaperAsync(id, ct, copy));
+
+    public async Task<PaperDocModel> DeliveryOrderPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var dord = await db.DeliveryOrders.AsNoTracking().Include(x => x.Lines)
@@ -110,13 +140,13 @@ public sealed class SalesChainPdfService(
         var model = new PaperDocModel(
             docTypeTh, docTypeEn, dord.DocNo ?? string.Empty, dord.DocDate,
             await SellerAsync(ct),
-            new PaperCustomer(dord.CustomerName, PaperFormat.TaxId(dord.CustomerTaxId), null, dord.CustomerAddress),
+            await CustomerAsync(dord.CustomerId, dord.CustomerName, dord.CustomerTaxId, dord.CustomerAddress, ct),
             dord.Lines.OrderBy(l => l.LineNo).Select(l =>
                 Line(l.Quantity, l.DescriptionTh, l.UomText, l.UnitPrice, l.LineAmount)).ToList(),
             Summary(dord.SubtotalAmount, dord.VatAmount, dord.TotalAmount, await ShowVatAsync(ct)),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: dord.Notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.DeliveryOrder, dord.Status.ToString())));
-        return PaperDocumentPdf.Render(model);
+        return model;
     }
 }

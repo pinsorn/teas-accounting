@@ -14,12 +14,12 @@ import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import {
-  usePurchaseOrder, usePurchaseOrderAction, useVendor, useCompanyProfile,
+  usePurchaseOrder, usePurchaseOrderAction, useCompanyProfile, usePaperDoc,
 } from '@/lib/queries';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
-import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
+import { formatTHB, formatDate } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
-import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { useHasScope } from '@/components/PermissionGate';
 
 export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,8 +31,11 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   const q = usePurchaseOrder(poId);
   const act = usePurchaseOrderAction();
   const d = q.data;
-  const { data: vendor } = useVendor(d?.vendorId ?? 0);
+  // cont.121 — paper preview data (incl. vendor party block + discount row)
+  // comes from the canonical /paper DTO (screen == print); the company profile
+  // stays ONLY as the logo source (not in the DTO).
   const { data: company } = useCompanyProfile();
+  const paper = usePaperDoc('purchase-orders', poId);
   const hasScope = useHasScope();
   const [isApproveAction, setIsApproveAction] = useState(false);
 
@@ -46,13 +49,10 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
     catch (e) { problemToast(e, tc('error')); }
   }
 
-  if (!d) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
+  if (!d || !paper.data) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
 
   // Sprint 13j-PURCH D4 — a PO leaves the editable phase once it is no longer
   // Draft/Approved (Sent/Closed/Cancelled): the page is view-only, no action buttons.
-  const cfg = PAPER_DOC['purchase-order'];
-  // A PO is buyer-issued: seller block = our company, customer block = the vendor.
-  const seller = companyToSeller(company);
 
   return (
     <>
@@ -146,52 +146,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
 
       <div className="detail-grid">
         <div className="paper-wrap">
-          <PaperDocument
-            docType={cfg.docType}
-            docTypeEn={cfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.purchaseOrderId}`}
-            issueDate={d.docDate}
-            validUntil={d.expectedDeliveryDate ?? undefined}
-            validUntilLabel={cfg.validUntilLabel}
-            seller={seller}
-            partyLabel={{ th: 'ผู้ขาย', en: 'Vendor' }}
-            customer={{
-              name: d.vendorName,
-              taxId: vendor?.taxId ? formatTaxId(vendor.taxId) : null,
-              branchCode: vendor?.branchCode ?? null,
-              address: vendor?.address ?? null,
-              contact: vendor?.contactPerson ?? null,
-              phone: vendor?.phone ?? null,
-            }}
-            items={d.lines.map((l) => ({
-              description: l.descriptionTh,
-              quantity: l.quantity,
-              unit: l.uomText,
-              unitPrice: l.unitPrice,
-              discountPercent: undefined,
-              amount: l.lineAmount,
-            }))}
-            summary={(() => {
-              // BP-04 — the PO read DTO exposes no per-line discount field, but it
-              // DOES expose unitPrice + quantity. Reconstruct the TRUE pre-discount
-              // gross = Σ(unitPrice × quantity); discount = gross − subtotal (the
-              // after-discount figure the BE already summed). When there is no
-              // discount (gross == subtotal) the discount row is omitted, so the
-              // foot is byte-identical to a no-discount PO and to the Sales pattern.
-              const gross = d.lines.reduce((s, l) => s + l.unitPrice * (l.quantity ?? 0), 0);
-              const disc = Math.round((gross - d.subtotalAmount) * 100) / 100;
-              return {
-                subtotal: gross,
-                discount: disc > 0 ? disc : null,
-                beforeVat: d.subtotalAmount,
-                vat: d.vatAmount,
-                total: d.totalAmount,
-              };
-            })()}
-            notes={d.notes}
-            signRoles={cfg.signRoles}
-            watermark={paperWatermark('purchase-order', d.status)}
-          />
+          <PaperDocument {...paperDtoToProps(paper.data, { logo: company?.logoUrl })} />
         </div>
         <div className="detail-side">
           {/* Sprint 13j-PURCH D-supplement — FE chain panel (PO → VI → PV → WHT),

@@ -14,10 +14,10 @@ import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useAdjustmentNotes, useAdjustmentNote, usePostAdjustmentNote, useCompanyProfile, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
+import { useAdjustmentNotes, useAdjustmentNote, usePostAdjustmentNote, useCompanyProfile, usePaperDoc, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
 import type { AdjustmentNoteListItem } from '@/lib/types';
-import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
-import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
+import { formatTHB, formatDate } from '@/lib/utils';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { useHasScope } from '@/components/PermissionGate';
@@ -121,7 +121,11 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
   const t = useTranslations('note');
   const tc = useTranslations('common');
   const { data: d, isLoading, isError } = useAdjustmentNote(id);
+  // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
+  // print; CN/DN seller/customer stay the POSTED SNAPSHOT server-side, ม.86/4);
+  // the company profile stays ONLY as the logo source (not in the DTO).
   const company = useCompanyProfile();
+  const paper = usePaperDoc('tax-adjustment-notes', id);
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const post = usePostAdjustmentNote();
   const hasScope = useHasScope();
@@ -140,16 +144,10 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
   }
 
   if (!vatMode) return <NonVatGuard title={t(c.titleKey)} />;
-  if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
-  if (isError || !d) return <p className="text-error">{tc('error')}</p>;
+  if (isLoading || paper.isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
+  if (isError || !d || !paper.data) return <p className="text-error">{tc('error')}</p>;
 
-  const paperKind = kind === 'Credit' ? 'credit-note' : 'debit-note';
   const activityType = kind === 'Credit' ? 'credit-notes' : 'debit-notes';
-  const pcfg = PAPER_DOC[paperKind];
-
-  // Adjustment notes carry no line array — synthesize one line from the
-  // reason + adjusted value (ม.86/10 value-difference disclosure).
-  const items = [{ description: `เหตุผล (${d.reasonCode}): ${d.reason}`, amount: d.subtotalAmount }];
 
   const extraMeta = (
     <>
@@ -186,21 +184,7 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
       <div className="detail-grid">
         <div className="paper-wrap">
           <PaperDocument
-            docType={pcfg.docType}
-            docTypeEn={pcfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.noteId}`}
-            issueDate={d.docDate}
-            seller={companyToSeller(company.data)}
-            customer={{
-              name: d.customerName,
-              taxId: d.customerTaxId ? formatTaxId(d.customerTaxId) : null,
-              address: d.customerAddress,
-            }}
-            items={items}
-            summary={{ subtotal: d.subtotalAmount, vat: d.taxAmount, total: d.totalAmount, vatRate: d.taxRate * 100 }}
-            notes={d.notes}
-            signRoles={pcfg.signRoles}
-            watermark={paperWatermark(paperKind, d.status)}
+            {...paperDtoToProps(paper.data, { logo: company.data?.logoUrl })}
             extraMetaBlock={extraMeta}
           />
         </div>

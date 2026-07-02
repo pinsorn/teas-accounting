@@ -30,4 +30,6 @@ public interface IPaymentVoucherService
         long? cursor, int limit, CancellationToken ct, bool incompleteOnly = false);
     Task<PaymentVoucherDetail?> GetDetailAsync(long id, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false);
+    // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /payment-vouchers/{id}/paper.
+    Task<Pdf.PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false);
 }

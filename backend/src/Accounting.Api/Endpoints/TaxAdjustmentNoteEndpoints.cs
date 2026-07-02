@@ -65,6 +65,11 @@ public static class TaxAdjustmentNoteEndpoints
             Results.File(await svc.BuildPdfAsync(id, ct, copy ?? false), "application/pdf", $"note-{id}.pdf"))
         .RequireAuthorization(ctx => ctx.RequireAuthenticatedUser().RequireAssertion(CanRead));
 
+        // cont.121 — canonical paper DTO (JSON twin of /pdf) for the FE PaperDocument.
+        group.MapGet("/{id:long}/paper", async (long id, [FromQuery] bool? copy, ITaxAdjustmentNoteService svc, CancellationToken ct) =>
+            Results.Ok(await svc.BuildPaperAsync(id, ct, copy ?? false)))
+        .RequireAuthorization(ctx => ctx.RequireAuthenticatedUser().RequireAssertion(CanRead));
+
         return app;
     }
 }

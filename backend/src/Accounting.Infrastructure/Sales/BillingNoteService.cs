@@ -1,5 +1,6 @@
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
+using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
@@ -234,6 +235,10 @@ public sealed class BillingNoteService(
     // enriched from the master (BN detail carries only name+id); vatRate derived
     // from VatAmount/Subtotal (BN lines don't expose a per-line rate).
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var d = await GetAsync(id, ct)
@@ -246,21 +251,22 @@ public sealed class BillingNoteService(
         // descriptionSub, summary carries no vatRate (PaperFoot defaults 7%),
         // customer enriched from the master with formatTaxId.
         var cfg = Pdf.PaperDoc.Config[Pdf.PaperDocKind.BillingNote];
-        var model = new Pdf.PaperDocModel(
+        var model = new PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, tenant.CompanyId, ct, storage),
-            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(cust?.TaxId), cust?.BranchCode, cust?.BillingAddress),
-            d.Lines.Select(l => new Pdf.PaperLine(
+            new PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(cust?.TaxId), cust?.BranchCode,
+                cust?.BillingAddress, cust?.ContactPerson, cust?.Phone),
+            d.Lines.Select(l => new PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
-            new Pdf.PaperSummary(d.SubtotalAmount, null, null, d.VatAmount, d.TotalAmount, null, showVat),
-            new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
+            new PaperSummary(d.SubtotalAmount, null, null, d.VatAmount, d.TotalAmount, null, showVat),
+            new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             ValidUntil: d.DueDate, ValidUntilLabel: cfg.ValidUntilLabel,
             Notes: d.Notes,
             // cont.69 Phase 4 (D8) — copy=true → สำเนา watermark (universal print).
             Watermark: copy
-                ? new Pdf.PaperWatermark("สำเนา", Pdf.PaperWatermarkVariant.Warning)
+                ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
                 : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.BillingNote, d.Status));
-        return Pdf.PaperDocumentPdf.Render(model);
+        return model;
     }
 
     public async Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct)

@@ -69,6 +69,11 @@ public static class BillingNoteEndpoints
             Results.File(await s.BuildPdfAsync(id, ct, copy ?? false), "application/pdf", $"billing-note-{id}.pdf"))
             .RequireAuthorization(readPol);
 
+        // cont.121 — canonical paper DTO (JSON twin of /pdf) for the FE PaperDocument.
+        g.MapGet("/{id:long}/paper", async (long id, bool? copy, IBillingNoteService s, CancellationToken ct) =>
+            Results.Ok(await s.BuildPaperAsync(id, ct, copy ?? false)))
+            .RequireAuthorization(readPol);
+
         return app;
     }
 }
