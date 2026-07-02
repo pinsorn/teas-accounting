@@ -203,6 +203,25 @@ public sealed class BatchAComplianceTests
     }
 
     [Fact]
+    public void PurchaseOrder_validator_rejects_non_THB_currency()
+    {
+        // cont.120 — the PO create validator was the ONLY fiscal-doc validator missing
+        // ThbOnly (05-C1/05-H1): the FE always sends THB, but an API-key/MCP caller could
+        // create a USD PO that both paper renderers print with ฿ and Thai baht words.
+        var v = new CreatePurchaseOrderValidator();
+        var req = new CreatePurchaseOrderRequest(
+            new DateOnly(2026, 6, 1), null, 1, null, "USD", 1m, null, null,
+            [new PurchaseOrderLineInput(null, "line", 1m, "ชิ้น", 100m, 0m, null, "VAT7", 0.07m, null)]);
+        var r = v.Validate(req);
+        r.IsValid.Should().BeFalse();
+        r.Errors.Should().Contain(e => e.ErrorCode == CurrencyValidationExtensions.ThbOnlyCode);
+
+        // THB / 1 stays valid.
+        v.Validate(req with { CurrencyCode = "THB", ExchangeRate = 1m })
+            .Errors.Should().NotContain(e => e.ErrorCode == CurrencyValidationExtensions.ThbOnlyCode);
+    }
+
+    [Fact]
     public void Journal_validator_rejects_non_THB()
     {
         var v = new CreateJournalValidator();
