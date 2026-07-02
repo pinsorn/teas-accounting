@@ -344,6 +344,12 @@ follow-ups below into the purchase work where they overlap.
    period gating) ☑ DONE — see "Test depth" below (all four shipped in `Sprint1HardeningTests`);
    TI immutability + GL balance proven via #3.
 3. ☑ **Runtime smoke** — full login→post-TI→GL→immutability verified end-to-end. (2026-05-16)
+4. ☑ **screen↔PDF parity + document redesign** (cont.120, 2026-07-02, branch `fix/pdf-footer-sequence`,
+   7 commits, awaiting push/PR) — receipt VAT/WHT footer + notes-in-DTO, logo raster/SVG clean render,
+   one-page density, Q/SO/DO/Invoice customer from live master, wording-parity audit fixes (PO/PV
+   party box, DO combined title, TI exempt row), full header/table/sign redesign with pinned Thai
+   sign-off footer + filler rows. Both shared renderers → all doctypes. LEFT: PO discount-row value
+   drift, CN/DN ม.86/10 cite placement, canonical-DTO unification (handoff doc).
 
 ### Test depth — ☑ ALL DONE (stale list; reconciled 2026-06-12)
 All four exist in `Hardening/Sprint1HardeningTests.cs`: NumberSequence gapless+unique under
