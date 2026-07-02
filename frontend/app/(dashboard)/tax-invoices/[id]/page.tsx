@@ -176,6 +176,9 @@ export default function TaxInvoiceDetailPage() {
               beforeVat: d.taxableAmount,
               vat: d.taxAmount,
               total: d.totalAmount,
+              // ม.86/4 #5 — mixed taxable/exempt TI shows the exempt remainder
+              // (the PDF already printed it; screen now matches).
+              nonTaxable: d.nonTaxableAmount > 0 ? d.nonTaxableAmount : undefined,
             }}
             notes={d.notes}
             signRoles={cfg.signRoles}

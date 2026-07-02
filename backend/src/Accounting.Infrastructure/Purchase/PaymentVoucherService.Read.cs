@@ -210,7 +210,7 @@ public sealed partial class PaymentVoucherService
 
         var model = new Pdf.PaperDocModel(
             DocType: "ใบสำคัญจ่าย",
-            DocTypeEn: "Payment Voucher",
+            DocTypeEn: "PAYMENT VOUCHER",   // cont.119 — ALL-CAPS like the FE + every other doctype
             DocNo: d.DocNo ?? "(ร่าง)",
             IssueDate: d.DocDate,
             Seller: seller,
@@ -224,6 +224,8 @@ public sealed partial class PaymentVoucherService
                 Wht: !d.SelfWithholdMode && d.WhtAmount > 0m ? d.WhtAmount : null),
             SignRoles: new Pdf.PaperSignRoles("ผู้จัดทำ", "ผู้รับเงิน", Middle: "ผู้อนุมัติ"),
             Notes: notes,
+            // cont.119 — mirror the FE payment-vouchers page party box (screen==print).
+            PartyLabel: new Pdf.PaperPartyLabel("ผู้ขาย", "Vendor"),
             Watermark: new Pdf.PaperWatermark(
                 copy ? "สำเนา" : "ต้นฉบับ",
                 copy ? Pdf.PaperWatermarkVariant.Warning : Pdf.PaperWatermarkVariant.Success));

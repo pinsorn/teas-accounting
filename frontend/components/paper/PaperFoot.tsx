@@ -62,6 +62,14 @@ export function PaperFoot({
               <Bi th="มูลค่าก่อนภาษี" en="Before VAT" />
               <span className="v">{fmtPaperNum(beforeVat)}</span>
             </div>
+            {/* ม.86/4 #5 — mixed taxable/exempt TI: label the non-taxable remainder
+                (mirrors PDF PaperFootPlan FootLine.Exempt). */}
+            {summary.nonTaxable != null && summary.nonTaxable > 0 && (
+              <div className="row">
+                <Bi th="มูลค่าสินค้าที่ได้รับยกเว้น" en="Exempt" />
+                <span className="v">{fmtPaperNum(summary.nonTaxable)}</span>
+              </div>
+            )}
             <div className="row">
               <Bi th={`ภาษีมูลค่าเพิ่ม ${vatRate}%`} en="VAT" />
               <span className="v">{fmtPaperNum(summary.vat)}</span>
@@ -76,7 +84,8 @@ export function PaperFoot({
             </div>
             <div className="row">
               <Bi th="หัก ณ ที่จ่าย" en="WHT" />
-              <span className="v">−{fmtPaperNum(summary.wht)}</span>
+              {/* ASCII hyphen-minus — same codepoint the PDF prints (font-safe in Sarabun). */}
+              <span className="v">-{fmtPaperNum(summary.wht)}</span>
             </div>
             <div className="row total">
               <Bi th="ยอดเงินรับสุทธิ" en="Net Payable" />

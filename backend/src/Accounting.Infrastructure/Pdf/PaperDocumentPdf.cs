@@ -158,7 +158,7 @@ public static class PaperDocumentPdf
             row.RelativeItem(1.4f).Border(Px(1)).BorderColor(PaperColors.Ink100)
                 .Padding(Px(9)).Column(b =>
             {
-                b.Item().Text("ลูกค้า / Customer")
+                b.Item().Text(m.PartyLabel is { } pl ? $"{pl.Th} / {pl.En}" : "ลูกค้า / Customer")
                     .FontSize(Px(12)).Bold().LetterSpacing(0.1f).FontColor(PaperColors.Peach600);
                 b.Item().PaddingTop(Px(6)).Text(string.IsNullOrEmpty(m.Customer.Name) ? "—" : m.Customer.Name).Bold();
                 b.Item().PaddingTop(Px(4)).Text(t =>

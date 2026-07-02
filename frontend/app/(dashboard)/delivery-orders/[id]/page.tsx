@@ -88,8 +88,10 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
       <div className="detail-grid">
         <div className="paper-wrap">
           <PaperDocument
-            docType={cfg.docType}
-            docTypeEn={cfg.docTypeEn}
+            // ม.86/4 #1 — a DO combined with a Tax Invoice must carry the ใบกำกับภาษี
+            // designation in its title (the PDF already did; screen now matches).
+            docType={d.isCombinedWithTi ? 'ใบส่งของ-ใบกำกับภาษี' : cfg.docType}
+            docTypeEn={d.isCombinedWithTi ? 'DELIVERY ORDER & TAX INVOICE' : cfg.docTypeEn}
             docNo={d.docNo ?? `#${d.deliveryOrderId}`}
             issueDate={d.docDate}
             seller={companyToSeller(company.data)}

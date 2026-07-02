@@ -239,12 +239,14 @@ public sealed class PurchaseOrderService(
 
         // Sprint 13j-PURCH Phase C — render via the shared PaperDocument mirror
         // (IDENTICAL shape to the Sales TI builder). Seller = the issuing company
-        // (we are the buyer issuing the PO); Customer = the vendor. Two-box sign
-        // (ผู้ขออนุมัติ / ผู้อนุมัติ). Watermark: explicit copy → "สำเนา", else "ต้นฉบับ".
+        // (we are the buyer issuing the PO); Customer = the vendor. cont.119 — labels
+        // aligned to the FE purchase-orders page (screen==print): title ALL-CAPS,
+        // party box ผู้ขาย/Vendor, sign roles ผู้สั่งซื้อ/ผู้รับใบสั่งซื้อ, กำหนดส่งมอบ.
+        // Watermark: explicit copy → "สำเนา", else "ต้นฉบับ".
         var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, po.CompanyId, ct, storage);
         var model = new Pdf.PaperDocModel(
             DocType: "ใบสั่งซื้อ",
-            DocTypeEn: "Purchase Order",
+            DocTypeEn: "PURCHASE ORDER",
             DocNo: po.DocNo ?? "(ร่าง)",
             IssueDate: po.DocDate,
             Seller: seller,
@@ -253,10 +255,11 @@ public sealed class PurchaseOrderService(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             Summary: new Pdf.PaperSummary(
                 po.SubtotalAmount, null, po.SubtotalAmount, po.VatAmount, po.TotalAmount, null),
-            SignRoles: new Pdf.PaperSignRoles("ผู้ขออนุมัติ", "ผู้อนุมัติ"),
+            SignRoles: new Pdf.PaperSignRoles("ผู้สั่งซื้อ", "ผู้รับใบสั่งซื้อ"),
             ValidUntil: po.ExpectedDeliveryDate,
-            ValidUntilLabel: po.ExpectedDeliveryDate is null ? null : "กำหนดส่ง",
+            ValidUntilLabel: po.ExpectedDeliveryDate is null ? null : "กำหนดส่งมอบ",
             Notes: po.Notes,
+            PartyLabel: new Pdf.PaperPartyLabel("ผู้ขาย", "Vendor"),
             Watermark: new Pdf.PaperWatermark(
                 copy ? "สำเนา" : "ต้นฉบับ",
                 copy ? Pdf.PaperWatermarkVariant.Warning : Pdf.PaperWatermarkVariant.Success));

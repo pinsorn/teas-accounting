@@ -59,6 +59,11 @@ public sealed record PaperSummary(
     // remainder is explicit. null/0 = suppress (Q/SO/DO/BN callers unaffected).
     decimal? NonTaxable = null);
 
+// cont.119 — party-box label override (mirrors FE PaperDocumentProps.partyLabel).
+// The box is "ลูกค้า / Customer" by default; purchase docs where our company is NOT
+// the customer pass their own label (PO/PV = "ผู้ขาย / Vendor"). Null → default.
+public sealed record PaperPartyLabel(string Th, string En);
+
 public enum PaperWatermarkVariant { Success, Danger, Warning, Info }
 
 public sealed record PaperWatermark(string Text, PaperWatermarkVariant Variant);
@@ -82,4 +87,5 @@ public sealed record PaperDocModel(
     string? ValidUntilLabel = null,
     string? AmountWords = null,
     string? Notes = null,
-    PaperWatermark? Watermark = null);
+    PaperWatermark? Watermark = null,
+    PaperPartyLabel? PartyLabel = null);

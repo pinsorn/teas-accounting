@@ -49,6 +49,10 @@ export interface PaperSummary {
   // independent of showVat, and the grand-total label switches to
   // "จ่ายสุทธิ · Net Paid" with value = total − wht. Absent → byte-identical to today.
   wht?: number | null;
+  // cont.119 — Tax Invoice with mixed taxable/exempt lines (ม.86/4 #5): when > 0 a
+  // "มูลค่าสินค้าที่ได้รับยกเว้น · Exempt" row prints after Before VAT. Mirrors C#
+  // PaperSummary.NonTaxable (the PDF already had it; the screen was missing it).
+  nonTaxable?: number | null;
 }
 
 // §C4 locked union. `info` added additively (non-breaking) for the Billing
