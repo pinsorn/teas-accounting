@@ -18,7 +18,7 @@ namespace Accounting.Infrastructure.Purchase;
 public sealed class PurchaseOrderService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    IFileStorageService storage) : IPurchaseOrderService
+    IFileStorageService storage, ICompanyTaxConfigService taxCfg) : IPurchaseOrderService
 {
     private void Auth()
     {
@@ -244,6 +244,17 @@ public sealed class PurchaseOrderService(
         // party box ผู้ขาย/Vendor, sign roles ผู้สั่งซื้อ/ผู้รับใบสั่งซื้อ, กำหนดส่งมอบ.
         // Watermark: explicit copy → "สำเนา", else "ต้นฉบับ".
         var seller = await Pdf.PaperSellerSource.FromCompanyProfileAsync(db, po.CompanyId, ct, storage);
+
+        // cont.120 (Ham ruling; Codex A vs agy B adjudicated → A) — mirror the FE BP-04
+        // reconstruction EXACTLY so print == screen on a discounted PO: gross = Σ(unitPrice ×
+        // quantity) (the true pre-discount value; per-line discounts are baked into the stored
+        // SubtotalAmount), discount = gross − stored subtotal rounded to 2dp, row shown only
+        // when ≥ 0.01 (suppresses rounding residue). The printed equation always reconciles
+        // because BeforeVat anchors to the authoritative stored SubtotalAmount. ShowVat follows
+        // the company VAT mode like the screen (was hardcoded default-true — a non-VAT company's
+        // PO printed VAT rows the screen never showed).
+        var gross = po.Lines.Sum(l => l.UnitPrice * l.Quantity);
+        var discount = Math.Round(gross - po.SubtotalAmount, 2, MidpointRounding.AwayFromZero);
         var model = new Pdf.PaperDocModel(
             DocType: "ใบสั่งซื้อ",
             DocTypeEn: "PURCHASE ORDER",
@@ -254,7 +265,11 @@ public sealed class PurchaseOrderService(
             Items: po.Lines.OrderBy(l => l.LineNo).Select(l => new Pdf.PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             Summary: new Pdf.PaperSummary(
-                po.SubtotalAmount, null, po.SubtotalAmount, po.VatAmount, po.TotalAmount, null),
+                Subtotal: discount >= 0.01m ? gross : po.SubtotalAmount,
+                Discount: discount >= 0.01m ? discount : null,
+                BeforeVat: po.SubtotalAmount,
+                Vat: po.VatAmount, Total: po.TotalAmount, VatRate: null,
+                ShowVat: (await taxCfg.GetAsync(ct)).VatMode),
             SignRoles: new Pdf.PaperSignRoles("ผู้สั่งซื้อ", "ผู้รับใบสั่งซื้อ"),
             ValidUntil: po.ExpectedDeliveryDate,
             ValidUntilLabel: po.ExpectedDeliveryDate is null ? null : "กำหนดส่งมอบ",

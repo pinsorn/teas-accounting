@@ -65,4 +65,9 @@ public sealed record AdjustmentNoteDetail(
     string CustomerName, string? CustomerTaxId, string CustomerAddress,
     string CurrencyCode, decimal SubtotalAmount, decimal TaxRate,
     decimal TaxAmount, decimal TotalAmount, string? Notes,
-    System.DateTimeOffset? PostedAt, string? BusinessUnitCode);
+    System.DateTimeOffset? PostedAt, string? BusinessUnitCode,
+    // cont.120 — screen↔PDF Notes parity (Ham ruling, ม.86/10 pattern mirrors cont.119's
+    // ReceiptDetail.DisplayNotes): the raw Notes + the "อ้างอิงใบกำกับภาษี … (ม.86/10 / ม.86/9 /
+    // ม.82/9)" legal-reference line, composed ONCE in GetDetailAsync. Both the PDF builder and
+    // the FE detail page consume this single field so the printed Notes block == the on-screen one.
+    string? DisplayNotes = null);

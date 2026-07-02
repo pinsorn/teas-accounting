@@ -198,7 +198,7 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
             }}
             items={items}
             summary={{ subtotal: d.subtotalAmount, vat: d.taxAmount, total: d.totalAmount, vatRate: d.taxRate * 100 }}
-            notes={d.notes}
+            notes={d.displayNotes}
             signRoles={pcfg.signRoles}
             watermark={paperWatermark(paperKind, d.status)}
             extraMetaBlock={extraMeta}

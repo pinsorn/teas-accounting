@@ -589,6 +589,10 @@ export interface AdjustmentNoteDetail {
   subtotalAmount: number; taxRate: number; taxAmount: number; totalAmount: number;
   notes: string | null; postedAt: string | null;
   businessUnitCode: string | null;
+  // cont.120 — screen↔PDF Notes parity: raw notes + the "อ้างอิงใบกำกับภาษี … (ม.86/10)"
+  // legal-reference line, composed once in the backend so the printed Notes block == the
+  // on-screen PaperDocument's Notes block.
+  displayNotes: string | null;
 }
 
 export const CREDIT_NOTE_REASONS = ['Typo','AmountError','CustomerInfo','Return','PriceReduce','Cancel'] as const;

@@ -220,7 +220,10 @@ public sealed partial class PaymentVoucherService
                 l.Description, null, null, null, null, null, l.Amount)).ToList(),
             Summary: new Pdf.PaperSummary(
                 Subtotal: d.SubtotalAmount, Discount: null, BeforeVat: d.SubtotalAmount,
-                Vat: d.VatAmount, Total: d.TotalPaid, VatRate: null, ShowVat: true,
+                // cont.120 — was hardcoded true; a non-VAT company's PV printed VAT rows
+                // the screen (system vatMode) never showed.
+                Vat: d.VatAmount, Total: d.TotalPaid, VatRate: null,
+                ShowVat: (await _taxCfg.GetAsync(ct)).VatMode,
                 Wht: !d.SelfWithholdMode && d.WhtAmount > 0m ? d.WhtAmount : null),
             SignRoles: new Pdf.PaperSignRoles("ผู้จัดทำ", "ผู้รับเงิน", Middle: "ผู้อนุมัติ"),
             Notes: notes,
