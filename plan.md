@@ -348,8 +348,13 @@ follow-ups below into the purchase work where they overlap.
    7 commits, awaiting push/PR) — receipt VAT/WHT footer + notes-in-DTO, logo raster/SVG clean render,
    one-page density, Q/SO/DO/Invoice customer from live master, wording-parity audit fixes (PO/PV
    party box, DO combined title, TI exempt row), full header/table/sign redesign with pinned Thai
-   sign-off footer + filler rows. Both shared renderers → all doctypes. LEFT: PO discount-row value
-   drift, CN/DN ม.86/10 cite placement, canonical-DTO unification (handoff doc).
+   sign-off footer + filler rows. Both shared renderers → all doctypes. Follow-ups shipped same
+   session: PO discount row (screen==print), non-VAT ShowVat on PO/PV, CN/DN cite in DTO, PO
+   ThbOnly validator gap (the "FX PO" flag — closed at the trust boundary). CI green on PR #32.
+   - ☐ **canonical paper-DTO unification** (next session, §11 ASK first — new endpoints):
+     `GET /{doc}/{id}/paper` returns the canonical PaperDocModel (mappers already exist in each
+     BuildPdf); ~10 FE detail pages consume it instead of re-deriving from live master → the whole
+     screen-vs-print drift class dies permanently. + openapi.yaml delta for Sana.
 
 ### Test depth — ☑ ALL DONE (stale list; reconciled 2026-06-12)
 All four exist in `Hardening/Sprint1HardeningTests.cs`: NumberSequence gapless+unique under
