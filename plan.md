@@ -351,7 +351,7 @@ follow-ups below into the purchase work where they overlap.
    sign-off footer + filler rows. Both shared renderers → all doctypes. Follow-ups shipped same
    session: PO discount row (screen==print), non-VAT ShowVat on PO/PV, CN/DN cite in DTO, PO
    ThbOnly validator gap (the "FX PO" flag — closed at the trust boundary). CI green on PR #32.
-   - ☑ **canonical paper-DTO unification** (cont.121, 2026-07-03, Ham-approved) — 9 new
+   - ☑ **canonical paper-DTO unification** (cont.121, 2026-07-03, Ham-approved; RELEASED v1.9.0 + prod-deployed same session) — 9 new
      `GET /{doc}/{id}/paper?copy=` endpoints (PaperDocModel moved to Application; BuildPdfAsync
      split verbatim into BuildPaperAsync+Render; TI/CN-DN snapshots + all parity invariants
      preserved); 9 FE detail pages consume the DTO via `usePaperDoc`+`paperDtoToProps` (client
