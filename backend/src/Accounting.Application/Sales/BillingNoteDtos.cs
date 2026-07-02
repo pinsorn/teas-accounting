@@ -66,6 +66,8 @@ public interface IBillingNoteService
     Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct);
     Task<BillingNoteDetail?> GetAsync(long id, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false);   // Sprint 13j-PDF; cont.69 P4 copy=สำเนา
+    // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /billing-notes/{id}/paper.
+    Task<Pdf.PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false);
 }
 
 public sealed class CreateBillingNoteValidator : AbstractValidator<CreateBillingNoteRequest>

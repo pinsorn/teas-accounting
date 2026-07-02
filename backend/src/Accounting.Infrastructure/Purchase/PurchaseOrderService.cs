@@ -1,5 +1,6 @@
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
+using Accounting.Application.Pdf;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Purchase;
@@ -231,6 +232,10 @@ public sealed class PurchaseOrderService(
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var po = await db.PurchaseOrders.AsNoTracking().Include(x => x.Lines)
@@ -255,30 +260,30 @@ public sealed class PurchaseOrderService(
         // PO printed VAT rows the screen never showed).
         var gross = po.Lines.Sum(l => l.UnitPrice * l.Quantity);
         var discount = Math.Round(gross - po.SubtotalAmount, 2, MidpointRounding.AwayFromZero);
-        var model = new Pdf.PaperDocModel(
+        var model = new PaperDocModel(
             DocType: "ใบสั่งซื้อ",
             DocTypeEn: "PURCHASE ORDER",
             DocNo: po.DocNo ?? "(ร่าง)",
             IssueDate: po.DocDate,
             Seller: seller,
-            Customer: new Pdf.PaperCustomer(po.VendorName, Pdf.PaperFormat.TaxId(po.VendorTaxId)),
-            Items: po.Lines.OrderBy(l => l.LineNo).Select(l => new Pdf.PaperLine(
+            Customer: new PaperCustomer(po.VendorName, Pdf.PaperFormat.TaxId(po.VendorTaxId)),
+            Items: po.Lines.OrderBy(l => l.LineNo).Select(l => new PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
-            Summary: new Pdf.PaperSummary(
+            Summary: new PaperSummary(
                 Subtotal: discount >= 0.01m ? gross : po.SubtotalAmount,
                 Discount: discount >= 0.01m ? discount : null,
                 BeforeVat: po.SubtotalAmount,
                 Vat: po.VatAmount, Total: po.TotalAmount, VatRate: null,
                 ShowVat: (await taxCfg.GetAsync(ct)).VatMode),
-            SignRoles: new Pdf.PaperSignRoles("ผู้สั่งซื้อ", "ผู้รับใบสั่งซื้อ"),
+            SignRoles: new PaperSignRoles("ผู้สั่งซื้อ", "ผู้รับใบสั่งซื้อ"),
             ValidUntil: po.ExpectedDeliveryDate,
             ValidUntilLabel: po.ExpectedDeliveryDate is null ? null : "กำหนดส่งมอบ",
             Notes: po.Notes,
-            PartyLabel: new Pdf.PaperPartyLabel("ผู้ขาย", "Vendor"),
-            Watermark: new Pdf.PaperWatermark(
+            PartyLabel: new PaperPartyLabel("ผู้ขาย", "Vendor"),
+            Watermark: new PaperWatermark(
                 copy ? "สำเนา" : "ต้นฉบับ",
-                copy ? Pdf.PaperWatermarkVariant.Warning : Pdf.PaperWatermarkVariant.Success));
-        return Pdf.PaperDocumentPdf.Render(model);
+                copy ? PaperWatermarkVariant.Warning : PaperWatermarkVariant.Success));
+        return model;
     }
 
     public async Task<OutstandingPoReport> OutstandingAsync(

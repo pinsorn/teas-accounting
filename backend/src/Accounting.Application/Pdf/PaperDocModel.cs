@@ -1,22 +1,29 @@
-namespace Accounting.Infrastructure.Pdf;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Accounting.Application.Pdf;
 
 // Sprint 13j-PDF — C# mirror of the LOCKED PaperDocumentProps (§C4,
 // frontend/components/paper/types.ts). Field names match 1:1 so the QuestPDF
 // output equals the on-screen PaperDocument preview. Pure data — no entity refs;
 // per-doctype mappers build this from the posted snapshot / company profile.
+// cont.121 (canonical paper-DTO spec 2026-07-02) — moved from Accounting.Infrastructure.Pdf
+// so Application service interfaces can expose it via GET /{doc}/{id}/paper.
 
 public sealed record PaperSeller(
     string Name,
     string TaxId,
     string BranchCode,
     string Address,
-    byte[]? Logo = null,
+    // cont.121 — never serialized to the /paper JSON endpoints: the FE keeps its own
+    // logo source (company profile) and megabyte base64 blobs don't belong in the DTO.
+    [property: JsonIgnore] byte[]? Logo = null,
     // Sprint 13k — an uploaded SVG company logo, surfaced as raw UTF-8 markup so the
     // PDF header can render it via QuestPDF's native .Svg() (vector, no raster loss).
     // Mutually exclusive with Logo in practice (a logo is one file); the renderer
     // prefers LogoSvg when both are set. Additive after Logo → positional callers
     // that pass Phone/Email by NAME (the only ones) are unaffected.
-    string? LogoSvg = null,
+    [property: JsonIgnore] string? LogoSvg = null,
     string? Phone = null,
     string? Email = null);
 
@@ -64,9 +71,20 @@ public sealed record PaperSummary(
 // the customer pass their own label (PO/PV = "ผู้ขาย / Vendor"). Null → default.
 public sealed record PaperPartyLabel(string Th, string En);
 
+// cont.121 — serialize as a camelCase string ("success"|"danger"|"warning"|"info")
+// so the FE PaperDocument variant union matches 1:1. NOTE: the attribute must sit on
+// the PROPERTY — System.Text.Json resolves property attribute > options converters >
+// type attribute, and the API registers a PascalCase JsonStringEnumConverter globally.
+public sealed class PaperWatermarkVariantJsonConverter : JsonStringEnumConverter
+{
+    public PaperWatermarkVariantJsonConverter() : base(JsonNamingPolicy.CamelCase) { }
+}
+
 public enum PaperWatermarkVariant { Success, Danger, Warning, Info }
 
-public sealed record PaperWatermark(string Text, PaperWatermarkVariant Variant);
+public sealed record PaperWatermark(
+    string Text,
+    [property: JsonConverter(typeof(PaperWatermarkVariantJsonConverter))] PaperWatermarkVariant Variant);
 
 // Left/Right = the standard two-box signature strip. Middle is optional and only
 // set by the Payment Voucher (Phase C) for a three-box strip

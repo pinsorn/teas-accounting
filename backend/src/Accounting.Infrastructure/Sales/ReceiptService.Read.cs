@@ -1,3 +1,4 @@
+using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
@@ -218,6 +219,10 @@ public sealed partial class ReceiptService
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("rc.not_found", $"Receipt {id} not found.");
@@ -233,16 +238,16 @@ public sealed partial class ReceiptService
         // Prefer the derived line items; fall back to one row per applied TI for
         // legacy receipts whose source TIs have no line rows.
         var lines = d.Lines is { Count: > 0 }
-            ? d.Lines.Select(l => new Pdf.PaperLine(
+            ? d.Lines.Select(l => new PaperLine(
                 l.DescriptionTh, l.TiDocNo, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList()
-            : d.AppliedTo.Select(a => new Pdf.PaperLine(
+            : d.AppliedTo.Select(a => new PaperLine(
                 $"ใบกำกับภาษี {a.TiDocNo ?? $"#{a.TaxInvoiceId}"}",
                 a.BusinessUnitCode, null, null, null, null, a.AppliedAmount)).ToList();
 
-        var model = new Pdf.PaperDocModel(
+        var model = new PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage),
-            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId),
+            new PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId),
                 d.CustomerBranchCode, d.CustomerAddress),
             lines,
             // Money semantics (PaperFootPlan): Total is the NET when Wht is set, else the
@@ -250,17 +255,17 @@ public sealed partial class ReceiptService
             // driven by the actual paid VAT (0 on non-VAT / all-exempt receipts → single
             // Grand row, no misleading "VAT 0.00"). VatRate null → the foot prints 7% like
             // the Tax Invoice page.
-            new Pdf.PaperSummary(
+            new PaperSummary(
                 d.SubtotalAmount, null, null, d.VatAmount,
                 d.WhtAmount > 0m ? d.CashReceived : d.Amount, null,
                 ShowVat: d.VatAmount > 0m,
                 Wht: d.WhtAmount > 0m ? d.WhtAmount : null),
-            new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
+            new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: d.DisplayNotes,
             Watermark: copy
-                ? new Pdf.PaperWatermark("สำเนา", Pdf.PaperWatermarkVariant.Warning)
+                ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
                 : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.Receipt, d.Status));
-        return Pdf.PaperDocumentPdf.Render(model);
+        return model;
     }
 
     // Sprint (multi-category WHT, 2026-05-22) — replaces the single-rate suggestion.

@@ -1,3 +1,5 @@
+using Accounting.Application.Pdf;
+
 namespace Accounting.Infrastructure.Pdf;
 
 // Sprint 13j-PDF — C# mirror of frontend/lib/paper-doc-config.ts (PAPER_DOC titles

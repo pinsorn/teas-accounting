@@ -191,6 +191,25 @@ paths:
           content:
             application/pdf: {}
 
+  /quotations/{id}/paper:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Quotations]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ============================================================
   # SALES ORDERS
   # ============================================================
@@ -254,6 +273,25 @@ paths:
           content:
             application/pdf: {}
 
+  /sales-orders/{id}/paper:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Sales Orders]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ============================================================
   # DELIVERY ORDERS
   # ============================================================
@@ -316,6 +354,25 @@ paths:
           description: PDF stream
           content:
             application/pdf: {}
+
+  /delivery-orders/{id}/paper:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Delivery Orders]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # ============================================================
   # TAX INVOICES ★ (e-Tax compliant)
@@ -458,6 +515,25 @@ paths:
           content:
             application/pdf: {}
 
+  /tax-invoices/{id}/paper:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Tax Invoices]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /tax-invoices/{id}/etax-status:
     parameters:
       - $ref: '#/components/parameters/DocId'
@@ -544,6 +620,25 @@ paths:
           content:
             application/pdf: {}
 
+  /tax-adjustment-notes/{id}/paper:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Credit/Debit Notes]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ============================================================
   # RECEIPTS (ใบเสร็จรับเงิน) — actual route /receipts (was /customer-receipts)
   # ============================================================
@@ -589,6 +684,24 @@ paths:
         - { name: copy, in: query, schema: { type: boolean } }
       responses:
         '200': { description: PDF }
+
+  /receipts/{id}/paper:
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Receipts]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # ── Document chain + print tracking (cont.66/69 shipped contract) ──────────
   /documents/chain:
@@ -716,6 +829,24 @@ paths:
           description: PDF stream
           content:
             application/pdf: {}
+
+  /billing-notes/{id}/paper:
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Billing Notes]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /{docRoute}/{id}/mark-printed:
     post:
@@ -961,6 +1092,46 @@ paths:
           content:
             application/pdf:
               schema: { type: string, format: binary }
+
+  /payment-vouchers/{id}/paper:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Payment Vouchers]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # BFF purchase-order routes are otherwise undocumented here (only the /api/v1
+  # PDF variant is); the canonical paper JSON twin is documented for parity.
+  /purchase-orders/{id}/paper:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Canonical paper JSON (?copy=true สำเนา)
+      description: Returns the same canonical PaperDoc model the PDF renders (screen == print parity).
+      tags: [Purchase Orders]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean }, description: 'true = สำเนา (copy) watermark variant' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperDoc'
+        '401': { description: Unauthorized }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # WHT certificates (50ทวิ) are read-only — issued by PV post, never created here.
   # Gated by purchase.wht.read.
@@ -4205,6 +4376,100 @@ components:
         paidUpCapital: { type: number, nullable: true }
         vatRate: { type: number, minimum: 0, maximum: 1, default: 0.07 }
         pnd30SubmissionMode: { type: string, enum: [manual, auto], default: manual }
+
+    # === Canonical paper document (cont.121) — GET /{doc}/{id}/paper ===
+    # JSON twin of the QuestPDF output (Accounting.Application/Pdf/PaperDocModel.cs,
+    # mirror of frontend/components/paper/types.ts). Screen == print parity.
+    PaperDoc:
+      type: object
+      required: [docType, docTypeEn, docNo, issueDate, seller, customer, items, summary, signRoles]
+      properties:
+        docType: { type: string, example: 'ใบกำกับภาษี', description: 'Thai document title' }
+        docTypeEn: { type: string, example: 'TAX INVOICE' }
+        docNo: { type: string }
+        issueDate: { type: string, format: date }
+        seller: { $ref: '#/components/schemas/PaperSeller' }
+        customer: { $ref: '#/components/schemas/PaperCustomer' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PaperLine' }
+        summary: { $ref: '#/components/schemas/PaperSummary' }
+        signRoles: { $ref: '#/components/schemas/PaperSignRoles' }
+        validUntil: { type: string, format: date, nullable: true }
+        validUntilLabel: { type: string, nullable: true }
+        amountWords: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        watermark:
+          allOf: [{ $ref: '#/components/schemas/PaperWatermark' }]
+          nullable: true
+        partyLabel:
+          allOf: [{ $ref: '#/components/schemas/PaperPartyLabel' }]
+          nullable: true
+          description: 'Party-box label override (PO/PV = ผู้ขาย / Vendor); null → default ลูกค้า / Customer'
+    PaperSeller:
+      type: object
+      description: 'Company logo (logo/logoSvg) is never serialized — the FE keeps its own logo source.'
+      required: [name, taxId, branchCode, address]
+      properties:
+        name: { type: string }
+        taxId: { type: string, description: '13-digit Tax ID' }
+        branchCode: { type: string, description: '5-digit branch (00000 = HQ)' }
+        address: { type: string }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+    PaperCustomer:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        taxId: { type: string, nullable: true }
+        branchCode: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        contact: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+    PaperLine:
+      type: object
+      required: [description, amount]
+      properties:
+        description: { type: string }
+        descriptionSub: { type: string, nullable: true }
+        quantity: { type: number, nullable: true }
+        unit: { type: string, nullable: true }
+        unitPrice: { type: number, nullable: true }
+        discountPercent: { type: number, nullable: true }
+        amount: { type: number }
+    PaperSummary:
+      type: object
+      required: [subtotal, vat, total, showVat]
+      properties:
+        subtotal: { type: number }
+        discount: { type: number, nullable: true }
+        beforeVat: { type: number, nullable: true }
+        vat: { type: number }
+        total: { type: number, description: 'PV: WHT-deducted net (จ่ายสุทธิ)' }
+        vatRate: { type: number, nullable: true, description: 'Percent, e.g. 7' }
+        showVat: { type: boolean, default: true, description: 'false (non-VAT company) → foot prints a single Total row' }
+        wht: { type: number, nullable: true, description: 'Payment Voucher only — หัก ณ ที่จ่าย row above the grand total' }
+        nonTaxable: { type: number, nullable: true, description: 'Tax Invoice mixed taxable/exempt — exempt remainder row when > 0' }
+    PaperSignRoles:
+      type: object
+      required: [left, right]
+      properties:
+        left: { type: string }
+        right: { type: string }
+        middle: { type: string, nullable: true, description: 'PV only — three-box strip; null → two-box layout' }
+    PaperPartyLabel:
+      type: object
+      required: [th, en]
+      properties:
+        th: { type: string, example: 'ผู้ขาย' }
+        en: { type: string, example: 'Vendor' }
+    PaperWatermark:
+      type: object
+      required: [text, variant]
+      properties:
+        text: { type: string, example: 'สำเนา' }
+        variant: { type: string, enum: [success, danger, warning, info] }
 
 tags:
   - name: Quotations

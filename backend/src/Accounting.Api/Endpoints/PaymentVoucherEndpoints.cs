@@ -66,6 +66,12 @@ public static class PaymentVoucherEndpoints
                 $"payment-voucher-{id}.pdf"))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherRead);
 
+        // cont.121 — canonical paper DTO (JSON twin of /pdf) for the FE PaperDocument.
+        group.MapGet("/{id:long}/paper", async (long id, [FromQuery] bool? copy,
+            IPaymentVoucherService svc, CancellationToken ct) =>
+            Results.Ok(await svc.BuildPaperAsync(id, ct, copy ?? false)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherRead);
+
         return app;
     }
 }

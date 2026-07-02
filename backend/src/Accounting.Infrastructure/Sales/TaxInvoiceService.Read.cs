@@ -1,3 +1,4 @@
+using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
@@ -104,6 +105,10 @@ public sealed partial class TaxInvoiceService
         Task.FromResult(_etaxXml.BuildTaxInvoiceXml(id, ct));
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("ti.not_found", $"Tax Invoice {id} not found.");
@@ -119,26 +124,26 @@ public sealed partial class TaxInvoiceService
         // summary = subtotal/discount/beforeVat(taxable)/vat/total with no vatRate
         // (PaperFoot defaults 7%). docType keeps the §8.5 non-VAT label.
         var cfg = Pdf.PaperDoc.Config[Pdf.PaperDocKind.TaxInvoice];
-        var model = new Pdf.PaperDocModel(
+        var model = new PaperDocModel(
             DocType: hdrTh,
             DocTypeEn: hdrEn,
             DocNo: d.DocNo ?? string.Empty,
             IssueDate: d.DocDate,
-            Seller: new Pdf.PaperSeller(d.SupplierName, Pdf.PaperFormat.TaxId(d.SupplierTaxId) ?? d.SupplierTaxId, d.SupplierBranchCode, d.SupplierAddress),
-            Customer: new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), d.CustomerBranchCode, d.CustomerAddress),
-            Items: d.Lines.OrderBy(l => l.LineNo).Select(l => new Pdf.PaperLine(
+            Seller: new PaperSeller(d.SupplierName, Pdf.PaperFormat.TaxId(d.SupplierTaxId) ?? d.SupplierTaxId, d.SupplierBranchCode, d.SupplierAddress),
+            Customer: new PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), d.CustomerBranchCode, d.CustomerAddress),
+            Items: d.Lines.OrderBy(l => l.LineNo).Select(l => new PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
-            Summary: new Pdf.PaperSummary(
+            Summary: new PaperSummary(
                 d.SubtotalAmount, d.DiscountAmount > 0m ? d.DiscountAmount : null,
                 d.TaxableAmount, d.TaxAmount, d.TotalAmount, null, ShowVat: tax.VatMode,
                 // ponytail (01-L3): pass non-taxable amount so the exempt row renders when > 0
                 NonTaxable: d.NonTaxableAmount > 0m ? d.NonTaxableAmount : null),
-            SignRoles: new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
+            SignRoles: new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: d.Notes,
             Watermark: copy
-                ? new Pdf.PaperWatermark("สำเนา", Pdf.PaperWatermarkVariant.Warning)
+                ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
                 : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.TaxInvoice, d.Status));
-        return Pdf.PaperDocumentPdf.Render(model);
+        return model;
     }
 
     public async Task<TaxInvoiceResendResult> ResendAsync(long id, CancellationToken ct)

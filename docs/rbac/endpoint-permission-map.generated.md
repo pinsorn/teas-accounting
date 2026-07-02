@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 4 |
 | AuthnOnly | 12 |
-| Perm | 232 |
-| Assertion | 5 |
+| Perm | 240 |
+| Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **279** |
+| **TOTAL** | **288** |
 
 ## Routes
 
@@ -81,6 +81,7 @@
 | POST | `/billing-notes/{id:long}/issue` | Perm | sales.billing_note.manage |
 | POST | `/billing-notes/{id:long}/mark-printed` | Perm | sales.billing_note.read |
 | POST | `/billing-notes/{id:long}/mark-settled` | Perm | sales.billing_note.manage |
+| GET | `/billing-notes/{id:long}/paper` | Perm | sales.billing_note.read |
 | GET | `/billing-notes/{id:long}/pdf` | Perm | sales.billing_note.read |
 | GET | `/branches/` | Perm | master.branch.manage |
 | POST | `/branches/` | Perm | master.branch.manage |
@@ -119,6 +120,7 @@
 | POST | `/delivery-orders/{id:long}/issue` | Perm | sales.delivery_order.manage |
 | POST | `/delivery-orders/{id:long}/mark-delivered` | Perm | sales.delivery_order.manage |
 | POST | `/delivery-orders/{id:long}/mark-printed` | Perm | sales.delivery_order.manage |
+| GET | `/delivery-orders/{id:long}/paper` | Perm | sales.delivery_order.manage |
 | GET | `/delivery-orders/{id:long}/pdf` | Perm | sales.delivery_order.manage |
 | GET | `/document-cross-refs/adjustment-note/{id:long}` | Perm | sales.credit_note.create |
 | GET | `/document-cross-refs/receipt/{id:long}` | Perm | sales.receipt.create |
@@ -147,6 +149,7 @@
 | GET | `/payment-vouchers/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/payment-vouchers/{id:long}/approve` | Perm | purchase.payment_voucher.approve |
 | POST | `/payment-vouchers/{id:long}/mark-printed` | Perm | purchase.payment_voucher.read |
+| GET | `/payment-vouchers/{id:long}/paper` | Perm | purchase.payment_voucher.read |
 | GET | `/payment-vouchers/{id:long}/pdf` | Perm | purchase.payment_voucher.read |
 | POST | `/payment-vouchers/{id:long}/post` | Perm | purchase.payment_voucher.post |
 | POST | `/payment-vouchers/{id:long}/vendor-invoice` | Perm | purchase.vendor_invoice.create |
@@ -182,6 +185,7 @@
 | POST | `/purchase-orders/{id:long}/close` | Perm | purchase.purchase_order.cancel |
 | POST | `/purchase-orders/{id:long}/mark-printed` | Perm | purchase.purchase_order.read |
 | POST | `/purchase-orders/{id:long}/mark-sent` | Perm | purchase.purchase_order.create |
+| GET | `/purchase-orders/{id:long}/paper` | Perm | purchase.purchase_order.read |
 | GET | `/purchase-orders/{id:long}/pdf` | Perm | purchase.purchase_order.read |
 | GET | `/quotations/` | Perm | sales.quotation.manage |
 | POST | `/quotations/` | Perm | sales.quotation.manage |
@@ -193,6 +197,7 @@
 | POST | `/quotations/{id:long}/cancel` | Perm | sales.quotation.manage |
 | POST | `/quotations/{id:long}/convert-to-so` | Perm | sales.quotation.manage |
 | POST | `/quotations/{id:long}/mark-printed` | Perm | sales.quotation.manage |
+| GET | `/quotations/{id:long}/paper` | Perm | sales.quotation.manage |
 | GET | `/quotations/{id:long}/pdf` | Perm | sales.quotation.manage |
 | POST | `/quotations/{id:long}/reject` | Perm | sales.quotation.manage |
 | POST | `/quotations/{id:long}/send` | Perm | sales.quotation.manage |
@@ -202,6 +207,7 @@
 | GET | `/receipts/{id:long}` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/receipts/{id:long}/mark-printed` | Perm | sales.receipt.read |
+| GET | `/receipts/{id:long}/paper` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/pdf` | Perm | sales.receipt.read |
 | POST | `/receipts/{id:long}/post` | Perm | sales.receipt.post |
 | POST | `/receipts/{id:long}/wht-cert` | Perm | sales.receipt.create |
@@ -228,6 +234,7 @@
 | GET | `/sales-orders/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/sales-orders/{id:long}/delivery-orders` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/{id:long}/mark-printed` | Perm | sales.sales_order.manage |
+| GET | `/sales-orders/{id:long}/paper` | Perm | sales.sales_order.manage |
 | GET | `/sales-orders/{id:long}/pdf` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/{id:long}/post` | Perm | sales.sales_order.manage |
 | GET | `/system/info` | AuthnOnly | — |
@@ -238,6 +245,7 @@
 | GET | `/tax-adjustment-notes/` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | POST | `/tax-adjustment-notes/` | Assertion | sales.credit_note.create / sales.debit_note.create |
 | GET | `/tax-adjustment-notes/{id:long}` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
+| GET | `/tax-adjustment-notes/{id:long}/paper` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | GET | `/tax-adjustment-notes/{id:long}/pdf` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | POST | `/tax-adjustment-notes/{id:long}/post` | Assertion | sales.credit_note.post / sales.debit_note.post |
 | GET | `/tax-filings` | Perm | tax.filing.read |
@@ -272,6 +280,7 @@
 | GET | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/tax-invoices/{id:long}/mark-printed` | Perm | sales.tax_invoice.read |
+| GET | `/tax-invoices/{id:long}/paper` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/pdf` | Perm | sales.tax_invoice.read |
 | POST | `/tax-invoices/{id:long}/post` | Perm | sales.tax_invoice.post |
 | POST | `/tax-invoices/{id:long}/resend` | Perm | sales.tax_invoice.post |

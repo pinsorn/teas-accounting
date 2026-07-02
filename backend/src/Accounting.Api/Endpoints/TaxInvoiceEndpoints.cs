@@ -64,6 +64,11 @@ public static class TaxInvoiceEndpoints
         })
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
 
+        // cont.121 — canonical paper DTO (JSON twin of /pdf) for the FE PaperDocument.
+        group.MapGet("/{id:long}/paper", async (long id, [FromQuery] bool? copy, ITaxInvoiceService service, CancellationToken ct) =>
+            Results.Ok(await service.BuildPaperAsync(id, ct, copy ?? false)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
+
         group.MapPost("/{id:long}/resend", async (long id, ITaxInvoiceService service, CancellationToken ct) =>
             Results.Ok(await service.ResendAsync(id, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoicePost);

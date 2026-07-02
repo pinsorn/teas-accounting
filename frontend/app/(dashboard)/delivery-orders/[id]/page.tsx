@@ -9,8 +9,8 @@ import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useDeliveryOrder, useDeliveryOrderAction, useCreateInvoiceFromDeliveryOrder, useCompanyProfile, useCustomer, useSystemInfo } from '@/lib/queries';
-import { PAPER_DOC, paperWatermark, companyToSeller, custInfo } from '@/lib/paper-doc-config';
+import { useDeliveryOrder, useDeliveryOrderAction, useCreateInvoiceFromDeliveryOrder, useCompanyProfile, usePaperDoc, useSystemInfo } from '@/lib/queries';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 
@@ -23,8 +23,11 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
   const q = useDeliveryOrder(doId);
   const act = useDeliveryOrderAction();
   const createInvoice = useCreateInvoiceFromDeliveryOrder();
+  // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
+  // print, incl. the combined ใบส่งของ-ใบกำกับภาษี title); the company profile
+  // stays ONLY as the logo source (not in the DTO).
   const company = useCompanyProfile();
-  const cust = useCustomer(q.data?.customerId ?? null);
+  const paper = usePaperDoc('delivery-orders', doId);
   // ม.86/4 — a non-VAT company issues no Tax Invoice, so hide the DO→TI action.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const d = q.data;
@@ -43,9 +46,7 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
     }
   }
 
-  if (!d) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
-
-  const cfg = PAPER_DOC['delivery-order'];
+  if (!d || !paper.data) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
 
   return (
     <>
@@ -87,26 +88,7 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
 
       <div className="detail-grid">
         <div className="paper-wrap">
-          <PaperDocument
-            // ม.86/4 #1 — a DO combined with a Tax Invoice must carry the ใบกำกับภาษี
-            // designation in its title (the PDF already did; screen now matches).
-            docType={d.isCombinedWithTi ? 'ใบส่งของ-ใบกำกับภาษี' : cfg.docType}
-            docTypeEn={d.isCombinedWithTi ? 'DELIVERY ORDER & TAX INVOICE' : cfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.deliveryOrderId}`}
-            issueDate={d.docDate}
-            seller={companyToSeller(company.data)}
-            customer={custInfo(d.customerName, cust.data)}
-            items={d.lines.map((l) => ({
-              description: l.descriptionTh,
-              quantity: l.quantity,
-              unit: l.uomText,
-              unitPrice: l.unitPrice,
-              amount: l.lineAmount,
-            }))}
-            summary={{ subtotal: d.subtotalAmount, vat: d.vatAmount, total: d.totalAmount }}
-            signRoles={cfg.signRoles}
-            watermark={paperWatermark('delivery-order', d.status)}
-          />
+          <PaperDocument {...paperDtoToProps(paper.data, { logo: company.data?.logoUrl })} />
         </div>
         <div className="detail-side">
           <DocumentChain type="delivery-order" id={doId} />

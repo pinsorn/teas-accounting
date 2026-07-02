@@ -11,9 +11,9 @@ import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
 import { ReceiptWhtCertSection } from '@/components/doc/ReceiptWhtCertSection';
-import { useReceipt, useCompanyProfile, usePostReceipt } from '@/lib/queries';
-import { formatTHB, formatTaxId } from '@/lib/utils';
-import { PAPER_DOC, paperWatermark, companyToSeller } from '@/lib/paper-doc-config';
+import { useReceipt, useCompanyProfile, usePaperDoc, usePostReceipt } from '@/lib/queries';
+import { formatTHB } from '@/lib/utils';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useHasScope } from '@/components/PermissionGate';
 import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
@@ -25,7 +25,10 @@ export default function ReceiptDetailPage() {
   const tw = useTranslations('rc.wht');
   const ta = useTranslations('approve');
   const { data: d, isLoading, isError } = useReceipt(id);
+  // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
+  // print); the company profile stays ONLY as the logo source (not in the DTO).
   const company = useCompanyProfile();
+  const paper = usePaperDoc('receipts', id);
   const post = usePostReceipt();
   const hasScope = useHasScope();
   const [isApproveAction, setIsApproveAction] = useState(false);
@@ -47,10 +50,8 @@ export default function ReceiptDetailPage() {
     }
   }
 
-  if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
-  if (isError || !d) return <p className="text-error">{tc('error')}</p>;
-
-  const cfg = PAPER_DOC.receipt;
+  if (isLoading || paper.isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
+  if (isError || !d || !paper.data) return <p className="text-error">{tc('error')}</p>;
 
   const extraMeta = (
     <>
@@ -129,44 +130,7 @@ export default function ReceiptDetailPage() {
       <div className="detail-grid">
         <div className="paper-wrap">
           <PaperDocument
-            docType={cfg.docType}
-            docTypeEn={cfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.receiptId}`}
-            issueDate={d.docDate}
-            seller={companyToSeller(company.data)}
-            customer={{
-              name: d.customerName,
-              taxId: d.customerTaxId ? formatTaxId(d.customerTaxId) : null,
-              branchCode: d.customerBranchCode,
-              address: d.customerAddress,
-            }}
-            items={(d.lines && d.lines.length > 0
-              ? d.lines.map((l) => ({
-                  description: l.descriptionTh,
-                  descriptionSub: l.tiDocNo ?? undefined,
-                  quantity: l.quantity,
-                  unit: l.uomText,
-                  unitPrice: l.unitPrice,
-                  amount: l.lineAmount,
-                }))
-              : d.appliedTo.map((a) => ({
-                  description: tr('appliedTiRef', { ref: a.tiDocNo ?? `#${a.taxInvoiceId}` }),
-                  descriptionSub: a.businessUnitCode ?? undefined,
-                  amount: a.appliedAmount,
-                })))}
-            // cont.119 — footer parity with the PDF (PaperFootPlan): total is the Grand
-            // (net = total − wht = cashReceived). showVat off when no VAT was paid so a
-            // non-VAT / all-exempt receipt shows a single Grand row (no "VAT 0.00").
-            summary={{
-              subtotal: d.subtotalAmount,
-              vat: d.vatAmount,
-              total: d.amount,
-              showVat: d.vatAmount > 0,
-              wht: d.whtAmount > 0 ? d.whtAmount : undefined,
-            }}
-            notes={d.displayNotes}
-            signRoles={cfg.signRoles}
-            watermark={paperWatermark('receipt', d.status)}
+            {...paperDtoToProps(paper.data, { logo: company.data?.logoUrl })}
             extraMetaBlock={extraMeta}
           />
         </div>

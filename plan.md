@@ -351,10 +351,14 @@ follow-ups below into the purchase work where they overlap.
    sign-off footer + filler rows. Both shared renderers → all doctypes. Follow-ups shipped same
    session: PO discount row (screen==print), non-VAT ShowVat on PO/PV, CN/DN cite in DTO, PO
    ThbOnly validator gap (the "FX PO" flag — closed at the trust boundary). CI green on PR #32.
-   - ☐ **canonical paper-DTO unification** (next session, §11 ASK first — new endpoints):
-     `GET /{doc}/{id}/paper` returns the canonical PaperDocModel (mappers already exist in each
-     BuildPdf); ~10 FE detail pages consume it instead of re-deriving from live master → the whole
-     screen-vs-print drift class dies permanently. + openapi.yaml delta for Sana.
+   - ☑ **canonical paper-DTO unification** (cont.121, 2026-07-03, Ham-approved) — 9 new
+     `GET /{doc}/{id}/paper?copy=` endpoints (PaperDocModel moved to Application; BuildPdfAsync
+     split verbatim into BuildPaperAsync+Render; TI/CN-DN snapshots + all parity invariants
+     preserved); 9 FE detail pages consume the DTO via `usePaperDoc`+`paperDtoToProps` (client
+     paper assembly deleted; status mutations invalidate the paper cache). openapi +9 paths
+     (151) + 8 schemas — Sana delta. Gates: build 0/0 · Api 540/0/8 · PaperEndpointTests 4/4 ×2
+     · tsc 0. Spec `docs/superpowers/specs/2026-07-02-canonical-paper-dto.md`. Residual: e2e
+     paper-parity spec (optional); BFF /purchase-orders openapi gap (flagged in yaml).
 
 ### Test depth — ☑ ALL DONE (stale list; reconciled 2026-06-12)
 All four exist in `Hardening/Sprint1HardeningTests.cs`: NumberSequence gapless+unique under

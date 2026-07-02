@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
@@ -71,6 +72,10 @@ public sealed class SalesChainPdfService(
         copy ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning) : statusWm;
 
     public async Task<byte[]> QuotationPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => PaperDocumentPdf.Render(await QuotationPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> QuotationPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var q = await db.Quotations.AsNoTracking().Include(x => x.Lines)
@@ -94,10 +99,13 @@ public sealed class SalesChainPdfService(
             ValidUntil: q.ValidUntilDate, ValidUntilLabel: cfg.ValidUntilLabel,
             Notes: notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.Quotation, q.Status.ToString())));
-        return PaperDocumentPdf.Render(model);
+        return model;
     }
 
     public async Task<byte[]> SalesOrderPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => PaperDocumentPdf.Render(await SalesOrderPaperAsync(id, ct, copy));
+
+    public async Task<PaperDocModel> SalesOrderPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var so = await db.SalesOrders.AsNoTracking().Include(x => x.Lines)
@@ -114,10 +122,13 @@ public sealed class SalesChainPdfService(
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: so.Notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.SalesOrder, so.Status.ToString())));
-        return PaperDocumentPdf.Render(model);
+        return model;
     }
 
     public async Task<byte[]> DeliveryOrderPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => PaperDocumentPdf.Render(await DeliveryOrderPaperAsync(id, ct, copy));
+
+    public async Task<PaperDocModel> DeliveryOrderPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         Auth();
         var dord = await db.DeliveryOrders.AsNoTracking().Include(x => x.Lines)
@@ -136,6 +147,6 @@ public sealed class SalesChainPdfService(
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: dord.Notes,
             Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.DeliveryOrder, dord.Status.ToString())));
-        return PaperDocumentPdf.Render(model);
+        return model;
     }
 }

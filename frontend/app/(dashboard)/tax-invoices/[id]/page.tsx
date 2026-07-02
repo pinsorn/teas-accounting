@@ -15,10 +15,9 @@ import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useTaxInvoice, useSystemInfo, usePostTaxInvoice } from '@/lib/queries';
+import { useTaxInvoice, useSystemInfo, usePostTaxInvoice, usePaperDoc } from '@/lib/queries';
 import { apiPost, downloadFile } from '@/lib/api';
-import { formatTaxId } from '@/lib/utils';
-import { PAPER_DOC, paperWatermark } from '@/lib/paper-doc-config';
+import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 
@@ -29,6 +28,10 @@ export default function TaxInvoiceDetailPage() {
   const tc = useTranslations('common');
   const ta = useTranslations('approve');
   const { data: d, isLoading, isError } = useTaxInvoice(id);
+  // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
+  // print; seller/customer stay the POSTED SNAPSHOT server-side, ม.86/4). The TI
+  // paper carries no logo today, so no extras.logo is passed.
+  const paper = usePaperDoc('tax-invoices', id);
   const { data: sys } = useSystemInfo();
   const post = usePostTaxInvoice();
   const [confirmPost, setConfirmPost] = useState(false);
@@ -41,8 +44,8 @@ export default function TaxInvoiceDetailPage() {
   }, []);
 
   if (!sys?.vatMode && sys !== undefined) return <NonVatGuard title={t('title')} />;
-  if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
-  if (isError || !d) return <p className="text-error">{tc('error')}</p>;
+  if (isLoading || paper.isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
+  if (isError || !d || !paper.data) return <p className="text-error">{tc('error')}</p>;
 
   async function resend() {
     try {
@@ -52,8 +55,6 @@ export default function TaxInvoiceDetailPage() {
       toast.error(tc('error'));
     }
   }
-
-  const cfg = PAPER_DOC['tax-invoice'];
 
   return (
     <>
@@ -143,47 +144,7 @@ export default function TaxInvoiceDetailPage() {
 
       <div className="detail-grid">
         <div className="paper-wrap">
-          <PaperDocument
-            docType={cfg.docType}
-            docTypeEn={cfg.docTypeEn}
-            docNo={d.docNo ?? `#${d.taxInvoiceId}`}
-            issueDate={d.docDate}
-            validUntil={d.dueDate ?? undefined}
-            validUntilLabel={cfg.validUntilLabel}
-            seller={{
-              name: d.supplierName,
-              taxId: formatTaxId(d.supplierTaxId),
-              branchCode: d.supplierBranchCode,
-              address: d.supplierAddress,
-            }}
-            customer={{
-              name: d.customerName,
-              taxId: d.customerTaxId ? formatTaxId(d.customerTaxId) : null,
-              branchCode: d.customerBranchCode,
-              address: d.customerAddress,
-            }}
-            items={d.lines.map((l) => ({
-              description: l.descriptionTh,
-              quantity: l.quantity,
-              unit: l.uomText,
-              unitPrice: l.unitPrice,
-              discountPercent: undefined,
-              amount: l.lineAmount,
-            }))}
-            summary={{
-              subtotal: d.subtotalAmount,
-              discount: d.discountAmount || undefined,
-              beforeVat: d.taxableAmount,
-              vat: d.taxAmount,
-              total: d.totalAmount,
-              // ม.86/4 #5 — mixed taxable/exempt TI shows the exempt remainder
-              // (the PDF already printed it; screen now matches).
-              nonTaxable: d.nonTaxableAmount > 0 ? d.nonTaxableAmount : undefined,
-            }}
-            notes={d.notes}
-            signRoles={cfg.signRoles}
-            watermark={paperWatermark('tax-invoice', d.status)}
-          />
+          <PaperDocument {...paperDtoToProps(paper.data)} />
         </div>
         <div className="detail-side">
           <DocumentChain type="tax-invoice" id={id} />

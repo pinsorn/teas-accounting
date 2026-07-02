@@ -88,6 +88,90 @@ export interface PaperDocumentProps {
   signatureImg?: string;
 }
 
+// ---------------------------------------------------------------------------
+// cont.121 — canonical paper DTO (spec docs/superpowers/specs/2026-07-02-
+// canonical-paper-dto.md). JSON returned by GET /{doc}/{id}/paper — the SAME
+// server-side composition the QuestPDF renderer consumes (C# PaperDocModel,
+// camelCase). Screen == print by construction. Distinct from the LOCKED
+// PaperDocumentProps above (which stays the render-prop contract); the
+// paperDtoToProps adapter in lib/paper-doc-config.ts bridges the two.
+// NOTE: PaperSeller.Logo/LogoSvg are [JsonIgnore]d server-side — the FE keeps
+// its own logo source (company profile), merged in by the adapter.
+
+export interface PaperSellerDto {
+  name: string;
+  taxId: string;
+  branchCode: string;
+  address: string;
+  phone?: string | null;
+  email?: string | null;
+}
+
+export interface PaperCustomerDto {
+  name: string;
+  taxId?: string | null;
+  branchCode?: string | null;
+  address?: string | null;
+  contact?: string | null;
+  phone?: string | null;
+}
+
+export interface PaperLineDto {
+  description: string;
+  descriptionSub?: string | null;
+  quantity?: number | null;
+  unit?: string | null;
+  unitPrice?: number | null;
+  discountPercent?: number | null;
+  amount: number;
+}
+
+export interface PaperSummaryDto {
+  subtotal: number;
+  discount?: number | null;
+  beforeVat?: number | null;
+  vat: number;
+  total: number;
+  vatRate?: number | null;
+  showVat: boolean;
+  wht?: number | null;
+  nonTaxable?: number | null;
+}
+
+export interface PaperSignRolesDto {
+  left: string;
+  right: string;
+  middle?: string | null;
+}
+
+export interface PaperPartyLabelDto {
+  th: string;
+  en: string;
+}
+
+export interface PaperWatermarkDto {
+  text: string;
+  variant: WatermarkVariant;
+}
+
+export interface PaperDocDto {
+  docType: string;
+  docTypeEn: string;
+  docNo: string;
+  issueDate: string; // "yyyy-MM-dd"
+  seller: PaperSellerDto;
+  customer: PaperCustomerDto;
+  items: PaperLineDto[];
+  summary: PaperSummaryDto;
+  signRoles: PaperSignRolesDto;
+  validUntil?: string | null; // "yyyy-MM-dd"
+  validUntilLabel?: string | null;
+  amountWords?: string | null;
+  notes?: string | null;
+  watermark?: PaperWatermarkDto | null;
+  partyLabel?: PaperPartyLabelDto | null;
+}
+
 // Plain numeric formatter (2 dp, th-TH) for paper line/total columns.
 export function fmtPaperNum(n: number | null | undefined, dp = 2): string {
   const v = typeof n === 'number' && Number.isFinite(n) ? n : 0;

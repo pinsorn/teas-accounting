@@ -75,6 +75,8 @@ public interface IPurchaseOrderService
     Task<IReadOnlyList<PurchaseOrderListItem>> ListAsync(string? status, long? vendorId, CancellationToken ct);
     Task<PurchaseOrderDetail?> GetDetailAsync(long id, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false);
+    // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /purchase-orders/{id}/paper.
+    Task<Pdf.PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false);
     Task<OutstandingPoReport> OutstandingAsync(DateOnly asOf, long? vendorId, bool overdueOnly, CancellationToken ct);
 }
 

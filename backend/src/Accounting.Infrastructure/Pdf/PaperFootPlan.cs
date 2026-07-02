@@ -1,3 +1,5 @@
+using Accounting.Application.Pdf;
+
 namespace Accounting.Infrastructure.Pdf;
 
 /// <summary>

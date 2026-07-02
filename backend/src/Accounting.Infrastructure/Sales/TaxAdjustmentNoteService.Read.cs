@@ -1,3 +1,4 @@
+using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
@@ -70,6 +71,10 @@ public sealed partial class TaxAdjustmentNoteService
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("note.not_found", $"Note {id} not found.");
@@ -88,18 +93,18 @@ public sealed partial class TaxAdjustmentNoteService
             ? Pdf.PaperDocKind.CreditNote : Pdf.PaperDocKind.DebitNote;
         var cfg = Pdf.PaperDoc.Config[kind];
 
-        var model = new Pdf.PaperDocModel(
+        var model = new PaperDocModel(
             titleTh, titleEn, d.DocNo ?? string.Empty, d.DocDate,
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage),
-            new Pdf.PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), null, d.CustomerAddress),
-            new[] { new Pdf.PaperLine(
+            new PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), null, d.CustomerAddress),
+            new[] { new PaperLine(
                 $"เหตุผล ({d.ReasonCode}): {d.Reason}", null, null, null, null, null, d.SubtotalAmount) },
-            new Pdf.PaperSummary(d.SubtotalAmount, null, null, d.TaxAmount, d.TotalAmount, Pdf.PaperDoc.VatPercent(d.TaxRate), ShowVat: vatMode),
-            new Pdf.PaperSignRoles(cfg.SignLeft, cfg.SignRight),
+            new PaperSummary(d.SubtotalAmount, null, null, d.TaxAmount, d.TotalAmount, Pdf.PaperDoc.VatPercent(d.TaxRate), ShowVat: vatMode),
+            new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: d.DisplayNotes,
             Watermark: copy
-                ? new Pdf.PaperWatermark("สำเนา", Pdf.PaperWatermarkVariant.Warning)
+                ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
                 : Pdf.PaperDoc.Watermark(kind, d.Status));
-        return Pdf.PaperDocumentPdf.Render(model);
+        return model;
     }
 }

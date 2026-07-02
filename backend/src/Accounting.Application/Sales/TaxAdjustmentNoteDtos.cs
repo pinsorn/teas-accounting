@@ -49,4 +49,6 @@ public interface ITaxAdjustmentNoteService
         int? businessUnitId = null, bool includeUnspecified = false);
     Task<AdjustmentNoteDetail?> GetDetailAsync(long noteId, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long noteId, CancellationToken ct, bool copy = false);
+    // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /tax-adjustment-notes/{id}/paper.
+    Task<Pdf.PaperDocModel> BuildPaperAsync(long noteId, CancellationToken ct, bool copy = false);
 }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using Accounting.Application.Pdf;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
