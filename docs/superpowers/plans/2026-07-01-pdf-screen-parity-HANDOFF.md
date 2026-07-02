@@ -54,3 +54,11 @@ There are **two independent renderers** of the "same" document that have drifted
 
 ## Verification gates before PR
 build 0/0 · new pure-logic unit tests 2× · `PurchasePdfTests` + any sales-PDF integration green on teas_test · FE `tsc` 0 · a manual screen-vs-PDF eyeball on one VAT+WHT doc, one non-VAT doc, and one receipt.
+
+---
+## RESUME (wake 00:40) — pending on branch fix/pdf-footer-sequence
+Committed: f25b9dc (receipt VAT/WHT footer + bilingual totals), logo+density, 0aefdad (Q/SO/DO/Invoice customer live-master).
+1. Integrate subagent 3b (SVG company logo via QuestPDF native `.Svg()` — verify build 0/0 + SVG render + tests, commit).
+2. Apply 3c wording/label fixes: PO/PV party box "ผู้ขาย/Vendor" (add PaperDocModel.PartyLabel + render in Meta); DO combined-TI title mirror on FE; TI exempt row on FE (types.ts+PaperFoot); PO sign roles + validUntil "กำหนดส่งมอบ" + EN title CAPS; PV EN title CAPS; WHT minus-sign unify. (PO discount-row = value drift, flag.)
+3. Header redesign (PaperDocumentPdf Head/Meta + mirror FE PaperHead/PaperMeta/paper.css): reduce inter-section gaps → give width to Company block; unify ALL detail text (company details, customer address, line-item descriptionSub) to ONE size = the "Subtotal" totals-label size; **company NAME + customer NAME keep their current (larger) size — do NOT shrink the names**; widen customer meta box, narrow date column (1.4:1 → ~1.8:0.7).
+Gates: build 0/0, tests green (TEAS_TEST_PG), FE tsc 0, one-page render. Then commit.

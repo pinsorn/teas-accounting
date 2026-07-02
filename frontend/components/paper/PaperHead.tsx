@@ -49,8 +49,10 @@ export function PaperHead({
         </div>
       </div>
       <div className="paper-title">
-        <div className="label-en">{docTypeEn}</div>
+        {/* Design review 2026-07-02 — Thai title is the focal point (largest, on
+            top); the EN name sits small beneath it; doc no clearly separated. */}
         <div className="label-th">{docType}</div>
+        <div className="label-en">{docTypeEn}</div>
         <div className="docno">{docNo || '—'}</div>
       </div>
     </div>
