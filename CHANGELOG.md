@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.2](https://github.com/pinsorn/teas-accounting/compare/v1.10.1...v1.10.2) (2026-07-03)
+
+
+### Bug Fixes
+
+* **auth:** carry returnTo through the login redirect so deep links resume after login ([#37](https://github.com/pinsorn/teas-accounting/issues/37)) ([9eea69d](https://github.com/pinsorn/teas-accounting/commit/9eea69d7ba51dadcf069ac7e22ee4f78fa273c74))
+
 ## [1.10.1](https://github.com/pinsorn/teas-accounting/compare/v1.10.0...v1.10.1) (2026-07-03)
 
 
