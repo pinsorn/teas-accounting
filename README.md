@@ -2,159 +2,131 @@
   <img src="frontend/public/teas-logo.png" alt="TEAS logo" width="160">
 </p>
 
-# TEAS — Thailand Enterprise Accounting System
+<h1 align="center">TEAS — Thailand Enterprise Accounting System</h1>
 
-แพลตฟอร์มบัญชี B2B + B2C สำหรับบริษัทไทย **ออกแบบให้ VAT-compliant** และยึดตามกฎกรมสรรพากร
-(ประมวลรัษฎากร) — รองรับสายเอกสารครบตั้งแต่ใบเสนอราคาจนถึงใบกำกับภาษีและใบเสร็จ, ภาษีหัก ณ ที่จ่าย
-(50 ทวิ), บัญชีแยกประเภท + รายงานการเงิน, **PDF แบบฟอร์มสรรพากรที่กรอกแล้วพร้อมพิมพ์**, เงินเดือน,
-และระบบ multi-tenant + RBAC
+<p align="center">
+  ระบบบัญชีที่เกิดมาเพื่อกฎหมายภาษีไทย — ไม่ใช่ระบบบัญชีทั่วไปที่เอามา "ปรับให้เข้ากับสรรพากร" ทีหลัง
+</p>
 
-> **Release v1.6.0** — ดู [Releases](https://github.com/pinsorn/teas-accounting/releases) สำหรับ
-> backend build (Windows x64 / Linux x64). ✨ ใหม่ใน v1.6: **ส่งออกไฟล์ "Format กลาง" (.txt) สำหรับ
-> โปรแกรม RD Prep** — **ภ.ง.ด.3 / ภ.ง.ด.53** (หัก ณ ที่จ่าย) + **ภ.พ.30** (VAT) นำเข้า RD Prep →
-> ได้ไฟล์ `.rdx` → อัปโหลดยื่น e-Filing (มีแผงคำแนะนำขั้นตอนถัดไปในหน้าจอ; layout ตรวจเทียบกับ importer
-> ของ RD Prep จริง) · **PDF งบการเงินประกอบการยื่น ภ.ง.ด.50** (งบดุล + งบกำไรขาดทุน — เอกสารประกอบ,
-> มิใช่งบที่ตรวจสอบโดยผู้สอบบัญชี). (v1.5: code-review hardening + in-process **MCP server** สำหรับ AI agent.)
->
-> Backend: **.NET 10** (ASP.NET Core Minimal APIs, EF Core 10) · DB: **PostgreSQL 16** ·
-> Frontend: **Next.js 15** (App Router, TypeScript, Tailwind, shadcn/ui)
+<p align="center">
+  <a href="https://github.com/pinsorn/teas-accounting/releases"><img src="https://img.shields.io/github/v/release/pinsorn/teas-accounting?label=release&color=orange" alt="release"></a>
+  <a href="https://github.com/pinsorn/teas-accounting/actions/workflows/ci.yml"><img src="https://github.com/pinsorn/teas-accounting/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0"></a>
+  <img src="https://img.shields.io/badge/.NET-10-512BD4" alt=".NET 10">
+  <img src="https://img.shields.io/badge/Next.js-15-black" alt="Next.js 15">
+  <img src="https://img.shields.io/badge/PostgreSQL-16-336791" alt="PostgreSQL 16">
+</p>
 
 ---
 
-## ความสามารถหลัก (Features)
+ทุกระบบบัญชีออกใบแจ้งหนี้ได้ แต่ธุรกิจไทยต้องการมากกว่านั้น: **ใบกำกับภาษีเต็มรูปครบ 8 ช่องตาม ม.86/4**
+เลขเอกสารเรียงลำดับห้ามขาดช่วง เอกสารที่ post แล้วห้ามแก้ หัก ณ ที่จ่ายพร้อม 50 ทวิ แบบ ภ.พ.30 / ภ.ง.ด.
+ที่กรอกเสร็จพร้อมยื่น และ audit trail ที่พร้อมให้สรรพากรตรวจได้ทุกเมื่อ
 
-- **สายเอกสารขาย** — ใบเสนอราคา → ใบสั่งขาย → ใบส่งของ → **ใบกำกับภาษี** → ใบเสร็จรับเงิน, พร้อม
-  ใบลดหนี้ / ใบเพิ่มหนี้ ใบกำกับภาษีเต็มรูปตาม ม.86/4 (ครบ 8 ช่อง, แสดง VAT แยก), เลขเอกสารเรียงลำดับ
-  ไม่ขาดช่วง (`MM-YYYY-PREFIX-NNNN`, ออกเลขตอน post) อัตรา VAT ต่อบรรทัด **คำนวณฝั่ง server** จาก
-  ค่าตั้งของบริษัท — ไม่เชื่อค่าจาก client
-- **ซื้อ + ภาษีหัก ณ ที่จ่าย** — ใบสั่งซื้อ → บันทึกซื้อ → ใบสำคัญจ่าย → หนังสือรับรองหัก ณ ที่จ่าย
-  (50 ทวิ), มี guard ต่อบรรทัด (ผู้ขายไม่จด VAT → 0%, รหัสยกเว้น/0% → 0%, อัตรามาตรฐานจากค่าตั้ง)
-- **PDF แบบฟอร์มสรรพากร** (กรอกแล้ว พร้อมพิมพ์) — ภ.พ.30; ภ.ง.ด.1 / 1ก / 3 / 53 / 54;
-  ภ.ง.ด.50 / 51 (ภาษีเงินได้นิติบุคคล); ภ.พ.01 / 09; ภ.พ.36 (reverse charge — คำนวณ + ลง JV อัตโนมัติ)
-- **ส่งออกไฟล์ยื่น e-Filing (Format กลาง .txt)** — ภ.ง.ด.3 / 53 + ภ.พ.30 สำหรับนำเข้าโปรแกรม **RD Prep**
-  → `.rdx` → อัปโหลดที่ efiling.rd.go.th (มีคำแนะนำขั้นตอนในหน้าจอ); + **PDF งบการเงินประกอบ ภ.ง.ด.50**
-  (งบดุล + งบกำไรขาดทุน, เอกสารประกอบ). หมายเหตุ: ภ.ง.ด.50 / 51 ยื่นผ่านฟอร์ม/เว็บ e-Filing (RD Prep ไม่รับนำเข้าไฟล์)
-- **เงินเดือน** — รอบจ่าย, สลิป, ภาษีเงินได้บุคคล + ประกันสังคม (ปกส.), ภ.ง.ด.1 / 1ก
-- **บัญชีแยกประเภท + รายงาน** — สมุดรายวัน, งบทดลอง, งบกำไรขาดทุน, งบดุล, สรุปภาษีรายเดือน,
-  สรุปยอดขาย, อายุหนี้เจ้าหนี้
-- **Multi-tenant + RBAC** — หนึ่ง deployment รองรับหลายบริษัทด้วย **PostgreSQL row-level security**;
-  ค่าตั้ง VAT ต่อบริษัท; บทบาท + สิทธิ์ละเอียดต่อบริษัท; super-admin สลับบริษัท; onboarding wizard
-- **Compliance** — เอกสารที่ post แล้วแก้ไม่ได้ (DB trigger ระดับ header + บรรทัด + app layer), audit trail แบบ append-only,
-  แก้ไขผ่านใบลดหนี้ — ยึดตามประมวลรัษฎากร + พ.ร.บ. การบัญชี
+TEAS สร้างข้อกำหนดพวกนี้ไว้ **ในตัว schema และ domain logic ตั้งแต่ต้น** — ไม่ใช่ checkbox ที่แปะทีหลัง:
+เอกสารที่ post แล้วถูกล็อกด้วย **database trigger** (ไม่ใช่แค่ปุ่มที่หายไปจากหน้าจอ), เลขเอกสารออกตอน post
+เท่านั้นและไม่ reuse, อัตรา VAT คำนวณ **ฝั่ง server จากค่าตั้งบริษัท** (ไม่เชื่อ client), และทุกการแก้ไข
+หลังบันทึกต้องเดินผ่านใบลดหนี้/ใบเพิ่มหนี้ตามครรลองของประมวลรัษฎากร
 
-### สถาปัตยกรรมโดยสรุป
-
-.NET 10 **Clean Architecture** (Domain → Application → Infrastructure → Api) + worker host;
-**PostgreSQL 16** พร้อม RLS ต่อ tenant; auth แบบ OAuth2 / JWT; EF Core migrations เป็น source of
-truth ของ schema ส่วน frontend Next.js ทำหน้าที่ **BFF proxy** ไป API — รายละเอียดเต็มอยู่ใน
-[as-built specification](docs/accounting-system-plan.md)
+> **v1.10** — **TEAS Connect เปิดประตูให้ AI**: agent อย่าง Claude ต่อเข้าระบบผ่าน **MCP** ได้ทั้ง
+> API key (Claude Code / Desktop) และ **OAuth 2.1 + PKCE** (Claude Mobile / native connectors) —
+> อ่านข้อมูล ร่างเอกสาร ดึง PDF ได้ภายใต้ scope ที่จำกัด (ร่างได้ แต่ **post เองไม่ได้** — อำนาจอนุมัติ
+> ยังอยู่กับมนุษย์เสมอ)
+> **v1.9** — **screen == print**: จอกับกระดาษใช้ข้อมูลก้อนเดียวกันผ่าน canonical paper DTO
+> (`GET /{doc}/{id}/paper`) + redesign เอกสารทั้งชุดให้สวย อ่านง่าย จบหน้าเดียว
 
 ---
 
-## รายการฟังก์ชันโดยละเอียด (สิ่งที่ระบบทำได้)
+## ระบบทำอะไรได้
 
-### ข้อมูลหลัก (Master data)
-- **บริษัท (multi-tenant):** สร้าง / แก้ไขบริษัท + profile (ที่อยู่จดทะเบียน, สาขา, โลโก้); ตั้งค่า
-  **การจด VAT, อัตรา, และโหมดยื่น ภ.พ.30 ต่อบริษัท** (เฉพาะ super-admin, ทุกการแก้ field ภาษีถูก audit)
-- **ลูกค้า & ผู้ขาย:** ระเบียนเต็ม — เลขประจำตัวผู้เสียภาษี, รหัสสาขา, สถานะ VAT, ธงต่างชาติ, บัญชี
-  ธนาคาร; รองรับทั้งบุคคลธรรมดาและนิติบุคคล
-- **สินค้า / บริการ:** รหัสภาษีซื้อ-ขาย default, ประเภทสินค้า (good / service / exempt), ธง
-  ซื้อได้ / ขายได้, ผูก business unit
-- **ข้อมูลอ้างอิง:** ผังบัญชี, หมวดค่าใช้จ่าย, ประเภทหัก ณ ที่จ่าย, prefix เลขเอกสาร, business units, รหัสภาษี
+**สายขายครบวงจร** — ใบเสนอราคา → ใบสั่งขาย → ใบส่งของ → ใบกำกับภาษี → ใบเสร็จรับเงิน พร้อม
+ใบลดหนี้/ใบเพิ่มหนี้อ้างใบกำกับเดิม, ใบวางบิล, แปลงเอกสารต่อสายอัตโนมัติ, cross-reference,
+print tracking, ตรวจเลขขาดช่วง และเส้นทาง **non-VAT เต็มรูปแบบ** สำหรับกิจการที่ไม่จด VAT
 
-### ขาย (Sales)
-- **สายเอกสาร:** ใบเสนอราคา → ใบสั่งขาย → ใบส่งของ → **ใบกำกับภาษี** → ใบเสร็จ — แต่ละใบ create /
-  edit / list / PDF + เปลี่ยนสถานะ (send, accept, issue, post); แปลงเอกสารใบหนึ่งเป็นใบถัดไปในสาย
-- **ใบกำกับภาษีเต็มรูป (ม.86/4):** ครบ 8 ช่อง, แสดง VAT แยก, เลขเรียงไม่ขาดช่วง ออกตอน post
-- **ใบลดหนี้ & ใบเพิ่มหนี้** (tax adjustment notes) อ้างใบกำกับที่ post แล้ว
-- **เส้นทาง non-VAT:** ใบวางบิล → ใบเสร็จ สำหรับบริษัทไม่จด VAT (ไม่มีใบกำกับภาษี ไม่มี VAT)
-- **VAT ฝั่ง server:** อัตรา VAT ต่อบรรทัด derive จากค่าตั้งบริษัท (มาตรฐาน / ยกเว้น / 0%) ไม่เชื่อ client
-- **cross-reference** เอกสาร, **print tracking**, และ **ตรวจเลขขาดช่วง**
+**สายซื้อ + หัก ณ ที่จ่าย** — ใบสั่งซื้อ → บันทึกใบกำกับภาษีซื้อ → ใบสำคัญจ่าย → **หนังสือรับรอง 50 ทวิ**
+คำนวณ WHT ต่อบรรทัดพร้อม guard (ผู้ขายไม่จด VAT → บังคับ 0%), รองรับผู้ขายต่างชาติครบทั้ง
+ม.70 → ภ.ง.ด.54 และ reverse charge ม.83/6 → ภ.พ.36 (คำนวณ + ลง JV ให้อัตโนมัติ), กระทั่งเคส
+"ผู้รับไม่ยอมให้หัก" (gross-up ออกภาษีแทนทั้งแบบครั้งเดียว/ตลอดไป) ก็คิดฐานภาษีให้ถูกต้อง
 
-### ซื้อ + ภาษีหัก ณ ที่จ่าย (Purchases & WHT)
-- **ใบสั่งซื้อ → บันทึกซื้อ → ใบสำคัญจ่าย** พร้อม create / approve / post + PDF
-- **ภาษีหัก ณ ที่จ่าย** คำนวณต่อบรรทัดพร้อม guard (ผู้ขายไม่จด VAT → 0%, ยกเว้น → 0%, อัตรามาตรฐาน
-  จากค่าตั้ง); ออก **หนังสือรับรอง 50 ทวิ** (ภ.ง.ด.3 / 53 / 54 ตามประเภทเงินได้) พร้อม PDF
-- **ผู้ขายต่างชาติ / reverse charge:** ม.70 → ภ.ง.ด.54, และ ม.83/6 → ภ.พ.36
+**เงินเดือน** — รอบจ่ายรายเดือน (draft → approve → post → paid), สลิป PDF รายคน/zip ทั้งรอบ,
+ภาษีเงินได้บุคคลธรรมดาแบบขั้นบันได + ลดหย่อน, ประกันสังคมพร้อมไฟล์นำส่ง สปส.1-10 (ทั้ง text
+e-Service และ PDF), ภ.ง.ด.1 / 1ก และ 50 ทวิรายพนักงาน
 
-### เงินเดือน (Payroll)
-- **พนักงาน** (master); **รอบจ่ายเงินเดือน** รายเดือน (create / approve / post); **สลิป** PDF รายคนหรือ zip
-- คำนวณ **ภาษีเงินได้บุคคล** + ลดหย่อน + **ประกันสังคม (ปกส.)**; ไฟล์นำส่ง สปส.
-- แบบหัก ณ ที่จ่าย: **ภ.ง.ด.1** (รายเดือน), **ภ.ง.ด.1ก** (รายปี), และ **50 ทวิ** รายพนักงาน
+**แบบภาษีพร้อมยื่น** — PDF ฟอร์มจริงของกรมสรรพากร กรอกเสร็จพร้อมพิมพ์:
+ภ.พ.30 · ภ.ง.ด.1 / 1ก / 3 / 53 / 54 · **ภ.ง.ด.50 / 51** (คำนวณ CIT ทั้ง SME ladder, ขาดทุนยกมา,
+งบฐานะ) · ภ.พ.01 / 09 · ภ.พ.36 — บวก **ไฟล์ "Format กลาง" (.txt) สำหรับ RD Prep**
+(ภ.ง.ด.3 / 53 + ภ.พ.30 → `.rdx` → อัปโหลด e-Filing) และ PDF งบการเงินประกอบการยื่น ภ.ง.ด.50
 
-### แบบยื่นภาษี (PDF กรอกแล้ว)
-- **VAT:** ภ.พ.30 (แบบแสดงรายการ); ภ.พ.36 (reverse charge — คำนวณ + ลง JV อัตโนมัติ)
-- **หัก ณ ที่จ่าย:** ภ.ง.ด.1 / 1ก / 3 / 53 / 54
-- **ภาษีเงินได้นิติบุคคล:** ภ.ง.ด.51 (ครึ่งปี) + ภ.ง.ด.50 (ปี) พร้อมการคำนวณ CIT
-- **จดทะเบียน VAT:** ภ.พ.01 / ภ.พ.09
+**บัญชีแยกประเภท + รายงาน** — ลง JV อัตโนมัติทุกการ post, สมุดรายวัน manual, เปิด/ปิดงวด,
+งบทดลอง, งบกำไรขาดทุน, งบดุล, **สรุปภาษีรายเดือนหน้าเดียว** (รายได้/VAT/WHT พร้อม drill-down),
+ทะเบียนภาษีซื้อ-ขาย, อายุหนี้เจ้าหนี้, WHT ค้างรับ
 
-### บัญชีแยกประเภท + รายงาน (GL & reports)
-- **ลงสมุดรายวันอัตโนมัติ** ตอน post; สมุดรายวันแบบ manual; **เปิด / ปิดงวดบัญชี**
-- รายงาน: **งบทดลอง, งบกำไรขาดทุน, งบดุล, สรุปภาษีรายเดือน, สรุปยอดขาย, อายุหนี้เจ้าหนี้,
-  ทะเบียนภาษีซื้อ / ขาย, ทะเบียน + อายุภาษีหัก ณ ที่จ่ายค้างรับ, ตรวจเลขขาดช่วง**
+**Multi-tenant + RBAC จริงจัง** — หลายบริษัทใน deployment เดียว แยกข้อมูลด้วย **PostgreSQL
+row-level security** (บังคับที่ DB ไม่ใช่แค่ WHERE clause), ค่าตั้ง VAT ต่อบริษัท, บทบาท + สิทธิ์
+ละเอียดต่อบริษัท (พิสูจน์ด้วย Cartesian test ทุก role × ทุก endpoint), super-admin สลับบริษัท,
+onboarding wizard
 
-### การจัดการ & สิทธิ์ (Admin & access)
-- **RBAC ต่อบริษัท:** บทบาท, สิทธิ์ละเอียด, ผูก user-role
-- **super-admin สลับบริษัท**; **onboarding wizard** ครั้งแรก
-- **External API** (`/api/v1`) พร้อม API key, idempotency, และผูก business unit ได้
-- **audit trail** ทุกการเปลี่ยนสถานะ; แนบไฟล์ (attachments) บนเอกสาร
-
-### แพลตฟอร์ม
-- แยก tenant ด้วย **PostgreSQL row-level security**
-- เวอร์ชันแสดงบน `GET /system/info` + footer ของ dashboard; UI **ไทย / อังกฤษ** (ไทยเป็นหลัก)
+**TEAS Connect (MCP + External API)** — AI agent ต่อผ่าน `/mcp` ด้วย API key หรือ OAuth 2.1
+(authorize → consent เลือกบริษัท → token พร้อม rotating refresh); REST `/api/v1` พร้อม API key +
+idempotency สำหรับ integration ทั่วไป; ทุก credential ถูกจำกัดด้วย scope ฝั่ง server และวิ่งผ่าน
+RLS + audit เหมือน user ปกติ
 
 ---
 
-## Tech stack
+## สถาปัตยกรรม
+
+```
+Next.js 15 (BFF proxy, ไทย/EN)  ──►  ASP.NET Core Minimal APIs (.NET 10, Clean Architecture)
+        │                                    │
+        │  cookie session → JWT              │  EF Core 10 migrations = source of truth
+        ▼                                    ▼
+   ผู้ใช้ / AI agent (MCP)            PostgreSQL 16 + RLS ต่อ tenant + immutability triggers
+```
+
+- **Domain → Application → Infrastructure → Api** + worker host — กฎธุรกิจอยู่ใน domain,
+  ฟอร์มสรรพากรอยู่ใน PDF filler engine (`/Rect`-driven, ฟอนต์ Sarabun ฝังในตัว)
+- เอกสารทุกใบ render จาก **canonical model ก้อนเดียว** ทั้งบนจอ (React) และบนกระดาษ (QuestPDF) —
+  หมดยุคหน้าจอโชว์อย่าง ปริ้นท์ออกมาอีกอย่าง
+- รายละเอียดเต็ม: [as-built specification](docs/accounting-system-plan.md) ·
+  [OpenAPI contract](docs/api/openapi.yaml)
 
 | ส่วน | เทคโนโลยี |
 |---|---|
-| Backend | C# / .NET 10, ASP.NET Core Minimal APIs, EF Core 10 (migrations) |
-| Database | PostgreSQL 16 ผ่าน Npgsql, row-level security |
-| Frontend | Next.js 15 (App Router) + React, TypeScript 5, Tailwind 3, shadcn/ui |
-| State / forms | React Query (TanStack) v5, React Hook Form + Zod |
-| Auth | OAuth2 + JWT bearer |
-| i18n | next-intl — ไทยเป็นหลัก, อังกฤษรอง |
-| Test | xUnit + FluentAssertions + Testcontainers (backend), Playwright (e2e) |
+| Backend | C# / .NET 10, ASP.NET Core Minimal APIs, EF Core 10 |
+| Database | PostgreSQL 16 (Npgsql), row-level security, DB triggers |
+| Frontend | Next.js 15 (App Router), TypeScript 5, Tailwind, shadcn/ui, React Query v5, RHF + Zod |
+| Auth | OAuth2 / JWT bearer · API keys · OAuth 2.1 + PKCE AS (OpenIddict) สำหรับ MCP |
+| i18n | next-intl — ไทยหลัก อังกฤษรอง |
+| Test | xUnit + FluentAssertions + Testcontainers · Playwright e2e |
 
 ---
 
-## เริ่มใช้งาน (Quick start)
+## เริ่มใช้งานใน 5 นาที
 
-### สิ่งที่ต้องมี
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Node.js 20+](https://nodejs.org) และ [pnpm](https://pnpm.io) (`corepack enable` ก็ได้)
-- [Docker](https://www.docker.com) (สำหรับ PostgreSQL) หรือ PostgreSQL 16 ที่ติดตั้งเอง
-
-### 1. Clone
+ต้องมี: [.NET 10 SDK](https://dotnet.microsoft.com/download) · [Node.js 20+](https://nodejs.org) +
+[pnpm](https://pnpm.io) · [Docker](https://www.docker.com) (หรือ PostgreSQL 16 ของคุณเอง)
 
 ```bash
+# 1) clone + database
 git clone https://github.com/pinsorn/teas-accounting.git
 cd teas-accounting
-```
+docker compose up -d          # PostgreSQL พร้อม database accounting_dev
 
-### 2. เปิด PostgreSQL
-
-```bash
-docker compose up -d
-```
-
-สร้าง database `accounting_dev` พร้อม credentials ที่ backend คาดไว้ (ดู
-`backend/src/Accounting.Api/appsettings.json`) ถ้าใช้ PostgreSQL ของตัวเอง ให้สร้าง database
-`accounting_dev` เปล่า ๆ ด้วย user `accounting` / password `accounting_dev_password` หรือแก้ค่า
-`ConnectionStrings:Postgres`
-
-### 3. รัน backend (port 5080)
-
-```bash
+# 2) backend (:5080) — migrate + seed อัตโนมัติตอนบูตครั้งแรก
 cd backend
 ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5080 \
   dotnet run --project src/Accounting.Api
+
+# 3) frontend (:3000)
+cd ../frontend
+pnpm install
+echo "BACKEND_API_URL=http://localhost:5080" > .env.local
+pnpm dev
 ```
 
-ตอนเริ่มครั้งแรก ระบบจะ apply EF migrations + SQL bootstrap scripts (RLS, triggers, seed data รวมถึง
-user admin + บริษัทตัวอย่าง) ให้อัตโนมัติ — ไม่ต้องสั่ง migrate เอง รอจน `http://localhost:5080/health`
-ตอบ `200`
+เปิด <http://localhost:3000> — ติดตั้งสะอาดจะพาเข้า **onboarding wizard** (สร้าง super-admin +
+บริษัทแรกเอง ไม่มี password ฝังมา) ถ้า seed demo ไว้ (`SeedDemoData=true`) login `admin` /
+`Admin@1234` ได้เลย พร้อมบริษัทตัวอย่างทั้งแบบจดและไม่จด VAT
 
 > Windows PowerShell:
 > ```powershell
@@ -163,31 +135,21 @@ user admin + บริษัทตัวอย่าง) ให้อัตโ�
 > dotnet run --project src\Accounting.Api
 > ```
 
-### 4. รัน frontend (port 3000)
+### ต่อ AI agent (TEAS Connect)
 
-```bash
-cd frontend
-pnpm install
-echo "BACKEND_API_URL=http://localhost:5080" > .env.local   # ชี้ BFF proxy ไป backend
-pnpm dev
-```
+ใน dashboard → **ตั้งค่า → API Keys** จะมี snippet พร้อมใช้ต่อ client:
 
-เปิด <http://localhost:3000>
+- **Claude Code** — `type: http` + header `X-Api-Key`
+- **Claude Desktop** — `mcp-remote` bridge ใน `claude_desktop_config.json`
+- **Claude Mobile / native connector** — วาง URL `/mcp` แล้วระบบพาเข้า OAuth: login → เลือกบริษัท →
+  อนุญาต เสร็จ
 
-### 5. Onboarding / เข้าสู่ระบบ
-
-**ติดตั้งสะอาด (default):** ไม่มี user มาให้ — หน้าแรกจะให้ **สร้าง super-admin** (username + password)
-เองก่อน แล้วต่อด้วยสร้างบริษัทแรกใน onboarding wizard
-
-**ถ้า seed demo ไว้** (`SeedDemoData=true` ผ่าน setup script): login `admin` / `Admin@1234` (บริษัท 1)
-ได้เลย พร้อมบริษัทตัวอย่าง **บริษัท 2** (จด VAT) / **บริษัท 3** (ไม่จด VAT) — super-admin สลับได้จากแถบบน
+scope ถูกล็อกฝั่ง server: อ่าน + สร้าง draft ได้ แต่ **post เอกสารไม่ได้** — เอกสารภาษีทุกใบยังต้องมี
+มนุษย์กดอนุมัติ
 
 ---
 
-## ทดสอบ (Tests)
-
-Backend integration tests ต้องมี PostgreSQL ชี้ผ่าน `TEAS_TEST_PG` (fixture จะ migrate + seed ให้)
-หรือปล่อยให้ Testcontainers สร้างเองถ้ามี Docker
+## ทดสอบ
 
 ```bash
 cd backend
@@ -196,7 +158,9 @@ TEAS_REPO_ROOT="$(git rev-parse --show-toplevel)" \
   dotnet test Accounting.sln
 ```
 
-Frontend type-check: `cd frontend && pnpm exec tsc --noEmit`
+Integration tests รันบน PostgreSQL จริง (fixture migrate + seed ให้เอง) — ครอบคลุมถึงระดับ
+"ยิงทุก role × ทุก endpoint แล้วเทียบกับ permission matrix" และ "ออกเลขเอกสารพร้อมกัน 25 ทาง
+ห้ามซ้ำห้ามขาดช่วง" Frontend: `pnpm exec tsc --noEmit` + Playwright e2e
 
 ---
 
@@ -205,55 +169,48 @@ Frontend type-check: `cd frontend && pnpm exec tsc --noEmit`
 ```
 backend/
   src/
-    Accounting.Domain          # entities, enums, domain rules
+    Accounting.Domain           # entities, กฎธุรกิจ, เครื่องคิดภาษี (PIT/CIT/WHT) แบบ pure
     Accounting.Application      # use cases, DTOs, abstractions
-    Accounting.Infrastructure   # EF Core, services, RD PDF fillers, SQL bootstrap scripts
-    Accounting.Api              # ASP.NET Core minimal-API host
+    Accounting.Infrastructure   # EF Core, services, RD PDF fillers, SQL bootstrap (RLS/triggers/seed)
+    Accounting.Api              # minimal-API host + MCP server + OAuth AS
     Accounting.Workers          # background jobs
   tests/                        # xUnit (Domain + Api integration) + TestKit
 frontend/
-  app/(dashboard)/*             # หน้าจอ  ·  components/, lib/, messages/{th,en}.json
-docs/                           # spec, OpenAPI, RD-form references, คู่มือผู้ใช้
+  app/(dashboard)/*             # หน้าจอ · components/ · lib/ · messages/{th,en}.json · e2e/
+docs/                           # as-built spec · OpenAPI · RD-form references · คู่มือผู้ใช้
 infra/db/schema.sql             # อ้างอิงเท่านั้น — EF migrations คือ source of truth
 ```
 
 ---
 
+## คู่มือผู้ใช้
+
+คู่มือภาษาไทยแบบ step-by-step มีภาพประกอบ ~46 บท ครอบคลุมตั้งแต่ติดตั้งจนถึงยื่นแบบ:
+[`docs/manual/`](docs/manual/) · [API reference](docs/manual/api/index.md)
+
+- **อ่านเลย (แนะนำ):** [`docs/manual/generated/print.html`](docs/manual/generated/print.html) —
+  รวมทุกบทหน้าเดียว เปิดในเบราว์เซอร์ / Print เป็น PDF ได้
+- **เปิดเป็นเว็บ:** `pip install mkdocs mkdocs-material && mkdocs serve -f docs/manual/mkdocs.yml`
+
+---
+
 ## เวอร์ชัน & release
 
-เวอร์ชันของ assembly มาจาก git tag โดย [MinVer](https://github.com/adamralph/minver) (`vX.Y.Z`)
-แสดงบน `GET /system/info` และ footer ของ dashboard [release-please](https://github.com/googleapis/release-please)
-แปลง conventional commits บน `main` เป็น release PR (bump เวอร์ชัน + changelog + tag) ส่วน CI
-(`.github/workflows/ci.yml`) build + test backend และ type-check frontend
+git tag → [MinVer](https://github.com/adamralph/minver) stamp ลง assembly → โชว์ที่
+`GET /system/info` + footer ของ dashboard · conventional commits บน `main` →
+[release-please](https://github.com/googleapis/release-please) เปิด release PR (changelog + tag)
+อัตโนมัติ · CI build + test backend และ type-check frontend ทุก PR
 
 ---
 
-## คู่มือผู้ใช้ (User manual)
+## Compliance
 
-คู่มือผู้ใช้แบบ step-by-step (ภาษาไทย มีภาพประกอบ) อยู่ใน [`docs/manual/`](docs/manual/) — ~46
-walkthrough ครอบคลุมการติดตั้ง / onboarding, ข้อมูลหลัก, สายขาย-ซื้อ, เงินเดือน, แบบยื่นภาษี และรายงาน
-พร้อม [API reference](docs/manual/api/index.md) แยกหมวด
-
-- **HTML หน้าเดียว (แนะนำ):** [`docs/manual/generated/print.html`](docs/manual/generated/print.html)
-  — รวมทุกบทไว้หน้าเดียว เปิดในเบราว์เซอร์ได้เลย (อยู่คู่กับโฟลเดอร์ `docs/manual/captures/`) ถ้าอยากได้ PDF
-  สั่ง Print / Save as PDF จากเบราว์เซอร์ได้
-- **เปิดเป็นเว็บ / markdown:** เริ่มที่ [`docs/manual/index.md`](docs/manual/index.md) หรือ:
-
-  ```bash
-  pip install mkdocs mkdocs-material
-  mkdocs serve -f docs/manual/mkdocs.yml   # เปิด http://localhost:8000
-  ```
-
----
-
-## เอกสาร & compliance
-
-- `docs/accounting-system-plan.md` — as-built specification (สถาปัตยกรรม, compliance, modules, schema)
-  `docs/api/openapi.yaml` — REST contract `CLAUDE.md` — engineering conventions
-- ระบบยึดกฎหมายภาษีไทย (VAT ตามประมวลรัษฎากร, หัก ณ ที่จ่าย, CIT, เงินเดือน PIT / ปกส.) เอกสารภาษีที่
-  post แล้วแก้ไม่ได้ แก้ไขผ่านใบลดหนี้ ข้อมูลตัวอย่างที่ seed ไว้ใช้สำหรับ dev เท่านั้น ไม่ใช่คำแนะนำทางภาษี
+ระบบยึดกฎหมายภาษีไทยเป็นข้อกำหนดตายตัว: ใบกำกับภาษีเต็มรูป ม.86/4, ความ immutable ของเอกสาร
+ที่ post แล้ว (พ.ร.บ. การบัญชี — เก็บ 5 ปี), เลขเอกสารต่อเนื่อง, VAT/WHT/CIT/PIT ตามประมวลรัษฎากร
+โค้ดจุดที่แตะกฎหมายมี test อ้าง มาตราไว้ในตัว (`// ม.86/4 #6`) — ทั้งนี้ TEAS เป็นซอฟต์แวร์
+ไม่ใช่ที่ปรึกษาภาษี ควรให้นักบัญชีของคุณตรวจก่อนยื่นจริงเสมอ
 
 ## License
 
-[GNU AGPL-3.0](LICENSE) — โอเพนซอร์สเต็มตัว นำไปใช้ / ต่อยอด / เปิดเป็นบริการได้เลย และยินดีต้อนรับทุกคน
-มาช่วยกันพัฒนา 🙌 ดู [`CONTRIBUTING.md`](CONTRIBUTING.md)
+[GNU AGPL-3.0](LICENSE) — โอเพนซอร์สเต็มตัว ใช้ / ต่อยอด / เปิดเป็นบริการได้
+ยินดีต้อนรับ contributor ทุกคน 🙌 ดู [`CONTRIBUTING.md`](CONTRIBUTING.md)
