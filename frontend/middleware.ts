@@ -25,11 +25,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Backend sets the access_token cookie on /auth/login success. Absence ⇒ redirect to /login.
+  // Backend sets the access_token cookie on /auth/login success. Absence ⇒ redirect to /login,
+  // carrying the ORIGINAL path+query as returnTo so a deep link (e.g. an agent's approvalUrl
+  // …/tax-invoices/36?action=approve) resumes after login instead of dead-ending at the
+  // dashboard. The login page only honours a same-origin relative returnTo (single leading
+  // '/', never '//' or a scheme) — see safeReturnTo() in app/(auth)/login/page.tsx.
   const token = request.cookies.get('access_token')?.value;
   if (!token) {
     const url = request.nextUrl.clone();
+    const returnTo = request.nextUrl.pathname + request.nextUrl.search;
     url.pathname = '/login';
+    url.search = '';
+    if (returnTo !== '/') url.searchParams.set('returnTo', returnTo);
     return NextResponse.redirect(url);
   }
 
