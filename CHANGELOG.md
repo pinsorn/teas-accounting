@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/pinsorn/teas-accounting/compare/v1.9.0...v1.10.0) (2026-07-03)
+
+
+### Features
+
+* **oauth:** TEAS Connect OAuth 2.1 Authorization Server — OpenIddict (Claude Mobile/Desktop native connectors) ([769434d](https://github.com/pinsorn/teas-accounting/commit/769434d89cd97ac1ff0c72e8f5e467b5fc165b67))
+
 ## [1.9.0](https://github.com/pinsorn/teas-accounting/compare/v1.8.5...v1.9.0) (2026-07-02)
 
 
