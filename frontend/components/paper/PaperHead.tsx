@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { resolveLogoUrl } from '@/lib/company-logo';
+import { resolveLogoUrl, FALLBACK_LOGO } from '@/lib/company-logo';
 import type { SellerInfo } from './types';
 
 // ม.86/4 #1+#2 — title + seller name/address/taxId/branch (compliance).
@@ -15,14 +15,17 @@ export function PaperHead({
   docNo: string;
 }) {
   const logoSrc = resolveLogoUrl(seller.logoUrl);
+  // A real uploaded logo renders clean (transparent bg, contained, wider box allowed); only
+  // the bundled fallback mascot keeps the branded peach square (Ham 2026-07-01).
+  const hasLogo = logoSrc !== FALLBACK_LOGO;
   return (
     <div className="paper-head">
       <div className="paper-company">
-        <div className="mark">
+        <div className={`mark ${hasLogo ? 'is-logo' : 'is-fallback'}`}>
           <Image
             src={logoSrc}
             alt=""
-            width={56}
+            width={hasLogo ? 180 : 56}
             height={56}
             aria-hidden
             unoptimized={logoSrc.startsWith('/api/proxy/')}
@@ -46,8 +49,10 @@ export function PaperHead({
         </div>
       </div>
       <div className="paper-title">
-        <div className="label-en">{docTypeEn}</div>
+        {/* Design review 2026-07-02 — Thai title is the focal point (largest, on
+            top); the EN name sits small beneath it; doc no clearly separated. */}
         <div className="label-th">{docType}</div>
+        <div className="label-en">{docTypeEn}</div>
         <div className="docno">{docNo || '—'}</div>
       </div>
     </div>

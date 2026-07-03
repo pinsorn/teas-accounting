@@ -1,5 +1,11 @@
 import type { CompanyProfile, CustomerDetail } from '@/lib/types';
-import type { SellerInfo, CustomerInfo, WatermarkVariant } from '@/components/paper/types';
+import type {
+  SellerInfo,
+  CustomerInfo,
+  WatermarkVariant,
+  PaperDocDto,
+  PaperDocumentProps,
+} from '@/components/paper/types';
 import { formatTaxId } from '@/lib/utils';
 
 // Sprint 13j-FE §C7 — per-doctype titles, sign roles, and watermark rules.
@@ -95,6 +101,48 @@ export function paperWatermark(
       // watermark (the CANCELLED override above still applies if voided).
       return undefined;
   }
+}
+
+// cont.121 — canonical paper DTO → PaperDocument props (spec 2026-07-02).
+// The DTO is the SAME server-side composition the QuestPDF renderer uses, so
+// the screen shows exactly what prints (watermark included — pages stop
+// computing paperWatermark themselves where they consume the DTO). The seller
+// DTO carries no logo ([JsonIgnore] server-side): each page keeps its existing
+// logo source (company profile logoUrl) and passes it via `extras.logo`;
+// PaperHead resolves it exactly as before (resolveLogoUrl → fallback mark).
+export function paperDtoToProps(
+  dto: PaperDocDto,
+  extras?: { logo?: string | null },
+): PaperDocumentProps {
+  return {
+    docType: dto.docType,
+    docTypeEn: dto.docTypeEn,
+    docNo: dto.docNo,
+    issueDate: dto.issueDate,
+    validUntil: dto.validUntil ?? undefined,
+    validUntilLabel: dto.validUntilLabel ?? undefined,
+    seller: {
+      name: dto.seller.name,
+      taxId: dto.seller.taxId,
+      branchCode: dto.seller.branchCode,
+      address: dto.seller.address,
+      logoUrl: extras?.logo ?? null,
+      phone: dto.seller.phone,
+      email: dto.seller.email,
+    },
+    customer: dto.customer,
+    partyLabel: dto.partyLabel ?? undefined,
+    items: dto.items,
+    summary: dto.summary,
+    amountWords: dto.amountWords ?? undefined,
+    notes: dto.notes,
+    signRoles: {
+      left: dto.signRoles.left,
+      middle: dto.signRoles.middle ?? undefined,
+      right: dto.signRoles.right,
+    },
+    watermark: dto.watermark ?? undefined,
+  };
 }
 
 // CompanyProfile → CUSTOMER block. Used by the Vendor Invoice paper (Flag-1),

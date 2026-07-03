@@ -1,3 +1,5 @@
+using Accounting.Application.Pdf;
+
 namespace Accounting.Application.Sales;
 
 /// <summary>Sprint 10 C3 — PDF for the Q/SO/DO chain. Quotation PDF carries
@@ -9,4 +11,10 @@ public interface ISalesChainPdfService
     Task<byte[]> QuotationPdfAsync(long id, CancellationToken ct, bool copy = false);
     Task<byte[]> SalesOrderPdfAsync(long id, CancellationToken ct, bool copy = false);
     Task<byte[]> DeliveryOrderPdfAsync(long id, CancellationToken ct, bool copy = false);
+
+    // cont.121 canonical paper DTO — the same composition the PDF renders,
+    // exposed as JSON for the FE PaperDocument (GET /{doc}/{id}/paper).
+    Task<PaperDocModel> QuotationPaperAsync(long id, CancellationToken ct, bool copy = false);
+    Task<PaperDocModel> SalesOrderPaperAsync(long id, CancellationToken ct, bool copy = false);
+    Task<PaperDocModel> DeliveryOrderPaperAsync(long id, CancellationToken ct, bool copy = false);
 }

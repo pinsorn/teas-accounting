@@ -27,7 +27,9 @@ export function PaperMeta({
         <div className="val" style={{ fontWeight: 700, marginBottom: 4 }}>
           {customer.name || '—'}
         </div>
-        <div className="val" style={{ fontSize: 14 }}>
+        {/* cont.119 — customer detail lines = 11px (unified detail size; the name above
+            keeps its normal size). */}
+        <div className="val" style={{ fontSize: 11 }}>
           {customer.address && (
             <>
               {customer.address}

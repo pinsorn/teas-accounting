@@ -1,3 +1,4 @@
+using Accounting.Application.Pdf;
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
@@ -187,6 +188,10 @@ public sealed partial class PaymentVoucherService
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
+        => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
+
+    // cont.121 canonical paper DTO — the exact mapping BuildPdfAsync used, exposed for GET /paper.
+    public async Task<PaperDocModel> BuildPaperAsync(long id, CancellationToken ct, bool copy = false)
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("pv.not_found", $"Payment Voucher {id} not found.");
@@ -208,25 +213,30 @@ public sealed partial class PaymentVoucherService
         if (d.SelfWithholdMode && d.WhtAmount > 0m)
             notes = $"{notes}\nออกภาษีหัก ณ ที่จ่ายให้เอง {d.WhtAmount:N2} บาท (นำส่งสรรพากรต่างหาก ไม่หักจากยอดจ่าย)";
 
-        var model = new Pdf.PaperDocModel(
+        var model = new PaperDocModel(
             DocType: "ใบสำคัญจ่าย",
-            DocTypeEn: "Payment Voucher",
+            DocTypeEn: "PAYMENT VOUCHER",   // cont.119 — ALL-CAPS like the FE + every other doctype
             DocNo: d.DocNo ?? "(ร่าง)",
             IssueDate: d.DocDate,
             Seller: seller,
-            Customer: new Pdf.PaperCustomer(
+            Customer: new PaperCustomer(
                 d.VendorName, Pdf.PaperFormat.TaxId(d.VendorTaxId), d.VendorBranchCode, d.VendorAddress),
-            Items: d.Lines.Select(l => new Pdf.PaperLine(
+            Items: d.Lines.Select(l => new PaperLine(
                 l.Description, null, null, null, null, null, l.Amount)).ToList(),
-            Summary: new Pdf.PaperSummary(
+            Summary: new PaperSummary(
                 Subtotal: d.SubtotalAmount, Discount: null, BeforeVat: d.SubtotalAmount,
-                Vat: d.VatAmount, Total: d.TotalPaid, VatRate: null, ShowVat: true,
+                // cont.120 — was hardcoded true; a non-VAT company's PV printed VAT rows
+                // the screen (system vatMode) never showed.
+                Vat: d.VatAmount, Total: d.TotalPaid, VatRate: null,
+                ShowVat: (await _taxCfg.GetAsync(ct)).VatMode,
                 Wht: !d.SelfWithholdMode && d.WhtAmount > 0m ? d.WhtAmount : null),
-            SignRoles: new Pdf.PaperSignRoles("ผู้จัดทำ", "ผู้รับเงิน", Middle: "ผู้อนุมัติ"),
+            SignRoles: new PaperSignRoles("ผู้จัดทำ", "ผู้รับเงิน", Middle: "ผู้อนุมัติ"),
             Notes: notes,
-            Watermark: new Pdf.PaperWatermark(
+            // cont.119 — mirror the FE payment-vouchers page party box (screen==print).
+            PartyLabel: new PaperPartyLabel("ผู้ขาย", "Vendor"),
+            Watermark: new PaperWatermark(
                 copy ? "สำเนา" : "ต้นฉบับ",
-                copy ? Pdf.PaperWatermarkVariant.Warning : Pdf.PaperWatermarkVariant.Success));
-        return Pdf.PaperDocumentPdf.Render(model);
+                copy ? PaperWatermarkVariant.Warning : PaperWatermarkVariant.Success));
+        return model;
     }
 }

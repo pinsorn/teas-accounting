@@ -157,6 +157,8 @@ public interface IReceiptService
         int? businessUnitId = null, bool includeUnspecified = false);
     Task<ReceiptDetail?> GetDetailAsync(long receiptId, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long receiptId, CancellationToken ct, bool copy = false);
+    // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /receipts/{id}/paper.
+    Task<Pdf.PaperDocModel> BuildPaperAsync(long receiptId, CancellationToken ct, bool copy = false);
     // Sprint 13j-FE — supply customer 50ทวิ number/date after posting.
     Task SetWhtCertAsync(long receiptId, string certNo, System.DateOnly? certDate, CancellationToken ct);
 

@@ -15,6 +15,14 @@ export function PaperSign({
   counterpartyName?: string;
   signatureImg?: string;
 }) {
+  // Design review 2026-07-02 — every box carries the SAME three lines (role,
+  // parenthesised name, date) in the standard Thai sign-off shape, so the
+  // columns stay symmetric; mirrors PaperDocumentPdf.SignBox. A box with no
+  // pre-known name (PV's middle ผู้อนุมัติ box) gets a 30-dot blank instead.
+  const DOTS = '.'.repeat(30);
+  const nameLine = (name?: string | null) => `( ${name || DOTS} )`;
+  const DATE_LINE = 'วันที่ ____ / ____ / ______';
+
   return (
     <div className="paper-sign">
       {/* Left = the issuer/seller (signRoles.left: ผู้ขาย / ผู้ส่งของ / ผู้ออก…) — that is
@@ -23,23 +31,25 @@ export function PaperSign({
         <div style={{ height: 50, display: 'grid', placeItems: 'center' }}>
           {signatureImg && <span className="sig">{signatureImg}</span>}
         </div>
-        <div className="role">{signRoles.left}</div>
-        <div className="sub">{sellerName}</div>
+        <div className="role">ลงชื่อ {signRoles.left}</div>
+        <div className="sub">{nameLine(sellerName)}</div>
+        <div className="sub">{DATE_LINE}</div>
       </div>
       {/* Optional middle box (ผู้อนุมัติ) — only rendered for documents that supply a
           middle role (Payment Voucher). Keeps the two-box layout otherwise. */}
       {signRoles.middle != null && (
         <div className="box">
           <div style={{ height: 50 }} />
-          <div className="role">{signRoles.middle}</div>
-          <div className="sub">วันที่ ___ / ___ / ______</div>
+          <div className="role">ลงชื่อ {signRoles.middle}</div>
+          <div className="sub">{nameLine(null)}</div>
+          <div className="sub">{DATE_LINE}</div>
         </div>
       )}
       <div className="box">
         <div style={{ height: 50 }} />
-        <div className="role">{signRoles.right}</div>
-        {counterpartyName && <div className="sub">{counterpartyName}</div>}
-        <div className="sub">วันที่ ___ / ___ / ______</div>
+        <div className="role">ลงชื่อ {signRoles.right}</div>
+        <div className="sub">{nameLine(counterpartyName)}</div>
+        <div className="sub">{DATE_LINE}</div>
       </div>
     </div>
   );

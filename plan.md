@@ -344,6 +344,21 @@ follow-ups below into the purchase work where they overlap.
    period gating) ☑ DONE — see "Test depth" below (all four shipped in `Sprint1HardeningTests`);
    TI immutability + GL balance proven via #3.
 3. ☑ **Runtime smoke** — full login→post-TI→GL→immutability verified end-to-end. (2026-05-16)
+4. ☑ **screen↔PDF parity + document redesign** (cont.120, 2026-07-02, branch `fix/pdf-footer-sequence`,
+   7 commits, awaiting push/PR) — receipt VAT/WHT footer + notes-in-DTO, logo raster/SVG clean render,
+   one-page density, Q/SO/DO/Invoice customer from live master, wording-parity audit fixes (PO/PV
+   party box, DO combined title, TI exempt row), full header/table/sign redesign with pinned Thai
+   sign-off footer + filler rows. Both shared renderers → all doctypes. Follow-ups shipped same
+   session: PO discount row (screen==print), non-VAT ShowVat on PO/PV, CN/DN cite in DTO, PO
+   ThbOnly validator gap (the "FX PO" flag — closed at the trust boundary). CI green on PR #32.
+   - ☑ **canonical paper-DTO unification** (cont.121, 2026-07-03, Ham-approved; RELEASED v1.9.0 + prod-deployed same session) — 9 new
+     `GET /{doc}/{id}/paper?copy=` endpoints (PaperDocModel moved to Application; BuildPdfAsync
+     split verbatim into BuildPaperAsync+Render; TI/CN-DN snapshots + all parity invariants
+     preserved); 9 FE detail pages consume the DTO via `usePaperDoc`+`paperDtoToProps` (client
+     paper assembly deleted; status mutations invalidate the paper cache). openapi +9 paths
+     (151) + 8 schemas — Sana delta. Gates: build 0/0 · Api 540/0/8 · PaperEndpointTests 4/4 ×2
+     · tsc 0. Spec `docs/superpowers/specs/2026-07-02-canonical-paper-dto.md`. Residual: e2e
+     paper-parity spec (optional); BFF /purchase-orders openapi gap (flagged in yaml).
 
 ### Test depth — ☑ ALL DONE (stale list; reconciled 2026-06-12)
 All four exist in `Hardening/Sprint1HardeningTests.cs`: NumberSequence gapless+unique under
