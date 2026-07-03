@@ -22,16 +22,28 @@ export const dynamic = 'force-dynamic';
 const BACKEND = process.env.BACKEND_API_URL ?? 'http://localhost:5080';
 
 async function forward(req: NextRequest) {
+  // Two credential schemes reach /mcp: X-Api-Key (static-key clients) or an OAuth Bearer
+  // token (native connectors — Claude Desktop/Mobile, Codex, Gemini). Forward whichever is
+  // present; the backend enforces the XOR (both → 400) and emits the RFC 9728
+  // WWW-Authenticate challenge on 401 so OAuth clients can discover the AS.
   const apiKey = req.headers.get('x-api-key');
-  if (!apiKey) {
+  const bearer = req.headers.get('authorization');
+  if (!apiKey && !bearer) {
     return NextResponse.json(
-      { error: { code: 'auth.missing_api_key', message: 'X-Api-Key header is required.' } },
-      { status: 401 },
+      { error: { code: 'auth.missing_api_key', message: 'X-Api-Key header or Bearer token is required.' } },
+      {
+        status: 401,
+        headers: {
+          // RFC 9728: point logged-out OAuth clients at the protected-resource metadata.
+          'www-authenticate': `Bearer resource_metadata="${(process.env.PUBLIC_BASE_URL ?? req.nextUrl.origin).replace(/\/$/, '')}/.well-known/oauth-protected-resource"`,
+        },
+      },
     );
   }
 
   const headers = new Headers();
-  headers.set('X-Api-Key', apiKey);
+  if (apiKey) headers.set('X-Api-Key', apiKey);
+  if (bearer) headers.set('authorization', bearer);
   // Streamable HTTP requires the client to accept both JSON and the SSE stream.
   headers.set('accept', req.headers.get('accept') ?? 'application/json, text/event-stream');
   const ct = req.headers.get('content-type');

@@ -17,6 +17,16 @@ type FormValues = {
   mfaCode?: string;
 };
 
+// Where to land after login. Honours a `returnTo` query param (the OAuth flow sends the browser to
+// /login?returnTo=<enc /oauth/consent?...> when the MCP client is not yet logged in) — but ONLY a
+// same-origin RELATIVE path (starts with a single '/', never '//' or a scheme) to prevent an
+// open redirect. Anything else (or no param) falls back to the dashboard.
+function safeReturnTo(): string {
+  if (typeof window === 'undefined') return '/';
+  const rt = new URLSearchParams(window.location.search).get('returnTo');
+  return rt && rt.startsWith('/') && !rt.startsWith('//') ? rt : '/';
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const t = useTranslations('login');
@@ -69,7 +79,8 @@ export default function LoginPage() {
         return;
       }
       // BFF route set the httpOnly access_token cookie; middleware will now allow /.
-      router.push('/');
+      // Honour a safe returnTo (the OAuth consent flow) — else the dashboard.
+      router.push(safeReturnTo());
       router.refresh();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : t('genericError');

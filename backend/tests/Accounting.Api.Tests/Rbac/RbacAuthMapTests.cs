@@ -43,6 +43,11 @@ public sealed class RbacAuthMapTests
         "GET /documents/purchase-chain",
         "GET /me",
         "GET /me/permissions",
+        // OAuth 2.1 consent "accept" (POST /oauth/authorize). Authn-only by design: any logged-in user
+        // may authorize an MCP client for THEIR OWN company — there is no permission to "consent". The
+        // handler validates the chosen company against the user's memberships + the BFF enforces
+        // antiforgery/Origin; OpenIddict re-validates client_id/redirect_uri/PKCE. Not perm-gated.
+        "POST /oauth/authorize",
         "GET /periods/{year:int}/{month:int}/status",
         "GET /system/info",
         // First-run setup: RequireAuthorization at the policy, super-admin enforced in the handler

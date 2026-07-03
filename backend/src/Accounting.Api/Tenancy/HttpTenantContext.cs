@@ -41,10 +41,11 @@ public sealed class HttpTenantContext : ITenantContext
     public long? ApiKeyId => Authed
         && long.TryParse(User!.FindFirst(TenantClaims.ApiKeyId)?.Value, out var k) ? k : null;
 
-    // M4a — the key name stamped on agent-created drafts (CreatedViaApiKeyName).
-    public string? ApiKeyName => Authed && ApiKeyId is not null
-        ? User!.FindFirst(TenantClaims.ApiKeyName)?.Value
-        : null;
+    // M4a — the actor name stamped on agent-created drafts (CreatedViaApiKeyName) + the E5
+    // own-drafts filter. Set by the X-Api-Key handler (the key name) AND the OAuth token
+    // (actor "oauth:&lt;user&gt;") — NOT gated on ApiKeyId, since an OAuth principal has an actor
+    // name but no api_key_id. Human JWT callers carry no such claim → null (unchanged).
+    public string? ApiKeyName => Authed ? User!.FindFirst(TenantClaims.ApiKeyName)?.Value : null;
 
     public int? ApiKeyDefaultBusinessUnitId => Authed
         && int.TryParse(User!.FindFirst(TenantClaims.DefaultBusinessUnit)?.Value, out var b) ? b : null;

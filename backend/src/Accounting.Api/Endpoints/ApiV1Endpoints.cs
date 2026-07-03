@@ -20,6 +20,10 @@ public static class ApiV1Endpoints
 {
     public const string ApiKeyOnlyPolicy = "ApiKeyOnly";
 
+    /// <summary>MCP OAuth (2026-07-01) — the /mcp MOUNT policy: authenticated via ApiKey OR the
+    /// OpenIddict OAuth Bearer (per-tool scopes are enforced separately by mcpperm:*).</summary>
+    public const string McpAuthPolicy = "McpAuth";
+
     /// <summary>M1 (MCP) — named rate-limit policy applied to the whole /api/v1
     /// group, partitioned per API key (see Program.cs AddRateLimiter).</summary>
     public const string PerApiKeyRateLimitPolicy = "per-api-key";
