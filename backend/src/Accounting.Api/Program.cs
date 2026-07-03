@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.RateLimiting;
 using Accounting.Api;
@@ -105,6 +106,10 @@ var mcpResource = $"{(builder.Configuration["App:BaseUrl"] ?? "http://localhost:
 builder.Services.AddOpenIddict()
     .AddServer(o =>
     {
+        // Issuer = the PUBLIC origin, not the request host: the backend sits behind the Next
+        // passthrough (prod Host=127.0.0.1:5180), so host-derived discovery URLs would advertise
+        // an unreachable endpoint to every OAuth client. Caught by the local E2E via :3000.
+        o.SetIssuer(new Uri((builder.Configuration["App:BaseUrl"] ?? "http://localhost:3000").TrimEnd('/') + "/"));
         o.SetAuthorizationEndpointUris("oauth/authorize")
          .SetTokenEndpointUris("oauth/token")
          .SetConfigurationEndpointUris(".well-known/openid-configuration",
@@ -117,9 +122,26 @@ builder.Services.AddOpenIddict()
         o.SetRefreshTokenLifetime(TimeSpan.FromHours(8));   // ~1 workday absolute
         o.UseReferenceRefreshTokens();                      // reference refresh → family revocation
         o.SetRefreshTokenReuseLeeway(TimeSpan.Zero);        // strict reuse detection (no replay window)
-        // ponytail: ephemeral DEV keys — Ham installs persistent X509 signing+encryption certs
-        // (SetSigningCertificate/SetEncryptionCertificate) before prod deploy (P5 deploy gate).
-        o.AddEphemeralEncryptionKey().AddEphemeralSigningKey();
+        // Persistent X509 certs when configured (prod — tokens must survive API restarts);
+        // ephemeral keys otherwise (dev/test). Prod without certs = hard fail, never silent ephemeral.
+        var signPfx = builder.Configuration["Oauth:SigningCertPath"];
+        var encPfx = builder.Configuration["Oauth:EncryptionCertPath"];
+        var pfxPass = builder.Configuration["Oauth:CertPassword"];
+        if (!string.IsNullOrEmpty(signPfx) && !string.IsNullOrEmpty(encPfx))
+        {
+            o.AddSigningCertificate(X509CertificateLoader.LoadPkcs12FromFile(signPfx, pfxPass));
+            o.AddEncryptionCertificate(X509CertificateLoader.LoadPkcs12FromFile(encPfx, pfxPass));
+        }
+        else if (builder.Environment.IsProduction())
+        {
+            throw new InvalidOperationException(
+                "Oauth:SigningCertPath/EncryptionCertPath are required in Production — " +
+                "ephemeral OAuth keys would invalidate all tokens on every restart.");
+        }
+        else
+        {
+            o.AddEphemeralEncryptionKey().AddEphemeralSigningKey();
+        }
         o.UseAspNetCore()
          .EnableAuthorizationEndpointPassthrough()          // /oauth/authorize handled by our endpoint
          // Token endpoint is NOT passed through: OpenIddict auto-issues the access token from the

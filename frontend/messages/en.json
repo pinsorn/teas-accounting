@@ -1464,7 +1464,7 @@
     "mcpHeaderLabel": "Authentication header",
     "mcpConfigLabel": "Claude Code (CLI or .mcp.json)",
     "mcpDesktopLabel": "Claude Desktop (claude_desktop_config.json — via mcp-remote)",
-    "mcpMobileNote": "Claude Mobile / in-app Custom Connector: requires OAuth — not yet supported with an API key (in development).",
+    "mcpMobileNote": "Claude Mobile / in-app Custom Connector: uses OAuth — no API key needed. See the \"Native connector\" section below (paste the MCP Endpoint URL, then log in and pick a company).",
     "mcpScopeNote": "MCP key scope: read + create draft only (cannot Post directly). The AI agent drafts documents and returns a link for you to review and approve.",
     "nativeTitle": "Native connector (Claude Desktop/Mobile · Codex · Gemini)",
     "nativeIntro": "Connect via OAuth — just the URL below, no API key needed. You'll sign in to TEAS and pick a company before authorizing.",

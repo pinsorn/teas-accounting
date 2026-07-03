@@ -17,8 +17,10 @@ public sealed class OpenIddictSeeder(IServiceProvider services) : IHostedService
     public const string McpClientId = "teas-mcp";
 
     // Loopback callback for local/dev + the integration round-trip. Real per-client redirect URIs
-    // (Claude / Codex / Gemini) are added at deploy time (docs/mcp-oauth-deploy-gates.md).
-    private static readonly string[] RedirectUris = ["http://localhost:8765/callback"];
+    // (Claude / Codex / Gemini) are supplied via config `Oauth:RedirectUris` (env
+    // Oauth__RedirectUris__N) and unioned in — re-asserted each startup, so adding a client's
+    // callback is a config change + restart, not a redeploy (docs/mcp-oauth-deploy-gates.md).
+    private static readonly string[] DefaultRedirectUris = ["http://localhost:8765/callback"];
 
     public async Task StartAsync(CancellationToken ct)
     {
@@ -56,7 +58,10 @@ public sealed class OpenIddictSeeder(IServiceProvider services) : IHostedService
             },
             Requirements = { Requirements.Features.ProofKeyForCodeExchange },
         };
-        foreach (var uri in RedirectUris) descriptor.RedirectUris.Add(new Uri(uri));
+        var configured = scope.ServiceProvider.GetRequiredService<IConfiguration>()
+            .GetSection("Oauth:RedirectUris").Get<string[]>() ?? [];
+        foreach (var uri in DefaultRedirectUris.Union(configured, StringComparer.OrdinalIgnoreCase))
+            descriptor.RedirectUris.Add(new Uri(uri));
         // Grant ONLY the fixed MCP scope set (server-authoritative — clients can never add *.post).
         foreach (var s in McpScopes.All) descriptor.Permissions.Add(Permissions.Prefixes.Scope + s);
         // Permit the client to target the MCP resource (RFC 8707) — else invalid_request on `resource`.

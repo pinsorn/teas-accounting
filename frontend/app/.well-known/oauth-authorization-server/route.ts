@@ -32,5 +32,10 @@ export async function GET(req: NextRequest) {
     const v = upstream.headers.get(h);
     if (v) respHeaders.set(h, v);
   }
-  return new NextResponse(upstream.body, { status: upstream.status, headers: respHeaders });
+  // OpenIddict resolves endpoint URLs from the request host it sees = the INTERNAL backend
+  // origin (prod: 127.0.0.1:5180) — unreachable for OAuth clients. Rewrite to the public origin
+  // (PUBLIC_BASE_URL in prod; the request origin covers dev :3000).
+  const publicOrigin = (process.env.PUBLIC_BASE_URL ?? req.nextUrl.origin).replace(/\/$/, '');
+  const body = (await upstream.text()).replaceAll(BACKEND.replace(/\/$/, ''), publicOrigin);
+  return new NextResponse(body, { status: upstream.status, headers: respHeaders });
 }

@@ -1464,7 +1464,7 @@
     "mcpHeaderLabel": "Header การยืนยันตัวตน",
     "mcpConfigLabel": "Claude Code (CLI หรือ .mcp.json)",
     "mcpDesktopLabel": "Claude Desktop (claude_desktop_config.json — ผ่าน mcp-remote)",
-    "mcpMobileNote": "Claude Mobile / ตัวเชื่อมต่อในแอป (Custom Connector): ต้องใช้ OAuth — ยังไม่รองรับด้วย API key (อยู่ระหว่างพัฒนา)",
+    "mcpMobileNote": "Claude Mobile / ตัวเชื่อมต่อในแอป (Custom Connector): ใช้ OAuth — ไม่ต้องใช้ API key ดูวิธีตั้งค่าที่ส่วน \"ตัวเชื่อมต่อ Native\" ด้านล่าง (วาง MCP Endpoint URL แล้วเข้าสู่ระบบ + เลือกบริษัท)",
     "mcpScopeNote": "สิทธิ์ของ MCP key: อ่านข้อมูล + สร้างร่างเอกสารเท่านั้น (ไม่สามารถ Post ได้) — AI agent สร้างร่าง จากนั้นส่งลิงก์ให้คุณอนุมัติ & Post เอง",
     "nativeTitle": "ตัวเชื่อมต่อ Native (Claude Desktop/Mobile · Codex · Gemini)",
     "nativeIntro": "เชื่อมต่อผ่าน OAuth — ใช้แค่ URL ด้านล่าง ไม่ต้องสร้าง API key ระบบจะให้คุณเข้าสู่ระบบ TEAS และเลือกบริษัทก่อนอนุญาต",

@@ -32,5 +32,8 @@ export async function GET(req: NextRequest) {
     const v = upstream.headers.get(h);
     if (v) respHeaders.set(h, v);
   }
-  return new NextResponse(upstream.body, { status: upstream.status, headers: respHeaders });
+  // Same internal-host rewrite as the oauth-authorization-server sibling (see comment there).
+  const publicOrigin = (process.env.PUBLIC_BASE_URL ?? req.nextUrl.origin).replace(/\/$/, '');
+  const body = (await upstream.text()).replaceAll(BACKEND.replace(/\/$/, ''), publicOrigin);
+  return new NextResponse(body, { status: upstream.status, headers: respHeaders });
 }
