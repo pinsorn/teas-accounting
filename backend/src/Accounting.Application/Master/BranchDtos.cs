@@ -17,6 +17,16 @@ public sealed class CreateBranchValidator : AbstractValidator<CreateBranchReques
     }
 }
 
+// H3 (2026-07-04 review) — mirrors CreateBranchValidator's NameTh rule (minus BranchCode,
+// which UpdateBranchRequest doesn't carry — the code is immutable after create).
+public sealed class UpdateBranchValidator : AbstractValidator<UpdateBranchRequest>
+{
+    public UpdateBranchValidator()
+    {
+        RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
+    }
+}
+
 public interface IBranchService
 {
     Task<int> CreateAsync(CreateBranchRequest req, CancellationToken ct);

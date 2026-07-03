@@ -95,3 +95,30 @@ public sealed class CreateCustomerValidator : AbstractValidator<CreateCustomerRe
         });
     }
 }
+
+// H3 (2026-07-04 review) — mirrors CreateCustomerValidator's rules (minus CustomerCode,
+// which UpdateCustomerRequest doesn't carry — the code is immutable after create).
+public sealed class UpdateCustomerValidator : AbstractValidator<UpdateCustomerRequest>
+{
+    public UpdateCustomerValidator()
+    {
+        RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
+        RuleFor(x => x.NameEn).MaximumLength(255);
+        RuleFor(x => x.TaxId)
+            .Must(t => string.IsNullOrEmpty(t) || ThaiTaxId.TryParse(t, out _))
+            .WithMessage("Invalid Thai Tax ID (13 digits + checksum).");
+        RuleFor(x => x.BranchCode)
+            .Must(b => string.IsNullOrEmpty(b) || BranchCode.TryParse(b, out _))
+            .WithMessage("BranchCode must be exactly 5 digits.");
+        RuleFor(x => x.CreditLimit).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.PaymentTermDays).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.DefaultCurrency).NotEmpty().Length(3);
+
+        // ม.86/4 #3: VAT-registered customer requires Tax ID + branch_code.
+        When(x => x.VatRegistered, () =>
+        {
+            RuleFor(x => x.TaxId).NotEmpty().WithMessage("VAT-registered customers require Tax ID (ม.86/4 #3).");
+            RuleFor(x => x.BranchCode).NotEmpty().WithMessage("VAT-registered customers require branch_code (ม.86/4 #3).");
+        });
+    }
+}

@@ -36,8 +36,14 @@ public static class MasterEndpoints
             if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
             return Results.Created($"/branches/{await svc.CreateAsync(req, ct)}", null);
         });
-        g.MapPut("/{id:int}", async (int id, [FromBody] UpdateBranchRequest req, IBranchService svc, CancellationToken ct)
-            => { await svc.UpdateAsync(id, req, ct); return Results.NoContent(); });
+        g.MapPut("/{id:int}", async (int id, [FromBody] UpdateBranchRequest req,
+            IValidator<UpdateBranchRequest> v, IBranchService svc, CancellationToken ct) =>
+        {
+            var val = await v.ValidateAsync(req, ct);
+            if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
+            await svc.UpdateAsync(id, req, ct);
+            return Results.NoContent();
+        });
         g.MapGet("/", async (IBranchService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
     }
 
@@ -54,8 +60,14 @@ public static class MasterEndpoints
             if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
             return Results.Created($"/vendors/{await svc.CreateAsync(req, ct)}", null);
         });
-        g.MapPut("/{id:long}", async (long id, [FromBody] UpdateVendorRequest req, IVendorService svc, CancellationToken ct)
-            => { await svc.UpdateAsync(id, req, ct); return Results.NoContent(); });
+        g.MapPut("/{id:long}", async (long id, [FromBody] UpdateVendorRequest req,
+            IValidator<UpdateVendorRequest> v, IVendorService svc, CancellationToken ct) =>
+        {
+            var val = await v.ValidateAsync(req, ct);
+            if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
+            await svc.UpdateAsync(id, req, ct);
+            return Results.NoContent();
+        });
         // Optional query params MUST be nullable — minimal-API binder rejects a
         // param-less call before the handler body if they're non-nullable
         // (runtime-gotchas §2). Frontend selectors call /vendors with no page.
@@ -79,8 +91,14 @@ public static class MasterEndpoints
             if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
             return Results.Created($"/accounts/{await svc.CreateAsync(req, ct)}", null);
         });
-        g.MapPut("/{id:long}", async (long id, [FromBody] UpdateAccountRequest req, IChartOfAccountService svc, CancellationToken ct)
-            => { await svc.UpdateAsync(id, req, ct); return Results.NoContent(); });
+        g.MapPut("/{id:long}", async (long id, [FromBody] UpdateAccountRequest req,
+            IValidator<UpdateAccountRequest> v, IChartOfAccountService svc, CancellationToken ct) =>
+        {
+            var val = await v.ValidateAsync(req, ct);
+            if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
+            await svc.UpdateAsync(id, req, ct);
+            return Results.NoContent();
+        });
         g.MapGet("/", async ([FromQuery] AccountType? type, [FromQuery] bool activeOnly,
             IChartOfAccountService svc, CancellationToken ct)
             => Results.Ok(await svc.ListAsync(type, activeOnly, ct)));

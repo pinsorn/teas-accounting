@@ -33,9 +33,14 @@ public static class CustomerEndpoints
         group.MapPut("/{id:long}", async (
             long id,
             [FromBody] UpdateCustomerRequest req,
+            IValidator<UpdateCustomerRequest> validator,
             ICustomerService service,
             CancellationToken ct) =>
         {
+            var validation = await validator.ValidateAsync(req, ct);
+            if (!validation.IsValid)
+                return Results.ValidationProblem(validation.ToDictionary());
+
             await service.UpdateAsync(id, req, ct);
             return Results.NoContent();
         }).RequireAuthorization(managePol);
