@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.1](https://github.com/pinsorn/teas-accounting/compare/v1.10.0...v1.10.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **etax:** remove inert e-Tax buttons from TI detail; XML endpoint requires POSTED ([#36](https://github.com/pinsorn/teas-accounting/issues/36)) ([e743ed3](https://github.com/pinsorn/teas-accounting/commit/e743ed3c34f95504067bb90bd4cf4e8269271c95))
+* **ui:** agent approve banner — CTA right-aligned, duplicate action button hidden ([#34](https://github.com/pinsorn/teas-accounting/issues/34)) ([5c4fd9d](https://github.com/pinsorn/teas-accounting/commit/5c4fd9d8f3bc248a584d852ebc1e7640e882af64))
+
 ## [1.10.0](https://github.com/pinsorn/teas-accounting/compare/v1.9.0...v1.10.0) (2026-07-03)
 
 
