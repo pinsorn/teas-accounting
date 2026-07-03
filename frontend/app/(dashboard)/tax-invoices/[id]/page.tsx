@@ -95,10 +95,12 @@ export default function TaxInvoiceDetailPage() {
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (
-        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
-          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
-          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
-          <div className="mt-3">
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <div>
+            <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+            <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          </div>
+          <div className="shrink-0">
             {hasScope('sales.tax_invoice.post') ? (
               <button
                 data-testid="ti-approve-cta"
@@ -127,7 +129,8 @@ export default function TaxInvoiceDetailPage() {
           // A TI created from an Invoice lands as Draft (no number yet). Posting
           // assigns the sequential number + fires e-Tax (§4.3/§4.4) — guarded by
           // PostConfirmDialog so the user reviews buyer tax fields first (ม.86/4 #3).
-          d.status === 'Draft' ? (
+          // Hidden while the ?action=approve banner is up — one post CTA at a time.
+          d.status === 'Draft' && !isApproveAction ? (
             <PermissionGate scope="sales.tax_invoice.post">
               <button
                 data-testid="ti-post-action"

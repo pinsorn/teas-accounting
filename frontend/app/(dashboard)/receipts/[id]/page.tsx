@@ -83,10 +83,12 @@ export default function ReceiptDetailPage() {
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (
-        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
-          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
-          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
-          <div className="mt-3">
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <div>
+            <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+            <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          </div>
+          <div className="shrink-0">
             {hasScope('sales.receipt.post') ? (
               <button
                 data-testid="rc-approve-cta"
@@ -114,7 +116,8 @@ export default function ReceiptDetailPage() {
         actions={
           // B8 — a human-saved Draft receipt must be postable via normal
           // navigation, not only the agent ?action=approve deep-link.
-          d.status === 'Draft' && hasScope('sales.receipt.post') ? (
+          // Hidden while the ?action=approve banner is up — one post CTA at a time.
+          d.status === 'Draft' && !isApproveAction && hasScope('sales.receipt.post') ? (
             <button
               data-testid="rc-post-action"
               className="btn btn-primary btn-sm"
