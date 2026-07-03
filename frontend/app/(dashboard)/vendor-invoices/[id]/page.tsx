@@ -70,7 +70,8 @@ export default function VendorInvoiceDetailPage() {
         subtitle={d.docNo ?? undefined}
         actions={
           <div className="flex gap-2">
-            {isDraft && (
+            {/* Hidden while the ?action=approve banner is up — one post CTA at a time. */}
+            {isDraft && !isApproveAction && (
               <PermissionGate scope="purchase.vendor_invoice.post">
                 <button data-testid="vi-post" className="btn btn-primary btn-sm"
                   disabled={post.isPending}
@@ -124,10 +125,12 @@ export default function VendorInvoiceDetailPage() {
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (
-        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
-          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
-          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
-          <div className="mt-3">
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <div>
+            <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+            <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          </div>
+          <div className="shrink-0">
             {hasScope('purchase.vendor_invoice.post') ? (
               <button
                 data-testid="vi-approve-cta"

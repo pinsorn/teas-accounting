@@ -97,10 +97,12 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (
-        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
-          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
-          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
-          <div className="mt-3">
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <div>
+            <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+            <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          </div>
+          <div className="shrink-0">
             {hasScope('sales.quotation.send') ? (
               <button
                 data-testid="q-approve-cta"
@@ -133,9 +135,12 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
                 <Link data-testid="q-edit" href={`/quotations/${qid}/edit`} className="btn btn-secondary btn-sm gap-1">
                   <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
                 </Link>
-                <button data-testid="q-send" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('send')}>
-                  {t('send')}
-                </button>
+                {/* Hidden while the ?action=approve banner is up — one send CTA at a time. */}
+                {!isApproveAction && (
+                  <button data-testid="q-send" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('send')}>
+                    {t('send')}
+                  </button>
+                )}
                 <button data-testid="q-delete" className="btn btn-danger btn-sm gap-1" disabled={del.isPending} onClick={deleteDraft}>
                   <Trash2 className="h-4 w-4" aria-hidden /> {tc('delete')}
                 </button>

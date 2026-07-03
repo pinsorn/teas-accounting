@@ -68,10 +68,12 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (
-        <div className="mb-4 rounded-lg border border-warning bg-warning/10 p-4">
-          <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
-          <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
-          <div className="mt-3">
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <div>
+            <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+            <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          </div>
+          <div className="shrink-0">
             {hasScope('purchase.purchase_order.approve') ? (
               <button
                 data-testid="po-approve-cta"
@@ -101,7 +103,8 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           code={d.businessUnitCode}
           name={d.businessUnitName}
         />
-        {d.status === 'Draft' && (
+        {/* Hidden while the ?action=approve banner is up — one approve CTA at a time. */}
+        {d.status === 'Draft' && !isApproveAction && (
           <PermissionGate scope="purchase.purchase_order.approve">
             <button data-testid="po-approve" className="btn btn-success btn-sm"
               disabled={act.isPending} onClick={() => run('approve')}>{t('approve')}</button>
