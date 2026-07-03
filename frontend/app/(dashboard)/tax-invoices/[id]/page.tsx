@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { FileCode, Send, ReceiptText } from 'lucide-react';
+import { ReceiptText } from 'lucide-react';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -16,7 +16,6 @@ import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
 import { useTaxInvoice, useSystemInfo, usePostTaxInvoice, usePaperDoc } from '@/lib/queries';
-import { apiPost, downloadFile } from '@/lib/api';
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
@@ -47,15 +46,6 @@ export default function TaxInvoiceDetailPage() {
   if (isLoading || paper.isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
   if (isError || !d || !paper.data) return <p className="text-error">{tc('error')}</p>;
 
-  async function resend() {
-    try {
-      const r = await apiPost<{ sent: boolean; message: string }>(`tax-invoices/${id}/resend`);
-      toast[r.sent ? 'success' : 'info'](r.message);
-    } catch {
-      toast.error(tc('error'));
-    }
-  }
-
   return (
     <>
       <PageHeader
@@ -73,17 +63,12 @@ export default function TaxInvoiceDetailPage() {
               </Link>
             )}
             <PrintMenu docType="tax-invoices" id={id} fiscal />
-            {/* Sprint 8.5 — e-Tax is VAT-registered only (ม.3 อัฏฐ). Hide for non-VAT. */}
-            {sys?.vatMode && (
-              <>
-                <button className="btn btn-ghost btn-sm gap-1" onClick={() => downloadFile(`tax-invoices/${id}/xml`, `tax-invoice-${id}.xml`)}>
-                  <FileCode className="h-4 w-4" aria-hidden /> {t('downloadXml')}
-                </button>
-                <button className="btn btn-ghost btn-sm gap-1" onClick={resend}>
-                  <Send className="h-4 w-4" aria-hidden /> {t('resend')}
-                </button>
-              </>
-            )}
+            {/* e-Tax XML download + resend-email buttons REMOVED while the e-Tax
+                pipeline is inert Phase-1 scaffolding (signer inert, mock RD client) —
+                they rendered on every status incl. Draft and the resend button was a
+                permanent no-op. Re-add when e-Tax goes live, gated on
+                sys.etaxEnabled (surface ETax:Enabled via /system/info) AND
+                d.status === 'Posted'. See plan.md "e-Tax UI tech debt". */}
           </>
         }
       />

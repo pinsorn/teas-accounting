@@ -101,8 +101,19 @@ public sealed partial class TaxInvoiceService
             t.CreatedViaApiKeyName);
     }
 
-    public Task<string> BuildXmlAsync(long id, CancellationToken ct) =>
-        Task.FromResult(_etaxXml.BuildTaxInvoiceXml(id, ct));
+    public async Task<string> BuildXmlAsync(long id, CancellationToken ct)
+    {
+        // e-Tax XML exists only for a POSTED Tax Invoice (ม.86/4 — the XML carries the
+        // assigned doc number + tax point). A draft would emit "DRAFT" as <cbc:ID>.
+        // Same trust-boundary guard as ResendAsync; the FE button is also hidden while
+        // the e-Tax pipeline is inert (plan.md tech debt).
+        var ti = await _db.TaxInvoices.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TaxInvoiceId == id, ct)
+            ?? throw new DomainException("ti.not_found", $"Tax Invoice {id} not found.");
+        if (ti.Status != DocumentStatus.Posted)
+            throw new DomainException("ti.not_posted", "e-Tax XML is only available for a POSTED Tax Invoice.");
+        return _etaxXml.BuildTaxInvoiceXml(id, ct);
+    }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
         => Pdf.PaperDocumentPdf.Render(await BuildPaperAsync(id, ct, copy));
