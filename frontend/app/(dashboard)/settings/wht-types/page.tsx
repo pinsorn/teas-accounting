@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Pencil, Percent } from 'lucide-react';
+import { errorToToast } from '@/lib/api/errors';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DataTable } from '@/components/ui/DataTable';
@@ -100,7 +101,7 @@ export default function WhtTypesSettingsPage() {
                 <button className="btn btn-ghost btn-xs text-error"
                   onClick={async () => {
                     try { await deactivate.mutateAsync(w.whtTypeId); toast.success(t('deactivate')); }
-                    catch { toast.error(tc('error')); }
+                    catch (e) { toast.error(errorToToast(e)); }
                   }}>
                   {t('deactivate')}
                 </button>
@@ -109,7 +110,7 @@ export default function WhtTypesSettingsPage() {
                   data-testid="row-restore"
                   onClick={async () => {
                     try { await reactivate.mutateAsync(w.whtTypeId); toast.success(tc('restore')); }
-                    catch { toast.error(tc('error')); }
+                    catch (e) { toast.error(errorToToast(e)); }
                   }}>
                   ↺ {tc('restore')}
                 </button>

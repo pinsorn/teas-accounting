@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Lock, AlertTriangle, Pencil } from 'lucide-react';
+import { errorToToast } from '@/lib/api/errors';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import {
@@ -275,8 +276,8 @@ function EditCompanyInfo({ profile }: { profile: CompanyProfile }) {
     try {
       const list = await apiGet<CompanyDto[]>('companies');
       company = list.find((c) => c.companyId === profile.companyId) ?? null;
-    } catch {
-      toast.error(tc('error'));
+    } catch (e) {
+      toast.error(errorToToast(e));
       return;
     }
     setF({

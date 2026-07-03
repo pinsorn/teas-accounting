@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { errorToToast } from '@/lib/api/errors';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { DateInput } from '@/components/ui/DateInput';
@@ -107,7 +108,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
       });
       toast.success(tc('draftSaved'));
       return res.note_id;
-    } catch { toast.error(tc('error')); return null; }
+    } catch (e) { toast.error(errorToToast(e)); return null; }
   }
 
   if (!vatMode) return <NonVatGuard title={isCredit ? t('cnTitle') : t('dnTitle')} />;
@@ -259,7 +260,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
         onConfirm={async () => {
           if (!confirm) return;
           try { await post.mutateAsync(confirm.id); toast.success(tc('posted')); router.push(`${basePath}/${confirm.id}`); }
-          catch { toast.error(tc('error')); }
+          catch (e) { toast.error(errorToToast(e)); }
           finally { setConfirm(null); }
         }}
       />

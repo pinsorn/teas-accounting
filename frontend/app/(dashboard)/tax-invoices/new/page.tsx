@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { errorToToast } from '@/lib/api/errors';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
@@ -144,8 +145,8 @@ export default function CreateTaxInvoicePage() {
       });
       toast.success(tc('draftSaved'));
       return res.tax_invoice_id;
-    } catch {
-      toast.error(tc('error'));
+    } catch (e) {
+      toast.error(errorToToast(e));
       return null;
     }
   }
@@ -305,8 +306,8 @@ export default function CreateTaxInvoicePage() {
             await post.mutateAsync(confirm.id);
             toast.success(tc('posted'));
             router.push(`/tax-invoices/${confirm.id}`);
-          } catch {
-            toast.error(tc('error'));
+          } catch (e) {
+            toast.error(errorToToast(e));
           } finally {
             setConfirm(null);
           }
