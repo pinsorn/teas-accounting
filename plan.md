@@ -35,6 +35,15 @@ These landed after the RBAC sprint and are DONE; listed here only so they are no
 
 - ☐ **e-Tax live RD submission** — only Phase-1 scaffolding exists (XAdES signer inert, `MockRdEfilingClient`
   fake-ACK, no auto-submit cron). GATED until Ham orders — see the e-Tax section + `docs/superpowers/plans/etax-xades-production-plan.md`.
+  - **e-Tax UI tech debt (cont.122, 2026-07-03, Ham "disable ไปก่อน"):** the TI-detail "ดาวน์โหลด XML" +
+    "ส่งอีเมลอีกครั้ง" buttons were REMOVED from the FE (they showed on every status incl. Draft, gated only
+    on `sys.vatMode` since the repo baseline; resend was a permanent no-op while `ETax:Enabled=false`) and
+    `BuildXmlAsync` now rejects non-Posted (`ti.not_posted` — a draft used to emit `<cbc:ID>DRAFT</cbc:ID>`).
+    **When e-Tax goes live, restore properly:** (1) surface `ETax:Enabled` via `/system/info` → FE gates on
+    `sys.etaxEnabled && d.status === 'Posted'`; (2) re-add both buttons (i18n keys `ti.detail.downloadXml`/
+    `resend` kept); (3) add a confirm dialog before the resend (it emails the customer + cc `csemail@rd.go.th`
+    — must never be one accidental click); (4) the `POST /tax-invoices/{id}/resend` + `GET …/xml` endpoints
+    stay as-is (already status-guarded server-side).
 - ☑ **RD Prep "Format กลาง" text exporters (WHT + VAT)** — `.txt` → RD Prep → `.rdx` → upload e-Filing.
   - ☑ **WHT** ภ.ง.ด.53 (full) + ภ.ง.ด.3 (address blank) — SHIPPED cont.82.1 (`WhtBatchFormat`, `/tax-filings/pnd{53,3}/batch-file`).
   - ☑ **ภ.พ.30 (VAT return)** — cont.104, 2026-06-21 (`Pp30BatchFormat`, `/tax-filings/pnd30/batch-file` + FE). Layout verified vs
