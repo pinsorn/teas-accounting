@@ -37,7 +37,7 @@ public sealed class TaxFilingService(
         // all input VAT treated "direct" → no shared apportionment this sprint.
         var vi = await db.VendorInvoices
             .Where(v => v.Status == DocumentStatus.Posted
-                     && v.VatClaimPeriod == period && v.VatAmount > 0m)
+                     && v.VatClaimPeriod == period && v.VatAmount > 0m && v.HasInputVat)
             .Select(v => new { v.SubtotalAmount, v.VatAmount })
             .ToListAsync(ct);
         var purchaseTaxableSub = vi.Sum(x => x.SubtotalAmount);
@@ -74,7 +74,12 @@ public sealed class TaxFilingService(
                 sharedInputVat, ratio.ClaimRatio, claimable),
             InputVatTotal:  inputVatTotal,
             NetVatPayable:    net > 0m ? net : 0m,
-            CreditCarryForward: net < 0m ? -net : 0m);
+            // H10 fix (review 2026-07-04): this field feeds box 10 (ยกมา, PRIOR period's
+            // carried credit). There is no prior-period carry tracking yet (Phase 1), so it
+            // must be 0 — NOT this period's own credit (-net), which the PDF filler
+            // (Pnd30FormFiller.Fill: line12 = (carry>line8?carry-line8:0)+line9) would then
+            // double-count into box 12 alongside box 9's identical current-period credit.
+            CreditCarryForward: 0m);
 
         var company = await db.Companies
             .Where(c => c.CompanyId == tenant.CompanyId)
@@ -140,7 +145,7 @@ public sealed class TaxFilingService(
     {
         var rows = await db.VendorInvoices
             .Where(v => v.Status == DocumentStatus.Posted
-                     && v.VatClaimPeriod == period && v.VatAmount > 0m)
+                     && v.VatClaimPeriod == period && v.VatAmount > 0m && v.HasInputVat)
             .OrderBy(v => v.VendorTaxInvoiceDate).ThenBy(v => v.VendorTaxInvoiceNo)
             .Select(v => new InputVatRegisterRow(
                 v.VendorTaxInvoiceDate, v.VendorTaxInvoiceNo, v.VendorName, v.VendorTaxId,
