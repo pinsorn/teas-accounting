@@ -1,5 +1,7 @@
+using Accounting.Application.Abstractions;
 using Accounting.Infrastructure;
 using Accounting.Workers.Jobs;
+using Accounting.Workers.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +19,15 @@ var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((ctx, services) =>
     {
         services.AddInfrastructure(ctx.Configuration);
+
+        // H2 (review 2026-07-04) — Workers has no HTTP request to bind ITenantContext from
+        // (Api registers HttpTenantContext; this host never did, so the DbContext's tenant
+        // filter silently no-op'd for every job). Register the mutable WorkerTenantContext
+        // AND map ITenantContext to the SAME scoped instance — the DbContext constructor-
+        // injects the interface, so both must resolve to one shared object per scope for a
+        // per-company CompanyId mutation to actually reach the query filter.
+        services.AddScoped<WorkerTenantContext>();
+        services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<WorkerTenantContext>());
 
         services.AddQuartz(q =>
         {

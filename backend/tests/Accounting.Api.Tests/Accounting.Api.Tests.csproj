@@ -6,6 +6,12 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Accounting.Api\Accounting.Api.csproj" />
+    <!-- H2 test only — aliased because both Api and Workers have top-level-statement Program.cs,
+         and an unaliased reference makes the global `Program` type ambiguous for the existing
+         WebApplicationFactory{Program} usages (McpServerSmokeTests/RbacApiFactory). -->
+    <ProjectReference Include="..\..\src\Accounting.Workers\Accounting.Workers.csproj">
+      <Aliases>Workers</Aliases>
+    </ProjectReference>
     <ProjectReference Include="..\Accounting.TestKit\Accounting.TestKit.csproj" />
   </ItemGroup>
   <ItemGroup>
