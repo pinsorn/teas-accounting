@@ -193,6 +193,10 @@ pnpm dev
 | Claude Desktop | `mcp-remote` bridge ใน `claude_desktop_config.json` |
 | Claude Mobile / native connector | วาง URL `/mcp` แล้วดำเนินการตาม OAuth flow (เข้าสู่ระบบ → เลือกบริษัท → อนุญาต) |
 
+**หมายเหตุ MCP Connector:** เมื่อใช้ OAuth flow (Claude Mobile / native connector) ให้ใช้ OAuth Client ID ที่ลงทะเบียนไว้แล้ว **`teas-mcp`** 
+(public client, no secret, PKCE) ในตัวแปร connector; automatic dynamic client registration ไม่เปิดใช้งาน — รองรับ hosted claude.ai/Desktop connector เท่านั้น 
+(Claude Code CLI loopback ยังไม่รองรับ)
+
 ## การทดสอบ
 
 ชุดทดสอบ integration ของ backend ทำงานบน PostgreSQL จริง โดยกำหนดผ่านตัวแปรแวดล้อม `TEAS_TEST_PG`
@@ -244,6 +248,18 @@ infra/db/schema.sql             # สำหรับอ้างอิงเท�
 conventional commits บน branch `main` จะถูก [release-please](https://github.com/googleapis/release-please)
 รวบรวมเป็น release pull request (พร้อม changelog และ tag) ส่วน CI ทำการ build และทดสอบ backend
 พร้อม type-check frontend ในทุก pull request
+
+## Security & compliance hardening (2026-07-04)
+
+การตรวจสอบชุดใหญ่แก้ไขความเสี่ยง 10 HIGH + 12 MEDIUM + 7 LOW:
+
+- **Multi-tenant isolation:** เพิ่ม RLS backstop บน 8 ตาราง + audit.activity_log; background workers (VAT snapshot, e-Tax retry, api-key auth) 
+  ตรึง tenant ให้ RLS ทำงานภายใต้ least-privilege prod role
+- **Document immutability (ม.86/4 / §4.2):** Tax Invoice header และ lines ไม่สามารถ un-post, re-parent หรือแก้ไขช่องได้; 
+  audit log คุ้มกัน TRUNCATE (append-only, 5-year retention)
+- **OAuth/MCP auth:** consent + refresh ตรึง MCP scope กับ RBAC ของผู้ใช้; api-key auth แก้ไขภายใต้ RLS; per-IP login rate-limit
+- **ภ.พ.30 (VAT return):** input-VAT gate, box-12 double-count fixed, CN/DN category ถูกต้อง
+- **PUT-endpoint validation, frontend error-detail + Zod, open-redirect fix**
 
 ## ข้อสังเกตด้าน compliance
 
