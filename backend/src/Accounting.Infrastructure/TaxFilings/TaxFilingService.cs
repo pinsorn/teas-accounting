@@ -212,9 +212,49 @@ public sealed class TaxFilingService(
                 CategoryOf(t.TaxInvoiceId, t.TaxAmount)))
             .ToList();
 
-        var notes = await db.TaxAdjustmentNotes
+        var noteRows = await db.TaxAdjustmentNotes
             .Where(n => n.Status == DocumentStatus.Posted
                      && n.DocDate >= from && n.DocDate <= to)
+            .Select(n => new
+            {
+                n.DocDate, n.DocNo, n.NoteType, n.CustomerName, n.CustomerTaxId,
+                n.SubtotalAmount, n.TaxAmount, n.TotalAmount, n.OriginalTaxInvoiceId,
+            })
+            .ToListAsync(ct);
+
+        // F2 fix (review 2026-07-04): CN/DN rows used to hardcode "TAXABLE" regardless of the
+        // original TI's actual category — inconsistent with M10's SalesCategorizer routing
+        // (money totals below are unaffected either way; this is the register's category-COLUMN
+        // label only). Derive each note's category from its ORIGINAL TI using the identical
+        // doc-level rule as CategoryOf above (a minimal local copy of
+        // SalesCategorizer.CategoryOfOriginal — that method is a private local function scoped
+        // to SalesCategorizer.ComputeAsync, not extractable without a larger refactor). The
+        // original TI may fall outside the current filing period, so it's looked up separately
+        // (not reused from `tis`/`codesByTi` above, which are period-scoped).
+        var origTiIds = noteRows.Select(n => n.OriginalTaxInvoiceId).Distinct().ToList();
+        var origTis = await db.TaxInvoices
+            .Where(t => origTiIds.Contains(t.TaxInvoiceId))
+            .Select(t => new { t.TaxInvoiceId, t.TaxAmount })
+            .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.TaxAmount, ct);
+        var origCodesByTi = (await db.TaxInvoiceLines
+                .Where(l => origTiIds.Contains(l.TaxInvoiceId))
+                .Select(l => new { l.TaxInvoiceId, l.TaxCode })
+                .ToListAsync(ct))
+            .GroupBy(l => l.TaxInvoiceId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.TaxCode).ToList());
+
+        string CategoryOfOriginal(long tiId)
+        {
+            if (origTis.TryGetValue(tiId, out var tax) && tax > 0m) return "TAXABLE";
+            if (origCodesByTi.TryGetValue(tiId, out var lns))
+            {
+                if (lns.Any(c => byCode.TryGetValue(c, out var v) && v.Item1)) return "EXEMPT";
+                if (lns.Any(c => byCode.TryGetValue(c, out var v) && v.Item2)) return "ZERO_RATED";
+            }
+            return "ZERO_RATED";
+        }
+
+        var notes = noteRows
             .OrderBy(n => n.DocDate).ThenBy(n => n.DocNo)
             .Select(n => new OutputVatRegisterRow(
                 n.DocDate, n.DocNo ?? "",
@@ -223,8 +263,8 @@ public sealed class TaxFilingService(
                 n.NoteType == TaxAdjustmentNoteType.Credit ? -n.SubtotalAmount : n.SubtotalAmount,
                 n.NoteType == TaxAdjustmentNoteType.Credit ? -n.TaxAmount : n.TaxAmount,
                 n.NoteType == TaxAdjustmentNoteType.Credit ? -n.TotalAmount : n.TotalAmount,
-                "TAXABLE"))
-            .ToListAsync(ct);
+                CategoryOfOriginal(n.OriginalTaxInvoiceId)))
+            .ToList();
 
         var all = rows.Concat(notes).OrderBy(r => r.DocDate).ThenBy(r => r.DocNo).ToList();
         return new OutputVatRegister(period, all,

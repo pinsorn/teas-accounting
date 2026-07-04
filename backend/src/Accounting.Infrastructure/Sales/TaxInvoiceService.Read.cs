@@ -146,7 +146,10 @@ public sealed partial class TaxInvoiceService
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             Summary: new PaperSummary(
                 d.SubtotalAmount, d.DiscountAmount > 0m ? d.DiscountAmount : null,
-                d.TaxableAmount, d.TaxAmount, d.TotalAmount, null, ShowVat: tax.VatMode,
+                // L1 fix (review 2026-07-04): thread the company's real VAT rate (percent-
+                // normalized) instead of null, so the printed "%" label matches when vat_rate != 7%
+                // (the VAT amount itself, d.TaxAmount above, was already correct — label only).
+                d.TaxableAmount, d.TaxAmount, d.TotalAmount, Pdf.PaperDoc.VatPercent(tax.VatRate), ShowVat: tax.VatMode,
                 // ponytail (01-L3): pass non-taxable amount so the exempt row renders when > 0
                 NonTaxable: d.NonTaxableAmount > 0m ? d.NonTaxableAmount : null),
             SignRoles: new PaperSignRoles(cfg.SignLeft, cfg.SignRight),

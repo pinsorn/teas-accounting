@@ -363,14 +363,23 @@ public sealed partial class ReceiptService : IReceiptService
             .ToListAsync(ct);
         if (affectedBns.Count > 0)
         {
+            // M9 fix (review 2026-07-04): was 2 extra round-trips PER billing note (a query for
+            // its linked TI ids, then a query summing their AmountPaid) inside this post
+            // transaction. Batched into one query keyed on all affectedBns' ids, joining
+            // BillingNoteTaxInvoices/TaxInvoices once and grouping by BillingNoteId.
+            var bnIds = affectedBns.Select(b => b.BillingNoteId).ToList();
+            var paidByBn = await _db.BillingNoteTaxInvoices
+                .Where(j => bnIds.Contains(j.BillingNoteId))
+                .Join(_db.TaxInvoices.Where(t => t.CompanyId == rc.CompanyId),
+                    j => j.TaxInvoiceId, t => t.TaxInvoiceId,
+                    (j, t) => new { j.BillingNoteId, t.AmountPaid })
+                .GroupBy(x => x.BillingNoteId)
+                .Select(g => new { BillingNoteId = g.Key, Paid = g.Sum(x => x.AmountPaid) })
+                .ToDictionaryAsync(x => x.BillingNoteId, x => x.Paid, ct);
+
             foreach (var bn in affectedBns)
             {
-                var bnTiIds = await _db.BillingNoteTaxInvoices
-                    .Where(j => j.BillingNoteId == bn.BillingNoteId)
-                    .Select(j => j.TaxInvoiceId).ToListAsync(ct);
-                var paid = await _db.TaxInvoices
-                    .Where(t => t.CompanyId == rc.CompanyId && bnTiIds.Contains(t.TaxInvoiceId))
-                    .SumAsync(t => t.AmountPaid, ct);
+                var paid = paidByBn.TryGetValue(bn.BillingNoteId, out var p) ? p : 0m;
                 if (paid >= bn.TotalAmount)
                 {
                     bn.Status = BillingNoteStatus.Settled;

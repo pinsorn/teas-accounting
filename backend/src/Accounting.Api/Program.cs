@@ -15,6 +15,7 @@ using Accounting.Infrastructure;
 using Accounting.Infrastructure.Identity;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Server;
@@ -226,15 +227,23 @@ builder.Services.AddHealthChecks();
 
 // ponytail: fixed-window rate-limit on /auth/login only — no new packages (native ASP.NET Core).
 // 10 attempts per IP per minute is generous for human users but stops credential-stuffing bursts.
+// M4 fix (review 2026-07-04) — AddFixedWindowLimiter("login", ...) used to create ONE limiter
+// with a single GLOBAL partition (no partition-key function), so one client's burst locked out
+// every legitimate user. Rewritten as a per-IP AddPolicy, mirroring the /api/v1 policy below.
+// Requires M5 (UseForwardedHeaders, below) so RemoteIpAddress reflects the real caller through
+// the Cloudflare→Next→backend chain, not the Next passthrough address — doing this alone
+// (without M5) would just collapse every caller onto the Next server's own IP instead.
 builder.Services.AddRateLimiter(o =>
 {
-    o.AddFixedWindowLimiter("login", opt =>
-    {
-        opt.PermitLimit         = 10;
-        opt.Window              = TimeSpan.FromMinutes(1);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit          = 0;
-    });
+    o.AddPolicy("login", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit          = 10,
+            Window               = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit           = 0,
+        }));
 
     // M1 (MCP) — per-key rate-limit on the external /api/v1/* surface. The
     // limiter runs BEFORE authentication (UseRateLimiter precedes
@@ -287,6 +296,18 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// M5 fix (review 2026-07-04) — recover the real client IP through the Cloudflare→Next→backend
+// chain so per-IP rate-limit partitioning (M4, above) sees the caller, not the Next passthrough
+// address. Next and the backend always talk over loopback (BACKEND_API_URL=http://localhost:5080,
+// prod included — same VPS, manual plink deploy), which is ASP.NET Core's DEFAULT trusted
+// KnownNetworks/KnownProxies (127.0.0.0/8 + ::1) — no extra proxy config needed for this topology.
+// Placed as the very first pipeline middleware per Microsoft's guidance (must run before anything
+// that reads RemoteIpAddress, including UseRateLimiter below).
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor,
+});
 
 app.UseHttpsRedirection();
 app.UseCors("frontend");

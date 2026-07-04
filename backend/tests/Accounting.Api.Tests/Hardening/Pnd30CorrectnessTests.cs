@@ -248,4 +248,56 @@ public sealed class Pnd30CorrectnessTests
         filing.Lines.SalesZeroRated.Amount.Should().Be(4000m,
             "zero-rated subtotal must be reduced by the CN: 5000.00 - 1000.00 = 4000.00 (M10)");
     }
+
+    // ── F2 — the output VAT register's CN/DN rows used to hardcode "TAXABLE" regardless of
+    // the original TI's actual category, inconsistent with M10's filing-side routing. A note
+    // against a ZERO-RATED original TI must show "ZERO_RATED" in the register too (money totals
+    // are unaffected either way — this is the category-COLUMN label only). ──
+    [SkippableFact]
+    public async Task OutputVatRegister_labels_a_note_against_a_zero_rated_invoice_ZERO_RATED_not_TAXABLE()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var t = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, t.CompanyId, t.BranchId);
+
+        long tiId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var tiSvc = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            // Same zero-rated export code the M10 test above uses — no output VAT.
+            tiId = await tiSvc.CreateDraftAsync(new CreateTaxInvoiceRequest(
+                TodayBkk, t.CustomerId, false, "THB", 1m, null, null, null,
+                [new TaxInvoiceLineInput(null, null, "F2 zero-rated line", 1m, 1, "ชิ้น", 5000m, 0m, 1, "VAT-OUT-0-EXP", 0m)],
+                null), default);
+            await tiSvc.PostAsync(tiId, default);
+        }
+
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var noteSvc = s.ServiceProvider.GetRequiredService<ITaxAdjustmentNoteService>();
+            var noteId = await noteSvc.CreateDraftAsync(new CreateTaxAdjustmentNoteRequest(
+                NoteType: TaxAdjustmentNoteType.Credit,
+                DocDate: TodayBkk,
+                OriginalTaxInvoiceId: tiId,
+                ReasonCode: nameof(CreditNoteReasonCode.AmountError),
+                Reason: "F2 test — CN register label against a zero-rated invoice",
+                AdjustmentSubtotal: 1000m,
+                TaxRate: 0m,
+                CurrencyCode: "THB",
+                ExchangeRate: 1m,
+                Notes: null), default);
+            await noteSvc.PostAsync(noteId, default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var filingSvc = s2.ServiceProvider.GetRequiredService<ITaxFilingService>();
+        var register = await filingSvc.OutputVatRegisterAsync(PeriodOf(TodayBkk), default);
+
+        var cnRow = register.Rows.Should().ContainSingle(r => r.DocType == "CN").Subject;
+        cnRow.Category.Should().Be("ZERO_RATED",
+            "the CN's original TI is zero-rated — pre-fix this row hardcoded \"TAXABLE\" (F2)");
+
+        // Money totals must be byte-identical to before the fix — F2 is a label-only change.
+        register.VatTotal.Should().Be(0m, "the zero-rated TI and its CN both carry TaxAmount=0");
+    }
 }
