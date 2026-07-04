@@ -1,16 +1,10 @@
-// Aliased (see .csproj) — both Accounting.Api and Accounting.Workers have top-level-statement
-// Program.cs, which the compiler places in the global namespace; an unaliased reference here
-// would make the global `Program` ambiguous for the existing WebApplicationFactory<Program>
-// usages elsewhere in this test project.
-extern alias Workers;
-
+using Accounting.Api.Scheduling;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
-using Workers::Accounting.Workers.Jobs;
 
-namespace Accounting.Api.Tests.Workers;
+namespace Accounting.Api.Tests.Scheduling;
 
 /// <summary>
 /// L5 (review 2026-07-04) — <see cref="Pnd30DeadlineAlertJob"/> reported the previous month
@@ -18,6 +12,8 @@ namespace Accounting.Api.Tests.Workers;
 /// to December in January but never rolls <c>now.Year</c> back too, so a January run logged
 /// "period 2027-12" instead of "2026-12". Pure unit test against the extracted
 /// <see cref="Pnd30DeadlineAlertJob.LogReminder"/> — no Quartz/DI/DB needed.
+/// Move-jobs-to-api (2026-07-04): moved from the deleted Accounting.Workers project into
+/// Accounting.Api/Scheduling; test logic unchanged.
 /// </summary>
 public sealed class Pnd30DeadlineAlertJobTests
 {

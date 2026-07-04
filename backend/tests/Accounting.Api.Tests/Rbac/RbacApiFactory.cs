@@ -50,5 +50,11 @@ public sealed class RbacApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:Audience", JwtAudience);
         builder.UseSetting("Jwt:SigningKey", JwtSigningKey);
         builder.UseSetting("Jwt:AccessTokenMinutes", "60");
+        // Move-jobs-to-api (2026-07-04) — don't start the in-process Quartz scheduler in test
+        // hosts: quartznet/quartznet#1136 (Quartz's logging bridge leaks a static reference to
+        // the FIRST host's ILoggerFactory; every later WebApplicationFactory<Program> host in
+        // this same-process test run then throws ObjectDisposedException the instant its own
+        // scheduler starts). See Program.cs's Quartz:Enabled comment.
+        builder.UseSetting("Quartz:Enabled", "false");
     }
 }

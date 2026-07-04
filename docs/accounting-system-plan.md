@@ -60,8 +60,7 @@ The backend (`backend/src`) is a .NET 10 solution in four layers with strict inw
 | `Accounting.Domain` | Entities, enums, value objects, pure domain calculators (PIT, CIT, payroll math). No framework dependencies. |
 | `Accounting.Application` | Use-case abstractions, DTOs, service interfaces, FluentValidation validators. |
 | `Accounting.Infrastructure` | EF Core (`AccountingDbContext`), service implementations, RD PDF fillers, e-Tax pipeline, numbering, storage, SQL bootstrap scripts. |
-| `Accounting.Api` | ASP.NET Core Minimal-API host; endpoint groups under `Endpoints/*.cs`; JWT auth; RFC 7807 ProblemDetails. |
-| `Accounting.Workers` | Background host. Two jobs: `Pnd30DeadlineAlertJob` (ภ.พ.30 deadline reminder — logs only) and `VatRegisterSnapshotJob` (periodic VAT-register snapshot). |
+| `Accounting.Api` | ASP.NET Core Minimal-API host; endpoint groups under `Endpoints/*.cs`; JWT auth; RFC 7807 ProblemDetails. Also hosts the 2 Quartz-scheduled jobs (`Scheduling/`): `Pnd30DeadlineAlertJob` (ภ.พ.30 deadline reminder — logs only) and `VatRegisterSnapshotJob` (periodic VAT-register snapshot). The separate `Accounting.Workers` process was removed 2026-07-04 (never deployed to prod; one deployable process now). |
 
 Conventions (enforced repo-wide): money is `decimal` (4 dp); IDs are `long` (BIGINT), `int` for
 lookups; time is `DateTimeOffset` internally, converted to `Asia/Bangkok` only at display;

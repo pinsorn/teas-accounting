@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Quartz;
 
-namespace Accounting.Workers.Jobs;
+namespace Accounting.Api.Scheduling;
 
 /// <summary>
 /// Reminds about the 15-of-month ภ.พ.30 filing deadline on days 12/13/14/15.

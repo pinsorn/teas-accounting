@@ -39,11 +39,11 @@ public sealed class ApiKeyGeneratorTests
 
     // M1 (§4.8) — key-sourced writes previously logged a null actor (UserId null,
     // Username null). The auth handler now emits ClaimTypes.Name = the key name,
-    // so HttpTenantContext.Username (the ActivityRecorder actor) is the key name,
-    // never null. Target the real mapping (HttpTenantContext over an ApiKey
-    // principal), NOT the StubTenant used by the DB tests.
+    // so AmbientTenantContext.Username (the ActivityRecorder actor) is the key name,
+    // never null. Target the real mapping (AmbientTenantContext over an ApiKey
+    // principal, with a real HttpContext set), NOT the StubTenant used by the DB tests.
     [Fact]
-    public void HttpTenantContext_uses_api_key_name_as_audit_actor()
+    public void AmbientTenantContext_uses_api_key_name_as_audit_actor()
     {
         const string keyName = "Reptify-mcp-agent";
         var claims = new List<Claim>
@@ -58,7 +58,7 @@ public sealed class ApiKeyGeneratorTests
         var http = new DefaultHttpContext { User = principal };
         var accessor = new HttpContextAccessor { HttpContext = http };
 
-        var tenant = new HttpTenantContext(accessor);
+        var tenant = new AmbientTenantContext(accessor);
 
         tenant.IsAuthenticated.Should().BeTrue();
         tenant.ApiKeyId.Should().Be(42);
