@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.10.3](https://github.com/pinsorn/teas-accounting/compare/v1.10.2...v1.10.3) (2026-07-04)
+
+
+### Bug Fixes
+
+* 2026-07-04 full-codebase review — 10 HIGH + 12 MED + 7 LOW + MCP connect ([4f65afa](https://github.com/pinsorn/teas-accounting/commit/4f65afa5c75459b5c702e209e8d8517a4a7f1dbb))
+* **api:** validate PUT/update endpoints (H3, review 2026-07-04) ([4e7e398](https://github.com/pinsorn/teas-accounting/commit/4e7e39837ec18b3076bfb09bc1c1ff45a48f6712))
+* **auth:** pin api-key lookup so RLS doesn't 401 it in prod — H5 (review 2026-07-04) ([7238186](https://github.com/pinsorn/teas-accounting/commit/72381868622d1bf1e94e29bb6a2869d7ff720d08))
+* **backend:** Wave-4 medium/low — per-IP login limit, N+1, vestigial key, labels (M4/M5/M9/L1/L2/L4/L5/F2) ([9f2124c](https://github.com/pinsorn/teas-accounting/commit/9f2124ca8864c36e840f9541b8476a4d6a436aa2))
+* **db:** RLS + immutability hardening — H1/H7/M2/M1 (review 2026-07-04) ([523fa9a](https://github.com/pinsorn/teas-accounting/commit/523fa9af613b843d6b8cdb79139d1c9c662ab38c))
+* **db:** RLS backstop on audit.activity_log — M12 (review 2026-07-04) ([7027749](https://github.com/pinsorn/teas-accounting/commit/70277490ba9ebaca0b52214220d2a1f8e08dde8b))
+* **etax:** pin the cross-tenant retry scans so 581 RLS doesn't hide them — M3 (review 2026-07-04) ([a67ddf9](https://github.com/pinsorn/teas-accounting/commit/a67ddf90a2b3f4865b1e971d7beaa7b28d83e253))
+* **infra:** WHT cross-tenant leak + numbering tx-safety — H6/H8 (review 2026-07-04) ([af6f26e](https://github.com/pinsorn/teas-accounting/commit/af6f26e47e9e2e15ddb57c5cecf757d67517456d))
+* **oauth:** consent + refresh bind MCP scopes to the user's RBAC — H4/M11 (review 2026-07-04) ([9872841](https://github.com/pinsorn/teas-accounting/commit/9872841202023e8513b4d12fe9960e90d518388f))
+* **oauth:** register Claude's MCP callbacks + advertise 'none' auth method — MCP connect (2026-07-04) ([756d0d6](https://github.com/pinsorn/teas-accounting/commit/756d0d65d63aa0aa7d9856ea1a5b9ade5fdfbf12))
+* **tax:** ภ.พ.30 correctness — input-VAT gate, credit no double-count, CN/DN category (H9/H10/M10) ([4f591a9](https://github.com/pinsorn/teas-accounting/commit/4f591a9636aac029fd2797a543a6dc54e15b2ff9))
+* **web:** login BFF forwards the real client IP so the per-IP limit works (M4/M5 completion) ([3f10f97](https://github.com/pinsorn/teas-accounting/commit/3f10f97eb5a0b8290409608252b288f225f8c58b))
+* **web:** returnTo backslash open-redirect + ภ.พ.30 preview credit + label dedup (M6/F1/L6) ([8df318e](https://github.com/pinsorn/teas-accounting/commit/8df318e88e76ffb45a84ad533738a57eb7050e8c))
+* **web:** surface API error detail + Zod on VendorForm + i18n PV strings (M7/M8/L3) ([41e476e](https://github.com/pinsorn/teas-accounting/commit/41e476e5a084afaf8fca3cc1818a9fd81174be6f))
+* **workers:** pin ภ.พ.30 snapshot per company — Workers ran tenant-blind (H2, review 2026-07-04) ([87aec21](https://github.com/pinsorn/teas-accounting/commit/87aec21887574305bca5f124da3e1fefbbda530c))
+
 ## [1.10.2](https://github.com/pinsorn/teas-accounting/compare/v1.10.1...v1.10.2) (2026-07-03)
 
 
