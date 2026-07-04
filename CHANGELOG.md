@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.4](https://github.com/pinsorn/teas-accounting/compare/v1.10.3...v1.10.4) (2026-07-04)
+
+
+### Bug Fixes
+
+* run scheduled jobs in the API, delete Accounting.Workers, pin is_super_admin off in VAT snapshot ([6533a4c](https://github.com/pinsorn/teas-accounting/commit/6533a4c580fe24bc73811ca9845d9d48f420be6e))
+* **workers:** run scheduled jobs inside the API + delete Accounting.Workers; pin is_super_admin off in the VAT-snapshot job ([fbf9ef1](https://github.com/pinsorn/teas-accounting/commit/fbf9ef18d43e0fcb18259e944a48126169feda9d))
+
 ## [1.10.3](https://github.com/pinsorn/teas-accounting/compare/v1.10.2...v1.10.3) (2026-07-04)
 
 
