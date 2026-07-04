@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
+import { errorToToast } from '@/lib/api/errors';
 import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductPicker, taxRateForProductType } from '@/components/forms/ProductPicker';
@@ -14,7 +15,7 @@ import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyB
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTaxId } from '@/lib/utils';
 import { PaperDocument } from '@/components/paper/PaperDocument';
-import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
+import { PAPER_DOC, companyToSeller, DRAFT_DOC_NO, VENDOR_PARTY_LABEL } from '@/lib/paper-doc-config';
 import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
 import { SectionCard } from '@/components/create/SectionCard';
 import { PartySelectBox } from '@/components/create/PartySelectBox';
@@ -178,8 +179,8 @@ function PvForm() {
       });
       toast.success(tc('save'));
       router.push(`/payment-vouchers/${res.payment_voucher_id}`);
-    } catch {
-      toast.error(tc('error'));
+    } catch (e) {
+      toast.error(errorToToast(e));
     } finally {
       setBusy(false);
     }
@@ -233,10 +234,10 @@ function PvForm() {
           <PaperDocument
             docType={cfg.docType}
             docTypeEn={cfg.docTypeEn}
-            docNo="(ฉบับร่าง)"
+            docNo={DRAFT_DOC_NO}
             issueDate={docDate}
             seller={companyToSeller(company.data)}
-            partyLabel={{ th: 'ผู้ขาย', en: 'Vendor' }}
+            partyLabel={VENDOR_PARTY_LABEL}
             customer={{
               name: vendorLabel || '—',
               taxId: vendor?.taxId ? formatTaxId(vendor.taxId) : null,
@@ -281,7 +282,7 @@ function PvForm() {
       {/* ② ข้อมูลเอกสาร + การชำระเงิน */}
       <SectionCard number={2} title={tcr('docInfo')}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <DateInput value={docDate} locked label="วันที่" />
+          <DateInput value={docDate} locked label={tc('date')} />
           <ExpenseCategorySelector
             value={categoryId}
             onChange={(id, cat) => { setCategoryId(id); setCatRecoverable(cat.defaultIsRecoverableVat); }}
@@ -328,7 +329,7 @@ function PvForm() {
                 {/* รายการดึงจาก /settings/products (purpose=purchase); พิมพ์เองได้สำหรับ ad-hoc. */}
                 <ProductPicker
                   description={r.description}
-                  ariaLabel={`รายละเอียด ${i + 1}`}
+                  ariaLabel={`${t('lineDescription')} ${i + 1}`}
                   purpose="purchase"
                   businessUnitId={businessUnitId}
                   // Editing the text drops the product link (now ad-hoc) but KEEPS the chosen
@@ -385,7 +386,7 @@ function PvForm() {
               </label>
               <button className="btn btn-ghost btn-xs text-error md:col-span-3 md:ml-auto md:w-fit"
                 onClick={() => setRows((rs) => rs.length > 1 ? rs.filter((x) => x.key !== r.key) : rs)}>
-                <Trash2 className="h-3 w-3" /> ลบ
+                <Trash2 className="h-3 w-3" /> {tc('delete')}
               </button>
             </div>
           ))}
@@ -394,7 +395,7 @@ function PvForm() {
           type="button"
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-field border border-dashed border-ink-200 bg-base-100 py-3 text-sm font-medium text-peach-700 hover:border-peach-300 hover:bg-peach-50"
           onClick={() => setRows((rs) => [...rs, emptyRow(Date.now())])}>
-          <Plus className="h-4 w-4" aria-hidden /> เพิ่มรายการ
+          <Plus className="h-4 w-4" aria-hidden /> {t('addLine')}
         </button>
 
         {!fromVi && (

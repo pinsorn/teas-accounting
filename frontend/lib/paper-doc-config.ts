@@ -61,6 +61,12 @@ export const PAPER_DOC: Record<PaperDocKind, DocPaperConfig> = {
   'vendor-invoice': { docType: 'ใบกำกับภาษีซื้อ', docTypeEn: 'VENDOR INVOICE', signRoles: { left: 'ผู้ขาย', right: 'ผู้ซื้อ' } },
 };
 
+// L6 (frontend-quality review 2026-07-04) — single source of truth for the "new" pages' paper
+// preview: draft doc-number placeholder + purchase-side party label. Was duplicated as inline
+// literals in payment-vouchers/new, purchase-orders/new, vendor-invoices/new.
+export const DRAFT_DOC_NO = '(ฉบับร่าง)';
+export const VENDOR_PARTY_LABEL: { th: string; en: string } = { th: 'ผู้ขาย', en: 'Vendor' };
+
 const CANCELLED = new Set(['Cancelled', 'Voided', 'Rejected']);
 
 // §C7 matrix → {text, variant} | undefined. Cancelled/voided always shows the

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
+import { errorToToast } from '@/lib/api/errors';
 import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
@@ -17,7 +18,7 @@ import {
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { PaperDocument } from '@/components/paper/PaperDocument';
-import { PAPER_DOC, companyToCustomer } from '@/lib/paper-doc-config';
+import { PAPER_DOC, companyToCustomer, DRAFT_DOC_NO } from '@/lib/paper-doc-config';
 import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
 import { SectionCard } from '@/components/create/SectionCard';
 import { PartySelectBox } from '@/components/create/PartySelectBox';
@@ -131,8 +132,8 @@ export default function VendorInvoiceNewPage() {
       });
       toast.success(tc('save'));
       return res.vendor_invoice_id;
-    } catch {
-      toast.error(tc('error'));
+    } catch (e) {
+      toast.error(errorToToast(e));
       return null;
     }
   }
@@ -182,7 +183,7 @@ export default function VendorInvoiceNewPage() {
           <PaperDocument
             docType={cfg.docType}
             docTypeEn={cfg.docTypeEn}
-            docNo={tiNo || '(ฉบับร่าง)'}
+            docNo={tiNo || DRAFT_DOC_NO}
             issueDate={tiDate}
             seller={{
               name: vendorLabel || '—',
@@ -350,8 +351,8 @@ export default function VendorInvoiceNewPage() {
             if (r?.poOverReceiptWarning)
               toast.warning(t('poOverReceipt'), { description: r.poOverReceiptWarning });
             router.push(`/vendor-invoices/${confirm.id}`);
-          } catch {
-            toast.error(tc('error'));
+          } catch (e) {
+            toast.error(errorToToast(e));
           } finally {
             setConfirm(null);
           }

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Accounting.Application.Abstractions;
+using Accounting.Domain.Entities.Identity;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -34,9 +35,22 @@ public sealed class ApiKeyResolver : IApiKeyResolver
             return ApiKeyAuthResult.Fail("auth.invalid_api_key");
 
         // Auth runs before tenant context — bypass the company query filter; the
-        // key itself carries the company.
-        var key = await _db.ApiKeys.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(k => k.KeyPrefix == prefix, ct);
+        // key itself carries the company. IgnoreQueryFilters() only drops the EF
+        // filter: sys.api_keys/master.branches still carry FORCE RLS (010_rls_policies.sql,
+        // fail-closed on unset app.company_id) — under a prod NOBYPASSRLS role this lookup
+        // would see zero rows. Mirror PermissionLookup.cs (~:28-31): pin
+        // app.is_super_admin='true' LOCAL to a short transaction so just this lookup can
+        // read, scoped to that transaction only — set_config(..., true) auto-reverts on
+        // commit (or rollback), so it never leaks beyond it.
+        ApiKey? key;
+        await using (var tx = await _db.Database.BeginTransactionAsync(ct))
+        {
+            await _db.Database.ExecuteSqlRawAsync(
+                "SELECT set_config('app.is_super_admin', 'true', true)", ct);
+            key = await _db.ApiKeys.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(k => k.KeyPrefix == prefix, ct);
+            await tx.CommitAsync(ct);
+        }
         if (key is null || !BCrypt.Net.BCrypt.Verify(presentedKey, key.KeyHash))
             return ApiKeyAuthResult.Fail("auth.invalid_api_key");
 
@@ -49,11 +63,19 @@ public sealed class ApiKeyResolver : IApiKeyResolver
 
         // M13 — the principal must carry a real branch (numbering + JE rows are
         // branch-keyed); the external surface acts as the company's head office.
-        var hqBranchId = await _db.Branches.IgnoreQueryFilters()
-            .Where(b => b.CompanyId == key.CompanyId)
-            .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)
-            .Select(b => b.BranchId)
-            .FirstOrDefaultAsync(ct);
+        // Same pre-tenant RLS gap + same LOCAL-tx pin as the lookup above.
+        int hqBranchId;
+        await using (var tx = await _db.Database.BeginTransactionAsync(ct))
+        {
+            await _db.Database.ExecuteSqlRawAsync(
+                "SELECT set_config('app.is_super_admin', 'true', true)", ct);
+            hqBranchId = await _db.Branches.IgnoreQueryFilters()
+                .Where(b => b.CompanyId == key.CompanyId)
+                .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)
+                .Select(b => b.BranchId)
+                .FirstOrDefaultAsync(ct);
+            await tx.CommitAsync(ct);
+        }
 
         return ApiKeyAuthResult.Ok(new ResolvedApiKey(
             key.ApiKeyId, key.CompanyId, key.Name,

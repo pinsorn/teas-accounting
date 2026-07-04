@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { useCreateViFromPv } from '@/lib/queries';
 import { ApiError } from '@/lib/api';
+import { errorToToast } from '@/lib/api/errors';
 
 // purchase-completeness Phase 3 (D1) — guided PV→VI create. The standalone VI
 // create entry point is hidden; the user reaches VI creation from the PV. This
@@ -71,7 +72,7 @@ export function CreateViFromPvDialog({
         onClose();
         return;
       }
-      toast.error(tc('error'));
+      toast.error(errorToToast(e));
     }
   }
 

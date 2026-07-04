@@ -15,8 +15,11 @@ using Accounting.Infrastructure;
 using Accounting.Infrastructure.Identity;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Abstractions;
+using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using OpenIddict.Validation.AspNetCore;
 
@@ -145,11 +148,36 @@ builder.Services.AddOpenIddict()
         o.UseAspNetCore()
          .EnableAuthorizationEndpointPassthrough()          // /oauth/authorize handled by our endpoint
          // Token endpoint is NOT passed through: OpenIddict auto-issues the access token from the
-         // stored authorization-code principal (code→token). Refresh-flow hardening (T4) hooks the
-         // server's token-request event, not a passthrough handler.
+         // stored authorization-code principal (code→token). Refresh-flow hardening (M11) hooks the
+         // server's ProcessSignInContext event via RefreshTokenRevalidationHandler below, not a
+         // passthrough handler.
          // TLS is terminated upstream (Cloudflare → Next passthrough → this backend over HTTP), so
          // OpenIddict must not reject the plain-HTTP hop. Same posture as the rest of the API.
          .DisableTransportSecurityRequirement();
+
+        // M11 — on grant_type=refresh_token, reload the subject user and reject if
+        // inactive/off-boarded, then re-derive scopes against current RBAC (shares H4's
+        // McpConsentScopes). Order MUST run before OpenIddict prepares the per-token principals
+        // (PrepareAccessTokenPrincipal et al.) so the re-derived scope set lands in the issued
+        // access token — verified empirically by the M11 proving test.
+        o.AddEventHandler<OpenIddictServerEvents.ProcessSignInContext>(builder =>
+            builder.UseScopedHandler<RefreshTokenRevalidationHandler>()
+                   .SetOrder(int.MinValue + 100_000));
+
+        // MCP DCR finding (specs/mcp-dcr-client-registration.md) — Claude's connector docs require
+        // discovery to list "none" in token_endpoint_auth_methods_supported for a public/PKCE client
+        // (Option 3: teas-mcp is ClientTypes.Public, no secret). OpenIddict's built-in
+        // AttachClientAuthenticationMethods handler never adds "none" (verified empirically — only
+        // client_secret_basic/post + private_key_jwt were advertised). This is metadata ADVERTISING
+        // only — it changes nothing about actual token-endpoint auth enforcement (a public client
+        // already authenticates via PKCE with no secret today). Order runs LATE so it appends after
+        // the built-in handler populates the list, not before (would be overwritten).
+        o.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(builder =>
+            builder.UseInlineHandler(context =>
+            {
+                context.TokenEndpointAuthenticationMethods.Add(OpenIddictConstants.ClientAuthenticationMethods.None);
+                return default;
+            }).SetOrder(int.MaxValue - 100_000));
     })
     .AddValidation(o =>
     {
@@ -215,15 +243,23 @@ builder.Services.AddHealthChecks();
 
 // ponytail: fixed-window rate-limit on /auth/login only — no new packages (native ASP.NET Core).
 // 10 attempts per IP per minute is generous for human users but stops credential-stuffing bursts.
+// M4 fix (review 2026-07-04) — AddFixedWindowLimiter("login", ...) used to create ONE limiter
+// with a single GLOBAL partition (no partition-key function), so one client's burst locked out
+// every legitimate user. Rewritten as a per-IP AddPolicy, mirroring the /api/v1 policy below.
+// Requires M5 (UseForwardedHeaders, below) so RemoteIpAddress reflects the real caller through
+// the Cloudflare→Next→backend chain, not the Next passthrough address — doing this alone
+// (without M5) would just collapse every caller onto the Next server's own IP instead.
 builder.Services.AddRateLimiter(o =>
 {
-    o.AddFixedWindowLimiter("login", opt =>
-    {
-        opt.PermitLimit         = 10;
-        opt.Window              = TimeSpan.FromMinutes(1);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit          = 0;
-    });
+    o.AddPolicy("login", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit          = 10,
+            Window               = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit           = 0,
+        }));
 
     // M1 (MCP) — per-key rate-limit on the external /api/v1/* surface. The
     // limiter runs BEFORE authentication (UseRateLimiter precedes
@@ -276,6 +312,18 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// M5 fix (review 2026-07-04) — recover the real client IP through the Cloudflare→Next→backend
+// chain so per-IP rate-limit partitioning (M4, above) sees the caller, not the Next passthrough
+// address. Next and the backend always talk over loopback (BACKEND_API_URL=http://localhost:5080,
+// prod included — same VPS, manual plink deploy), which is ASP.NET Core's DEFAULT trusted
+// KnownNetworks/KnownProxies (127.0.0.0/8 + ::1) — no extra proxy config needed for this topology.
+// Placed as the very first pipeline middleware per Microsoft's guidance (must run before anything
+// that reads RemoteIpAddress, including UseRateLimiter below).
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor,
+});
 
 app.UseHttpsRedirection();
 app.UseCors("frontend");

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { errorToToast } from '@/lib/api/errors';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { DateInput } from '@/components/ui/DateInput';
@@ -285,7 +286,7 @@ export default function NewReceiptPage() {
       });
       toast.success(tc('draftSaved'));
       return res.receipt_id;
-    } catch { toast.error(tc('error')); return null; }
+    } catch (e) { toast.error(errorToToast(e)); return null; }
   }
 
   // Preview items per mode.
@@ -647,7 +648,7 @@ export default function NewReceiptPage() {
         onConfirm={async () => {
           if (!confirm) return;
           try { await post.mutateAsync(confirm.id); toast.success(tc('posted')); router.push(`/receipts/${confirm.id}`); }
-          catch { toast.error(tc('error')); }
+          catch (e) { toast.error(errorToToast(e)); }
           finally { setConfirm(null); }
         }}
       />

@@ -287,10 +287,15 @@ public sealed partial class ReceiptService
             .Where(t => tiIds.Contains(t.TaxInvoiceId))
             .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.TotalAmount, ct);
 
+        // H6 (review 2026-07-04) — TaxInvoiceLine carries no company_id (no EF filter, no
+        // RLS), so a direct DbSet read on caller-supplied tiIds leaked another tenant's line
+        // DescriptionTh. Join the tenant-filtered TaxInvoices set (identical pattern to
+        // TaxFilings/SalesCategorizer.cs:40-46) so a foreign TI's lines never come back.
         var tiLines = await _db.TaxInvoiceLines.AsNoTracking()
-            .Where(l => tiIds.Contains(l.TaxInvoiceId))
-            .OrderBy(l => l.TaxInvoiceId).ThenBy(l => l.LineNo)
-            .Select(l => new { l.TaxInvoiceId, l.ProductId, l.ProductType, l.LineAmount, l.DescriptionTh })
+            .Join(_db.TaxInvoices, l => l.TaxInvoiceId, t => t.TaxInvoiceId, (l, t) => new { l, t })
+            .Where(x => tiIds.Contains(x.l.TaxInvoiceId))
+            .OrderBy(x => x.l.TaxInvoiceId).ThenBy(x => x.l.LineNo)
+            .Select(x => new { x.l.TaxInvoiceId, x.l.ProductId, x.l.ProductType, x.l.LineAmount, x.l.DescriptionTh })
             .ToListAsync(ct);
         var tiDocNos = await _db.TaxInvoices.AsNoTracking()
             .Where(t => tiIds.Contains(t.TaxInvoiceId))
@@ -304,10 +309,13 @@ public sealed partial class ReceiptService
         var bnTotals = await _db.BillingNotes.AsNoTracking()
             .Where(b => bnIds.Contains(b.BillingNoteId))
             .ToDictionaryAsync(b => b.BillingNoteId, b => b.TotalAmount, ct);
+        // H6 — same cross-tenant leak risk on BillingNoteLines; join the tenant-filtered
+        // BillingNotes set.
         var bnLines = await _db.BillingNoteLines.AsNoTracking()
-            .Where(l => bnIds.Contains(l.BillingNoteId))
-            .OrderBy(l => l.BillingNoteId).ThenBy(l => l.LineNo)
-            .Select(l => new { l.BillingNoteId, l.ProductId, l.ProductType, l.LineAmount, l.DescriptionTh })
+            .Join(_db.BillingNotes, l => l.BillingNoteId, b => b.BillingNoteId, (l, b) => new { l, b })
+            .Where(x => bnIds.Contains(x.l.BillingNoteId))
+            .OrderBy(x => x.l.BillingNoteId).ThenBy(x => x.l.LineNo)
+            .Select(x => new { x.l.BillingNoteId, x.l.ProductId, x.l.ProductType, x.l.LineAmount, x.l.DescriptionTh })
             .ToListAsync(ct);
         var bnDocNos = await _db.BillingNotes.AsNoTracking()
             .Where(b => bnIds.Contains(b.BillingNoteId))

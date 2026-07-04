@@ -193,6 +193,11 @@ public sealed class BillingNoteService(
     public async Task IssueAsync(long id, CancellationToken ct)
     {
         Auth();
+        // H8 (review 2026-07-04) — this is the highest-priority of the 5 unsafe numbering
+        // paths (it allocates a real invoice number). Wrap alloc+save in one explicit tx,
+        // mirroring the safe TaxInvoiceService.PostAsync pattern — else a failed save after
+        // allocation leaves a consumed-but-unused IV number (a gap).
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var bn = await LoadAsync(id, ct);
         if (bn.Status != BillingNoteStatus.Draft)
             throw new DomainException("billing_note.bad_status", "Only a Draft billing note can be issued.");
@@ -203,6 +208,7 @@ public sealed class BillingNoteService(
         bn.IssuedAt = clock.UtcNow;
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Issued", "Draft", "Issued");
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task CancelAsync(long id, string reason, CancellationToken ct)

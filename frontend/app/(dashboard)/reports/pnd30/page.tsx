@@ -42,6 +42,11 @@ export default function Pnd30Page() {
   }
 
   const L = filing?.lines;
+  // F1 (tax review 2026-07-04) — CreditCarryForward is always 0 post-H10 (box 12 already
+  // counts the credit exactly once independent of it; see TaxFilingService). Derive the
+  // current-period overpayment from the totals the page already has instead, so a net-credit
+  // month still surfaces the credit in the preview the user approves before finalizing.
+  const overpayment = L ? Math.max(0, L.inputVatTotal - L.outputVatTotal) : 0;
 
   if (!vatMode) {
     return (
@@ -129,9 +134,9 @@ export default function Pnd30Page() {
                 <tr className="font-bold border-t-2 border-base-300">
                   <td>{t('netVatPayable')}</td><td />
                   <td className="text-right tabular-nums">{formatTHB(L.netVatPayable)}</td></tr>
-                {L.creditCarryForward > 0 && (
+                {overpayment > 0 && (
                   <tr className="font-bold"><td>{t('creditCarry')}</td><td />
-                    <td className="text-right tabular-nums">{formatTHB(L.creditCarryForward)}</td></tr>
+                    <td className="text-right tabular-nums">{formatTHB(overpayment)}</td></tr>
                 )}
               </tbody>
             </table>

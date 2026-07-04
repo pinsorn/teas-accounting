@@ -18,6 +18,16 @@ public sealed class CreateAccountValidator : AbstractValidator<CreateAccountRequ
     }
 }
 
+// H3 (2026-07-04 review) — mirrors CreateAccountValidator's AccountNameTh rule (minus
+// AccountCode, which UpdateAccountRequest doesn't carry — the code is immutable after create).
+public sealed class UpdateAccountValidator : AbstractValidator<UpdateAccountRequest>
+{
+    public UpdateAccountValidator()
+    {
+        RuleFor(x => x.AccountNameTh).NotEmpty().MaximumLength(255);
+    }
+}
+
 public interface IChartOfAccountService
 {
     Task<long> CreateAsync(CreateAccountRequest req, CancellationToken ct);

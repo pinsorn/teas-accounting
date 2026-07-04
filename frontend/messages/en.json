@@ -290,6 +290,11 @@
     "active": "Active",
     "save": "Save vendor",
     "saving": "Saving…",
+    "err": {
+      "required": "Required",
+      "max50": "Max 50 characters",
+      "max255": "Max 255 characters"
+    },
     "foreign": {
       "vatRegisteredToggle": "Vendor is VAT-registered",
       "nonVatInfo": "Non-VAT vendor (revenue < 1.8M or individual) — receipt only, Input VAT not claimable, WHT still applies for services",
@@ -326,6 +331,8 @@
     "item": "Item (product/service)",
     "netPaid": "Net paid",
     "lines": "Lines",
+    "lineDescription": "Description",
+    "addLine": "Add line",
     "nonRecoverableVat": "Non-recoverable VAT",
     "create": "Create Payment Voucher",
     "approve": "Approve",

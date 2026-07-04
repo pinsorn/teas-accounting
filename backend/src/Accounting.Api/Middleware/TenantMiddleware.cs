@@ -49,7 +49,20 @@ public sealed class TenantMiddleware
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to reset tenant settings on connection — pool may receive a poisoned session.");
+                // L4 hardening (review 2026-07-04 LOW-1): the reset is session-scoped
+                // (set_config(..., false)), not a transaction-scoped SET LOCAL, so a failed
+                // reset previously just logged and let CloseConnectionAsync() return this
+                // physical connection to the Npgsql pool still carrying the PREVIOUS
+                // tenant's company_id — a subsequent unauthenticated request (which takes
+                // the early-return branch above and never re-pins) could then read
+                // tenant-scoped tables under the stale pin. Treat a failed reset as a hard
+                // evict instead of log-and-hope-the-pool-resets-it: ClearPool discards every
+                // pooled connection for this connection string, guaranteeing the poisoned
+                // physical connection is never handed out again. Rare path (the reset SQL
+                // failing at all is already exceptional) so the pool-refill cost is acceptable.
+                _logger.LogWarning(ex, "Failed to reset tenant settings on connection — evicting the connection pool.");
+                if (db.Database.GetDbConnection() is Npgsql.NpgsqlConnection npgsqlConn)
+                    Npgsql.NpgsqlConnection.ClearPool(npgsqlConn);
             }
 
             await db.Database.CloseConnectionAsync();

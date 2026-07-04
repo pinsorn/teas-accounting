@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { extractClientIp } from '@/lib/client-ip';
 
 /**
  * BFF login proxy. The browser never sees the JWT: this server route forwards
@@ -18,9 +19,17 @@ export async function POST(request: Request) {
     );
   }
 
+  // M4/M5 follow-up (2026-07-04) — forward the real client IP so the backend's per-IP login
+  // rate limiter (UseForwardedHeaders trusts this co-located BFF as a loopback proxy) partitions
+  // by actual client, not by this Next server's own loopback address.
+  const clientIp = extractClientIp(request.headers);
+
   const upstream = await fetch(`${BACKEND}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(clientIp ? { 'X-Forwarded-For': clientIp } : {}),
+    },
     body: JSON.stringify({
       username: creds.username,
       password: creds.password,

@@ -53,7 +53,8 @@ public sealed class VatReportService : IVatReportService
         var purchaseRows = await _db.VendorInvoices
             .Where(v => v.Status == DocumentStatus.Posted
                      && v.VatClaimPeriod == period
-                     && v.VatAmount > 0m)
+                     && v.VatAmount > 0m
+                     && v.HasInputVat)
             .Where(v => businessUnitId == null || v.BusinessUnitId == businessUnitId)
             .OrderBy(v => v.VendorTaxInvoiceDate).ThenBy(v => v.VendorTaxInvoiceNo)
             .Select(v => new PurchaseVatRegisterRow(

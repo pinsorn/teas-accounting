@@ -1,6 +1,7 @@
 using Accounting.Api.Mcp;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
+using Accounting.Application.Identity;
 using Accounting.Application.Master;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore;               // HttpContext.GetOpenIddictServerRequest()
@@ -77,8 +78,8 @@ public static class OAuthEndpoints
         // company is validated against THAT user's memberships (never trusted blindly).
         app.MapMethods("/oauth/authorize", ["POST"], async (
             HttpContext http, ITenantContext tenant, ICompanyService companies,
-            AccountingDbContext db, IActivityRecorder activity, IOptions<AppOptions> opt,
-            CancellationToken ct) =>
+            AccountingDbContext db, IActivityRecorder activity, IPermissionLookup permissions,
+            IOptions<AppOptions> opt, CancellationToken ct) =>
         {
             var request = http.GetOpenIddictServerRequest()
                 ?? throw new InvalidOperationException("The OpenIddict authorization request cannot be retrieved.");
@@ -112,6 +113,18 @@ public static class OAuthEndpoints
             var granted = McpScopes.Normalize(request.GetScopes());
             if (granted.Count == 0)
                 return Results.BadRequest(new { error = "invalid_scope" });
+
+            // H4 — a token may never carry authority the consenting user lacks interactively. A super-admin
+            // holds no explicit permission rows (they bypass RBAC everywhere: PermissionHandler.cs:36,
+            // CompanySwitchService.cs:49-51), so intersecting would zero their grant — grant them the full
+            // valid set instead. A regular user's grant is capped to their effective RBAC for THIS company.
+            if (!tenant.IsSuperAdmin)
+            {
+                var (_, perms) = await permissions.LoadAsync(userId, companyId, ct);
+                granted = McpConsentScopes.FilterToRbac(granted, perms.ToHashSet(StringComparer.Ordinal));
+                if (granted.Count == 0)
+                    return Results.BadRequest(new { error = "invalid_scope" });
+            }
 
             var resource = $"{opt.Value.BaseUrl.TrimEnd('/')}/mcp";
             var actor = $"oauth:{tenant.Username ?? userId.ToString()}";

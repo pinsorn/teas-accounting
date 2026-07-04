@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { TaxIdInput, isValidThaiTaxId } from '@/components/ui/TaxIdInput';
 import { useCreateVendor, useUpdateVendor } from '@/lib/queries';
-import type { CreateVendorRequest, VendorType, VendorDetail } from '@/lib/types';
+import { errorToToast } from '@/lib/api/errors';
+import type { CreateVendorRequest, VendorDetail } from '@/lib/types';
 
 // Shared vendor create/edit form. Built from the original `vendors/new` markup so
 // the create path (labels, "บันทึกผู้ขาย / Save vendor" button text, redirect to
@@ -15,29 +18,71 @@ import type { CreateVendorRequest, VendorType, VendorDetail } from '@/lib/types'
 // the code + type are locked (UpdateVendorRequest can't change them) and the form
 // submits PUT /vendors/{id} via useUpdateVendor, preserving the row's isActive flag.
 
-const EMPTY: CreateVendorRequest = {
-  vendorCode: '', vendorType: 'Corporate', nameTh: '', nameEn: null, taxId: null,
-  branchCode: null, branchName: null, vatRegistered: true, address: null,
-  contactPerson: null, phone: null, email: null, paymentTermDays: 30,
-  defaultCurrency: 'THB', defaultWhtTypeCode: null,
-  isForeign: false, hasThaiVatDReg: false, countryCode: null,
+// M8 — Zod schema mirroring CustomerForm.tsx's pattern (length caps, email format,
+// numeric bounds). taxId keeps VendorForm's pre-existing checksum rule: an UNCHANGED
+// stored taxId must never block Save (a legacy/seed taxId that fails our client
+// checksum must still be editable — the backend ThaiTaxId parser is the real gate).
+function buildSchema(edit?: VendorDetail) {
+  return z
+    .object({
+      vendorCode: z.string().min(1, 'required').max(50, 'max50'),
+      vendorType: z.enum(['Individual', 'Corporate']),
+      nameTh: z.string().min(1, 'required').max(255, 'max255'),
+      nameEn: z.string().max(255, 'max255').optional(),
+      taxId: z.string().optional(),
+      branchCode: z.string().optional(),
+      branchName: z.string().optional(),
+      vatRegistered: z.boolean(),
+      address: z.string().optional(),
+      contactPerson: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().email('email').or(z.literal('')).optional(),
+      paymentTermDays: z.number().int().min(0),
+      defaultCurrency: z.string().length(3, 'currency'),
+      defaultWhtTypeCode: z.string().optional(),
+      isForeign: z.boolean(),
+      hasThaiVatDReg: z.boolean(),
+      countryCode: z.string().optional(),
+      bankName: z.string().optional(),
+      bankAccountNo: z.string().optional(),
+      bankAccountName: z.string().optional(),
+      swiftCode: z.string().optional(),
+    })
+    .superRefine((v, ctx) => {
+      const taxId = v.taxId?.trim();
+      if (!taxId) return;
+      const unchanged = edit != null && taxId === (edit.taxId ?? '').trim();
+      if (!unchanged && !isValidThaiTaxId(taxId)) {
+        ctx.addIssue({ code: 'custom', path: ['taxId'], message: 'taxId13' });
+      }
+    });
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
+
+const EMPTY_FORM: FormValues = {
+  vendorCode: '', vendorType: 'Corporate', nameTh: '', nameEn: '', taxId: '',
+  branchCode: '', branchName: '', vatRegistered: true, address: '',
+  contactPerson: '', phone: '', email: '', paymentTermDays: 30,
+  defaultCurrency: 'THB', defaultWhtTypeCode: '',
+  isForeign: false, hasThaiVatDReg: false, countryCode: '',
   // ITEM 8 — vendor remittance details.
-  bankName: null, bankAccountNo: null, bankAccountName: null, swiftCode: null,
+  bankName: '', bankAccountNo: '', bankAccountName: '', swiftCode: '',
 };
 
 const COUNTRIES = ['US','SG','IE','JP','GB','DE','AU','CN','IN','NL','CA','FR',
   'HK','KR','TW','MY','VN','ID','PH','CH','SE','NZ','AE','LU'];
 
-function fromDetail(d: VendorDetail): CreateVendorRequest {
+function fromDetail(d: VendorDetail): FormValues {
   return {
     vendorCode: d.vendorCode, vendorType: d.vendorType, nameTh: d.nameTh,
-    nameEn: d.nameEn, taxId: d.taxId, branchCode: d.branchCode, branchName: d.branchName,
-    vatRegistered: d.vatRegistered, address: d.address, contactPerson: d.contactPerson,
-    phone: d.phone, email: d.email, paymentTermDays: d.paymentTermDays,
-    defaultCurrency: d.defaultCurrency, defaultWhtTypeCode: d.defaultWhtTypeCode,
-    isForeign: d.isForeign, hasThaiVatDReg: d.hasThaiVatDReg, countryCode: d.countryCode,
-    bankName: d.bankName, bankAccountNo: d.bankAccountNo,
-    bankAccountName: d.bankAccountName, swiftCode: d.swiftCode,
+    nameEn: d.nameEn ?? '', taxId: d.taxId ?? '', branchCode: d.branchCode ?? '',
+    branchName: d.branchName ?? '', vatRegistered: d.vatRegistered, address: d.address ?? '',
+    contactPerson: d.contactPerson ?? '', phone: d.phone ?? '', email: d.email ?? '',
+    paymentTermDays: d.paymentTermDays, defaultCurrency: d.defaultCurrency,
+    defaultWhtTypeCode: d.defaultWhtTypeCode ?? '',
+    isForeign: d.isForeign, hasThaiVatDReg: d.hasThaiVatDReg, countryCode: d.countryCode ?? '',
+    bankName: d.bankName ?? '', bankAccountNo: d.bankAccountNo ?? '',
+    bankAccountName: d.bankAccountName ?? '', swiftCode: d.swiftCode ?? '',
   };
 }
 
@@ -48,130 +93,145 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
   const isEdit = edit != null;
   const create = useCreateVendor();
   const update = useUpdateVendor(edit?.vendorId ?? 0);
-  const [f, setF] = useState<CreateVendorRequest>(edit ? fromDetail(edit) : EMPTY);
+
+  const {
+    register, control, handleSubmit, watch, setValue,
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(buildSchema(edit)),
+    defaultValues: edit ? fromDetail(edit) : EMPTY_FORM,
+  });
 
   const pending = create.isPending || update.isPending;
-  // The backend (ThaiTaxId.TryParse) is the source of truth and has already
-  // accepted any pre-existing taxId. The client checksum is a stricter early
-  // gate, so on edit an UNCHANGED stored taxId must never block Save (otherwise
-  // a vendor whose seed/legacy taxId fails our checksum can never be edited at
-  // all — not even a phone-number change). Validate only when the value changed.
-  const taxUnchanged = isEdit && (f.taxId ?? '') === (edit?.taxId ?? '');
-  const taxOk = !f.taxId || taxUnchanged || isValidThaiTaxId(f.taxId);
-  const canSave = f.vendorCode.trim() !== '' && f.nameTh.trim() !== '' && taxOk;
+  const foreign = watch('isForeign');
+  const vatRegistered = watch('vatRegistered');
+  const hasThaiVatDReg = watch('hasThaiVatDReg');
+  const countryCode = watch('countryCode');
 
-  function set<K extends keyof CreateVendorRequest>(k: K, v: CreateVendorRequest[K]) {
-    setF((p) => ({ ...p, [k]: v }));
-  }
+  const branchCodeField = register('branchCode');
 
-  async function submit() {
+  async function onSubmit(v: FormValues) {
     try {
       if (isEdit && edit) {
         await update.mutateAsync({
-          nameTh: f.nameTh,
-          nameEn: f.nameEn || null,
-          taxId: f.taxId || null,
-          branchCode: f.branchCode || null,
-          branchName: f.branchName || null,
-          vatRegistered: f.vatRegistered,
-          address: f.address || null,
-          contactPerson: f.contactPerson || null,
-          phone: f.phone || null,
-          email: f.email || null,
-          paymentTermDays: f.paymentTermDays,
-          defaultCurrency: f.defaultCurrency,
-          defaultWhtTypeCode: f.defaultWhtTypeCode || null,
+          nameTh: v.nameTh,
+          nameEn: v.nameEn?.trim() || null,
+          taxId: v.taxId?.trim() || null,
+          branchCode: v.branchCode?.trim() || null,
+          branchName: v.branchName?.trim() || null,
+          vatRegistered: v.vatRegistered,
+          address: v.address?.trim() || null,
+          contactPerson: v.contactPerson?.trim() || null,
+          phone: v.phone?.trim() || null,
+          email: v.email?.trim() || null,
+          paymentTermDays: v.paymentTermDays,
+          defaultCurrency: v.defaultCurrency,
+          defaultWhtTypeCode: v.defaultWhtTypeCode?.trim() || null,
           isActive: edit.isActive,
-          isForeign: f.isForeign,
-          hasThaiVatDReg: f.hasThaiVatDReg,
-          countryCode: f.countryCode || null,
-          bankName: f.bankName || null,
-          bankAccountNo: f.bankAccountNo || null,
-          bankAccountName: f.bankAccountName || null,
-          swiftCode: f.swiftCode || null,
+          isForeign: v.isForeign,
+          hasThaiVatDReg: v.hasThaiVatDReg,
+          countryCode: v.countryCode?.trim() || null,
+          bankName: v.bankName?.trim() || null,
+          bankAccountNo: v.bankAccountNo?.trim() || null,
+          bankAccountName: v.bankAccountName?.trim() || null,
+          swiftCode: v.swiftCode?.trim() || null,
         });
         toast.success(t('save'));
         router.push(`/vendors/${edit.vendorId}`);
         router.refresh();
       } else {
-        await create.mutateAsync({
-          ...f,
-          nameEn: f.nameEn || null,
-          taxId: f.taxId || null,
-          branchCode: f.branchCode || null,
-          address: f.address || null,
-          contactPerson: f.contactPerson || null,
-          phone: f.phone || null,
-          email: f.email || null,
-          defaultWhtTypeCode: f.defaultWhtTypeCode || null,
-          bankName: f.bankName || null,
-          bankAccountNo: f.bankAccountNo || null,
-          bankAccountName: f.bankAccountName || null,
-          swiftCode: f.swiftCode || null,
-        });
+        const req: CreateVendorRequest = {
+          vendorCode: v.vendorCode.trim(),
+          vendorType: v.vendorType,
+          nameTh: v.nameTh,
+          nameEn: v.nameEn?.trim() || null,
+          taxId: v.taxId?.trim() || null,
+          branchCode: v.branchCode?.trim() || null,
+          branchName: v.branchName?.trim() || null,
+          vatRegistered: v.vatRegistered,
+          address: v.address?.trim() || null,
+          contactPerson: v.contactPerson?.trim() || null,
+          phone: v.phone?.trim() || null,
+          email: v.email?.trim() || null,
+          paymentTermDays: v.paymentTermDays,
+          defaultCurrency: v.defaultCurrency,
+          defaultWhtTypeCode: v.defaultWhtTypeCode?.trim() || null,
+          isForeign: v.isForeign,
+          hasThaiVatDReg: v.hasThaiVatDReg,
+          countryCode: v.countryCode?.trim() || null,
+          bankName: v.bankName?.trim() || null,
+          bankAccountNo: v.bankAccountNo?.trim() || null,
+          bankAccountName: v.bankAccountName?.trim() || null,
+          swiftCode: v.swiftCode?.trim() || null,
+        };
+        await create.mutateAsync(req);
         toast.success(t('save'));
         router.push('/vendors');
         router.refresh();
       }
-    } catch {
-      toast.error(tc('error'));
+    } catch (e) {
+      toast.error(errorToToast(e));
     }
   }
 
+  const err = (field: keyof FormValues) =>
+    errors[field] ? <span className="mt-1 text-xs text-status-danger">{t(`err.${String(errors[field]?.message ?? 'required')}`)}</span> : null;
+
   return (
     <>
-      <PageHeader title={isEdit ? t('editTitle') : t('create')} subtitle={isEdit ? f.vendorCode : undefined} />
+      <PageHeader title={isEdit ? t('editTitle') : t('create')} subtitle={isEdit ? edit?.vendorCode : undefined} />
+      <form onSubmit={handleSubmit(onSubmit)}>
       <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="form-control">
           <span className="label-text">{t('code')} *</span>
-          <input className="input input-bordered disabled:bg-base-200" value={f.vendorCode}
-            disabled={isEdit}
-            onChange={(e) => set('vendorCode', e.target.value)} />
+          <input className="input input-bordered disabled:bg-base-200" disabled={isEdit}
+            {...register('vendorCode')} />
+          {err('vendorCode')}
         </label>
         <label className="form-control">
           <span className="label-text">{t('type')}</span>
-          <select className="select select-bordered disabled:bg-base-200" value={f.vendorType}
-            disabled={isEdit}
-            onChange={(e) => set('vendorType', e.target.value as VendorType)}>
+          <select className="select select-bordered disabled:bg-base-200" disabled={isEdit}
+            {...register('vendorType')}>
             <option value="Corporate">{t('corporate')}</option>
             <option value="Individual">{t('individual')}</option>
           </select>
         </label>
         <label className="form-control">
           <span className="label-text">{t('nameTh')} *</span>
-          <input className="input input-bordered" value={f.nameTh}
-            onChange={(e) => set('nameTh', e.target.value)} />
+          <input className="input input-bordered" {...register('nameTh')} />
+          {err('nameTh')}
         </label>
         <label className="form-control">
           <span className="label-text">{t('nameEn')}</span>
-          <input className="input input-bordered" value={f.nameEn ?? ''}
-            onChange={(e) => set('nameEn', e.target.value)} />
+          <input className="input input-bordered" {...register('nameEn')} />
         </label>
-        <TaxIdInput label={t('taxId')} value={f.taxId ?? ''}
-          onChange={(v) => set('taxId', v)} />
+        <Controller control={control} name="taxId" render={({ field }) => (
+          <TaxIdInput label={t('taxId')} value={field.value ?? ''} onChange={field.onChange} />
+        )} />
         <label className="form-control">
           <span className="label-text">{t('branchCode')}</span>
           <input className="input input-bordered" inputMode="numeric" maxLength={5}
-            value={f.branchCode ?? ''}
-            onChange={(e) => set('branchCode', e.target.value.replace(/\D/g, '').slice(0, 5))} />
+            {...branchCodeField}
+            onChange={(e) => {
+              e.target.value = e.target.value.replace(/\D/g, '').slice(0, 5);
+              branchCodeField.onChange(e);
+            }} />
         </label>
         <label className="form-control">
           <span className="label-text">{t('branchName')}</span>
-          <input className="input input-bordered" value={f.branchName ?? ''}
-            onChange={(e) => set('branchName', e.target.value || null)} />
+          <input className="input input-bordered" {...register('branchName')} />
         </label>
         <label className="form-control">
           <span className="label-text">{t('paymentTerms')}</span>
-          <input type="number" className="input input-bordered" value={f.paymentTermDays}
-            onChange={(e) => set('paymentTermDays', Number(e.target.value) || 0)} />
+          <input type="number" className="input input-bordered"
+            {...register('paymentTermDays', { valueAsNumber: true })} />
         </label>
         {/* cont.78 (Ham) — no vendor-level default WHT type. The 50ทวิ income type is
             chosen PER LINE on the Payment Voucher (from the product/line), so this field
             is dropped from the vendor form. The nullable column stays for back-compat. */}
         <label className="form-control sm:col-span-2">
           <span className="label-text">{t('address')}</span>
-          <textarea className="textarea textarea-bordered" value={f.address ?? ''}
-            onChange={(e) => set('address', e.target.value)} />
+          <textarea className="textarea textarea-bordered" {...register('address')} />
         </label>
 
         {/* ITEM 8 — vendor remittance / payment details (all optional). */}
@@ -180,24 +240,20 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="form-control">
               <span className="label-text">{t('payment.bankName')}</span>
-              <input className="input input-bordered" value={f.bankName ?? ''}
-                onChange={(e) => set('bankName', e.target.value || null)} />
+              <input className="input input-bordered" {...register('bankName')} />
             </label>
             <label className="form-control">
               <span className="label-text">{t('payment.bankAccountNo')}</span>
-              <input className="input input-bordered" value={f.bankAccountNo ?? ''}
-                onChange={(e) => set('bankAccountNo', e.target.value || null)} />
+              <input className="input input-bordered" {...register('bankAccountNo')} />
             </label>
             <label className="form-control">
               <span className="label-text">{t('payment.bankAccountName')}</span>
-              <input className="input input-bordered" value={f.bankAccountName ?? ''}
-                onChange={(e) => set('bankAccountName', e.target.value || null)} />
+              <input className="input input-bordered" {...register('bankAccountName')} />
             </label>
             <label className="form-control">
               <span className="label-text">{t('payment.swiftCode')}</span>
-              <input className="input input-bordered" value={f.swiftCode ?? ''}
-                placeholder={t('payment.swiftHint')}
-                onChange={(e) => set('swiftCode', e.target.value || null)} />
+              <input className="input input-bordered" placeholder={t('payment.swiftHint')}
+                {...register('swiftCode')} />
             </label>
           </div>
         </div>
@@ -205,57 +261,57 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
         <div className="sm:col-span-2 rounded-lg border border-base-300 p-3 space-y-2">
           <label className="label cursor-pointer justify-start gap-3">
             <input type="checkbox" className="checkbox checkbox-sm"
-              checked={f.vatRegistered} disabled={f.isForeign}
-              onChange={(e) => set('vatRegistered', e.target.checked)} />
+              checked={vatRegistered} disabled={foreign}
+              onChange={(e) => setValue('vatRegistered', e.target.checked)} />
             <span className="label-text">{t('foreign.vatRegisteredToggle')}</span>
           </label>
-          {!f.vatRegistered && !f.isForeign && (
+          {!vatRegistered && !foreign && (
             <p className="text-xs text-info">{t('foreign.nonVatInfo')}</p>
           )}
           <label className="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" className="checkbox checkbox-sm" checked={f.isForeign}
+            <input type="checkbox" className="checkbox checkbox-sm" checked={foreign}
               onChange={(e) => {
                 const fg = e.target.checked;
-                setF((p) => ({ ...p, isForeign: fg,
-                  vatRegistered: fg ? true : p.vatRegistered,
-                  hasThaiVatDReg: fg ? p.hasThaiVatDReg : false,
-                  countryCode: fg ? (p.countryCode ?? 'US') : null }));
+                setValue('isForeign', fg);
+                setValue('vatRegistered', fg ? true : vatRegistered);
+                setValue('hasThaiVatDReg', fg ? hasThaiVatDReg : false);
+                setValue('countryCode', fg ? (countryCode || 'US') : '');
               }} />
             <span className="label-text">{t('foreign.toggle')}</span>
           </label>
-          {f.isForeign && (
+          {foreign && (
             <div className="space-y-2 pl-6">
               <label className="form-control max-w-xs">
                 <span className="label-text">{t('foreign.country')}</span>
                 <select className="select select-bordered select-sm"
                   aria-label={t('foreign.country')}
-                  value={f.countryCode ?? 'US'}
-                  onChange={(e) => set('countryCode', e.target.value)}>
+                  value={countryCode || 'US'}
+                  onChange={(e) => setValue('countryCode', e.target.value)}>
                   {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </label>
               <label className="label cursor-pointer justify-start gap-3">
                 <input type="checkbox" className="checkbox checkbox-sm"
-                  checked={f.hasThaiVatDReg}
-                  onChange={(e) => set('hasThaiVatDReg', e.target.checked)} />
+                  checked={hasThaiVatDReg}
+                  onChange={(e) => setValue('hasThaiVatDReg', e.target.checked)} />
                 <span className="label-text">{t('foreign.vatDReg')}</span>
               </label>
-              <p className={`text-xs ${f.hasThaiVatDReg ? 'text-success' : 'text-warning'}`}>
-                {f.hasThaiVatDReg ? t('foreign.vatDInfo') : t('foreign.noVatDWarning')}
+              <p className={`text-xs ${hasThaiVatDReg ? 'text-success' : 'text-warning'}`}>
+                {hasThaiVatDReg ? t('foreign.vatDInfo') : t('foreign.noVatDWarning')}
               </p>
             </div>
           )}
         </div>
       </div>
       <div className="mt-6 flex gap-2">
-        <button className="btn btn-primary btn-sm" disabled={!canSave || pending}
-          onClick={submit}>
+        <button type="submit" className="btn btn-primary btn-sm" disabled={pending}>
           {pending ? t('saving') : t('save')}
         </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => router.back()}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.back()}>
           {tc('cancel')}
         </button>
       </div>
+      </form>
     </>
   );
 }

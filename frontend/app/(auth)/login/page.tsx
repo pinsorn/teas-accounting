@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { auth, type LoginResponse } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
+import { isSafeReturnTo } from '@/lib/safe-return-to';
 
 type FormValues = {
   username: string;
@@ -24,7 +25,7 @@ type FormValues = {
 function safeReturnTo(): string {
   if (typeof window === 'undefined') return '/';
   const rt = new URLSearchParams(window.location.search).get('returnTo');
-  return rt && rt.startsWith('/') && !rt.startsWith('//') ? rt : '/';
+  return isSafeReturnTo(rt) ? rt : '/';
 }
 
 export default function LoginPage() {

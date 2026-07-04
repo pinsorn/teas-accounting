@@ -13,7 +13,7 @@ import { useCreatePurchaseOrder, useSystemInfo, useVendor, useCompanyBuSetting, 
 import { bangkokToday, formatTaxId } from '@/lib/utils';
 import { onInvalidSubmit } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
-import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
+import { PAPER_DOC, companyToSeller, DRAFT_DOC_NO, VENDOR_PARTY_LABEL } from '@/lib/paper-doc-config';
 import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
 import { SectionCard } from '@/components/create/SectionCard';
 import { PartySelectBox } from '@/components/create/PartySelectBox';
@@ -187,12 +187,12 @@ export default function NewPurchaseOrderPage() {
           <PaperDocument
             docType={cfg.docType}
             docTypeEn={cfg.docTypeEn}
-            docNo="(ฉบับร่าง)"
+            docNo={DRAFT_DOC_NO}
             issueDate={docDate}
             validUntil={expected || undefined}
             validUntilLabel={cfg.validUntilLabel}
             seller={companyToSeller(company.data)}
-            partyLabel={{ th: 'ผู้ขาย', en: 'Vendor' }}
+            partyLabel={VENDOR_PARTY_LABEL}
             customer={{
               name: vendorLabel || '—',
               taxId: vendor?.taxId ? formatTaxId(vendor.taxId) : null,
