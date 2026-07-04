@@ -18,7 +18,7 @@ import {
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { PaperDocument } from '@/components/paper/PaperDocument';
-import { PAPER_DOC, companyToCustomer } from '@/lib/paper-doc-config';
+import { PAPER_DOC, companyToCustomer, DRAFT_DOC_NO } from '@/lib/paper-doc-config';
 import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
 import { SectionCard } from '@/components/create/SectionCard';
 import { PartySelectBox } from '@/components/create/PartySelectBox';
@@ -183,7 +183,7 @@ export default function VendorInvoiceNewPage() {
           <PaperDocument
             docType={cfg.docType}
             docTypeEn={cfg.docTypeEn}
-            docNo={tiNo || '(ฉบับร่าง)'}
+            docNo={tiNo || DRAFT_DOC_NO}
             issueDate={tiDate}
             seller={{
               name: vendorLabel || '—',
