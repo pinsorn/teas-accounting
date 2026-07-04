@@ -17,6 +17,7 @@ using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using OpenIddict.Validation.AspNetCore;
 
@@ -145,11 +146,21 @@ builder.Services.AddOpenIddict()
         o.UseAspNetCore()
          .EnableAuthorizationEndpointPassthrough()          // /oauth/authorize handled by our endpoint
          // Token endpoint is NOT passed through: OpenIddict auto-issues the access token from the
-         // stored authorization-code principal (code→token). Refresh-flow hardening (T4) hooks the
-         // server's token-request event, not a passthrough handler.
+         // stored authorization-code principal (code→token). Refresh-flow hardening (M11) hooks the
+         // server's ProcessSignInContext event via RefreshTokenRevalidationHandler below, not a
+         // passthrough handler.
          // TLS is terminated upstream (Cloudflare → Next passthrough → this backend over HTTP), so
          // OpenIddict must not reject the plain-HTTP hop. Same posture as the rest of the API.
          .DisableTransportSecurityRequirement();
+
+        // M11 — on grant_type=refresh_token, reload the subject user and reject if
+        // inactive/off-boarded, then re-derive scopes against current RBAC (shares H4's
+        // McpConsentScopes). Order MUST run before OpenIddict prepares the per-token principals
+        // (PrepareAccessTokenPrincipal et al.) so the re-derived scope set lands in the issued
+        // access token — verified empirically by the M11 proving test.
+        o.AddEventHandler<OpenIddictServerEvents.ProcessSignInContext>(builder =>
+            builder.UseScopedHandler<RefreshTokenRevalidationHandler>()
+                   .SetOrder(int.MinValue + 100_000));
     })
     .AddValidation(o =>
     {
