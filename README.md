@@ -221,8 +221,7 @@ backend/
     Accounting.Domain           # entities, กฎทางธุรกิจ, เครื่องคำนวณภาษี (pure)
     Accounting.Application      # use cases, DTOs, abstractions
     Accounting.Infrastructure   # EF Core, services, RD PDF form fillers, SQL bootstrap scripts
-    Accounting.Api              # ASP.NET Core minimal-API host, MCP server, OAuth authorization server
-    Accounting.Workers          # งานเบื้องหลัง (background jobs)
+    Accounting.Api              # ASP.NET Core minimal-API host, MCP server, OAuth authorization server, งานเบื้องหลัง (Quartz-scheduled jobs)
   tests/                        # xUnit (Domain + Api integration) และ TestKit
 frontend/
   app/(dashboard)/*             # หน้าจอระบบ · components/ · lib/ · messages/{th,en}.json · e2e/

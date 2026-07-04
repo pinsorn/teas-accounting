@@ -7,6 +7,7 @@ using Accounting.Api.BackgroundServices;
 using Accounting.Api.Endpoints;
 using Accounting.Api.Middleware;
 using Accounting.Api.OAuth;
+using Accounting.Api.Scheduling;
 using Accounting.Api.Tenancy;
 using Accounting.Application;
 using Accounting.Application.Abstractions;
@@ -22,6 +23,7 @@ using OpenIddict.Abstractions;
 using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using OpenIddict.Validation.AspNetCore;
+using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,9 +70,51 @@ builder.Services.AddHostedService<ETaxRetryHostedService>();
 builder.Services.AddHostedService<IdempotencyCleanupHostedService>();   // Sprint 14 P4
 builder.Services.AddApplication();
 
-// Multi-tenant context: per-request scope, populated from the JWT claim set.
+// Move-jobs-to-api (2026-07-04) — the 2 Quartz jobs formerly hosted by the separate
+// Accounting.Workers process (never deployed to prod; see the design doc's "Why") now run
+// here, same composition root as the hosted services above. No StartNow — the VAT snapshot
+// fires at the next 02:00 Bangkok, not on boot; unchanged from the Workers host.
+//
+// Quartz:Enabled (default true) gates only AddQuartzHostedService — the piece that actually
+// STARTS the scheduler — not the job/trigger registrations above it. Found empirically: the
+// test suite boots 75+ independent WebApplicationFactory<Program> hosts in the SAME process
+// (RbacApiFactory/McpApiFactory); Quartz's internal Microsoft.Extensions.Logging bridge caches
+// the FIRST host's ILoggerFactory in process-wide static state, so every LATER host's scheduler
+// start throws ObjectDisposedException the instant it tries to log (quartznet/quartznet#1136 —
+// confirmed fixed by not starting the scheduler in a test host). RbacApiFactory/McpApiFactory
+// set Quartz:Enabled=false; real dotnet run/prod never sets it, so it defaults on there.
+builder.Services.AddQuartz(q =>
+{
+    // Daily VAT register snapshot — 02:00 Asia/Bangkok
+    var vatSnapshot = new JobKey(nameof(VatRegisterSnapshotJob));
+    q.AddJob<VatRegisterSnapshotJob>(opts => opts.WithIdentity(vatSnapshot));
+    q.AddTrigger(t => t
+        .ForJob(vatSnapshot)
+        .WithIdentity("vat_snapshot_daily")
+        .WithCronSchedule("0 0 2 * * ?", c => c.InTimeZone(
+            TimeZoneInfo.FindSystemTimeZoneById(
+                OperatingSystem.IsWindows() ? "SE Asia Standard Time" : "Asia/Bangkok"))));
+
+    // ภ.พ.30 deadline alert — every day at 09:00 between day 12 and 15
+    var pnd30Alert = new JobKey(nameof(Pnd30DeadlineAlertJob));
+    q.AddJob<Pnd30DeadlineAlertJob>(opts => opts.WithIdentity(pnd30Alert));
+    q.AddTrigger(t => t
+        .ForJob(pnd30Alert)
+        .WithIdentity("pnd30_deadline_alert")
+        .WithCronSchedule("0 0 9 12-15 * ?"));
+});
+if (builder.Configuration.GetValue("Quartz:Enabled", true))
+    builder.Services.AddQuartzHostedService(opts => opts.WaitForJobsToComplete = true);
+
+// Multi-tenant context: per-request scope, populated from the JWT claim set. Falls back to a
+// settable per-scope company pin when there is no HttpContext (the jobs above) — see
+// AmbientTenantContext's class comment. Registered as its own concrete type AND mapped as
+// ITenantContext to the SAME scoped instance (mirrors the retired WorkerTenantContext wiring)
+// so a job can resolve AmbientTenantContext to call SetCompany, and the DbContext (which
+// constructor-injects the interface) reads that exact mutation in the same scope.
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
+builder.Services.AddScoped<AmbientTenantContext>();
+builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<AmbientTenantContext>());
 
 // JWT bearer
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()

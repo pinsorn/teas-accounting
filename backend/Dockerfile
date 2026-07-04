@@ -8,7 +8,6 @@ COPY ["src/Accounting.Domain/Accounting.Domain.csproj", "src/Accounting.Domain/"
 COPY ["src/Accounting.Application/Accounting.Application.csproj", "src/Accounting.Application/"]
 COPY ["src/Accounting.Infrastructure/Accounting.Infrastructure.csproj", "src/Accounting.Infrastructure/"]
 COPY ["src/Accounting.Api/Accounting.Api.csproj", "src/Accounting.Api/"]
-COPY ["src/Accounting.Workers/Accounting.Workers.csproj", "src/Accounting.Workers/"]
 RUN dotnet restore "src/Accounting.Api/Accounting.Api.csproj"
 
 # Build

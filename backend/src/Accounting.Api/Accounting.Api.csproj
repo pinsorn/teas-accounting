@@ -35,6 +35,10 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <!-- OAuth 2.1 AS (TEAS Connect native-connector auth) — server + validation integration. -->
     <PackageReference Include="OpenIddict.AspNetCore" />
+    <!-- Move-jobs-to-api (2026-07-04) — schedules the VAT snapshot + ภ.พ.30 deadline alert
+         in-process (formerly the separate, never-deployed Accounting.Workers host). -->
+    <PackageReference Include="Quartz" />
+    <PackageReference Include="Quartz.Extensions.Hosting" />
     <!-- OpenTelemetry removed 2026-05-16: unused (no AddOpenTelemetry wiring) and the
          OTLP exporter shipped transitive CVEs. Re-add with a patched version when
          observability is actually implemented. -->

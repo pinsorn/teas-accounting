@@ -31,8 +31,9 @@ namespace Accounting.Api.Tests.Mcp;
 /// HTTP auth, tool registration and a real protocol round-trip.
 ///
 /// The mcp-kind key is minted via a SEPARATE ServiceProvider with a StubTenant
-/// (company 1): in a manually-created scope the factory's HttpTenantContext has no
-/// HttpContext, so IApiKeyService.CreateAsync couldn't resolve the company there.
+/// (company 1): in a manually-created scope the factory's AmbientTenantContext has no
+/// HttpContext (and nothing calls its job-mode SetCompany here), so IApiKeyService.CreateAsync
+/// couldn't resolve the company there.
 /// Both that SP and the factory point at the same teas_test connection string.
 /// The MCP client transport is driven through the factory's in-memory HttpClient
 /// (TestServer is not a real socket) — the HttpClientTransport ctor accepts a
@@ -48,6 +49,9 @@ public sealed class McpApiFactory(string connectionString) : WebApplicationFacto
         builder.UseSetting("ConnectionStrings:Postgres", connectionString);
         builder.UseSetting("Database:RunInitializerOnStartup", "false");
         builder.UseSetting("App:BaseUrl", "http://localhost:3000");
+        // Move-jobs-to-api (2026-07-04) — see RbacApiFactory's identical setting: don't start
+        // the in-process Quartz scheduler in test hosts (quartznet/quartznet#1136).
+        builder.UseSetting("Quartz:Enabled", "false");
     }
 }
 

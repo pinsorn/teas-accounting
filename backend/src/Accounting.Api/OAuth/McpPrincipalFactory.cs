@@ -10,7 +10,7 @@ namespace Accounting.Api.OAuth;
 /// <summary>
 /// Builds the <see cref="ClaimsPrincipal"/> for an issued MCP OAuth token so its access-token claims
 /// EQUAL the set the X-Api-Key handler emits (<c>company_id</c>, <c>branch_id</c>,
-/// <c>is_api_key=true</c>, <c>scopes</c> CSV, name) — letting HttpTenantContext → RLS →
+/// <c>is_api_key=true</c>, <c>scopes</c> CSV, name) — letting AmbientTenantContext → RLS →
 /// <c>apiperm:*</c> gates → MCP tools all work unchanged.
 ///
 /// Security invariants (spec §6b, gated by tests): company_id/branch_id MUST be &gt; 0;
