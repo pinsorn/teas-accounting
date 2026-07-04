@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using OpenIddict.Abstractions;
 using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using OpenIddict.Validation.AspNetCore;
@@ -162,6 +163,21 @@ builder.Services.AddOpenIddict()
         o.AddEventHandler<OpenIddictServerEvents.ProcessSignInContext>(builder =>
             builder.UseScopedHandler<RefreshTokenRevalidationHandler>()
                    .SetOrder(int.MinValue + 100_000));
+
+        // MCP DCR finding (specs/mcp-dcr-client-registration.md) — Claude's connector docs require
+        // discovery to list "none" in token_endpoint_auth_methods_supported for a public/PKCE client
+        // (Option 3: teas-mcp is ClientTypes.Public, no secret). OpenIddict's built-in
+        // AttachClientAuthenticationMethods handler never adds "none" (verified empirically — only
+        // client_secret_basic/post + private_key_jwt were advertised). This is metadata ADVERTISING
+        // only — it changes nothing about actual token-endpoint auth enforcement (a public client
+        // already authenticates via PKCE with no secret today). Order runs LATE so it appends after
+        // the built-in handler populates the list, not before (would be overwritten).
+        o.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(builder =>
+            builder.UseInlineHandler(context =>
+            {
+                context.TokenEndpointAuthenticationMethods.Add(OpenIddictConstants.ClientAuthenticationMethods.None);
+                return default;
+            }).SetOrder(int.MaxValue - 100_000));
     })
     .AddValidation(o =>
     {

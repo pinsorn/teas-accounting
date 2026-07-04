@@ -16,11 +16,21 @@ public sealed class OpenIddictSeeder(IServiceProvider services) : IHostedService
 {
     public const string McpClientId = "teas-mcp";
 
-    // Loopback callback for local/dev + the integration round-trip. Real per-client redirect URIs
-    // (Claude / Codex / Gemini) are supplied via config `Oauth:RedirectUris` (env
-    // Oauth__RedirectUris__N) and unioned in — re-asserted each startup, so adding a client's
-    // callback is a config change + restart, not a redeploy (docs/mcp-oauth-deploy-gates.md).
-    private static readonly string[] DefaultRedirectUris = ["http://localhost:8765/callback"];
+    // Loopback callback for local/dev + the integration round-trip, PLUS the Claude connector's
+    // documented callbacks (mcp-dcr-client-registration.md, Option 3 — manual pre-registered public
+    // client; claude.com/docs/connectors/building/authentication): the hosted claude.ai/Desktop/
+    // mobile/Cowork callback, and the two RFC 8252 native-app loopback forms Claude Code uses.
+    // Additional per-client redirect URIs (Codex / Gemini) are supplied via config
+    // `Oauth:RedirectUris` (env Oauth__RedirectUris__N) and unioned in — re-asserted each startup,
+    // so adding a client's callback is a config change + restart, not a redeploy
+    // (docs/mcp-oauth-deploy-gates.md).
+    private static readonly string[] DefaultRedirectUris =
+    [
+        "http://localhost:8765/callback",
+        "https://claude.ai/api/mcp/auth_callback",
+        "http://localhost/callback",
+        "http://127.0.0.1/callback",
+    ];
 
     public async Task StartAsync(CancellationToken ct)
     {
