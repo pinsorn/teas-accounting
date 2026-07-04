@@ -68,6 +68,10 @@ public sealed class SalesOrderService(
     public async Task PostAsync(long id, CancellationToken ct)
     {
         Auth();
+        // H8 (review 2026-07-04) — wrap alloc+save in one explicit tx, mirroring the safe
+        // TaxInvoiceService.PostAsync pattern; else a failed save after allocation leaves a
+        // consumed-but-unused SO number (a gap).
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var so = await db.SalesOrders.Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.SalesOrderId == id, ct)
             ?? throw new DomainException("so.not_found", $"Sales Order {id} not found.");
@@ -78,6 +82,7 @@ public sealed class SalesOrderService(
         so.PostedAt = clock.UtcNow; so.PostedBy = tenant.UserId;
         activity.Record("SalesOrder", so.SalesOrderId, so.DocNo, so.CompanyId, "Posted", "Draft", "Posted");
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<long> CreateDeliveryOrderAsync(
@@ -264,6 +269,10 @@ public sealed class DeliveryOrderService(
     public async Task IssueAsync(long id, CancellationToken ct)
     {
         Auth();
+        // H8 (review 2026-07-04) — wrap alloc+save in one explicit tx, mirroring the safe
+        // TaxInvoiceService.PostAsync pattern; else a failed save after allocation leaves a
+        // consumed-but-unused DO number (a gap).
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var dord = await db.DeliveryOrders.Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.DeliveryOrderId == id, ct)
             ?? throw new DomainException("do.not_found", $"Delivery Order {id} not found.");
@@ -280,6 +289,7 @@ public sealed class DeliveryOrderService(
         dord.PostedAt = clock.UtcNow; dord.PostedBy = tenant.UserId;
         activity.Record("DeliveryOrder", dord.DeliveryOrderId, dord.DocNo, dord.CompanyId, "Issued", "Draft", "Issued");
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     // cont.69 Phase 1 — Issued → Delivered is a STATUS CHANGE ONLY. The old

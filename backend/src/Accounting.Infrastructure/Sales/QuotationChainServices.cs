@@ -174,6 +174,10 @@ public sealed class QuotationService(
     public async Task SendAsync(long id, CancellationToken ct)
     {
         Auth();
+        // H8 (review 2026-07-04) — wrap alloc+save in one explicit tx, mirroring the safe
+        // TaxInvoiceService.PostAsync pattern; else a failed save after allocation leaves a
+        // consumed-but-unused QT number (a gap).
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var q = await LoadAsync(id, ct);
         if (q.Status != QuotationStatus.Draft)
             throw new DomainException("quotation.bad_status", "Only a Draft quotation can be sent.");
@@ -182,6 +186,7 @@ public sealed class QuotationService(
         q.SentAt = clock.UtcNow;
         activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Sent", "Draft", "Sent");
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task AcceptAsync(long id, CancellationToken ct)

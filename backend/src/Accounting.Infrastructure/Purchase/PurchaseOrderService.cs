@@ -113,6 +113,11 @@ public sealed class PurchaseOrderService(
     public async Task<PurchaseOrderApprovedResult> ApproveAsync(long id, CancellationToken ct)
     {
         Auth();
+        // H8 (review 2026-07-04) — NumberSequenceService's UPSERT auto-commits immediately
+        // when there is no ambient transaction, so a NextAsync followed by a failing SaveChanges
+        // left a consumed-but-unused number (a gap). Wrap alloc+save in one explicit tx, mirroring
+        // the safe TaxInvoiceService.PostAsync pattern.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         var po = await LoadAsync(id, ct);
         // §4.3 — re-pin DocDate to today AT APPROVAL, when the sequential number is allocated, so the
         // doc-no period bucket (MM-YYYY) always matches DocDate even if the draft was created in a
@@ -128,6 +133,7 @@ public sealed class PurchaseOrderService(
         activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
             "Approved", fromStatus: "Draft", toStatus: "Approved", module: "purchase");
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return new PurchaseOrderApprovedResult(
             po.PurchaseOrderId, po.DocNo!, po.ApprovedBy!.Value, po.ApprovedAt!.Value);
     }
