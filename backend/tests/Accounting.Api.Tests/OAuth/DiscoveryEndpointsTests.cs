@@ -54,4 +54,36 @@ public sealed class DiscoveryEndpointsTests
         root.GetProperty("grant_types_supported").EnumerateArray()
             .Select(e => e.GetString()).Should().Contain(["authorization_code", "refresh_token"]);
     }
+
+    // T6/T7 (specs/mcp-dcr-implementation.md) — the empirical gate for the RFC 7591 DCR endpoint's
+    // discovery advertising (Program.cs's context.Metadata["registration_endpoint"] handler).
+    [SkippableFact]
+    public async Task Authorization_server_metadata_advertises_registration_endpoint()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+
+        var resp = await http.GetAsync("/.well-known/oauth-authorization-server");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("registration_endpoint").GetString()
+            .Should().EndWith("/oauth/register");
+    }
+
+    [SkippableFact]
+    public async Task Openid_configuration_advertises_registration_endpoint()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+
+        var resp = await http.GetAsync("/.well-known/openid-configuration");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("registration_endpoint").GetString()
+            .Should().EndWith("/oauth/register");
+    }
 }

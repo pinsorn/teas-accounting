@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Serialization;
 using Accounting.Api.Mcp;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
@@ -156,4 +159,102 @@ public static class OAuthEndpoints
         static IResult Forbid() => Results.Forbid(
             authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
     }
+
+    /// <summary>
+    /// RFC 7591 Dynamic Client Registration — ANONYMOUS POST. OpenIddict 7.5 has no native DCR
+    /// (verified: OpenIddict.Server.dll has zero registration handlers), so this is hand-rolled and
+    /// hardened: the request's scope/grants are IGNORED, redirect_uris are https/loopback-only, the
+    /// created client gets the fixed policy via McpClientDescriptorFactory, the client_id is
+    /// deterministic (dedup), and the endpoint is rate-limited (anonymous + world-reachable).
+    /// </summary>
+    public static IEndpointRouteBuilder MapOAuthRegister(this IEndpointRouteBuilder app)
+    {
+        app.MapMethods("/oauth/register", ["POST"], async (
+            HttpContext http, DcrRequest? body,
+            IOpenIddictApplicationManager appMgr, IOptions<AppOptions> opt,
+            CancellationToken ct) =>
+        {
+            var raw = body?.RedirectUris ?? [];
+            if (raw.Count == 0)
+                return DcrError("invalid_redirect_uri", "redirect_uris is required and must be non-empty.");
+
+            var uris = new List<Uri>(raw.Count);
+            foreach (var s in raw)
+            {
+                if (!Uri.TryCreate(s, UriKind.Absolute, out var u) || !IsAllowedRedirectUri(u))
+                    return DcrError("invalid_redirect_uri",
+                        $"redirect_uri '{s}' must be an https URI or a loopback http URI.");
+                uris.Add(u);
+            }
+
+            var clientId    = DeterministicClientId(uris);
+            var mcpResource = $"{opt.Value.BaseUrl.TrimEnd('/')}/mcp";
+            var displayName = string.IsNullOrWhiteSpace(body?.ClientName) ? "TEAS Connect (DCR)" : body!.ClientName!;
+            var descriptor  = McpClientDescriptorFactory.Build(clientId, displayName, mcpResource, uris);
+
+            // Find-or-create, idempotent + concurrency-safe. UpdateAsync-on-hit re-asserts the
+            // server-fixed policy (a future McpScopes tightening propagates), mirroring the seeder.
+            var existing = await appMgr.FindByClientIdAsync(clientId, ct);
+            if (existing is not null)
+            {
+                await appMgr.UpdateAsync(existing, descriptor, ct);
+            }
+            else
+            {
+                try { await appMgr.CreateAsync(descriptor, ct); }
+                catch (Exception)   // concurrent create → the unique client_id index rejected us
+                {
+                    var raced = await appMgr.FindByClientIdAsync(clientId, ct);
+                    if (raced is null) throw;                       // a genuine failure, not a race
+                    await appMgr.UpdateAsync(raced, descriptor, ct);
+                }
+            }
+
+            return Results.Json(new
+            {
+                client_id                  = clientId,
+                client_id_issued_at        = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                redirect_uris              = uris.Select(u => u.AbsoluteUri).ToArray(),
+                token_endpoint_auth_method = "none",                // public/PKCE, no secret
+                grant_types                = new[] { "authorization_code", "refresh_token" },
+                response_types             = new[] { "code" },
+                scope                      = string.Join(' ', McpScopes.All),
+                client_name                = displayName,
+            }, statusCode: StatusCodes.Status201Created);           // NOTE: no client_secret (public client)
+        })
+        .AllowAnonymous()
+        .RequireRateLimiting("dcr")
+        .WithName("OAuthRegister");
+
+        return app;
+
+        // https OR loopback-http only (Uri.IsLoopback ⇒ localhost / 127.0.0.0/8 / ::1). Rejects custom
+        // schemes + non-loopback http. Covers every documented Claude callback (claude.ai https + Claude
+        // Code loopback); requirement 4.
+        static bool IsAllowedRedirectUri(Uri u) =>
+            u.Scheme == Uri.UriSchemeHttps || (u.Scheme == Uri.UriSchemeHttp && u.IsLoopback);
+
+        static string DeterministicClientId(IEnumerable<Uri> uris)
+        {
+            var joined = string.Join('\n', uris.Select(u => u.AbsoluteUri).OrderBy(s => s, StringComparer.Ordinal));
+            var hash   = SHA256.HashData(Encoding.UTF8.GetBytes(joined));
+            return "dcr-" + Convert.ToHexString(hash)[..32].ToLowerInvariant();   // disjoint from "teas-mcp" (§6)
+        }
+
+        static IResult DcrError(string error, string description) =>
+            Results.Json(new { error, error_description = description },   // RFC 7591 §3.2.2
+                statusCode: StatusCodes.Status400BadRequest);
+    }
+}
+
+/// <summary>RFC 7591 DCR request. scope / grant_types / response_types / token_endpoint_auth_method
+/// are ACCEPTED but IGNORED — the created client always gets the fixed server policy.</summary>
+public sealed record DcrRequest
+{
+    [JsonPropertyName("redirect_uris")]              public List<string>? RedirectUris { get; init; }
+    [JsonPropertyName("client_name")]                public string? ClientName { get; init; }
+    [JsonPropertyName("scope")]                      public string? Scope { get; init; }
+    [JsonPropertyName("grant_types")]                public List<string>? GrantTypes { get; init; }
+    [JsonPropertyName("response_types")]             public List<string>? ResponseTypes { get; init; }
+    [JsonPropertyName("token_endpoint_auth_method")] public string? TokenEndpointAuthMethod { get; init; }
 }

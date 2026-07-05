@@ -1483,6 +1483,8 @@
   "oauthConsent": {
     "title": "Authorize connection",
     "clientLabel": "Application requesting access",
+    "redirectLabel": "After you approve, you'll be sent to",
+    "dcrWarning": "This application registered itself automatically. Only continue if you started this connection yourself.",
     "description": "TEAS Connect will read and draft documents (it cannot post).",
     "companyLabel": "Select company",
     "approve": "Approve",

@@ -46,6 +46,17 @@ function ConsentInner() {
 
   const clientId = params.client_id ?? '';
   const invalid = !clientId || !params.redirect_uri || !params.response_type;
+  // F1 (Tier-2 security finding, DCR spec R8): the consent screen is the sole human gate against a
+  // phished dynamically-registered client, so the redirect destination must be shown, not just the
+  // opaque client_id. Parse to origin only (no path/query leakage of the authorize params).
+  const redirectOrigin = useMemo(() => {
+    try {
+      return new URL(params.redirect_uri ?? '').origin;
+    } catch {
+      return params.redirect_uri ?? '';
+    }
+  }, [params.redirect_uri]);
+  const isDcrClient = clientId.startsWith('dcr-');
 
   useEffect(() => {
     let alive = true;
@@ -121,7 +132,15 @@ function ConsentInner() {
         <div className="mt-4 rounded border border-base-300 bg-base-200 p-3">
           <p className="text-xs text-base-content/60">{t('clientLabel')}</p>
           <p className="break-all font-mono text-sm" data-testid="consent-client-id">{clientId}</p>
+          <p className="mt-2 text-xs text-base-content/60">{t('redirectLabel')}</p>
+          <p className="break-all font-mono text-sm" data-testid="consent-redirect-host">{redirectOrigin}</p>
         </div>
+
+        {isDcrClient && (
+          <div role="alert" className="alert alert-warning mt-3 text-sm" data-testid="consent-dcr-warning">
+            {t('dcrWarning')}
+          </div>
+        )}
 
         <p className="mt-4 text-sm text-base-content/80" data-testid="consent-description">
           {t('description')}

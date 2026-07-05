@@ -51,31 +51,12 @@ public sealed class OpenIddictSeeder(IServiceProvider services) : IHostedService
             else await scopeMgr.UpdateAsync(existingScope, scopeDescriptor, ct);   // reconcile the resource
         }
 
-        var descriptor = new OpenIddictApplicationDescriptor
-        {
-            ClientId = McpClientId,
-            ClientType = ClientTypes.Public,        // native connectors — PKCE, no secret
-            ConsentType = ConsentTypes.Explicit,    // our /oauth/consent page approves each grant
-            DisplayName = "TEAS Connect (MCP)",
-            Permissions =
-            {
-                Permissions.Endpoints.Authorization,
-                Permissions.Endpoints.Token,
-                Permissions.GrantTypes.AuthorizationCode,
-                Permissions.GrantTypes.RefreshToken,
-                Permissions.ResponseTypes.Code,
-                Permissions.Prefixes.Scope + Scopes.OfflineAccess,   // long-running agents: refresh
-            },
-            Requirements = { Requirements.Features.ProofKeyForCodeExchange },
-        };
         var configured = scope.ServiceProvider.GetRequiredService<IConfiguration>()
             .GetSection("Oauth:RedirectUris").Get<string[]>() ?? [];
-        foreach (var uri in DefaultRedirectUris.Union(configured, StringComparer.OrdinalIgnoreCase))
-            descriptor.RedirectUris.Add(new Uri(uri));
-        // Grant ONLY the fixed MCP scope set (server-authoritative — clients can never add *.post).
-        foreach (var s in McpScopes.All) descriptor.Permissions.Add(Permissions.Prefixes.Scope + s);
-        // Permit the client to target the MCP resource (RFC 8707) — else invalid_request on `resource`.
-        descriptor.Permissions.Add(Permissions.Prefixes.Resource + mcpResource);
+        var redirectUris = DefaultRedirectUris.Union(configured, StringComparer.OrdinalIgnoreCase)
+                                              .Select(u => new Uri(u));
+        var descriptor = McpClientDescriptorFactory.Build(
+            McpClientId, "TEAS Connect (MCP)", mcpResource, redirectUris);
 
         var appMgr = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
         var existing = await appMgr.FindByClientIdAsync(McpClientId, ct);
