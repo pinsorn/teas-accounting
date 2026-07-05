@@ -72,12 +72,13 @@ public static class TestCompanyFactory
         await using var s2 = sp2.CreateAsyncScope();
         var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
 
-        var branch = new Branch
-        {
-            CompanyId = companyId, BranchCode = "00000",
-            NameTh = "สำนักงานใหญ่", IsHeadOffice = true, IsActive = true,
-        };
-        db2.Branches.Add(branch);
+        // HQ branch "00000" is now seeded unconditionally by ICompanyService.CreateAsync
+        // itself (fixed onboarding gap — every onboarded company gets one; see
+        // specs/fix-onboarding-branch-and-consent-gate.md). Read it back instead of
+        // inserting a second one here — a second insert would collide with the composite
+        // unique (company_id, branch_code).
+        var branch = await db2.Branches.SingleAsync(
+            b => b.CompanyId == companyId && b.BranchCode == "00000");
         // CoA is fully seeded by ICompanyService.CreateAsync above (every GlAccountsOptions
         // code). The factory no longer mirrors a CoA subset — doing so now collides on the
         // unique (company_id, account_code).

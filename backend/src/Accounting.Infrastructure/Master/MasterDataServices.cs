@@ -198,6 +198,21 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         db.Companies.Add(e);
         await db.SaveChangesAsync(ct);
 
+        // MCP OAuth authorize (OAuthEndpoints.cs) requires an active HQ branch to pin the
+        // token's branch_id — without this, every onboarded company 400s with
+        // company_has_no_active_branch on first connector use. Created unconditionally,
+        // 1:1 with the company (matches CompanyProfile.BranchCode + seeds 120/400).
+        db.Branches.Add(new Branch
+        {
+            CompanyId    = e.CompanyId,
+            BranchCode   = "00000",
+            NameTh       = "สำนักงานใหญ่",
+            NameEn       = "Head Office",
+            IsHeadOffice = true,
+            IsActive     = true,
+            AddressTh    = addressTh,
+        });
+
         // ม.86/4 — the new company's FOUNDING tax identity. Every RD form (ภ.พ.30 / ภ.ง.ด.3/53/54 /
         // 50ทวิ) reads these granular company_profile.Reg* boxes; without this row a freshly
         // onboarded company renders blank address boxes. Created unconditionally (1:1 with the
