@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.1](https://github.com/pinsorn/teas-accounting/compare/v1.11.0...v1.11.1) (2026-07-05)
+
+
+### Bug Fixes
+
+* **onboarding:** seed HQ branch on company creation; move OAuth consent out of onboarding gate ([33cd835](https://github.com/pinsorn/teas-accounting/commit/33cd835a8d8f01120e4bdc29fdaafb855c2219a0))
+* **onboarding:** seed HQ branch on company creation; move OAuth consent out of onboarding gate ([e15c44e](https://github.com/pinsorn/teas-accounting/commit/e15c44e2d89fb781a18e976ce172526ddcb75ef7))
+
 ## [1.11.0](https://github.com/pinsorn/teas-accounting/compare/v1.10.4...v1.11.0) (2026-07-05)
 
 
