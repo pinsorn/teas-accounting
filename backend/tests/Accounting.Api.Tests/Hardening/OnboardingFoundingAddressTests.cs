@@ -163,6 +163,55 @@ public sealed class OnboardingFoundingAddressTests
         codes.Should().Contain("1130", "AR is the account the prod receipt-post hit");
     }
 
+    // Prod bug: CreateAsync never inserted a master.branches row, so every onboarded
+    // company had zero branches. The MCP OAuth authorize flow (OAuthEndpoints.cs) requires
+    // an active HQ branch to pin the token's branch_id — deep-linked connector auth 400'd
+    // with company_has_no_active_branch on first use (companies 2 & 3 on prod).
+    [SkippableFact]
+    public async Task CreateAsync_creates_head_office_branch()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        var taxId = TestIds.TaxId();
+        int companyId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, companyId: 1, branchId: 1))
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT setval(pg_get_serial_sequence('master.companies','company_id'), " +
+                "(SELECT COALESCE(MAX(company_id),0)+1 FROM master.companies), false);" +
+                "SELECT setval(pg_get_serial_sequence('master.branches','branch_id'), " +
+                "(SELECT COALESCE(MAX(branch_id),0)+1 FROM master.branches), false);");
+
+            var svc = s.ServiceProvider.GetRequiredService<ICompanyService>();
+            companyId = await svc.CreateAsync(new CreateCompanyRequest(
+                TaxId: taxId, NameTh: $"บ.สาขา {TestIds.Suffix()}", NameEn: null,
+                LegalEntityType: LegalEntityType.LimitedCompany,
+                RegistrationDate: null, VatRegistered: true, VatRegisterDate: new DateOnly(2024, 1, 1),
+                FiscalYearStartMonth: 1,
+                AddressTh: null, SubDistrict: "x", District: "y",
+                Province: "กรุงเทพมหานคร", PostalCode: "10110", Phone: null, Email: null,
+                PaidUpCapital: null, VatRate: 0.07m, Pnd30SubmissionMode: "manual"),
+                default);
+        }
+
+        var opts = new DbContextOptionsBuilder<AccountingDbContext>()
+            .UseNpgsql(_fx.ConnectionString).UseSnakeCaseNamingConvention()
+            .Options;
+        await using var rdb = new AccountingDbContext(
+            opts, new StubTenant { CompanyId = 1, BranchId = 1, UserId = 1, IsSuperAdmin = true });
+
+        var branches = await rdb.Branches.AsNoTracking()
+            .Where(b => b.CompanyId == companyId).ToListAsync();
+
+        branches.Should().HaveCount(1, "CreateAsync must seed exactly one HQ branch per new company");
+        var hq = branches.Single();
+        hq.BranchCode.Should().Be("00000");
+        hq.IsHeadOffice.Should().BeTrue();
+        hq.IsActive.Should().BeTrue();
+    }
+
     [SkippableFact]
     public async Task CreateAsync_rejects_missing_province_or_postal_via_validator()
     {
