@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.0](https://github.com/pinsorn/teas-accounting/compare/v1.10.4...v1.11.0) (2026-07-05)
+
+
+### Features
+
+* **oauth:** implement RFC 7591 Dynamic Client Registration for MCP connectors ([6a8a233](https://github.com/pinsorn/teas-accounting/commit/6a8a23371bd9762dc843b0003adfbf991a0a5762))
+* **oauth:** RFC 7591 Dynamic Client Registration for MCP connectors ([f3351e5](https://github.com/pinsorn/teas-accounting/commit/f3351e5549f2707a18402102f33e87c53e8e128b))
+
 ## [1.10.4](https://github.com/pinsorn/teas-accounting/compare/v1.10.3...v1.10.4) (2026-07-04)
 
 
