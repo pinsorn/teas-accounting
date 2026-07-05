@@ -216,12 +216,33 @@ builder.Services.AddOpenIddict()
         // only — it changes nothing about actual token-endpoint auth enforcement (a public client
         // already authenticates via PKCE with no secret today). Order runs LATE so it appends after
         // the built-in handler populates the list, not before (would be overwritten).
+        //
+        // ORDER FIX (empirical, DCR implementation 2026-07-05 — supersedes the original int.MaxValue -
+        // 100_000 used here): that value ties EXACTLY with OpenIddict's own AttachIssuer handler
+        // (OpenIddictServerHandlers.Discovery.AttachIssuer.Descriptor.Order == int.MaxValue - 100_000,
+        // confirmed against the 7.5.0 source), which runs BEFORE AttachEndpoints (Order + 1_000) sets
+        // context.AuthorizationEndpoint. TokenEndpointAuthenticationMethods.Add(None) still worked at
+        // that tier because it's a HashSet read only at the very end of the whole dispatch (order-
+        // independent) — but the registration_endpoint code below READS context.AuthorizationEndpoint
+        // synchronously, so at the old order the guard was silently null and the key was NEVER added
+        // (proven: DiscoveryEndpointsTests T6/T7 dumped the raw discovery JSON — no registration_endpoint
+        // key, before OR after switching context.Metadata vs context.Transaction.Response — the sink
+        // was never the problem). Moved to int.MaxValue - 50_000, safely after AttachEndpoints.
         o.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(builder =>
             builder.UseInlineHandler(context =>
             {
                 context.TokenEndpointAuthenticationMethods.Add(OpenIddictConstants.ClientAuthenticationMethods.None);
+
+                // RFC 7591 — advertise the DCR endpoint in BOTH discovery docs (this handler fires for
+                // openid-configuration AND oauth-authorization-server). Build it from AuthorizationEndpoint so it
+                // carries the request/BACKEND origin → the FE .well-known rewrite swaps it to the public origin,
+                // exactly like authorization_endpoint/token_endpoint. Guard the null (a null-forgiving `!` here
+                // would 500 the whole discovery response).
+                if (context.AuthorizationEndpoint is { } authz)
+                    context.Metadata["registration_endpoint"] = new Uri(authz, "/oauth/register").AbsoluteUri;
+
                 return default;
-            }).SetOrder(int.MaxValue - 100_000));
+            }).SetOrder(int.MaxValue - 50_000));
     })
     .AddValidation(o =>
     {
@@ -337,6 +358,18 @@ builder.Services.AddRateLimiter(o =>
                 QueueLimit           = 0,
             });
     });
+
+    // DCR (/oauth/register) is anonymous + world-reachable → per-IP fixed window, mirroring "login".
+    // Relies on M5 UseForwardedHeaders for the real caller IP through Cloudflare→Next→backend (else all
+    // DCR shares the Next passthrough IP bucket — still bounded, just coarser). 10/min/IP is ample for a
+    // connector that registers once.
+    o.AddPolicy("dcr", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10, Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst, QueueLimit = 0,
+        }));
 
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
@@ -494,6 +527,7 @@ app.MapExternalApiV1();
 // bridge. RFC 8414 / OIDC discovery + /oauth/token are served by the OpenIddict middleware.
 app.MapOAuthMetadata();
 app.MapOAuthAuthorize();
+app.MapOAuthRegister();
 
 app.MapMcp("/mcp")
     .RequireAuthorization(ApiV1Endpoints.McpAuthPolicy)   // ApiKey XOR Bearer (guard middleware rejects both)

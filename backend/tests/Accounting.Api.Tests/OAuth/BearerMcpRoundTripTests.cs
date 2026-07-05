@@ -57,8 +57,12 @@ public sealed class BearerMcpRoundTripTests
             }, http, loggerFactory: null, ownsHttpClient: false));
 
     // Drive authorize (super-admin session grants for company 1) → code → token. Returns the Bearer.
-    // Asserts the 302→code→200-token happy path along the way.
-    private static async Task<string> AcquireOauthTokenAsync(HttpClient noRedirectClient)
+    // Asserts the 302→code→200-token happy path along the way. Parametrized (client_id/redirect_uri
+    // default to the pre-registered teas-mcp consts) so a DCR-registered client can reuse the SAME
+    // harness (T8, specs/mcp-dcr-implementation.md) — proving a DCR client is a first-class OAuth
+    // client, not a special case.
+    private static async Task<string> AcquireOauthTokenAsync(
+        HttpClient noRedirectClient, string clientId = ClientId, string redirectUri = RedirectUri)
     {
         var verifier = B64Url(RandomNumberGenerator.GetBytes(32));
         var challenge = B64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
@@ -67,8 +71,8 @@ public sealed class BearerMcpRoundTripTests
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["client_id"] = ClientId,
-                ["redirect_uri"] = RedirectUri,
+                ["client_id"] = clientId,
+                ["redirect_uri"] = redirectUri,
                 ["response_type"] = "code",
                 ["code_challenge"] = challenge,
                 ["code_challenge_method"] = "S256",
@@ -85,7 +89,7 @@ public sealed class BearerMcpRoundTripTests
         acceptResp.StatusCode.Should().Be(HttpStatusCode.Found,
             $"consent accept → 302 to redirect_uri?code; got {(int)acceptResp.StatusCode}: {acceptBody}");
         var location = acceptResp.Headers.Location!.ToString();
-        location.Should().StartWith(RedirectUri);
+        location.Should().StartWith(redirectUri);
         var code = QueryHelpers.ParseQuery(new Uri(location).Query)["code"].ToString();
         code.Should().NotBeNullOrEmpty();
 
@@ -94,8 +98,8 @@ public sealed class BearerMcpRoundTripTests
             {
                 ["grant_type"] = "authorization_code",
                 ["code"] = code,
-                ["redirect_uri"] = RedirectUri,
-                ["client_id"] = ClientId,
+                ["redirect_uri"] = redirectUri,
+                ["client_id"] = clientId,
                 ["code_verifier"] = verifier,
             }));
         tokenResp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -119,6 +123,33 @@ public sealed class BearerMcpRoundTripTests
         await using var mcp = await ConnectAsync(mcpHttp);
         var result = await mcp.CallToolAsync("list_customers", new Dictionary<string, object?>());
         result.IsError.Should().NotBe(true, "an OAuth Bearer must resolve scopes + tenant like an mcp X-Api-Key");
+    }
+
+    // T8 (specs/mcp-dcr-implementation.md) — a DCR-registered client (RFC 7591 self-registration, no
+    // manually-pasted client_id) round-trips register → authorize → token → /mcp exactly like the
+    // pre-registered teas-mcp client, proving DCR clients are first-class OAuth clients end-to-end.
+    [SkippableFact]
+    public async Task Dcr_registered_client_round_trips_authorize_token_mcp()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        const string dcrRedirectUri = "http://localhost:8765/callback";
+        using var registerResp = await client.PostAsync("/oauth/register", new StringContent(
+            """{"redirect_uris":["http://localhost:8765/callback"]}""", Encoding.UTF8, "application/json"));
+        registerResp.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var registerDoc = JsonDocument.Parse(await registerResp.Content.ReadAsStringAsync());
+        var dcrClientId = registerDoc.RootElement.GetProperty("client_id").GetString();
+        dcrClientId.Should().NotBeNullOrEmpty();
+
+        var accessToken = await AcquireOauthTokenAsync(client, dcrClientId!, dcrRedirectUri);
+
+        using var mcpHttp = factory.CreateClient();
+        mcpHttp.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        await using var mcp = await ConnectAsync(mcpHttp);
+        var result = await mcp.CallToolAsync("list_customers", new Dictionary<string, object?>());
+        result.IsError.Should().NotBe(true, "a DCR-registered client must resolve scopes + tenant like teas-mcp");
     }
 
     // (e) WRITE — an OAuth agent creates a draft AND can poll its OWN drafts (first-class provenance:
