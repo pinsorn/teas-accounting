@@ -170,13 +170,14 @@ public static class ReportEndpoints
             if (format == "csv")
             {
                 var csv = new StringBuilder();
-                csv.AppendLine("DocDate,DocNo,Description,Reference,Debit,Credit,RunningBalance");
+                // RFC 4180: CRLF line endings, explicit — AppendLine is platform-dependent (\n on Linux CI).
+                csv.Append("DocDate,DocNo,Description,Reference,Debit,Credit,RunningBalance").Append("\r\n");
                 string Esc(string? s) => s is null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
-                csv.AppendLine($"{fromDate:yyyy-MM-dd},,{Esc("ยอดยกมา")},,,,{report.OpeningBalance}");
+                csv.Append($"{fromDate:yyyy-MM-dd},,{Esc("ยอดยกมา")},,,,{report.OpeningBalance}").Append("\r\n");
                 foreach (var r in report.Rows)
-                    csv.AppendLine($"{r.DocDate:yyyy-MM-dd},{Esc(r.DocNo)},{Esc(r.Description)},{Esc(r.Reference)}," +
-                                   $"{r.Debit},{r.Credit},{r.RunningBalance}");
-                csv.AppendLine($"{toDate:yyyy-MM-dd},,{Esc("ยอดยกไป")},,{report.TotalDebit},{report.TotalCredit},{report.ClosingBalance}");
+                    csv.Append($"{r.DocDate:yyyy-MM-dd},{Esc(r.DocNo)},{Esc(r.Description)},{Esc(r.Reference)}," +
+                               $"{r.Debit},{r.Credit},{r.RunningBalance}").Append("\r\n");
+                csv.Append($"{toDate:yyyy-MM-dd},,{Esc("ยอดยกไป")},,{report.TotalDebit},{report.TotalCredit},{report.ClosingBalance}").Append("\r\n");
                 // UTF-8 WITH BOM — Thai text must render correctly when opened directly in Excel.
                 // NOTE: Encoding.GetBytes(string) never emits the preamble regardless of the
                 // encoderShouldEmitUTF8Identifier flag — that flag only affects GetPreamble()/
