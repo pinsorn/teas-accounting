@@ -30,6 +30,11 @@ public static class JournalEndpoints
             Results.Ok(await service.PostAsync(id, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Gl.JournalPost);
 
+        // First JE read endpoint (GL drill-down target) — 404 for not-found/other-tenant alike.
+        group.MapGet("/{id:long}", async (long id, IJournalService service, CancellationToken ct) =>
+            Results.Ok(await service.GetDetailAsync(id, ct)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Gl.JournalRead);
+
         return app;
     }
 }

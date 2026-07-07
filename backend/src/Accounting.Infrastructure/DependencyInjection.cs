@@ -85,7 +85,6 @@ public static class DependencyInjection
         services.AddSingleton<Application.Abstractions.IFileStorageService, Storage.LocalDiskFileStorage>();
         services.AddScoped<Application.Attachments.IAttachmentService,    Attachments.AttachmentService>();
         services.AddScoped<Application.Reports.IVatReportService,        Reports.VatReportService>();
-        services.AddScoped<Application.Reports.IGlReportService,         Reports.GlReportService>();
         services.AddScoped<Application.Reports.INumberGapReportService,  Reports.NumberGapReportService>();
         services.AddScoped<Application.Reports.IVatThresholdService,      Reports.VatThresholdService>();
         services.AddScoped<Application.Reports.IWhtReceivableReportService, Reports.WhtReceivableReportService>();

@@ -451,6 +451,32 @@ export interface ProfitLossReport {
   from: string; to: string;
   groups: ProfitLossGroup[]; totals: ProfitLossGroup; note: string;
 }
+// General Ledger (บัญชีแยกประเภท) — per-account drill-down report.
+export interface GeneralLedgerRow {
+  journalId: number; docDate: string; docNo: string; description: string | null;
+  reference: string | null; debit: number; credit: number; runningBalance: number;
+}
+export interface GeneralLedgerReport {
+  accountId: number; accountCode: string; accountNameTh: string; accountType: string;
+  normalBalance: string; fromDate: string; toDate: string;
+  openingBalance: number; rows: GeneralLedgerRow[];
+  totalDebit: number; totalCredit: number; closingBalance: number;
+}
+export interface GeneralLedgerAccountOption {
+  accountId: number; accountCode: string; accountNameTh: string; normalBalance: string;
+}
+// Journal Entry detail (GL drill-down target, GET /journals/{id}).
+export interface JournalDetailLine {
+  lineNo: number; accountId: number; accountCode: string; accountNameTh: string;
+  description: string | null; reference: string | null; debit: number; credit: number;
+  businessUnitId: number | null;
+}
+export interface JournalDetail {
+  journalId: number; docNo: string | null; docDate: string; postingDate: string;
+  description: string; reference: string | null; status: string; postedAt: string | null;
+  reversalOfId: number | null; lines: JournalDetailLine[];
+  totalDebit: number; totalCredit: number;
+}
 // 2026-06-13 — monthly tax summary dashboard
 export interface TaxSummaryMonth {
   month: number;            // 1..12; 0 = year total

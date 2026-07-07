@@ -49,6 +49,25 @@ public sealed record BalanceSheetReport(
     bool Balanced,                          // Assets.Total == LiabilitiesAndEquityTotal
     string Note);
 
+// ── General Ledger (บัญชีแยกประเภท) — per-account drill-down, opening/rows/closing ──
+// NOTE (spec-vs-reality): spec's DTO literal said `int AccountId`, but
+// ChartOfAccount.AccountId is `long` in this codebase (BIGINT PK) — kept `long`
+// throughout (DTOs, service signature, query params) to match the real column
+// instead of truncating/narrowing. Everything else matches the spec verbatim.
+public sealed record GeneralLedgerReport(
+    long AccountId, string AccountCode, string AccountNameTh, string AccountType,
+    string NormalBalance, DateOnly FromDate, DateOnly ToDate,
+    decimal OpeningBalance, IReadOnlyList<GeneralLedgerRow> Rows,
+    decimal TotalDebit, decimal TotalCredit, decimal ClosingBalance);
+
+public sealed record GeneralLedgerRow(
+    long JournalId, DateOnly DocDate, string DocNo, string? Description,
+    string? Reference, decimal Debit, decimal Credit, decimal RunningBalance);
+
+/// <summary>Account-picker option for the GL report screen (active, non-header accounts).</summary>
+public sealed record GeneralLedgerAccountOption(
+    long AccountId, string AccountCode, string AccountNameTh, string NormalBalance);
+
 public interface IFinancialReportService
 {
     Task<TrialBalanceReport> TrialBalanceAsync(DateOnly asOfDate, bool includeInactive, CancellationToken ct);
@@ -60,4 +79,11 @@ public interface IFinancialReportService
     /// code "report.product_unsupported" (Product master = Sprint 10).</summary>
     Task<SalesSummary> SalesSummaryAsync(
         DateOnly from, DateOnly to, string groupBy, CancellationToken ct);
+    /// <summary>Throws <see cref="Accounting.Domain.Common.DomainException"/> code
+    /// "gl_account.not_found" (→ 404) when <paramref name="accountId"/> doesn't exist or
+    /// belongs to another tenant (EF global filter hides cross-tenant rows identically).</summary>
+    Task<GeneralLedgerReport> GeneralLedgerAsync(
+        long accountId, DateOnly fromDate, DateOnly toDate, CancellationToken ct);
+    /// <summary>Active, non-header accounts for the GL report's account picker.</summary>
+    Task<IReadOnlyList<GeneralLedgerAccountOption>> GeneralLedgerAccountsAsync(CancellationToken ct);
 }

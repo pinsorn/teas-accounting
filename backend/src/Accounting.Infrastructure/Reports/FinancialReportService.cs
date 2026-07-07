@@ -272,4 +272,85 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
             tis.Sum(x => x.TotalAmount));
         return new SalesSummary(from, to, groupBy, rows, totals);
     }
+
+    /// <summary>
+    /// General Ledger (บัญชีแยกประเภท) — per-account drill-down. Sign convention:
+    /// signed(dr,cr) = NormalBalance==DR ? dr-cr : cr-dr. Opening = signed() over ALL
+    /// posted history strictly before fromDate (period-close ignored — closed periods
+    /// still count into opening). Rows = posted lines in [fromDate,toDate], ordered by
+    /// DocDate/JournalId/LineNo; running balance walks opening + cumulative signed().
+    /// No pagination v1 (range-limited query; PDF export needs all rows anyway).
+    /// // ponytail: fetch-all in range, paginate if real ledgers exceed ~10k rows.
+    /// </summary>
+    public async Task<GeneralLedgerReport> GeneralLedgerAsync(
+        long accountId, DateOnly fromDate, DateOnly toDate, CancellationToken ct)
+    {
+        EnsureAuth();
+
+        var account = await db.ChartOfAccounts.AsNoTracking()
+            .Where(a => a.AccountId == accountId)
+            .Select(a => new { a.AccountId, a.AccountCode, a.AccountNameTh, a.AccountType, a.NormalBalance })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new DomainException("gl_account.not_found", $"Account {accountId} not found.");
+
+        var normalDr = account.NormalBalance == NormalBalance.Debit;
+        decimal Signed(decimal dr, decimal cr) => normalDr ? dr - cr : cr - dr;
+
+        var opening = await (
+            from l in db.JournalLines.AsNoTracking()
+            join j in db.JournalEntries.AsNoTracking() on l.JournalId equals j.JournalId
+            where j.Status == DocumentStatus.Posted && l.AccountId == accountId && j.DocDate < fromDate
+            select new { l.DebitAmount, l.CreditAmount })
+            .ToListAsync(ct);
+        var openingBalance = Signed(opening.Sum(x => x.DebitAmount), opening.Sum(x => x.CreditAmount));
+
+        var raw = await (
+            from l in db.JournalLines.AsNoTracking()
+            join j in db.JournalEntries.AsNoTracking() on l.JournalId equals j.JournalId
+            where j.Status == DocumentStatus.Posted && l.AccountId == accountId
+                  && j.DocDate >= fromDate && j.DocDate <= toDate
+            orderby j.DocDate, j.JournalId, l.LineNo
+            select new
+            {
+                j.JournalId, j.DocDate, DocNo = j.DocNo ?? "",
+                EntryDescription = j.Description, LineDescription = l.Description,
+                l.Reference, l.DebitAmount, l.CreditAmount,
+            })
+            .ToListAsync(ct);
+
+        var rows = new List<GeneralLedgerRow>();
+        var running = openingBalance;
+        decimal totalDebit = 0m, totalCredit = 0m;
+        foreach (var r in raw)
+        {
+            totalDebit += r.DebitAmount;
+            totalCredit += r.CreditAmount;
+            running += Signed(r.DebitAmount, r.CreditAmount);
+            rows.Add(new GeneralLedgerRow(
+                r.JournalId, r.DocDate, r.DocNo, r.LineDescription ?? r.EntryDescription,
+                r.Reference, r.DebitAmount, r.CreditAmount, running));
+        }
+
+        var closingBalance = openingBalance + Signed(totalDebit, totalCredit);
+
+        return new GeneralLedgerReport(
+            account.AccountId, account.AccountCode, account.AccountNameTh,
+            account.AccountType.ToString().ToUpperInvariant(), normalDr ? "DR" : "CR",
+            fromDate, toDate, openingBalance, rows, totalDebit, totalCredit, closingBalance);
+    }
+
+    public async Task<IReadOnlyList<GeneralLedgerAccountOption>> GeneralLedgerAccountsAsync(CancellationToken ct)
+    {
+        EnsureAuth();
+
+        var accounts = await db.ChartOfAccounts.AsNoTracking()
+            .Where(a => a.IsActive && !a.IsHeader)
+            .OrderBy(a => a.AccountCode)
+            .Select(a => new { a.AccountId, a.AccountCode, a.AccountNameTh, a.NormalBalance })
+            .ToListAsync(ct);
+
+        return accounts.Select(a => new GeneralLedgerAccountOption(
+            a.AccountId, a.AccountCode, a.AccountNameTh,
+            a.NormalBalance == NormalBalance.Debit ? "DR" : "CR")).ToList();
+    }
 }
