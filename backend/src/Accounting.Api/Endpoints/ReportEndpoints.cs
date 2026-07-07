@@ -1,6 +1,9 @@
+using System.Text;
 using Accounting.Api.Authorization;
+using Accounting.Application.Abstractions;
 using Accounting.Application.Reports;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.Pdf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -130,6 +133,68 @@ public static class ReportEndpoints
             INumberGapReportService svc, CancellationToken ct) =>
                 Results.Ok(await svc.GetGapsAsync(year, month, doc_type, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.AuditRead);
+
+        // General Ledger (บัญชีแยกประเภท) — per-account drill-down + JE detail (JournalEndpoints).
+        // Read-only; posted-only, same as trial balance. Gated on its own perm (not TrialBalance)
+        // so a company can grant ledger drill-down separately from the summary report.
+        group.MapGet("/general-ledger", async (
+            [FromQuery] long accountId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
+            IFinancialReportService svc, CancellationToken ct) =>
+        {
+            if (fromDate > toDate)
+                return Results.BadRequest(new { detail = "fromDate must be on or before toDate." });
+            return Results.Ok(await svc.GeneralLedgerAsync(accountId, fromDate, toDate, ct));
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.GeneralLedger);
+
+        // Account picker for the GL report screen — no separate CoA read perm exists (/accounts
+        // is CoaManage-gated, wrong RBAC shape for report viewers), so this reuses the report perm.
+        group.MapGet("/general-ledger/accounts", async (
+            IFinancialReportService svc, CancellationToken ct) =>
+                Results.Ok(await svc.GeneralLedgerAccountsAsync(ct)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.GeneralLedger);
+
+        group.MapGet("/general-ledger/export", async (
+            [FromQuery] long accountId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
+            [FromQuery] string format,
+            IFinancialReportService svc, AccountingDbContext db, ITenantContext tenant, CancellationToken ct) =>
+        {
+            if (fromDate > toDate)
+                return Results.BadRequest(new { detail = "fromDate must be on or before toDate." });
+            if (format is not ("pdf" or "csv"))
+                return Results.BadRequest(new { detail = "format must be 'pdf' or 'csv'." });
+
+            var report = await svc.GeneralLedgerAsync(accountId, fromDate, toDate, ct);
+            var fileBase = $"general-ledger-{report.AccountCode}-{fromDate:yyyy-MM-dd}-{toDate:yyyy-MM-dd}";
+
+            if (format == "csv")
+            {
+                var csv = new StringBuilder();
+                csv.AppendLine("DocDate,DocNo,Description,Reference,Debit,Credit,RunningBalance");
+                string Esc(string? s) => s is null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
+                csv.AppendLine($"{fromDate:yyyy-MM-dd},,{Esc("ยอดยกมา")},,,,{report.OpeningBalance}");
+                foreach (var r in report.Rows)
+                    csv.AppendLine($"{r.DocDate:yyyy-MM-dd},{Esc(r.DocNo)},{Esc(r.Description)},{Esc(r.Reference)}," +
+                                   $"{r.Debit},{r.Credit},{r.RunningBalance}");
+                csv.AppendLine($"{toDate:yyyy-MM-dd},,{Esc("ยอดยกไป")},,{report.TotalDebit},{report.TotalCredit},{report.ClosingBalance}");
+                // UTF-8 WITH BOM — Thai text must render correctly when opened directly in Excel.
+                // NOTE: Encoding.GetBytes(string) never emits the preamble regardless of the
+                // encoderShouldEmitUTF8Identifier flag — that flag only affects GetPreamble()/
+                // StreamWriter. The BOM bytes must be prepended explicitly.
+                var utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+                var bytes = utf8Bom.GetPreamble().Concat(utf8Bom.GetBytes(csv.ToString())).ToArray();
+                return Results.File(bytes, "text/csv", $"{fileBase}.csv");
+            }
+
+            var company = await db.Companies.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.CompanyId == tenant.CompanyId, ct);
+            var profile = await db.CompanyProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.CompanyId == tenant.CompanyId, ct);
+            var companyName = profile?.LegalName ?? company?.NameTh ?? "";
+            var pdf = GeneralLedgerPdf.Render(companyName, report);
+            return Results.File(pdf, "application/pdf", $"{fileBase}.pdf");
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.GeneralLedger);
 
         return app;
     }

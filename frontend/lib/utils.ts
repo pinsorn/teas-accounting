@@ -43,6 +43,24 @@ export function bangkokToday(): string {
   }).format(new Date());
 }
 
+/** First day of the CURRENT Bangkok-local month, as yyyy-MM-dd.
+ *  Built from `bangkokToday()` (never `Date.toISOString()`, which shifts to
+ *  UTC and produces an off-by-one date range near midnight in TZ+07:00). */
+export function bangkokMonthStart(): string {
+  const [y, m] = bangkokToday().split('-');
+  return `${y}-${m}-01`;
+}
+
+/** Last day of the CURRENT Bangkok-local month, as yyyy-MM-dd. Day-count is
+ *  computed via `Date.UTC` arithmetic (day 0 of next month), never a local
+ *  `new Date(y, m, 0)`, so the result can't be shifted by the browser's own
+ *  timezone. */
+export function bangkokMonthEnd(): string {
+  const [y, m] = bangkokToday().split('-').map(Number) as [number, number];
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
 /** Format Thai Tax ID for display: 0-1055-56123-45-0 */
 export function formatTaxId(taxId: string | null | undefined): string {
   if (!taxId || taxId.length !== 13) return taxId ?? '-';

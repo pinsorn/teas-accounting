@@ -33,6 +33,9 @@ import type {
   WhtMissingCertReport,
   TrialBalanceReport,
   ProfitLossReport,
+  GeneralLedgerReport,
+  GeneralLedgerAccountOption,
+  JournalDetail,
   SalesSummary,
   Pnd30Filing,
   InputVatRegister,
@@ -897,6 +900,30 @@ export function useProfitLoss(
         includeUnspecified: includeUnspecified || undefined })}`),
   });
 }
+// General Ledger (บัญชีแยกประเภท) — per-account drill-down + JE detail (2026-07-07).
+export function useGlAccounts() {
+  return useQuery({
+    queryKey: ['gl-accounts'],
+    queryFn: () => apiGet<GeneralLedgerAccountOption[]>('reports/general-ledger/accounts'),
+  });
+}
+export function useGeneralLedger(accountId: number | undefined, fromDate: string, toDate: string) {
+  return useQuery({
+    queryKey: ['general-ledger', accountId, fromDate, toDate],
+    enabled: accountId != null && !!fromDate && !!toDate,
+    queryFn: () => apiGet<GeneralLedgerReport>(
+      `reports/general-ledger${qs({ accountId, fromDate, toDate })}`),
+  });
+}
+// GL drill-down target — first JE read endpoint.
+export function useJournal(id: number) {
+  return useQuery({
+    queryKey: ['journal', id],
+    queryFn: () => apiGet<JournalDetail>(`journals/${id}`),
+    enabled: Number.isFinite(id) && id > 0,
+  });
+}
+
 export function useTaxSummary(year: number, businessUnitId?: number) {
   return useQuery({
     queryKey: ['tax-summary', year, businessUnitId],

@@ -93,4 +93,36 @@ public sealed class JournalService : IJournalService
 
         return new JournalPostedResult(entry.JournalId, docNo, now);
     }
+
+    public async Task<JournalDetail> GetDetailAsync(long journalId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var entry = await _db.JournalEntries.AsNoTracking()
+            .Include(j => j.Lines)
+            .FirstOrDefaultAsync(j => j.JournalId == journalId, ct)
+            ?? throw new DomainException("je.not_found", $"Journal {journalId} not found.");
+
+        var accountIds = entry.Lines.Select(l => l.AccountId).Distinct().ToList();
+        var accounts = await _db.ChartOfAccounts.AsNoTracking()
+            .Where(a => accountIds.Contains(a.AccountId))
+            .ToDictionaryAsync(a => a.AccountId, ct);
+
+        var lines = entry.Lines
+            .OrderBy(l => l.LineNo)
+            .Select(l =>
+            {
+                var a = accounts.GetValueOrDefault(l.AccountId);
+                return new JournalDetailLine(
+                    l.LineNo, l.AccountId, a?.AccountCode ?? "", a?.AccountNameTh ?? "",
+                    l.Description, l.Reference, l.DebitAmount, l.CreditAmount, l.BusinessUnitId);
+            })
+            .ToList();
+
+        return new JournalDetail(
+            entry.JournalId, entry.DocNo, entry.DocDate, entry.PostingDate,
+            entry.Description, entry.Reference, entry.Status.ToString(), entry.PostedAt,
+            entry.ReversalOfId, lines, entry.TotalDebit, entry.TotalCredit);
+    }
 }

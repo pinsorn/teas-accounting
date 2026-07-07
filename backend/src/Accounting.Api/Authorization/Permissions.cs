@@ -112,6 +112,8 @@ public static class Permissions
         public const string TrialBalance = "report.trial_balance.read";
         public const string ProfitLoss   = "report.profit_loss.read";
         public const string AuditRead    = "report.audit.read";
+        // General Ledger drill-down report — same viewer roles as TrialBalance.
+        public const string GeneralLedger = "report.general_ledger.read";
     }
 
     /// <summary>All permission codes — for seed migration.</summary>
@@ -137,6 +139,6 @@ public static class Permissions
         Tax.VatRegisterRead, Tax.Pnd30Read, Tax.Pnd3Read, Tax.Pnd53Read, Tax.WhtTypeManage,
         Tax.FilingPreview, Tax.FilingFinalize, Tax.FilingRead,
         Payroll.RunManage, Payroll.RunPost, Payroll.RunPay,
-        Report.TrialBalance, Report.ProfitLoss, Report.AuditRead,
+        Report.TrialBalance, Report.ProfitLoss, Report.AuditRead, Report.GeneralLedger,
     ];
 }

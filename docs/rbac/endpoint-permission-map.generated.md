@@ -7,13 +7,13 @@
 
 | Kind | Count |
 |---|---:|
-| Anonymous | 6 |
+| Anonymous | 7 |
 | AuthnOnly | 13 |
-| Perm | 240 |
+| Perm | 244 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **291** |
+| **TOTAL** | **296** |
 
 ## Routes
 
@@ -140,12 +140,14 @@
 | POST | `/expense-categories/` | Perm | sys.expense_category.manage |
 | ANY | `/health` | Anonymous | — |
 | POST | `/journals/` | Perm | gl.journal.create |
+| GET | `/journals/{id:long}` | Perm | gl.journal.read |
 | POST | `/journals/{id:long}/post` | Perm | gl.journal.post |
 | POST | `/mcp/` | ApiKeyOnly | — |
 | GET | `/me` | AuthnOnly | — |
 | GET | `/me/permissions` | AuthnOnly | — |
 | GET | `/oauth/authorize` | Anonymous | — |
 | POST | `/oauth/authorize` | AuthnOnly | — |
+| POST | `/oauth/register` | Anonymous | — |
 | GET | `/payment-vouchers/` | Perm | purchase.payment_voucher.read |
 | POST | `/payment-vouchers/` | Perm | purchase.payment_voucher.create |
 | GET | `/payment-vouchers/{id:long}` | Perm | purchase.payment_voucher.read |
@@ -217,6 +219,9 @@
 | GET | `/reports/ap-aging` | Perm | purchase.purchase_order.read |
 | GET | `/reports/balance-sheet` | Perm | report.trial_balance.read |
 | GET | `/reports/financial-statements/pdf` | Perm | report.trial_balance.read |
+| GET | `/reports/general-ledger` | Perm | report.general_ledger.read |
+| GET | `/reports/general-ledger/accounts` | Perm | report.general_ledger.read |
+| GET | `/reports/general-ledger/export` | Perm | report.general_ledger.read |
 | GET | `/reports/input-vat-register` | Perm | tax.vat_register.read |
 | GET | `/reports/number-gaps` | Perm | report.audit.read |
 | GET | `/reports/output-vat-register` | Perm | tax.vat_register.read |

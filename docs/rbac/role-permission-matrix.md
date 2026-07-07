@@ -41,6 +41,7 @@
 | `purchase.vendor_invoice.read` | ✓ |  | ✓ |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.wht.read` | ✓ |  | ✓ |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `report.audit.read` |  |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
+| `report.general_ledger.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `report.profit_loss.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `report.trial_balance.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `sales.billing_note.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
@@ -82,18 +83,18 @@
 
 | Role | Granted |
 |---|---:|
-| ACCOUNTANT | 43 |
+| ACCOUNTANT | 44 |
 | APPROVER | 6 |
 | AP_CLERK | 15 |
 | AR_CLERK | 23 |
-| AUDITOR | 17 |
-| CHIEF_ACCOUNTANT | 59 |
-| COMPANY_ADMIN | 66 |
+| AUDITOR | 18 |
+| CHIEF_ACCOUNTANT | 60 |
+| COMPANY_ADMIN | 67 |
 | PURCHASING_STAFF | 5 |
 | SALES_STAFF | 13 |
-| TAX_OFFICER | 11 |
+| TAX_OFFICER | 12 |
 | WAREHOUSE_STAFF | 2 |
-| SUPER_ADMIN | 67 (bypass) |
+| SUPER_ADMIN | 68 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

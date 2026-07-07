@@ -22,6 +22,17 @@ public sealed record CreateJournalRequest(
 
 public sealed record JournalPostedResult(long JournalId, string DocNo, DateTimeOffset PostedAt);
 
+// ── JE detail (first read endpoint — GET /journals/{id}) ───────────────────────
+public sealed record JournalDetailLine(
+    int LineNo, long AccountId, string AccountCode, string AccountNameTh,
+    string? Description, string? Reference, decimal Debit, decimal Credit, int? BusinessUnitId);
+
+public sealed record JournalDetail(
+    long JournalId, string? DocNo, DateOnly DocDate, DateOnly PostingDate,
+    string Description, string? Reference, string Status, DateTimeOffset? PostedAt,
+    long? ReversalOfId, IReadOnlyList<JournalDetailLine> Lines,
+    decimal TotalDebit, decimal TotalCredit);
+
 public sealed class CreateJournalValidator : AbstractValidator<CreateJournalRequest>
 {
     public CreateJournalValidator()
