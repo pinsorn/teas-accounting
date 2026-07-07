@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.12.0](https://github.com/pinsorn/teas-accounting/compare/v1.11.1...v1.12.0) (2026-07-07)
+
+
+### Features
+
+* **reports:** general ledger report with journal entry drill-down ([4953d04](https://github.com/pinsorn/teas-accounting/commit/4953d04ae00a6310fb0deb0b81b7743f54d8b7d3))
+* **reports:** general ledger report with journal entry drill-down ([a272d37](https://github.com/pinsorn/teas-accounting/commit/a272d3704cbb0ec627de554b4dfbf5676e8c61c1))
+
+
+### Bug Fixes
+
+* **reports:** force CRLF line endings in general ledger CSV export ([6ae381a](https://github.com/pinsorn/teas-accounting/commit/6ae381a91ccad8408f6c45a118f9013e3a7a6d1b))
+* **reports:** force CRLF line endings in general ledger CSV export ([ac4a11b](https://github.com/pinsorn/teas-accounting/commit/ac4a11b8f06fcb58dcf8c147403f583dc0c90ad4))
+
 ## [1.11.1](https://github.com/pinsorn/teas-accounting/compare/v1.11.0...v1.11.1) (2026-07-05)
 
 
