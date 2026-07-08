@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 13 |
-| Perm | 244 |
+| Perm | 247 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **297** |
+| **TOTAL** | **300** |
 
 ## Routes
 
@@ -218,7 +218,9 @@
 | POST | `/receipts/{id:long}/post` | Perm | sales.receipt.post |
 | POST | `/receipts/{id:long}/wht-cert` | Perm | sales.receipt.create |
 | GET | `/reports/ap-aging` | Perm | purchase.purchase_order.read |
+| GET | `/reports/ar-aging` | Perm | sales.tax_invoice.read |
 | GET | `/reports/balance-sheet` | Perm | report.trial_balance.read |
+| GET | `/reports/customer-statement` | Perm | sales.tax_invoice.read |
 | GET | `/reports/financial-statements/pdf` | Perm | report.trial_balance.read |
 | GET | `/reports/general-ledger` | Perm | report.general_ledger.read |
 | GET | `/reports/general-ledger/accounts` | Perm | report.general_ledger.read |
@@ -234,6 +236,7 @@
 | GET | `/reports/tax-summary` | Perm | report.profit_loss.read |
 | GET | `/reports/trial-balance` | Perm | report.trial_balance.read |
 | GET | `/reports/vat-register` | Perm | tax.vat_register.read |
+| GET | `/reports/vendor-ledger` | Perm | purchase.vendor_invoice.read |
 | GET | `/reports/wht-receivable-aging` | Perm | tax.pnd53.read |
 | GET | `/reports/wht-receivable-missing-cert` | Perm | tax.pnd53.read |
 | GET | `/reports/wht-receivable-register` | Perm | tax.pnd53.read |

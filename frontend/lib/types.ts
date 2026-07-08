@@ -443,6 +443,54 @@ export interface TrialBalanceReport {
   rows: TrialBalanceReportRow[];
   totals: { debit: number; credit: number; balanced: boolean };
 }
+export interface BalanceSheetRow {
+  accountCode: string; accountNameTh: string; balance: number;
+}
+export interface BalanceSheetSection {
+  rows: BalanceSheetRow[]; total: number;
+}
+export interface BalanceSheetReport {
+  asOfDate: string; companyId: number;
+  assets: BalanceSheetSection; liabilities: BalanceSheetSection; equity: BalanceSheetSection;
+  currentPeriodEarnings: number; liabilitiesAndEquityTotal: number;
+  balanced: boolean; note: string;
+}
+// specs/subledgers.md — AR/AP sub-ledger suite (shared reconciliation block).
+export interface SubledgerReconciliation {
+  controlAccountCode: string; controlAccountBalance: number;
+  subLedgerTotal: number; difference: number; balanced: boolean;
+}
+export interface ArAgingRow {
+  customerId: number; customerCode: string; customerName: string; customerTaxId: string | null;
+  current: number; bucket31To60: number; bucket61To90: number; bucketOver90: number; total: number;
+}
+export interface ArAgingReport {
+  asOfDate: string; companyId: number;
+  rows: ArAgingRow[]; totals: ArAgingRow;
+  reconciliation: SubledgerReconciliation;
+}
+export interface CustomerStatementLine {
+  docDate: string; docType: string; docNo: string; description: string | null;
+  debit: number; credit: number; runningBalance: number;
+}
+export interface CustomerStatement {
+  customerId: number; customerCode: string; customerName: string;
+  fromDate: string; toDate: string; openingBalance: number;
+  lines: CustomerStatementLine[];
+  totalDebit: number; totalCredit: number; closingBalance: number;
+  reconciliation: SubledgerReconciliation;
+}
+export interface VendorLedgerLine {
+  docDate: string; docType: string; docNo: string; description: string | null;
+  debit: number; credit: number; runningBalance: number;
+}
+export interface VendorLedger {
+  vendorId: number; vendorCode: string; vendorName: string;
+  fromDate: string; toDate: string; openingBalance: number;
+  lines: VendorLedgerLine[];
+  totalDebit: number; totalCredit: number; closingBalance: number;
+  reconciliation: SubledgerReconciliation;
+}
 export interface ProfitLossGroup {
   businessUnitId: number | null; businessUnitCode: string | null;
   groupName: string; revenue: number; expense: number; netProfit: number;
