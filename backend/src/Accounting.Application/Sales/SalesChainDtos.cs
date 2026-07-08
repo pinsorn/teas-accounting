@@ -121,7 +121,9 @@ public interface IQuotationService
     Task RejectAsync(long id, string reason, CancellationToken ct);
     Task CancelAsync(long id, string reason, CancellationToken ct);
     Task<long> ConvertToSalesOrderAsync(long id, CancellationToken ct);
-    Task<IReadOnlyList<QuotationListItem>> ListAsync(string? status, CancellationToken ct);
+    // E1 — optional date-range/customer/product filters (all null = unfiltered, prior behavior).
+    Task<IReadOnlyList<QuotationListItem>> ListAsync(string? status, CancellationToken ct,
+        DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null);
     Task<QuotationDetail?> GetAsync(long id, CancellationToken ct);
 }
 

@@ -7,13 +7,13 @@
 
 | Kind | Count |
 |---|---:|
-| Anonymous | 7 |
+| Anonymous | 8 |
 | AuthnOnly | 13 |
 | Perm | 244 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **296** |
+| **TOTAL** | **297** |
 
 ## Routes
 
@@ -180,6 +180,7 @@
 | GET | `/products/{id:long}` | Perm | master.product.read |
 | PUT | `/products/{id:long}` | Perm | master.product.manage |
 | POST | `/products/{id:long}/deactivate` | Perm | master.product.manage |
+| GET | `/public/pdf` | Anonymous | — |
 | GET | `/purchase-orders/` | Perm | purchase.purchase_order.read |
 | POST | `/purchase-orders/` | Perm | purchase.purchase_order.create |
 | GET | `/purchase-orders/{id:long}` | Perm | purchase.purchase_order.read |

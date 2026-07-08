@@ -165,64 +165,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                 && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
-        // cont.69 / B2 (2026-06-19) — ProductType is master data for any product-linked line:
-        // ALWAYS resolve it from the Product master and OVERRIDE caller input. A caller (MCP agent)
-        // sending a wrong type (e.g. Service→"GOOD") must not corrupt the goods/service split that
-        // the WHT base + ภ.พ.30 reporting depend on. Free-text lines (no ProductId) keep the
-        // caller-supplied type. The WHT service/goods split (SuggestWhtBaseAsync) reads line.ProductType.
-        var srcLines = req.Lines;
-        var needType = req.Lines
-            .Where(l => l.ProductId is not null)
-            .Select(l => l.ProductId!.Value).Distinct().ToList();
-        if (needType.Count > 0)
-        {
-            var prods = await _db.Products.AsNoTracking()
-                .Where(p => needType.Contains(p.ProductId))
-                .Select(p => new { p.ProductId, p.ProductType })
-                .ToListAsync(ct);
-            // Line ProductType uses the UPPER_SNAKE convention IsService() expects;
-            // the Product master stores a PascalCase enum → map it.
-            var ptypes = prods.ToDictionary(p => p.ProductId, p => p.ProductType switch
-            {
-                Domain.Enums.ProductType.Service        => "SERVICE",
-                Domain.Enums.ProductType.ExemptService  => "EXEMPT_SERVICE",
-                Domain.Enums.ProductType.ExemptGood     => "EXEMPT_GOOD",
-                _                                       => "GOOD",
-            });
-            srcLines = req.Lines.Select(l =>
-                l.ProductId is { } pid && ptypes.TryGetValue(pid, out var pt)
-                    ? l with { ProductType = pt }   // master overrides caller input (authoritative)
-                    : l).ToList();
-        }
-
-        // §4.6 / ม.80 — the per-line VAT RATE is company master data, NOT caller input. For a
-        // request-fed Tax Invoice (POST /tax-invoices) this is the EXACT path that produced the
-        // "VAT7 + taxRate:0 → 0-VAT tax invoice" hole: BuildLine trusted input.TaxRate. We are
-        // VAT-registered here (EnsureVatRegisteredAsync above), so derive each line's rate/code
-        // from its tax-code classification (exempt/zero-rated → 0; standard → companies.vat_rate).
-        // Chain-copy paths (DO→TI, Invoice→TI) pass deriveLineTax:false and inherit the already-
-        // normalized source rate — re-deriving there would double-process.
-        if (deriveLineTax)
-        {
-            var vatRate = (await _taxCfg.GetAsync(ct)).VatRate;
-            var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(
-                _db, srcLines.Select(l => l.TaxCode), ct);
-            srcLines = srcLines.Select(l =>
-            {
-                var (_, rate, code) = SalesLineBackstop.Resolve(
-                    vatMode: true, vatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
-                    productTypes: EmptyProductTypes, taxCodeFlags);
-                return l with { TaxRate = rate, TaxCode = code };
-            }).ToList();
-        }
-
-        var lines = srcLines.Select((l, i) => BuildLine(l, i + 1, req.IsTaxInclusive)).ToList();
-
-        var subtotal  = lines.Sum(l => l.LineAmount);
-        var taxable   = lines.Where(l => l.TaxRate > 0).Sum(l => l.LineAmount);
-        var nontaxable = subtotal - taxable;
-        var vatAmount = lines.Sum(l => l.TaxAmount);
-        var total     = lines.Sum(l => l.TotalAmount);
+        var (lines, subtotal, taxable, nontaxable, vatAmount, total) =
+            await RebuildLinesAndTotalsAsync(req.Lines, req.IsTaxInclusive, deriveLineTax, ct);
 
         // ม.86/4 #2 — the seller address on a Tax Invoice is the registered (DBD) address.
         // Prefer the CompanyProfile registered address; companies.AddressTh is the legacy
@@ -277,6 +221,163 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId, "Created", toStatus: "Draft");
         await _db.SaveChangesAsync(ct);
         return ti.TaxInvoiceId;
+    }
+
+    /// <summary>D3.1 (spec mcp-expansion.md) — the "resolve product-type override + derive rate +
+    /// BuildLine + sum aggregates" block, extracted from <see cref="CreateDraftCoreAsync"/> so
+    /// create and <see cref="UpdateDraftAsync"/> can NEVER diverge on VAT math. NEVER trust client
+    /// totals — the request carries only Lines; every amount here is recomputed server-side.</summary>
+    private async Task<(List<TaxInvoiceLine> Lines, decimal Subtotal, decimal Taxable, decimal NonTaxable, decimal VatAmount, decimal Total)>
+        RebuildLinesAndTotalsAsync(
+            IReadOnlyList<TaxInvoiceLineInput> reqLines, bool isTaxInclusive, bool deriveLineTax, CancellationToken ct)
+    {
+        // cont.69 / B2 (2026-06-19) — ProductType is master data for any product-linked line:
+        // ALWAYS resolve it from the Product master and OVERRIDE caller input. A caller (MCP agent)
+        // sending a wrong type (e.g. Service→"GOOD") must not corrupt the goods/service split that
+        // the WHT base + ภ.พ.30 reporting depend on. Free-text lines (no ProductId) keep the
+        // caller-supplied type. The WHT service/goods split (SuggestWhtBaseAsync) reads line.ProductType.
+        var srcLines = reqLines;
+        var needType = reqLines
+            .Where(l => l.ProductId is not null)
+            .Select(l => l.ProductId!.Value).Distinct().ToList();
+        if (needType.Count > 0)
+        {
+            var prods = await _db.Products.AsNoTracking()
+                .Where(p => needType.Contains(p.ProductId))
+                .Select(p => new { p.ProductId, p.ProductType })
+                .ToListAsync(ct);
+            // Line ProductType uses the UPPER_SNAKE convention IsService() expects;
+            // the Product master stores a PascalCase enum → map it.
+            var ptypes = prods.ToDictionary(p => p.ProductId, p => p.ProductType switch
+            {
+                Domain.Enums.ProductType.Service        => "SERVICE",
+                Domain.Enums.ProductType.ExemptService  => "EXEMPT_SERVICE",
+                Domain.Enums.ProductType.ExemptGood     => "EXEMPT_GOOD",
+                _                                       => "GOOD",
+            });
+            srcLines = reqLines.Select(l =>
+                l.ProductId is { } pid && ptypes.TryGetValue(pid, out var pt)
+                    ? l with { ProductType = pt }   // master overrides caller input (authoritative)
+                    : l).ToList();
+        }
+
+        // §4.6 / ม.80 — the per-line VAT RATE is company master data, NOT caller input. For a
+        // request-fed Tax Invoice (POST /tax-invoices) this is the EXACT path that produced the
+        // "VAT7 + taxRate:0 → 0-VAT tax invoice" hole: BuildLine trusted input.TaxRate. We are
+        // VAT-registered here (EnsureVatRegisteredAsync above), so derive each line's rate/code
+        // from its tax-code classification (exempt/zero-rated → 0; standard → companies.vat_rate).
+        // Chain-copy paths (DO→TI, Invoice→TI) pass deriveLineTax:false and inherit the already-
+        // normalized source rate — re-deriving there would double-process.
+        if (deriveLineTax)
+        {
+            var vatRate = (await _taxCfg.GetAsync(ct)).VatRate;
+            var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(
+                _db, srcLines.Select(l => l.TaxCode), ct);
+            srcLines = srcLines.Select(l =>
+            {
+                var (_, rate, code) = SalesLineBackstop.Resolve(
+                    vatMode: true, vatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
+                    productTypes: EmptyProductTypes, taxCodeFlags);
+                return l with { TaxRate = rate, TaxCode = code };
+            }).ToList();
+        }
+
+        var lines = srcLines.Select((l, i) => BuildLine(l, i + 1, isTaxInclusive)).ToList();
+
+        var subtotal   = lines.Sum(l => l.LineAmount);
+        var taxable    = lines.Where(l => l.TaxRate > 0).Sum(l => l.LineAmount);
+        var nontaxable = subtotal - taxable;
+        var vatAmount  = lines.Sum(l => l.TaxAmount);
+        var total      = lines.Sum(l => l.TotalAmount);
+
+        return (lines, subtotal, taxable, nontaxable, vatAmount, total);
+    }
+
+    /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit. Mirrors
+    /// <c>QuotationService.UpdateDraftAsync</c>'s delete-and-recreate-lines pattern (D3.0
+    /// template). HARD REQUIREMENT (D3.2): lines are ALWAYS removed + rebuilt, even for a
+    /// header-only edit, so DB trigger 582 (fn_ti_lines_immutable) stays the concurrency
+    /// backstop uniformly — trigger 583 (header) only guards CRITICAL fields, so a header-only
+    /// edit that skipped the line rewrite could otherwise race a concurrent post undetected.
+    /// Server-controlled fields are NEVER accepted from the client: DocNo/Status/PostedAt are
+    /// untouched, and DocDate/TaxPointDate are left exactly as pinned at create (re-pinned again
+    /// at PostAsync) — this method does not touch them at all.</summary>
+    public async Task UpdateDraftAsync(long taxInvoiceId, CreateTaxInvoiceRequest req, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        // Defense: a draft TI may survive a VAT→non-VAT config switch; it must not be editable
+        // either (mirrors the same defensive re-check PostAsync already does).
+        await EnsureVatRegisteredAsync(ct);
+
+        var ti = await _db.TaxInvoices
+            .Include(t => t.Lines)
+            .FirstOrDefaultAsync(t => t.TaxInvoiceId == taxInvoiceId, ct)
+            ?? throw new DomainException("ti.not_found", $"Tax Invoice {taxInvoiceId} not found.");
+        if (ti.Status != Domain.Enums.DocumentStatus.Draft)
+            throw new DomainException("ti.cannot_edit_after_post",
+                "Tax Invoice can only be edited while in Draft.");
+
+        // Sprint 14 P7 — same per-key BU lock as create.
+        var (effBu, buErr) = ApiKeyBuBinding.Resolve(
+            req.BusinessUnitId, _tenant.ApiKeyDefaultBusinessUnitId);
+        if (buErr is not null)
+            throw new DomainException(buErr,
+                $"This API key is bound to Business Unit {_tenant.ApiKeyDefaultBusinessUnitId}; " +
+                $"request specified {req.BusinessUnitId}.");
+        req = req with { BusinessUnitId = effBu };
+
+        var customer = await _db.Customers
+                .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
+            ?? throw new DomainException("ti.customer_missing", $"Customer {req.CustomerId} not found.");
+        // ม.86/4 #3 — VAT-registered customer must have Tax ID + branch.
+        if (customer.VatRegistered && (string.IsNullOrEmpty(customer.TaxId) || string.IsNullOrEmpty(customer.BranchCode)))
+            throw new DomainException("ti.customer_incomplete",
+                "VAT-registered customer requires Tax ID + branch_code (ม.86/4 #3).");
+
+        var company = await _db.Companies
+                .FirstOrDefaultAsync(c => c.CompanyId == _tenant.CompanyId, ct)
+            ?? throw new DomainException("ti.company_missing", "Company not found.");
+        if (company.RequiresBusinessUnit && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+        if (req.BusinessUnitId is { } buId &&
+            !await _db.BusinessUnits.AnyAsync(x => x.BusinessUnitId == buId
+                && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
+            throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
+
+        ti.CustomerId             = customer.CustomerId;
+        ti.CustomerTaxId          = customer.TaxId;
+        ti.CustomerBranchCode     = customer.BranchCode;
+        ti.CustomerBranchName     = customer.BranchName;
+        ti.CustomerName           = customer.NameTh;
+        ti.CustomerAddress        = customer.BillingAddress ?? string.Empty;
+        ti.CustomerVatRegistered  = customer.VatRegistered;
+        ti.CurrencyCode    = req.CurrencyCode;
+        ti.ExchangeRate    = req.ExchangeRate;
+        ti.IsTaxInclusive  = req.IsTaxInclusive;
+        ti.DueDate         = req.DueDate;
+        ti.PaymentTerms    = req.PaymentTerms;
+        ti.Notes           = req.Notes;
+        ti.BusinessUnitId  = req.BusinessUnitId;
+        ti.QuotationId     = req.QuotationId;
+        // DocDate/TaxPointDate intentionally untouched here — server-controlled (D3.1).
+
+        // HARD REQUIREMENT (D3.2) — always delete-and-recreate every line.
+        _db.RemoveRange(ti.Lines);
+        ti.Lines.Clear();
+
+        var (lines, subtotal, taxable, nontaxable, vatAmount, total) =
+            await RebuildLinesAndTotalsAsync(req.Lines, req.IsTaxInclusive, deriveLineTax: true, ct);
+        foreach (var l in lines) ti.Lines.Add(l);
+        ti.SubtotalAmount   = subtotal;
+        ti.DiscountAmount   = 0m;
+        ti.TaxableAmount    = taxable;
+        ti.NonTaxableAmount = nontaxable;
+        ti.TaxAmount        = vatAmount;
+        ti.TotalAmount      = total;
+        ti.TotalAmountThb   = Math.Round(total * req.ExchangeRate, 4, MidpointRounding.AwayFromZero);
+
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<TaxInvoicePostedResult> PostAsync(long taxInvoiceId, CancellationToken ct)

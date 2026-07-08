@@ -12,4 +12,7 @@ public sealed class AppOptions
 
     /// <summary>Public frontend base URL (no trailing slash needed). Dev = http://localhost:3000.</summary>
     public string BaseUrl { get; init; } = "http://localhost:3000";
+
+    /// <summary>§A — TTL (hours) for a public PDF link token (config: App:PdfLinkTtlHours). Default 24.</summary>
+    public int PdfLinkTtlHours { get; init; } = 24;
 }

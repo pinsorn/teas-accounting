@@ -88,17 +88,36 @@ public sealed class CustomerService : ICustomerService
         page     = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var query = _db.Customers.AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = $"%{search.Trim()}%";
-            query = query.Where(c => EF.Functions.ILike(c.NameTh, s)
+            var ilikeQuery = _db.Customers.Where(c => EF.Functions.ILike(c.NameTh, s)
                                   || EF.Functions.ILike(c.CustomerCode, s)
                                   || (c.NameEn != null && EF.Functions.ILike(c.NameEn, s)));
+            var rows = await ProjectPageAsync(ilikeQuery, page, pageSize, ct);
+            if (rows.Count > 0)
+                return rows;
+
+            // B1 — trigram fallback: the exact/substring ILIKE pass found nothing and the
+            // caller gave a non-empty search term, so retry with typo-tolerant similarity
+            // (requires the pg_trgm extension — 591_seed_pg_trgm.sql).
+            var q = search.Trim();
+            var trigramQuery = _db.Customers
+                .Where(c => EF.Functions.TrigramsSimilarity(c.NameTh, q) > 0.25
+                         || EF.Functions.TrigramsSimilarity(c.CustomerCode, q) > 0.25)
+                .OrderByDescending(c => EF.Functions.TrigramsSimilarity(c.NameTh, q));
+            return await ProjectPageAsync(trigramQuery, page, pageSize, ct, alreadyOrdered: true);
         }
 
+        return await ProjectPageAsync(_db.Customers.OrderBy(c => c.CustomerCode), page, pageSize, ct, alreadyOrdered: true);
+    }
+
+    private static async Task<List<CustomerDto>> ProjectPageAsync(
+        IQueryable<Customer> query, int page, int pageSize, CancellationToken ct, bool alreadyOrdered = false)
+    {
+        if (!alreadyOrdered)
+            query = query.OrderBy(c => c.CustomerCode);
         return await query
-            .OrderBy(c => c.CustomerCode)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(c => new CustomerDto(c.CustomerId, c.CustomerCode, c.CustomerType, c.NameTh, c.NameEn,

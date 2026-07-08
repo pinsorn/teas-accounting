@@ -3,6 +3,7 @@ using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
@@ -62,6 +63,61 @@ public sealed partial class ReceiptService : IReceiptService
                 .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
             ?? throw new DomainException("rc.customer_missing", $"Customer {req.CustomerId} not found.");
 
+        var computed = await RebuildLinesAndTotalsAsync(customer, req, ct);
+
+        var rc = new Receipt
+        {
+            CompanyId       = _tenant.CompanyId,
+            BranchId        = _tenant.BranchId,
+            DocDate         = docDate,   // §10 — pinned to Asia/Bangkok today
+            CustomerId      = customer.CustomerId,
+            CustomerName    = customer.NameTh,
+            CustomerAddress = customer.BillingAddress ?? string.Empty,
+            CustomerTaxId   = customer.TaxId,
+            PaymentMethod   = req.PaymentMethod,
+            ChequeNo        = req.ChequeNo,
+            ChequeDate      = req.ChequeDate,
+            BankAccountId   = req.BankAccountId,
+            BusinessUnitId  = req.BusinessUnitId,
+            WhtAmount           = computed.WhtTotal,
+            WhtTypeId           = computed.HeaderWhtType,
+            WhtLines            = computed.WhtLines,
+            CustomerWhtCertNo   = req.CustomerWhtCertNo,
+            CustomerWhtCertDate = req.CustomerWhtCertDate,
+            CurrencyCode    = req.CurrencyCode,
+            ExchangeRate    = req.ExchangeRate,
+            Amount          = computed.Amount,
+            TotalAmount     = computed.Amount,
+            TotalAmountThb  = Math.Round(computed.Amount * req.ExchangeRate, 4, MidpointRounding.AwayFromZero),
+            Notes           = req.Notes,
+            // M4a — stamp the key name when created by an API-key principal (MCP agent).
+            CreatedViaApiKeyName = _tenant.ApiKeyName,
+            Applications = computed.Applications,
+            // Standalone non-VAT receipt — own line items (cash bill). Empty for the
+            // apply path (lines are derived from the applied TI/DO on read).
+            Lines = computed.Lines,
+        };
+
+        _db.Receipts.Add(rc);
+        await _db.SaveChangesAsync(ct);
+        _activity.Record("Receipt", rc.ReceiptId, rc.DocNo, rc.CompanyId, "Created", toStatus: "Draft");
+        await _db.SaveChangesAsync(ct);
+        return rc.ReceiptId;
+    }
+
+    /// <summary>D3.1 (spec mcp-expansion.md, Receipt analog) — the "validate applications +
+    /// resolve WHT + build lines + sum totals" block, shared by <see cref="CreateDraftAsync"/>
+    /// and <see cref="UpdateDraftAsync"/> so create/edit compute can never diverge. NEVER trust a
+    /// client-supplied total — <see cref="CreateReceiptRequest"/> carries no header total field at
+    /// all; Amount/TotalAmount are always the sum this method computes from Applications or Lines.
+    /// </summary>
+    private sealed record ReceiptComputedFields(
+        decimal Amount, decimal WhtTotal, int? HeaderWhtType,
+        List<ReceiptWhtLine> WhtLines, List<ReceiptApplication> Applications, List<ReceiptLine> Lines);
+
+    private async Task<ReceiptComputedFields> RebuildLinesAndTotalsAsync(
+        Customer customer, CreateReceiptRequest req, CancellationToken ct)
+    {
         // Validate applications. VAT path → posted TI, same customer, within outstanding.
         // Non-VAT credit path → issued/delivered DO, same customer. Standalone non-VAT
         // (no applications) carries its own lines (validated by the request validator).
@@ -211,62 +267,103 @@ public sealed partial class ReceiptService : IReceiptService
         // Legacy single-category pointer: the one type, else NULL when multi-category.
         int? headerWhtType = whtLines.Count == 1 ? whtLines[0].WhtTypeId : null;
 
-        var rc = new Receipt
+        var applications = req.Applications.Select(a => new ReceiptApplication
         {
-            CompanyId       = _tenant.CompanyId,
-            BranchId        = _tenant.BranchId,
-            DocDate         = docDate,   // §10 — pinned to Asia/Bangkok today
-            CustomerId      = customer.CustomerId,
-            CustomerName    = customer.NameTh,
-            CustomerAddress = customer.BillingAddress ?? string.Empty,
-            CustomerTaxId   = customer.TaxId,
-            PaymentMethod   = req.PaymentMethod,
-            ChequeNo        = req.ChequeNo,
-            ChequeDate      = req.ChequeDate,
-            BankAccountId   = req.BankAccountId,
-            BusinessUnitId  = req.BusinessUnitId,
-            WhtAmount           = whtTotal,
-            WhtTypeId           = headerWhtType,
-            WhtLines            = whtLines,
-            CustomerWhtCertNo   = req.CustomerWhtCertNo,
-            CustomerWhtCertDate = req.CustomerWhtCertDate,
-            CurrencyCode    = req.CurrencyCode,
-            ExchangeRate    = req.ExchangeRate,
-            Amount          = amount,
-            TotalAmount     = amount,
-            TotalAmountThb  = Math.Round(amount * req.ExchangeRate, 4, MidpointRounding.AwayFromZero),
-            Notes           = req.Notes,
-            // M4a — stamp the key name when created by an API-key principal (MCP agent).
-            CreatedViaApiKeyName = _tenant.ApiKeyName,
-            Applications = req.Applications.Select(a => new ReceiptApplication
-            {
-                TaxInvoiceId    = a.TaxInvoiceId,
-                DeliveryOrderId = a.DeliveryOrderId,
-                BillingNoteId   = a.BillingNoteId,
-                AppliedAmount   = a.AppliedAmount,
-            }).ToList(),
-            // Standalone non-VAT receipt — own line items (cash bill). Empty for the
-            // apply path (lines are derived from the applied TI/DO on read).
-            Lines = (req.Lines ?? Array.Empty<ReceiptLineInput>())
-                .Select((l, i) => new ReceiptLine
-                {
-                    LineNo        = i + 1,
-                    ProductId     = l.ProductId,
-                    ProductCode   = l.ProductCode,
-                    ProductType   = l.ProductType,
-                    DescriptionTh = l.DescriptionTh,
-                    Quantity      = l.Quantity,
-                    UomText       = l.UomText,
-                    UnitPrice     = l.UnitPrice,
-                    Amount        = l.Amount,
-                }).ToList(),
-        };
+            TaxInvoiceId    = a.TaxInvoiceId,
+            DeliveryOrderId = a.DeliveryOrderId,
+            BillingNoteId   = a.BillingNoteId,
+            AppliedAmount   = a.AppliedAmount,
+        }).ToList();
 
-        _db.Receipts.Add(rc);
+        // Standalone non-VAT receipt — own line items (cash bill). Empty for the
+        // apply path (lines are derived from the applied TI/DO on read).
+        var lines = (req.Lines ?? Array.Empty<ReceiptLineInput>())
+            .Select((l, i) => new ReceiptLine
+            {
+                LineNo        = i + 1,
+                ProductId     = l.ProductId,
+                ProductCode   = l.ProductCode,
+                ProductType   = l.ProductType,
+                DescriptionTh = l.DescriptionTh,
+                Quantity      = l.Quantity,
+                UomText       = l.UomText,
+                UnitPrice     = l.UnitPrice,
+                Amount        = l.Amount,
+            }).ToList();
+
+        return new ReceiptComputedFields(amount, whtTotal, headerWhtType, whtLines, applications, lines);
+    }
+
+    /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit. Mirrors
+    /// <c>QuotationService.UpdateDraftAsync</c>'s delete-and-recreate pattern (D3.0 template),
+    /// extended here to Applications + WhtLines as well as Lines. HARD REQUIREMENT (D3.2):
+    /// Applications/Lines/WhtLines are ALWAYS removed + rebuilt, even for a header-only edit.
+    /// Receipt header trigger 570 (fn_enforce_receipt_immutability) only freezes a NAMED critical-
+    /// field allowlist (doc_no/customer_id/amount/total_amount/wht_amount/... — mirrors TI's 583,
+    /// confirmed against 570_receipt_immutability_rls.sql) — a non-critical field alone (e.g.
+    /// Notes) would NOT trip it. The uniform backstop is line trigger 582
+    /// (fn_receipt_lines_immutable, scoped to sales.receipt_lines): always-rewriting Lines means
+    /// ANY edit — header-only or not — still performs a line DELETE/INSERT that 582 aborts once
+    /// the parent is POSTED. DocNo/Status/PostedAt/DocDate are server-controlled and untouched
+    /// here (DocDate stays exactly as pinned at create).</summary>
+    public async Task UpdateDraftAsync(long receiptId, CreateReceiptRequest req, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var rc = await _db.Receipts
+                .Include(r => r.Applications).Include(r => r.Lines).Include(r => r.WhtLines)
+                .FirstOrDefaultAsync(r => r.ReceiptId == receiptId, ct)
+            ?? throw new DomainException("rc.not_found", $"Receipt {receiptId} not found.");
+        if (rc.Status != DocumentStatus.Draft)
+            throw new DomainException("rc.cannot_edit_after_post",
+                "Receipt can only be edited while in Draft.");
+
+        var (effBu, buErr) = ApiKeyBuBinding.Resolve(
+            req.BusinessUnitId, _tenant.ApiKeyDefaultBusinessUnitId);
+        if (buErr is not null)
+            throw new DomainException(buErr,
+                $"This API key is bound to Business Unit {_tenant.ApiKeyDefaultBusinessUnitId}; " +
+                $"request specified {req.BusinessUnitId}.");
+        req = req with { BusinessUnitId = effBu, Applications = req.Applications ?? Array.Empty<ReceiptApplicationInput>() };
+
+        var customer = await _db.Customers
+                .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
+            ?? throw new DomainException("rc.customer_missing", $"Customer {req.CustomerId} not found.");
+
+        var computed = await RebuildLinesAndTotalsAsync(customer, req, ct);
+
+        rc.CustomerId      = customer.CustomerId;
+        rc.CustomerName    = customer.NameTh;
+        rc.CustomerAddress = customer.BillingAddress ?? string.Empty;
+        rc.CustomerTaxId   = customer.TaxId;
+        rc.PaymentMethod   = req.PaymentMethod;
+        rc.ChequeNo        = req.ChequeNo;
+        rc.ChequeDate      = req.ChequeDate;
+        rc.BankAccountId   = req.BankAccountId;
+        rc.BusinessUnitId  = req.BusinessUnitId;
+        rc.CustomerWhtCertNo   = req.CustomerWhtCertNo;
+        rc.CustomerWhtCertDate = req.CustomerWhtCertDate;
+        rc.CurrencyCode    = req.CurrencyCode;
+        rc.ExchangeRate    = req.ExchangeRate;
+        rc.Notes           = req.Notes;
+        // DocDate intentionally untouched here — server-controlled (pinned at create).
+
+        // HARD REQUIREMENT (D3.2) — always delete-and-recreate every child row.
+        _db.RemoveRange(rc.Applications); rc.Applications.Clear();
+        _db.RemoveRange(rc.Lines);        rc.Lines.Clear();
+        _db.RemoveRange(rc.WhtLines);     rc.WhtLines.Clear();
+        foreach (var a in computed.Applications) rc.Applications.Add(a);
+        foreach (var l in computed.Lines) rc.Lines.Add(l);
+        foreach (var w in computed.WhtLines) rc.WhtLines.Add(w);
+
+        rc.WhtAmount   = computed.WhtTotal;
+        rc.WhtTypeId   = computed.HeaderWhtType;
+        rc.Amount      = computed.Amount;
+        rc.TotalAmount = computed.Amount;
+        rc.TotalAmountThb = Math.Round(computed.Amount * req.ExchangeRate, 4, MidpointRounding.AwayFromZero);
+
         await _db.SaveChangesAsync(ct);
-        _activity.Record("Receipt", rc.ReceiptId, rc.DocNo, rc.CompanyId, "Created", toStatus: "Draft");
-        await _db.SaveChangesAsync(ct);
-        return rc.ReceiptId;
     }
 
     public async Task<ReceiptPostedResult> PostAsync(long receiptId, CancellationToken ct)

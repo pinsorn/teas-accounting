@@ -12,7 +12,8 @@ namespace Accounting.Infrastructure.Sales;
 public sealed partial class ReceiptService
 {
     public async Task<CursorPage<ReceiptListItem>> ListAsync(long? cursor, int limit, CancellationToken ct,
-        int? businessUnitId = null, bool includeUnspecified = false)
+        int? businessUnitId = null, bool includeUnspecified = false,
+        DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
@@ -23,6 +24,11 @@ public sealed partial class ReceiptService
             q = includeUnspecified
                 ? q.Where(r => r.BusinessUnitId == bu || r.BusinessUnitId == null)
                 : q.Where(r => r.BusinessUnitId == bu);
+        // E1 — date-range/customer/product filters.
+        if (dateFrom is { } df) q = q.Where(r => r.DocDate >= df);
+        if (dateTo   is { } dt) q = q.Where(r => r.DocDate <= dt);
+        if (customerId is { } cid) q = q.Where(r => r.CustomerId == cid);
+        if (productId is { } pid) q = q.Where(r => r.Lines.Any(l => l.ProductId == pid));
         var rows = await q.OrderByDescending(r => r.ReceiptId).Take(lim + 1)
             .Select(r => new ReceiptListItem(
                 r.ReceiptId, r.DocNo, r.DocDate, r.CustomerName, r.Amount,

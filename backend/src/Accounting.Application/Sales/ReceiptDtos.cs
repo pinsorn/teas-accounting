@@ -152,9 +152,18 @@ public sealed record WhtSuggestRequest(
 public interface IReceiptService
 {
     Task<long> CreateDraftAsync(CreateReceiptRequest req, CancellationToken ct);
+
+    /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit: replaces header + delete-and-
+    /// recreates Applications/Lines/WhtLines, recomputing Amount/TotalAmount/WhtAmount server-side
+    /// (never trust a client total). Throws <c>rc.cannot_edit_after_post</c> once the receipt has
+    /// left Draft. DocNo/Status/PostedAt/DocDate are server-controlled and untouched here.</summary>
+    Task UpdateDraftAsync(long receiptId, CreateReceiptRequest req, CancellationToken ct);
+
     Task<ReceiptPostedResult> PostAsync(long receiptId, CancellationToken ct);
+    // E1 — added optional date-range/customer/product filters (all null = unfiltered, prior behavior).
     Task<CursorPage<ReceiptListItem>> ListAsync(long? cursor, int limit, CancellationToken ct,
-        int? businessUnitId = null, bool includeUnspecified = false);
+        int? businessUnitId = null, bool includeUnspecified = false,
+        DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null);
     Task<ReceiptDetail?> GetDetailAsync(long receiptId, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long receiptId, CancellationToken ct, bool copy = false);
     // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /receipts/{id}/paper.

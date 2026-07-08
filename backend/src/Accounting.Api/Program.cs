@@ -16,6 +16,7 @@ using Accounting.Infrastructure;
 using Accounting.Infrastructure.Identity;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
@@ -371,8 +372,39 @@ builder.Services.AddRateLimiter(o =>
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst, QueueLimit = 0,
         }));
 
+    // §A (public PDF links) — /public/pdf is anonymous + world-reachable, so it gets its own
+    // per-IP fixed window (spec §A.5), copied verbatim from the "login"/"dcr" pattern above.
+    // Relies on the same M5 UseForwardedHeaders for the real caller IP through
+    // Cloudflare→Next→backend. 30/min/IP is generous for a human opening a link, tight enough
+    // to bound a token-guessing/enumeration burst.
+    o.AddPolicy(Accounting.Api.Endpoints.PublicPdfEndpoints.RateLimitPolicy, ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30, Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst, QueueLimit = 0,
+            }));
+
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
+
+// §A (public PDF links, spec mcp-expansion.md §A.4) — this is the app's FIRST DataProtection
+// consumer (grep of AddDataProtection|PersistKeys|IDataProtector over backend/ was 0 hits before
+// this). Without an explicit key ring, the default keyring risks living in-memory on the pm2
+// deploy whose unpacked/ is REPLACED each deploy: every restart/redeploy would invalidate every
+// public PDF link, and cluster instances wouldn't share keys (a link minted by instance A gets
+// rejected by instance B). PersistKeysToFileSystem to a STABLE path outside unpacked/ (deploy
+// script creates it ONCE, chowns it, never wipes it). Dev/test (no DataProtection:KeyPath
+// configured) fall back to a temp-dir keyring so a bare `dotnet run`/test host needs no config;
+// Production keeps the spec's literal default path.
+var dpKeyPath = builder.Configuration["DataProtection:KeyPath"]
+    ?? (builder.Environment.IsProduction()
+        ? "/var/teas/dp-keys"
+        : Path.Combine(Path.GetTempPath(), "teas-dp-keys-dev"));
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dpKeyPath))
+    .SetApplicationName("teas");   // pinned so a future rename can't orphan the ring
 
 var app = builder.Build();
 
@@ -453,6 +485,12 @@ app.UseRateLimiter();
 app.UseDomainExceptionMapper();
 app.UseValidationErrorEnvelope();   // Sprint 13d P5 — ModelState 400 → unified v1 envelope
 app.UseAuthentication();
+// §A.1 — MUST run between UseAuthentication() and UseAuthorization(), i.e. BEFORE
+// UseTenantContext() below: it builds the synthetic principal for /public/pdf that
+// TenantMiddleware (UseTenantContext) then pins the RLS GUC from. Registering it later
+// would mean TenantMiddleware already ran and early-returned (IsAuthenticated was still
+// false) — the RLS GUC would never pin and the EF filter would see CompanyId=0.
+app.UsePublicPdfTenantContext();
 app.UseAuthorization();
 app.UseTenantContext();
 app.UseExternalApiIdempotency();   // Sprint 14 P4 — /api/v1/* mutations only
@@ -515,6 +553,7 @@ app.MapPeriodEndpoints();
 app.MapEtaxEndpoints();
 app.MapApiKeyEndpoints();
 app.MapExternalApiV1();
+app.MapPublicPdfEndpoints();   // §A — anonymous, rate-limited, token-gated PDF route
 
 // M2 (MCP) — mount the in-process MCP server at /mcp. Same auth posture as /api/v1:
 //   • ApiKeyOnlyPolicy → X-Api-Key scheme required (no anonymous; a JWT can't satisfy

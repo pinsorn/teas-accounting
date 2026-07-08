@@ -1,13 +1,17 @@
 using System.ComponentModel;
 using Accounting.Api.Authorization;
+using Accounting.Api.Middleware;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Ledger;
 using Accounting.Application.Master;
 using Accounting.Application.Purchase;
+using Accounting.Application.Reports;
 using Accounting.Application.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -215,6 +219,17 @@ public sealed class TeasMcpTools
     // DeliveryOrderManage is the only DO scope (no separate .read in the catalog).
     private const string BillingNoteRead       = Pfx + "sales.billing_note.read";
     private const string DeliveryOrderManage   = Pfx + "sales.delivery_order.manage";
+    // D2 — update_invoice_draft (billing note). No MCP create tool exists for billing notes,
+    // so this reuses the exact RBAC permission code (mirrors the BFF's managePol).
+    private const string BillingNoteManage     = Pfx + "sales.billing_note.manage";
+    // C1 — report tools. Each scope IS its exact RBAC permission code (identity mapping;
+    // see spec mcp-expansion.md §C correction — report.read has no OR-of-perms mechanism).
+    private const string ReportTrialBalance    = Pfx + "report.trial_balance.read";
+    private const string ReportProfitLoss      = Pfx + "report.profit_loss.read";
+    private const string ReportGeneralLedger   = Pfx + "report.general_ledger.read";
+    private const string JournalRead           = Pfx + "gl.journal.read";
+    // C2 — get_company_info: any authenticated MCP principal (public read, no RBAC perm required).
+    private const string SystemInfoRead        = Pfx + "sys.system_info.read";
 
     /// <summary>Agent-facing result of a create-draft tool: the new draft id plus a
     /// deep-link the agent shows the user. The user opens it, reviews the document
@@ -231,11 +246,11 @@ public sealed class TeasMcpTools
         [property: Description("The unique code of the record.")] string Code,
         [property: Description("The Thai name of the record.")] string NameTh);
 
-    /// <summary>E4 — agent-facing result of a get_*_pdf_url tool: a download URL the agent
-    /// can fetch with X-Api-Key to retrieve the PDF bytes.</summary>
+    /// <summary>E4/§A — agent-facing result of a get_*_pdf_url tool: a PUBLIC, browser-openable
+    /// URL (spec mcp-expansion.md §A) — no X-Api-Key or login needed to open it.</summary>
     public sealed record PdfUrl(
         [property: Description("The document id.")] long Id,
-        [property: Description("Absolute URL to download the PDF. Fetch it with the X-Api-Key header.")] string Url);
+        [property: Description("Public URL to view the PDF. Opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document.")] string Url);
 
     /// <summary>E5 — one pending draft created by this API key awaiting human approval.</summary>
     public sealed record PendingApprovalItem(
@@ -254,17 +269,20 @@ public sealed class TeasMcpTools
     // ── Tax Invoices ─────────────────────────────────────────────────────────
 
     [McpServerTool(Name = "list_tax_invoices"), Authorize(Policy = TaxInvoiceRead)]
-    [Description("List tax invoices for the caller's company (newest first, cursor-paginated). Supports date, customer and status filters. Returns drafts and posted documents.")]
+    [Description("List tax invoices for the caller's company (newest first, cursor-paginated). Supports date, customer, product and status filters. Returns drafts and posted documents.")]
     public static Task<CursorPage<TaxInvoiceListItem>> ListTaxInvoicesAsync(
         ITaxInvoiceService svc,
         [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor = null,
         [Description("Max rows to return (default 25).")] int? limit = null,
         [Description("Filter: include only this customer's tax invoices.")] long? customerId = null,
         [Description("Filter: document status, e.g. DRAFT or POSTED.")] string? status = null,
+        [Description("Filter: only tax invoices with DocDate on/after this date.")] DateOnly? dateFrom = null,
+        [Description("Filter: only tax invoices with DocDate on/before this date.")] DateOnly? dateTo = null,
+        [Description("Filter: only tax invoices with at least one line for this product.")] long? productId = null,
         CancellationToken ct = default) =>
         svc.ListAsync(new TaxInvoiceListQuery(
-            DateFrom: null, DateTo: null, CustomerId: customerId, Status: status,
-            Cursor: cursor, Limit: limit ?? 25), ct);
+            DateFrom: dateFrom, DateTo: dateTo, CustomerId: customerId, Status: status,
+            Cursor: cursor, Limit: limit ?? 25, ProductId: productId), ct);
 
     [McpServerTool(Name = "get_tax_invoice"), Authorize(Policy = TaxInvoiceRead)]
     [Description("Get the full detail (header + lines + VAT breakdown) of one tax invoice by id. Returns null if not found in the caller's company.")]
@@ -309,13 +327,18 @@ public sealed class TeasMcpTools
     // ── Receipts ─────────────────────────────────────────────────────────────
 
     [McpServerTool(Name = "list_receipts"), Authorize(Policy = ReceiptRead)]
-    [Description("List receipts for the caller's company (newest first, cursor-paginated).")]
+    [Description("List receipts for the caller's company (newest first, cursor-paginated). Supports date, customer and product filters.")]
     public static Task<CursorPage<ReceiptListItem>> ListReceiptsAsync(
         IReceiptService svc,
         [Description("Cursor from a previous page's NextCursor; omit for the first page.")] long? cursor = null,
         [Description("Max rows to return (default 25).")] int? limit = null,
+        [Description("Filter: only receipts with DocDate on/after this date.")] DateOnly? dateFrom = null,
+        [Description("Filter: only receipts with DocDate on/before this date.")] DateOnly? dateTo = null,
+        [Description("Filter: include only this customer's receipts.")] long? customerId = null,
+        [Description("Filter: only receipts with at least one line for this product.")] long? productId = null,
         CancellationToken ct = default) =>
-        svc.ListAsync(cursor, limit ?? 25, ct);
+        svc.ListAsync(cursor, limit ?? 25, ct, businessUnitId: null, includeUnspecified: false,
+            dateFrom: dateFrom, dateTo: dateTo, customerId: customerId, productId: productId);
 
     [McpServerTool(Name = "get_receipt"), Authorize(Policy = ReceiptRead)]
     [Description("Get the full detail of one receipt by id. Returns null if not found in the caller's company.")]
@@ -365,12 +388,16 @@ public sealed class TeasMcpTools
     // ── Quotations ───────────────────────────────────────────────────────────
 
     [McpServerTool(Name = "list_quotations"), Authorize(Policy = QuotationRead)]
-    [Description("List quotations for the caller's company, optionally filtered by status.")]
+    [Description("List quotations for the caller's company, optionally filtered by status, date range, customer or product.")]
     public static Task<IReadOnlyList<QuotationListItem>> ListQuotationsAsync(
         IQuotationService svc,
         [Description("Filter: quotation status, e.g. DRAFT or SENT.")] string? status = null,
+        [Description("Filter: only quotations with DocDate on/after this date.")] DateOnly? dateFrom = null,
+        [Description("Filter: only quotations with DocDate on/before this date.")] DateOnly? dateTo = null,
+        [Description("Filter: include only this customer's quotations.")] long? customerId = null,
+        [Description("Filter: only quotations with at least one line for this product.")] long? productId = null,
         CancellationToken ct = default) =>
-        svc.ListAsync(status, ct);
+        svc.ListAsync(status, ct, dateFrom, dateTo, customerId, productId);
 
     [McpServerTool(Name = "get_quotation"), Authorize(Policy = QuotationRead)]
     [Description("Get the full detail (header + lines) of one quotation by id. Returns null if not found in the caller's company.")]
@@ -414,7 +441,7 @@ public sealed class TeasMcpTools
     // ── Customers ────────────────────────────────────────────────────────────
 
     [McpServerTool(Name = "list_customers"), Authorize(Policy = CustomerRead)]
-    [Description("Search/list customers for the caller's company (paged). Use to resolve a customer name to its id before drafting a document.")]
+    [Description("Search/list customers for the caller's company (paged). Use to resolve a customer name to its id before drafting a document. B1: search is typo-tolerant; pass partial Thai or English names.")]
     public static Task<IReadOnlyList<CustomerDto>> ListCustomersAsync(
         ICustomerService svc,
         [Description("Free-text search over customer name/code; omit for all.")] string? search = null,
@@ -448,7 +475,7 @@ public sealed class TeasMcpTools
     // ── Products ─────────────────────────────────────────────────────────────
 
     [McpServerTool(Name = "list_products"), Authorize(Policy = ProductRead)]
-    [Description("Search/list products (goods & services) for the caller's company. Use to resolve a SKU/name to its product id before drafting a document line.")]
+    [Description("Search/list products (goods & services) for the caller's company. Use to resolve a SKU/name to its product id before drafting a document line. B1: search is typo-tolerant; pass partial Thai or English names.")]
     public static Task<IReadOnlyList<ProductListItem>> ListProductsAsync(
         IProductService svc,
         [Description("Free-text search over product code/name; omit for all.")] string? search = null,
@@ -607,7 +634,7 @@ public sealed class TeasMcpTools
     // ── Vendors (E3 — master data, auto like E1) ──────────────────────────────
 
     [McpServerTool(Name = "list_vendors"), Authorize(Policy = VendorManage)]
-    [Description("Search/list vendors for the caller's company (paged). Use to resolve a vendor name to its id before drafting a purchase document.")]
+    [Description("Search/list vendors for the caller's company (paged). Use to resolve a vendor name to its id before drafting a purchase document. B1: search is typo-tolerant; pass partial Thai or English names.")]
     public static Task<IReadOnlyList<VendorDto>> ListVendorsAsync(
         IVendorService svc,
         [Description("Free-text search over vendor name/code; omit for all.")] string? search = null,
@@ -638,6 +665,396 @@ public sealed class TeasMcpTools
         return new MasterDataCreated(id, request.VendorCode, request.NameTh);
     }
 
+    // ── C1 Report tools (read expansion) ──────────────────────────────────────
+    // Thin wrappers over IFinancialReportService / IJournalService / ITaxSummaryService —
+    // the SAME services the /reports and /journals REST routes use. Scopes reuse the exact
+    // RBAC permission codes those routes already gate on (identity mapping through
+    // McpConsentScopes; see spec mcp-expansion.md §C correction).
+
+    [McpServerTool(Name = "get_trial_balance"), Authorize(Policy = ReportTrialBalance)]
+    [Description("Get the trial balance (every GL account's debit/credit/net) as of a date. Defaults to today.")]
+    public static Task<TrialBalanceReport> GetTrialBalanceAsync(
+        IFinancialReportService svc,
+        IClock clock,
+        [Description("As-of date; omit for today.")] DateOnly? asOfDate = null,
+        [Description("Include inactive accounts (default false).")] bool? includeInactive = null,
+        CancellationToken ct = default) =>
+        svc.TrialBalanceAsync(asOfDate ?? clock.TodayInBangkok(), includeInactive ?? false, ct);
+
+    [McpServerTool(Name = "get_profit_loss"), Authorize(Policy = ReportProfitLoss)]
+    [Description("Get the profit & loss report (Revenue - Expense = NetProfit) for a date range, optionally scoped to one business unit.")]
+    public static Task<ProfitLossReport> GetProfitLossAsync(
+        [Description("Start of the date range (inclusive).")] DateOnly fromDate,
+        [Description("End of the date range (inclusive).")] DateOnly toDate,
+        IFinancialReportService svc,
+        [Description("Filter to one business unit; omit for all.")] int? businessUnitId = null,
+        [Description("Include documents with no business unit tagged (default false).")] bool? includeUnspecified = null,
+        CancellationToken ct = default) =>
+        svc.ProfitLossAsync(fromDate, toDate, businessUnitId, includeUnspecified ?? false, ct);
+
+    [McpServerTool(Name = "get_general_ledger"), Authorize(Policy = ReportGeneralLedger)]
+    [Description("Get the general ledger drill-down (opening balance, postings, closing balance) for one GL account over a date range. Use list_gl_accounts to resolve the accountId.")]
+    public static Task<GeneralLedgerReport> GetGeneralLedgerAsync(
+        [Description("The GL account id (resolve via list_gl_accounts).")] long accountId,
+        [Description("Start of the date range (inclusive).")] DateOnly fromDate,
+        [Description("End of the date range (inclusive).")] DateOnly toDate,
+        IFinancialReportService svc,
+        CancellationToken ct) =>
+        svc.GeneralLedgerAsync(accountId, fromDate, toDate, ct);
+
+    [McpServerTool(Name = "list_gl_accounts"), Authorize(Policy = ReportGeneralLedger)]
+    [Description("List active, non-header GL accounts for the caller's company — the account picker for get_general_ledger.")]
+    public static Task<IReadOnlyList<GeneralLedgerAccountOption>> ListGlAccountsAsync(
+        IFinancialReportService svc,
+        CancellationToken ct) =>
+        svc.GeneralLedgerAccountsAsync(ct);
+
+    [McpServerTool(Name = "get_journal"), Authorize(Policy = JournalRead)]
+    [Description("Get the full detail (header + debit/credit lines) of one journal entry (JV) by id. Throws if not found in the caller's company (or belongs to another tenant).")]
+    public static Task<JournalDetail> GetJournalAsync(
+        [Description("The journal id.")] long journalId,
+        IJournalService svc,
+        CancellationToken ct) =>
+        svc.GetDetailAsync(journalId, ct);
+
+    [McpServerTool(Name = "get_tax_summary"), Authorize(Policy = ReportProfitLoss)]
+    [Description("Get the monthly tax summary dashboard (revenue/expense, output/input VAT, WHT paid/received) for a calendar year. Defaults to the current year.")]
+    public static Task<TaxSummaryReport> GetTaxSummaryAsync(
+        ITaxSummaryService svc,
+        IClock clock,
+        [Description("Calendar year; omit for the current year.")] int? year = null,
+        [Description("Filter to one business unit; omit for company-wide.")] int? businessUnitId = null,
+        CancellationToken ct = default) =>
+        svc.GetAsync(year ?? clock.TodayInBangkok().Year, ct, businessUnitId);
+
+    // ── C2 Document gap tools ─────────────────────────────────────────────────
+    // Billing note (invoice) and delivery order already had a PDF-url tool but no list/get.
+    // Thin wrappers over the existing services — same pattern as the other doc-type tools.
+    // E1 filters (date/customer/product) are exposed here from the start.
+
+    [McpServerTool(Name = "list_invoices"), Authorize(Policy = BillingNoteRead)]
+    [Description("List billing notes / invoices (ใบแจ้งหนี้) for the caller's company, optionally filtered by status, date range, customer or product.")]
+    public static Task<IReadOnlyList<BillingNoteListItem>> ListInvoicesAsync(
+        IBillingNoteService svc,
+        [Description("Filter: billing note status, e.g. DRAFT or ISSUED.")] string? status = null,
+        [Description("Filter: only invoices with DocDate on/after this date.")] DateOnly? dateFrom = null,
+        [Description("Filter: only invoices with DocDate on/before this date.")] DateOnly? dateTo = null,
+        [Description("Filter: include only this customer's invoices.")] long? customerId = null,
+        [Description("Filter: only invoices with at least one line for this product.")] long? productId = null,
+        CancellationToken ct = default) =>
+        svc.ListAsync(status, ct, dateFrom, dateTo, customerId, productId);
+
+    [McpServerTool(Name = "get_invoice"), Authorize(Policy = BillingNoteRead)]
+    [Description("Get the full detail (header + lines) of one billing note / invoice by id. Returns null if not found in the caller's company.")]
+    public static Task<BillingNoteDetail?> GetInvoiceAsync(
+        IBillingNoteService svc,
+        [Description("The billing note (invoice) id.")] long id,
+        CancellationToken ct) =>
+        svc.GetAsync(id, ct);
+
+    [McpServerTool(Name = "list_delivery_orders"), Authorize(Policy = DeliveryOrderManage)]
+    [Description("List delivery orders (ใบส่งของ) for the caller's company, optionally filtered by status.")]
+    public static Task<IReadOnlyList<DeliveryOrderListItem>> ListDeliveryOrdersAsync(
+        IDeliveryOrderService svc,
+        [Description("Filter: delivery order status, e.g. DRAFT or DELIVERED.")] string? status = null,
+        CancellationToken ct = default) =>
+        svc.ListAsync(status, ct);
+
+    [McpServerTool(Name = "get_delivery_order"), Authorize(Policy = DeliveryOrderManage)]
+    [Description("Get the full detail (header + lines) of one delivery order by id. Returns null if not found in the caller's company.")]
+    public static Task<DeliveryOrderDetail?> GetDeliveryOrderAsync(
+        IDeliveryOrderService svc,
+        [Description("The delivery order id.")] long id,
+        CancellationToken ct) =>
+        svc.GetAsync(id, ct);
+
+    /// <summary>C2 — unified result of get_document_chain: exactly one of the two slots is
+    /// populated, chosen by whether docType is a sales-side or purchase-side anchor.</summary>
+    public sealed record DocumentChainResult(
+        [property: Description("Populated when docType is a sales-side anchor (quotation, sales-order, delivery-order, billing-note, tax-invoice, receipt, adjustment-note).")]
+        DocumentChainDto? SalesChain,
+        [property: Description("Populated when docType is a purchase-side anchor (purchase-order, vendor-invoice, payment-voucher, wht-certificate).")]
+        PurchaseChainDto? PurchaseChain);
+
+    private static readonly HashSet<string> SalesChainTypes = new(StringComparer.OrdinalIgnoreCase)
+        { "quotation", "sales-order", "delivery-order", "billing-note", "tax-invoice", "receipt", "adjustment-note" };
+    private static readonly HashSet<string> PurchaseChainTypes = new(StringComparer.OrdinalIgnoreCase)
+        { "purchase-order", "vendor-invoice", "payment-voucher", "wht-certificate" };
+
+    [McpServerTool(Name = "get_document_chain"), Authorize(Policy = TaxInvoiceRead)]
+    [Description("Resolve the full document chain from any anchor document — e.g. a quotation resolves Q→SO→DO→Invoice→TI→RC+CN/DN; a purchase order resolves PO→VI→PV→WHT-certificate. docType: quotation | sales-order | delivery-order | billing-note | tax-invoice | receipt | adjustment-note | purchase-order | vendor-invoice | payment-voucher | wht-certificate. Throws for an unknown docType or an id outside the caller's company.")]
+    public static async Task<DocumentChainResult> GetDocumentChainAsync(
+        [Description("The anchor document's type.")] string docType,
+        [Description("The anchor document's id.")] long id,
+        IDocumentCrossRefService salesSvc,
+        IPurchaseChainService purchaseSvc,
+        CancellationToken ct)
+    {
+        if (SalesChainTypes.Contains(docType))
+        {
+            var chain = await salesSvc.GetChainAsync(docType, id, ct)
+                ?? throw new McpE2Exception("mcp.not_found", $"{docType} {id} not found.");
+            return new DocumentChainResult(chain, null);
+        }
+        if (PurchaseChainTypes.Contains(docType))
+        {
+            var chain = await purchaseSvc.GetAsync(docType, id, ct)
+                ?? throw new McpE2Exception("mcp.not_found", $"{docType} {id} not found.");
+            return new DocumentChainResult(null, chain);
+        }
+        throw new McpE2Exception("mcp.invalid_type", $"Unknown document type '{docType}'.");
+    }
+
+    /// <summary>C2 — company + current-branch snapshot for get_company_info.</summary>
+    public sealed record CompanyInfoResult(
+        [property: Description("Thai legal name.")] string NameTh,
+        [property: Description("English legal name, if set.")] string? NameEn,
+        [property: Description("13-digit Thai Tax ID.")] string TaxId,
+        [property: Description("True if the company is VAT-registered.")] bool VatRegistered,
+        [property: Description("Standard VAT rate (e.g. 0.07), effective only when VatRegistered.")] decimal VatRate,
+        [property: Description("The caller's current branch name (Thai).")] string BranchNameTh,
+        [property: Description("The caller's current branch code.")] string BranchCode);
+
+    [McpServerTool(Name = "get_company_info"), Authorize(Policy = SystemInfoRead)]
+    [Description("Get the caller's company profile (name, tax id, VAT status/rate) and current branch — use this to fill document headers correctly.")]
+    public static async Task<CompanyInfoResult> GetCompanyInfoAsync(
+        ITenantContext tenant,
+        AccountingDbContext db,
+        CancellationToken ct)
+    {
+        var company = await db.Companies.AsNoTracking()
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => new { c.NameTh, c.NameEn, c.TaxId, c.VatRegistered, c.VatRate })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new McpE2Exception("mcp.not_found", "Company not found.");
+        var branch = await db.Branches.AsNoTracking()
+            .Where(b => b.BranchId == tenant.BranchId)
+            .Select(b => new { b.NameTh, b.BranchCode })
+            .FirstOrDefaultAsync(ct);
+        return new CompanyInfoResult(
+            company.NameTh, company.NameEn, company.TaxId, company.VatRegistered, company.VatRate,
+            branch?.NameTh ?? "", branch?.BranchCode ?? "");
+    }
+
+    // ── D1 Master-data edit tools ─────────────────────────────────────────────
+    // Thin wrappers over the existing UpdateAsync services — same manage scope + FluentValidation
+    // + McpE2Exception surfacing as the corresponding create tool. Full replace (mirrors the
+    // existing REST PUT contract exactly — spec §D1).
+
+    [McpServerTool(Name = "update_customer"), Authorize(Policy = CustomerManage)]
+    [Description("Update an existing customer in the caller's company (full replace — every field is sent, mirrors the REST PUT contract). Same validation as create_customer.")]
+    public async Task UpdateCustomerAsync(
+        [Description("The customer id to update.")] long customerId,
+        UpdateCustomerRequest request,
+        ICustomerService svc,
+        IValidator<UpdateCustomerRequest> validator,
+        CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        await svc.UpdateAsync(customerId, request, ct);
+    }
+
+    [McpServerTool(Name = "update_product"), Authorize(Policy = ProductManage)]
+    [Description("Update an existing product in the caller's company (full replace — every field is sent, mirrors the REST PUT contract). Same validation as create_product.")]
+    public async Task UpdateProductAsync(
+        [Description("The product id to update.")] long productId,
+        UpdateProductRequest request,
+        IProductService svc,
+        IValidator<UpdateProductRequest> validator,
+        CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        await svc.UpdateAsync(productId, request, ct);
+    }
+
+    [McpServerTool(Name = "update_vendor"), Authorize(Policy = VendorManage)]
+    [Description("Update an existing vendor in the caller's company (full replace — every field is sent, mirrors the REST PUT contract). Same validation as create_vendor.")]
+    public async Task UpdateVendorAsync(
+        [Description("The vendor id to update.")] long vendorId,
+        UpdateVendorRequest request,
+        IVendorService svc,
+        IValidator<UpdateVendorRequest> validator,
+        CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        await svc.UpdateAsync(vendorId, request, ct);
+    }
+
+    // ── D2 Draft-update tools (existing UpdateDraftAsync services) ─────────────
+    // Same E2/E3 list-only guards + scope as the corresponding create tool. The service already
+    // throws on a non-draft document; that error surfaces verbatim (no manual catch, same as
+    // every create tool above).
+
+    [McpServerTool(Name = "update_quotation_draft"), Authorize(Policy = QuotationCreate)]
+    [Description("Edit a DRAFT quotation — full replace of header + lines (delete-and-recreate). Only allowed while still Draft; editing a sent/accepted/rejected quotation throws quotation.cannot_edit_after_send. E2: every line must carry a productId resolving to an existing product; customerId must resolve to an existing customer.")]
+    public async Task UpdateQuotationDraftAsync(
+        [Description("The quotation id to edit.")] long quotationId,
+        McpCreateQuotationRequest request,
+        IQuotationService svc,
+        ICustomerService customerSvc,
+        IProductService productSvc,
+        IValidator<CreateQuotationRequest> validator,
+        CancellationToken ct)
+    {
+        await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
+        foreach (var line in request.Lines)
+            await GuardProductAsync(productSvc, line.ProductId, ct);
+
+        var appRequest = new CreateQuotationRequest(
+            request.DocDate, request.ValidUntilDate, request.CustomerId,
+            request.BusinessUnitId, request.CurrencyCode, request.ExchangeRate,
+            request.Notes, request.InternalNotes,
+            request.Lines.Select(l => new ChainLineInput(
+                l.ProductId, l.DescriptionTh, l.Quantity, l.UomText,
+                l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate,
+                l.ProductType)).ToList());
+
+        await validator.ValidateAndThrowAsync(appRequest, ct);
+        await svc.UpdateDraftAsync(quotationId, appRequest, ct);
+    }
+
+    [McpServerTool(Name = "update_purchase_order_draft"), Authorize(Policy = PurchaseOrderCreate)]
+    [Description("Edit a DRAFT internal purchase order — full replace of header + lines (delete-and-recreate). Only allowed while still Draft; editing an approved PO throws po.not_draft. E2/E3: every line must carry a productId resolving to an existing product, and vendorId must resolve to an existing vendor, in the caller's company. Server-controlled fields in the payload (e.g. docDate) are ignored on update.")]
+    public async Task UpdatePurchaseOrderDraftAsync(
+        [Description("The purchase order id to edit.")] long purchaseOrderId,
+        McpCreatePurchaseOrderRequest request,
+        IPurchaseOrderService svc,
+        IVendorService vendorSvc,
+        IProductService productSvc,
+        IValidator<CreatePurchaseOrderRequest> validator,
+        CancellationToken ct)
+    {
+        await GuardVendorAsync(vendorSvc, request.VendorId, ct);
+        foreach (var line in request.Lines)
+            await GuardProductAsync(productSvc, line.ProductId, ct);
+
+        var appRequest = new CreatePurchaseOrderRequest(
+            request.DocDate, request.ExpectedDeliveryDate, request.VendorId,
+            request.BusinessUnitId, request.CurrencyCode, request.ExchangeRate,
+            request.Notes, request.InternalNotes,
+            request.Lines.Select(l => new PurchaseOrderLineInput(
+                l.ProductId, l.DescriptionTh, l.Quantity, l.UomText,
+                l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate, l.Notes)).ToList());
+
+        await validator.ValidateAndThrowAsync(appRequest, ct);
+        await svc.UpdateDraftAsync(purchaseOrderId, appRequest, ct);
+    }
+
+    [McpServerTool(Name = "update_vendor_invoice_draft"), Authorize(Policy = VendorInvoiceCreate)]
+    [Description("Edit a DRAFT vendor invoice / input-VAT record — full replace of header + lines (delete-and-recreate). Only allowed while still Draft. vendorId must resolve to an existing vendor; each line references an existing expense category (validated company-scoped by the service). Server-controlled fields in the payload (e.g. docDate) are ignored on update.")]
+    public async Task UpdateVendorInvoiceDraftAsync(
+        [Description("The vendor invoice id to edit.")] long vendorInvoiceId,
+        CreateVendorInvoiceRequest request,
+        IVendorInvoiceService svc,
+        IVendorService vendorSvc,
+        IValidator<CreateVendorInvoiceRequest> validator,
+        CancellationToken ct)
+    {
+        await GuardVendorAsync(vendorSvc, request.VendorId, ct);
+        await validator.ValidateAndThrowAsync(request, ct);
+        await svc.UpdateDraftAsync(vendorInvoiceId, request, ct);
+    }
+
+    [McpServerTool(Name = "update_invoice_draft"), Authorize(Policy = BillingNoteManage)]
+    [Description("Edit a DRAFT billing note / invoice (ใบแจ้งหนี้) — full replace of header + lines (delete-and-recreate). Only allowed while still Draft; editing an issued invoice throws billing_note.cannot_edit_after_issue. customerId must resolve to an existing customer in the caller's company. Server-controlled fields in the payload (e.g. docDate) are ignored on update.")]
+    public async Task UpdateInvoiceDraftAsync(
+        [Description("The billing note (invoice) id to edit.")] long invoiceId,
+        CreateBillingNoteRequest request,
+        IBillingNoteService svc,
+        ICustomerService customerSvc,
+        IValidator<CreateBillingNoteRequest> validator,
+        CancellationToken ct)
+    {
+        await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
+        await validator.ValidateAndThrowAsync(request, ct);
+        await svc.UpdateDraftAsync(invoiceId, request, ct);
+    }
+
+    // ── D3 Tax Invoice / Receipt draft-edit tools (new UpdateDraftAsync, opus-reviewed) ────────
+    // The service guard throws ti.cannot_edit_after_post / rc.cannot_edit_after_post for a
+    // non-draft document — surfaces verbatim like every other tool. The DB immutability-trigger
+    // race backstop (mcp-expansion.md §D3.2) throws a DbUpdateException wrapping SqlState 23514
+    // when a queued edit loses a race against a concurrent post; mapped here to a clean
+    // McpE2Exception (preferred per spec) instead of leaking a raw 500.
+
+    [McpServerTool(Name = "update_tax_invoice_draft"), Authorize(Policy = TaxInvoiceCreate)]
+    [Description("Edit a DRAFT tax invoice — full replace of header + lines (delete-and-recreate). VAT is re-derived server-side from company master data exactly like create (client-suggested amounts are never trusted). Only allowed while still Draft; editing a posted tax invoice throws ti.cannot_edit_after_post. doc_date/tax_point_date are NOT editable (server-controlled). E2: every line must carry a productId resolving to an existing product; customerId must resolve to an existing customer. Server-controlled fields in the payload (e.g. docDate) are ignored on update.")]
+    public async Task UpdateTaxInvoiceDraftAsync(
+        [Description("The tax invoice id to edit.")] long taxInvoiceId,
+        McpCreateTaxInvoiceRequest request,
+        ITaxInvoiceService svc,
+        ICustomerService customerSvc,
+        IProductService productSvc,
+        IValidator<CreateTaxInvoiceRequest> validator,
+        CancellationToken ct)
+    {
+        await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
+        foreach (var line in request.Lines)
+            await GuardProductAsync(productSvc, line.ProductId, ct);
+
+        var appRequest = new CreateTaxInvoiceRequest(
+            request.DocDate, request.CustomerId, request.IsTaxInclusive,
+            request.CurrencyCode, request.ExchangeRate, request.Notes,
+            request.PaymentTerms, request.DueDate,
+            request.Lines.Select(l => new TaxInvoiceLineInput(
+                l.ProductId, null, l.DescriptionTh, l.Quantity,
+                l.UomId, l.UomText, l.UnitPrice, l.DiscountPercent,
+                l.TaxCodeId, l.TaxCode, l.TaxRate, l.ProductType)).ToList(),
+            request.BusinessUnitId, request.QuotationId);
+
+        await validator.ValidateAndThrowAsync(appRequest, ct);
+        try
+        {
+            await svc.UpdateDraftAsync(taxInvoiceId, appRequest, ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23514" })
+        {
+            throw new McpE2Exception("mcp.doc_not_editable",
+                $"Tax invoice {taxInvoiceId} could not be edited — it was posted concurrently.");
+        }
+    }
+
+    [McpServerTool(Name = "update_receipt_draft"), Authorize(Policy = ReceiptCreate)]
+    [Description("Edit a DRAFT receipt — full replace of header + lines (delete-and-recreate). Totals/WHT are re-derived server-side exactly like create (client-suggested amounts are never trusted). Only allowed while still Draft; editing a posted receipt throws rc.cannot_edit_after_post. doc_date is NOT editable (server-controlled). E2: this tool edits a standalone non-VAT cash-bill receipt; every line must carry a productId resolving to an existing product; customerId must resolve to an existing customer. Server-controlled fields in the payload (e.g. docDate) are ignored on update.")]
+    public async Task UpdateReceiptDraftAsync(
+        [Description("The receipt id to edit.")] long receiptId,
+        McpCreateReceiptRequest request,
+        IReceiptService svc,
+        ICustomerService customerSvc,
+        IProductService productSvc,
+        IValidator<CreateReceiptRequest> validator,
+        CancellationToken ct)
+    {
+        await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
+        foreach (var line in request.Lines)
+            await GuardProductAsync(productSvc, line.ProductId, ct);
+
+        if (!Enum.TryParse<Accounting.Domain.Enums.PaymentMethod>(request.PaymentMethod, ignoreCase: true, out var pm))
+            throw new McpE2Exception("mcp.invalid_payment_method",
+                $"Unknown payment method '{request.PaymentMethod}'.");
+
+        var appRequest = new CreateReceiptRequest(
+            request.DocDate, request.CustomerId, pm,
+            request.ChequeNo, request.ChequeDate, request.BankAccountId,
+            request.CurrencyCode, request.ExchangeRate, request.Notes,
+            Applications: [],
+            BusinessUnitId: request.BusinessUnitId,
+            Lines: request.Lines.Select(l => new ReceiptLineInput(
+                l.DescriptionTh, l.Quantity, l.UnitPrice, l.Amount,
+                l.ProductId, null, l.ProductType, l.UomText)).ToList());
+
+        await validator.ValidateAndThrowAsync(appRequest, ct);
+        try
+        {
+            await svc.UpdateDraftAsync(receiptId, appRequest, ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23514" })
+        {
+            throw new McpE2Exception("mcp.doc_not_editable",
+                $"Receipt {receiptId} could not be edited — it was posted concurrently.");
+        }
+    }
+
     // ── E4 PDF download tools ────────────────────────────────────────────
     // Each tool: (1) fetches the doc detail (tenant-scoped via RLS → null = not found),
     // (2) rejects DRAFT status with mcp.pdf_not_posted, (3) returns the /api/v1/{doc}/{id}/pdf
@@ -645,11 +1062,13 @@ public sealed class TeasMcpTools
     // scope and enforces posted-only as a second layer. No PDF bytes are returned inline.
 
     [McpServerTool(Name = "get_tax_invoice_pdf_url"), Authorize(Policy = TaxInvoiceRead)]
-    [Description("Get a download URL for the PDF of a posted tax invoice. The URL is api-key-reachable: fetch it with X-Api-Key. Rejects DRAFT documents with mcp.pdf_not_posted.")]
+    [Description("Get a public, browser-openable link to the PDF of a posted tax invoice. The URL opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document. Rejects DRAFT documents with mcp.pdf_not_posted.")]
     public static async Task<PdfUrl> GetTaxInvoicePdfUrlAsync(
         [Description("The tax invoice id.")] long id,
         ITaxInvoiceService svc,
         IOptions<AppOptions> app,
+        ITenantContext tenant,
+        IDataProtectionProvider dp,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -657,15 +1076,17 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Tax invoice {id} is still a DRAFT — post it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(app.Value,$"tax-invoices/{id}/pdf"));
+        return new PdfUrl(id, PublicPdfUrl(app.Value, dp, "tax_invoice", id, tenant));
     }
 
     [McpServerTool(Name = "get_receipt_pdf_url"), Authorize(Policy = ReceiptRead)]
-    [Description("Get a download URL for the PDF of a posted receipt. The URL is api-key-reachable: fetch it with X-Api-Key. Rejects DRAFT documents with mcp.pdf_not_posted.")]
+    [Description("Get a public, browser-openable link to the PDF of a posted receipt. The URL opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document. Rejects DRAFT documents with mcp.pdf_not_posted.")]
     public static async Task<PdfUrl> GetReceiptPdfUrlAsync(
         [Description("The receipt id.")] long id,
         IReceiptService svc,
         IOptions<AppOptions> app,
+        ITenantContext tenant,
+        IDataProtectionProvider dp,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -673,15 +1094,17 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Receipt {id} is still a DRAFT — post it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(app.Value,$"receipts/{id}/pdf"));
+        return new PdfUrl(id, PublicPdfUrl(app.Value, dp, "receipt", id, tenant));
     }
 
     [McpServerTool(Name = "get_quotation_pdf_url"), Authorize(Policy = QuotationRead)]
-    [Description("Get a download URL for the PDF of a sent/accepted quotation. The URL is api-key-reachable: fetch it with X-Api-Key. Rejects DRAFT documents with mcp.pdf_not_posted.")]
+    [Description("Get a public, browser-openable link to the PDF of a sent/accepted quotation. The URL opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document. Rejects DRAFT documents with mcp.pdf_not_posted.")]
     public static async Task<PdfUrl> GetQuotationPdfUrlAsync(
         [Description("The quotation id.")] long id,
         IQuotationService svc,
         IOptions<AppOptions> app,
+        ITenantContext tenant,
+        IDataProtectionProvider dp,
         CancellationToken ct)
     {
         var d = await svc.GetAsync(id, ct)
@@ -689,15 +1112,17 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Quotation {id} is still a DRAFT — send it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(app.Value,$"quotations/{id}/pdf"));
+        return new PdfUrl(id, PublicPdfUrl(app.Value, dp, "quotation", id, tenant));
     }
 
     [McpServerTool(Name = "get_invoice_pdf_url"), Authorize(Policy = BillingNoteRead)]
-    [Description("Get a download URL for the PDF of an issued billing note / invoice (ใบแจ้งหนี้). The URL is api-key-reachable: fetch it with X-Api-Key. Rejects DRAFT documents with mcp.pdf_not_posted.")]
+    [Description("Get a public, browser-openable link to the PDF of an issued billing note / invoice (ใบแจ้งหนี้). The URL opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document. Rejects DRAFT documents with mcp.pdf_not_posted.")]
     public static async Task<PdfUrl> GetInvoicePdfUrlAsync(
         [Description("The billing note (invoice) id.")] long id,
         IBillingNoteService svc,
         IOptions<AppOptions> app,
+        ITenantContext tenant,
+        IDataProtectionProvider dp,
         CancellationToken ct)
     {
         var d = await svc.GetAsync(id, ct)
@@ -705,15 +1130,17 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Billing note {id} is still a DRAFT — issue it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(app.Value,$"billing-notes/{id}/pdf"));
+        return new PdfUrl(id, PublicPdfUrl(app.Value, dp, "invoice", id, tenant));
     }
 
     [McpServerTool(Name = "get_delivery_order_pdf_url"), Authorize(Policy = DeliveryOrderManage)]
-    [Description("Get a download URL for the PDF of an issued delivery order (ใบส่งของ). The URL is api-key-reachable: fetch it with X-Api-Key. Rejects DRAFT documents with mcp.pdf_not_posted.")]
+    [Description("Get a public, browser-openable link to the PDF of an issued delivery order (ใบส่งของ). The URL opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document. Rejects DRAFT documents with mcp.pdf_not_posted.")]
     public static async Task<PdfUrl> GetDeliveryOrderPdfUrlAsync(
         [Description("The delivery order id.")] long id,
         IDeliveryOrderService svc,
         IOptions<AppOptions> app,
+        ITenantContext tenant,
+        IDataProtectionProvider dp,
         CancellationToken ct)
     {
         var d = await svc.GetAsync(id, ct)
@@ -721,15 +1148,17 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Delivery order {id} is still a DRAFT — issue it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(app.Value,$"delivery-orders/{id}/pdf"));
+        return new PdfUrl(id, PublicPdfUrl(app.Value, dp, "delivery_order", id, tenant));
     }
 
     [McpServerTool(Name = "get_purchase_order_pdf_url"), Authorize(Policy = PurchaseOrderRead)]
-    [Description("Get a download URL for the PDF of an approved purchase order. The URL is api-key-reachable: fetch it with X-Api-Key. Rejects DRAFT documents with mcp.pdf_not_posted.")]
+    [Description("Get a public, browser-openable link to the PDF of an approved purchase order. The URL opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document. Rejects DRAFT documents with mcp.pdf_not_posted.")]
     public static async Task<PdfUrl> GetPurchaseOrderPdfUrlAsync(
         [Description("The purchase order id.")] long id,
         IPurchaseOrderService svc,
         IOptions<AppOptions> app,
+        ITenantContext tenant,
+        IDataProtectionProvider dp,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -737,15 +1166,17 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Purchase order {id} is still a DRAFT — approve it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(app.Value,$"purchase-orders/{id}/pdf"));
+        return new PdfUrl(id, PublicPdfUrl(app.Value, dp, "purchase_order", id, tenant));
     }
 
     [McpServerTool(Name = "get_payment_voucher_pdf_url"), Authorize(Policy = PaymentVoucherRead)]
-    [Description("Get a download URL for the PDF of a posted payment voucher. The URL is api-key-reachable: fetch it with X-Api-Key. Rejects DRAFT documents with mcp.pdf_not_posted.")]
+    [Description("Get a public, browser-openable link to the PDF of a posted payment voucher. The URL opens directly in a browser, valid ~24h, no login needed. Treat it as a bearer capability — anyone with the link can view this document. Rejects DRAFT documents with mcp.pdf_not_posted.")]
     public static async Task<PdfUrl> GetPaymentVoucherPdfUrlAsync(
         [Description("The payment voucher id.")] long id,
         IPaymentVoucherService svc,
         IOptions<AppOptions> app,
+        ITenantContext tenant,
+        IDataProtectionProvider dp,
         CancellationToken ct)
     {
         var d = await svc.GetDetailAsync(id, ct)
@@ -753,7 +1184,7 @@ public sealed class TeasMcpTools
         if (d.Status == "Draft")
             throw new McpE2Exception("mcp.pdf_not_posted",
                 $"Payment voucher {id} is still a DRAFT — post it first before fetching the PDF.");
-        return new PdfUrl(id, PdfApiUrl(app.Value,$"payment-vouchers/{id}/pdf"));
+        return new PdfUrl(id, PublicPdfUrl(app.Value, dp, "payment_voucher", id, tenant));
     }
 
     // ── E5 Approval-status poll tools ────────────────────────────────────────
@@ -901,13 +1332,21 @@ public sealed class TeasMcpTools
     private static string ApprovalUrl(AppOptions app, string route, long id) =>
         $"{app.BaseUrl.TrimEnd('/')}/{route}/{id}?action=approve";
 
-    /// <summary>E4 — build the absolute API URL for a PDF download route under <c>/api/v1/</c>.
-    /// Uses the PUBLIC origin (<see cref="AppOptions.BaseUrl"/>), NOT the request host: through the
-    /// single-origin MCP passthrough the backend sees <c>localhost</c> as its host, so a request-host
-    /// URL would be unreachable by the remote agent. The agent fetches this URL with X-Api-Key; the
-    /// public <c>/api/v1</c> read passthrough forwards it to the backend (same posture as <c>/mcp</c>).</summary>
-    private static string PdfApiUrl(AppOptions app, string path) =>
-        $"{app.BaseUrl.TrimEnd('/')}/api/v1/{path}";
+    /// <summary>§A — mints a time-limited, tamper-proof token embedding docType+docId+company+branch
+    /// and returns the PUBLIC, browser-openable URL (spec mcp-expansion.md §A.2). docType+docId
+    /// travel INSIDE the token, never as separate query params, so a leaked/doctored URL can't be
+    /// pointed at a different document. Company/branch come from the CALLING tenant context — the
+    /// same tenant the just-verified <paramref name="tenant"/>-scoped <c>d</c> lookup already proved
+    /// owns this document (RLS + EF filter), so no extra doc-level company/branch lookup is needed.</summary>
+    private static string PublicPdfUrl(
+        AppOptions app, IDataProtectionProvider dp, string docType, long id, ITenantContext tenant)
+    {
+        var protector = dp.CreateProtector(PublicPdfTokens.Purpose).ToTimeLimitedDataProtector();
+        var token = protector.Protect(
+            PublicPdfTokens.Payload(docType, id, tenant.CompanyId, tenant.BranchId),
+            TimeSpan.FromHours(app.PdfLinkTtlHours));
+        return $"{app.BaseUrl.TrimEnd('/')}/public/pdf?t={Uri.EscapeDataString(token)}";
+    }
 
     // ── E2 list-only guards (MCP path only — never called from shared service/UI) ──
 
