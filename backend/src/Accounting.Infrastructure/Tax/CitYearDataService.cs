@@ -181,6 +181,7 @@ public sealed class CitYearDataService(
                   (x, a) => new { x.l, x.j, a })
             .Where(x => x.j.Status == Domain.Enums.DocumentStatus.Posted
                         && x.j.DocDate >= start && x.j.DocDate <= end
+                        && !x.j.IsClosingEntry // range-based net-income excludes closing entries — §C2
                         && x.a.AccountType == Domain.Enums.AccountType.Expense)
             .GroupBy(x => new { x.a.AccountCode, x.a.AccountNameTh })
             .Select(g => new ExpenseAccountRow(

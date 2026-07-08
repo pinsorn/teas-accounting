@@ -67,6 +67,7 @@ public static class PermissionCatalog
             [Permissions.Gl.JournalPost]   = ("บันทึกบัญชีใบสำคัญ", "Post journal entries"),
             [Permissions.Gl.JournalRead]   = ("ดูใบสำคัญทั่วไป", "View journal entries"),
             [Permissions.Gl.PeriodClose]   = ("ปิดงวดบัญชี", "Close accounting period"),
+            [Permissions.Gl.YearClose]     = ("ปิดบัญชีสิ้นปี", "Close fiscal year"),
 
             // sales
             [Permissions.Sales.TaxInvoiceCreate]    = ("สร้างใบกำกับภาษี", "Create tax invoices"),

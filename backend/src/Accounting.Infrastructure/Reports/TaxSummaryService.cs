@@ -37,6 +37,7 @@ public sealed class TaxSummaryService(
             join a in db.ChartOfAccounts.AsNoTracking() on l.AccountId equals a.AccountId
             where j.Status == DocumentStatus.Posted
                   && j.DocDate >= yearStart && j.DocDate < nextYearStart
+                  && !j.IsClosingEntry // range-based net-income excludes closing entries — §C3
                   && (a.AccountType == AccountType.Revenue || a.AccountType == AccountType.Expense)
                   && (businessUnitId == null || l.BusinessUnitId == businessUnitId)
             group new { l.DebitAmount, l.CreditAmount, a.AccountType } by j.DocDate.Month into g

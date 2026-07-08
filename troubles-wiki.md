@@ -22,6 +22,52 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## `Npgsql.PostgresException: 22003: value "<big number>" is out of range for type integer` querying `tax.v_number_gaps` (e.g. `Sprint1HardeningTests.RolledBack_allocation_does_not_consume_a_number_or_create_a_gap`), reproduces on EVERY run regardless of the (random) company_id queried
+- **Root cause:** `050_number_gap_audit_view.sql`'s `tax.v_number_gaps` view does
+  `(regexp_match(doc_no, '(\d+)$'))[1]::int AS seq_no` over EVERY posted `doc_no` in
+  `sales.tax_invoices` / `gl.journal_entries` / `purchase.payment_vouchers` **across ALL
+  companies** before any `WHERE company_id = …` filter is applied — a single row anywhere in
+  the shared DB with an 11+ digit trailing-digit run overflows the `::int` cast (Postgres int4
+  max ≈ 2.1B) and breaks the view for EVERY company's query, not just the offending one. A test
+  that seeds a `JournalEntry` directly via DbContext with a synthetic `DocNo` built from a raw
+  GUID hex substring (e.g. `"JVTEST" + Guid.NewGuid().ToString("N")[..12]`) can — rarely, but it
+  happened — end in a long run of hex digits 0-9 (no a-f), producing exactly this: e.g.
+  `JVTESTf11443527012` → trailing `11443527012` (11 digits) → 22003. **Once such a row is
+  POSTED it is a PERMANENT pollution of the shared `teas_test` DB**: `doc_no` is in the
+  `020_journal_immutability.sql` critical-field allowlist (UPDATE blocked) and
+  `fn_no_delete_posted_je` blocks DELETE of any non-DRAFT row — there is no way to clean it up
+  short of a superuser bypassing both triggers (a call for Fable, not a worker).
+- **Fix:** any test that seeds a synthetic `DocNo` directly via DbContext (bypassing
+  `INumberSequenceService`) MUST end it in a non-digit character (e.g. append a literal `"X"` —
+  not in the hex alphabet) so `tax.v_number_gaps`'s `(\d+)$` regex can never match it. This does
+  NOT fix an already-polluted row — if you hit this symptom, the view itself needs a defensive
+  fix (e.g. cast to `bigint` instead of `int`, or cap the matched digit-string length) — that's
+  a cross-cutting file outside most specs' blast radius; flag it to the orchestrator rather than
+  patching it unilaterally from inside an unrelated feature's dispatch.
+  **UPDATE (2026-07-09, coordinator-approved rider):** the view fix landed —
+  `SqlScripts/613_number_gap_view_bigint.sql` recreates `tax.v_number_gaps` (does NOT edit 050 —
+  apply-once tracking) with the digit-run cast to `bigint` instead of `int`, PLUS a
+  `length(...) <= 18` guard so a run longer than 18 chars is treated as no-match (`seq_no = NULL`)
+  instead of even attempting the cast. The final exposed `missing_seq_no` column is cast back
+  down to plain `int` at the outer SELECT — `NumberGapReportService.cs`'s
+  `Row(string Series, int MissingSeqNo)` and the test's `SqlQueryRaw<int>` both depend on that
+  exact type, so this preserves the external contract; only the internal computation is widened.
+  **Self-inflicted footgun while writing 613:** the first draft's own header comment described
+  the fix using literal `` `{`/`}` `` backtick-quoted characters (to illustrate "don't use curly
+  braces") — but `ExecuteSqlRawAsync` parses the ENTIRE script text as a `string.Format`
+  composite-format string (even with zero real parameters), so THAT comment's literal braces
+  broke script application with `FormatException: Expected an ASCII digit`, taking down
+  EVERY test that touches `PostgresFixture.InitializeAsync` (not just the ones querying the
+  view). Fixed by describing the constraint in prose only, zero literal brace characters
+  anywhere in the file, comments included. After the fix: `tax.v_number_gaps` renders the
+  poisoned company-700926 row as ordinary (very large, but valid) data instead of crashing;
+  full backend suite → 843 passed / 0 failed / 8 skipped (was 841 baseline + 2 new
+  YearEndClosing tests, exactly matching expectation).
+- **Seen:** 2026-07-08/09, `specs/year-end-closing.md` Tier-2 fix stage — `YearEndClosingTests.
+  AddPostedJe`'s `DocNo` pattern produced `JVTESTf11443527012` (company 700926), permanently
+  breaking the full-suite gate's `Sprint1HardeningTests.RolledBack_allocation_...` test. Fixed by
+  `613_number_gap_view_bigint.sql` the same day (coordinator-approved Cycle A rider).
+
 ## A test with `new StubTenant { CompanyId = 1, IsSuperAdmin = true }` reads back a FRESHLY-created OTHER company's `ITenantOwned` rows and gets 0 results ("could not find codes {empty}", "found 0" branches/etc.)
 - **Root cause:** `AccountingDbContext`'s EF global query filter used to be
   `e => _tenant == null || _tenant.IsSuperAdmin || e.CompanyId == _tenant.CompanyId` — a

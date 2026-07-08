@@ -27,6 +27,29 @@ public static class PeriodEndpoints
                 Results.Ok(new { open = await svc.IsOpenAsync(year, month, ct) }))
         .RequireAuthorization();
 
+        // Year-end closing (specs/year-end-closing.md B6). {year:int}/{month:int}/... routes
+        // above are 3-segment; these are 2-segment literal-suffixed — never collide.
+        group.MapPost("/{year:int}/close-year", async (
+            int year,
+            [FromBody] CloseFiscalYearRequest? body,
+            IYearCloseService svc, CancellationToken ct) =>
+                Results.Ok(await svc.CloseAsync(year, body?.Notes, ct)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Gl.YearClose);
+
+        group.MapPost("/{year:int}/reopen-year", async (
+            int year, IYearCloseService svc, CancellationToken ct) =>
+            {
+                await svc.ReopenAsync(year, ct);
+                return Results.Ok();
+            })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Gl.YearClose);
+
+        // Benign read across every role (mirrors the month-status route above).
+        group.MapGet("/{year:int}/year-status", async (
+            int year, IYearCloseService svc, CancellationToken ct) =>
+                Results.Ok(await svc.GetStatusAsync(year, ct)))
+        .RequireAuthorization();
+
         return app;
     }
 }

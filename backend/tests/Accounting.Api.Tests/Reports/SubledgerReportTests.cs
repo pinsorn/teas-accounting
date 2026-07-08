@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Api.Tests.Rbac;
 using Accounting.Application.Abstractions;
@@ -534,5 +536,42 @@ public sealed class SubledgerReportTests
         using var vlResp = await client.SendAsync(Get(
             "/reports/vendor-ledger?vendorId=1&fromDate=2026-01-01&toDate=2026-01-31", token));
         vlResp.StatusCode.Should().Be(HttpStatusCode.Forbidden, "no purchase.vendor_invoice.read claim");
+
+        // specs/ar-aging-csv-export.md — export endpoint must be gated identically to the JSON one.
+        using var exportResp = await client.SendAsync(Get("/reports/ar-aging/export", token));
+        exportResp.StatusCode.Should().Be(HttpStatusCode.Forbidden, "no sales.tax_invoice.read claim");
+    }
+
+    // ── specs/ar-aging-csv-export.md — CSV export: header row, data-row count vs the JSON
+    //    report, UTF-8 BOM (Excel/Thai), CRLF line endings. Mirrors
+    //    GeneralLedgerEndpointTests.Csv_export_returns_200_with_bom_and_row_count_matches_report;
+    //    row counts checked RELATIVE to the JSON report (shared company 1 data), never absolute. ──
+
+    [SkippableFact]
+    public async Task Ar_aging_csv_export_returns_200_with_bom_crlf_and_row_count_matches_report()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient();
+        var token = Token(hasPerms: true);
+
+        using var reportResp = await client.SendAsync(Get("/reports/ar-aging", token));
+        reportResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var reportJson = JsonDocument.Parse(await reportResp.Content.ReadAsStringAsync());
+        var expectedRows = reportJson.RootElement.GetProperty("rows").GetArrayLength();
+
+        using var csvResp = await client.SendAsync(Get("/reports/ar-aging/export", token));
+        csvResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var bytes = await csvResp.Content.ReadAsByteArrayAsync();
+        bytes.Take(3).Should().Equal([0xEF, 0xBB, 0xBF], "UTF-8 BOM so Thai text opens correctly in Excel");
+
+        // Encoding.UTF8.GetString does NOT strip the BOM it just decoded (only StreamReader's
+        // byte-order-mark detection does that) — trim the leading U+FEFF before asserting content.
+        var text = Encoding.UTF8.GetString(bytes).TrimStart('﻿');
+        text.Should().Contain("\r\n", "CRLF line endings, not bare \\n");
+        var lines = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        lines[0].Should().Be("Customer,TaxId,Current,Bucket31To60,Bucket61To90,BucketOver90,Total");
+        // header + N data rows + totals row.
+        lines.Should().HaveCount(expectedRows + 2);
     }
 }

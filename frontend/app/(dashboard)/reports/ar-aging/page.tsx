@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { CustomerSelector } from '@/components/ui/CustomerSelector';
 import { MascotGreeting } from '@/components/layout/MascotGreeting';
 import { useArAgingReport } from '@/lib/queries';
+import { downloadFile, qs } from '@/lib/api';
+import { errorToToast } from '@/lib/api/errors';
 import { formatTHB, bangkokToday } from '@/lib/utils';
 import type { ArAgingRow, SubledgerReconciliation } from '@/lib/types';
 
@@ -43,6 +46,19 @@ export default function ArAgingPage() {
   const rows = q.data?.rows ?? [];
   const totals = q.data?.totals;
 
+  // Backend-generated CSV (mirrors /general-ledger/export — ap-aging's own export is FE-only
+  // Blob download with no backend endpoint to reuse; see specs/ar-aging-csv-export.md).
+  async function exportCsv() {
+    try {
+      await downloadFile(
+        `reports/ar-aging/export${qs({ asOf, customerId: customerId ?? undefined })}`,
+        `ar-aging-${asOf}.csv`,
+      );
+    } catch (e) {
+      toast.error(errorToToast(e));
+    }
+  }
+
   const showEmpty = !q.isLoading && rows.length === 0;
 
   return (
@@ -66,6 +82,10 @@ export default function ArAgingPage() {
               onClick={() => setCustomerId(null)}>{t('clear')}</button>
           )}
         </div>
+        <button type="button" className="btn btn-outline btn-sm ml-auto"
+          disabled={rows.length === 0} onClick={exportCsv}>
+          {t('exportCsv')}
+        </button>
       </div>
 
       {q.data && <ReconciliationPanel r={q.data.reconciliation} t={t} />}

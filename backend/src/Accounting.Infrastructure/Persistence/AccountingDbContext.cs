@@ -81,6 +81,7 @@ public class AccountingDbContext : DbContext
     public DbSet<JournalEntry>     JournalEntries     => Set<JournalEntry>();
     public DbSet<JournalLine>      JournalLines       => Set<JournalLine>();
     public DbSet<AccountingPeriod> AccountingPeriods  => Set<AccountingPeriod>();
+    public DbSet<FiscalYearClose>  FiscalYearCloses   => Set<FiscalYearClose>();
 
     // Sales
     public DbSet<TaxInvoice>          TaxInvoices         => Set<TaxInvoice>();

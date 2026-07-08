@@ -13,4 +13,17 @@ public interface IGlPostingService
     Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct);
     Task<long> PostTaxAdjustmentNoteAsync(long noteId, CancellationToken ct);
     Task<long> PostPayrollRunAsync(long payrollRunId, CancellationToken ct);
+
+    /// <summary>
+    /// Year-end closing (specs/year-end-closing.md D3/B4) — posts a closing or reversing JV
+    /// from ALREADY-RESOLVED AccountIds. Unlike the source-document posters above, this does
+    /// NOT call <c>IPeriodCloseService.EnsureOpenAsync</c> — posting into an already-closed
+    /// fiscal year is the intentional, system-driven point of this method. Used by
+    /// <c>IYearCloseService</c> only.
+    /// </summary>
+    Task<long> PostClosingEntryAsync(
+        int companyId, int branchId, DateOnly docDate, string description,
+        bool isClosingEntry, long? reversalOfId,
+        IReadOnlyList<(long AccountId, decimal Debit, decimal Credit)> lines,
+        CancellationToken ct);
 }

@@ -49,6 +49,9 @@ public sealed class RbacAuthMapTests
         // antiforgery/Origin; OpenIddict re-validates client_id/redirect_uri/PKCE. Not perm-gated.
         "POST /oauth/authorize",
         "GET /periods/{year:int}/{month:int}/status",
+        // Year-end closing (specs/year-end-closing.md B6) — benign read, mirrors the
+        // month-status route above; any authenticated tenant user reads their own year status.
+        "GET /periods/{year:int}/year-status",
         "GET /system/info",
         // First-run setup: RequireAuthorization at the policy, super-admin enforced in the handler
         // (a permission policy would wrongly 403 the claim-less first-run super-admin). See
