@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.1](https://github.com/pinsorn/teas-accounting/compare/v1.15.0...v1.15.1) (2026-07-08)
+
+
+### Bug Fixes
+
+* **seeds:** make startup seeds 610/611 RLS-safe on prod ([4ea8902](https://github.com/pinsorn/teas-accounting/commit/4ea8902d2d3a970b0371121bb470fc88d50dbbf3))
+* **seeds:** make startup seeds 610/611 RLS-safe on prod (42501 / silent zero fan-out) ([d3f091d](https://github.com/pinsorn/teas-accounting/commit/d3f091dee1f4a3d93890c3486ce85c6ae30e10a8))
+
 ## [1.15.0](https://github.com/pinsorn/teas-accounting/compare/v1.14.1...v1.15.0) (2026-07-08)
 
 
