@@ -41,6 +41,8 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/customers', key: 'customers', Icon: Users, perm: 'master.customer.read' },
       { href: '/vendors', key: 'vendors', Icon: Building2, perm: 'master.vendor.manage' },
       { href: '/settings/products', key: 'products', Icon: Package, perm: 'master.product.manage' },
+      // Bank reconciliation (specs/bank-reconciliation.md B1.11) — bank-account master.
+      { href: '/bank-accounts', key: 'bankAccounts', Icon: Landmark, perm: 'bank.account.read' },
     ],
   },
   {

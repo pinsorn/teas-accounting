@@ -1279,6 +1279,47 @@ export interface UpdateCustomerRequest {
   isActive: boolean;
 }
 
+// ── Bank reconciliation (specs/bank-reconciliation.md B1) ─────────────────
+
+export interface BankAccountListItem {
+  bankAccountId: number;
+  bankCode: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string | null;
+  glCashAccountId: number;
+  currency: string;
+  isActive: boolean;
+}
+export interface BankAccountDetail {
+  bankAccountId: number;
+  bankCode: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string | null;
+  accountType: string | null;
+  glCashAccountId: number;
+  currency: string;
+  isActive: boolean;
+}
+export interface CreateBankAccountRequest {
+  bankCode: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string | null;
+  accountType: string | null;
+  glCashAccountId: number | null;
+  currency: string | null;
+}
+export interface UpdateBankAccountRequest {
+  bankName: string;
+  accountName: string | null;
+  accountType: string | null;
+  glCashAccountId: number;
+  currency: string;
+  isActive: boolean;
+}
+
 // ── Request types for Task 2 type-safety (06-H3) ──────────────────────────
 
 export interface ReceiptApplicationInput {

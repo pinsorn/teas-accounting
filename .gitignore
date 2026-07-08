@@ -110,3 +110,11 @@ _review/
 docs/RD-Forms/**/*.pdf
 docs/RD-Forms/**/*.png
 docs/SSO-Forms/**/*.pdf
+
+# orchestrator sandboxes (restored 2026-07-09 after accidental reset --hard)
+codex-out/
+agy-out/
+
+# real bank statements (Ham's actual data) — never commit
+STM_*.csv
+STM_*.pdf

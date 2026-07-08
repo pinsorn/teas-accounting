@@ -104,6 +104,10 @@ import type {
   UpdateBillingNoteRequest,
   CreateBillingNoteRequest,
   CreatePurchaseOrderRequest,
+  BankAccountListItem,
+  BankAccountDetail,
+  CreateBankAccountRequest,
+  UpdateBankAccountRequest,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -937,6 +941,38 @@ export function useProfitLoss(
     queryFn: () => apiGet<ProfitLossReport>(
       `reports/profit-loss${qs({ from, to, businessUnitId,
         includeUnspecified: includeUnspecified || undefined })}`),
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B1) — bank-account master CRUD.
+export function useBankAccounts(includeInactive?: boolean) {
+  return useQuery({
+    queryKey: ['bank-accounts', includeInactive ?? false],
+    queryFn: () => apiGet<BankAccountListItem[]>(`bank-accounts${qs({ includeInactive })}`),
+  });
+}
+export function useBankAccount(id: number | null) {
+  return useQuery({
+    queryKey: ['bank-account', id],
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    queryFn: () => apiGet<BankAccountDetail>(`bank-accounts/${id}`),
+  });
+}
+export function useCreateBankAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateBankAccountRequest) =>
+      apiPost<{ bank_account_id: number }>('bank-accounts', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bank-accounts'] }),
+  });
+}
+export function useUpdateBankAccount(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateBankAccountRequest) => apiPut<void>(`bank-accounts/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] });
+      qc.invalidateQueries({ queryKey: ['bank-account', id] });
+    },
   });
 }
 // General Ledger (บัญชีแยกประเภท) — per-account drill-down + JE detail (2026-07-07).

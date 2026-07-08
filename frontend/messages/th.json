@@ -97,6 +97,7 @@
     "roles": "บทบาทและสิทธิ์",
     "users": "ผู้ใช้และบทบาท",
     "products": "สินค้า/บริการ",
+    "bankAccounts": "บัญชีธนาคาร",
     "businessUnits": "หน่วยธุรกิจ (Business Unit)",
     "employees": "พนักงาน (Payroll)",
     "whtTypes": "ประเภทหัก ณ ที่จ่าย",
@@ -172,6 +173,25 @@
     "statusVoided": "ยกเลิก",
     "wht50tawi": "50ทวิ (รายปี)",
     "periodPlaceholder": "ปปปปดด เช่น 202601"
+  },
+  "bank": {
+    "title": "บัญชีธนาคาร",
+    "create": "เพิ่มบัญชีธนาคาร",
+    "createTitle": "เพิ่มบัญชีธนาคารใหม่",
+    "editTitle": "แก้ไขบัญชีธนาคาร",
+    "bankCode": "รหัสธนาคาร",
+    "bankName": "ชื่อธนาคาร",
+    "accountNo": "เลขที่บัญชี",
+    "accountName": "ชื่อบัญชี",
+    "accountType": "ประเภทบัญชี",
+    "glCashAccount": "บัญชี GL (เงินฝากธนาคาร)",
+    "glCashAccountDefault": "(ค่าเริ่มต้น — 1120 เงินฝากธนาคาร)",
+    "currency": "สกุลเงิน",
+    "err": {
+      "required": "ต้องระบุ",
+      "maxLength": "ยาวเกินไป",
+      "currency": "รหัสสกุลเงิน 3 ตัวอักษร"
+    }
   },
   "businessUnit": {
     "title": "หน่วยธุรกิจ",

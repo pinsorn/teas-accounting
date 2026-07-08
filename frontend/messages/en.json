@@ -97,6 +97,7 @@
     "roles": "Roles & Permissions",
     "users": "Users & Roles",
     "products": "Products",
+    "bankAccounts": "Bank Accounts",
     "businessUnits": "Business Units",
     "employees": "Employees (Payroll)",
     "whtTypes": "WHT Types",
@@ -172,6 +173,25 @@
     "statusVoided": "Voided",
     "wht50tawi": "50 bis (annual)",
     "periodPlaceholder": "YYYYMM e.g. 202601"
+  },
+  "bank": {
+    "title": "Bank Accounts",
+    "create": "Add bank account",
+    "createTitle": "New bank account",
+    "editTitle": "Edit bank account",
+    "bankCode": "Bank code",
+    "bankName": "Bank name",
+    "accountNo": "Account no.",
+    "accountName": "Account name",
+    "accountType": "Account type",
+    "glCashAccount": "GL cash account",
+    "glCashAccountDefault": "(default — 1120 Bank)",
+    "currency": "Currency",
+    "err": {
+      "required": "Required",
+      "maxLength": "Too long",
+      "currency": "3-letter currency code"
+    }
   },
   "businessUnit": {
     "title": "Business Unit",

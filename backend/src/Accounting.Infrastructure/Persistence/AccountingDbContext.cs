@@ -2,6 +2,7 @@ using System.Reflection;
 using Accounting.Application.Abstractions;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Audit;
+using Accounting.Domain.Entities.Bank;
 using Accounting.Domain.Entities.ETax;
 using Accounting.Domain.Entities.Identity;
 using Accounting.Domain.Entities.Ledger;
@@ -109,6 +110,11 @@ public class AccountingDbContext : DbContext
 
     // e-Tax (Sprint 13c) — append-only submission audit
     public DbSet<ETaxSubmission>  ETaxSubmissions => Set<ETaxSubmission>();
+
+    // Bank reconciliation (specs/bank-reconciliation.md B1)
+    public DbSet<BankAccount>     BankAccounts     => Set<BankAccount>();
+    public DbSet<StatementImport> StatementImports => Set<StatementImport>();
+    public DbSet<StatementLine>   StatementLines   => Set<StatementLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
