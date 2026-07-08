@@ -72,7 +72,7 @@ public sealed class ETaxRetryWorkerRlsTests
         try
         {
             await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.company_id', '', false)");
-            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.is_super_admin', 'false', false)");
+            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'false', false)");
             await db.Database.ExecuteSqlRawAsync("SET ROLE pg_database_owner");
 
             var done = await ETaxRetryWorker.RunDueAsync(db, fakePipeline, new SystemClock(), default);

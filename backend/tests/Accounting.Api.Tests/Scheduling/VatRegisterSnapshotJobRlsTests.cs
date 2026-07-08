@@ -40,16 +40,16 @@ namespace Accounting.Api.Tests.Scheduling;
 /// fallback (used here with no <c>IHttpContextAccessor.HttpContext</c> set, exactly the
 /// condition a real background-job DI scope is in).
 ///
-/// Tier-2 (Codex) review correction 2026-07-04 (DEFECT — RLS bypass via leftover session flag):
-/// the <c>company_isolation</c> policy is <c>company_id = current_setting('app.company_id') OR
-/// is_super_admin</c>. Pinning only <c>app.company_id</c> left a pre-existing
-/// <c>app.is_super_admin</c> leftover on the pooled connection (e.g. from the known L4
-/// <c>TenantMiddleware</c> reset-failure gap) free to satisfy the policy's bypass arm regardless
-/// of the company pin. This test now deliberately sets <c>app.is_super_admin='true'</c>
-/// SESSION-scoped BEFORE calling <see cref="VatRegisterSnapshotJob.RunSnapshotAsync"/> —
-/// simulating exactly that leftover — and asserts isolation still holds (proving
-/// <c>RunSnapshotAsync</c>'s own LOCAL <c>is_super_admin='false'</c> pin, added alongside the
-/// company_id pin, shields the job's queries from it).
+/// Migrated 2026-07-08 (superadmin-tenant-scope.md) — the Tier-2 (Codex) defect this test
+/// originally proved ("a leftover <c>app.is_super_admin</c> on the pooled connection satisfies
+/// the policy's bypass arm regardless of the company pin") no longer APPLIES the same way:
+/// <c>sales.tax_invoices</c> is a G1 table under <c>600_superadmin_scoped_rls.sql</c> — its
+/// <c>company_isolation</c> policy is now <c>company_id = pinned</c> ONLY, with NO bypass arm at
+/// all (not <c>is_super_admin</c>, not the new <c>app.bypass_rls</c>). This test now simulates a
+/// leftover <c>app.bypass_rls='true'</c> SESSION-scoped (the closest analogue to the old defect)
+/// and asserts isolation STILL holds — proving a G1 table's isolation can never be widened by
+/// ANY leftover GUC, only by <see cref="VatRegisterSnapshotJob.RunSnapshotAsync"/>'s own
+/// <c>app.company_id</c> pin.
 /// </summary>
 [Collection(nameof(PostgresCollection))]
 public sealed class VatRegisterSnapshotJobRlsTests
@@ -135,17 +135,14 @@ public sealed class VatRegisterSnapshotJobRlsTests
         try
         {
             // Reproduce the exact prod pre-pin condition: RLS enforced (NOBYPASSRLS role),
-            // app.company_id UNSET. Tier-2 (Codex) review correction 2026-07-04: instead of
-            // clearing app.is_super_admin, deliberately set it to 'true' SESSION-scoped (NOT
-            // LOCAL) here — simulating a LEFTOVER super-admin flag left on this pooled
-            // connection by some prior request (the known L4 gap: TenantMiddleware's
-            // best-effort session reset can fail). The company_isolation RLS policy is
-            // `company_id = current_setting('app.company_id') OR is_super_admin`, so this
-            // leftover 'true' alone would satisfy the policy's bypass arm for EVERY company
-            // unless RunSnapshotAsync's own LOCAL transaction pin also forces is_super_admin
-            // back to 'false' for its own queries (the fix below).
+            // app.company_id UNSET. Deliberately set app.bypass_rls to 'true' SESSION-scoped (NOT
+            // LOCAL) here — simulating a LEFTOVER bypass flag left on this pooled connection by
+            // some prior Family-B service call. sales.tax_invoices is a G1 table (no bypass arm
+            // at all in its company_isolation policy) — so, unlike the old is_super_admin-era
+            // defect this test used to prove, a leftover here CANNOT widen visibility regardless
+            // of whether RunSnapshotAsync itself does anything about it.
             await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.company_id', '', false)");
-            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.is_super_admin', 'true', false)");
+            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'true', false)");
             await db.Database.ExecuteSqlRawAsync("SET ROLE pg_database_owner");
 
             var summary = await VatRegisterSnapshotJob.RunSnapshotAsync(
@@ -154,12 +151,11 @@ public sealed class VatRegisterSnapshotJobRlsTests
             // Company A's OWN, SPECIFIC figures (100/7) — not just "non-zero" or "not-doubled".
             // Distinct A/B amounts mean this also rules out the "isolated to the WRONG company"
             // failure mode: if the pin instead pinned to B (or ignored the requested company),
-            // this would read 300/21 and fail here. With the SESSION-level is_super_admin
-            // leftover simulated above, this ALSO proves the fix: without RunSnapshotAsync's own
-            // LOCAL is_super_admin='false' pin, the leftover 'true' would satisfy the RLS
-            // policy's bypass arm and blend in EVERY company (B included) regardless of the
-            // company_id pin — this assertion would then see 400.00/28.00 (A+B blended), not
-            // A's isolated 100.00/7.00.
+            // this would read 300/21 and fail here. With the SESSION-level app.bypass_rls
+            // leftover simulated above, this ALSO proves G1 has no escape hatch: since
+            // sales.tax_invoices' policy never references app.bypass_rls, the leftover 'true'
+            // has zero effect — this assertion would still see A's isolated 100.00/7.00, never
+            // 400.00/28.00 (A+B blended).
             summary.Sales.Should().Be(100.00m, "this must be company A's own TI amount");
             summary.OutputVat.Should().Be(7.00m, "this must be company A's own tax amount");
 
@@ -167,13 +163,13 @@ public sealed class VatRegisterSnapshotJobRlsTests
             summary.Sales.Should().NotBe(300.00m, "company B's distinct Sales figure must not appear in A's snapshot");
             summary.OutputVat.Should().NotBe(21.00m, "company B's distinct OutputVat figure must not appear in A's snapshot");
 
-            // The leftover flag was SESSION-scoped (is_local=false); RunSnapshotAsync's own pin
-            // is LOCAL (auto-reverts at its transaction's commit), so the pre-existing leftover
-            // must still read 'true' here, proving the fix is a per-transaction override, not a
-            // permanent session-level change that would just mask the leftover elsewhere.
+            // The leftover flag was SESSION-scoped (is_local=false) and RunSnapshotAsync never
+            // touches app.bypass_rls at all (G1 tables don't need it), so the pre-existing
+            // leftover must still read 'true' here — confirming it really was live throughout
+            // the query (not silently cleared), yet still had no bearing on the result above.
             var stillLeftover = (string?)await db.Database.SqlQueryRaw<string>(
-                "SELECT current_setting('app.is_super_admin', true) AS \"Value\"").SingleAsync();
-            stillLeftover.Should().Be("true", "the SESSION-scoped leftover must survive the job's own LOCAL-scoped override");
+                "SELECT current_setting('app.bypass_rls', true) AS \"Value\"").SingleAsync();
+            stillLeftover.Should().Be("true", "the SESSION-scoped leftover must survive untouched — RunSnapshotAsync doesn't pin app.bypass_rls");
         }
         finally
         {
@@ -183,23 +179,18 @@ public sealed class VatRegisterSnapshotJobRlsTests
     }
 
     /// <summary>
-    /// Tier-2 (Codex) review correction 2026-07-04 — the test above proves the JOB's real
-    /// end-to-end isolation, but its assertions go through <see cref="IVatReportService"/>, whose
-    /// queries are ALSO independently restricted by EF's own C# global query filter
-    /// (<see cref="AmbientTenantContext.IsSuperAdmin"/> is hardcoded <c>false</c> in job/fallback
-    /// mode, so <c>e.CompanyId == tenant.CompanyId</c> is baked into the generated SQL regardless
-    /// of what RLS's session-level GUCs say) — so it can't by itself prove that
-    /// <see cref="VatRegisterSnapshotJob.RunSnapshotAsync"/>'s OWN pin actually includes
-    /// <c>app.is_super_admin='false'</c> (a future edit could silently drop it and this file's
-    /// other test would still pass, masking the regression). This test drives
-    /// <c>RunSnapshotAsync</c> directly with a spy <see cref="IVatReportService"/> that captures
-    /// the live GUC values at the exact moment the job's query would run — deterministic, no
-    /// seeded companies/RLS role-switch needed, and it WOULD fail if the is_super_admin pin were
-    /// ever removed from the production method (verified: reverting the source fix and re-running
-    /// this test makes it fail with <c>CapturedIsSuperAdmin == "true"</c>).
+    /// Migrated 2026-07-08 (superadmin-tenant-scope.md) — this test used to prove
+    /// <see cref="VatRegisterSnapshotJob.RunSnapshotAsync"/> forced <c>app.is_super_admin='false'</c>
+    /// for its own query window (a Tier-2 Codex-found defect). That GUC is now RETIRED from every
+    /// <c>company_isolation</c> policy and <c>RunSnapshotAsync</c> no longer pins it AT ALL — there
+    /// is nothing left to shield <c>sales.tax_invoices</c> (a G1 table) from, since no policy
+    /// references it any more. Reworked assertion: confirm the job's own transaction leaves a
+    /// pre-existing <c>app.is_super_admin</c> value COMPLETELY untouched (proving the retired pin
+    /// was actually removed, not just made a no-op) while the <c>app.company_id</c> pin still
+    /// carries the requested company.
     /// </summary>
     [SkippableFact]
-    public async Task RunSnapshotAsync_pins_is_super_admin_false_for_the_duration_of_its_own_query()
+    public async Task RunSnapshotAsync_no_longer_touches_the_retired_is_super_admin_guc()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
 
@@ -211,15 +202,14 @@ public sealed class VatRegisterSnapshotJobRlsTests
         await db.Database.OpenConnectionAsync();
         try
         {
-            // Simulate the exact leftover this defect is about: some PRIOR request/tx left
-            // is_super_admin='true' on this pooled connection (SESSION-scoped, not LOCAL).
+            // A distinctive leftover value — RunSnapshotAsync must not touch it at all any more.
             await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.is_super_admin', 'true', false)");
 
             await VatRegisterSnapshotJob.RunSnapshotAsync(db, spy, companyId: 999999, year: 2026, month: 1, default);
 
-            spy.CapturedIsSuperAdmin.Should().Be("false",
-                "RunSnapshotAsync must force is_super_admin='false' for its own query window, " +
-                "regardless of a leftover 'true' on the pooled connection (Tier-2 Codex defect)");
+            spy.CapturedIsSuperAdmin.Should().Be("true",
+                "RunSnapshotAsync must not pin the retired app.is_super_admin GUC at all — " +
+                "it is no longer part of any company_isolation policy");
             spy.CapturedCompanyId.Should().Be("999999", "the company_id pin must still carry the requested company");
         }
         finally

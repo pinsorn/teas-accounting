@@ -36,17 +36,17 @@ public sealed class ApiKeyResolver : IApiKeyResolver
 
         // Auth runs before tenant context — bypass the company query filter; the
         // key itself carries the company. IgnoreQueryFilters() only drops the EF
-        // filter: sys.api_keys/master.branches still carry FORCE RLS (010_rls_policies.sql,
+        // filter: sys.api_keys/master.branches still carry FORCE RLS (600_superadmin_scoped_rls.sql,
         // fail-closed on unset app.company_id) — under a prod NOBYPASSRLS role this lookup
-        // would see zero rows. Mirror PermissionLookup.cs (~:28-31): pin
-        // app.is_super_admin='true' LOCAL to a short transaction so just this lookup can
+        // would see zero rows. Mirror PermissionLookup.cs (~:28-31): pin the LOCAL-only,
+        // never-user-derived `app.bypass_rls='true'` to a short transaction so just this lookup can
         // read, scoped to that transaction only — set_config(..., true) auto-reverts on
         // commit (or rollback), so it never leaks beyond it.
         ApiKey? key;
         await using (var tx = await _db.Database.BeginTransactionAsync(ct))
         {
             await _db.Database.ExecuteSqlRawAsync(
-                "SELECT set_config('app.is_super_admin', 'true', true)", ct);
+                "SELECT set_config('app.bypass_rls', 'true', true)", ct);
             key = await _db.ApiKeys.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(k => k.KeyPrefix == prefix, ct);
             await tx.CommitAsync(ct);
@@ -68,7 +68,7 @@ public sealed class ApiKeyResolver : IApiKeyResolver
         await using (var tx = await _db.Database.BeginTransactionAsync(ct))
         {
             await _db.Database.ExecuteSqlRawAsync(
-                "SELECT set_config('app.is_super_admin', 'true', true)", ct);
+                "SELECT set_config('app.bypass_rls', 'true', true)", ct);
             hqBranchId = await _db.Branches.IgnoreQueryFilters()
                 .Where(b => b.CompanyId == key.CompanyId)
                 .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)

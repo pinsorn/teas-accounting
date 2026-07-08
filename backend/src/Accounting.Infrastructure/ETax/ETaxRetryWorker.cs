@@ -24,9 +24,10 @@ namespace Accounting.Infrastructure.ETax;
 /// 581 added FORCE RLS to <c>etax.submissions</c>; under prod NOBYPASSRLS the
 /// fail-closed policy hides every row from BOTH reads without a pin (a
 /// regression 581 introduced — before it there was no RLS to block them).
-/// Each read pins <c>app.is_super_admin</c> LOCAL to its own short transaction,
-/// mirroring <c>ApiKeyResolver.cs</c> (H5) — auto-reverts on commit, never
-/// leaks onto the pooled connection, and never wraps the per-item pipeline
+/// Each read pins the LOCAL-only, never-user-derived <c>app.bypass_rls</c> to its own short
+/// transaction (bugfix 2026-07-08 — <c>app.is_super_admin</c> is RETIRED as a data-scope GUC,
+/// see specs/superadmin-tenant-scope.md), mirroring <c>ApiKeyResolver.cs</c> (H5) — auto-reverts
+/// on commit, never leaks onto the pooled connection, and never wraps the per-item pipeline
 /// call (which must keep running under its own, narrower company scope).
 /// </summary>
 public static class ETaxRetryWorker
@@ -41,7 +42,7 @@ public static class ETaxRetryWorker
         await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
             await db.Database.ExecuteSqlRawAsync(
-                "SELECT set_config('app.is_super_admin', 'true', true)", ct);
+                "SELECT set_config('app.bypass_rls', 'true', true)", ct);
             var rows = await db.ETaxSubmissions.IgnoreQueryFilters()
                 .Where(s => s.Outcome == Domain.Enums.ETaxSubmissionOutcome.SendFailed
                          && !s.DeadLetter
@@ -62,7 +63,7 @@ public static class ETaxRetryWorker
             await using (var tx = await db.Database.BeginTransactionAsync(ct))
             {
                 await db.Database.ExecuteSqlRawAsync(
-                    "SELECT set_config('app.is_super_admin', 'true', true)", ct);
+                    "SELECT set_config('app.bypass_rls', 'true', true)", ct);
                 var latest = await db.ETaxSubmissions.IgnoreQueryFilters()
                     .Where(s => s.CompanyId == c.CompanyId && s.TaxInvoiceId == c.TaxInvoiceId)
                     .OrderByDescending(s => s.AttemptNo)

@@ -38,11 +38,31 @@ public sealed class RbacAdminService(
         return tenant.CompanyId;
     }
 
+    /// <summary>Role / RolePermission are NOT ITenantOwned (no EF filter) and now carry a G3
+    /// <c>company_isolation</c> RLS policy (<c>company_id IS NULL OR company_id = pinned OR
+    /// bypass_rls</c>) — same for <c>audit.activity_log</c>. A super-admin managing a DIFFERENT
+    /// company than the one pinned on the session (or looking a role up BY id, whose owning
+    /// company isn't known until AFTER the read — chicken-and-egg) needs the LOCAL-only
+    /// <c>app.bypass_rls</c> escape hatch, never a data-scope grant. Wraps a method's cross-company
+    /// DB work in one short transaction; <c>is_local=true</c> auto-reverts at commit/rollback, so
+    /// it never leaks onto the pooled connection. See specs/superadmin-tenant-scope.md D1(B)/D2.</summary>
+    private async Task<T> RunWithBypassAsync<T>(Func<Task<T>> work, CancellationToken ct)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'true', true)", ct);
+        var result = await work();
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    private Task RunWithBypassAsync(Func<Task> work, CancellationToken ct) =>
+        RunWithBypassAsync(async () => { await work(); return true; }, ct);
+
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
 
     // ---- Phase A: read -----------------------------------------------------
 
-    public async Task<IReadOnlyList<RoleListItem>> ListRolesAsync(int? companyId, CancellationToken ct)
+    public Task<IReadOnlyList<RoleListItem>> ListRolesAsync(int? companyId, CancellationToken ct)
     {
         var target = ResolveTargetCompany(companyId);
         var today = Today;
@@ -50,7 +70,9 @@ public sealed class RbacAdminService(
         // Concrete company filter excludes SUPER_ADMIN (company_id NULL). UserCount =
         // distinct users with an ACTIVE user_role for the role in this company; the
         // active predicate is inlined (UserRole.IsActiveOn won't translate to SQL).
-        return await db.Roles.AsNoTracking()
+        // sys.roles/sys.role_permissions carry RLS (G3) — a super-admin listing a DIFFERENT
+        // company's roles than the one pinned on the session needs the LOCAL bypass.
+        return RunWithBypassAsync<IReadOnlyList<RoleListItem>>(async () => await db.Roles.AsNoTracking()
             .Where(r => r.CompanyId == target)
             .OrderBy(r => r.RoleCode)
             .Select(r => new RoleListItem(
@@ -61,88 +83,95 @@ public sealed class RbacAdminService(
                         && (ur.ValidTo == null || ur.ValidTo >= today))
                     .Select(ur => ur.UserId).Distinct().Count(),
                 db.RolePermissions.Count(rp => rp.RoleId == r.RoleId)))
-            .ToListAsync(ct);
+            .ToListAsync(ct), ct);
     }
 
-    public async Task<RoleDetail> GetRoleAsync(int roleId, CancellationToken ct)
-    {
-        // Load by id, then scope-check (mirrors the write methods). A super-admin may
-        // open any company's role; a regular admin is pinned to their own company and a
-        // mismatch returns .not_found so a cross-company id leaks nothing. SUPER_ADMIN
-        // (company_id NULL) is never surfaced through this endpoint.
-        var role = await db.Roles.AsNoTracking()
-            .Where(r => r.RoleId == roleId && r.CompanyId != null)
-            .Select(r => new { r.RoleId, r.CompanyId, r.RoleCode, r.RoleName, r.Description, r.IsSystem })
-            .FirstOrDefaultAsync(ct)
-            ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
+    public Task<RoleDetail> GetRoleAsync(int roleId, CancellationToken ct) =>
+        RunWithBypassAsync(async () =>
+        {
+            // Load by id, then scope-check (mirrors the write methods). A super-admin may
+            // open any company's role; a regular admin is pinned to their own company and a
+            // mismatch returns .not_found so a cross-company id leaks nothing. SUPER_ADMIN
+            // (company_id NULL) is never surfaced through this endpoint.
+            // The lookup is BY id — the owning company isn't known until AFTER the read, so it
+            // can't be pre-pinned; sys.roles/sys.role_permissions carry RLS (G3) → LOCAL bypass.
+            var role = await db.Roles.AsNoTracking()
+                .Where(r => r.RoleId == roleId && r.CompanyId != null)
+                .Select(r => new { r.RoleId, r.CompanyId, r.RoleCode, r.RoleName, r.Description, r.IsSystem })
+                .FirstOrDefaultAsync(ct)
+                ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
 
-        if (!tenant.IsSuperAdmin && role.CompanyId != tenant.CompanyId)
-            throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
+            if (!tenant.IsSuperAdmin && role.CompanyId != tenant.CompanyId)
+                throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
 
-        var codes = await db.RolePermissions.AsNoTracking()
-            .Where(rp => rp.RoleId == roleId)
-            .Select(rp => rp.Permission!.PermissionCode)
-            .OrderBy(c => c)
-            .ToArrayAsync(ct);
+            var codes = await db.RolePermissions.AsNoTracking()
+                .Where(rp => rp.RoleId == roleId)
+                .Select(rp => rp.Permission!.PermissionCode)
+                .OrderBy(c => c)
+                .ToArrayAsync(ct);
 
-        return new RoleDetail(role.RoleId, role.CompanyId, role.RoleCode, role.RoleName,
-            role.Description, role.IsSystem, codes);
-    }
+            return new RoleDetail(role.RoleId, role.CompanyId, role.RoleCode, role.RoleName,
+                role.Description, role.IsSystem, codes);
+        }, ct);
 
     // ---- Phase B: write ----------------------------------------------------
 
-    public async Task SetRolePermissionsAsync(int roleId, SetRolePermissionsRequest req, CancellationToken ct)
-    {
-        var role = await db.Roles
-            .Include(r => r.Permissions)
-            .FirstOrDefaultAsync(r => r.RoleId == roleId, ct)
-            ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
-
-        GuardEditable(role);
-        ResolveTargetCompany(role.CompanyId);   // cross-company → scope_required
-
-        var requested = (req.PermissionCodes ?? []).Distinct().ToArray();
-
-        // Resolve codes → ids; every code MUST exist in the catalog.
-        var known = await db.Permissions.AsNoTracking()
-            .Where(p => requested.Contains(p.PermissionCode))
-            .Select(p => new { p.PermissionId, p.PermissionCode })
-            .ToListAsync(ct);
-        if (known.Count != requested.Length)
+    public Task SetRolePermissionsAsync(int roleId, SetRolePermissionsRequest req, CancellationToken ct) =>
+        // Role lookup is BY id (owning company unknown until after the read) and every write
+        // below touches sys.roles/sys.role_permissions/audit.activity_log — all RLS (G3) →
+        // LOCAL bypass for the whole operation (superadmin-tenant-scope.md D1(B)).
+        RunWithBypassAsync(async () =>
         {
-            var unknown = requested.Except(known.Select(k => k.PermissionCode)).ToArray();
-            throw new DomainException("rbac.unknown_permission",
-                $"Unknown permission code(s): {string.Join(", ", unknown)}");
-        }
+            var role = await db.Roles
+                .Include(r => r.Permissions)
+                .FirstOrDefaultAsync(r => r.RoleId == roleId, ct)
+                ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
 
-        var existingCodes = await db.RolePermissions.AsNoTracking()
-            .Where(rp => rp.RoleId == roleId)
-            .Select(rp => rp.Permission!.PermissionCode)
-            .ToListAsync(ct);
+            GuardEditable(role);
+            ResolveTargetCompany(role.CompanyId);   // cross-company → scope_required
 
-        var added = requested.Except(existingCodes).OrderBy(c => c).ToArray();
-        var removed = existingCodes.Except(requested).OrderBy(c => c).ToArray();
-        if (added.Length == 0 && removed.Length == 0) return;   // no-op
+            var requested = (req.PermissionCodes ?? []).Distinct().ToArray();
 
-        // Whole-set replace: drop all, re-add the requested set with the role's company.
-        var current = await db.RolePermissions
-            .Where(rp => rp.RoleId == roleId)
-            .ToListAsync(ct);
-        db.RolePermissions.RemoveRange(current);
-        foreach (var p in known)
-            db.RolePermissions.Add(new RolePermission
+            // Resolve codes → ids; every code MUST exist in the catalog.
+            var known = await db.Permissions.AsNoTracking()
+                .Where(p => requested.Contains(p.PermissionCode))
+                .Select(p => new { p.PermissionId, p.PermissionCode })
+                .ToListAsync(ct);
+            if (known.Count != requested.Length)
             {
-                RoleId = roleId,
-                PermissionId = p.PermissionId,
-                CompanyId = role.CompanyId,   // denormalized owning company
-            });
+                var unknown = requested.Except(known.Select(k => k.PermissionCode)).ToArray();
+                throw new DomainException("rbac.unknown_permission",
+                    $"Unknown permission code(s): {string.Join(", ", unknown)}");
+            }
 
-        activity.Record("role", roleId, null, role.CompanyId!.Value, "rbac_grant_change",
-            note: DiffNote(added, removed), module: "sys");
-        await db.SaveChangesAsync(ct);
-    }
+            var existingCodes = await db.RolePermissions.AsNoTracking()
+                .Where(rp => rp.RoleId == roleId)
+                .Select(rp => rp.Permission!.PermissionCode)
+                .ToListAsync(ct);
 
-    public async Task<int> CreateRoleAsync(CreateRoleRequest req, CancellationToken ct)
+            var added = requested.Except(existingCodes).OrderBy(c => c).ToArray();
+            var removed = existingCodes.Except(requested).OrderBy(c => c).ToArray();
+            if (added.Length == 0 && removed.Length == 0) return;   // no-op
+
+            // Whole-set replace: drop all, re-add the requested set with the role's company.
+            var current = await db.RolePermissions
+                .Where(rp => rp.RoleId == roleId)
+                .ToListAsync(ct);
+            db.RolePermissions.RemoveRange(current);
+            foreach (var p in known)
+                db.RolePermissions.Add(new RolePermission
+                {
+                    RoleId = roleId,
+                    PermissionId = p.PermissionId,
+                    CompanyId = role.CompanyId,   // denormalized owning company
+                });
+
+            activity.Record("role", roleId, null, role.CompanyId!.Value, "rbac_grant_change",
+                note: DiffNote(added, removed), module: "sys");
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    public Task<int> CreateRoleAsync(CreateRoleRequest req, CancellationToken ct)
     {
         var target = ResolveTargetCompany(req.CompanyId);
         var code = (req.RoleCode ?? string.Empty).Trim();
@@ -151,269 +180,296 @@ public sealed class RbacAdminService(
             throw new DomainException("rbac.role_code_required", "Role code is required.");
         if (string.Equals(code, SuperAdmin, StringComparison.OrdinalIgnoreCase))
             throw new DomainException("rbac.super_admin_locked", "SUPER_ADMIN is reserved.");
-        if (await db.Roles.AnyAsync(r => r.CompanyId == target && r.RoleCode == code, ct))
-            throw new DomainException("rbac.role_code_duplicate",
-                $"Role code '{code}' already exists in this company.");
 
-        var role = new Role
+        // sys.roles/audit.activity_log carry RLS (G3) — a super-admin creating a role in a
+        // DIFFERENT company than the one pinned on the session needs the LOCAL bypass.
+        return RunWithBypassAsync(async () =>
         {
-            CompanyId = target,
-            RoleCode = code,
-            RoleName = req.NameTh,
-            Description = req.Description,
-            IsSystem = false,
-        };
-        db.Roles.Add(role);
-        await db.SaveChangesAsync(ct);   // assign RoleId before auditing
+            if (await db.Roles.AnyAsync(r => r.CompanyId == target && r.RoleCode == code, ct))
+                throw new DomainException("rbac.role_code_duplicate",
+                    $"Role code '{code}' already exists in this company.");
 
-        activity.Record("role", role.RoleId, null, target, "role_created",
-            note: $"code={code}", module: "sys");
-        await db.SaveChangesAsync(ct);
-        return role.RoleId;
+            var role = new Role
+            {
+                CompanyId = target,
+                RoleCode = code,
+                RoleName = req.NameTh,
+                Description = req.Description,
+                IsSystem = false,
+            };
+            db.Roles.Add(role);
+            await db.SaveChangesAsync(ct);   // assign RoleId before auditing
+
+            activity.Record("role", role.RoleId, null, target, "role_created",
+                note: $"code={code}", module: "sys");
+            await db.SaveChangesAsync(ct);
+            return role.RoleId;
+        }, ct);
     }
 
-    public async Task UpdateRoleAsync(int roleId, UpdateRoleRequest req, CancellationToken ct)
-    {
-        var role = await db.Roles.FirstOrDefaultAsync(r => r.RoleId == roleId, ct)
-            ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
+    public Task UpdateRoleAsync(int roleId, UpdateRoleRequest req, CancellationToken ct) =>
+        // Role lookup is BY id (owning company unknown until after the read); the UPDATE + audit
+        // write both touch RLS'd (G3) tables → LOCAL bypass for the whole operation.
+        RunWithBypassAsync(async () =>
+        {
+            var role = await db.Roles.FirstOrDefaultAsync(r => r.RoleId == roleId, ct)
+                ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
 
-        GuardEditable(role);                    // SUPER_ADMIN / null-company refused
-        ResolveTargetCompany(role.CompanyId);   // cross-company → scope_required
+            GuardEditable(role);                    // SUPER_ADMIN / null-company refused
+            ResolveTargetCompany(role.CompanyId);   // cross-company → scope_required
 
-        role.RoleName = req.NameTh;             // rename only — never role_code / company
-        role.Description = req.Description;
+            role.RoleName = req.NameTh;             // rename only — never role_code / company
+            role.Description = req.Description;
 
-        activity.Record("role", roleId, null, role.CompanyId!.Value, "role_updated",
-            note: $"name={req.NameTh}", module: "sys");
-        await db.SaveChangesAsync(ct);
-    }
+            activity.Record("role", roleId, null, role.CompanyId!.Value, "role_updated",
+                note: $"name={req.NameTh}", module: "sys");
+            await db.SaveChangesAsync(ct);
+        }, ct);
 
-    public async Task DeleteRoleAsync(int roleId, CancellationToken ct)
-    {
-        var role = await db.Roles.FirstOrDefaultAsync(r => r.RoleId == roleId, ct)
-            ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
+    public Task DeleteRoleAsync(int roleId, CancellationToken ct) =>
+        // Same RLS shape as UpdateRoleAsync — LOCAL bypass for the whole operation.
+        RunWithBypassAsync(async () =>
+        {
+            var role = await db.Roles.FirstOrDefaultAsync(r => r.RoleId == roleId, ct)
+                ?? throw new DomainException("rbac.role.not_found", $"Role {roleId} not found.");
 
-        GuardEditable(role);
-        ResolveTargetCompany(role.CompanyId);
+            GuardEditable(role);
+            ResolveTargetCompany(role.CompanyId);
 
-        if (role.IsSystem)
-            throw new DomainException("rbac.role_is_system", "System roles cannot be deleted.");
+            if (role.IsSystem)
+                throw new DomainException("rbac.role_is_system", "System roles cannot be deleted.");
 
-        var today = Today;
-        var inUse = await db.UserRoles.AnyAsync(ur => ur.RoleId == roleId
-            && ur.ValidFrom <= today
-            && (ur.ValidTo == null || ur.ValidTo >= today), ct);
-        if (inUse)
-            throw new DomainException("rbac.role_in_use",
-                "Role is assigned to active users and cannot be deleted.");
+            var today = Today;
+            var inUse = await db.UserRoles.AnyAsync(ur => ur.RoleId == roleId
+                && ur.ValidFrom <= today
+                && (ur.ValidTo == null || ur.ValidTo >= today), ct);
+            if (inUse)
+                throw new DomainException("rbac.role_in_use",
+                    "Role is assigned to active users and cannot be deleted.");
 
-        // Hard delete — grants cascade. Audit BEFORE the row vanishes.
-        activity.Record("role", roleId, null, role.CompanyId!.Value, "role_deleted",
-            note: $"code={role.RoleCode}", module: "sys");
-        db.Roles.Remove(role);
-        await db.SaveChangesAsync(ct);
-    }
+            // Hard delete — grants cascade. Audit BEFORE the row vanishes.
+            activity.Record("role", roleId, null, role.CompanyId!.Value, "role_deleted",
+                note: $"code={role.RoleCode}", module: "sys");
+            db.Roles.Remove(role);
+            await db.SaveChangesAsync(ct);
+        }, ct);
 
     // ---- Phase C: user-role assignment -------------------------------------
 
-    public async Task<IReadOnlyList<UserListItem>> ListUsersAsync(int? companyId, CancellationToken ct)
+    public Task<IReadOnlyList<UserListItem>> ListUsersAsync(int? companyId, CancellationToken ct)
     {
         var target = ResolveTargetCompany(companyId);
 
-        // "Users in company X" = users with ≥1 user_role in this company; list their
-        // roles SCOPED to this company (excludes SUPER_ADMIN via the company filter).
-        var userIds = await db.UserRoles.AsNoTracking()
-            .Where(ur => ur.CompanyId == target)
-            .Select(ur => ur.UserId)
-            .Distinct()
-            .ToListAsync(ct);
+        // The role-join below (ur.Role!.RoleCode etc.) reads sys.roles, which carries RLS (G3) —
+        // a super-admin listing a DIFFERENT company's users needs the LOCAL bypass so the join
+        // isn't silently filtered.
+        return RunWithBypassAsync(async () =>
+        {
+            // "Users in company X" = users with ≥1 user_role in this company; list their
+            // roles SCOPED to this company (excludes SUPER_ADMIN via the company filter).
+            var userIds = await db.UserRoles.AsNoTracking()
+                .Where(ur => ur.CompanyId == target)
+                .Select(ur => ur.UserId)
+                .Distinct()
+                .ToListAsync(ct);
 
-        var users = await db.Users.AsNoTracking()
-            .Where(u => userIds.Contains(u.UserId))
-            .OrderBy(u => u.Username)
-            .Select(u => new { u.UserId, u.Username, u.FullName, u.IsActive, u.IsSuperAdmin })
-            .ToListAsync(ct);
+            var users = await db.Users.AsNoTracking()
+                .Where(u => userIds.Contains(u.UserId))
+                .OrderBy(u => u.Username)
+                .Select(u => new { u.UserId, u.Username, u.FullName, u.IsActive, u.IsSuperAdmin })
+                .ToListAsync(ct);
 
-        // Roles per user, scoped to the target company. Join through user_roles so we
-        // only surface the company-scoped roles (a user may have roles in other companies).
-        var roleRows = await db.UserRoles.AsNoTracking()
-            .Where(ur => ur.CompanyId == target && userIds.Contains(ur.UserId))
-            .Select(ur => new { ur.UserId, ur.Role!.RoleId, ur.Role.RoleCode, ur.Role.RoleName })
-            .ToListAsync(ct);
+            // Roles per user, scoped to the target company. Join through user_roles so we
+            // only surface the company-scoped roles (a user may have roles in other companies).
+            var roleRows = await db.UserRoles.AsNoTracking()
+                .Where(ur => ur.CompanyId == target && userIds.Contains(ur.UserId))
+                .Select(ur => new { ur.UserId, ur.Role!.RoleId, ur.Role.RoleCode, ur.Role.RoleName })
+                .ToListAsync(ct);
 
-        var rolesByUser = roleRows
-            .GroupBy(r => r.UserId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.DistinctBy(r => r.RoleId)
-                      .OrderBy(r => r.RoleCode)
-                      .Select(r => new RoleRef(r.RoleId, r.RoleCode, r.RoleName))
-                      .ToArray());
+            var rolesByUser = roleRows
+                .GroupBy(r => r.UserId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.DistinctBy(r => r.RoleId)
+                          .OrderBy(r => r.RoleCode)
+                          .Select(r => new RoleRef(r.RoleId, r.RoleCode, r.RoleName))
+                          .ToArray());
 
-        return users
-            .Select(u => new UserListItem(u.UserId, u.Username, u.FullName, u.IsActive, u.IsSuperAdmin,
-                rolesByUser.TryGetValue(u.UserId, out var rr) ? rr : []))
-            .ToList();
+            return (IReadOnlyList<UserListItem>)users
+                .Select(u => new UserListItem(u.UserId, u.Username, u.FullName, u.IsActive, u.IsSuperAdmin,
+                    rolesByUser.TryGetValue(u.UserId, out var rr) ? rr : []))
+                .ToList();
+        }, ct);
     }
 
-    public async Task SetUserRolesAsync(long userId, SetUserRolesRequest req, CancellationToken ct)
-    {
-        // Target = the company whose role-set we're editing for this user. Super-admins may
-        // pass any company (cross-company management); company-admins are pinned to their own
-        // (a foreign id → rbac.cross_company.scope_required). §4.7 multi-tenant isolation.
-        var target = ResolveTargetCompany(req.CompanyId);
+    public Task SetUserRolesAsync(long userId, SetUserRolesRequest req, CancellationToken ct) =>
+        // Target = the company whose role-set we're editing for this user. Reads sys.roles and
+        // writes audit.activity_log — both RLS (G3) → LOCAL bypass for the whole operation.
+        RunWithBypassAsync(async () =>
+        {
+            // Super-admins may pass any company (cross-company management); company-admins are
+            // pinned to their own (a foreign id → rbac.cross_company.scope_required). §4.7.
+            var target = ResolveTargetCompany(req.CompanyId);
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
-            ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
+            var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
+                ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
 
-        var requestedIds = (req.RoleIds ?? []).Distinct().ToArray();
+            var requestedIds = (req.RoleIds ?? []).Distinct().ToArray();
 
-        // Anti-lockout (§4.7 compliance): an admin must not strip their own last role
-        // in their own company — that would lock them out of administration.
-        bool isSelf = tenant.UserId == userId && tenant.CompanyId == target;
-        if (isSelf && requestedIds.Length == 0)
-            throw new DomainException("rbac.self_lockout",
-                "You cannot remove all of your own roles.");
+            // Anti-lockout (§4.7 compliance): an admin must not strip their own last role
+            // in their own company — that would lock them out of administration.
+            bool isSelf = tenant.UserId == userId && tenant.CompanyId == target;
+            if (isSelf && requestedIds.Length == 0)
+                throw new DomainException("rbac.self_lockout",
+                    "You cannot remove all of your own roles.");
 
-        // Every requested role MUST belong to the target company; SUPER_ADMIN is never assignable.
-        var validRoles = await db.Roles.AsNoTracking()
-            .Where(r => requestedIds.Contains(r.RoleId) && r.CompanyId == target)
-            .Select(r => new { r.RoleId, r.RoleCode })
-            .ToListAsync(ct);
-        if (validRoles.Count != requestedIds.Length)
-            throw new DomainException("rbac.role_company_mismatch",
-                "One or more roles do not belong to this company.");
+            // Every requested role MUST belong to the target company; SUPER_ADMIN is never assignable.
+            var validRoles = await db.Roles.AsNoTracking()
+                .Where(r => requestedIds.Contains(r.RoleId) && r.CompanyId == target)
+                .Select(r => new { r.RoleId, r.RoleCode })
+                .ToListAsync(ct);
+            if (validRoles.Count != requestedIds.Length)
+                throw new DomainException("rbac.role_company_mismatch",
+                    "One or more roles do not belong to this company.");
 
-        // Whole-set replace of this user's PER-COMPANY role assignments for the target company.
-        // CRITICAL (anti-lockout, §4.7): scope by the ROLE's company (ur.Role.CompanyId == target),
-        // NOT just ur.CompanyId. A super-admin's user_role -> SUPER_ADMIN row has ur.CompanyId = the
-        // company but role.company_id IS NULL; the replacement set (per-company roles only) can never
-        // re-include SUPER_ADMIN, so deleting by ur.CompanyId alone would silently strip that user's
-        // system-global assignment (their company context). Leave global rows untouched.
-        var existing = await db.UserRoles
-            .Where(ur => ur.UserId == userId && ur.CompanyId == target && ur.Role!.CompanyId == target)
-            .ToListAsync(ct);
-        var beforeCodes = await db.UserRoles.AsNoTracking()
-            .Where(ur => ur.UserId == userId && ur.CompanyId == target && ur.Role!.CompanyId == target)
-            .Select(ur => ur.Role!.RoleCode)
-            .OrderBy(c => c)
-            .ToListAsync(ct);
+            // Whole-set replace of this user's PER-COMPANY role assignments for the target company.
+            // CRITICAL (anti-lockout, §4.7): scope by the ROLE's company (ur.Role.CompanyId == target),
+            // NOT just ur.CompanyId. A super-admin's user_role -> SUPER_ADMIN row has ur.CompanyId = the
+            // company but role.company_id IS NULL; the replacement set (per-company roles only) can never
+            // re-include SUPER_ADMIN, so deleting by ur.CompanyId alone would silently strip that user's
+            // system-global assignment (their company context). Leave global rows untouched.
+            var existing = await db.UserRoles
+                .Where(ur => ur.UserId == userId && ur.CompanyId == target && ur.Role!.CompanyId == target)
+                .ToListAsync(ct);
+            var beforeCodes = await db.UserRoles.AsNoTracking()
+                .Where(ur => ur.UserId == userId && ur.CompanyId == target && ur.Role!.CompanyId == target)
+                .Select(ur => ur.Role!.RoleCode)
+                .OrderBy(c => c)
+                .ToListAsync(ct);
 
-        db.UserRoles.RemoveRange(existing);
-        var today = Today;
-        foreach (var r in validRoles)
-            db.UserRoles.Add(new UserRole
-            {
-                UserId = userId,
-                RoleId = r.RoleId,
-                CompanyId = target,
-                BranchId = 0,           // 0 = all branches in this company
-                ValidFrom = today,
-                ValidTo = null,
-            });
+            db.UserRoles.RemoveRange(existing);
+            var today = Today;
+            foreach (var r in validRoles)
+                db.UserRoles.Add(new UserRole
+                {
+                    UserId = userId,
+                    RoleId = r.RoleId,
+                    CompanyId = target,
+                    BranchId = 0,           // 0 = all branches in this company
+                    ValidFrom = today,
+                    ValidTo = null,
+                });
 
-        var afterCodes = validRoles.Select(r => r.RoleCode).OrderBy(c => c).ToArray();
-        activity.Record("user", userId, user.Username, target, "user_role_change",
-            note: $"[{string.Join(",", beforeCodes)}] -> [{string.Join(",", afterCodes)}]",
-            module: "sys");
-        await db.SaveChangesAsync(ct);
-    }
+            var afterCodes = validRoles.Select(r => r.RoleCode).OrderBy(c => c).ToArray();
+            activity.Record("user", userId, user.Username, target, "user_role_change",
+                note: $"[{string.Join(",", beforeCodes)}] -> [{string.Join(",", afterCodes)}]",
+                module: "sys");
+            await db.SaveChangesAsync(ct);
+        }, ct);
 
     // ---- Phase D: user lifecycle -------------------------------------------
 
-    public async Task<long> CreateUserAsync(CreateUserRequest req, CancellationToken ct)
-    {
-        // The new user JOINS this company (its roles get assigned). Super-admins target any
-        // company; company-admins are pinned to their own (cross-company → scope_required, §4.7).
-        var target = ResolveTargetCompany(req.CompanyId);
-
-        var username = (req.Username ?? string.Empty).Trim();
-        if (username.Length < MinUsernameLen || username.Length > MaxUsernameLen || !UsernameRx.IsMatch(username))
-            throw new DomainException("user.username_invalid",
-                $"Username must be {MinUsernameLen}-{MaxUsernameLen} chars (letters, digits, . _ -).");
-        if ((req.Password ?? string.Empty).Length < MinPasswordLen)
-            throw new DomainException("user.password_too_short",
-                $"Password must be at least {MinPasswordLen} characters.");
-        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username, ct))
-            throw new DomainException("user.username_duplicate", $"Username '{username}' already exists.");
-
-        // Every requested role MUST belong to the target company (SUPER_ADMIN is company NULL →
-        // never matches → never assignable here; the new user is never a super-admin).
-        var requestedRoleIds = (req.RoleIds ?? []).Distinct().ToArray();
-        var validRoles = await db.Roles.AsNoTracking()
-            .Where(r => requestedRoleIds.Contains(r.RoleId) && r.CompanyId == target)
-            .Select(r => new { r.RoleId, r.RoleCode })
-            .ToListAsync(ct);
-        if (validRoles.Count != requestedRoleIds.Length)
-            throw new DomainException("rbac.role_company_mismatch",
-                "One or more roles do not belong to this company.");
-
-        var now = DateTimeOffset.UtcNow;
-        var user = new User
+    public Task<long> CreateUserAsync(CreateUserRequest req, CancellationToken ct) =>
+        // Target company may differ from the one pinned on the session (super-admin cross-company
+        // onboarding). Reads sys.roles and writes audit.activity_log — both RLS (G3) → LOCAL bypass.
+        RunWithBypassAsync(async () =>
         {
-            Username = username,
-            Email = string.IsNullOrWhiteSpace(req.Email) ? $"{username}@teas.local" : req.Email.Trim(),
-            PasswordHash = hasher.Hash(req.Password!),
-            FullName = string.IsNullOrWhiteSpace(req.FullName) ? username : req.FullName.Trim(),
-            IsSuperAdmin = false,         // ม.: never mint a super-admin here (bootstrap-only)
-            IsActive = req.IsActive,
-            FailedLoginCount = 0,
-            MustChangePassword = false,
-            CreatedAt = now, UpdatedAt = now, Version = 0,
-        };
-        db.Users.Add(user);
-        await db.SaveChangesAsync(ct);   // assign UserId before role rows + audit
+            // The new user JOINS this company (its roles get assigned). Super-admins target any
+            // company; company-admins are pinned to their own (cross-company → scope_required, §4.7).
+            var target = ResolveTargetCompany(req.CompanyId);
 
-        var today = Today;
-        foreach (var r in validRoles)
-            db.UserRoles.Add(new UserRole
+            var username = (req.Username ?? string.Empty).Trim();
+            if (username.Length < MinUsernameLen || username.Length > MaxUsernameLen || !UsernameRx.IsMatch(username))
+                throw new DomainException("user.username_invalid",
+                    $"Username must be {MinUsernameLen}-{MaxUsernameLen} chars (letters, digits, . _ -).");
+            if ((req.Password ?? string.Empty).Length < MinPasswordLen)
+                throw new DomainException("user.password_too_short",
+                    $"Password must be at least {MinPasswordLen} characters.");
+            if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username, ct))
+                throw new DomainException("user.username_duplicate", $"Username '{username}' already exists.");
+
+            // Every requested role MUST belong to the target company (SUPER_ADMIN is company NULL →
+            // never matches → never assignable here; the new user is never a super-admin).
+            var requestedRoleIds = (req.RoleIds ?? []).Distinct().ToArray();
+            var validRoles = await db.Roles.AsNoTracking()
+                .Where(r => requestedRoleIds.Contains(r.RoleId) && r.CompanyId == target)
+                .Select(r => new { r.RoleId, r.RoleCode })
+                .ToListAsync(ct);
+            if (validRoles.Count != requestedRoleIds.Length)
+                throw new DomainException("rbac.role_company_mismatch",
+                    "One or more roles do not belong to this company.");
+
+            var now = DateTimeOffset.UtcNow;
+            var user = new User
             {
-                UserId = user.UserId, RoleId = r.RoleId, CompanyId = target,
-                BranchId = 0, ValidFrom = today, ValidTo = null,
-            });
+                Username = username,
+                Email = string.IsNullOrWhiteSpace(req.Email) ? $"{username}@teas.local" : req.Email.Trim(),
+                PasswordHash = hasher.Hash(req.Password!),
+                FullName = string.IsNullOrWhiteSpace(req.FullName) ? username : req.FullName.Trim(),
+                IsSuperAdmin = false,         // ม.: never mint a super-admin here (bootstrap-only)
+                IsActive = req.IsActive,
+                FailedLoginCount = 0,
+                MustChangePassword = false,
+                CreatedAt = now, UpdatedAt = now, Version = 0,
+            };
+            db.Users.Add(user);
+            await db.SaveChangesAsync(ct);   // assign UserId before role rows + audit
 
-        activity.Record("user", user.UserId, username, target, "user_created",
-            note: $"roles=[{string.Join(",", validRoles.Select(r => r.RoleCode).OrderBy(c => c))}]",
-            module: "sys");
-        await db.SaveChangesAsync(ct);
-        return user.UserId;
-    }
+            var today = Today;
+            foreach (var r in validRoles)
+                db.UserRoles.Add(new UserRole
+                {
+                    UserId = user.UserId, RoleId = r.RoleId, CompanyId = target,
+                    BranchId = 0, ValidFrom = today, ValidTo = null,
+                });
 
-    public async Task SetUserActiveAsync(long userId, bool isActive, CancellationToken ct)
-    {
-        var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
-            ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
-        await GuardManageUserAsync(user, ct);
+            activity.Record("user", user.UserId, username, target, "user_created",
+                note: $"roles=[{string.Join(",", validRoles.Select(r => r.RoleCode).OrderBy(c => c))}]",
+                module: "sys");
+            await db.SaveChangesAsync(ct);
+            return user.UserId;
+        }, ct);
 
-        // Anti-lockout (§4.7): never let an admin disable their own account.
-        if (!isActive && tenant.UserId == userId)
-            throw new DomainException("rbac.self_lockout", "You cannot deactivate your own account.");
+    public Task SetUserActiveAsync(long userId, bool isActive, CancellationToken ct) =>
+        // audit.activity_log carries RLS (G3) — the audit write below needs the LOCAL bypass
+        // whenever a super-admin is acting on a company other than the one pinned on the session.
+        RunWithBypassAsync(async () =>
+        {
+            var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
+                ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
+            await GuardManageUserAsync(user, ct);
 
-        if (user.IsActive == isActive) return;   // no-op
-        user.IsActive = isActive;
-        activity.Record("user", userId, user.Username, tenant.CompanyId,
-            isActive ? "user_activated" : "user_deactivated", module: "sys");
-        await db.SaveChangesAsync(ct);
-    }
+            // Anti-lockout (§4.7): never let an admin disable their own account.
+            if (!isActive && tenant.UserId == userId)
+                throw new DomainException("rbac.self_lockout", "You cannot deactivate your own account.");
 
-    public async Task ResetUserPasswordAsync(long userId, string newPassword, CancellationToken ct)
-    {
-        if ((newPassword ?? string.Empty).Length < MinPasswordLen)
-            throw new DomainException("user.password_too_short",
-                $"Password must be at least {MinPasswordLen} characters.");
+            if (user.IsActive == isActive) return;   // no-op
+            user.IsActive = isActive;
+            activity.Record("user", userId, user.Username, tenant.CompanyId,
+                isActive ? "user_activated" : "user_deactivated", module: "sys");
+            await db.SaveChangesAsync(ct);
+        }, ct);
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
-            ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
-        await GuardManageUserAsync(user, ct);
+    public Task ResetUserPasswordAsync(long userId, string newPassword, CancellationToken ct) =>
+        // Same RLS shape as SetUserActiveAsync — LOCAL bypass around the audit write.
+        RunWithBypassAsync(async () =>
+        {
+            if ((newPassword ?? string.Empty).Length < MinPasswordLen)
+                throw new DomainException("user.password_too_short",
+                    $"Password must be at least {MinPasswordLen} characters.");
 
-        user.PasswordHash = hasher.Hash(newPassword!);
-        user.PasswordChangedAt = DateTimeOffset.UtcNow;
-        user.FailedLoginCount = 0;
-        user.LockedUntil = null;
-        // NEVER log the password — only that a reset happened.
-        activity.Record("user", userId, user.Username, tenant.CompanyId, "user_password_reset", module: "sys");
-        await db.SaveChangesAsync(ct);
-    }
+            var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
+                ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
+            await GuardManageUserAsync(user, ct);
+
+            user.PasswordHash = hasher.Hash(newPassword!);
+            user.PasswordChangedAt = DateTimeOffset.UtcNow;
+            user.FailedLoginCount = 0;
+            user.LockedUntil = null;
+            // NEVER log the password — only that a reset happened.
+            activity.Record("user", userId, user.Username, tenant.CompanyId, "user_password_reset", module: "sys");
+            await db.SaveChangesAsync(ct);
+        }, ct);
 
     /// <summary>A company-admin may only manage users who belong to THEIR company (have a role in
     /// it), and never a super-admin. Super-admins may manage anyone. A foreign user → not_found so

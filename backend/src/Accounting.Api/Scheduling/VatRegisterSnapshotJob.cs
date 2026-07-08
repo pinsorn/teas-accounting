@@ -81,15 +81,12 @@ public sealed class VatRegisterSnapshotJob : IJob
     /// transaction/pin logic directly against a role-switched connection, without fighting
     /// Quartz job-execution scoping or needing InternalsVisibleTo plumbing.
     ///
-    /// Tier-2 (Codex) review correction 2026-07-04 — the <c>company_isolation</c> RLS policy is
-    /// <c>company_id = current_setting('app.company_id') OR is_super_admin</c>. Pinning ONLY
-    /// <c>app.company_id</c> left the <c>is_super_admin</c> GUC whatever a PRIOR request/tx left
-    /// on this pooled connection (e.g. a super-admin request whose best-effort session reset
-    /// failed — the known L4 gap in <c>TenantMiddleware</c>): if that leftover value happened to
-    /// be <c>true</c>, the policy's <c>OR is_super_admin</c> arm would satisfy RLS regardless of
-    /// the company_id pin, and the snapshot would silently blend EVERY company's rows. Now ALSO
-    /// pins <c>app.is_super_admin = 'false'</c> LOCAL in the SAME transaction, so this job's
-    /// query can never inherit a leftover bypass — both settings auto-revert together at commit.
+    /// Bugfix 2026-07-08 (specs/superadmin-tenant-scope.md) — the defensive
+    /// <c>app.is_super_admin='false'</c> pin this comment used to describe is no longer needed:
+    /// <c>app.is_super_admin</c> is RETIRED as a data-scope GUC and no <c>company_isolation</c>
+    /// policy references it any more (600_superadmin_scoped_rls.sql), so a leftover value on a
+    /// pooled connection can no longer widen this query's visibility regardless of what it is.
+    /// Pinning <c>app.company_id</c> alone is now sufficient and correct.
     /// </summary>
     public static async Task<Pnd30Summary> RunSnapshotAsync(
         AccountingDbContext db, IVatReportService report, int companyId,
@@ -97,7 +94,7 @@ public sealed class VatRegisterSnapshotJob : IJob
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlRawAsync(
-            "SELECT set_config('app.company_id', {0}, true), set_config('app.is_super_admin', 'false', true)",
+            "SELECT set_config('app.company_id', {0}, true)",
             [companyId.ToString(System.Globalization.CultureInfo.InvariantCulture)], ct);
 
         var summary = await report.GetPnd30Async(year, month, ct);

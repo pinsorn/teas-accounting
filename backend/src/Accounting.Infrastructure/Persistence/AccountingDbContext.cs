@@ -129,7 +129,12 @@ public class AccountingDbContext : DbContext
 
     /// <summary>
     /// Attach a CompanyId-based query filter to every entity that implements <see cref="ITenantOwned"/>.
-    /// Super-admins and the migration-time context (where _tenant is null) bypass the filter.
+    /// Only the migration-time context (where _tenant is null) bypasses the filter. Super admins are
+    /// scoped exactly like any other user — data scope is governed solely by the pinned CompanyId;
+    /// super-admin-ness is an ADMIN capability flag, never a data-scope lever (bugfix 2026-07-08,
+    /// see specs/superadmin-tenant-scope.md — the removed `_tenant.IsSuperAdmin ||` arm here was
+    /// the EF-layer half of a leak that let a super admin see every company's data regardless of
+    /// the one selected in the switcher).
     /// </summary>
     private void ApplyTenantFilters(ModelBuilder modelBuilder)
     {
@@ -149,7 +154,7 @@ public class AccountingDbContext : DbContext
         where TEntity : class, ITenantOwned
     {
         modelBuilder.Entity<TEntity>()
-            .HasQueryFilter(e => _tenant == null || _tenant.IsSuperAdmin || e.CompanyId == _tenant.CompanyId);
+            .HasQueryFilter(e => _tenant == null || e.CompanyId == _tenant.CompanyId);
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
