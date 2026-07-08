@@ -5,6 +5,20 @@
 -- Idempotent; runs once (tracked). After 600 (lexical order). Insert-first/grant-second
 -- in THIS file (520-before-530 seed-ordering bug — never split across files). NB: never
 -- put curly braces here (EF ExecuteSqlRawAsync treats them as string.Format placeholders).
+--
+-- PROD HOTFIX (2026-07-09, v1.15.0 startup failure, troubles-wiki.md "Startup SqlScript
+-- writing/reading G1/G3 RLS'd tables fails 42501 or silently no-ops on prod") — step 4 below
+-- reads sys.roles, which is 600's G3 group (system-global: company_id IS NULL OR
+-- company_id = app.company_id OR app.bypass_rls). At startup NO app.company_id GUC is set, so
+-- without a bypass only the company_id IS NULL rows are visible — the per-company fan-out
+-- SELECT silently returns zero rows (no error, no crash) and grants nothing to any real
+-- company. This is invisible on teas_test (the test DB connects as a Postgres SUPERUSER, which
+-- bypasses RLS entirely — RbacMatrixTests was green there for the wrong reason). Fix: bypass
+-- RLS for this script's own transaction via app.bypass_rls — EXACTLY the G3 policy's stated
+-- purpose ("RBAC cross-company mgmt / cross-company audit writes", 600_superadmin_scoped_rls.sql
+-- G3 comment). SET LOCAL is transaction-scoped and DbInitializer.ApplyScriptsAsync runs each
+-- script in its own transaction, so this can never leak into any other script or request.
+SET LOCAL app.bypass_rls = 'on';
 
 -- 1. New permission code.
 INSERT INTO sys.permissions (permission_code, module, resource, action, description) VALUES
