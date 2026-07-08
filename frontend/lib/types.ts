@@ -443,6 +443,18 @@ export interface TrialBalanceReport {
   rows: TrialBalanceReportRow[];
   totals: { debit: number; credit: number; balanced: boolean };
 }
+export interface BalanceSheetRow {
+  accountCode: string; accountNameTh: string; balance: number;
+}
+export interface BalanceSheetSection {
+  rows: BalanceSheetRow[]; total: number;
+}
+export interface BalanceSheetReport {
+  asOfDate: string; companyId: number;
+  assets: BalanceSheetSection; liabilities: BalanceSheetSection; equity: BalanceSheetSection;
+  currentPeriodEarnings: number; liabilitiesAndEquityTotal: number;
+  balanced: boolean; note: string;
+}
 export interface ProfitLossGroup {
   businessUnitId: number | null; businessUnitCode: string | null;
   groupName: string; revenue: number; expense: number; netProfit: number;

@@ -2,13 +2,16 @@ using System.Text.Json;
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Identity;
+using Accounting.Application.Ledger;
 using Accounting.Application.Master;
 using Accounting.Application.Sales;
 using Accounting.Domain.Entities.Identity;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
+using Accounting.Infrastructure.Persistence;
 using Accounting.TestKit;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
@@ -186,6 +189,82 @@ public sealed class McpReadExpansionTests
         var accountsRoot = ResultRoot(accounts);
         accountsRoot.GetArrayLength().Should().BeGreaterThan(0,
             "company 1's onboarding seed populates a full chart of accounts");
+    }
+
+    // ══════════════════════ B — balance sheet report tool ══════════════════════
+
+    [SkippableFact]
+    public async Task Mcp_get_balance_sheet_returns_balanced_report_for_posted_je()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var today = new SystemClock().TodayInBangkok();
+        var key = await MintKeyAsync(co.CompanyId);
+
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        {
+            long cash, ap;
+            await using (var scope = sp.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+                cash = await db.ChartOfAccounts.Where(a => a.AccountCode == "1110")
+                    .Select(a => a.AccountId).FirstAsync();
+                ap = await db.ChartOfAccounts.Where(a => a.AccountCode == "2110")
+                    .Select(a => a.AccountId).FirstAsync();
+            }
+
+            long jvId;
+            await using (var scope = sp.CreateAsyncScope())
+            {
+                var journalSvc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+                jvId = await journalSvc.CreateDraftAsync(new CreateJournalRequest(
+                    today, today, "Balance sheet MCP test JV", "REF-BS", "THB", 1m,
+                    [
+                        new JournalLineInput(cash, 1000m, 0m, "dr line", "dr-ref", null),
+                        new JournalLineInput(ap, 0m, 1000m, "cr line", "cr-ref", null),
+                    ]), default);
+            }
+            await using (var scope = sp.CreateAsyncScope())
+            {
+                await scope.ServiceProvider.GetRequiredService<IJournalService>().PostAsync(jvId, default);
+            }
+        }
+
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var result = await client.CallToolAsync("get_balance_sheet", new Dictionary<string, object?>());
+        result.IsError.Should().NotBe(true);
+        var root = ResultRoot(result);
+        root.GetProperty("balanced").GetBoolean().Should().BeTrue(
+            "assets must equal liabilities + equity by double-entry construction");
+        root.GetProperty("assets").TryGetProperty("total", out _).Should().BeTrue();
+        root.GetProperty("liabilities").TryGetProperty("total", out _).Should().BeTrue();
+        root.GetProperty("equity").TryGetProperty("total", out _).Should().BeTrue();
+    }
+
+    // READ-ONLY probe against the demo tenant co2 (company_id = 2, load-bearing for the doc-chapter
+    // walkthroughs — never post/seed into it). Confirms get_balance_sheet stays a double-entry
+    // invariant against real accumulated history, not just a fresh single-JE company.
+    [SkippableFact]
+    public async Task Mcp_get_balance_sheet_co2_readonly_probe_returns_balanced_report()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        const int co2CompanyId = 2;
+        var key = await MintKeyAsync(co2CompanyId);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var result = await client.CallToolAsync("get_balance_sheet", new Dictionary<string, object?>());
+        result.IsError.Should().NotBe(true);
+        var root = ResultRoot(result);
+        root.GetProperty("companyId").GetInt32().Should().Be(co2CompanyId);
+        root.GetProperty("balanced").GetBoolean().Should().BeTrue(
+            "double-entry invariant: assets must equal liabilities + equity even against co2's real history");
     }
 
     // R5 field-test finding: get_profit_loss silently EXCLUDED untagged-BU revenue by default

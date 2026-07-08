@@ -681,6 +681,15 @@ public sealed class TeasMcpTools
         CancellationToken ct = default) =>
         svc.TrialBalanceAsync(asOfDate ?? clock.TodayInBangkok(), includeInactive ?? false, ct);
 
+    [McpServerTool(Name = "get_balance_sheet"), Authorize(Policy = ReportTrialBalance)]
+    [Description("Get the balance sheet (งบแสดงฐานะการเงิน): assets, liabilities, equity, and current-period earnings as of a date. Assets always equal liabilities + equity (double-entry). Defaults to today.")]
+    public static Task<BalanceSheetReport> GetBalanceSheetAsync(
+        IFinancialReportService svc,
+        IClock clock,
+        [Description("As-of date (yyyy-MM-dd); omit for today.")] DateOnly? asOfDate = null,
+        CancellationToken ct = default) =>
+        svc.BalanceSheetAsync(asOfDate ?? clock.TodayInBangkok(), ct);
+
     [McpServerTool(Name = "get_profit_loss"), Authorize(Policy = ReportProfitLoss)]
     [Description("Get the profit & loss report (Revenue - Expense = NetProfit) for a date range, optionally scoped to one business unit.")]
     public static Task<ProfitLossReport> GetProfitLossAsync(

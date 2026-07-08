@@ -32,6 +32,7 @@ import type {
   WhtReceivableAging,
   WhtMissingCertReport,
   TrialBalanceReport,
+  BalanceSheetReport,
   ProfitLossReport,
   GeneralLedgerReport,
   GeneralLedgerAccountOption,
@@ -888,6 +889,14 @@ export function useTrialBalance(asOfDate: string, includeInactive = false) {
     enabled: !!asOfDate,
     queryFn: () => apiGet<TrialBalanceReport>(
       `reports/trial-balance${qs({ asOfDate, includeInactive: includeInactive || undefined })}`),
+  });
+}
+export function useBalanceSheet(asOf: string) {
+  return useQuery({
+    queryKey: ['balance-sheet', asOf],
+    enabled: !!asOf,
+    queryFn: () => apiGet<BalanceSheetReport>(
+      `reports/balance-sheet${qs({ asOfDate: asOf })}`),
   });
 }
 export function useProfitLoss(
