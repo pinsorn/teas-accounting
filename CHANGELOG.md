@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.1](https://github.com/pinsorn/teas-accounting/compare/v1.13.0...v1.13.1) (2026-07-08)
+
+
+### Bug Fixes
+
+* **frontend:** add Next passthrough route for public PDF links ([3dc4ee7](https://github.com/pinsorn/teas-accounting/commit/3dc4ee78447e93f0582325e53c95bcca2c9e7ee8))
+* **frontend:** Next passthrough route for public PDF links ([361c1ae](https://github.com/pinsorn/teas-accounting/commit/361c1ae96e9443dd5814a004ca22f46fd3b21f53))
+
 ## [1.13.0](https://github.com/pinsorn/teas-accounting/compare/v1.12.0...v1.13.0) (2026-07-08)
 
 
