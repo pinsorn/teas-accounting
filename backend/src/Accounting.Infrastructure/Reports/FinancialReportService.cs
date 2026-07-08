@@ -291,7 +291,9 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
             .Where(a => a.AccountId == accountId)
             .Select(a => new { a.AccountId, a.AccountCode, a.AccountNameTh, a.AccountType, a.NormalBalance })
             .FirstOrDefaultAsync(ct)
-            ?? throw new DomainException("gl_account.not_found", $"Account {accountId} not found.");
+            ?? throw new DomainException("gl_account.not_found",
+                $"Account {accountId} not found. accountId is the internal numeric id (see the accountId field of " +
+                "list_gl_accounts / /reports/general-ledger/accounts) — NOT the 4-5 digit account code.");
 
         var normalDr = account.NormalBalance == NormalBalance.Debit;
         decimal Signed(decimal dr, decimal cr) => normalDr ? dr - cr : cr - dr;
