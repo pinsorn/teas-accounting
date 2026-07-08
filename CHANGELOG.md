@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.0](https://github.com/pinsorn/teas-accounting/compare/v1.12.0...v1.13.0) (2026-07-08)
+
+
+### Features
+
+* **mcp:** browser-openable PDF links, fuzzy search, read expansion, draft/master edit tools, document filters ([72c8509](https://github.com/pinsorn/teas-accounting/commit/72c85095a17dc10fc8c1f10edeb6c2c2ecaf6aec))
+* **mcp:** public PDF links, fuzzy search, read expansion, edit tools, document filters ([a7a201f](https://github.com/pinsorn/teas-accounting/commit/a7a201fa09108ab55b8a68f4b0ee23d68027739d))
+
 ## [1.12.0](https://github.com/pinsorn/teas-accounting/compare/v1.11.1...v1.12.0) (2026-07-07)
 
 
