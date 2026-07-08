@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.14.1](https://github.com/pinsorn/teas-accounting/compare/v1.14.0...v1.14.1) (2026-07-08)
+
+
+### Bug Fixes
+
+* **security:** scope super admin data access to the selected company ([2cdb037](https://github.com/pinsorn/teas-accounting/commit/2cdb0371db9ceffa4bb8c335045e0aba643aa124))
+* **security:** scope super admin data access to the selected company ([b406528](https://github.com/pinsorn/teas-accounting/commit/b406528194fa923b70ea9ca950fabc2f2e45fd4b))
+
 ## [1.14.0](https://github.com/pinsorn/teas-accounting/compare/v1.13.2...v1.14.0) (2026-07-08)
 
 
