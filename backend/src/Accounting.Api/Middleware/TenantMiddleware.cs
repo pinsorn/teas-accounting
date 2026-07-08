@@ -31,10 +31,14 @@ public sealed class TenantMiddleware
         await db.Database.OpenConnectionAsync(ctx.RequestAborted);
         try
         {
+            // Bugfix 2026-07-08 (specs/superadmin-tenant-scope.md): data scope is driven SOLELY by
+            // app.company_id. app.is_super_admin is RETIRED as a data-scope GUC — pinning it here
+            // (from the user's flag) was the middleware-layer half of the leak that let a super
+            // admin see every company's rows regardless of the one selected in the switcher.
+            // is_super_admin survives only as a JWT claim / ITenantContext capability flag.
             await db.Database.ExecuteSqlRawAsync(
-                "SELECT set_config('app.company_id', {0}, false), set_config('app.is_super_admin', {1}, false)",
-                [tenant.CompanyId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                 tenant.IsSuperAdmin ? "true" : "false"],
+                "SELECT set_config('app.company_id', {0}, false)",
+                [tenant.CompanyId.ToString(System.Globalization.CultureInfo.InvariantCulture)],
                 ctx.RequestAborted);
 
             await _next(ctx);
@@ -44,7 +48,7 @@ public sealed class TenantMiddleware
             try
             {
                 await db.Database.ExecuteSqlRawAsync(
-                    "SELECT set_config('app.company_id', '', false), set_config('app.is_super_admin', 'false', false)",
+                    "SELECT set_config('app.company_id', '', false)",
                     CancellationToken.None);
             }
             catch (Exception ex)

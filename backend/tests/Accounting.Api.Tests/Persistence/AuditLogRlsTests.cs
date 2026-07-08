@@ -8,10 +8,13 @@ namespace Accounting.Api.Tests.Persistence;
 /// <summary>
 /// M12 (review 2026-07-04) — RLS backstop for <c>audit.activity_log</c> (585_audit_log_rls.sql),
 /// deferred until AFTER H2/M3 landed. <c>company_id</c> is NULLABLE (system-wide rows), so the
-/// policy is <c>company_id = pinned OR company_id IS NULL OR is_super_admin</c> — this is ALSO the
+/// policy is <c>company_id = pinned OR company_id IS NULL OR bypass</c> — this is ALSO the
 /// INSERT WITH-CHECK (no separate WITH CHECK given). <c>SET ROLE pg_database_owner</c>
 /// (rolbypassrls=false — the repo's non-bypass-role trick, see <see cref="SalesChainRlsTests"/>)
 /// exercises the real FORCE RLS policy instead of the suite's bypass-role connection.
+/// Migrated 2026-07-08 (superadmin-tenant-scope.md): the bypass arm is now the LOCAL-only
+/// <c>app.bypass_rls</c> GUC (600_superadmin_scoped_rls.sql, G3) — <c>app.is_super_admin</c> is
+/// retired and no longer referenced by this policy.
 /// </summary>
 [Collection(nameof(PostgresCollection))]
 public sealed class AuditLogRlsTests
@@ -60,7 +63,7 @@ public sealed class AuditLogRlsTests
             await ExecAsync(c, "SET ROLE pg_database_owner");
             await ExecAsync(c,
                 $"SELECT set_config('app.company_id', '{a.CompanyId}', false), " +
-                "set_config('app.is_super_admin', 'false', false)");
+                "set_config('app.bypass_rls', 'false', false)");
 
             // (a) two-directional visibility check.
             (await ScalarAsync(c, $"SELECT count(*) FROM audit.activity_log WHERE activity_id = {aRowId}"))

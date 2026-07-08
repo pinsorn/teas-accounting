@@ -105,10 +105,19 @@ public static class OAuthEndpoints
                 return Forbid();
 
             // HQ-first active branch of the chosen company (mirror CompanySwitchService). Reject if none.
-            var branchId = await db.Branches.IgnoreQueryFilters()
-                .Where(b => b.CompanyId == companyId && b.IsActive)
-                .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)
-                .Select(b => (int?)b.BranchId).FirstOrDefaultAsync(ct) ?? 0;
+            // master.branches carries RLS (G2) keyed on the SESSION's pinned app.company_id (the
+            // caller's own company, not necessarily the one they're granting for) — same LOCAL-only
+            // app.bypass_rls pin as CompanySwitchService, scoped to just this short transaction.
+            int branchId;
+            await using (var tx = await db.Database.BeginTransactionAsync(ct))
+            {
+                await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'true', true)", ct);
+                branchId = await db.Branches.IgnoreQueryFilters()
+                    .Where(b => b.CompanyId == companyId && b.IsActive)
+                    .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)
+                    .Select(b => (int?)b.BranchId).FirstOrDefaultAsync(ct) ?? 0;
+                await tx.CommitAsync(ct);
+            }
             if (branchId <= 0)
                 return Results.BadRequest(new { error = "company_has_no_active_branch" });
 
@@ -140,13 +149,20 @@ public static class OAuthEndpoints
                 principal.SetScopes(principal.GetScopes().Append(OpenIddictConstants.Scopes.OfflineAccess));
 
             // §4.8 audit — user + client + company (token id assigned by OpenIddict downstream).
+            // audit.activity_log carries RLS (G3, since 585) keyed on the caller's own pinned
+            // company_id, not necessarily the grant's target company — same LOCAL bypass pin.
             activity.Record(
                 entityType: "oauth_grant", entityId: companyId, docNo: request.ClientId,
                 companyId: companyId, action: "oauth_authorize",
                 note: $"user {userId} granted an MCP token for company {companyId} to client " +
                       $"'{request.ClientId}' — scopes [{string.Join(' ', granted)}]",
                 module: "identity");
-            await db.SaveChangesAsync(ct);
+            await using (var tx2 = await db.Database.BeginTransactionAsync(ct))
+            {
+                await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'true', true)", ct);
+                await db.SaveChangesAsync(ct);
+                await tx2.CommitAsync(ct);
+            }
 
             return Results.SignIn(principal, properties: null,
                 authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);

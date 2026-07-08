@@ -233,7 +233,7 @@ public sealed class McpWriteExpansionTests
             await using (var setRole = new NpgsqlCommand("SET ROLE pg_database_owner", conn))
                 await setRole.ExecuteNonQueryAsync();
             await using (var pin = new NpgsqlCommand(
-                $"SELECT set_config('app.company_id', '{a.CompanyId}', false), set_config('app.is_super_admin', 'false', false)", conn))
+                $"SELECT set_config('app.company_id', '{a.CompanyId}', false), set_config('app.bypass_rls', 'false', false)", conn))
                 await pin.ExecuteNonQueryAsync();
 
             await using var cmd = new NpgsqlCommand(
@@ -742,7 +742,7 @@ public sealed class McpWriteExpansionTests
             await using (var setRole = new NpgsqlCommand("SET ROLE pg_database_owner", conn))
                 await setRole.ExecuteNonQueryAsync();
             await using (var pin = new NpgsqlCommand(
-                $"SELECT set_config('app.company_id', '{a.CompanyId}', false), set_config('app.is_super_admin', 'false', false)", conn))
+                $"SELECT set_config('app.company_id', '{a.CompanyId}', false), set_config('app.bypass_rls', 'false', false)", conn))
                 await pin.ExecuteNonQueryAsync();
             await using var cmd = new NpgsqlCommand($"SELECT count(*) FROM sales.tax_invoices WHERE tax_invoice_id = {tiOfB}", conn);
             (Convert.ToInt64(await cmd.ExecuteScalarAsync())).Should().Be(0);
@@ -970,7 +970,7 @@ public sealed class McpWriteExpansionTests
             await using (var setRole = new NpgsqlCommand("SET ROLE pg_database_owner", conn))
                 await setRole.ExecuteNonQueryAsync();
             await using (var pin = new NpgsqlCommand(
-                $"SELECT set_config('app.company_id', '{a.CompanyId}', false), set_config('app.is_super_admin', 'false', false)", conn))
+                $"SELECT set_config('app.company_id', '{a.CompanyId}', false), set_config('app.bypass_rls', 'false', false)", conn))
                 await pin.ExecuteNonQueryAsync();
             await using var cmd = new NpgsqlCommand($"SELECT count(*) FROM sales.receipts WHERE receipt_id = {rcOfB}", conn);
             (Convert.ToInt64(await cmd.ExecuteScalarAsync())).Should().Be(0);

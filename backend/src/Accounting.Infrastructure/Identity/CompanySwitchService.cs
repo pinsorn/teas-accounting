@@ -40,11 +40,21 @@ public sealed class CompanySwitchService(
         // HQ-first, then first active branch of the TARGET company (explicit company predicate —
         // IgnoreQueryFilters strips the tenant filter, so we re-pin it here). Falls back to 0 when
         // the company has no active branch (mirrors LoginService's no-assignment path).
-        var branchId = await db.Branches.IgnoreQueryFilters()
-            .Where(b => b.CompanyId == targetCompanyId && b.IsActive)
-            .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)
-            .Select(b => (int?)b.BranchId)
-            .FirstOrDefaultAsync(ct) ?? 0;
+        // master.branches carries RLS (G2, 600_superadmin_scoped_rls.sql) keyed on the SESSION's
+        // pinned app.company_id, which is the CALLER's current company, not necessarily the
+        // target being switched INTO — so this cross-company read needs its own LOCAL-only
+        // app.bypass_rls pin (never derived from a user's identity, auto-reverts at commit).
+        int branchId;
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
+        {
+            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'true', true)", ct);
+            branchId = await db.Branches.IgnoreQueryFilters()
+                .Where(b => b.CompanyId == targetCompanyId && b.IsActive)
+                .OrderByDescending(b => b.IsHeadOffice).ThenBy(b => b.BranchId)
+                .Select(b => (int?)b.BranchId)
+                .FirstOrDefaultAsync(ct) ?? 0;
+            await tx.CommitAsync(ct);
+        }
 
         // Perms for the target company (mirrors login). Super-admin gets the PermissionHandler
         // bypass regardless, so this is informational on the token, never a privilege source.
@@ -59,14 +69,21 @@ public sealed class CompanySwitchService(
             Roles: roles,
             Permissions: perms));
 
-        // §4.8 — audit the privileged action. activity_log has no RLS (append-only triggers only),
-        // so the row's company_id is set deliberately to the target company being switched INTO.
+        // §4.8 — audit the privileged action. The row's company_id is set deliberately to the
+        // target company being switched INTO. audit.activity_log carries RLS (G3, since 585) keyed
+        // on the SESSION's pinned company_id — the caller's current one, not the target — so this
+        // cross-company write needs the same LOCAL app.bypass_rls pin as the branch read above.
         activity.Record(
             entityType: "company", entityId: targetCompanyId, docNo: null,
             companyId: targetCompanyId, action: "company_switch",
             note: $"super-admin user {userId} switched into company {targetCompanyId} ('{company.NameTh}')",
             module: "identity");
-        await db.SaveChangesAsync(ct);
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
+        {
+            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'true', true)", ct);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
 
         return token;
     }

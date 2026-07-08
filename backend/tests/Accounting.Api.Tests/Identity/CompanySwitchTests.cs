@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -12,6 +13,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Xunit;
 
 namespace Accounting.Api.Tests.Identity;
@@ -164,5 +166,91 @@ public sealed class CompanySwitchTests
         using var resp = await client.SendAsync(req);
         resp.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "a missing/inactive target company → 404");
+    }
+
+    /// <summary>
+    /// D6 integration gate (specs/superadmin-tenant-scope.md) — end-to-end proof that a super
+    /// admin's data is ALWAYS scoped to the currently switched-into company, over the real HTTP
+    /// pipeline (TenantMiddleware + the EF global query filter), not just at the RLS layer.
+    /// Reproduces the exact prod symptom (Repttown vs พงศ์สันต์ quotations identical regardless
+    /// of the switcher) and its "letterhead" corollary (cross-company detail fetch → 404, never
+    /// renders under the wrong company).
+    /// </summary>
+    [SkippableFact]
+    public async Task Quotations_are_scoped_to_the_switched_into_company_over_http()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        var a = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var b = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+
+        long aQuotationId, bQuotationId;
+        await using (var seed = new NpgsqlConnection(_fx.ConnectionString))
+        {
+            await seed.OpenAsync();
+            aQuotationId = await InsertQuotationAsync(seed, a.CompanyId, a.BranchId, a.CustomerId);
+            bQuotationId = await InsertQuotationAsync(seed, b.CompanyId, b.BranchId, b.CustomerId);
+        }
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient();
+
+        // Switch a super admin (starting at A) into B — mirrors Switch_company_as_super_admin_
+        // reissues_token_scoped_to_target above.
+        using var switchReq = Authed(HttpMethod.Post, $"/auth/switch-company/{b.CompanyId}",
+            Token(1, "admin", companyId: a.CompanyId, isSuper: true));
+        using var switchResp = await client.SendAsync(switchReq);
+        switchResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var switchDoc = JsonDocument.Parse(await switchResp.Content.ReadAsStringAsync());
+        var bScopedToken = switchDoc.RootElement.GetProperty("access_token").GetString();
+        bScopedToken.Should().NotBeNullOrEmpty();
+
+        // GET /quotations while switched to B must return ONLY B's quotation — the exact prod bug
+        // was seeing the UNION of every company regardless of the switcher.
+        using var listReq = Authed(HttpMethod.Get, "/quotations", bScopedToken!);
+        using var listResp = await client.SendAsync(listReq);
+        listResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var listDoc = JsonDocument.Parse(await listResp.Content.ReadAsStringAsync());
+        var ids = listDoc.RootElement.EnumerateArray()
+            .Select(e => e.GetProperty("quotationId").GetInt64()).ToArray();
+        ids.Should().Contain(bQuotationId, "company B's own quotation must be visible while switched to B");
+        ids.Should().NotContain(aQuotationId,
+            "a super admin switched to B must NOT see company A's quotation (the reported leak)");
+
+        // Letterhead symptom (D5): fetching A's quotation by id while switched to B → 404, never
+        // rendered under B's letterhead.
+        using var detailReq = Authed(HttpMethod.Get, $"/quotations/{aQuotationId}", bScopedToken!);
+        using var detailResp = await client.SendAsync(detailReq);
+        detailResp.StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "company A's quotation must 404 while switched to B, never render under B's letterhead");
+
+        // Unswitched super admin (companyId=0, per LoginService's no-assignment default) sees ZERO
+        // quotations — matches the FE onboarding auto-switch precondition documented in the spec.
+        using var unswitchedReq = Authed(HttpMethod.Get, "/quotations",
+            Token(1, "admin", companyId: 0, isSuper: true));
+        using var unswitchedResp = await client.SendAsync(unswitchedReq);
+        unswitchedResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var unswitchedDoc = JsonDocument.Parse(await unswitchedResp.Content.ReadAsStringAsync());
+        unswitchedDoc.RootElement.GetArrayLength().Should().Be(0,
+            "an unswitched super admin (companyId=0) must see no quotations from any real company");
+    }
+
+    /// <summary>Minimal DRAFT quotation insert on a bypass connection — same shape as
+    /// SuperAdminTenantScopeRlsTests' helper (private per-class, not shared across test classes).</summary>
+    private static async Task<long> InsertQuotationAsync(
+        NpgsqlConnection c, int companyId, int branchId, long customerId)
+    {
+        var docNo = "CST-" + Guid.NewGuid().ToString("N")[..10];
+        var today = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+        await using var cmd = new NpgsqlCommand($@"
+            INSERT INTO sales.quotations
+                (company_id, branch_id, customer_id, doc_no, doc_date, valid_until_date, status,
+                 customer_name, customer_type, currency_code, exchange_rate,
+                 subtotal_amount, vat_amount, total_amount, show_wht_note,
+                 created_at, updated_at, version, print_count)
+            VALUES ({companyId},{branchId},{customerId},'{docNo}','{today}','{today}','DRAFT',
+                 'ลูกค้า','CORPORATE','THB',1, 100,7,107, false, now(), now(), 0, 0)
+            RETURNING quotation_id", c);
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync());
     }
 }

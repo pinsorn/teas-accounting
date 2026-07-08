@@ -23,9 +23,12 @@ namespace Accounting.Api.Tests.Identity;
 /// unlike <c>teas_rls_test</c> it needs no CREATEROLE grant on the test DB user) with
 /// <c>app.company_id</c> UNSET — the exact prod pre-auth condition — and exercises the resolver
 /// directly (the technique from <see cref="PermissionLookupRlsTests"/>, which tests the sibling
-/// <c>PermissionLookup</c> this fix mirrors). Without the fix (pinning
-/// <c>app.is_super_admin='true'</c> LOCAL to each lookup's own transaction) the fail-closed
-/// policy hides every row and this returns null/<c>auth.invalid_api_key</c> (red).
+/// <c>PermissionLookup</c> this fix mirrors). Without the fix (pinning the LOCAL-only,
+/// never-user-derived <c>app.bypass_rls='true'</c> to each lookup's own transaction) the
+/// fail-closed policy hides every row and this returns null/<c>auth.invalid_api_key</c> (red).
+/// Migrated 2026-07-08 (superadmin-tenant-scope.md): the resolver's GUC was renamed
+/// <c>app.is_super_admin</c> → <c>app.bypass_rls</c> (that GUC is now RETIRED from every
+/// <c>company_isolation</c> policy — it no longer has ANY data-scope effect).
 /// </summary>
 [Collection(nameof(PostgresCollection))]
 public sealed class ApiKeyResolverRlsTests
@@ -71,21 +74,20 @@ public sealed class ApiKeyResolverRlsTests
                 "GRANT SELECT ON master.branches TO pg_database_owner;");
 
             // Reproduce the exact pre-auth condition: RLS ENFORCED (NOBYPASSRLS role) +
-            // app.company_id UNSET. Also explicitly clear app.is_super_admin (SESSION-scoped,
-            // is_local=false) — the RLS policy has an is_super_admin bypass clause, so a pooled
-            // connection that happened to retain 'true' from a prior test would let even the
-            // PRE-FIX code pass here for the wrong reason (false green). Clearing both GUCs
-            // up front means only the fix's own LOCAL (per-transaction) pin can satisfy the
-            // policy.
+            // app.company_id UNSET. Also explicitly clear app.bypass_rls (SESSION-scoped,
+            // is_local=false) — a pooled connection that happened to retain 'true' from a prior
+            // test would let even the PRE-FIX code pass here for the wrong reason (false green).
+            // Clearing both GUCs up front means only the fix's own LOCAL (per-transaction) pin
+            // can satisfy the policy.
             await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.company_id', '', false)");
-            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.is_super_admin', 'false', false)");
+            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.bypass_rls', 'false', false)");
             await db.Database.ExecuteSqlRawAsync("SET ROLE pg_database_owner");
 
             var result = await scope.ServiceProvider.GetRequiredService<IApiKeyResolver>()
                 .AuthenticateAsync(plaintext, default);
 
             // With the fix, both IgnoreQueryFilters() reads (ApiKeys by prefix, Branches by
-            // company) pin app.is_super_admin='true' LOCAL to their own transaction so RLS lets
+            // company) pin app.bypass_rls='true' LOCAL to their own transaction so RLS lets
             // them read despite app.company_id being unset. Without the fix, the fail-closed
             // policy hides every row → Key is null.
             result.Key.Should().NotBeNull("the fix must let the pre-tenant lookup read under RLS");
@@ -94,14 +96,14 @@ public sealed class ApiKeyResolverRlsTests
             result.Key.HeadOfficeBranchId.Should().Be(co.BranchId);
 
             // Security-critical property: the LOCAL pin must not have leaked onto the pooled
-            // SESSION setting. Each fix transaction sets app.is_super_admin='true' with
+            // SESSION setting. Each fix transaction sets app.bypass_rls='true' with
             // is_local=true, which Postgres guarantees reverts at COMMIT — so after both lookups
             // have committed, the SESSION-level value must still read back as the 'false' this
             // test set before calling AuthenticateAsync.
             var stillFalse = (string?)await db.Database.SqlQueryRaw<string>(
-                "SELECT current_setting('app.is_super_admin', true) AS \"Value\"").SingleAsync();
+                "SELECT current_setting('app.bypass_rls', true) AS \"Value\"").SingleAsync();
             (stillFalse is null or "" or "false").Should().BeTrue(
-                $"the transaction-LOCAL super-admin pin must reset and never leak onto the pooled session (was '{stillFalse}')");
+                $"the transaction-LOCAL bypass pin must reset and never leak onto the pooled session (was '{stillFalse}')");
         }
         finally
         {

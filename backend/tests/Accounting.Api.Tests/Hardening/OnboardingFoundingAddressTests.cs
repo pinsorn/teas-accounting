@@ -146,7 +146,11 @@ public sealed class OnboardingFoundingAddressTests
         await using var rdb = new AccountingDbContext(
             opts, new StubTenant { CompanyId = 1, BranchId = 1, UserId = 1, IsSuperAdmin = true });
 
-        var codes = await rdb.ChartOfAccounts.AsNoTracking()
+        // Bugfix 2026-07-08 (specs/superadmin-tenant-scope.md): the EF filter no longer exempts
+        // super admins (data scope is governed solely by the pinned CompanyId) — this read is for
+        // a DIFFERENT company than the StubTenant's, so it must explicitly IgnoreQueryFilters()
+        // rather than lean on the retired IsSuperAdmin bypass.
+        var codes = await rdb.ChartOfAccounts.IgnoreQueryFilters().AsNoTracking()
             .Where(a => a.CompanyId == companyId).Select(a => a.AccountCode).ToListAsync();
 
         // Every GL role the posting engine resolves must exist, or the first journal entry 422s.
@@ -202,7 +206,10 @@ public sealed class OnboardingFoundingAddressTests
         await using var rdb = new AccountingDbContext(
             opts, new StubTenant { CompanyId = 1, BranchId = 1, UserId = 1, IsSuperAdmin = true });
 
-        var branches = await rdb.Branches.AsNoTracking()
+        // Bugfix 2026-07-08 (specs/superadmin-tenant-scope.md): same reason as the CoA read above
+        // — the EF filter no longer exempts super admins, so a cross-company verification read
+        // needs an explicit IgnoreQueryFilters().
+        var branches = await rdb.Branches.IgnoreQueryFilters().AsNoTracking()
             .Where(b => b.CompanyId == companyId).ToListAsync();
 
         branches.Should().HaveCount(1, "CreateAsync must seed exactly one HQ branch per new company");
