@@ -22,6 +22,86 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## Startup SqlScript writing/reading G1/G3 RLS'd tables fails 42501 or silently no-ops on prod (green on teas_test)
+- **Symptom:** a NEW `SqlScripts/NNN_*.sql` file that INSERTs into a G1 tenant table (e.g.
+  `master.chart_of_accounts`) throws at prod startup: `SqlState 42501: new row violates
+  row-level security policy for table <table>` — the whole deploy fails, auto-rolls-back. OR:
+  a script that SELECTs from a G3 system-global table (e.g. `sys.roles`) to fan out per-company
+  data "succeeds" (no error) but silently inserts ZERO rows on prod — a per-company grant/seed
+  that should exist everywhere is simply missing, with no crash to flag it. **Both variants are
+  INVISIBLE on `teas_test`** — the test DB connects as a Postgres SUPERUSER, which bypasses RLS
+  unconditionally, so the exact same script that fails/no-ops on prod runs clean and full on
+  teas_test (a green `dotnet test` run, incl. RBAC matrix tests, proves nothing about this class
+  of bug — same root cause as the `rls-masked-by-superuser-tests` memory, but for STARTUP
+  SEED SCRIPTS specifically, not application-layer service code).
+- **Root cause:** `DbInitializer.ApplyScriptsAsync` runs every pending `SqlScripts/*.sql` at
+  application startup, BEFORE `TenantMiddleware` ever runs — so `app.company_id` is UNSET for
+  the whole script-application phase, on every environment (prod included). Two RLS table
+  groups (`600_superadmin_scoped_rls.sql`) react differently to that:
+  - **G1** (plain tenant tables — `company_isolation USING (company_id = app.company_id GUC)`,
+    deliberately NO bypass arm): Postgres reuses `USING` as the implicit `WITH CHECK` when none
+    is given, so ANY `INSERT` with `app.company_id` unset fails 42501 — hard crash, loud.
+  - **G3** (system-global tables — `USING (company_id IS NULL OR company_id = app.company_id
+    OR app.bypass_rls)`): with `app.company_id` unset AND `app.bypass_rls` unset, only rows
+    with `company_id IS NULL` are visible. A per-company fan-out `SELECT ... FROM sys.roles
+    WHERE company_id IS NOT NULL` returns an EMPTY set — no error, the enclosing `INSERT ...
+    SELECT` just inserts zero rows and the script "succeeds" and gets tracked as applied.
+- **Fix pattern** (do NOT touch the underlying RLS policies themselves — the tables' G1/G2/G3
+  classification is deliberate, see `600_superadmin_scoped_rls.sql`'s own header):
+  - **G3 read/write** (system-global table, e.g. `sys.roles`/`sys.role_permissions`): add
+    `SET LOCAL app.bypass_rls = 'on';` as the FIRST statement of the script (after header
+    comments). This is exactly the G3 bypass arm's documented purpose ("RBAC cross-company
+    mgmt / cross-company audit writes"). `SET LOCAL` is transaction-scoped and
+    `DbInitializer.ApplyScriptsAsync` runs each script in its own transaction, so it can never
+    leak into another script or a real request. Matches every existing app-layer
+    `app.bypass_rls` call site (`RbacAdminService.cs`, `CompanySwitchService.cs`,
+    `ApiKeyResolver.cs`, `ETaxRetryWorker.cs`, `OAuthEndpoints.cs`) — all use
+    `set_config('app.bypass_rls', 'true', true)`, same LOCAL-scoped, never-user-derived idiom.
+  - **G1 write** (tenant table, e.g. `master.chart_of_accounts`): do NOT add a bypass arm — G1
+    is deliberately never-bypassable tenant data. Instead wrap the seed in a `DO $do$ ... $do$`
+    block that loops `FOR c IN SELECT company_id FROM master.companies LOOP`, calls `PERFORM
+    set_config('app.company_id', c.company_id::text, true);` FIRST, then does the normal
+    idempotent per-company `INSERT ... WHERE NOT EXISTS ... ON CONFLICT DO NOTHING` scoped to
+    `c.company_id`; reset `app.company_id` to `''` after the loop. Mirrors
+    `510_per_company_roles_reconcile.sql`'s existing `FOR c IN SELECT company_id FROM
+    master.companies LOOP PERFORM sys.seed_company_roles(c.company_id); END LOOP;` fan-out —
+    NOT a new pattern, an existing one this codebase already uses for exactly this problem.
+    `master.companies` itself carries NO RLS policy (absent from `010_rls_policies.sql`'s and
+    600's G1/G2/G3 table lists — it IS the tenant root, not a tenant-owned child table), so
+    reading the company id list to drive the loop is always unfiltered.
+  - **The tell** (probe BEFORE assuming a fix worked, since a green build/test proves nothing
+    here): (1) `SELECT count(*) FROM sys.applied_sql_scripts` — a script that hard-crashed
+    (G1 case) never got tracked at all (its whole transaction rolled back), so the count is
+    SHORT vs. the number of `.sql` files on disk. (2) For a G1 backfill specifically, e.g. the
+    3300 retained-earnings seed: `SELECT count(*) FROM master.companies c WHERE NOT EXISTS
+    (SELECT 1 FROM master.chart_of_accounts a WHERE a.company_id = c.company_id AND
+    a.account_code = '3300')` — nonzero means the backfill silently didn't run (or didn't run
+    for those companies). For a G3 fan-out (the SILENT no-op case, no crash to see): compare
+    `SELECT count(*) FROM sys.role_permissions rp JOIN sys.permissions p ON p.permission_id =
+    rp.permission_id WHERE p.permission_code = '<new code>' AND rp.company_id IS NOT NULL`
+    against the expected `#companies × #target roles` — zero or far-too-low means the SELECT
+    saw nothing. To actually RE-EXERCISE a fixed script against `teas_test` (which otherwise
+    skips already-tracked script names regardless of content changes — same as a real prod
+    redeploy needing its tracker row deleted first): `DELETE FROM sys.applied_sql_scripts WHERE
+    script_name = '<name>.sql'` then re-run the app/tests; teas_test's superuser connection
+    can't prove the RLS branch itself is exercised, but it DOES prove the new SQL is
+    syntactically valid, idempotent, and functionally correct end-to-end.
+- **Fix (also see the general pattern above):** applied to
+  `SqlScripts/610_seed_year_close_perms.sql` (G3 case — added `SET LOCAL app.bypass_rls =
+  'on';`) and `SqlScripts/611_seed_retained_earnings_account.sql` (G1 case — rewrote the
+  single `INSERT..SELECT FROM master.companies` as the per-company `DO $do$` / `set_config`
+  loop described above).
+- **Seen:** 2026-07-09, prod deploy v1.15.0 startup failure (auto-rolled-back to v1.14.1,
+  `specs/year-end-closing.md`). teas_test full suite was 843/0/8 green with the ORIGINAL
+  (broken-for-prod) 610/611 content — this bug class is INVISIBLE to any test run against a
+  superuser-connected DB; only a real NOBYPASSRLS role (prod, or `SET ROLE pg_database_owner`
+  in an RLS-specific test) would have caught it. Confirmed fixed: deleted teas_test's tracker
+  rows for both scripts (simulating the prod hotfix redeploy) and re-ran the full suite —
+  843/0/8 again, both scripts re-tracked with a fresh `applied_at`, "companies missing 3300"
+  dropped from 10 to 2 (the 2 residual companies were created via a raw-SQL test fixture
+  AFTER 611's re-application within the same test run — expected "run-once seed" behavior,
+  not a defect), `gl.year.close` per-company grants went from ~0 real fan-out to 23,282 rows.
+
 ## `Npgsql.PostgresException: 22003: value "<big number>" is out of range for type integer` querying `tax.v_number_gaps` (e.g. `Sprint1HardeningTests.RolledBack_allocation_does_not_consume_a_number_or_create_a_gap`), reproduces on EVERY run regardless of the (random) company_id queried
 - **Root cause:** `050_number_gap_audit_view.sql`'s `tax.v_number_gaps` view does
   `(regexp_match(doc_no, '(\d+)$'))[1]::int AS seq_no` over EVERY posted `doc_no` in
