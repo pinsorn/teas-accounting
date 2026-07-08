@@ -525,6 +525,25 @@ export interface JournalDetail {
   reversalOfId: number | null; lines: JournalDetailLine[];
   totalDebit: number; totalCredit: number;
 }
+// Cycle A #7 — Period Close UI. Per-month close (POST /periods/{y}/{m}/close).
+export interface PeriodCloseResult { year: number; month: number; closedAt: string; }
+// Cycle A #7 follow-up — year-end closing (#5, YearCloseDtos.cs). GET
+// /periods/{year}/year-status returns all 12 fiscal months in fiscal order
+// (fiscalYearStartMonth may not be 1) plus the fiscal-year close state itself.
+export interface FiscalYearStatusPeriod {
+  year: number; month: number; status: string; closedAt: string | null;
+}
+export interface FiscalYearStatus {
+  fiscalYear: number; fiscalYearStartMonth: number;
+  fiscalStartDate: string; fiscalEndDate: string;
+  isClosed: boolean; closedAt: string | null; closedBy: number | null; notes: string | null;
+  closingJournalId: number | null; netProfit: number | null;
+  periods: FiscalYearStatusPeriod[]; allPeriodsClosed: boolean;
+}
+export interface FiscalYearCloseResult {
+  fiscalYear: number; fiscalEndDate: string; netProfit: number;
+  closingJournalId: number | null; closedAt: string;
+}
 // 2026-06-13 — monthly tax summary dashboard
 export interface TaxSummaryMonth {
   month: number;            // 1..12; 0 = year total

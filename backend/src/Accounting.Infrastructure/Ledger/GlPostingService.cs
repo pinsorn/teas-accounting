@@ -344,6 +344,52 @@ public sealed class GlPostingService : IGlPostingService
             run.CompanyId, run.BranchId, run.PayDate, $"PR {run.DocNo}", run.DocNo, lines, ct);
     }
 
+    /// <summary>Year-end closing (specs/year-end-closing.md D3/B4). Mirrors
+    /// <see cref="BuildAndPostAsync"/>'s balance-validate + JV-number + MarkPosted machinery,
+    /// but takes ALREADY-RESOLVED AccountIds (no ResolveAccountIdAsync) and deliberately does
+    /// NOT call EnsureOpenAsync — posting into an already-closed fiscal year is the point.</summary>
+    public async Task<long> PostClosingEntryAsync(
+        int companyId, int branchId, DateOnly docDate, string description,
+        bool isClosingEntry, long? reversalOfId,
+        IReadOnlyList<(long AccountId, decimal Debit, decimal Credit)> lines,
+        CancellationToken ct)
+    {
+        var journalLines = lines.Select((l, i) => new JournalLine
+        {
+            LineNo = i + 1, AccountId = l.AccountId,
+            DebitAmount = l.Debit, CreditAmount = l.Credit,
+        }).ToList();
+
+        var totalD = journalLines.Sum(l => l.DebitAmount);
+        var totalC = journalLines.Sum(l => l.CreditAmount);
+        if (totalD != totalC || totalD == 0m)
+            throw new DomainException("gl.unbalanced",
+                $"GL post unbalanced: D={totalD} C={totalC} for {description}.");
+
+        var docNo = await _numbers.NextAsync(companyId, branchId, JvPrefix, subPrefix: null, docDate, ct);
+        var now   = _clock.UtcNow;
+
+        var je = new JournalEntry
+        {
+            CompanyId      = companyId,
+            BranchId       = branchId,
+            PrefixCode     = JvPrefix,
+            DocDate        = docDate,
+            PostingDate    = docDate,
+            Description    = description,
+            TotalDebit     = totalD,
+            TotalCredit    = totalC,
+            Lines          = journalLines,
+            IsClosingEntry = isClosingEntry,
+            ReversalOfId   = reversalOfId,
+        };
+        _db.JournalEntries.Add(je);
+        je.MarkPosted(docNo.Value, _tenant.UserId ?? 0, now);
+
+        await _db.SaveChangesAsync(ct);
+        return je.JournalId;
+    }
+
     private async Task<long> BuildAndPostAsync(
         int companyId, int branchId, DateOnly docDate,
         string description, string? reference, List<JournalLine> lines, CancellationToken ct,

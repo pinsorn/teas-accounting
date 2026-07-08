@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart, ShieldCheck, UsersRound, BookOpen, FileBarChart2 } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart, ShieldCheck, UsersRound, BookOpen, FileBarChart2, Lock } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
 import { useCompanyProfile, useMePermissions, useSystemInfo } from '@/lib/queries';
@@ -83,6 +83,9 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/reports/balance-sheet', key: 'balanceSheet', Icon: FileBarChart2, perm: 'report.trial_balance.read' },
       { href: '/reports/profit-loss', key: 'profitLoss', Icon: TrendingUp, perm: 'report.profit_loss.read' },
       { href: '/reports/general-ledger', key: 'generalLedger', Icon: BookOpen, perm: 'report.general_ledger.read' },
+      // Cycle A #7 — gated by gl.period.close (the close endpoint's own permission),
+      // mirroring how every other item here mirrors its primary endpoint's read/write gate.
+      { href: '/period-close', key: 'periodClose', Icon: Lock, perm: 'gl.period.close' },
       { href: '/reports/ar-aging', key: 'arAging', Icon: Coins, perm: 'sales.tax_invoice.read' },
       { href: '/reports/customer-statement', key: 'customerStatement', Icon: FileText, perm: 'sales.tax_invoice.read' },
       { href: '/reports/sales-summary', key: 'salesSummary', Icon: BarChart3, perm: 'report.profit_loss.read' },

@@ -40,6 +40,7 @@ import type {
   GeneralLedgerReport,
   GeneralLedgerAccountOption,
   JournalDetail,
+  PeriodCloseResult,
   SalesSummary,
   Pnd30Filing,
   InputVatRegister,
@@ -959,6 +960,43 @@ export function useJournal(id: number) {
     queryKey: ['journal', id],
     queryFn: () => apiGet<JournalDetail>(`journals/${id}`),
     enabled: Number.isFinite(id) && id > 0,
+  });
+}
+
+// Cycle A #7 — Period Close UI. Backed by GET /periods/{year}/year-status
+// (year-end closing #5 — one call for all 12 fiscal-month statuses + real
+// closedAt, replacing the earlier per-month useQueries fan-out).
+export function useYearStatus(year: number) {
+  return useQuery({
+    queryKey: ['year-status', year],
+    queryFn: () => apiGet<import('./types').FiscalYearStatus>(`periods/${year}/year-status`),
+    enabled: year > 0,
+  });
+}
+export function useClosePeriod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ year, month, notes }: { year: number; month: number; notes?: string }) =>
+      apiPost<PeriodCloseResult>(`periods/${year}/${month}/close`, notes ? { notes } : undefined),
+    onSuccess: (_r, { year }) =>
+      qc.invalidateQueries({ queryKey: ['year-status', year] }),
+  });
+}
+// Cycle A #7 follow-up — year-end closing (#5) mutations, both gl.year.close.
+export function useCloseYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ year, notes }: { year: number; notes?: string }) =>
+      apiPost<import('./types').FiscalYearCloseResult>(
+        `periods/${year}/close-year`, notes ? { notes } : undefined),
+    onSuccess: (_r, { year }) => qc.invalidateQueries({ queryKey: ['year-status', year] }),
+  });
+}
+export function useReopenYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (year: number) => apiPost<void>(`periods/${year}/reopen-year`),
+    onSuccess: (_r, year) => qc.invalidateQueries({ queryKey: ['year-status', year] }),
   });
 }
 

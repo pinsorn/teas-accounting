@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { useVendorLedger } from '@/lib/queries';
-import { formatTHB, bangkokMonthStart, bangkokMonthEnd } from '@/lib/utils';
+import { formatTHB, bangkokMonthStart, bangkokMonthEnd, docTypeLabelKey } from '@/lib/utils';
 import type { SubledgerReconciliation } from '@/lib/types';
 
 function ReconciliationPanel({ r, t }: { r: SubledgerReconciliation; t: (k: string) => string }) {
@@ -35,6 +35,7 @@ function ReconciliationPanel({ r, t }: { r: SubledgerReconciliation; t: (k: stri
 export default function VendorLedgerPage() {
   const t = useTranslations('report');
   const tc = useTranslations('common');
+  const tCross = useTranslations('crossRef');
   const [vendorId, setVendorId] = useState<number | null>(null);
   const [from, setFrom] = useState(bangkokMonthStart());
   const [to, setTo] = useState(bangkokMonthEnd());
@@ -108,7 +109,7 @@ export default function VendorLedgerPage() {
                 {ledger.data.lines.map((l, i) => (
                   <tr key={i}>
                     <td>{l.docDate}</td>
-                    <td>{l.docType}</td>
+                    <td>{tCross(docTypeLabelKey(l.docType))}</td>
                     <td>{l.docNo}</td>
                     <td>{l.description}</td>
                     <td className="text-right tabular-nums">{l.debit ? formatTHB(l.debit) : ''}</td>

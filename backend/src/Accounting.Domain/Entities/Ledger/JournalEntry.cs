@@ -36,6 +36,11 @@ public class JournalEntry : ITenantOwned, IAuditable, IConcurrencyVersioned
     public long? ReversalOfId { get; set; }
     public JournalEntry? ReversalOf { get; set; }
 
+    /// <summary>Year-end closing/reopen-reversal JV (specs/year-end-closing.md D1/D3). Drives
+    /// report treatment: range-based P&amp;L/net-income aggregations EXCLUDE these; point-in-time
+    /// balance reports (Trial Balance, Balance Sheet, GL) INCLUDE them.</summary>
+    public bool IsClosingEntry { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public long? CreatedBy { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

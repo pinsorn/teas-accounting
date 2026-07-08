@@ -8,12 +8,12 @@
 | Kind | Count |
 |---|---:|
 | Anonymous | 8 |
-| AuthnOnly | 13 |
-| Perm | 247 |
+| AuthnOnly | 14 |
+| Perm | 250 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **300** |
+| **TOTAL** | **304** |
 
 ## Routes
 
@@ -173,6 +173,9 @@
 | POST | `/payroll/runs/{id:long}/post` | Perm | payroll.run.post |
 | GET | `/payroll/runs/{id:long}/sso/file` | Perm | payroll.run.manage |
 | GET | `/payroll/runs/{id:long}/sso/pdf` | Perm | payroll.run.manage |
+| POST | `/periods/{year:int}/close-year` | Perm | gl.year.close |
+| POST | `/periods/{year:int}/reopen-year` | Perm | gl.year.close |
+| GET | `/periods/{year:int}/year-status` | AuthnOnly | — |
 | POST | `/periods/{year:int}/{month:int}/close` | Perm | gl.period.close |
 | GET | `/periods/{year:int}/{month:int}/status` | AuthnOnly | — |
 | GET | `/products/` | Perm | master.product.read |
@@ -219,6 +222,7 @@
 | POST | `/receipts/{id:long}/wht-cert` | Perm | sales.receipt.create |
 | GET | `/reports/ap-aging` | Perm | purchase.purchase_order.read |
 | GET | `/reports/ar-aging` | Perm | sales.tax_invoice.read |
+| GET | `/reports/ar-aging/export` | Perm | sales.tax_invoice.read |
 | GET | `/reports/balance-sheet` | Perm | report.trial_balance.read |
 | GET | `/reports/customer-statement` | Perm | sales.tax_invoice.read |
 | GET | `/reports/financial-statements/pdf` | Perm | report.trial_balance.read |

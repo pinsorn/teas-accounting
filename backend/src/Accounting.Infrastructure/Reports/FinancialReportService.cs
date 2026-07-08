@@ -27,6 +27,7 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
     {
         EnsureAuth();
 
+        // closing entries intentionally included — see specs/year-end-closing.md §C4
         // Per-account Dr/Cr over Posted journals on/before the as-of date.
         var sums = await (
             from l in db.JournalLines.AsNoTracking()
@@ -76,6 +77,7 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
     {
         EnsureAuth();
 
+        // closing entries intentionally included — see specs/year-end-closing.md §C4
         var sums = await (
             from l in db.JournalLines.AsNoTracking()
             join j in db.JournalEntries.AsNoTracking() on l.JournalId equals j.JournalId
@@ -158,6 +160,7 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
                   (x, a) => new { x.l, x.j, a })
             .Where(x => x.j.Status == DocumentStatus.Posted
                         && x.j.DocDate >= fromDate && x.j.DocDate <= toDate
+                        && !x.j.IsClosingEntry // range-based net-income excludes closing entries — §C1
                         && (x.a.AccountType == AccountType.Revenue
                             || x.a.AccountType == AccountType.Expense))
             .Select(x => new PlRow(x.l.BusinessUnitId, x.a.AccountType,
@@ -286,6 +289,7 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
         long accountId, DateOnly fromDate, DateOnly toDate, CancellationToken ct)
     {
         EnsureAuth();
+        // closing entries intentionally included — see specs/year-end-closing.md §C4
 
         var account = await db.ChartOfAccounts.AsNoTracking()
             .Where(a => a.AccountId == accountId)

@@ -97,6 +97,7 @@ public static class DependencyInjection
         services.AddScoped<Application.TaxFilings.IWhtBatchExportService,    TaxFilings.WhtBatchExportService>();
         services.AddScoped<Application.TaxFilings.IPp30BatchExportService,   TaxFilings.Pp30BatchExportService>();
         services.AddScoped<Application.Ledger.IPeriodCloseService,       Ledger.PeriodCloseService>();
+        services.AddScoped<Application.Ledger.IYearCloseService,         Ledger.YearCloseService>();
 
         // GL auto-posting — bind account-code map then register the poster.
         services.AddOptions<Ledger.GlAccountsOptions>().Bind(cfg.GetSection("GlAccounts"));

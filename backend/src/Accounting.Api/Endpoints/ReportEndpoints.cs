@@ -165,6 +165,38 @@ public static class ReportEndpoints
                     asOf ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), customerId, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
 
+        // specs/ar-aging-csv-export.md — same RBAC gate as the JSON endpoint above. NOTE: ap-aging's
+        // "CSV export" (frontend/app/(dashboard)/reports/ap-aging/page.tsx) is FE-only (client-side
+        // Blob download from the already-fetched JSON) — there is no backend ap-aging CSV endpoint
+        // or helper to reuse. The CSV formatting technique below (explicit \r\n + UTF-8 BOM preamble)
+        // instead mirrors the one existing BACKEND CSV export, /general-ledger/export (troubles-wiki:
+        // StringBuilder.AppendLine is platform-dependent, PR #49).
+        group.MapGet("/ar-aging/export", async (
+            [FromQuery] DateOnly? asOf, [FromQuery] long? customerId,
+            ISubledgerReportService svc, CancellationToken ct) =>
+        {
+            var effectiveAsOf = asOf ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var report = await svc.ArAgingAsync(effectiveAsOf, customerId, ct);
+
+            var csv = new StringBuilder();
+            // RFC 4180: CRLF line endings, explicit — AppendLine is platform-dependent (\n on Linux CI).
+            csv.Append("Customer,TaxId,Current,Bucket31To60,Bucket61To90,BucketOver90,Total").Append("\r\n");
+            string Esc(string? s) => s is null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
+            foreach (var r in report.Rows)
+                csv.Append($"{Esc(r.CustomerName)},{Esc(r.CustomerTaxId)},{r.Current},{r.Bucket31To60}," +
+                           $"{r.Bucket61To90},{r.BucketOver90},{r.Total}").Append("\r\n");
+            csv.Append($"{Esc("รวมทั้งหมด")},,{report.Totals.Current},{report.Totals.Bucket31To60}," +
+                       $"{report.Totals.Bucket61To90},{report.Totals.BucketOver90},{report.Totals.Total}").Append("\r\n");
+
+            // UTF-8 WITH BOM — Thai text must render correctly when opened directly in Excel.
+            // Encoding.GetBytes(string) never emits the preamble regardless of the
+            // encoderShouldEmitUTF8Identifier flag — the BOM bytes must be prepended explicitly.
+            var utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+            var bytes = utf8Bom.GetPreamble().Concat(utf8Bom.GetBytes(csv.ToString())).ToArray();
+            return Results.File(bytes, "text/csv", $"ar-aging-{effectiveAsOf:yyyy-MM-dd}.csv");
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
+
         group.MapGet("/customer-statement", async (
             [FromQuery] long customerId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
             ISubledgerReportService svc, CancellationToken ct) =>

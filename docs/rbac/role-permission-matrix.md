@@ -14,6 +14,7 @@
 | `gl.journal.post` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `gl.period.close` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `gl.year.close` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.branch.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `master.business_unit.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.coa.manage` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
@@ -88,13 +89,13 @@
 | AP_CLERK | 15 |
 | AR_CLERK | 23 |
 | AUDITOR | 18 |
-| CHIEF_ACCOUNTANT | 60 |
-| COMPANY_ADMIN | 67 |
+| CHIEF_ACCOUNTANT | 61 |
+| COMPANY_ADMIN | 68 |
 | PURCHASING_STAFF | 5 |
 | SALES_STAFF | 13 |
 | TAX_OFFICER | 12 |
 | WAREHOUSE_STAFF | 2 |
-| SUPER_ADMIN | 68 (bypass) |
+| SUPER_ADMIN | 69 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

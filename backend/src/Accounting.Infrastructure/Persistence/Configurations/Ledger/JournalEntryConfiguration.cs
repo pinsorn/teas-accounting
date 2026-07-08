@@ -32,6 +32,10 @@ internal sealed class JournalEntryConfiguration : IEntityTypeConfiguration<Journ
         b.Property(j => j.UpdatedAt).HasColumnType("timestamptz(3)");
         b.Property(j => j.Version).IsConcurrencyToken();
 
+        // Year-end closing (specs/year-end-closing.md A1) — not in the immutability trigger's
+        // allowlist (020_journal_immutability.sql); set at INSERT only, never updated after post.
+        b.Property(j => j.IsClosingEntry).HasColumnName("is_closing_entry").HasDefaultValue(false);
+
         b.HasOne(j => j.ReversalOf)
             .WithMany()
             .HasForeignKey(j => j.ReversalOfId)

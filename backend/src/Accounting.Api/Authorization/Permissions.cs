@@ -44,6 +44,8 @@ public static class Permissions
         public const string JournalPost    = "gl.journal.post";
         public const string JournalRead    = "gl.journal.read";
         public const string PeriodClose    = "gl.period.close";
+        // Year-end closing (specs/year-end-closing.md D8) — gates both close-year and reopen-year.
+        public const string YearClose      = "gl.year.close";
     }
 
     public static class Sales
@@ -124,7 +126,7 @@ public static class Permissions
         Master.ProductManage, Master.ProductRead, Master.EmployeeManage,
         Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage, Sys.ExpenseCatRead,
         Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete, Sys.ApiKeyManage,
-        Gl.JournalCreate, Gl.JournalPost, Gl.JournalRead, Gl.PeriodClose,
+        Gl.JournalCreate, Gl.JournalPost, Gl.JournalRead, Gl.PeriodClose, Gl.YearClose,
         Sales.TaxInvoiceCreate, Sales.TaxInvoicePost, Sales.TaxInvoiceRead,
         Sales.ReceiptCreate, Sales.ReceiptPost, Sales.ReceiptRead,
         Sales.CreditNoteCreate, Sales.CreditNotePost, Sales.CreditNoteRead,

@@ -66,3 +66,25 @@ export function formatTaxId(taxId: string | null | undefined): string {
   if (!taxId || taxId.length !== 13) return taxId ?? '-';
   return `${taxId[0]}-${taxId.slice(1, 5)}-${taxId.slice(5, 10)}-${taxId.slice(10, 12)}-${taxId[12]}`;
 }
+
+// Cycle A #9 — customer statement / vendor ledger rows carry the raw PascalCase
+// docType SubledgerReportService emits (e.g. "TaxInvoice"). Maps to the existing
+// `crossRef` i18n namespace (already used for the sales-chain doc labels) instead
+// of introducing a second mapping; VendorInvoice/PaymentVoucher are AP-side and
+// were added to `crossRef` alongside the AR ones this feature reused.
+// Must cover every docType emitted by SubledgerReportService.cs — an unmapped
+// type falls back to the raw string (renders as "crossRef.X" + console error).
+const DOC_TYPE_I18N_KEY: Record<string, string> = {
+  TaxInvoice: 'taxInvoice',
+  Receipt: 'receipt',
+  CreditNote: 'creditNote',
+  DebitNote: 'debitNote',
+  VendorInvoice: 'vendorInvoice',
+  PaymentVoucher: 'paymentVoucher',
+};
+
+/** Raw docType string → `crossRef` i18n key (falls back to the raw value for
+ *  any type not yet mapped, so an unmapped type is visible, not blank). */
+export function docTypeLabelKey(docType: string): string {
+  return DOC_TYPE_I18N_KEY[docType] ?? docType;
+}
