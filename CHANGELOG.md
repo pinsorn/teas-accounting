@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.0](https://github.com/pinsorn/teas-accounting/compare/v1.14.1...v1.15.0) (2026-07-08)
+
+
+### Features
+
+* **accounting:** Cycle A — year-end closing, period close UI, AR aging CSV, docType labels ([70c485e](https://github.com/pinsorn/teas-accounting/commit/70c485e2b1dc77e9a3b84d9a8f38b67f4ff9d5a7))
+* **accounting:** year-end closing entries, period close UI, AR aging CSV export, docType labels ([51c5731](https://github.com/pinsorn/teas-accounting/commit/51c57318e79f5627a90472515ff1ad97490fbc87))
+
 ## [1.14.1](https://github.com/pinsorn/teas-accounting/compare/v1.14.0...v1.14.1) (2026-07-08)
 
 
