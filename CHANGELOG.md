@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.2](https://github.com/pinsorn/teas-accounting/compare/v1.13.1...v1.13.2) (2026-07-08)
+
+
+### Bug Fixes
+
+* **mcp:** field-test findings — P&L untagged-BU default, doc-status visibility docs, GL id-vs-code message ([be039a5](https://github.com/pinsorn/teas-accounting/commit/be039a5ed4f9a6627f337a1810ec56bdb077c29d))
+* **mcp:** field-test findings — P&L untagged-BU default, visibility docs, GL error message ([e50f47b](https://github.com/pinsorn/teas-accounting/commit/e50f47b95cc6cae96508ce301c663fc9fc39bd68))
+
 ## [1.13.1](https://github.com/pinsorn/teas-accounting/compare/v1.13.0...v1.13.1) (2026-07-08)
 
 
