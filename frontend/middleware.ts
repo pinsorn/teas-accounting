@@ -11,9 +11,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 // and '/oauth/register' (client-authenticated, no cookie), and '/oauth/authorize' (a logged-out
 // MCP client MUST reach it — the missing cookie is what makes the backend redirect to /login).
 // NOTE: '/oauth/consent' is deliberately NOT public — it needs the session (no blanket '/oauth').
+// '/public/pdf' (NOT the wider '/public') is public too: it's the token-authenticated anonymous
+// PDF passthrough (app/public/pdf/route.ts) — browser-openable links minted by MCP tools carry
+// no session cookie, so the `t` token is the only auth and must reach the backend unredirected.
 const PUBLIC_PATHS = [
   '/login', '/onboarding', '/api', '/mcp',
   '/.well-known', '/oauth/authorize', '/oauth/token', '/oauth/register',
+  '/public/pdf',
   '/_next', '/favicon.ico',
 ];
 
