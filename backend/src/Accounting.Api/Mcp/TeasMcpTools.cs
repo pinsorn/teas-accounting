@@ -711,6 +711,40 @@ public sealed class TeasMcpTools
         CancellationToken ct) =>
         svc.GeneralLedgerAsync(accountId, fromDate, toDate, ct);
 
+    // specs/subledgers.md — AR/AP sub-ledger suite. Reuses TaxInvoiceRead/VendorInvoiceRead
+    // (already-granted scopes; no new McpScopes entry). Every tool includes a company-wide
+    // reconciliation block (subledger total vs the GL control account) — GL carries no
+    // party dimension, so this is company-wide, not per-customer/vendor tie-out.
+    [McpServerTool(Name = "get_ar_aging"), Authorize(Policy = TaxInvoiceRead)]
+    [Description("Get AR aging (อายุหนี้ลูกหนี้): outstanding unpaid tax invoices bucketed by age (Current/31-60/61-90/Over90) as of a date, plus a company-wide reconciliation of the AR subledger total against the GL control account (1130). Aging buckets use the current settlement snapshot, not a historical as-of reconstruction — they coincide with the default asOf=today. Defaults to today.")]
+    public static Task<ArAgingReport> GetArAgingAsync(
+        ISubledgerReportService svc,
+        IClock clock,
+        [Description("As-of date (yyyy-MM-dd); omit for today.")] DateOnly? asOfDate = null,
+        [Description("Internal customer id from list_customers, NOT the customer code; omit for all customers.")] long? customerId = null,
+        CancellationToken ct = default) =>
+        svc.ArAgingAsync(asOfDate ?? clock.TodayInBangkok(), customerId, ct);
+
+    [McpServerTool(Name = "get_customer_statement"), Authorize(Policy = TaxInvoiceRead)]
+    [Description("Get a per-customer AR statement: running balance (invoices, receipts, credit/debit notes) over a date range, plus a company-wide AR reconciliation against the GL control account (1130).")]
+    public static Task<CustomerStatement> GetCustomerStatementAsync(
+        [Description("Internal customer id from list_customers, NOT the customer code.")] long customerId,
+        [Description("Start of the date range (inclusive).")] DateOnly fromDate,
+        [Description("End of the date range (inclusive).")] DateOnly toDate,
+        ISubledgerReportService svc,
+        CancellationToken ct = default) =>
+        svc.CustomerStatementAsync(customerId, fromDate, toDate, ct);
+
+    [McpServerTool(Name = "get_vendor_ledger"), Authorize(Policy = VendorInvoiceRead)]
+    [Description("Get a per-vendor AP ledger: running payable balance (vendor invoices, payment vouchers) over a date range, plus a company-wide AP reconciliation against the GL control account (2110). Balance orientation is payable-positive (Credit minus Debit), unlike the AR statement.")]
+    public static Task<VendorLedger> GetVendorLedgerAsync(
+        [Description("Internal vendor id from list_vendors, NOT the vendor code.")] long vendorId,
+        [Description("Start of the date range (inclusive).")] DateOnly fromDate,
+        [Description("End of the date range (inclusive).")] DateOnly toDate,
+        ISubledgerReportService svc,
+        CancellationToken ct = default) =>
+        svc.VendorLedgerAsync(vendorId, fromDate, toDate, ct);
+
     [McpServerTool(Name = "list_gl_accounts"), Authorize(Policy = ReportGeneralLedger)]
     [Description("List active, non-header GL accounts for the caller's company — the account picker for get_general_ledger.")]
     public static Task<IReadOnlyList<GeneralLedgerAccountOption>> ListGlAccountsAsync(

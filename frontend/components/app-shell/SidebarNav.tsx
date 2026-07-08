@@ -83,10 +83,13 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/reports/balance-sheet', key: 'balanceSheet', Icon: FileBarChart2, perm: 'report.trial_balance.read' },
       { href: '/reports/profit-loss', key: 'profitLoss', Icon: TrendingUp, perm: 'report.profit_loss.read' },
       { href: '/reports/general-ledger', key: 'generalLedger', Icon: BookOpen, perm: 'report.general_ledger.read' },
+      { href: '/reports/ar-aging', key: 'arAging', Icon: Coins, perm: 'sales.tax_invoice.read' },
+      { href: '/reports/customer-statement', key: 'customerStatement', Icon: FileText, perm: 'sales.tax_invoice.read' },
       { href: '/reports/sales-summary', key: 'salesSummary', Icon: BarChart3, perm: 'report.profit_loss.read' },
       { href: '/reports/pnd30', key: 'pnd30', Icon: FileSpreadsheet, vatOnly: true, perm: 'tax.pnd30.read' },
       { href: '/reports/outstanding-po', key: 'outstandingPo', Icon: ListChecks, perm: 'purchase.purchase_order.read' },
       { href: '/reports/ap-aging', key: 'apAging', Icon: Coins, perm: 'purchase.purchase_order.read' },
+      { href: '/reports/vendor-ledger', key: 'vendorLedger', Icon: FileText, perm: 'purchase.vendor_invoice.read' },
       { href: '/tax-filings', key: 'taxFilings', Icon: Landmark, perm: 'tax.filing.read' },
       // /documents (chain views) is AuthnOnly on the BE — any authenticated user.
       { href: '/documents', key: 'documents', Icon: Files },

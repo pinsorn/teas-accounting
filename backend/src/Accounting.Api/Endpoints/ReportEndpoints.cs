@@ -154,6 +154,37 @@ public static class ReportEndpoints
                 Results.Ok(await svc.GeneralLedgerAccountsAsync(ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.GeneralLedger);
 
+        // specs/subledgers.md — AR/AP sub-ledger suite. Read-only, document-derived (no schema
+        // change); reuses the existing tax-invoice/vendor-invoice read perms (no new perm/seed).
+        // AR aging reuses TaxInvoiceRead (same perm family as customer statement); vendor ledger
+        // reuses VendorInvoiceRead (mirrors ap-aging's purchase-domain gating).
+        group.MapGet("/ar-aging", async (
+            [FromQuery] DateOnly? asOf, [FromQuery] long? customerId,
+            ISubledgerReportService svc, CancellationToken ct) =>
+                Results.Ok(await svc.ArAgingAsync(
+                    asOf ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), customerId, ct)))
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
+
+        group.MapGet("/customer-statement", async (
+            [FromQuery] long customerId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
+            ISubledgerReportService svc, CancellationToken ct) =>
+        {
+            if (fromDate > toDate)
+                return Results.BadRequest(new { detail = "fromDate must be on or before toDate." });
+            return Results.Ok(await svc.CustomerStatementAsync(customerId, fromDate, toDate, ct));
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
+
+        group.MapGet("/vendor-ledger", async (
+            [FromQuery] long vendorId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
+            ISubledgerReportService svc, CancellationToken ct) =>
+        {
+            if (fromDate > toDate)
+                return Results.BadRequest(new { detail = "fromDate must be on or before toDate." });
+            return Results.Ok(await svc.VendorLedgerAsync(vendorId, fromDate, toDate, ct));
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.VendorInvoiceRead);
+
         group.MapGet("/general-ledger/export", async (
             [FromQuery] long accountId, [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
             [FromQuery] string format,

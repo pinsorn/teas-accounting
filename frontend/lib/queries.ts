@@ -33,6 +33,9 @@ import type {
   WhtMissingCertReport,
   TrialBalanceReport,
   BalanceSheetReport,
+  ArAgingReport,
+  CustomerStatement,
+  VendorLedger,
   ProfitLossReport,
   GeneralLedgerReport,
   GeneralLedgerAccountOption,
@@ -897,6 +900,32 @@ export function useBalanceSheet(asOf: string) {
     enabled: !!asOf,
     queryFn: () => apiGet<BalanceSheetReport>(
       `reports/balance-sheet${qs({ asOfDate: asOf })}`),
+  });
+}
+export function useArAgingReport(asOf: string, customerId?: number) {
+  return useQuery({
+    queryKey: ['ar-aging', asOf, customerId ?? 0],
+    enabled: !!asOf,
+    queryFn: () => apiGet<ArAgingReport>(
+      `reports/ar-aging${qs({ asOf, customerId: customerId || undefined })}`),
+  });
+}
+export function useCustomerStatement(
+  customerId: number | undefined, fromDate: string, toDate: string) {
+  return useQuery({
+    queryKey: ['customer-statement', customerId, fromDate, toDate],
+    enabled: customerId != null && !!fromDate && !!toDate,
+    queryFn: () => apiGet<CustomerStatement>(
+      `reports/customer-statement${qs({ customerId, fromDate, toDate })}`),
+  });
+}
+export function useVendorLedger(
+  vendorId: number | undefined, fromDate: string, toDate: string) {
+  return useQuery({
+    queryKey: ['vendor-ledger', vendorId, fromDate, toDate],
+    enabled: vendorId != null && !!fromDate && !!toDate,
+    queryFn: () => apiGet<VendorLedger>(
+      `reports/vendor-ledger${qs({ vendorId, fromDate, toDate })}`),
   });
 }
 export function useProfitLoss(

@@ -40,7 +40,7 @@ public sealed class McpReadExpansionTests
         "master.customer.read", "master.product.read", "master.vendor.manage",
         "sales.billing_note.read", "sales.delivery_order.manage",
         "report.trial_balance.read", "report.profit_loss.read", "report.general_ledger.read",
-        "gl.journal.read", "sys.system_info.read",
+        "gl.journal.read", "sys.system_info.read", "purchase.vendor_invoice.read",
     ];
 
     private async Task<string> MintKeyAsync(int companyId, IReadOnlyList<string>? scopes = null)
@@ -465,5 +465,190 @@ public sealed class McpReadExpansionTests
         var byCustomerIds = ResultRoot(byCustomer).EnumerateArray()
             .Select(e => e.GetProperty("quotationId").GetInt64()).ToList();
         byCustomerIds.Should().Contain([qaId, qbId]);
+    }
+
+    // ══════════════════════ S6/S7 — subledger MCP tools (specs/subledgers.md) ══════════════════════
+
+    [SkippableFact]
+    public async Task Mcp_subledger_tools_are_denied_without_the_read_scope()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        // No sales.tax_invoice.read / purchase.vendor_invoice.read scope granted.
+        var key = await MintKeyAsync(companyId: 1, ["sales.quotation.read"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var names = (await client.ListToolsAsync()).Select(t => t.Name).ToHashSet();
+        names.Should().NotContain("get_ar_aging");
+        names.Should().NotContain("get_customer_statement");
+        names.Should().NotContain("get_vendor_ledger");
+
+        var act = async () => await client.CallToolAsync(
+            "get_ar_aging", new Dictionary<string, object?>());
+        await act.Should().ThrowAsync<Exception>();
+    }
+
+    [SkippableFact]
+    public async Task Mcp_get_ar_aging_and_get_customer_statement_include_reconciliation_block()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var today = new SystemClock().TodayInBangkok();
+
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var tiSvc = scope.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            var id = await tiSvc.CreateDraftAsync(new CreateTaxInvoiceRequest(
+                today, co.CustomerId, false, "THB", 1m, null, null, null,
+                [new TaxInvoiceLineInput(null, null, "subledger mcp test", 1m, 1, "ชิ้น", 1000m, 0m, 1, "VAT7", 0.07m)],
+                null), default);
+            await tiSvc.PostAsync(id, default);
+        }
+
+        var key = await MintKeyAsync(co.CompanyId);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var aging = await client.CallToolAsync("get_ar_aging", new Dictionary<string, object?>());
+        aging.IsError.Should().NotBe(true);
+        var agingRoot = ResultRoot(aging);
+        agingRoot.TryGetProperty("rows", out _).Should().BeTrue();
+        agingRoot.TryGetProperty("reconciliation", out var agingRecon).Should().BeTrue();
+        agingRecon.TryGetProperty("controlAccountCode", out _).Should().BeTrue();
+        agingRecon.TryGetProperty("controlAccountBalance", out _).Should().BeTrue();
+        agingRecon.TryGetProperty("subLedgerTotal", out _).Should().BeTrue();
+        agingRecon.TryGetProperty("difference", out _).Should().BeTrue();
+        agingRecon.TryGetProperty("balanced", out _).Should().BeTrue();
+
+        var statement = await client.CallToolAsync("get_customer_statement", new Dictionary<string, object?>
+        {
+            ["customerId"] = co.CustomerId, ["fromDate"] = today, ["toDate"] = today,
+        });
+        statement.IsError.Should().NotBe(true);
+        var stRoot = ResultRoot(statement);
+        stRoot.TryGetProperty("lines", out _).Should().BeTrue();
+        stRoot.TryGetProperty("reconciliation", out var stRecon).Should().BeTrue();
+        stRecon.TryGetProperty("balanced", out _).Should().BeTrue();
+
+        // Unknown customerId → MCP call errors (maps the service's customer.not_found 404).
+        var badStatement = await client.CallToolAsync("get_customer_statement", new Dictionary<string, object?>
+        {
+            ["customerId"] = 999_999_999L, ["fromDate"] = today, ["toDate"] = today,
+        });
+        badStatement.IsError.Should().BeTrue("an unknown customerId must be rejected, not silently return empty");
+    }
+
+    [SkippableFact]
+    public async Task Mcp_get_vendor_ledger_includes_reconciliation_block()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var today = new SystemClock().TodayInBangkok();
+
+        long vendorId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var v = new Accounting.Domain.Entities.Master.Vendor
+            {
+                CompanyId = co.CompanyId, VendorCode = "MCPV-" + TestIds.Suffix()[..8],
+                VendorType = CustomerType.Corporate, NameTh = "ผู้ขาย MCP ทดสอบ",
+                TaxId = "0105556123453", BranchCode = "00000", VatRegistered = true,
+            };
+            db.Vendors.Add(v);
+            await db.SaveChangesAsync();
+            vendorId = v.VendorId;
+        }
+
+        var key = await MintKeyAsync(co.CompanyId);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var ledger = await client.CallToolAsync("get_vendor_ledger", new Dictionary<string, object?>
+        {
+            ["vendorId"] = vendorId, ["fromDate"] = today, ["toDate"] = today,
+        });
+        ledger.IsError.Should().NotBe(true);
+        var root = ResultRoot(ledger);
+        root.TryGetProperty("lines", out _).Should().BeTrue();
+        root.TryGetProperty("reconciliation", out var recon).Should().BeTrue();
+        recon.TryGetProperty("controlAccountCode", out var codeEl).Should().BeTrue();
+        codeEl.GetString().Should().Be("2110");
+        // No postings for this fresh vendor — trivially balanced (0 == 0), proving the wiring
+        // works end to end without needing the full VI+PV money flow (covered by SubledgerReportTests).
+        recon.GetProperty("balanced").GetBoolean().Should().BeTrue();
+    }
+
+    // READ-ONLY probes against the demo tenant co2 (company_id = 2, load-bearing — never
+    // post/seed into it). Per Fable's ruling (spec §"Open questions"): do NOT assert
+    // Balanced==true here — co2 may carry manual/seed JEs on 1130/2110; only assert the
+    // reconciliation block is present and arithmetically self-consistent, and log the actual
+    // numbers for Fable to review.
+    [SkippableFact]
+    public async Task S7_co2_readonly_probe_ar_aging_reconciliation_is_arithmetically_consistent()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        const int co2CompanyId = 2;
+        var key = await MintKeyAsync(co2CompanyId);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var result = await client.CallToolAsync("get_ar_aging", new Dictionary<string, object?>());
+        result.IsError.Should().NotBe(true);
+        var root = ResultRoot(result);
+        root.GetProperty("companyId").GetInt32().Should().Be(co2CompanyId);
+        var recon = root.GetProperty("reconciliation");
+        var control = recon.GetProperty("controlAccountBalance").GetDecimal();
+        var subLedger = recon.GetProperty("subLedgerTotal").GetDecimal();
+        var difference = recon.GetProperty("difference").GetDecimal();
+        difference.Should().Be(control - subLedger,
+            "Difference must always equal ControlAccountBalance − SubLedgerTotal exactly, " +
+            $"regardless of whether co2 balances (co2 AR: control={control}, subLedger={subLedger}, diff={difference})");
+    }
+
+    [SkippableFact]
+    public async Task S7_co2_readonly_probe_vendor_ledger_reconciliation_is_arithmetically_consistent()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        const int co2CompanyId = 2;
+
+        long? vendorId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co2CompanyId, branchId: 1))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            vendorId = await db.Vendors.Where(v => v.CompanyId == co2CompanyId)
+                .Select(v => (long?)v.VendorId).FirstOrDefaultAsync();
+        }
+        Skip.If(vendorId is null, "co2 has no seeded vendor to probe — nothing to assert.");
+
+        var key = await MintKeyAsync(co2CompanyId);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var today = new SystemClock().TodayInBangkok();
+        var result = await client.CallToolAsync("get_vendor_ledger", new Dictionary<string, object?>
+        {
+            ["vendorId"] = vendorId!.Value, ["fromDate"] = new DateOnly(2000, 1, 1), ["toDate"] = today,
+        });
+        result.IsError.Should().NotBe(true);
+        var recon = ResultRoot(result).GetProperty("reconciliation");
+        var control = recon.GetProperty("controlAccountBalance").GetDecimal();
+        var subLedger = recon.GetProperty("subLedgerTotal").GetDecimal();
+        var difference = recon.GetProperty("difference").GetDecimal();
+        difference.Should().Be(control - subLedger,
+            $"co2 AP (vendor {vendorId}): control={control}, subLedger={subLedger}, diff={difference}");
     }
 }
