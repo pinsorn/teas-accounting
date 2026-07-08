@@ -272,13 +272,19 @@ public sealed class QuotationService(
         return so.SalesOrderId;
     }
 
-    public async Task<IReadOnlyList<QuotationListItem>> ListAsync(string? status, CancellationToken ct)
+    public async Task<IReadOnlyList<QuotationListItem>> ListAsync(string? status, CancellationToken ct,
+        DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null)
     {
         Auth();
         var qy = db.Quotations.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(status) &&
             Enum.TryParse<QuotationStatus>(status, true, out var st))
             qy = qy.Where(x => x.Status == st);
+        // E1 — date-range/customer/product filters.
+        if (dateFrom is { } df) qy = qy.Where(x => x.DocDate >= df);
+        if (dateTo   is { } dt) qy = qy.Where(x => x.DocDate <= dt);
+        if (customerId is { } cid) qy = qy.Where(x => x.CustomerId == cid);
+        if (productId is { } pid) qy = qy.Where(x => x.Lines.Any(l => l.ProductId == pid));
         return await qy.OrderByDescending(x => x.QuotationId)
             .Select(x => new QuotationListItem(
                 x.QuotationId, x.DocNo, x.Status.ToString(), x.DocDate,

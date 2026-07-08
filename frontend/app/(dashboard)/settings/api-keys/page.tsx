@@ -28,6 +28,13 @@ const ALL_SCOPES = [
   'purchase.vendor_invoice.read', 'purchase.vendor_invoice.create',
   'purchase.payment_voucher.read', 'purchase.payment_voucher.create',
   'sys.system_info.read',
+  // C1 (mcp-expansion) — report read tools. Mirrors McpScopes.All.
+  'report.trial_balance.read', 'report.profit_loss.read', 'report.general_ledger.read',
+  'gl.journal.read',
+  // C2 (mcp-expansion) — billing note / delivery order read tools. Mirrors McpScopes.All.
+  'sales.billing_note.read', 'sales.delivery_order.manage',
+  // D2 (mcp-expansion) — update_invoice_draft (billing note). Mirrors McpScopes.All.
+  'sales.billing_note.manage',
 ] as const;
 
 // MCP keys cannot hold .post scopes (M1 backend guard). Mirror that constraint
@@ -49,6 +56,13 @@ const MCP_DEFAULT_SCOPES = [
   'purchase.vendor_invoice.read', 'purchase.vendor_invoice.create',
   'purchase.payment_voucher.read', 'purchase.payment_voucher.create',
   'sys.system_info.read',
+  // C1 (mcp-expansion) — report read tools. Mirrors McpScopes.All.
+  'report.trial_balance.read', 'report.profit_loss.read', 'report.general_ledger.read',
+  'gl.journal.read',
+  // C2 (mcp-expansion) — billing note / delivery order read tools. Mirrors McpScopes.All.
+  'sales.billing_note.read', 'sales.delivery_order.manage',
+  // D2 (mcp-expansion) — update_invoice_draft (billing note). Mirrors McpScopes.All.
+  'sales.billing_note.manage',
 ];
 
 export default function ApiKeysSettingsPage() {

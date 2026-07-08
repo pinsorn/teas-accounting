@@ -63,7 +63,9 @@ public interface IBillingNoteService
     Task IssueAsync(long id, CancellationToken ct);
     Task CancelAsync(long id, string reason, CancellationToken ct);
     Task MarkSettledAsync(long id, CancellationToken ct);
-    Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct);
+    // E1 — added optional date-range/customer/product filters (all null = unfiltered, prior behavior).
+    Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct,
+        DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null);
     Task<BillingNoteDetail?> GetAsync(long id, CancellationToken ct);
     Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false);   // Sprint 13j-PDF; cont.69 P4 copy=สำเนา
     // cont.121 — canonical paper composition (JSON twin of the PDF) for GET /billing-notes/{id}/paper.

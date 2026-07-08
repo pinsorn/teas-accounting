@@ -14,6 +14,12 @@ public interface ITaxInvoiceService
     /// <c>BillingNoteId</c> set. Returns the new tax_invoice_id.</summary>
     Task<long> CreateFromBillingNoteAsync(long billingNoteId, CancellationToken ct);
 
+    /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit: replaces header + delete-and-
+    /// recreates ALL lines, recomputing totals server-side (client Lines only; never trust a
+    /// client total). Throws <c>ti.cannot_edit_after_post</c> once the TI has left Draft.
+    /// DocNo/Status/PostedAt/DocDate/TaxPointDate are server-controlled and untouched here.</summary>
+    Task UpdateDraftAsync(long taxInvoiceId, CreateTaxInvoiceRequest req, CancellationToken ct);
+
     /// <summary>Post the draft: allocate TI-NNNN, freeze status, write posted_at. Throws on validation failure.</summary>
     Task<TaxInvoicePostedResult> PostAsync(long taxInvoiceId, CancellationToken ct);
 

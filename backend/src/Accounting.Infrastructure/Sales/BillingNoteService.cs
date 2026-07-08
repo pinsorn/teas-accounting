@@ -275,7 +275,8 @@ public sealed class BillingNoteService(
         return model;
     }
 
-    public async Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct)
+    public async Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct,
+        DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null)
     {
         Auth();
         var qy = db.BillingNotes.AsNoTracking()
@@ -283,6 +284,11 @@ public sealed class BillingNoteService(
         if (!string.IsNullOrWhiteSpace(status) &&
             Enum.TryParse<BillingNoteStatus>(status, true, out var st))
             qy = qy.Where(x => x.Status == st);
+        // E1 — date-range/customer/product filters.
+        if (dateFrom is { } df) qy = qy.Where(x => x.DocDate >= df);
+        if (dateTo   is { } dt) qy = qy.Where(x => x.DocDate <= dt);
+        if (customerId is { } cid) qy = qy.Where(x => x.CustomerId == cid);
+        if (productId is { } pid) qy = qy.Where(x => x.Lines.Any(l => l.ProductId == pid));
         return await qy.OrderByDescending(x => x.BillingNoteId)
             .Select(x => new BillingNoteListItem(
                 x.BillingNoteId, x.DocNo, x.Status.ToString(), x.DocDate,

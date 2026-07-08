@@ -97,13 +97,32 @@ public sealed class VendorService(AccountingDbContext db, ITenantContext tenant)
     public async Task<IReadOnlyList<VendorDto>> ListAsync(string? search, int page, int pageSize, CancellationToken ct)
     {
         page = Math.Max(page, 1); pageSize = Math.Clamp(pageSize, 1, 200);
-        var q = db.Vendors.AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = $"%{search.Trim()}%";
-            q = q.Where(v => EF.Functions.ILike(v.NameTh, s) || EF.Functions.ILike(v.VendorCode, s));
+            var ilikeQuery = db.Vendors.Where(v => EF.Functions.ILike(v.NameTh, s) || EF.Functions.ILike(v.VendorCode, s));
+            var rows = await ProjectPageAsync(ilikeQuery, page, pageSize, ct);
+            if (rows.Count > 0)
+                return rows;
+
+            // B1 — trigram fallback: the ILIKE pass found nothing for a non-empty search
+            // term, so retry with typo-tolerant similarity (pg_trgm — 591_seed_pg_trgm.sql).
+            var q = search.Trim();
+            var trigramQuery = db.Vendors
+                .Where(v => EF.Functions.TrigramsSimilarity(v.NameTh, q) > 0.25
+                         || EF.Functions.TrigramsSimilarity(v.VendorCode, q) > 0.25)
+                .OrderByDescending(v => EF.Functions.TrigramsSimilarity(v.NameTh, q));
+            return await ProjectPageAsync(trigramQuery, page, pageSize, ct, alreadyOrdered: true);
         }
-        return await q.OrderBy(v => v.VendorCode).Skip((page - 1) * pageSize).Take(pageSize)
+        return await ProjectPageAsync(db.Vendors.OrderBy(v => v.VendorCode), page, pageSize, ct, alreadyOrdered: true);
+    }
+
+    private static async Task<List<VendorDto>> ProjectPageAsync(
+        IQueryable<Vendor> query, int page, int pageSize, CancellationToken ct, bool alreadyOrdered = false)
+    {
+        if (!alreadyOrdered)
+            query = query.OrderBy(v => v.VendorCode);
+        return await query.Skip((page - 1) * pageSize).Take(pageSize)
             .Select(v => new VendorDto(v.VendorId, v.VendorCode, v.VendorType, v.NameTh, v.TaxId, v.VatRegistered, v.IsActive))
             .ToListAsync(ct);
     }

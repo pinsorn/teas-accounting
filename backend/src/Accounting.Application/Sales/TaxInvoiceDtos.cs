@@ -46,7 +46,9 @@ public sealed record TaxInvoiceListQuery(
     int?     BusinessUnitId = null,
     bool     IncludeUnspecified = false,
     string?  Search = null,
-    bool     Unpaid = false);
+    bool     Unpaid = false,
+    // E1 — filter to tax invoices with at least one line for this product.
+    long?    ProductId = null);
 
 public sealed record TaxInvoiceListItem(
     long     TaxInvoiceId,

@@ -29,6 +29,8 @@ public sealed partial class TaxInvoiceService
         if (q.DateFrom is { } df) query = query.Where(t => t.DocDate >= df);
         if (q.DateTo   is { } dt) query = query.Where(t => t.DocDate <= dt);
         if (q.CustomerId is { } cid) query = query.Where(t => t.CustomerId == cid);
+        // E1 — product-line filter (only tax invoices that contain this product).
+        if (q.ProductId is { } pid) query = query.Where(t => t.Lines.Any(l => l.ProductId == pid));
         if (!string.IsNullOrWhiteSpace(q.Status)
             && Enum.TryParse<DocumentStatus>(q.Status, ignoreCase: true, out var st))
             query = query.Where(t => t.Status == st);

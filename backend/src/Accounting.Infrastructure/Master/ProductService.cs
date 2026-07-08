@@ -116,29 +116,50 @@ public sealed class ProductService(AccountingDbContext db, ITenantContext tenant
         bool includeInactive, string? search, string? purpose, int? businessUnitId,
         string? productType, bool? isActive, CancellationToken ct)
     {
-        var q = db.Products.AsNoTracking().Where(p => includeInactive || p.IsActive);
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var s = $"%{search.Trim()}%";
-            q = q.Where(p => EF.Functions.ILike(p.ProductCode, s)
-                          || EF.Functions.ILike(p.NameTh, s));
-        }
+        var baseQuery = db.Products.AsNoTracking().Where(p => includeInactive || p.IsActive);
         // cont.81 — purpose filter (sale docs → saleable, purchase docs → purchasable).
         if (string.Equals(purpose, "sale", StringComparison.OrdinalIgnoreCase))
-            q = q.Where(p => p.IsSaleable);
+            baseQuery = baseQuery.Where(p => p.IsSaleable);
         else if (string.Equals(purpose, "purchase", StringComparison.OrdinalIgnoreCase))
-            q = q.Where(p => p.IsPurchasable);
+            baseQuery = baseQuery.Where(p => p.IsPurchasable);
         // BU filter — products of the selected BU OR shared (null-BU) products.
         if (businessUnitId is { } buId)
-            q = q.Where(p => p.BusinessUnitId == null || p.BusinessUnitId == buId);
+            baseQuery = baseQuery.Where(p => p.BusinessUnitId == null || p.BusinessUnitId == buId);
         // cont.81 follow-up — product-type + explicit active/inactive filters. Ignore an
         // unknown productType string rather than throw (it just narrows to nothing).
         if (!string.IsNullOrWhiteSpace(productType) && TryParseType(productType, out var pt))
-            q = q.Where(p => p.ProductType == pt);
+            baseQuery = baseQuery.Where(p => p.ProductType == pt);
         if (isActive is { } act)
-            q = q.Where(p => p.IsActive == act);
+            baseQuery = baseQuery.Where(p => p.IsActive == act);
 
-        var rows = await q.OrderBy(p => p.ProductCode)
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = $"%{search.Trim()}%";
+            var ilikeQuery = baseQuery.Where(p => EF.Functions.ILike(p.ProductCode, s)
+                                              || EF.Functions.ILike(p.NameTh, s));
+            var rows = await ProjectAsync(ilikeQuery, ct);
+            if (rows.Count > 0)
+                return rows;
+
+            // B1 — trigram fallback: the ILIKE pass found nothing for a non-empty search
+            // term, so retry with typo-tolerant similarity (pg_trgm — 591_seed_pg_trgm.sql).
+            var q = search.Trim();
+            var trigramQuery = baseQuery
+                .Where(p => EF.Functions.TrigramsSimilarity(p.NameTh, q) > 0.25
+                         || EF.Functions.TrigramsSimilarity(p.ProductCode, q) > 0.25)
+                .OrderByDescending(p => EF.Functions.TrigramsSimilarity(p.NameTh, q));
+            return await ProjectAsync(trigramQuery, ct, alreadyOrdered: true);
+        }
+
+        return await ProjectAsync(baseQuery.OrderBy(p => p.ProductCode), ct, alreadyOrdered: true);
+    }
+
+    private static async Task<List<ProductListItem>> ProjectAsync(
+        IQueryable<Product> query, CancellationToken ct, bool alreadyOrdered = false)
+    {
+        if (!alreadyOrdered)
+            query = query.OrderBy(p => p.ProductCode);
+        var rows = await query
             .Select(p => new { p.ProductId, p.ProductCode, p.NameTh, p.NameEn,
                                p.ProductType, p.DefaultUnitPrice, p.IsActive,
                                p.IsSaleable, p.IsPurchasable, p.BusinessUnitId,

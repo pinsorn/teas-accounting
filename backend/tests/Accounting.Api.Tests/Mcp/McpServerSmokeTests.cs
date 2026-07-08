@@ -1285,7 +1285,9 @@ public sealed class McpServerSmokeTests
         var text = result.Content.OfType<TextContentBlock>().Single().Text;
         using var doc = JsonDocument.Parse(text);
         var url = doc.RootElement.GetProperty("url").GetString()!;
-        url.Should().Contain($"/api/v1/tax-invoices/{tiId}/pdf");
+        // §A (mcp-expansion) — pdf-url tools now mint a public, browser-openable link
+        // instead of the api-key-gated /api/v1/.../pdf route.
+        url.Should().Contain("/public/pdf?t=");
 
         // Fetch the URL — must return a real PDF.
         var pdfResp = await http.GetAsync(url);
@@ -1388,7 +1390,9 @@ public sealed class McpServerSmokeTests
         var text = result.Content.OfType<TextContentBlock>().Single().Text;
         using var doc = JsonDocument.Parse(text);
         var url = doc.RootElement.GetProperty("url").GetString()!;
-        url.Should().Contain($"/api/v1/purchase-orders/{draftId}/pdf");
+        // §A (mcp-expansion) — pdf-url tools now mint a public, browser-openable link
+        // instead of the api-key-gated /api/v1/.../pdf route.
+        url.Should().Contain("/public/pdf?t=");
 
         var pdfResp = await http.GetAsync(url);
         pdfResp.StatusCode.Should().Be(HttpStatusCode.OK);
