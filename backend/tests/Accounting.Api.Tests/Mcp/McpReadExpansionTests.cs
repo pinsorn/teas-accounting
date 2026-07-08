@@ -188,6 +188,48 @@ public sealed class McpReadExpansionTests
             "company 1's onboarding seed populates a full chart of accounts");
     }
 
+    // R5 field-test finding: get_profit_loss silently EXCLUDED untagged-BU revenue by default
+    // (includeUnspecified defaulted to false), so an LLM caller who never passes it sees
+    // revenue=0 with no signal even though real posted revenue exists. Fixed to default true —
+    // the report covers ALL revenue/expense unless the caller explicitly excludes untagged docs.
+    [SkippableFact]
+    public async Task Fix1_get_profit_loss_includes_untagged_bu_revenue_when_flag_omitted()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var today = new SystemClock().TodayInBangkok();
+
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var tiSvc = scope.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            var id = await tiSvc.CreateDraftAsync(new CreateTaxInvoiceRequest(
+                today, co.CustomerId, false, "THB", 1m, null, null, null,
+                [new TaxInvoiceLineInput(null, null, "untagged revenue", 1m, 1, "ชิ้น", 13000m, 0m, 1, "VAT7", 0.07m)],
+                null), default); // BusinessUnitId omitted — this posting is deliberately untagged.
+            await tiSvc.PostAsync(id, default);
+        }
+
+        var key = await MintKeyAsync(co.CompanyId);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var from = new DateOnly(today.Year, today.Month, 1);
+        var to = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+
+        // includeUnspecified is intentionally OMITTED — proves the new default (true), not
+        // the old silent-exclusion default (false).
+        var result = await client.CallToolAsync("get_profit_loss",
+            new Dictionary<string, object?> { ["fromDate"] = from, ["toDate"] = to });
+        result.IsError.Should().NotBe(true);
+        var root = ResultRoot(result);
+        root.GetProperty("totals").GetProperty("revenue").GetDecimal().Should().Be(13000m,
+            "Fix 1: omitting includeUnspecified must still include untagged-BU revenue — the P&L " +
+            "must never silently exclude posted revenue with no signal to the caller");
+    }
+
     [SkippableFact]
     public async Task Mcp_get_company_info_returns_seeded_company_and_branch_fields()
     {

@@ -688,14 +688,14 @@ public sealed class TeasMcpTools
         [Description("End of the date range (inclusive).")] DateOnly toDate,
         IFinancialReportService svc,
         [Description("Filter to one business unit; omit for all.")] int? businessUnitId = null,
-        [Description("Include documents with no business unit tagged (default false).")] bool? includeUnspecified = null,
+        [Description("Include documents with no business unit tagged (default true — the report covers ALL revenue/expense unless you explicitly exclude untagged docs by passing false).")] bool? includeUnspecified = null,
         CancellationToken ct = default) =>
-        svc.ProfitLossAsync(fromDate, toDate, businessUnitId, includeUnspecified ?? false, ct);
+        svc.ProfitLossAsync(fromDate, toDate, businessUnitId, includeUnspecified ?? true, ct);
 
     [McpServerTool(Name = "get_general_ledger"), Authorize(Policy = ReportGeneralLedger)]
     [Description("Get the general ledger drill-down (opening balance, postings, closing balance) for one GL account over a date range. Use list_gl_accounts to resolve the accountId.")]
     public static Task<GeneralLedgerReport> GetGeneralLedgerAsync(
-        [Description("The GL account id (resolve via list_gl_accounts).")] long accountId,
+        [Description("The GL account's internal id — the accountId field from list_gl_accounts, NOT the account code.")] long accountId,
         [Description("Start of the date range (inclusive).")] DateOnly fromDate,
         [Description("End of the date range (inclusive).")] DateOnly toDate,
         IFinancialReportService svc,
@@ -1263,7 +1263,7 @@ public sealed class TeasMcpTools
     }
 
     [McpServerTool(Name = "get_document_status"), Authorize(Policy = TaxInvoiceRead)]
-    [Description("Get the current status of a document THIS API key created, by type and id. Returns status string, whether it has been posted/approved, and the document number (null if still a draft). Returns not-found for documents in other companies OR not created by this key. Use this to poll whether a draft the agent created has been approved and posted by a human.")]
+    [Description("Get the current status of a document THIS API key created, by type and id. Returns status string, whether it has been posted/approved, and the document number (null if still a draft). Returns not-found for documents in other companies OR not created by this key. Use this to poll whether a draft the agent created has been approved and posted by a human. Only documents created via THIS connector/API key are visible (anti-enumeration guard) — documents created in the web UI or by other keys return not_found by design.")]
     public static async Task<DocumentStatusResult> GetDocumentStatusAsync(
         [Description("Document type: tax-invoice | quotation | receipt | purchase-order | vendor-invoice | payment-voucher.")] string type,
         [Description("Document id.")] long id,
