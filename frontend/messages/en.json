@@ -187,6 +187,13 @@
     "glCashAccount": "GL cash account",
     "glCashAccountDefault": "(default — 1120 Bank)",
     "currency": "Currency",
+    "imports": "Statement Imports",
+    "importUpload": "Import statement",
+    "importFileRequired": "Choose a CSV or PDF file first.",
+    "importSuccess": "Imported {count} lines",
+    "importOverlapWarning": "This period overlaps a previous import for this bank account — check for duplicates.",
+    "importPassword": "PDF password",
+    "importLines": "lines",
     "err": {
       "required": "Required",
       "maxLength": "Too long",

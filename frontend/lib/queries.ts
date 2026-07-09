@@ -108,6 +108,8 @@ import type {
   BankAccountDetail,
   CreateBankAccountRequest,
   UpdateBankAccountRequest,
+  StatementImportListItem,
+  StatementImportResult,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -973,6 +975,29 @@ export function useUpdateBankAccount(id: number) {
       qc.invalidateQueries({ queryKey: ['bank-accounts'] });
       qc.invalidateQueries({ queryKey: ['bank-account', id] });
     },
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B2) — statement imports.
+export function useStatementImports(bankAccountId: number) {
+  return useQuery({
+    queryKey: ['statement-imports', bankAccountId],
+    enabled: bankAccountId > 0,
+    queryFn: () => apiGet<StatementImportListItem[]>(`bank-accounts/${bankAccountId}/imports`),
+  });
+}
+export function useUploadStatement(bankAccountId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (fd: FormData) => {
+      // multipart goes through the BFF proxy; let the browser set the boundary.
+      const res = await fetch(`/api/proxy/bank-accounts/${bankAccountId}/imports`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail ?? `Upload failed (${res.status})`);
+      }
+      return res.json() as Promise<StatementImportResult>;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-imports', bankAccountId] }),
   });
 }
 // General Ledger (บัญชีแยกประเภท) — per-account drill-down + JE detail (2026-07-07).

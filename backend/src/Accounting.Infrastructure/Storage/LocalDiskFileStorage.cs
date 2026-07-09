@@ -15,6 +15,7 @@ public sealed class FileStorageOptions
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.ms-outlook",
+        "text/csv",   // Bank reconciliation B2 — KBiz statement upload
     ];
 }
 

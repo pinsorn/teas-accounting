@@ -526,6 +526,7 @@ app.MapCustomerEndpoints();
 app.MapMasterEndpoints();
 app.MapBusinessUnitEndpoints();
 app.MapBankAccountEndpoints();
+app.MapStatementImportEndpoints();
 app.MapRbacAdminEndpoints();
 app.MapEmployeeEndpoints();
 app.MapPayrollEndpoints();

@@ -63,6 +63,8 @@ public sealed class AttachmentService(
         AttachmentParentType.PurchaseOrder     => false,   // Sprint 12 — no table yet
         AttachmentParentType.BillingNote       => await db.BillingNotes.AnyAsync(x => x.BillingNoteId == id, ct),
         AttachmentParentType.CompanyProfile    => await db.CompanyProfiles.AnyAsync(x => x.CompanyId == (int)id, ct),
+        // Bank reconciliation B2 (D11) — statement_imports.attachment_id reuses this infra.
+        AttachmentParentType.BankStatement     => await db.StatementImports.AnyAsync(x => x.StatementImportId == id, ct),
         _ => false,
     };
 

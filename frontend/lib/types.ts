@@ -1320,6 +1320,26 @@ export interface UpdateBankAccountRequest {
   isActive: boolean;
 }
 
+// Bank reconciliation (specs/bank-reconciliation.md B2) — statement imports.
+export interface StatementImportListItem {
+  statementImportId: number;
+  bankAccountId: number;
+  adapterCode: string;
+  sourceFileName: string;
+  periodStart: string;
+  periodEnd: string;
+  openingBalance: number;
+  closingBalance: number;
+  lineCount: number;
+  status: 'Parsed' | 'Failed';
+  importedAt: string;
+}
+export interface StatementImportResult {
+  statementImportId: number;
+  lineCount: number;
+  overlapWarning: boolean;
+}
+
 // ── Request types for Task 2 type-safety (06-H3) ──────────────────────────
 
 export interface ReceiptApplicationInput {

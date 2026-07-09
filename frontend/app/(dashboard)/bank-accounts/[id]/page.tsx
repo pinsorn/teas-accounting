@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { StatementImportSection } from '@/components/bank/StatementImportSection';
 import { useBankAccount, useUpdateBankAccount, useGlAccounts } from '@/lib/queries';
 
 // Bank reconciliation (specs/bank-reconciliation.md B1.11) — bank-account create-edit form
@@ -135,6 +136,8 @@ export default function BankAccountEditPage({ params }: { params: Promise<{ id: 
           </button>
         </div>
       </form>
+
+      <StatementImportSection bankAccountId={bid} />
     </>
   );
 }

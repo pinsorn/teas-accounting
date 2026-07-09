@@ -22,6 +22,7 @@ public static class AttachmentCodes
             [AttachmentParentType.PurchaseOrder]     = "PURCHASE_ORDER",
             [AttachmentParentType.BillingNote]       = "BILLING_NOTE",
             [AttachmentParentType.CompanyProfile]    = "COMPANY_PROFILE",
+            [AttachmentParentType.BankStatement]     = "BANK_STATEMENT",
         };
 
     public static readonly IReadOnlyDictionary<AttachmentCategory, string> CategoryDb =
@@ -38,6 +39,7 @@ public static class AttachmentCodes
             [AttachmentCategory.ExpenseClaimForm] = "EXPENSE_CLAIM_FORM",
             [AttachmentCategory.CustomsDecl]      = "CUSTOMS_DECL",
             [AttachmentCategory.Other]            = "OTHER",
+            [AttachmentCategory.BankStatement]    = "BANK_STATEMENT",
         };
 
     private static readonly Dictionary<string, AttachmentParentType> ParentRev =

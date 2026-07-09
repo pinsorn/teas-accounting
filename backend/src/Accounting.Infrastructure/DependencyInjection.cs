@@ -99,8 +99,10 @@ public static class DependencyInjection
         services.AddScoped<Application.Ledger.IPeriodCloseService,       Ledger.PeriodCloseService>();
         services.AddScoped<Application.Ledger.IYearCloseService,         Ledger.YearCloseService>();
 
-        // Bank reconciliation (specs/bank-reconciliation.md B1).
+        // Bank reconciliation (specs/bank-reconciliation.md B1/B2).
         services.AddScoped<Application.Bank.IBankAccountService,         Bank.BankAccountService>();
+        services.AddScoped<Application.Bank.IStatementImportService,     Bank.StatementImportService>();
+        services.AddScoped<Application.Bank.IBankStatementAdapter,       Bank.Adapters.KBizCsvAdapter>();
 
         // GL auto-posting — bind account-code map then register the poster.
         services.AddOptions<Ledger.GlAccountsOptions>().Bind(cfg.GetSection("GlAccounts"));

@@ -187,6 +187,13 @@
     "glCashAccount": "บัญชี GL (เงินฝากธนาคาร)",
     "glCashAccountDefault": "(ค่าเริ่มต้น — 1120 เงินฝากธนาคาร)",
     "currency": "สกุลเงิน",
+    "imports": "รายการนำเข้า Statement",
+    "importUpload": "นำเข้า Statement",
+    "importFileRequired": "กรุณาเลือกไฟล์ CSV หรือ PDF ก่อน",
+    "importSuccess": "นำเข้าสำเร็จ {count} รายการ",
+    "importOverlapWarning": "ช่วงวันที่นี้ซ้อนทับกับการนำเข้าก่อนหน้าของบัญชีนี้ — ตรวจสอบรายการซ้ำ",
+    "importPassword": "รหัสผ่าน PDF",
+    "importLines": "รายการ",
     "err": {
       "required": "ต้องระบุ",
       "maxLength": "ยาวเกินไป",
