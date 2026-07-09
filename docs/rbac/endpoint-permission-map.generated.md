@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 14 |
-| Perm | 258 |
+| Perm | 265 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **312** |
+| **TOTAL** | **319** |
 
 ## Routes
 
@@ -76,6 +76,13 @@
 | GET | `/bank-accounts/{bankAccountId:int}/imports/` | Perm | bank.statement.import |
 | POST | `/bank-accounts/{bankAccountId:int}/imports/` | Perm | bank.statement.import |
 | GET | `/bank-accounts/{bankAccountId:int}/imports/{importId:long}/lines` | Perm | bank.statement.import |
+| POST | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/ignore` | Perm | bank.reconcile |
+| POST | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/journal` | Perm | bank.reconcile |
+| POST | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/match` | Perm | bank.reconcile |
+| GET | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/suggestions` | Perm | bank.reconcile |
+| POST | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/unignore` | Perm | bank.reconcile |
+| POST | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/unmatch` | Perm | bank.reconcile |
+| GET | `/bank-accounts/{bankAccountId:int}/reconciliation` | Perm | bank.report.read |
 | DELETE | `/bank-accounts/{id:int}` | Perm | bank.account.manage |
 | GET | `/bank-accounts/{id:int}` | Perm | bank.account.read |
 | PUT | `/bank-accounts/{id:int}` | Perm | bank.account.manage |

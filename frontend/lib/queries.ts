@@ -110,6 +110,12 @@ import type {
   UpdateBankAccountRequest,
   StatementImportListItem,
   StatementImportResult,
+  StatementImportLineItem,
+  MatchSuggestion,
+  ConfirmMatchRequest,
+  CreateInlineJournalRequest,
+  CreateInlineJournalResult,
+  BankReconciliationReport,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -998,6 +1004,67 @@ export function useUploadStatement(bankAccountId: number) {
       return res.json() as Promise<StatementImportResult>;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-imports', bankAccountId] }),
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B4) — matching engine + inline JE.
+export function useStatementLines(bankAccountId: number, importId: number) {
+  return useQuery({
+    queryKey: ['statement-lines', importId],
+    enabled: importId > 0,
+    queryFn: () => apiGet<StatementImportLineItem[]>(`bank-accounts/${bankAccountId}/imports/${importId}/lines`),
+  });
+}
+export function useMatchSuggestions(bankAccountId: number, lineId: number | null) {
+  return useQuery({
+    queryKey: ['match-suggestions', lineId],
+    enabled: lineId != null && lineId > 0,
+    queryFn: () => apiGet<MatchSuggestion[]>(`bank-accounts/${bankAccountId}/lines/${lineId}/suggestions`),
+  });
+}
+export function useConfirmMatch(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, req }: { lineId: number; req: ConfirmMatchRequest }) =>
+      apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/match`, req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useUnmatchLine(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: number) => apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/unmatch`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useCreateInlineJournal(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, req }: { lineId: number; req: CreateInlineJournalRequest }) =>
+      apiPost<CreateInlineJournalResult>(`bank-accounts/${bankAccountId}/lines/${lineId}/journal`, req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useIgnoreLine(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: number) => apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/ignore`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useUnignoreLine(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: number) => apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/unignore`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B5) — reconciliation report.
+export function useBankReconciliationReport(bankAccountId: number, from: string, to: string) {
+  return useQuery({
+    queryKey: ['bank-reconciliation-report', bankAccountId, from, to],
+    enabled: bankAccountId > 0 && !!from && !!to,
+    queryFn: () => apiGet<BankReconciliationReport>(
+      `bank-accounts/${bankAccountId}/reconciliation${qs({ from, to })}`),
   });
 }
 // General Ledger (บัญชีแยกประเภท) — per-account drill-down + JE detail (2026-07-07).

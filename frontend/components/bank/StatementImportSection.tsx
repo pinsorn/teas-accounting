@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { useStatementImports, useUploadStatement } from '@/lib/queries';
@@ -60,7 +61,10 @@ export function StatementImportSection({ bankAccountId }: { bankAccountId: numbe
             {items.map((imp) => (
               <tr key={imp.statementImportId} data-testid="import-row">
                 <td>
-                  <span className="font-medium">{imp.sourceFileName}</span>
+                  <Link href={`/bank-accounts/${bankAccountId}/imports/${imp.statementImportId}`}
+                    className="link link-primary font-medium">
+                    {imp.sourceFileName}
+                  </Link>
                   <span className="ml-2 text-xs text-base-content/60">
                     {imp.periodStart} — {imp.periodEnd} · {imp.lineCount} {t('importLines')}
                   </span>
