@@ -103,6 +103,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Bank.IBankAccountService,         Bank.BankAccountService>();
         services.AddScoped<Application.Bank.IStatementImportService,     Bank.StatementImportService>();
         services.AddScoped<Application.Bank.IBankStatementAdapter,       Bank.Adapters.KBizCsvAdapter>();
+        services.AddScoped<Application.Bank.IBankStatementAdapter,       Bank.Adapters.KPlusPdfAdapter>();
 
         // GL auto-posting — bind account-code map then register the poster.
         services.AddOptions<Ledger.GlAccountsOptions>().Bind(cfg.GetSection("GlAccounts"));

@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 14 |
-| Perm | 255 |
+| Perm | 258 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **309** |
+| **TOTAL** | **312** |
 
 ## Routes
 
@@ -73,6 +73,9 @@
 | POST | `/auth/switch-company/{companyId:int}` | Perm | master.company.manage |
 | GET | `/bank-accounts/` | Perm | bank.account.read |
 | POST | `/bank-accounts/` | Perm | bank.account.manage |
+| GET | `/bank-accounts/{bankAccountId:int}/imports/` | Perm | bank.statement.import |
+| POST | `/bank-accounts/{bankAccountId:int}/imports/` | Perm | bank.statement.import |
+| GET | `/bank-accounts/{bankAccountId:int}/imports/{importId:long}/lines` | Perm | bank.statement.import |
 | DELETE | `/bank-accounts/{id:int}` | Perm | bank.account.manage |
 | GET | `/bank-accounts/{id:int}` | Perm | bank.account.read |
 | PUT | `/bank-accounts/{id:int}` | Perm | bank.account.manage |
