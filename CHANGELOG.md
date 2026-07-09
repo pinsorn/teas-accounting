@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.16.0](https://github.com/pinsorn/teas-accounting/compare/v1.15.1...v1.16.0) (2026-07-09)
+
+
+### Features
+
+* **bank:** bank reconciliation B1 - schema + bank account master ([4381cd7](https://github.com/pinsorn/teas-accounting/commit/4381cd75b6dfa410678b817bd9a62d77345c3148))
+* **bank:** bank reconciliation B2 - statement import + KBiz CSV adapter ([c90d70e](https://github.com/pinsorn/teas-accounting/commit/c90d70ebb105587621c6a8e6320d3f351ffd0b0a))
+* **bank:** bank reconciliation B3 - K-Plus PDF adapter ([a8f3602](https://github.com/pinsorn/teas-accounting/commit/a8f3602a6b7088fa9a465eff5a3ee5170b436a1b))
+* **bank:** bank reconciliation B4+B5 - matching engine, inline JE, report ([cd23713](https://github.com/pinsorn/teas-accounting/commit/cd237133c27aeefc41d7bb99a63f0d35acb4dd52))
+* **bank:** Cycle B — bank reconciliation (KBiz CSV + K-Plus PDF) ([68574db](https://github.com/pinsorn/teas-accounting/commit/68574db7c523a531f1a044d418e8d3fc67da8045))
+
+
+### Bug Fixes
+
+* **bank:** cross-review findings + CI-portable storage in import tests ([c4c71d6](https://github.com/pinsorn/teas-accounting/commit/c4c71d6cbbad9cbea048c502ffed53119776f66c))
+
 ## [1.15.1](https://github.com/pinsorn/teas-accounting/compare/v1.15.0...v1.15.1) (2026-07-08)
 
 
