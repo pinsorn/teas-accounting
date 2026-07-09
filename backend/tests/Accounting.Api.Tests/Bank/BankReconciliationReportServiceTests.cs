@@ -291,6 +291,36 @@ public sealed class BankReconciliationReportServiceTests
             "GL(0) + unmatchedNet(-20) = -20 = statement — worked independently of the implementation");
     }
 
+    // Cross-period (Fable cross-review finding, 2026-07-09, BLOCKING): a reconciling item dated
+    // BEFORE `from` must still be picked up — GL balance and statement balance are CUMULATIVE
+    // (<= to only), so the three item queries must be too, or the item silently drops from both
+    // the list and the Difference math while still being baked into the two balances. Same shape
+    // as the unmatched-bank-fee scenario, but the fee is dated LAST month while the report window
+    // is the CURRENT month (from = current month start — the FE's own default) to today.
+    [SkippableFact]
+    public async Task Item_dated_before_from_still_appears_and_ties_out_cumulatively()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp, bankAccountId, _) = await SetupAsync();
+        var lastMonth = Today.AddMonths(-1);
+        var monthStart = new DateOnly(Today.Year, Today.Month, 1);
+
+        var importId = await SeedImportAsync(sp, co.CompanyId, bankAccountId, lastMonth, lastMonth, -20.00m);
+        await SeedStatementLineAsync(sp, co.CompanyId, importId, bankAccountId, StatementDirection.MoneyOut, 20.00m, lastMonth);
+
+        await using var s = sp.CreateAsyncScope();
+        var reportSvc = s.ServiceProvider.GetRequiredService<IBankReconciliationReportService>();
+        // Report window = the CURRENT month, same as the FE's default filter — the fee is
+        // dated BEFORE `from` and must still surface.
+        var report = await reportSvc.GetAsync(bankAccountId, monthStart, Today, default);
+
+        report.UnmatchedLines.Should().ContainSingle(x => x.Amount == -20.00m,
+            "an item dated before `from` must still appear — the tie-out is cumulative, not windowed");
+        report.Difference.Should().Be(0m,
+            "GL(0) + unmatchedNet(-20) = -20 = statement, regardless of `from` — a lower-bounded " +
+            "item query would have dropped this item and left Difference permanently nonzero");
+    }
+
     // (5) Non-zero case: take the fully-reconciled scenario and alter the STATEMENT's own
     // closing balance to be too high by 50 (simulating a parse/import error, not a real
     // reconciling item) — Difference must be strictly positive (statement over-reports

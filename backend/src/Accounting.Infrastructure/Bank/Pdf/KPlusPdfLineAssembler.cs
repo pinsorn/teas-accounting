@@ -141,6 +141,11 @@ public static class KPlusPdfLineAssembler
         if (row.Amount.Length == 0)
             throw new DomainException("bank.pdf_missing_amount", $"Row dated {row.Date} has no amount value.");
 
+        // A zero delta (balance == runningBalance) falls through to MoneyOut — an arbitrary but
+        // SAFE default: a genuine zero-movement row would only reach here with a printed Amount
+        // of 0 too, and D10's shared balance-delta check (Amount == |delta|) still holds either
+        // way (|0|==0); any REAL mismatch (e.g. Amount>0 with delta==0) is still flagged loudly
+        // by BankStatementIntegrity.Validate, not silently accepted just because direction guessed.
         var direction = balance > runningBalance.Value ? StatementDirection.MoneyIn : StatementDirection.MoneyOut;
         var amount = ParseAmount(row.Amount);
         var description = row.Detail.Trim();

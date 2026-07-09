@@ -39,32 +39,40 @@ public sealed class BankReconciliationReportService(AccountingDbContext db, ITen
             .ToListAsync(ct);
         var glBalance = glLines.Sum(x => x.DebitAmount) - glLines.Sum(x => x.CreditAmount);
 
-        // (a) Unmatched statement lines, in-period, for THIS bank account.
+        // (a) Unmatched statement lines, for THIS bank account. CUMULATIVE (TxnDate <= to only,
+        // NO lower bound) — GL balance and statement balance above are both cumulative-as-of-`to`,
+        // so a reconciling item must be too, or an item dated before `from` silently drops out of
+        // BOTH the list and the Difference math while still being baked into the two balances,
+        // leaving a permanently nonzero, unexplained Difference (Fable cross-review finding,
+        // 2026-07-09 — `from` defaulted to the current month start in the FE, so this fired every
+        // month after the first). `from`/`to` stay on the DTO/route for display filtering only.
         var unmatchedLines = await db.StatementLines.AsNoTracking()
             .Where(x => x.CompanyId == tenant.CompanyId && x.BankAccountId == bankAccountId
-                && x.MatchStatus == MatchStatus.Unmatched && x.TxnDate >= from && x.TxnDate <= to)
+                && x.MatchStatus == MatchStatus.Unmatched && x.TxnDate <= to)
             .ToListAsync(ct);
         var unmatchedLinesNet = unmatchedLines.Sum(x => x.Direction == StatementDirection.MoneyIn ? x.Amount : -x.Amount);
 
-        // (b) Deposits-in-transit — POSTED Receipts in-period not matched to ANY statement line
-        // (matching is company-wide, not scoped to bankAccountId — D6's single-1120-account model).
+        // (b) Deposits-in-transit — POSTED Receipts, CUMULATIVE (DocDate <= to only — see (a)),
+        // not matched to ANY statement line (matching is company-wide, not scoped to
+        // bankAccountId — D6's single-1120-account model).
         var matchedReceiptIds = await db.StatementLines.AsNoTracking()
             .Where(x => x.CompanyId == tenant.CompanyId && x.MatchedReceiptId != null)
             .Select(x => x.MatchedReceiptId!.Value)
             .ToListAsync(ct);
         var depositsInTransit = await db.Receipts.AsNoTracking()
             .Where(r => r.CompanyId == tenant.CompanyId && r.Status == DocumentStatus.Posted
-                && r.DocDate >= from && r.DocDate <= to && !matchedReceiptIds.Contains(r.ReceiptId))
+                && r.DocDate <= to && !matchedReceiptIds.Contains(r.ReceiptId))
             .ToListAsync(ct);
 
-        // (c) Outstanding payments — POSTED PVs in-period not matched to ANY statement line.
+        // (c) Outstanding payments — POSTED PVs, CUMULATIVE (DocDate <= to only — see (a)),
+        // not matched to ANY statement line.
         var matchedPvIds = await db.StatementLines.AsNoTracking()
             .Where(x => x.CompanyId == tenant.CompanyId && x.MatchedPaymentVoucherId != null)
             .Select(x => x.MatchedPaymentVoucherId!.Value)
             .ToListAsync(ct);
         var outstandingPayments = await db.PaymentVouchers.AsNoTracking()
             .Where(p => p.CompanyId == tenant.CompanyId && p.Status == DocumentStatus.Posted
-                && p.DocDate >= from && p.DocDate <= to && !matchedPvIds.Contains(p.PaymentVoucherId))
+                && p.DocDate <= to && !matchedPvIds.Contains(p.PaymentVoucherId))
             .ToListAsync(ct);
 
         var depositsTotal = depositsInTransit.Sum(r => r.CashReceived);

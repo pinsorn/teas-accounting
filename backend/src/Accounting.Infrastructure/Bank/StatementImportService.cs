@@ -5,14 +5,17 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Bank;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Bank;
 
 /// <summary>Bank reconciliation (specs/bank-reconciliation.md B2.5).</summary>
 public sealed class StatementImportService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
-    IEnumerable<IBankStatementAdapter> adapters, IAttachmentService attachments)
+    IEnumerable<IBankStatementAdapter> adapters, IAttachmentService attachments,
+    IOptions<FileStorageOptions> fileStorageOptions)
     : IStatementImportService
 {
     public async Task<StatementImportResult> ImportAsync(
@@ -26,6 +29,17 @@ public sealed class StatementImportService(
             .AnyAsync(x => x.BankAccountId == bankAccountId && x.CompanyId == tenant.CompanyId, ct);
         if (!bankAccountExists)
             throw new DomainException("bank_account.not_found", $"Bank account {bankAccountId} not found.");
+
+        // Reject cheap first (Fable cross-review, 2026-07-09) — the SAME size/mime limits
+        // AttachmentService.UploadAsync enforces, checked BEFORE the expensive adapter.Parse
+        // (previously this validation only ran downstream, inside UploadAsync, AFTER a full
+        // parse of an oversized/disallowed file).
+        var maxBytes = (long)fileStorageOptions.Value.MaxFileSizeMb * 1024 * 1024;
+        if (sizeBytes > maxBytes)
+            throw new DomainException("attachment.too_large",
+                $"File exceeds the {fileStorageOptions.Value.MaxFileSizeMb} MB limit.");
+        if (!fileStorageOptions.Value.AllowedMimeTypes.Contains(mimeType, StringComparer.OrdinalIgnoreCase))
+            throw new DomainException("attachment.bad_mime", $"MIME type '{mimeType}' is not allowed.");
 
         var adapter = adapters.FirstOrDefault(a => a.CanHandle(fileName, mimeType))
             ?? throw new DomainException("bank.no_adapter", $"No adapter can handle '{fileName}' ({mimeType}).");

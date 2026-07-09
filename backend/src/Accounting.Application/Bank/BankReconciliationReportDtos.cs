@@ -19,9 +19,16 @@ public sealed record BankReconciliationReport(
 
 public interface IBankReconciliationReportService
 {
-    /// <summary>Tie-out: GL balance + deposits-in-transit − outstanding-payments ±
-    /// unmatched-lines == statement closing balance; <c>Difference</c> is 0 when fully
-    /// reconciled. GL balance = Dr−Cr over Posted journal lines on the bank account's
-    /// gl_cash_account_id, DocDate ≤ <paramref name="to"/> (same shape as TrialBalanceAsync).</summary>
+    /// <summary>Tie-out (corrected 2026-07-09): GL balance − deposits-in-transit +
+    /// outstanding-payments ± unmatched-lines == statement closing balance; <c>Difference</c>
+    /// is 0 when fully reconciled. GL balance = Dr−Cr over Posted journal lines on the bank
+    /// account's gl_cash_account_id, DocDate ≤ <paramref name="to"/> (same shape as
+    /// TrialBalanceAsync) — CUMULATIVE, not bounded by <paramref name="from"/>. The three
+    /// reconciling-item queries (unmatched lines, deposits-in-transit, outstanding payments)
+    /// are likewise CUMULATIVE (≤ <paramref name="to"/> only, no lower bound) so an unresolved
+    /// item dated before <paramref name="from"/> still appears in both the item list and the
+    /// Difference math — the tie-out identity itself is cumulative-as-of-period-end, so a
+    /// lower-bounded item query would silently drop items already baked into the two balances.
+    /// <paramref name="from"/> is carried through to the DTO for display/filtering only.</summary>
     Task<BankReconciliationReport> GetAsync(int bankAccountId, DateOnly from, DateOnly to, CancellationToken ct);
 }

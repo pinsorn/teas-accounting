@@ -1,9 +1,12 @@
 using Accounting.Api.Tests.Fixtures;
+using Accounting.Application.Abstractions;
 using Accounting.Application.Bank;
 using Accounting.Domain.Common;
+using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -15,15 +18,47 @@ namespace Accounting.Api.Tests.Bank;
 /// the import and persist NOTHING (no StatementImport/StatementLine rows).
 /// </summary>
 [Collection(nameof(PostgresCollection))]
-public sealed class StatementImportServiceTests
+public sealed class StatementImportServiceTests : IDisposable
 {
     private readonly PostgresFixture _fx;
+
+    // Fable cross-review (2026-07-09, CI failure on PR #64) — ImportAsync uploads through the
+    // REAL Attachment infra (D11: raw bytes stored as-uploaded), which writes to
+    // LocalDiskFileStorage's configured StorageRoot. TestCompanyFactory.BuildProvider uses the
+    // DEFAULT root (/var/teas/attachments) — unwritable on a CI runner (UnauthorizedAccessException
+    // on Linux; happened to work locally on Windows, so the local suite was green while CI was
+    // red). Mirrors Sprint11AttachmentTests' own Provider() override exactly: a per-test temp
+    // directory, cleaned up in Dispose.
+    private readonly string _storageRoot =
+        Path.Combine(Path.GetTempPath(), "teas-it-" + Guid.NewGuid().ToString("N")[..8]);
+
     public StatementImportServiceTests(PostgresFixture fx) => _fx = fx;
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_storageRoot)) Directory.Delete(_storageRoot, recursive: true);
+    }
+
+    private ServiceProvider BuildProviderWithTempStorage(int companyId, int branchId)
+    {
+        var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Postgres"] = _fx.ConnectionString,
+            ["FileStorage:StorageRoot"] = _storageRoot,
+            ["FileStorage:MaxFileSizeMb"] = "25",
+        }).Build();
+        var s = new ServiceCollection();
+        s.AddLogging();
+        return s.AddInfrastructure(cfg)
+            .AddSingleton<ITenantContext>(new StubTenant
+            { CompanyId = companyId, BranchId = branchId, UserId = 1, IsSuperAdmin = false })
+            .BuildServiceProvider();
+    }
 
     private async Task<(int BankAccountId, ServiceProvider Sp)> SeedBankAccountAsync()
     {
         var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
-        var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var sp = BuildProviderWithTempStorage(co.CompanyId, co.BranchId);
         await using var s = sp.CreateAsyncScope();
         var bankSvc = s.ServiceProvider.GetRequiredService<IBankAccountService>();
         var id = await bankSvc.CreateAsync(new CreateBankAccountRequest(
