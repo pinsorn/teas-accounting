@@ -390,6 +390,22 @@ public sealed class GlPostingService : IGlPostingService
         return je.JournalId;
     }
 
+    /// <summary>Bank reconciliation (specs/bank-reconciliation.md D7) — thin public wrapper over
+    /// the same private <see cref="BuildAndPostAsync"/> balance-check + JV-number + MarkPosted
+    /// machinery every other poster uses, taking ALREADY-RESOLVED AccountIds. Never touches
+    /// <see cref="PostClosingEntryAsync"/> or any existing poster.</summary>
+    public async Task<long> PostManualEntryAsync(
+        int companyId, int branchId, DateOnly docDate, string description, string? reference,
+        IReadOnlyList<(long AccountId, decimal Debit, decimal Credit)> lines, CancellationToken ct)
+    {
+        var journalLines = lines.Select((l, i) => new JournalLine
+        {
+            LineNo = i + 1, AccountId = l.AccountId, DebitAmount = l.Debit, CreditAmount = l.Credit,
+        }).ToList();
+
+        return await BuildAndPostAsync(companyId, branchId, docDate, description, reference, journalLines, ct);
+    }
+
     private async Task<long> BuildAndPostAsync(
         int companyId, int branchId, DateOnly docDate,
         string description, string? reference, List<JournalLine> lines, CancellationToken ct,

@@ -113,6 +113,287 @@ namespace Accounting.Infrastructure.Migrations
                     b.ToTable("activity_log", "audit");
                 });
 
+            modelBuilder.Entity("Accounting.Domain.Entities.Bank.BankAccount", b =>
+                {
+                    b.Property<int>("BankAccountId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("bank_account_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("BankAccountId"));
+
+                    b.Property<string>("AccountName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("account_name");
+
+                    b.Property<string>("AccountNo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("account_no");
+
+                    b.Property<string>("AccountType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("account_type");
+
+                    b.Property<string>("BankCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("bank_code");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("bank_name");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasDefaultValue("THB")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<long>("GlCashAccountId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("gl_cash_account_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.HasKey("BankAccountId")
+                        .HasName("pk_bank_accounts");
+
+                    b.HasIndex("GlCashAccountId")
+                        .HasDatabaseName("ix_bank_accounts_gl_cash_account_id");
+
+                    b.HasIndex("CompanyId", "AccountNo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_bank_accounts_company_id_account_no");
+
+                    b.ToTable("bank_accounts", "bank");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Bank.StatementImport", b =>
+                {
+                    b.Property<long>("StatementImportId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("statement_import_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("StatementImportId"));
+
+                    b.Property<string>("AdapterCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("adapter_code");
+
+                    b.Property<long?>("AttachmentId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("attachment_id");
+
+                    b.Property<int>("BankAccountId")
+                        .HasColumnType("integer")
+                        .HasColumnName("bank_account_id");
+
+                    b.Property<decimal>("ClosingBalance")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("closing_balance");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<decimal?>("DepositTotal")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("deposit_total");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("imported_at");
+
+                    b.Property<long>("ImportedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("imported_by");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_count");
+
+                    b.Property<decimal>("OpeningBalance")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("opening_balance");
+
+                    b.Property<DateOnly>("PeriodEnd")
+                        .HasColumnType("date")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date")
+                        .HasColumnName("period_start");
+
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("source_file_name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<decimal?>("WithdrawalTotal")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("withdrawal_total");
+
+                    b.HasKey("StatementImportId")
+                        .HasName("pk_statement_imports");
+
+                    b.HasIndex("CompanyId", "BankAccountId", "PeriodStart")
+                        .HasDatabaseName("ix_statement_imports_company_id_bank_account_id_period_start");
+
+                    b.ToTable("statement_imports", "bank");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Bank.StatementLine", b =>
+                {
+                    b.Property<long>("StatementLineId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("statement_line_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("StatementLineId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<int>("BankAccountId")
+                        .HasColumnType("integer")
+                        .HasColumnName("bank_account_id");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("channel");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("direction");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_no");
+
+                    b.Property<string>("MatchStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("match_status");
+
+                    b.Property<DateTimeOffset?>("MatchedAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("matched_at");
+
+                    b.Property<long?>("MatchedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("matched_by");
+
+                    b.Property<long?>("MatchedPaymentVoucherId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("matched_payment_voucher_id");
+
+                    b.Property<long?>("MatchedReceiptId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("matched_receipt_id");
+
+                    b.Property<long?>("PostedJournalId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("posted_journal_id");
+
+                    b.Property<string>("RawRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("raw_ref");
+
+                    b.Property<decimal>("RunningBalance")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("numeric(19,4)")
+                        .HasColumnName("running_balance");
+
+                    b.Property<long>("StatementImportId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("statement_import_id");
+
+                    b.Property<DateOnly>("TxnDate")
+                        .HasColumnType("date")
+                        .HasColumnName("txn_date");
+
+                    b.Property<TimeOnly?>("TxnTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("txn_time");
+
+                    b.Property<string>("TxnType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("txn_type");
+
+                    b.Property<DateOnly?>("ValueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("value_date");
+
+                    b.HasKey("StatementLineId")
+                        .HasName("pk_statement_lines");
+
+                    b.HasIndex("StatementImportId", "LineNo")
+                        .HasDatabaseName("ix_statement_lines_statement_import_id_line_no");
+
+                    b.HasIndex("CompanyId", "BankAccountId", "TxnDate")
+                        .HasDatabaseName("ix_statement_lines_company_id_bank_account_id_txn_date");
+
+                    b.ToTable("statement_lines", "bank");
+                });
+
             modelBuilder.Entity("Accounting.Domain.Entities.ETax.ETaxSubmission", b =>
                 {
                     b.Property<long>("SubmissionId")
@@ -6687,6 +6968,16 @@ namespace Accounting.Infrastructure.Migrations
                         .HasDatabaseName("ix_open_iddict_tokens_application_id_status_subject_type");
 
                     b.ToTable("OpenIddictTokens", "oauth");
+                });
+
+            modelBuilder.Entity("Accounting.Domain.Entities.Bank.BankAccount", b =>
+                {
+                    b.HasOne("Accounting.Domain.Entities.Master.ChartOfAccount", null)
+                        .WithMany()
+                        .HasForeignKey("GlCashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_bank_accounts_chart_of_accounts_gl_cash_account_id");
                 });
 
             modelBuilder.Entity("Accounting.Domain.Entities.Identity.ApiKey", b =>

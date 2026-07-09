@@ -118,6 +118,16 @@ public static class Permissions
         public const string GeneralLedger = "report.general_ledger.read";
     }
 
+    // Bank reconciliation (specs/bank-reconciliation.md D5).
+    public static class Bank
+    {
+        public const string AccountRead     = "bank.account.read";
+        public const string AccountManage   = "bank.account.manage";
+        public const string StatementImport = "bank.statement.import";
+        public const string Reconcile       = "bank.reconcile";
+        public const string ReportRead      = "bank.report.read";
+    }
+
     /// <summary>All permission codes — for seed migration.</summary>
     public static readonly IReadOnlyList<string> All =
     [
@@ -142,5 +152,6 @@ public static class Permissions
         Tax.FilingPreview, Tax.FilingFinalize, Tax.FilingRead,
         Payroll.RunManage, Payroll.RunPost, Payroll.RunPay,
         Report.TrialBalance, Report.ProfitLoss, Report.AuditRead, Report.GeneralLedger,
+        Bank.AccountRead, Bank.AccountManage, Bank.StatementImport, Bank.Reconcile, Bank.ReportRead,
     ];
 }

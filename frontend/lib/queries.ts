@@ -104,6 +104,18 @@ import type {
   UpdateBillingNoteRequest,
   CreateBillingNoteRequest,
   CreatePurchaseOrderRequest,
+  BankAccountListItem,
+  BankAccountDetail,
+  CreateBankAccountRequest,
+  UpdateBankAccountRequest,
+  StatementImportListItem,
+  StatementImportResult,
+  StatementImportLineItem,
+  MatchSuggestion,
+  ConfirmMatchRequest,
+  CreateInlineJournalRequest,
+  CreateInlineJournalResult,
+  BankReconciliationReport,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -937,6 +949,122 @@ export function useProfitLoss(
     queryFn: () => apiGet<ProfitLossReport>(
       `reports/profit-loss${qs({ from, to, businessUnitId,
         includeUnspecified: includeUnspecified || undefined })}`),
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B1) — bank-account master CRUD.
+export function useBankAccounts(includeInactive?: boolean) {
+  return useQuery({
+    queryKey: ['bank-accounts', includeInactive ?? false],
+    queryFn: () => apiGet<BankAccountListItem[]>(`bank-accounts${qs({ includeInactive })}`),
+  });
+}
+export function useBankAccount(id: number | null) {
+  return useQuery({
+    queryKey: ['bank-account', id],
+    enabled: id != null && Number.isFinite(id) && id > 0,
+    queryFn: () => apiGet<BankAccountDetail>(`bank-accounts/${id}`),
+  });
+}
+export function useCreateBankAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateBankAccountRequest) =>
+      apiPost<{ bank_account_id: number }>('bank-accounts', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bank-accounts'] }),
+  });
+}
+export function useUpdateBankAccount(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: UpdateBankAccountRequest) => apiPut<void>(`bank-accounts/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bank-accounts'] });
+      qc.invalidateQueries({ queryKey: ['bank-account', id] });
+    },
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B2) — statement imports.
+export function useStatementImports(bankAccountId: number) {
+  return useQuery({
+    queryKey: ['statement-imports', bankAccountId],
+    enabled: bankAccountId > 0,
+    queryFn: () => apiGet<StatementImportListItem[]>(`bank-accounts/${bankAccountId}/imports`),
+  });
+}
+export function useUploadStatement(bankAccountId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (fd: FormData) => {
+      // multipart goes through the BFF proxy; let the browser set the boundary.
+      const res = await fetch(`/api/proxy/bank-accounts/${bankAccountId}/imports`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail ?? `Upload failed (${res.status})`);
+      }
+      return res.json() as Promise<StatementImportResult>;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-imports', bankAccountId] }),
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B4) — matching engine + inline JE.
+export function useStatementLines(bankAccountId: number, importId: number) {
+  return useQuery({
+    queryKey: ['statement-lines', importId],
+    enabled: importId > 0,
+    queryFn: () => apiGet<StatementImportLineItem[]>(`bank-accounts/${bankAccountId}/imports/${importId}/lines`),
+  });
+}
+export function useMatchSuggestions(bankAccountId: number, lineId: number | null) {
+  return useQuery({
+    queryKey: ['match-suggestions', lineId],
+    enabled: lineId != null && lineId > 0,
+    queryFn: () => apiGet<MatchSuggestion[]>(`bank-accounts/${bankAccountId}/lines/${lineId}/suggestions`),
+  });
+}
+export function useConfirmMatch(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, req }: { lineId: number; req: ConfirmMatchRequest }) =>
+      apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/match`, req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useUnmatchLine(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: number) => apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/unmatch`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useCreateInlineJournal(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, req }: { lineId: number; req: CreateInlineJournalRequest }) =>
+      apiPost<CreateInlineJournalResult>(`bank-accounts/${bankAccountId}/lines/${lineId}/journal`, req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useIgnoreLine(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: number) => apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/ignore`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+export function useUnignoreLine(bankAccountId: number, importId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: number) => apiPost<void>(`bank-accounts/${bankAccountId}/lines/${lineId}/unignore`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['statement-lines', importId] }),
+  });
+}
+// Bank reconciliation (specs/bank-reconciliation.md B5) — reconciliation report.
+export function useBankReconciliationReport(bankAccountId: number, from: string, to: string) {
+  return useQuery({
+    queryKey: ['bank-reconciliation-report', bankAccountId, from, to],
+    enabled: bankAccountId > 0 && !!from && !!to,
+    queryFn: () => apiGet<BankReconciliationReport>(
+      `bank-accounts/${bankAccountId}/reconciliation${qs({ from, to })}`),
   });
 }
 // General Ledger (บัญชีแยกประเภท) — per-account drill-down + JE detail (2026-07-07).

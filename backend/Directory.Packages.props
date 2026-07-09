@@ -62,6 +62,9 @@
     <!-- OpenTelemetry.* removed 2026-05-16 (unused + OTLP exporter CVEs). -->
     <!-- PDF Generation -->
     <PackageVersion Include="QuestPDF" Version="2024.10.0" />
+    <!-- PDF text extraction (bank reconciliation B3 — K-Plus statement adapter). PDFsharp/QuestPDF
+         above are generation-only; this is the only text-extraction lib in the repo. -->
+    <PackageVersion Include="PdfPig" Version="0.1.15" />
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageVersion Include="xunit" Version="2.9.2" />

@@ -26,4 +26,18 @@ public interface IGlPostingService
         bool isClosingEntry, long? reversalOfId,
         IReadOnlyList<(long AccountId, decimal Debit, decimal Credit)> lines,
         CancellationToken ct);
+
+    /// <summary>
+    /// Bank reconciliation (specs/bank-reconciliation.md D7) — posts a manual balanced JE (e.g.
+    /// bank interest/fees discovered during reconciliation) from ALREADY-RESOLVED AccountIds.
+    /// Deliberately NOT <see cref="PostClosingEntryAsync"/> — <c>IsClosingEntry</c> stays false so
+    /// the entry appears in P&amp;L/CIT/tax reports normally (a bank interest/fee JE must NOT be
+    /// hidden the way a year-end sweep is). Like every other poster here, this does NOT call
+    /// <c>IPeriodCloseService.EnsureOpenAsync</c> — the CALLER (the bank reconciliation service)
+    /// must call it first, exactly as ReceiptService/PaymentVoucherService do.
+    /// </summary>
+    Task<long> PostManualEntryAsync(
+        int companyId, int branchId, DateOnly docDate, string description, string? reference,
+        IReadOnlyList<(long AccountId, decimal Debit, decimal Credit)> lines,
+        CancellationToken ct);
 }

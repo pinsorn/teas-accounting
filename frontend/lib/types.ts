@@ -1279,6 +1279,123 @@ export interface UpdateCustomerRequest {
   isActive: boolean;
 }
 
+// ── Bank reconciliation (specs/bank-reconciliation.md B1) ─────────────────
+
+export interface BankAccountListItem {
+  bankAccountId: number;
+  bankCode: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string | null;
+  glCashAccountId: number;
+  currency: string;
+  isActive: boolean;
+}
+export interface BankAccountDetail {
+  bankAccountId: number;
+  bankCode: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string | null;
+  accountType: string | null;
+  glCashAccountId: number;
+  currency: string;
+  isActive: boolean;
+}
+export interface CreateBankAccountRequest {
+  bankCode: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string | null;
+  accountType: string | null;
+  glCashAccountId: number | null;
+  currency: string | null;
+}
+export interface UpdateBankAccountRequest {
+  bankName: string;
+  accountName: string | null;
+  accountType: string | null;
+  glCashAccountId: number;
+  currency: string;
+  isActive: boolean;
+}
+
+// Bank reconciliation (specs/bank-reconciliation.md B2) — statement imports.
+export interface StatementImportListItem {
+  statementImportId: number;
+  bankAccountId: number;
+  adapterCode: string;
+  sourceFileName: string;
+  periodStart: string;
+  periodEnd: string;
+  openingBalance: number;
+  closingBalance: number;
+  lineCount: number;
+  status: 'Parsed' | 'Failed';
+  importedAt: string;
+}
+export interface StatementImportResult {
+  statementImportId: number;
+  lineCount: number;
+  overlapWarning: boolean;
+}
+
+// Bank reconciliation (specs/bank-reconciliation.md B4) — matching engine + inline JE.
+export interface StatementImportLineItem {
+  statementLineId: number;
+  lineNo: number;
+  txnDate: string;
+  txnTime: string | null;
+  direction: 'MoneyIn' | 'MoneyOut';
+  amount: number;
+  runningBalance: number;
+  channel: string;
+  txnType: string;
+  description: string;
+  rawRef: string | null;
+  matchStatus: 'Unmatched' | 'Matched' | 'Posted' | 'Ignored';
+}
+export interface MatchSuggestion {
+  docType: 'Receipt' | 'PaymentVoucher';
+  docId: number;
+  docNo: string | null;
+  docDate: string;
+  amount: number;
+  partyName: string;
+}
+export interface ConfirmMatchRequest {
+  receiptId: number | null;
+  paymentVoucherId: number | null;
+}
+export interface CreateInlineJournalRequest {
+  contraAccountId: number;
+  description: string | null;
+}
+export interface CreateInlineJournalResult {
+  journalId: number;
+}
+
+// Bank reconciliation (specs/bank-reconciliation.md B5) — reconciliation report.
+export interface ReconciliationReportItem {
+  description: string;
+  date: string;
+  amount: number;
+}
+export interface BankReconciliationReport {
+  bankAccountId: number;
+  from: string;
+  to: string;
+  statementClosingBalance: number;
+  glBalance: number;
+  depositsInTransitTotal: number;
+  outstandingPaymentsTotal: number;
+  unmatchedLinesNet: number;
+  difference: number;
+  unmatchedLines: ReconciliationReportItem[];
+  depositsInTransit: ReconciliationReportItem[];
+  outstandingPayments: ReconciliationReportItem[];
+}
+
 // ── Request types for Task 2 type-safety (06-H3) ──────────────────────────
 
 export interface ReceiptApplicationInput {

@@ -41,6 +41,8 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/customers', key: 'customers', Icon: Users, perm: 'master.customer.read' },
       { href: '/vendors', key: 'vendors', Icon: Building2, perm: 'master.vendor.manage' },
       { href: '/settings/products', key: 'products', Icon: Package, perm: 'master.product.manage' },
+      // Bank reconciliation (specs/bank-reconciliation.md B1.11) — bank-account master.
+      { href: '/bank-accounts', key: 'bankAccounts', Icon: Landmark, perm: 'bank.account.read' },
     ],
   },
   {
@@ -83,6 +85,8 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/reports/balance-sheet', key: 'balanceSheet', Icon: FileBarChart2, perm: 'report.trial_balance.read' },
       { href: '/reports/profit-loss', key: 'profitLoss', Icon: TrendingUp, perm: 'report.profit_loss.read' },
       { href: '/reports/general-ledger', key: 'generalLedger', Icon: BookOpen, perm: 'report.general_ledger.read' },
+      // Bank reconciliation (specs/bank-reconciliation.md B5.3) — tie-out report.
+      { href: '/reports/bank-reconciliation', key: 'bankReconciliation', Icon: Landmark, perm: 'bank.report.read' },
       // Cycle A #7 — gated by gl.period.close (the close endpoint's own permission),
       // mirroring how every other item here mirrors its primary endpoint's read/write gate.
       { href: '/period-close', key: 'periodClose', Icon: Lock, perm: 'gl.period.close' },

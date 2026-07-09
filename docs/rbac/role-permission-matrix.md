@@ -10,6 +10,11 @@
 
 | Permission | ACCOUNTANT | APPROVER | AP_CLERK | AR_CLERK | AUDITOR | CHIEF_ACCOUNTANT | COMPANY_ADMIN | PURCHASING_STAFF | SALES_STAFF | TAX_OFFICER | WAREHOUSE_STAFF | SUPER_ADMIN |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `bank.account.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `bank.account.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `bank.reconcile` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `bank.report.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `bank.statement.import` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.create` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.post` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
@@ -84,18 +89,18 @@
 
 | Role | Granted |
 |---|---:|
-| ACCOUNTANT | 44 |
+| ACCOUNTANT | 49 |
 | APPROVER | 6 |
 | AP_CLERK | 15 |
 | AR_CLERK | 23 |
 | AUDITOR | 18 |
-| CHIEF_ACCOUNTANT | 61 |
-| COMPANY_ADMIN | 68 |
+| CHIEF_ACCOUNTANT | 66 |
+| COMPANY_ADMIN | 73 |
 | PURCHASING_STAFF | 5 |
 | SALES_STAFF | 13 |
 | TAX_OFFICER | 12 |
 | WAREHOUSE_STAFF | 2 |
-| SUPER_ADMIN | 69 (bypass) |
+| SUPER_ADMIN | 74 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

@@ -28,6 +28,10 @@
     <PackageReference Include="BouncyCastle.Cryptography" />
     <PackageReference Include="System.Security.Cryptography.Xml" />
     <PackageReference Include="QuestPDF" />
+    <!-- Bank reconciliation B3 — the only PDF TEXT-EXTRACTION lib in the repo (PDFsharp/QuestPDF
+         above are generation-only); K-Plus statement adapter reads per-word positions to
+         reconstruct the scrambled positional layout (D9). -->
+    <PackageReference Include="PdfPig" />
     <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
   <ItemGroup>
