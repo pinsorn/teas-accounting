@@ -457,3 +457,13 @@ Entry format — terse, greppable by symptom:
 - **Root cause:** grep for `TEAS_TEST_PG` surfaces ANCIENT values first (`Port=5433;Username=postgres;Password=teaspass` era, pre-PG18). The dev PG has since moved: PostgreSQL 18 Windows service on **5432**, user **accounting**. Nothing listens on 5433 anymore.
 - **Fix:** the CURRENT string is `Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true` (see specs/general-ledger.md env notes). When in doubt, verify the port with `Get-NetTCPConnection -State Listen` before dispatching a test run.
 - **Seen:** 2026-07-08 Tier-3 gate (520 fake failures in 8s from the stale string).
+
+## Deploy probe: applied_sql_scripts total != repo .sql file count (v1.17.0 false rollback, 2026-07-10)
+Symptom: deploy-api probe `total_sql_scripts` FAILs (prod says 68, repo ships 88 files) and auto-rollback fires although every functional probe passed.
+Root cause: prod's `sys.applied_sql_scripts` ledger only records scripts run since the DB's creation — the 2026-06 migration squash baked older scripts into EF migrations, so they were never individually recorded. Repo file count is NOT a valid expectation for prod.
+Fix: derive the expectation from the TARGET DB (pre-deploy count + number of NEW scripts). Prod baseline after v1.17.0 = 68. The per-release `new_sql_scripts=<n>` probe is the one that actually matters.
+
+## Release-please PR needs --admin merge (branch protection, 2026-07-10)
+Symptom: `gh pr merge <release-PR>` fails "base branch policy prohibits the merge"; statusCheckRollup is EMPTY.
+Root cause: CI workflow doesn't trigger on the release-please branch (only touches CHANGELOG/manifest), so required checks never report; --auto never fires either.
+Fix: `gh pr merge <n> --merge --admin`. Then wait for the tag on origin (`git ls-remote origin refs/tags/vX.Y.Z`) before building — and build from the OFFICIAL tag commit (release-please's merge commit), not the feature merge commit, so the MinVer-stamped sha matches the release.
