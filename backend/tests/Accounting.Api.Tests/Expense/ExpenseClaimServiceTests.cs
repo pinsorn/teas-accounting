@@ -298,6 +298,111 @@ public sealed class ExpenseClaimServiceTests
         (await svc.GetDetailAsync(rejId, default))!.Status.Should().Be(nameof(ExpenseClaimStatus.Cancelled));
     }
 
+    // ── Codex review finding #2 (2026-07-10) — line account OVERRIDE validation ─────
+
+    [SkippableFact]
+    public async Task Line_account_override_pointing_at_an_inactive_account_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, _) = await SeedCategoryAsync(sp, co.CompanyId, "6195", "ค่าใช้จ่ายทดสอบ4");
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var inactiveAcct = new ChartOfAccount
+        {
+            CompanyId = co.CompanyId, AccountCode = "6196", AccountNameTh = "บัญชีปิดใช้งาน",
+            AccountType = AccountType.Expense, NormalBalance = NormalBalance.Debit,
+            IsActive = false, CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.ChartOfAccounts.Add(inactiveAcct);
+        await db.SaveChangesAsync();
+
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, inactiveAcct.AccountId, "override", Today, 100m, null, 0m, true)]),
+            default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid");
+    }
+
+    [SkippableFact]
+    public async Task Line_account_override_pointing_at_a_header_account_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, _) = await SeedCategoryAsync(sp, co.CompanyId, "6197", "ค่าใช้จ่ายทดสอบ5");
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var headerAcct = new ChartOfAccount
+        {
+            CompanyId = co.CompanyId, AccountCode = "6198", AccountNameTh = "บัญชีหลัก",
+            AccountType = AccountType.Expense, NormalBalance = NormalBalance.Debit,
+            IsHeader = true, IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.ChartOfAccounts.Add(headerAcct);
+        await db.SaveChangesAsync();
+
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, headerAcct.AccountId, "override", Today, 100m, null, 0m, true)]),
+            default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid");
+    }
+
+    // ── Race safety (§6) — FOOTGUN 8: Version++ must actually fire, unlike PV's inert token ──
+
+    /// <summary>Codex review finding #6 (2026-07-10) — before the fix, UpdateDraftAsync mutated
+    /// fields and saved via a bare db.SaveChangesAsync with NO Version++, so a Draft edit racing
+    /// another writer never conflict-detected at all (silent clobber) instead of 409-ing. Same
+    /// deterministic two-preloaded-context technique as
+    /// Concurrent_Approve_second_stale_save_throws_DbUpdateConcurrencyException above, mutating
+    /// exactly the two things the fix added (a field write + Version++).</summary>
+    [SkippableFact]
+    public async Task Concurrent_UpdateDraft_second_stale_save_throws_DbUpdateConcurrencyException()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, _) = await SeedCategoryAsync(sp, co.CompanyId, "6199", "ค่าใช้จ่ายแข่งขัน4");
+
+        long id;
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var svc0 = s0.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+            id = await svc0.CreateDraftAsync(
+                Req(employeeId, [new ExpenseClaimLineInput(catId, null, "race-edit", Today, 100m, null, 0m, true)]),
+                default);
+        }
+
+        await using var s1 = sp.CreateAsyncScope();
+        var db1 = s1.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var claim1 = await db1.ExpenseClaims.FirstAsync(c => c.ExpenseClaimId == id);
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var claim2 = await db2.ExpenseClaims.FirstAsync(c => c.ExpenseClaimId == id);
+
+        // Both contexts loaded the SAME original Version=0 — simulates two concurrent
+        // Draft-edit callers each having read the row before either wrote.
+        claim1.Title = "edit A"; claim1.Version++;
+        claim2.Title = "edit B"; claim2.Version++;
+
+        await db1.SaveChangesAsync();   // winner — Version 0 -> 1
+
+        var loser = async () => await db2.SaveChangesAsync();
+        await loser.Should().ThrowAsync<DbUpdateConcurrencyException>(
+            "db2's tracked original Version no longer matches the row db1 just committed — before " +
+            "the fix, UpdateDraftAsync never incremented Version, so this stale write would have " +
+            "silently succeeded and clobbered db1's edit instead of conflicting.");
+    }
+
     // ── Race safety (§6) — FOOTGUN 8: Version++ must actually fire, unlike PV's inert token ──
 
     /// <summary>Deterministic EF-level proof that Version++ actually fires the optimistic-

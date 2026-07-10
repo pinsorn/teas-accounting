@@ -120,4 +120,33 @@ public sealed class StatementImportServiceTests : IDisposable
         (await db.StatementImports.CountAsync(x => x.BankAccountId == bankAccountId)).Should().Be(0);
         (await db.StatementLines.CountAsync(x => x.BankAccountId == bankAccountId)).Should().Be(0);
     }
+
+    /// <summary>Codex review finding #3 (2026-07-10) — GoodCsv's own metadata carries account no.
+    /// "999-9-99999-9"; importing it against a DIFFERENTLY-numbered selected bank account must be
+    /// rejected BEFORE any attachment/db write (same "persists nothing" shape as the integrity
+    /// test above).</summary>
+    [SkippableFact]
+    public async Task ImportAsync_rejects_a_statement_parsed_from_the_wrong_bank_account()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var sp = BuildProviderWithTempStorage(co.CompanyId, co.BranchId);
+        await using var s0 = sp.CreateAsyncScope();
+        var bankSvc = s0.ServiceProvider.GetRequiredService<IBankAccountService>();
+        // Deliberately a DIFFERENT account number than the GoodCsv fixture's "999-9-99999-9".
+        var wrongBankAccountId = await bankSvc.CreateAsync(new CreateBankAccountRequest(
+            "SCB", "Siam Commercial Bank", "111-1-11111-1", null, null, null, "THB"), default);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+        var act = () => svc.ImportAsync(
+            wrongBankAccountId, "test-statement.csv", "text/csv", 1000,
+            KBizCsvAdapterTests.Utf8BomStream(KBizCsvAdapterTests.GoodCsv), null, default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("bank.statement_account_mismatch");
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.StatementImports.CountAsync(x => x.BankAccountId == wrongBankAccountId)).Should().Be(0);
+        (await db.StatementLines.CountAsync(x => x.BankAccountId == wrongBankAccountId)).Should().Be(0);
+    }
 }

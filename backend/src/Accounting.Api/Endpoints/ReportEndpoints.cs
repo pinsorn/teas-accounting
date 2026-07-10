@@ -11,6 +11,21 @@ namespace Accounting.Api.Endpoints;
 
 public static class ReportEndpoints
 {
+    /// <summary>Codex review finding #7 (2026-07-10) — OWASP CSV/formula-injection mitigation,
+    /// shared by every CSV export below (ar-aging, general-ledger). A text field opening with a
+    /// spreadsheet formula/functional trigger char (=,+,-,@, tab, CR) gets a leading <c>'</c> so
+    /// Excel/Sheets/LibreOffice treat it as literal text — never evaluate it as a formula — when
+    /// the exported CSV is reopened. Applied BEFORE RFC-4180 quoting; numeric columns are
+    /// interpolated directly (never routed through this helper) so a legitimate negative amount
+    /// is unaffected.</summary>
+    internal static string CsvCell(string? s)
+    {
+        if (s is null) return "";
+        if (s.Length > 0 && s[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+            s = "'" + s;
+        return "\"" + s.Replace("\"", "\"\"") + "\"";
+    }
+
     public static IEndpointRouteBuilder MapReportEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/reports").WithTags("Reports");
@@ -181,7 +196,7 @@ public static class ReportEndpoints
             var csv = new StringBuilder();
             // RFC 4180: CRLF line endings, explicit — AppendLine is platform-dependent (\n on Linux CI).
             csv.Append("Customer,TaxId,Current,Bucket31To60,Bucket61To90,BucketOver90,Total").Append("\r\n");
-            string Esc(string? s) => s is null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
+            string Esc(string? s) => CsvCell(s);
             foreach (var r in report.Rows)
                 csv.Append($"{Esc(r.CustomerName)},{Esc(r.CustomerTaxId)},{r.Current},{r.Bucket31To60}," +
                            $"{r.Bucket61To90},{r.BucketOver90},{r.Total}").Append("\r\n");
@@ -235,7 +250,7 @@ public static class ReportEndpoints
                 var csv = new StringBuilder();
                 // RFC 4180: CRLF line endings, explicit — AppendLine is platform-dependent (\n on Linux CI).
                 csv.Append("DocDate,DocNo,Description,Reference,Debit,Credit,RunningBalance").Append("\r\n");
-                string Esc(string? s) => s is null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
+                string Esc(string? s) => CsvCell(s);
                 csv.Append($"{fromDate:yyyy-MM-dd},,{Esc("ยอดยกมา")},,,,{report.OpeningBalance}").Append("\r\n");
                 foreach (var r in report.Rows)
                     csv.Append($"{r.DocDate:yyyy-MM-dd},{Esc(r.DocNo)},{Esc(r.Description)},{Esc(r.Reference)}," +

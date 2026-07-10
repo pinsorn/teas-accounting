@@ -137,4 +137,29 @@ public sealed class KBizCsvAdapterTests
             .Contain("line 3")
             .And.NotContain("SECRET PII SHOULD NOT LEAK");
     }
+
+    // ── Codex review finding #8 (2026-07-10) — Rfc4180Reader strictness. Exercised through the
+    //    public adapter (Rfc4180Reader is internal); minimal malformed CSV, no need for a full
+    //    KBiz-shaped fixture since the parse failure fires before any header/metadata lookup. ──
+
+    [Fact]
+    public void Parse_rejects_unterminated_quoted_field_eof_while_in_quotes()
+    {
+        var act = () => new KBizCsvAdapter().Parse(Utf8BomStream("a,\"unterminated"), null);
+        act.Should().Throw<DomainException>().Which.Message.Should().Contain("Unterminated");
+    }
+
+    [Fact]
+    public void Parse_rejects_quote_opening_mid_field()
+    {
+        var act = () => new KBizCsvAdapter().Parse(Utf8BomStream("a,b\"c,d\r\n"), null);
+        act.Should().Throw<DomainException>().Which.Message.Should().Contain("mid-field");
+    }
+
+    [Fact]
+    public void Parse_rejects_trailing_junk_after_closing_quote()
+    {
+        var act = () => new KBizCsvAdapter().Parse(Utf8BomStream("a,\"b\"c,d\r\n"), null);
+        act.Should().Throw<DomainException>().Which.Message.Should().Contain("closing quote");
+    }
 }

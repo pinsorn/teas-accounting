@@ -184,6 +184,40 @@ public sealed class BankReconciliationServiceTests
         await act.Should().ThrowAsync<DomainException>().Where(e => e.Code == "bank.doc_already_matched");
     }
 
+    /// <summary>Codex review finding #4 (2026-07-10) — ConfirmMatchAsync's "not already matched"
+    /// pre-check is read-then-write, not atomic; two GENUINELY concurrent confirms (unlike the
+    /// sequential test above) can both pass the pre-check before either commits. The partial
+    /// unique index on matched_receipt_id is the hard DB-level backstop for that gap — the loser
+    /// is rejected either via the pre-check OR the 23505-translated bank.doc_already_matched
+    /// (the exact "409/23505" phrasing this finding was triaged under), never an unhandled 500
+    /// and never a double-match. Real Task.Run race (mirrors ExpenseClaimServiceTests'
+    /// Double_pay_race_posts_exactly_one_journal_entry) — the deterministic assertion is the
+    /// outcome (exactly one winner), not which of the two guards catches the loser.</summary>
+    [SkippableFact]
+    public async Task Concurrent_confirm_match_of_two_lines_to_the_same_receipt_never_double_matches()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp, bankAccountId) = await SetupAsync();
+        var receiptId = await SeedPostedReceiptAsync(sp, co.CompanyId, co.BranchId, co.CustomerId, 888.00m, Today);
+        var line1 = await SeedStatementLineAsync(sp, co.CompanyId, bankAccountId, StatementDirection.MoneyIn, 888.00m, Today);
+        var line2 = await SeedStatementLineAsync(sp, co.CompanyId, bankAccountId, StatementDirection.MoneyIn, 888.00m, Today);
+
+        async Task<bool> TryMatch(long lineId)
+        {
+            await using var s = sp.CreateAsyncScope();
+            var svc = s.ServiceProvider.GetRequiredService<IBankReconciliationService>();
+            try { await svc.ConfirmMatchAsync(lineId, new ConfirmMatchRequest(receiptId, null), default); return true; }
+            catch (DomainException ex) when (ex.Code == "bank.doc_already_matched") { return false; }
+        }
+
+        var results = await Task.WhenAll(Task.Run(() => TryMatch(line1)), Task.Run(() => TryMatch(line2)));
+        results.Count(r => r).Should().Be(1, "exactly one confirm-match must win; the receipt cannot be double-matched");
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.StatementLines.CountAsync(x => x.MatchedReceiptId == receiptId)).Should().Be(1);
+    }
+
     [SkippableFact]
     public async Task Suggest_excludes_amount_off_by_one_satang()
     {

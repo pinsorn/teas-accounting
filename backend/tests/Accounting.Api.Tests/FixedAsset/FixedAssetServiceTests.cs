@@ -5,6 +5,7 @@ using Accounting.Application.Ledger;
 using Accounting.Application.Reports;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Ledger;
+using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
@@ -509,5 +510,136 @@ public sealed class FixedAssetServiceTests
         (await svcB.GetDetailAsync(id, default)).Should().BeNull();
         var dbB = sB.ServiceProvider.GetRequiredService<AccountingDbContext>();
         (await dbB.FixedAssets.AnyAsync(a => a.FixedAssetId == id)).Should().BeFalse();
+    }
+
+    // ── Codex review finding #5 (2026-07-10) — account OVERRIDE type/status validation ──
+
+    [SkippableFact]
+    public async Task DepExpenseAccountId_override_of_the_wrong_type_Asset_not_Expense_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        // 1130 (AR) is a seeded Asset account — wrong type for the dep-expense slot (Expense).
+        var wrongTypeAcctId = await AccountIdByCode(db, co.CompanyId, "1130");
+
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var act = () => svc.CreateDraftAsync(
+            new CreateFixedAssetRequest("โต๊ะ", "EQUIPMENT", Today, null, 1000m, 0m, 12, null,
+                null, null, wrongTypeAcctId, null), default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("fixed_asset.account_invalid");
+    }
+
+    [SkippableFact]
+    public async Task AssetCostAccountId_override_pointing_at_a_header_account_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var headerAcct = new ChartOfAccount
+        {
+            CompanyId = co.CompanyId, AccountCode = "1611", AccountNameTh = "บัญชีหลักสินทรัพย์",
+            AccountType = AccountType.Asset, NormalBalance = NormalBalance.Debit,
+            IsHeader = true, IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.ChartOfAccounts.Add(headerAcct);
+        await db.SaveChangesAsync();
+
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var act = () => svc.CreateDraftAsync(
+            new CreateFixedAssetRequest("โต๊ะ", "EQUIPMENT", Today, null, 1000m, 0m, 12, null,
+                headerAcct.AccountId, null, null, null), default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("fixed_asset.account_invalid");
+    }
+
+    // ── Codex review finding #5b (2026-07-10) — VendorInvoiceId tenant-scoped existence ──
+
+    [SkippableFact]
+    public async Task VendorInvoiceId_pointing_at_a_nonexistent_row_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+
+        var act = () => svc.CreateDraftAsync(
+            new CreateFixedAssetRequest("โต๊ะ", "EQUIPMENT", Today, 999_999_999L, 1000m, 0m, 12, null,
+                null, null, null, null), default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("fixed_asset.vendor_invoice_invalid");
+    }
+
+    [SkippableFact]
+    public async Task VendorInvoiceId_from_another_company_is_rejected_tenant_scoped()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (coA, spA) = await SetupAsync();
+        await using var sA = spA.CreateAsyncScope();
+        var dbA = sA.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var viA = new Accounting.Domain.Entities.Purchase.VendorInvoice
+        {
+            CompanyId = coA.CompanyId, BranchId = coA.BranchId, VendorId = 1,
+            VendorTaxInvoiceNo = "TEST-" + Guid.NewGuid().ToString("N")[..8],
+            VendorTaxInvoiceDate = Today, VatClaimPeriod = Today.Year * 100 + Today.Month,
+            DocDate = Today, VendorName = "ผู้ขาย A", VendorType = CustomerType.Corporate,
+            SubtotalAmount = 100m, VatAmount = 0m, TotalAmount = 100m, TotalAmountThb = 100m,
+        };
+        dbA.VendorInvoices.Add(viA);
+        await dbA.SaveChangesAsync();
+
+        var (coB, spB) = await SetupAsync();
+        await using var sB = spB.CreateAsyncScope();
+        var svcB = sB.ServiceProvider.GetRequiredService<IFixedAssetService>();
+
+        var act = () => svcB.CreateDraftAsync(
+            new CreateFixedAssetRequest("โต๊ะ", "EQUIPMENT", Today, viA.VendorInvoiceId, 1000m, 0m, 12, null,
+                null, null, null, null), default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("fixed_asset.vendor_invoice_invalid");
+    }
+
+    // ── Codex review finding #6 (2026-07-10) — Draft-edit concurrency ──────────────────
+
+    /// <summary>Before the fix, UpdateDraftAsync mutated fields and saved via a bare
+    /// db.SaveChangesAsync with NO Version++, so a Draft edit racing another writer never
+    /// conflict-detected at all (silent clobber) instead of 409-ing. Same deterministic
+    /// two-preloaded-context technique as ExpenseClaimServiceTests' concurrency proofs.</summary>
+    [SkippableFact]
+    public async Task Concurrent_UpdateDraft_second_stale_save_throws_DbUpdateConcurrencyException()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+
+        long id;
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var svc0 = s0.ServiceProvider.GetRequiredService<IFixedAssetService>();
+            id = await svc0.CreateDraftAsync(Req("สินทรัพย์แข่งขัน", Today, 1000m, 0m, 12), default);
+        }
+
+        await using var s1 = sp.CreateAsyncScope();
+        var db1 = s1.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var asset1 = await db1.FixedAssets.FirstAsync(a => a.FixedAssetId == id);
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var asset2 = await db2.FixedAssets.FirstAsync(a => a.FixedAssetId == id);
+
+        // Both contexts loaded the SAME original Version=0 — simulates two concurrent
+        // Draft-edit callers each having read the row before either wrote.
+        asset1.Name = "edit A"; asset1.Version++;
+        asset2.Name = "edit B"; asset2.Version++;
+
+        await db1.SaveChangesAsync();   // winner — Version 0 -> 1
+
+        var loser = async () => await db2.SaveChangesAsync();
+        await loser.Should().ThrowAsync<DbUpdateConcurrencyException>(
+            "db2's tracked original Version no longer matches the row db1 just committed — before " +
+            "the fix, UpdateDraftAsync never incremented Version, so this stale write would have " +
+            "silently succeeded and clobbered db1's edit instead of conflicting.");
     }
 }
