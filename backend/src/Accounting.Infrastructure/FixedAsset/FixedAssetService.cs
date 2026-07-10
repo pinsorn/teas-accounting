@@ -65,14 +65,42 @@ public sealed class FixedAssetService(
         return account.AccountId;
     }
 
-    private async Task<long> EnsureAccountAsync(long accountId, int companyId, CancellationToken ct)
+    /// <summary>Codex review finding #5 (2026-07-10) — mirrors BankReconciliationService
+    /// .CreateJournalAsync's contra-account check: exists tenant-scoped, active, non-header, AND
+    /// (new here) the CORRECT account type for the slot — a client override could otherwise pick
+    /// a Revenue/Liability account for the asset-cost line and silently corrupt the trial
+    /// balance's Dr/Cr classification.</summary>
+    private async Task<long> EnsureAccountAsync(long accountId, int companyId, AccountType expectedType, CancellationToken ct)
     {
-        var exists = await db.ChartOfAccounts.AsNoTracking()
-            .AnyAsync(a => a.AccountId == accountId && a.CompanyId == companyId, ct);
-        if (!exists)
-            throw new DomainException("gl.account_missing",
+        var account = await db.ChartOfAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(a => a.AccountId == accountId && a.CompanyId == companyId, ct)
+            ?? throw new DomainException("fixed_asset.account_invalid",
                 $"Account {accountId} not found for company {companyId}.");
+        if (!account.IsActive)
+            throw new DomainException("fixed_asset.account_invalid",
+                $"Account {accountId} is not active.");
+        if (account.IsHeader)
+            throw new DomainException("fixed_asset.account_invalid",
+                $"Account {accountId} is a header account — pick a postable (non-header) account.");
+        if (account.AccountType != expectedType)
+            throw new DomainException("fixed_asset.account_invalid",
+                $"Account {accountId} must be a {expectedType} account (got {account.AccountType}).");
         return accountId;
+    }
+
+    /// <summary>Codex review finding #5b (2026-07-10) — a client-supplied VendorInvoiceId was
+    /// stored/posted with no existence/tenant check (a DB FK accepts another company's row id,
+    /// since journal_lines.account_id-style FK trust boundaries are all app-enforced here, not
+    /// DB-enforced). Required when non-null; makes the MCP create_fixed_asset_draft Description
+    /// ("the service applies its own check") true.</summary>
+    private async Task EnsureVendorInvoiceAsync(long? vendorInvoiceId, int companyId, CancellationToken ct)
+    {
+        if (vendorInvoiceId is not { } id) return;
+        var exists = await db.VendorInvoices.AsNoTracking()
+            .AnyAsync(v => v.VendorInvoiceId == id && v.CompanyId == companyId, ct);
+        if (!exists)
+            throw new DomainException("fixed_asset.vendor_invoice_invalid",
+                $"Vendor Invoice {id} not found for company {companyId}.");
     }
 
     /// <summary>§1 design note — the 3 accounts are per-asset, defaulted from GlAccountsOptions,
@@ -81,13 +109,13 @@ public sealed class FixedAssetService(
         int companyId, long? assetCostOverride, long? accumDepOverride, long? depExpenseOverride, CancellationToken ct)
     {
         var assetCost = assetCostOverride is { } a1
-            ? await EnsureAccountAsync(a1, companyId, ct)
+            ? await EnsureAccountAsync(a1, companyId, AccountType.Asset, ct)
             : await ResolveAccountIdAsync(companyId, _accounts.FixedAssetCostAccount, ct);
         var accumDep = accumDepOverride is { } a2
-            ? await EnsureAccountAsync(a2, companyId, ct)
+            ? await EnsureAccountAsync(a2, companyId, AccountType.Asset, ct)
             : await ResolveAccountIdAsync(companyId, _accounts.AccumulatedDepreciationAccount, ct);
         var depExpense = depExpenseOverride is { } a3
-            ? await EnsureAccountAsync(a3, companyId, ct)
+            ? await EnsureAccountAsync(a3, companyId, AccountType.Expense, ct)
             : await ResolveAccountIdAsync(companyId, _accounts.DepreciationExpenseAccount, ct);
         return (assetCost, accumDep, depExpense);
     }
@@ -97,6 +125,7 @@ public sealed class FixedAssetService(
     public async Task<long> CreateDraftAsync(CreateFixedAssetRequest req, CancellationToken ct)
     {
         Auth();
+        await EnsureVendorInvoiceAsync(req.VendorInvoiceId, tenant.CompanyId, ct);
         var (assetCostId, accumDepId, depExpenseId) = await ResolveAssetAccountsAsync(
             tenant.CompanyId, req.AssetCostAccountId, req.AccumDepAccountId, req.DepExpenseAccountId, ct);
 
@@ -126,6 +155,7 @@ public sealed class FixedAssetService(
             throw new DomainException("fixed_asset.not_editable",
                 $"Cannot edit a fixed asset in status {asset.Status}.");
 
+        await EnsureVendorInvoiceAsync(req.VendorInvoiceId, asset.CompanyId, ct);
         var (assetCostId, accumDepId, depExpenseId) = await ResolveAssetAccountsAsync(
             asset.CompanyId, req.AssetCostAccountId, req.AccumDepAccountId, req.DepExpenseAccountId, ct);
 
@@ -146,7 +176,12 @@ public sealed class FixedAssetService(
         asset.BusinessUnitId = req.BusinessUnitId;
         asset.Notes = req.Notes;
 
-        await db.SaveChangesAsync(ct);
+        // Codex review finding #6 (2026-07-10) — every OTHER state transition (Activate/Cancel/
+        // Dispose/WriteOff) increments Version + saves via SaveGuardedAsync; a Draft edit racing
+        // a concurrent Activate was the one path that skipped both, so it would silently
+        // overwrite an already-activated asset instead of 409-ing.
+        asset.Version++;
+        await SaveGuardedAsync(ct);
     }
 
     public async Task ActivateAsync(long id, CancellationToken ct)

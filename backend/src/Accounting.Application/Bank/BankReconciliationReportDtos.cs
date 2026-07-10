@@ -8,6 +8,12 @@ namespace Accounting.Application.Bank;
 /// the tie-out (an unmatched MoneyOut line is negative).</summary>
 public sealed record ReconciliationReportItem(string Description, DateOnly Date, decimal Amount);
 
+/// <param name="DocReconciliationLimited">§1 design addendum (2026-07-10) — true when this bank
+/// account's <c>GlCashAccountId</c> is NOT the primary 1120-mapped account. v1 posting commingles
+/// every non-cash doc into the single 1120 account (bank-rec D6), so a non-primary account's
+/// document set is always empty and its GL sub-account excludes the transfers that actually went
+/// to 1120 — <see cref="Difference"/> is EXPECTED-nonzero, not a real reconciling gap. The FE must
+/// show this as a known v1 limitation, never as a silent broken tie-out.</param>
 public sealed record BankReconciliationReport(
     int BankAccountId, DateOnly From, DateOnly To,
     decimal StatementClosingBalance, decimal GlBalance,
@@ -15,7 +21,8 @@ public sealed record BankReconciliationReport(
     decimal Difference,
     IReadOnlyList<ReconciliationReportItem> UnmatchedLines,
     IReadOnlyList<ReconciliationReportItem> DepositsInTransit,
-    IReadOnlyList<ReconciliationReportItem> OutstandingPayments);
+    IReadOnlyList<ReconciliationReportItem> OutstandingPayments,
+    bool DocReconciliationLimited);
 
 public interface IBankReconciliationReportService
 {

@@ -81,5 +81,14 @@ internal sealed class StatementLineConfiguration : IEntityTypeConfiguration<Stat
         // NO FK nav to StatementImport/Receipt/PaymentVoucher/JournalEntry — id only (D1/B1.2).
         b.HasIndex(x => new { x.StatementImportId, x.LineNo });
         b.HasIndex(x => new { x.CompanyId, x.BankAccountId, x.TxnDate });
+
+        // Codex review finding #4 (2026-07-10) — ConfirmMatchAsync's "not already matched to
+        // another line" pre-check is a read-then-write race, not atomic; two concurrent confirms
+        // could both pass the check and both win their own conditional ExecuteUpdateAsync,
+        // leaving the SAME Receipt/PV double-matched. These partial unique indexes are the hard
+        // DB-level backstop (mirrors DepreciationRun's unique-index race backstop, FA-E) — the
+        // loser's 23505 is caught and mapped to bank.doc_already_matched.
+        b.HasIndex(x => x.MatchedReceiptId).IsUnique().HasFilter("matched_receipt_id IS NOT NULL");
+        b.HasIndex(x => x.MatchedPaymentVoucherId).IsUnique().HasFilter("matched_payment_voucher_id IS NOT NULL");
     }
 }

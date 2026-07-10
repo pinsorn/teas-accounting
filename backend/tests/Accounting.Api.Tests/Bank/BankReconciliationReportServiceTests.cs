@@ -3,14 +3,18 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Bank;
 using Accounting.Domain.Entities.Bank;
 using Accounting.Domain.Entities.Ledger;
+using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Purchase;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
+using Accounting.Infrastructure.Bank;
+using Accounting.Infrastructure.Ledger;
 using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Accounting.Api.Tests.Bank;
@@ -82,7 +86,8 @@ public sealed class BankReconciliationReportServiceTests
     }
 
     private static async Task<long> SeedPostedReceiptAsync(
-        ServiceProvider sp, int companyId, int branchId, long customerId, decimal cashReceived, DateOnly docDate)
+        ServiceProvider sp, int companyId, int branchId, long customerId, decimal cashReceived, DateOnly docDate,
+        PaymentMethod method = PaymentMethod.Transfer)
     {
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
@@ -91,7 +96,7 @@ public sealed class BankReconciliationReportServiceTests
             CompanyId = companyId, BranchId = branchId, CustomerId = customerId,
             CustomerName = "ลูกค้าทดสอบ", CustomerAddress = "-",
             DocNo = "RCTEST" + Guid.NewGuid().ToString("N")[..8],
-            DocDate = docDate, PaymentMethod = PaymentMethod.Transfer,
+            DocDate = docDate, PaymentMethod = method,
             Amount = cashReceived, TotalAmount = cashReceived, TotalAmountThb = cashReceived,
             WhtAmount = 0m, CashReceived = cashReceived,
             Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow, PostedBy = 1,
@@ -350,5 +355,150 @@ public sealed class BankReconciliationReportServiceTests
             "statement(550) - (GL(500) - deposits(0) + outstanding(0) + unmatchedNet(0)) = +50, " +
             "positive because the statement over-reports relative to GL + reconciling items");
         report.Difference.Should().BePositive();
+    }
+
+    // ── §1 design addendum (2026-07-10) — report SCOPING (T-scope-1..4). Codex review finding
+    //    #1: the report previously counted EVERY unmatched company Receipt/PV as outstanding for
+    //    whichever bank account was being reconciled, including cash-method docs. ──────────────
+
+    /// <summary>T-scope-1 + T-scope-2 — the addendum's worked example, reproduced verbatim: RC1
+    /// Transfer 100 (matched), RC2 Transfer 100 (in-transit, MUST be counted — T-scope-2 guards
+    /// over-filtering), RC3 Cash 40 (posts 1110, unmatched, MUST NOT be counted — T-scope-1, the
+    /// finding's failing scenario), PV1 Transfer 30 (outstanding), bank-fee MoneyOut 50
+    /// (unmatched). GL_1120 = 100+100-30 = 170 (RC3 excluded, unaffected by the fix — it never
+    /// posted to 1120). statement = 100-50 = 50. expected = 170-100+30-50 = 50; difference = 0.</summary>
+    [SkippableFact]
+    public async Task TScope1And2_cash_method_receipt_excluded_transfer_receipt_still_counted()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp, bankAccountId, glCashAccountId) = await SetupAsync();
+        var revenueAccountId = await AccountId(sp, "4000");
+        var expenseAccountId = await AccountId(sp, "5100");
+        var cashAccountId = await AccountId(sp, "1110");
+
+        // RC1 — Transfer 100, matched to a statement line.
+        var importId = await SeedImportAsync(sp, co.CompanyId, bankAccountId, Today, Today, 50.00m);
+        var lineId = await SeedStatementLineAsync(sp, co.CompanyId, importId, bankAccountId, StatementDirection.MoneyIn, 100.00m, Today);
+        var rc1 = await SeedPostedReceiptAsync(sp, co.CompanyId, co.BranchId, co.CustomerId, 100.00m, Today);
+        await SeedPostedJeAsync(sp, co.CompanyId, co.BranchId, Today, glCashAccountId, revenueAccountId, 100.00m);
+
+        // RC2 — Transfer 100, unmatched (deposit-in-transit; MUST be counted).
+        await SeedPostedReceiptAsync(sp, co.CompanyId, co.BranchId, co.CustomerId, 100.00m, Today);
+        await SeedPostedJeAsync(sp, co.CompanyId, co.BranchId, Today, glCashAccountId, revenueAccountId, 100.00m);
+
+        // RC3 — CASH 40, unmatched (posts 1110; MUST NOT be counted as a deposit for THIS
+        // 1120-mapped bank account — the finding's failing scenario, T-scope-1).
+        await SeedPostedReceiptAsync(sp, co.CompanyId, co.BranchId, co.CustomerId, 40.00m, Today, PaymentMethod.Cash);
+        await SeedPostedJeAsync(sp, co.CompanyId, co.BranchId, Today, cashAccountId, revenueAccountId, 40.00m);
+
+        // PV1 — Transfer 30, unmatched (outstanding).
+        var pv1 = await SeedPostedPaymentVoucherAsync(sp, co.CompanyId, co.BranchId, 30.00m, Today);
+        await SeedPostedJeAsync(sp, co.CompanyId, co.BranchId, Today, glCashAccountId, expenseAccountId, 30.00m, bankDebit: false);
+        _ = pv1;
+
+        // Bank fee — statement-only, MoneyOut 50, unmatched.
+        await SeedStatementLineAsync(sp, co.CompanyId, importId, bankAccountId, StatementDirection.MoneyOut, 50.00m, Today);
+
+        await using var s = sp.CreateAsyncScope();
+        var reconSvc = s.ServiceProvider.GetRequiredService<IBankReconciliationService>();
+        await reconSvc.ConfirmMatchAsync(lineId, new ConfirmMatchRequest(rc1, null), default);
+
+        var reportSvc = s.ServiceProvider.GetRequiredService<IBankReconciliationReportService>();
+        var report = await reportSvc.GetAsync(bankAccountId, Today, Today, default);
+
+        report.GlBalance.Should().Be(170.00m, "RC1(100)+RC2(100)-PV1(30) on 1120; RC3 hit 1110, never in this GL balance");
+        report.StatementClosingBalance.Should().Be(50.00m, "100(RC1) - 50(fee)");
+        report.DepositsInTransit.Should().ContainSingle(x => x.Amount == 100.00m, "RC2 (Transfer) must be counted");
+        report.DepositsInTransitTotal.Should().Be(100.00m, "RC3 (Cash) must be excluded — T-scope-1");
+        report.OutstandingPayments.Should().ContainSingle(x => x.Amount == 30.00m);
+        report.OutstandingPaymentsTotal.Should().Be(30.00m);
+        report.UnmatchedLinesNet.Should().Be(-50.00m);
+        report.Difference.Should().Be(0m, "170 - 100 + 30 - 50 = 50 = statement — the addendum's re-derived worked example");
+        report.DocReconciliationLimited.Should().BeFalse("this bank account IS the primary 1120-mapped account");
+    }
+
+    /// <summary>T-scope-3 — a bank account mapped to a NON-1120 sub-account: neither cash(1110)
+    /// nor bank(1120) equals its own GlCashAccountId, so both attribution flags are false and the
+    /// deposit/outstanding sets are always empty, regardless of what is posted; DocReconciliationLimited
+    /// must flag this as a known v1 limitation, not a silent broken tie-out.</summary>
+    [SkippableFact]
+    public async Task TScope3_non_primary_bank_account_has_empty_sets_and_is_flagged_limited()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp, _, primaryGlCashAccountId) = await SetupAsync();
+        var revenueAccountId = await AccountId(sp, "4000");
+        // Reuse an existing seeded Asset account ("1170" Input VAT) as a stand-in non-primary
+        // "sub-account" — any Asset account other than 1110/1120 exercises the same code path.
+        var subAccountId = await AccountId(sp, "1170");
+
+        await using var s0 = sp.CreateAsyncScope();
+        var bankSvc = s0.ServiceProvider.GetRequiredService<IBankAccountService>();
+        var subBankAccountId = await bankSvc.CreateAsync(new CreateBankAccountRequest(
+            "KBANK", "Kasikornbank (sub)", "888-8-88888-8", null, null, subAccountId, "THB"), default);
+
+        // A Transfer receipt posted to the PRIMARY 1120 account — must NOT leak into this
+        // sub-account's deposits even though it is a Transfer (not Cash).
+        await SeedPostedReceiptAsync(sp, co.CompanyId, co.BranchId, co.CustomerId, 100.00m, Today);
+        await SeedPostedJeAsync(sp, co.CompanyId, co.BranchId, Today, primaryGlCashAccountId, revenueAccountId, 100.00m);
+
+        await using var s = sp.CreateAsyncScope();
+        var reportSvc = s.ServiceProvider.GetRequiredService<IBankReconciliationReportService>();
+        var report = await reportSvc.GetAsync(subBankAccountId, Today, Today, default);
+
+        report.DepositsInTransit.Should().BeEmpty("neither cash(1110) nor bank(1120) equals this sub-account's own GlCashAccountId");
+        report.OutstandingPayments.Should().BeEmpty();
+        report.DocReconciliationLimited.Should().BeTrue("a non-1120-mapped account is a known v1 limitation, never a silent broken tie-out");
+    }
+
+    /// <summary>T-scope-4 coupling guard — the report's cash/bank codes must come from
+    /// GlAccountsOptions (the SAME source GlPostingService reads), never a hardcoded "1110"/
+    /// "1120" literal. Proven by injecting NON-default codes ("9110"/"9120") directly into a
+    /// manually-constructed service instance: if the report ever hardcoded the default codes
+    /// instead of reading _accounts, this test would see EMPTY sets (the hardcoded codes would
+    /// resolve to the WRONG, unrelated default 1110/1120 accounts) instead of the expected
+    /// Transfer-in/Cash-excluded split — failing loudly if posting's rule and the report's
+    /// replica ever diverge.</summary>
+    [SkippableFact]
+    public async Task TScope4_coupling_guard_report_reads_codes_from_GlAccountsOptions_not_hardcoded()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp, _, _) = await SetupAsync();
+        var revenueAccountId = await AccountId(sp, "4000");
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var customCash = new ChartOfAccount
+        {
+            CompanyId = co.CompanyId, AccountCode = "9110", AccountNameTh = "เงินสด (ทดสอบ)",
+            AccountType = AccountType.Asset, NormalBalance = NormalBalance.Debit,
+            IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
+        };
+        var customBank = new ChartOfAccount
+        {
+            CompanyId = co.CompanyId, AccountCode = "9120", AccountNameTh = "ธนาคาร (ทดสอบ)",
+            AccountType = AccountType.Asset, NormalBalance = NormalBalance.Debit,
+            IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.ChartOfAccounts.AddRange(customCash, customBank);
+        await db.SaveChangesAsync();
+
+        var bankSvc = s.ServiceProvider.GetRequiredService<IBankAccountService>();
+        var customBankAccountId = await bankSvc.CreateAsync(new CreateBankAccountRequest(
+            "KBANK", "Kasikornbank (custom-codes)", "777-7-77777-7", null, null, customBank.AccountId, "THB"), default);
+
+        // Transfer -> should attribute to the CUSTOM bank code "9120"; Cash -> "9110".
+        await SeedPostedReceiptAsync(sp, co.CompanyId, co.BranchId, co.CustomerId, 100.00m, Today);
+        await SeedPostedJeAsync(sp, co.CompanyId, co.BranchId, Today, customBank.AccountId, revenueAccountId, 100.00m);
+        await SeedPostedReceiptAsync(sp, co.CompanyId, co.BranchId, co.CustomerId, 40.00m, Today, PaymentMethod.Cash);
+        await SeedPostedJeAsync(sp, co.CompanyId, co.BranchId, Today, customCash.AccountId, revenueAccountId, 40.00m);
+
+        var tenant = s.ServiceProvider.GetRequiredService<ITenantContext>();
+        var customOptions = Options.Create(new GlAccountsOptions { CashAccount = "9110", BankAccount = "9120" });
+        var reportSvc = new BankReconciliationReportService(db, tenant, customOptions);
+        var report = await reportSvc.GetAsync(customBankAccountId, Today, Today, default);
+
+        report.DepositsInTransit.Should().ContainSingle(x => x.Amount == 100.00m,
+            "the Transfer receipt attributes to the INJECTED bank code 9120, proving the source is GlAccountsOptions");
+        report.DepositsInTransitTotal.Should().Be(100.00m, "the Cash receipt (9110) must stay excluded under the injected codes too");
     }
 }

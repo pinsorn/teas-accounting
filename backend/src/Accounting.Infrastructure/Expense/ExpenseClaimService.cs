@@ -45,6 +45,25 @@ public sealed class ExpenseClaimService(
         }
     }
 
+    /// <summary>Codex review finding #2 (2026-07-10) — mirrors BankReconciliationService
+    /// .CreateJournalAsync's contra-account check (exists tenant-scoped, active, non-header): a
+    /// client-supplied line override must not be trusted unvalidated (a forged/foreign/header
+    /// account would otherwise post silently and mis-roll the trial balance).</summary>
+    private async Task<long> EnsureExpenseAccountAsync(long accountId, int companyId, CancellationToken ct)
+    {
+        var account = await db.ChartOfAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(a => a.AccountId == accountId && a.CompanyId == companyId, ct)
+            ?? throw new DomainException("expense_claim.expense_account_invalid",
+                $"Expense account {accountId} not found.");
+        if (!account.IsActive)
+            throw new DomainException("expense_claim.expense_account_invalid",
+                $"Expense account {accountId} is not active.");
+        if (account.IsHeader)
+            throw new DomainException("expense_claim.expense_account_invalid",
+                $"Expense account {accountId} is a header account — pick a postable (non-header) account.");
+        return accountId;
+    }
+
     private async Task<(List<ExpenseClaimLine> Lines, decimal Subtotal, decimal Vat, decimal Total)> BuildLinesAsync(
         IReadOnlyList<ExpenseClaimLineInput> inputs, int companyId, CancellationToken ct)
     {
@@ -58,10 +77,14 @@ public sealed class ExpenseClaimService(
                     $"Expense category {input.ExpenseCategoryId} not found.");
 
             // Frozen at draft: line override ?? category default (identical rule to
-            // PaymentVoucherService.cs:162) — never re-resolved after this point.
-            var expenseAccountId = input.ExpenseAccountId ?? category.DefaultExpenseAccountId
-                ?? throw new DomainException("expense_claim.expense_account_missing",
-                    $"Line {i + 1}: no expense account (category '{category.CategoryCode}' has no default).");
+            // PaymentVoucherService.cs:162) — never re-resolved after this point. A client
+            // OVERRIDE is validated (finding #2); the category default is trusted (already
+            // validated when the category was set up).
+            var expenseAccountId = input.ExpenseAccountId is { } overrideId
+                ? await EnsureExpenseAccountAsync(overrideId, companyId, ct)
+                : category.DefaultExpenseAccountId
+                    ?? throw new DomainException("expense_claim.expense_account_missing",
+                        $"Line {i + 1}: no expense account (category '{category.CategoryCode}' has no default).");
 
             var net = Math.Round(input.Amount, 4, MidpointRounding.AwayFromZero);
             var vat = Math.Round(net * input.VatRate, 2, MidpointRounding.AwayFromZero);
@@ -145,7 +168,12 @@ public sealed class ExpenseClaimService(
         // Tier-2 review — a Rejected -> edited -> resubmitted claim must not carry stale
         // rejection text forward; clear it on every edit (Draft edits: already null, no-op).
         claim.RejectReason   = null;
-        await db.SaveChangesAsync(ct);
+        // Codex review finding #6 (2026-07-10) — every OTHER state transition increments
+        // Version + saves via SaveGuardedAsync (FOOTGUN 8); a Draft edit racing a concurrent
+        // Submit was the one path that skipped both, so it would silently overwrite an
+        // already-submitted claim's lines instead of 409-ing.
+        claim.Version++;
+        await SaveGuardedAsync(ct);
     }
 
     private async Task<ExpenseClaim> LoadAsync(long id, CancellationToken ct) =>

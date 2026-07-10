@@ -148,15 +148,34 @@ public sealed class BankReconciliationService(
         }
 
         var now = clock.UtcNow;
-        var claimed = await db.StatementLines
-            .Where(x => x.StatementLineId == lineId && x.CompanyId == tenant.CompanyId
-                && x.MatchStatus == MatchStatus.Unmatched)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(x => x.MatchStatus, MatchStatus.Matched)
-                .SetProperty(x => x.MatchedReceiptId, req.ReceiptId)
-                .SetProperty(x => x.MatchedPaymentVoucherId, req.PaymentVoucherId)
-                .SetProperty(x => x.MatchedAt, now)
-                .SetProperty(x => x.MatchedBy, tenant.UserId), ct);
+        int claimed;
+        try
+        {
+            claimed = await db.StatementLines
+                .Where(x => x.StatementLineId == lineId && x.CompanyId == tenant.CompanyId
+                    && x.MatchStatus == MatchStatus.Unmatched)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.MatchStatus, MatchStatus.Matched)
+                    .SetProperty(x => x.MatchedReceiptId, req.ReceiptId)
+                    .SetProperty(x => x.MatchedPaymentVoucherId, req.PaymentVoucherId)
+                    .SetProperty(x => x.MatchedAt, now)
+                    .SetProperty(x => x.MatchedBy, tenant.UserId), ct);
+        }
+        // Codex review finding #4 (2026-07-10) — the pre-checks above are a read-then-write race;
+        // the partial unique indexes on matched_receipt_id/matched_payment_voucher_id are the hard
+        // backstop. ExecuteUpdateAsync bypasses the change-tracker SaveChanges pipeline, so a
+        // constraint violation surfaces as a RAW provider exception, not a wrapped
+        // DbUpdateException — catch both shapes defensively.
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == "23505")
+        {
+            throw new DomainException("bank.doc_already_matched",
+                "This document was just matched to another line by a concurrent request.");
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        {
+            throw new DomainException("bank.doc_already_matched",
+                "This document was just matched to another line by a concurrent request.");
+        }
         if (claimed == 0)
             throw new DomainException("bank.line_not_unmatched",
                 "This line is no longer Unmatched (concurrent update) — confirm was not applied.");

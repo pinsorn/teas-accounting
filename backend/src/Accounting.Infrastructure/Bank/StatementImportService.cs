@@ -18,6 +18,8 @@ public sealed class StatementImportService(
     IOptions<FileStorageOptions> fileStorageOptions)
     : IStatementImportService
 {
+    private static string DigitsOnly(string s) => new(s.Where(char.IsDigit).ToArray());
+
     public async Task<StatementImportResult> ImportAsync(
         int bankAccountId, string fileName, string mimeType, long sizeBytes, Stream content,
         string? password, CancellationToken ct)
@@ -25,10 +27,9 @@ public sealed class StatementImportService(
         if (!tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
-        var bankAccountExists = await db.BankAccounts.AsNoTracking()
-            .AnyAsync(x => x.BankAccountId == bankAccountId && x.CompanyId == tenant.CompanyId, ct);
-        if (!bankAccountExists)
-            throw new DomainException("bank_account.not_found", $"Bank account {bankAccountId} not found.");
+        var bankAccount = await db.BankAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.BankAccountId == bankAccountId && x.CompanyId == tenant.CompanyId, ct)
+            ?? throw new DomainException("bank_account.not_found", $"Bank account {bankAccountId} not found.");
 
         // Reject cheap first (Fable cross-review, 2026-07-09) — the SAME size/mime limits
         // AttachmentService.UploadAsync enforces, checked BEFORE the expensive adapter.Parse
@@ -54,6 +55,15 @@ public sealed class StatementImportService(
         var parsed = adapter.Parse(new MemoryStream(bytes), password);
         // D10 — fails LOUD; nothing below has run yet, so a throw here persists nothing.
         BankStatementIntegrity.Validate(parsed);
+
+        // Codex review finding #3 (2026-07-10) — reject a statement parsed from the WRONG bank
+        // account BEFORE any attachment/db write (mirrors the D10 placement above). Compared
+        // digits-only: the statement's raw account no. and the selected account's stored one are
+        // formatted differently ("999-9-99999-9" vs "9999999999") but must be the SAME account.
+        if (DigitsOnly(parsed.AccountNoRaw) != DigitsOnly(bankAccount.AccountNo))
+            throw new DomainException("bank.statement_account_mismatch",
+                $"The statement's account number does not match the selected bank account " +
+                $"'{bankAccount.AccountNo}'.");
 
         // Idempotency (B2.5) — warn, never block, on an overlapping prior import.
         var overlap = await db.StatementImports.AsNoTracking().AnyAsync(x =>
