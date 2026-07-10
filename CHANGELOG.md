@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.17.0](https://github.com/pinsorn/teas-accounting/compare/v1.16.0...v1.17.0) (2026-07-10)
+
+
+### Features
+
+* **expense:** expense claims - submit/approve/pay with GL posting ([4df215b](https://github.com/pinsorn/teas-accounting/commit/4df215b3f90498584876e1399642819c9ad936a4))
+* **expense:** expense claims (Cycle C) ([d516de5](https://github.com/pinsorn/teas-accounting/commit/d516de53543af02fa210458844df78e082ab09d4))
+* **fixedasset:** fixed assets + depreciation (Cycle D) ([e804878](https://github.com/pinsorn/teas-accounting/commit/e8048788a1114b3e0a79770e43821efd87d06a09))
+* **fixedasset:** fixed assets register + straight-line depreciation + disposal ([7a013c0](https://github.com/pinsorn/teas-accounting/commit/7a013c016f7dcd0012ac726525de1eb3674cd238))
+
 ## [1.16.0](https://github.com/pinsorn/teas-accounting/compare/v1.15.1...v1.16.0) (2026-07-09)
 
 
