@@ -35,6 +35,12 @@ const ALL_SCOPES = [
   'sales.billing_note.read', 'sales.delivery_order.manage',
   // D2 (mcp-expansion) — update_invoice_draft (billing note). Mirrors McpScopes.All.
   'sales.billing_note.manage',
+  // mcp-expansion-v2 — bank reconciliation (read-only) + expense claims (read+draft) +
+  // fixed assets (read+draft) + employees (master lookup). Mirrors McpScopes.All.
+  'bank.account.read', 'bank.report.read',
+  'expense.claim.read', 'expense.claim.create',
+  'master.employee.manage',
+  'fixedasset.read', 'fixedasset.manage',
 ] as const;
 
 // MCP keys cannot hold .post scopes (M1 backend guard). Mirror that constraint
@@ -63,6 +69,12 @@ const MCP_DEFAULT_SCOPES = [
   'sales.billing_note.read', 'sales.delivery_order.manage',
   // D2 (mcp-expansion) — update_invoice_draft (billing note). Mirrors McpScopes.All.
   'sales.billing_note.manage',
+  // mcp-expansion-v2 — bank reconciliation (read-only) + expense claims (read+draft) +
+  // fixed assets (read+draft) + employees (master lookup). Mirrors McpScopes.All.
+  'bank.account.read', 'bank.report.read',
+  'expense.claim.read', 'expense.claim.create',
+  'master.employee.manage',
+  'fixedasset.read', 'fixedasset.manage',
 ];
 
 export default function ApiKeysSettingsPage() {

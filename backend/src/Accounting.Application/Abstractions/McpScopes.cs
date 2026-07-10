@@ -34,6 +34,17 @@ public static class McpScopes
         // (unlike quotation/PO/VI, which reuse their create tool's scope), so this is the exact
         // RBAC permission code (identity mapping — same mechanism as the report scopes above).
         "sales.billing_note.manage",
+        // mcp-expansion-v2 — bank reconciliation (read-only) + expense claims (read+draft) +
+        // fixed assets (read+draft) + the employee master lookup expense-claim drafting needs.
+        // Same identity mapping as everything else here (scope code == RBAC permission code);
+        // the underlying sys.permissions rows + role grants already exist (SqlScripts 615/617/620)
+        // — this catalog entry is what was actually missing (same gap C2 fixed above: without it
+        // these scopes are never grantable via the OAuth consent/UI picker, so the new tools would
+        // be unreachable even for a user who holds the RBAC permission).
+        "bank.account.read", "bank.report.read",
+        "expense.claim.read", "expense.claim.create",
+        "master.employee.manage",
+        "fixedasset.read", "fixedasset.manage",
     };
 
     // Mirror of ApiKeyService.McpForbiddenSuffixes (defense-in-depth invariant, asserted in tests).
