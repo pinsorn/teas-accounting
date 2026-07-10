@@ -22,6 +22,25 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## claude-in-chrome resize_window / zoom is a no-op — can't get a true mobile viewport for FE smoke tests
+- **Symptom:** `mcp__claude-in-chrome__resize_window` reports "Successfully resized window to
+  WxH" for any target size (tried 390x844, 800x600), but every subsequent screenshot still
+  renders at the same fixed ~1568-wide viewport. `ctrl+=` (browser zoom-in, tried as a
+  workaround to shrink the effective CSS viewport) also has no visible effect on the rendered
+  page. Reproduced independently by two separate workers/sessions (fixed-assets FE dispatch,
+  2026-07-10) across fresh tabs and a fresh tab group — not a stale-tab or timing issue.
+- **Root cause:** this sandbox's browser automation environment renders into a fixed-size
+  virtual display; `resize_window`/keyboard zoom operate on OS-level window chrome that this
+  environment doesn't actually control or reflect in the CDP viewport used for screenshots.
+- **Fix:** none found yet. Do NOT keep retrying resize_window/zoom variations — it's a hard
+  environment ceiling, not a timing or selector issue. For now: do the live desktop-viewport
+  smoke test as normal; verify mobile responsiveness by CODE REVIEW instead (confirm the new
+  UI reuses already-mobile-verified shared components — DataTable, modal-box, PageHeader,
+  PermissionGate — rather than inventing new fixed-width layout) and flag the missing
+  screenshot gap explicitly in the report for the orchestrator's call (e.g. real-device check,
+  or a Playwright viewport test outside this MCP tool, as a follow-up).
+- **Seen:** 2026-07-10, Cycle D fixed-assets FE build.
+
 ## Regenerating an already-applied EF migration (ef remove + add) leaves teas_test stuck: "relation already exists"
 - **Symptom:** you `dotnet ef migrations remove` + `add <SameName>` to fix something in an
   uncommitted migration (e.g. a column precision) AFTER `dotnet test` has already run once and

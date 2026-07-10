@@ -30,4 +30,12 @@ public sealed class GlAccountsOptions
     public string PitPayableAccount         { get; init; } = "2153"; // ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง (CR)
     public string SsoPayableAccount         { get; init; } = "2160"; // เงินสมทบประกันสังคมค้างนำส่ง (CR)
     public string NetWagesPayableAccount    { get; init; } = "2170"; // เงินเดือนค้างจ่าย (CR)
+
+    // ---- Fixed Assets (Cycle D, specs/fixed-assets.md §2). Disposal output VAT reuses the
+    // existing OutputVatAccount (2151) above — no separate prop for that. ----
+    public string FixedAssetCostAccount        { get; init; } = "1610"; // อุปกรณ์และเครื่องใช้สำนักงาน (DR)
+    public string AccumulatedDepreciationAccount { get; init; } = "1690"; // ค่าเสื่อมราคาสะสม (CR, contra-asset)
+    public string DepreciationExpenseAccount   { get; init; } = "5450"; // ค่าเสื่อมราคา (DR)
+    public string GainOnAssetDisposalAccount   { get; init; } = "4200"; // กำไรจากการจำหน่ายสินทรัพย์ (CR)
+    public string LossOnAssetDisposalAccount   { get; init; } = "5460"; // ขาดทุนจากการจำหน่ายสินทรัพย์ (DR)
 }

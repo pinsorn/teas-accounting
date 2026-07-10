@@ -555,6 +555,7 @@ app.MapPurchaseOrderEndpoints();
 app.MapPeriodEndpoints();
 app.MapEtaxEndpoints();
 app.MapExpenseClaimEndpoints();
+app.MapFixedAssetEndpoints();
 app.MapApiKeyEndpoints();
 app.MapExternalApiV1();
 app.MapPublicPdfEndpoints();   // §A — anonymous, rate-limited, token-gated PDF route

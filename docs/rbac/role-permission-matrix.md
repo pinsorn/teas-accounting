@@ -19,6 +19,10 @@
 | `expense.claim.create` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `expense.claim.pay` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `expense.claim.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `fixedasset.depreciation.run` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `fixedasset.dispose` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `fixedasset.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `fixedasset.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.create` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.post` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
@@ -93,18 +97,18 @@
 
 | Role | Granted |
 |---|---:|
-| ACCOUNTANT | 51 |
+| ACCOUNTANT | 54 |
 | APPROVER | 6 |
 | AP_CLERK | 15 |
 | AR_CLERK | 23 |
 | AUDITOR | 18 |
-| CHIEF_ACCOUNTANT | 70 |
-| COMPANY_ADMIN | 77 |
+| CHIEF_ACCOUNTANT | 74 |
+| COMPANY_ADMIN | 81 |
 | PURCHASING_STAFF | 5 |
 | SALES_STAFF | 13 |
 | TAX_OFFICER | 12 |
 | WAREHOUSE_STAFF | 2 |
-| SUPER_ADMIN | 78 (bypass) |
+| SUPER_ADMIN | 82 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

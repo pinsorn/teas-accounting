@@ -64,6 +64,23 @@ public sealed class PeriodCloseService : IPeriodCloseService
             throw new DomainException("period.draft_present",
                 "Cannot close period — draft fiscal documents still exist. Post or void them first.");
 
+        // Fixed-assets hook (specs/fixed-assets.md §4): a month with assets due depreciation
+        // cannot close until that month's depreciation run is posted. Minimal add — two reads
+        // + one throw; no change to the close transaction or any other service.
+        var depreciationDue = await _db.FixedAssets.AnyAsync(a =>
+            a.Status == FixedAssetStatus.Active
+            && a.DepreciationStartDate <= to
+            && a.AccumulatedDepreciation < a.DepreciableBase, ct);
+        if (depreciationDue)
+        {
+            var runPosted = await _db.DepreciationRuns.AnyAsync(r =>
+                r.PeriodYear == year && r.PeriodMonth == month
+                && r.Status == DepreciationRunStatus.Posted, ct);
+            if (!runPosted)
+                throw new DomainException("period.depreciation_required",
+                    $"Depreciation for {year}-{month:D2} must be generated before closing this period.");
+        }
+
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var period = await _db.AccountingPeriods

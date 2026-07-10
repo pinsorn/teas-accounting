@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart, ShieldCheck, UsersRound, BookOpen, FileBarChart2, Lock, Banknote } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart, ShieldCheck, UsersRound, BookOpen, FileBarChart2, Lock, Banknote, Boxes, TrendingDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
 import { useCompanyProfile, useMePermissions, useSystemInfo } from '@/lib/queries';
@@ -69,6 +69,9 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/payment-vouchers', key: 'paymentVouchers', Icon: Wallet, perm: 'purchase.payment_voucher.read' },
       // Cycle C (specs/expense-claims.md §5) — employee expense reimbursement.
       { href: '/expense-claims', key: 'expenseClaims', Icon: Banknote, perm: 'expense.claim.read' },
+      // Cycle D (specs/fixed-assets.md §9.12-9.17) — asset register + monthly depreciation runs.
+      { href: '/fixed-assets', key: 'fixedAssets', Icon: Boxes, perm: 'fixedasset.read' },
+      { href: '/depreciation', key: 'depreciation', Icon: TrendingDown, perm: 'fixedasset.read' },
       { href: '/vendor-invoices', key: 'vendorInvoices', Icon: FileInput, perm: 'purchase.vendor_invoice.read' },
       { href: '/wht-certificates', key: 'whtCerts', Icon: FileSignature, perm: 'purchase.wht.read' },
     ],
