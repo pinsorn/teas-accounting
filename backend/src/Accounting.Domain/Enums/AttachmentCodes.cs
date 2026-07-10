@@ -23,6 +23,7 @@ public static class AttachmentCodes
             [AttachmentParentType.BillingNote]       = "BILLING_NOTE",
             [AttachmentParentType.CompanyProfile]    = "COMPANY_PROFILE",
             [AttachmentParentType.BankStatement]     = "BANK_STATEMENT",
+            [AttachmentParentType.ExpenseClaim]      = "EXPENSE_CLAIM",
         };
 
     public static readonly IReadOnlyDictionary<AttachmentCategory, string> CategoryDb =

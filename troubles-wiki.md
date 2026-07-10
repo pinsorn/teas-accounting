@@ -22,6 +22,31 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## Regenerating an already-applied EF migration (ef remove + add) leaves teas_test stuck: "relation already exists"
+- **Symptom:** you `dotnet ef migrations remove` + `add <SameName>` to fix something in an
+  uncommitted migration (e.g. a column precision) AFTER `dotnet test` has already run once and
+  applied the OLD migration to the shared, persistent `teas_test` DB. The new migration gets a
+  NEW timestamp id. Next fixture init's `db.Database.MigrateAsync()` (PostgresFixture.cs) sees
+  the new id is not in `sys.__ef_migrations`, tries to run its `Up()` (`CreateTable ...`), and
+  fails with `42P07 relation "..." already exists` — the OLD migration's tables are still there,
+  the OLD id is still recorded, but the PROJECT no longer has that migration class to reconcile
+  against.
+- **Root cause:** `teas_test` is long-lived and shared across test runs (not recreated per run);
+  `PostgresFixture` bootstraps/tracks EF migrations via `sys.__ef_migrations` exactly like a real
+  deploy. Renaming a migration's id (any `ef remove`+`add`, even same class name) orphans the
+  already-applied tables/history row — there is no automatic reconciliation.
+- **Fix:** after regenerating, connect directly to `teas_test` (bypass EF/the fixture — a plain
+  Npgsql connection; `Add-Type` on the built `Npgsql.dll` from Windows PowerShell 5.1 does NOT
+  work, it's .NET Framework and can't load a net10 assembly — use a tiny standalone
+  `dotnet run` console app instead, or `psql` if available) and run: `DROP SCHEMA IF EXISTS
+  <schema> CASCADE;` + `DELETE FROM sys.__ef_migrations WHERE migration_id LIKE '%_<Name>';` +
+  `DELETE FROM sys.applied_sql_scripts WHERE script_name IN (...)` for any SqlScripts that seed
+  into that schema (they're apply-once tracked too — FOOTGUN 9). Then the next `dotnet test`
+  applies the new migration + scripts cleanly from scratch. Prefer hand-editing the migration
+  file in place (same timestamp) over `ef remove`+`add` when only a column property (precision,
+  default, nullability) changed and the migration is still uncommitted — it avoids this entirely.
+- **Seen:** 2026-07-10, Cycle C Expense Claims Tier-2 review (vat_rate 5,2 -> 5,4 precision fix).
+
 ## Startup SqlScript writing/reading G1/G3 RLS'd tables fails 42501 or silently no-ops on prod (green on teas_test)
 - **Symptom:** a NEW `SqlScripts/NNN_*.sql` file that INSERTs into a G1 tenant table (e.g.
   `master.chart_of_accounts`) throws at prod startup: `SqlState 42501: new row violates

@@ -17,6 +17,7 @@ public enum AttachmentParentType
     BillingNote,         // Sprint 13h P6.2 — Billing Note (ckpt3 deferred wiring)
     CompanyProfile,      // Sprint 13h P10 — company logo upload
     BankStatement,       // Bank reconciliation B2 — statement_imports.attachment_id (D11)
+    ExpenseClaim,        // Cycle C — receipts parent to the header (stable id), not the line
 }
 
 /// <summary>Sprint 11 — attachment purpose. OTHER requires a description.</summary>

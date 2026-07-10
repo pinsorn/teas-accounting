@@ -1500,3 +1500,34 @@ export interface CreatePurchaseOrderRequest {
   businessUnitId?: number | null; currencyCode: string; exchangeRate: number;
   notes?: string | null; internalNotes?: string | null; lines: PurchaseOrderLineInput[];
 }
+
+// ───────────────────────── Cycle C: Expense Claims ─────────────────────────
+export interface ExpenseClaimLineInput {
+  expenseCategoryId: number; expenseAccountId?: number | null;
+  description: string; expenseDate?: string | null;
+  amount: number; taxCodeId?: number | null; vatRate: number; isRecoverableVat: boolean;
+}
+export interface CreateExpenseClaimRequest {
+  employeeId: number; claimDate: string; title?: string | null; notes?: string | null;
+  businessUnitId?: number | null; lines: ExpenseClaimLineInput[];
+}
+export interface ExpenseClaimListItem {
+  expenseClaimId: number; docNo: string | null; employeeId: number; employeeName: string;
+  claimDate: string; status: string; totalAmount: number;
+}
+export interface ExpenseClaimLineDetail {
+  expenseClaimLineId: number; lineNo: number; expenseCategoryId: number; categoryName: string;
+  expenseAccountId: number; description: string; expenseDate: string | null;
+  amount: number; taxCodeId: number | null; vatRate: number; vatAmount: number;
+  isRecoverableVat: boolean; lineTotal: number;
+}
+export interface ExpenseClaimDetail {
+  expenseClaimId: number; docNo: string | null; employeeId: number; employeeName: string;
+  claimDate: string; title: string | null; status: string;
+  paymentMethod: string | null; bankAccountId: number | null;
+  subtotalAmount: number; vatAmount: number; totalAmount: number;
+  journalEntryId: number | null; rejectReason: string | null; notes: string | null;
+  businessUnitId: number | null; version: number; lines: ExpenseClaimLineDetail[];
+}
+export interface PayExpenseClaimRequest { paymentMethod: 'CASH' | 'TRANSFER'; bankAccountId?: number | null; }
+export interface RejectExpenseClaimRequest { reason: string; }

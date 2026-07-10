@@ -15,6 +15,10 @@
 | `bank.reconcile` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `bank.report.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `bank.statement.import` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `expense.claim.approve` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `expense.claim.create` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `expense.claim.pay` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `expense.claim.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.create` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.post` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
@@ -89,18 +93,18 @@
 
 | Role | Granted |
 |---|---:|
-| ACCOUNTANT | 49 |
+| ACCOUNTANT | 51 |
 | APPROVER | 6 |
 | AP_CLERK | 15 |
 | AR_CLERK | 23 |
 | AUDITOR | 18 |
-| CHIEF_ACCOUNTANT | 66 |
-| COMPANY_ADMIN | 73 |
+| CHIEF_ACCOUNTANT | 70 |
+| COMPANY_ADMIN | 77 |
 | PURCHASING_STAFF | 5 |
 | SALES_STAFF | 13 |
 | TAX_OFFICER | 12 |
 | WAREHOUSE_STAFF | 2 |
-| SUPER_ADMIN | 74 (bypass) |
+| SUPER_ADMIN | 78 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

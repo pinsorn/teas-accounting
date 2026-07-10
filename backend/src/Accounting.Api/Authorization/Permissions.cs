@@ -128,6 +128,16 @@ public static class Permissions
         public const string ReportRead      = "bank.report.read";
     }
 
+    // Cycle C — Expense Claims (specs/expense-claims.md §2). Role split (Ham ruling):
+    // COMPANY_ADMIN + CHIEF_ACCOUNTANT get approve+pay; ACCOUNTANT gets create+read only.
+    public static class Expense
+    {
+        public const string ClaimRead    = "expense.claim.read";
+        public const string ClaimCreate  = "expense.claim.create";
+        public const string ClaimApprove = "expense.claim.approve";
+        public const string ClaimPay     = "expense.claim.pay";
+    }
+
     /// <summary>All permission codes — for seed migration.</summary>
     public static readonly IReadOnlyList<string> All =
     [
@@ -153,5 +163,6 @@ public static class Permissions
         Payroll.RunManage, Payroll.RunPost, Payroll.RunPay,
         Report.TrialBalance, Report.ProfitLoss, Report.AuditRead, Report.GeneralLedger,
         Bank.AccountRead, Bank.AccountManage, Bank.StatementImport, Bank.Reconcile, Bank.ReportRead,
+        Expense.ClaimRead, Expense.ClaimCreate, Expense.ClaimApprove, Expense.ClaimPay,
     ];
 }

@@ -1,6 +1,7 @@
 using Accounting.Application.Abstractions;
 using Accounting.Application.Ledger;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Expense;
 using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
@@ -223,6 +224,85 @@ public sealed class GlPostingService : IGlPostingService
         return await BuildAndPostAsync(
             pv.CompanyId, pv.BranchId, pv.DocDate, $"PV {pv.DocNo}", pv.DocNo, lines, ct,
             businessUnitId: pv.BusinessUnitId);   // cont.79 — stamp BU on every PV journal line
+    }
+
+    /// <summary>
+    /// Cycle C (specs/expense-claims.md §3, Option A) — self-contained cash disbursement for an
+    /// employee expense claim. NEW additive method mirroring <see cref="PostPaymentVoucherAsync"/>'s
+    /// structure; calls the SAME private <see cref="BuildAndPostAsync"/> balance-check/JV-number/
+    /// MarkPosted machinery. Touches zero PaymentVoucher/Vendor/WhtCertificate code.
+    /// WHT: NONE — reimbursing an employee's out-of-pocket spend already had any WHT handled by
+    /// the employee at the original purchase; no <c>WhtPayableAccount</c> line, no 50-ทวิ cert.
+    /// </summary>
+    public async Task<long> PostExpenseClaimAsync(long expenseClaimId, CancellationToken ct)
+    {
+        var claim = await _db.ExpenseClaims.Include(c => c.Lines)
+                .FirstOrDefaultAsync(c => c.ExpenseClaimId == expenseClaimId, ct)
+            ?? throw new DomainException("gl.ec_missing", $"Expense Claim {expenseClaimId} not found for GL posting.");
+
+        var inputVat = await ResolveAccountIdAsync(claim.CompanyId, _accounts.InputVatAccount, ct);
+
+        // Credit side: the selected bank account's OWN gl_cash_account_id for TRANSFER (an
+        // employee claim may be paid from any configured bank account, unlike PV's single
+        // company-wide GlAccountsOptions.BankAccount default), else the company cash account.
+        long creditAccountId;
+        if (string.Equals(claim.PaymentMethod, "CASH", StringComparison.OrdinalIgnoreCase))
+        {
+            creditAccountId = await ResolveAccountIdAsync(claim.CompanyId, _accounts.CashAccount, ct);
+        }
+        else
+        {
+            var bankAccountId = claim.BankAccountId
+                ?? throw new DomainException("gl.ec_bank_account_missing",
+                    "TRANSFER payment requires a BankAccountId.");
+            creditAccountId = await _db.BankAccounts.AsNoTracking()
+                    .Where(b => b.BankAccountId == bankAccountId && b.CompanyId == claim.CompanyId)
+                    .Select(b => (long?)b.GlCashAccountId)
+                    .FirstOrDefaultAsync(ct)
+                ?? throw new DomainException("gl.ec_bank_account_not_found",
+                    $"Bank account {bankAccountId} not found.");
+        }
+
+        var lines = new List<JournalLine>();
+        var lineNo = 1;
+        var recoverableVatTotal = 0m;
+        foreach (var l in claim.Lines.OrderBy(l => l.LineNo))
+        {
+            // Non-recoverable VAT is folded into the expense debit (ภาษีซื้อต้องห้าม), exactly
+            // like PostPaymentVoucherAsync's IsRecoverableVat split above.
+            var expenseDebit = l.IsRecoverableVat ? l.Amount : l.Amount + l.VatAmount;
+            lines.Add(new JournalLine
+            {
+                LineNo = lineNo++, AccountId = l.ExpenseAccountId,
+                DebitAmount = expenseDebit, CreditAmount = 0m,
+                Description = l.Description,
+            });
+            if (l.IsRecoverableVat && l.VatAmount > 0m)
+                recoverableVatTotal += l.VatAmount;
+        }
+        if (recoverableVatTotal > 0m)
+            lines.Add(new JournalLine
+            {
+                LineNo = lineNo++, AccountId = inputVat,
+                DebitAmount = recoverableVatTotal, CreditAmount = 0m,
+                Description = $"Input VAT {claim.DocNo}",
+            });
+
+        // WHT: NONE. No WhtPayableAccount line is ever added here — an expense-claim
+        // reimbursement is not a withholding event under Thai law.
+        lines.Add(new JournalLine
+        {
+            LineNo = lineNo, AccountId = creditAccountId,
+            DebitAmount = 0m, CreditAmount = claim.TotalAmount,
+            Description = $"Cash/Bank {claim.DocNo}",
+        });
+
+        // No claim.DocDate column (specs/expense-claims.md §1 DDL) — the JE posts at
+        // server-today (FOOTGUN 5), same as every other poster's post-date.
+        var postDate = _clock.TodayInBangkok();
+        return await BuildAndPostAsync(
+            claim.CompanyId, claim.BranchId, postDate, $"EX {claim.DocNo}", claim.DocNo, lines, ct,
+            businessUnitId: claim.BusinessUnitId);
     }
 
     public async Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct)

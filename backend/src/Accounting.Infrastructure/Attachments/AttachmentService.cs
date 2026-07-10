@@ -43,6 +43,8 @@ public sealed class AttachmentService(
             AttachmentParentType.DeliveryOrder  => "sales.delivery_order.manage",
             AttachmentParentType.BillingNote    => "sales.billing_note.read",
             AttachmentParentType.CompanyProfile => "master.company.manage",
+            // Cycle C — Expense Claims.
+            AttachmentParentType.ExpenseClaim   => "expense.claim.read",
             // Receipt / CN-DN have no dedicated .read perm — rely on
             // sys.attachment.read + tenant isolation (documented).
             _ => null,
@@ -65,6 +67,9 @@ public sealed class AttachmentService(
         AttachmentParentType.CompanyProfile    => await db.CompanyProfiles.AnyAsync(x => x.CompanyId == (int)id, ct),
         // Bank reconciliation B2 (D11) — statement_imports.attachment_id reuses this infra.
         AttachmentParentType.BankStatement     => await db.StatementImports.AnyAsync(x => x.StatementImportId == id, ct),
+        // Cycle C — Expense Claims (specs/expense-claims.md §5). Attachments parent to the
+        // stable HEADER id (FOOTGUN 7 — line ids churn on every draft edit).
+        AttachmentParentType.ExpenseClaim      => await db.ExpenseClaims.AnyAsync(x => x.ExpenseClaimId == id, ct),
         _ => false,
     };
 
