@@ -362,6 +362,13 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("5350", "ภาษีซื้อขอคืนไม่ได้",             "Irrecoverable Input VAT",   AccountType.Expense,   NormalBalance.Debit),
         ("5400", "เงินเดือนและค่าจ้าง",             "Salary & Wages",            AccountType.Expense,   NormalBalance.Debit),
         ("5410", "เงินสมทบประกันสังคม-นายจ้าง",     "Employer SSO Contribution", AccountType.Expense,   NormalBalance.Debit),
+        // Cycle D — Fixed Assets (specs/fixed-assets.md §2). 1690 is a contra-asset:
+        // AccountType.Asset with Credit normal balance (balance sheet computes Asset = Dr-Cr).
+        ("1610", "อุปกรณ์และเครื่องใช้สำนักงาน",     "Office Equipment (Fixed Asset)", AccountType.Asset,   NormalBalance.Debit),
+        ("1690", "ค่าเสื่อมราคาสะสม",               "Accumulated Depreciation",  AccountType.Asset,     NormalBalance.Credit),
+        ("5450", "ค่าเสื่อมราคา",                   "Depreciation Expense",      AccountType.Expense,   NormalBalance.Debit),
+        ("4200", "กำไรจากการจำหน่ายสินทรัพย์",       "Gain on Disposal of Assets", AccountType.Revenue,  NormalBalance.Credit),
+        ("5460", "ขาดทุนจากการจำหน่ายสินทรัพย์",     "Loss on Disposal of Assets", AccountType.Expense,  NormalBalance.Debit),
     ];
 
     // Canonical 13 domestic WHT types (kept in sync with seed 220).

@@ -121,6 +121,11 @@ public class AccountingDbContext : DbContext
     public DbSet<ExpenseClaim>     ExpenseClaims     => Set<ExpenseClaim>();
     public DbSet<ExpenseClaimLine> ExpenseClaimLines => Set<ExpenseClaimLine>();
 
+    // Cycle D (specs/fixed-assets.md §1) — asset register + straight-line depreciation
+    public DbSet<Accounting.Domain.Entities.FixedAsset.FixedAsset> FixedAssets => Set<Accounting.Domain.Entities.FixedAsset.FixedAsset>();
+    public DbSet<Accounting.Domain.Entities.FixedAsset.DepreciationRun>     DepreciationRuns     => Set<Accounting.Domain.Entities.FixedAsset.DepreciationRun>();
+    public DbSet<Accounting.Domain.Entities.FixedAsset.DepreciationRunLine> DepreciationRunLines => Set<Accounting.Domain.Entities.FixedAsset.DepreciationRunLine>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("public");

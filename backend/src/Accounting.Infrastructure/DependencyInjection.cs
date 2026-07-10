@@ -114,6 +114,9 @@ public static class DependencyInjection
         // Cycle C (specs/expense-claims.md) — employee expense reimbursement.
         services.AddScoped<Application.Expense.IExpenseClaimService,     Expense.ExpenseClaimService>();
 
+        // Cycle D (specs/fixed-assets.md) — asset register + straight-line depreciation.
+        services.AddScoped<Application.FixedAsset.IFixedAssetService,    FixedAsset.FixedAssetService>();
+
         // Payroll (P-C) — SSO + allowance rates are config-driven (§4.6); run service posts via GL.
         services.AddOptions<Payroll.SsoOptions>().Bind(cfg.GetSection("Payroll:Sso"));
         services.AddOptions<Payroll.PayrollAllowanceOptions>().Bind(cfg.GetSection("Payroll:Allowances"));

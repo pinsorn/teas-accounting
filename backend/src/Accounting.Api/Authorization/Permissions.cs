@@ -138,6 +138,16 @@ public static class Permissions
         public const string ClaimPay     = "expense.claim.pay";
     }
 
+    // Cycle D — Fixed Assets (specs/fixed-assets.md §8.1). Role split (Ham ruling, Q2):
+    // COMPANY_ADMIN + CHIEF_ACCOUNTANT get all four; ACCOUNTANT gets read+manage+run (NOT dispose).
+    public static class FixedAsset
+    {
+        public const string Read             = "fixedasset.read";
+        public const string Manage           = "fixedasset.manage";
+        public const string Dispose          = "fixedasset.dispose";
+        public const string DepreciationRun  = "fixedasset.depreciation.run";
+    }
+
     /// <summary>All permission codes — for seed migration.</summary>
     public static readonly IReadOnlyList<string> All =
     [
@@ -164,5 +174,6 @@ public static class Permissions
         Report.TrialBalance, Report.ProfitLoss, Report.AuditRead, Report.GeneralLedger,
         Bank.AccountRead, Bank.AccountManage, Bank.StatementImport, Bank.Reconcile, Bank.ReportRead,
         Expense.ClaimRead, Expense.ClaimCreate, Expense.ClaimApprove, Expense.ClaimPay,
+        FixedAsset.Read, FixedAsset.Manage, FixedAsset.Dispose, FixedAsset.DepreciationRun,
     ];
 }

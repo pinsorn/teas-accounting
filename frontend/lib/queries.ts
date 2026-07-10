@@ -24,6 +24,18 @@ import type {
   ExpenseCategoryLite,
   PaymentVoucherListItem,
   PaymentVoucherDetail,
+  CreateFixedAssetRequest,
+  UpdateFixedAssetRequest,
+  FixedAssetListItem,
+  FixedAssetDetail,
+  DisposeFixedAssetRequest,
+  WriteOffFixedAssetRequest,
+  DisposeFixedAssetResult,
+  DepreciationRunResult,
+  DepreciationRunListItem,
+  DepreciationRunDetail,
+  FixedAssetRegisterItem,
+  AccumulatedDepreciationReportItem,
   WhtCertificateListItem,
   WhtCertificateDetail,
   WhtTypeListItem,
@@ -673,6 +685,115 @@ export function useCancelExpenseClaim() {
   return useMutation({
     mutationFn: (id: number) => apiPost<void>(`expense-claims/${id}/cancel`),
     onSuccess: (_r, id) => invalidateExpenseClaim(qc, id),
+  });
+}
+
+// ───────────────────────── Cycle D: Fixed Assets + Depreciation ─────────────────────────
+// specs/fixed-assets.md §9.16 — mirrors the ExpenseClaim hook-naming/invalidation
+// convention above (useX / useCreateX / mutation onSuccess -> qc.invalidateQueries).
+export interface FixedAssetFilters {
+  status?: string; category?: string; from?: string; to?: string;
+  [key: string]: string | number | boolean | null | undefined;
+}
+export function useFixedAssets(filters: FixedAssetFilters = {}) {
+  return useQuery({
+    queryKey: ['fixed-assets', filters],
+    queryFn: () => apiGet<FixedAssetListItem[]>(`fixed-assets${qs(filters)}`),
+  });
+}
+export function useFixedAsset(id: number) {
+  return useQuery({
+    queryKey: ['fixed-asset', id],
+    queryFn: () => apiGet<FixedAssetDetail>(`fixed-assets/${id}`),
+    enabled: id > 0,
+  });
+}
+function invalidateFixedAsset(qc: ReturnType<typeof useQueryClient>, id: number) {
+  qc.invalidateQueries({ queryKey: ['fixed-assets'] });
+  qc.invalidateQueries({ queryKey: ['fixed-asset', id] });
+}
+export function useCreateFixedAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateFixedAssetRequest) =>
+      apiPost<{ fixed_asset_id: number }>('fixed-assets/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fixed-assets'] }),
+  });
+}
+export function useUpdateFixedAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: UpdateFixedAssetRequest }) =>
+      apiPut<void>(`fixed-assets/${v.id}`, v.req),
+    onSuccess: (_r, v) => invalidateFixedAsset(qc, v.id),
+  });
+}
+export function useActivateFixedAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<void>(`fixed-assets/${id}/activate`),
+    onSuccess: (_r, id) => invalidateFixedAsset(qc, id),
+  });
+}
+export function useDisposeFixedAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: DisposeFixedAssetRequest }) =>
+      apiPost<DisposeFixedAssetResult>(`fixed-assets/${v.id}/dispose`, v.req),
+    onSuccess: (_r, v) => invalidateFixedAsset(qc, v.id),
+  });
+}
+export function useWriteOffFixedAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: WriteOffFixedAssetRequest }) =>
+      apiPost<DisposeFixedAssetResult>(`fixed-assets/${v.id}/write-off`, v.req),
+    onSuccess: (_r, v) => invalidateFixedAsset(qc, v.id),
+  });
+}
+export function useCancelFixedAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<void>(`fixed-assets/${id}/cancel`),
+    onSuccess: (_r, id) => invalidateFixedAsset(qc, id),
+  });
+}
+export function useDepreciationRuns() {
+  return useQuery({
+    queryKey: ['depreciation-runs'],
+    queryFn: () => apiGet<DepreciationRunListItem[]>('depreciation-runs'),
+  });
+}
+export function useDepreciationRun(year: number, month: number) {
+  return useQuery({
+    queryKey: ['depreciation-run', year, month],
+    queryFn: () => apiGet<DepreciationRunDetail>(`depreciation-runs/${year}/${month}`),
+    enabled: year > 0 && month > 0,
+  });
+}
+export function useGenerateDepreciation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { year: number; month: number }) =>
+      apiPost<DepreciationRunResult>('depreciation-runs', req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['depreciation-runs'] });
+      qc.invalidateQueries({ queryKey: ['fixed-assets'] });
+    },
+  });
+}
+export function useFixedAssetRegisterReport(asOf: string) {
+  return useQuery({
+    queryKey: ['fixed-asset-register', asOf],
+    queryFn: () => apiGet<FixedAssetRegisterItem[]>(`fixed-assets/reports/register${qs({ asOf })}`),
+    enabled: asOf !== '',
+  });
+}
+export function useAccumulatedDepreciationReport(year: number) {
+  return useQuery({
+    queryKey: ['accumulated-depreciation-report', year],
+    queryFn: () => apiGet<AccumulatedDepreciationReportItem[]>(`fixed-assets/reports/accumulated-depreciation${qs({ year })}`),
+    enabled: year > 0,
   });
 }
 

@@ -127,5 +127,11 @@ public static class PermissionCatalog
             [Permissions.Expense.ClaimCreate]  = ("สร้างใบเบิกค่าใช้จ่าย", "Create expense claims"),
             [Permissions.Expense.ClaimApprove] = ("อนุมัติใบเบิกค่าใช้จ่าย", "Approve expense claims"),
             [Permissions.Expense.ClaimPay]     = ("จ่ายเงินคืนใบเบิกค่าใช้จ่าย", "Pay expense claims"),
+
+            // fixed assets (Cycle D — Fixed Assets + Depreciation)
+            [Permissions.FixedAsset.Read]            = ("ดูทะเบียนสินทรัพย์ถาวร", "View fixed assets"),
+            [Permissions.FixedAsset.Manage]           = ("จัดการสินทรัพย์ถาวร", "Manage fixed assets"),
+            [Permissions.FixedAsset.Dispose]          = ("จำหน่าย/ตัดจำหน่ายสินทรัพย์ถาวร", "Dispose/write off fixed assets"),
+            [Permissions.FixedAsset.DepreciationRun]  = ("บันทึกค่าเสื่อมราคาประจำเดือน", "Run monthly depreciation"),
         };
 }

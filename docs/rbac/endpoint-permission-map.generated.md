@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 14 |
-| Perm | 274 |
+| Perm | 287 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **328** |
+| **TOTAL** | **341** |
 
 ## Routes
 
@@ -138,6 +138,9 @@
 | POST | `/delivery-orders/{id:long}/mark-printed` | Perm | sales.delivery_order.manage |
 | GET | `/delivery-orders/{id:long}/paper` | Perm | sales.delivery_order.manage |
 | GET | `/delivery-orders/{id:long}/pdf` | Perm | sales.delivery_order.manage |
+| GET | `/depreciation-runs/` | Perm | fixedasset.read |
+| POST | `/depreciation-runs/` | Perm | fixedasset.depreciation.run |
+| GET | `/depreciation-runs/{year:int}/{month:int}` | Perm | fixedasset.read |
 | GET | `/document-cross-refs/adjustment-note/{id:long}` | Perm | sales.credit_note.create |
 | GET | `/document-cross-refs/receipt/{id:long}` | Perm | sales.receipt.create |
 | GET | `/document-cross-refs/tax-invoice/{id:long}` | Perm | sales.tax_invoice.read |
@@ -162,6 +165,16 @@
 | POST | `/expense-claims/{id:long}/pay` | Perm | expense.claim.pay |
 | POST | `/expense-claims/{id:long}/reject` | Perm | expense.claim.approve |
 | POST | `/expense-claims/{id:long}/submit` | Perm | expense.claim.create |
+| GET | `/fixed-assets/` | Perm | fixedasset.read |
+| POST | `/fixed-assets/` | Perm | fixedasset.manage |
+| GET | `/fixed-assets/reports/accumulated-depreciation` | Perm | fixedasset.read |
+| GET | `/fixed-assets/reports/register` | Perm | fixedasset.read |
+| GET | `/fixed-assets/{id:long}` | Perm | fixedasset.read |
+| PUT | `/fixed-assets/{id:long}` | Perm | fixedasset.manage |
+| POST | `/fixed-assets/{id:long}/activate` | Perm | fixedasset.manage |
+| POST | `/fixed-assets/{id:long}/cancel` | Perm | fixedasset.manage |
+| POST | `/fixed-assets/{id:long}/dispose` | Perm | fixedasset.dispose |
+| POST | `/fixed-assets/{id:long}/write-off` | Perm | fixedasset.dispose |
 | ANY | `/health` | Anonymous | — |
 | POST | `/journals/` | Perm | gl.journal.create |
 | GET | `/journals/{id:long}` | Perm | gl.journal.read |

@@ -1531,3 +1531,67 @@ export interface ExpenseClaimDetail {
 }
 export interface PayExpenseClaimRequest { paymentMethod: 'CASH' | 'TRANSFER'; bankAccountId?: number | null; }
 export interface RejectExpenseClaimRequest { reason: string; }
+
+// ───────────────────────── Cycle D: Fixed Assets + Depreciation ─────────────────────────
+// specs/fixed-assets.md §9.12-9.17 — FE contract mirrors the backend DTOs verbatim
+// (backend/src/Accounting.Application/FixedAsset/FixedAssetDtos.cs).
+export interface CreateFixedAssetRequest {
+  name: string; category: string | null; acquireDate: string; vendorInvoiceId: number | null;
+  cost: number; salvageValue: number; usefulLifeMonths: number;
+  depreciationStartDate: string | null;
+  assetCostAccountId: number | null; accumDepAccountId: number | null; depExpenseAccountId: number | null;
+  notes: string | null; businessUnitId: number | null;
+}
+export type UpdateFixedAssetRequest = CreateFixedAssetRequest;
+export interface FixedAssetListItem {
+  fixedAssetId: number; docNo: string | null; name: string; category: string | null;
+  acquireDate: string; cost: number; accumulatedDepreciation: number; nbv: number; status: string;
+}
+export interface FixedAssetRunLine {
+  depreciationRunId: number; periodYear: number; periodMonth: number; runDate: string;
+  amount: number; accumulatedAfter: number;
+}
+export interface FixedAssetDetail {
+  fixedAssetId: number; docNo: string | null; name: string; category: string | null;
+  acquireDate: string; vendorInvoiceId: number | null; cost: number; salvageValue: number;
+  usefulLifeMonths: number; depreciableBase: number; monthlyAmount: number;
+  depreciationStartDate: string;
+  assetCostAccountId: number; accumDepAccountId: number; depExpenseAccountId: number;
+  accumulatedDepreciation: number; nbv: number; status: string;
+  disposalDate: string | null; disposalProceeds: number | null; disposalVatAmount: number | null;
+  disposalGainLoss: number | null; disposalBuyerName: string | null;
+  disposalJournalEntryId: number | null; writeoffReason: string | null; notes: string | null;
+  businessUnitId: number | null; version: number; runLines: FixedAssetRunLine[];
+}
+export interface DisposeFixedAssetRequest {
+  disposalDate: string; proceeds: number; vatAmount: number | null; buyerName: string | null;
+}
+export interface WriteOffFixedAssetRequest { date: string; reason: string; }
+export interface DisposeFixedAssetResult {
+  fixedAssetId: number; nbv: number; gainLoss: number; journalEntryId: number; status: string;
+}
+export interface DepreciationRunResult {
+  depreciationRunId: number | null; periodYear: number; periodMonth: number; runDate: string;
+  totalAmount: number; assetCount: number; journalEntryId: number | null; alreadyExisted: boolean;
+}
+export interface DepreciationRunListItem {
+  depreciationRunId: number; periodYear: number; periodMonth: number; runDate: string;
+  totalAmount: number; assetCount: number; journalEntryId: number;
+}
+export interface DepreciationRunLineDetail {
+  fixedAssetId: number; docNo: string | null; name: string; amount: number; accumulatedAfter: number;
+}
+export interface DepreciationRunDetail {
+  depreciationRunId: number; periodYear: number; periodMonth: number; runDate: string;
+  totalAmount: number; assetCount: number; journalEntryId: number; lines: DepreciationRunLineDetail[];
+}
+export interface FixedAssetRegisterItem {
+  fixedAssetId: number; docNo: string | null; name: string; category: string | null;
+  acquireDate: string; cost: number; accumulatedAsOf: number; nbv: number; status: string;
+  disposalDate: string | null;
+}
+export interface AccumulatedDepreciationMonth { month: number; amount: number; }
+export interface AccumulatedDepreciationReportItem {
+  fixedAssetId: number; docNo: string | null; name: string;
+  months: AccumulatedDepreciationMonth[]; yearTotal: number;
+}
