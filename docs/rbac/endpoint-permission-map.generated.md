@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 14 |
-| Perm | 265 |
+| Perm | 274 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **319** |
+| **TOTAL** | **328** |
 
 ## Routes
 
@@ -153,6 +153,15 @@
 | GET | `/etax/submissions` | Perm | tax.filing.read |
 | GET | `/expense-categories/` | Perm | sys.expense_category.read |
 | POST | `/expense-categories/` | Perm | sys.expense_category.manage |
+| GET | `/expense-claims/` | Perm | expense.claim.read |
+| POST | `/expense-claims/` | Perm | expense.claim.create |
+| GET | `/expense-claims/{id:long}` | Perm | expense.claim.read |
+| PUT | `/expense-claims/{id:long}` | Perm | expense.claim.create |
+| POST | `/expense-claims/{id:long}/approve` | Perm | expense.claim.approve |
+| POST | `/expense-claims/{id:long}/cancel` | Perm | expense.claim.create |
+| POST | `/expense-claims/{id:long}/pay` | Perm | expense.claim.pay |
+| POST | `/expense-claims/{id:long}/reject` | Perm | expense.claim.approve |
+| POST | `/expense-claims/{id:long}/submit` | Perm | expense.claim.create |
 | ANY | `/health` | Anonymous | — |
 | POST | `/journals/` | Perm | gl.journal.create |
 | GET | `/journals/{id:long}` | Perm | gl.journal.read |

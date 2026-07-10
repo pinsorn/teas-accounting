@@ -11,6 +11,15 @@ public interface IGlPostingService
     Task<long> PostReceiptAsync(long receiptId, CancellationToken ct);
     Task<long> PostPaymentVoucherAsync(long paymentVoucherId, CancellationToken ct);
     Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct);
+
+    /// <summary>
+    /// Cycle C (specs/expense-claims.md §3, Option A) — self-contained cash disbursement for an
+    /// employee expense claim. NEW additive method; calls the same private JE-balance/number/
+    /// MarkPosted machinery as every other poster here but never touches PaymentVoucher code.
+    /// WHT: NONE — reimbursing an employee's out-of-pocket spend is not a withholding event
+    /// (any WHT was already handled by the employee at the original purchase).
+    /// </summary>
+    Task<long> PostExpenseClaimAsync(long expenseClaimId, CancellationToken ct);
     Task<long> PostTaxAdjustmentNoteAsync(long noteId, CancellationToken ct);
     Task<long> PostPayrollRunAsync(long payrollRunId, CancellationToken ct);
 

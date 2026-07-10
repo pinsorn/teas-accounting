@@ -121,5 +121,11 @@ public static class PermissionCatalog
             [Permissions.Report.TrialBalance] = ("ดูงบทดลอง", "View trial balance"),
             [Permissions.Report.ProfitLoss]   = ("ดูงบกำไรขาดทุน", "View profit & loss"),
             [Permissions.Report.AuditRead]    = ("ดูบันทึกการตรวจสอบ (Audit log)", "View audit log"),
+
+            // expense (Cycle C — Expense Claims)
+            [Permissions.Expense.ClaimRead]    = ("ดูใบเบิกค่าใช้จ่าย", "View expense claims"),
+            [Permissions.Expense.ClaimCreate]  = ("สร้างใบเบิกค่าใช้จ่าย", "Create expense claims"),
+            [Permissions.Expense.ClaimApprove] = ("อนุมัติใบเบิกค่าใช้จ่าย", "Approve expense claims"),
+            [Permissions.Expense.ClaimPay]     = ("จ่ายเงินคืนใบเบิกค่าใช้จ่าย", "Pay expense claims"),
         };
 }

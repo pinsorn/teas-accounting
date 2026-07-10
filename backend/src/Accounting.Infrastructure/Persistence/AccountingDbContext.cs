@@ -4,6 +4,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Audit;
 using Accounting.Domain.Entities.Bank;
 using Accounting.Domain.Entities.ETax;
+using Accounting.Domain.Entities.Expense;
 using Accounting.Domain.Entities.Identity;
 using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
@@ -115,6 +116,10 @@ public class AccountingDbContext : DbContext
     public DbSet<BankAccount>     BankAccounts     => Set<BankAccount>();
     public DbSet<StatementImport> StatementImports => Set<StatementImport>();
     public DbSet<StatementLine>   StatementLines   => Set<StatementLine>();
+
+    // Cycle C (specs/expense-claims.md §1) — employee expense reimbursement
+    public DbSet<ExpenseClaim>     ExpenseClaims     => Set<ExpenseClaim>();
+    public DbSet<ExpenseClaimLine> ExpenseClaimLines => Set<ExpenseClaimLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

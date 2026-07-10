@@ -111,6 +111,9 @@ public static class DependencyInjection
         services.AddOptions<Ledger.GlAccountsOptions>().Bind(cfg.GetSection("GlAccounts"));
         services.AddScoped<Application.Ledger.IGlPostingService,         Ledger.GlPostingService>();
 
+        // Cycle C (specs/expense-claims.md) — employee expense reimbursement.
+        services.AddScoped<Application.Expense.IExpenseClaimService,     Expense.ExpenseClaimService>();
+
         // Payroll (P-C) — SSO + allowance rates are config-driven (§4.6); run service posts via GL.
         services.AddOptions<Payroll.SsoOptions>().Bind(cfg.GetSection("Payroll:Sso"));
         services.AddOptions<Payroll.PayrollAllowanceOptions>().Bind(cfg.GetSection("Payroll:Allowances"));

@@ -116,6 +116,11 @@ import type {
   CreateInlineJournalRequest,
   CreateInlineJournalResult,
   BankReconciliationReport,
+  ExpenseClaimListItem,
+  ExpenseClaimDetail,
+  CreateExpenseClaimRequest,
+  PayExpenseClaimRequest,
+  RejectExpenseClaimRequest,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -589,6 +594,88 @@ export function useDeactivateEmployee() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
   });
 }
+
+// ───────────────────────── Cycle C: Expense Claims ─────────────────────────
+export interface ExpenseClaimFilters {
+  status?: string; employeeId?: number; from?: string; to?: string;
+  [key: string]: string | number | boolean | null | undefined;
+}
+export function useExpenseClaims(filters: ExpenseClaimFilters = {}) {
+  return useQuery({
+    queryKey: ['expense-claims', filters],
+    queryFn: () => apiGet<ExpenseClaimListItem[]>(`expense-claims${qs(filters)}`),
+  });
+}
+export function useExpenseClaim(id: number) {
+  return useQuery({
+    queryKey: ['expense-claim', id],
+    queryFn: () => apiGet<ExpenseClaimDetail>(`expense-claims/${id}`),
+    enabled: id > 0,
+  });
+}
+export function useCreateExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateExpenseClaimRequest) =>
+      apiPost<{ expense_claim_id: number }>('expense-claims/', req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['expense-claims'] }),
+  });
+}
+export function useUpdateExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: CreateExpenseClaimRequest }) =>
+      apiPut<void>(`expense-claims/${v.id}`, v.req),
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ['expense-claims'] });
+      qc.invalidateQueries({ queryKey: ['expense-claim', v.id] });
+    },
+  });
+}
+function invalidateExpenseClaim(qc: ReturnType<typeof useQueryClient>, id: number) {
+  qc.invalidateQueries({ queryKey: ['expense-claims'] });
+  qc.invalidateQueries({ queryKey: ['expense-claim', id] });
+}
+export function useSubmitExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<void>(`expense-claims/${id}/submit`),
+    onSuccess: (_r, id) => invalidateExpenseClaim(qc, id),
+  });
+}
+export function useApproveExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<{ expenseClaimId: number; approvedBy: number; approvedAt: string }>(
+      `expense-claims/${id}/approve`),
+    onSuccess: (_r, id) => invalidateExpenseClaim(qc, id),
+  });
+}
+export function useRejectExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: RejectExpenseClaimRequest }) =>
+      apiPost<void>(`expense-claims/${v.id}/reject`, v.req),
+    onSuccess: (_r, v) => invalidateExpenseClaim(qc, v.id),
+  });
+}
+export function usePayExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: PayExpenseClaimRequest }) =>
+      apiPost<{ expenseClaimId: number; docNo: string; paidAt: string; totalAmount: number; journalEntryId: number }>(
+        `expense-claims/${v.id}/pay`, v.req),
+    onSuccess: (_r, v) => invalidateExpenseClaim(qc, v.id),
+  });
+}
+export function useCancelExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<void>(`expense-claims/${id}/cancel`),
+    onSuccess: (_r, id) => invalidateExpenseClaim(qc, id),
+  });
+}
+
 // ───────────────────────── Payroll P-C/P-D: Runs ─────────────────────────
 export function usePayrollRuns() {
   return useQuery({
