@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.18.0](https://github.com/pinsorn/teas-accounting/compare/v1.17.0...v1.18.0) (2026-07-10)
+
+
+### Features
+
+* **mcp:** 14 read + draft-create tools for bank rec, expense claims, fixed assets ([00f14df](https://github.com/pinsorn/teas-accounting/commit/00f14dff51e79c71077ba79b36553688e790e333))
+* **mcp:** read + draft-create tools for bank rec, expense claims, fixed assets ([cbd17a7](https://github.com/pinsorn/teas-accounting/commit/cbd17a7e1150a4e39dd069528d554be9a5eb286f))
+
+
+### Bug Fixes
+
+* harden money paths per Codex cross-family review ([b475b36](https://github.com/pinsorn/teas-accounting/commit/b475b3621544403c6e86f269d31d8c076eac0cdd))
+* harden money paths per cross-family review (bank rec scoping, validation, races, CSV) ([7445581](https://github.com/pinsorn/teas-accounting/commit/7445581acea6cfde943bed9ac44d60ffdf7de8d4))
+
 ## [1.17.0](https://github.com/pinsorn/teas-accounting/compare/v1.16.0...v1.17.0) (2026-07-10)
 
 
