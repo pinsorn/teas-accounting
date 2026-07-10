@@ -2,6 +2,9 @@ using System.ComponentModel;
 using Accounting.Api.Authorization;
 using Accounting.Api.Middleware;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Bank;
+using Accounting.Application.Expense;
+using Accounting.Application.FixedAsset;
 using Accounting.Application.Ledger;
 using Accounting.Application.Master;
 using Accounting.Application.Purchase;
@@ -230,6 +233,20 @@ public sealed class TeasMcpTools
     private const string JournalRead           = Pfx + "gl.journal.read";
     // C2 — get_company_info: any authenticated MCP principal (public read, no RBAC perm required).
     private const string SystemInfoRead        = Pfx + "sys.system_info.read";
+    // mcp-expansion-v2 — bank reconciliation (read-only). Scopes ARE the exact RBAC permission
+    // codes (identity mapping); grants already exist (SqlScript 615).
+    private const string BankAccountRead       = Pfx + "bank.account.read";
+    private const string BankReportRead        = Pfx + "bank.report.read";
+    // mcp-expansion-v2 — expense claims (read + draft). Grants already exist (SqlScript 617).
+    private const string ExpenseClaimRead      = Pfx + "expense.claim.read";
+    private const string ExpenseClaimCreate    = Pfx + "expense.claim.create";
+    // mcp-expansion-v2 — employees (master data). No separate .read scope in the catalog (same
+    // no-granular-read situation as vendors — the whole /employees group is gated by the single
+    // master.employee.manage code), so list_employees reuses it (mirrors VendorManage above).
+    private const string EmployeeManage        = Pfx + "master.employee.manage";
+    // mcp-expansion-v2 — fixed assets (read + draft). Grants already exist (SqlScript 620).
+    private const string FixedAssetRead        = Pfx + "fixedasset.read";
+    private const string FixedAssetManage      = Pfx + "fixedasset.manage";
 
     /// <summary>Agent-facing result of a create-draft tool: the new draft id plus a
     /// deep-link the agent shows the user. The user opens it, reviews the document
@@ -265,6 +282,17 @@ public sealed class TeasMcpTools
         [property: Description("Current document status string (e.g. Draft, Posted, Approved, Sent, Voided).")] string Status,
         [property: Description("True when the document has left the Draft state (posted/approved/issued/sent).")] bool Posted,
         [property: Description("Assigned document number; null while still a draft.")] string? DocNo);
+
+    /// <summary>mcp-expansion-v2 — slim projection of <see cref="EmployeeListItem"/> for
+    /// list_employees. Payroll fields (NationalId, BaseSalary, bank details, etc.) are
+    /// deliberately NOT exposed here — the only reason an agent needs this tool is to resolve
+    /// an employeeId for create_expense_claim_draft, so only the fields the spec calls for
+    /// (id/code/Thai name/active flag) are returned, minimizing PII sent through the agent.</summary>
+    public sealed record EmployeeOption(
+        [property: Description("The employee's internal id — pass this as employeeId to create_expense_claim_draft.")] long EmployeeId,
+        [property: Description("The employee's code.")] string EmployeeCode,
+        [property: Description("The employee's Thai full name.")] string FullNameTh,
+        [property: Description("True if the employee is active.")] bool IsActive);
 
     // ── Tax Invoices ─────────────────────────────────────────────────────────
 
@@ -1367,6 +1395,182 @@ public sealed class TeasMcpTools
         };
     }
 
+    // ── mcp-expansion-v2 — Bank reconciliation (read-only) ────────────────────
+    // Thin wrappers over IBankAccountService / IBankReconciliationReportService — the SAME
+    // services the /bank-accounts and /bank-reconciliation/report REST routes use.
+
+    [McpServerTool(Name = "list_bank_accounts"), Authorize(Policy = BankAccountRead)]
+    [Description("List bank accounts for the caller's company: bank, account number, linked GL cash account and active flag. No account-number masking convention exists elsewhere in TEAS, so the account number is returned as stored.")]
+    public static Task<IReadOnlyList<BankAccountListItem>> ListBankAccountsAsync(
+        IBankAccountService svc,
+        [Description("Include inactive bank accounts as well (default false = active only).")] bool? includeInactive = null,
+        CancellationToken ct = default) =>
+        svc.ListAsync(includeInactive ?? false, ct);
+
+    [McpServerTool(Name = "get_bank_reconciliation_report"), Authorize(Policy = BankReportRead)]
+    [Description("Get the bank reconciliation tie-out report for one bank account over a date range: statement closing balance vs GL balance, deposits-in-transit, outstanding payments and unmatched statement lines. Difference is 0 when fully reconciled. Read-only. Throws if bankAccountId is not found in the caller's company.")]
+    public static Task<BankReconciliationReport> GetBankReconciliationReportAsync(
+        [Description("The bank account id — resolve via list_bank_accounts.")] int bankAccountId,
+        [Description("Start of the date range (display/filtering only — balances are cumulative as of toDate).")] DateOnly fromDate,
+        [Description("End of the date range (inclusive) — balances are computed as of this date.")] DateOnly toDate,
+        IBankReconciliationReportService svc,
+        CancellationToken ct = default) =>
+        svc.GetAsync(bankAccountId, fromDate, toDate, ct);
+
+    // ── mcp-expansion-v2 — Employees (master data lookup for expense claims) ──
+    // REQUIRED prerequisite for create_expense_claim_draft (E2/E3-style require-list pattern):
+    // no MCP tool created an employee before this, so only a read/list tool is added here.
+
+    [McpServerTool(Name = "list_employees"), Authorize(Policy = EmployeeManage)]
+    [Description("List employees for the caller's company (id, code, Thai name, active flag only — payroll fields like salary/national id are not exposed). Use to resolve an employeeId before calling create_expense_claim_draft.")]
+    public static async Task<IReadOnlyList<EmployeeOption>> ListEmployeesAsync(
+        IEmployeeService svc,
+        [Description("Include inactive employees as well (default false = active only).")] bool? includeInactive = null,
+        CancellationToken ct = default)
+    {
+        var employees = await svc.ListAsync(includeInactive ?? false, ct);
+        return employees.Select(e => new EmployeeOption(e.EmployeeId, e.EmployeeCode, e.FullNameTh, e.IsActive)).ToList();
+    }
+
+    // ── mcp-expansion-v2 — Expense claims (read + draft) ───────────────────────
+    // Thin wrappers over IExpenseClaimService — the SAME service the /expense-claims REST
+    // route uses. Only CreateDraftAsync/UpdateDraftAsync/ListAsync/GetDetailAsync are wrapped;
+    // Submit/Approve/Reject/Pay/Cancel are NOT exposed (state-changing — human-only, spec HARD
+    // INVARIANT). Create/Update DTOs already carry non-nullable EmployeeId/ExpenseCategoryId, so
+    // no MCP-only wrapper record is needed (unlike E2's tax-invoice/quotation/receipt lines).
+
+    [McpServerTool(Name = "create_expense_claim_draft"), Authorize(Policy = ExpenseClaimCreate)]
+    [Description("Create a DRAFT expense claim (no document number — reversible). Returns the draft id and an approval deep-link for a human to review then submit/approve/pay. The agent cannot submit, approve or pay. employeeId must resolve to an existing employee (resolve via list_employees); each line's expenseCategoryId is validated company-scoped by the service.")]
+    public async Task<DraftCreated> CreateExpenseClaimDraftAsync(
+        CreateExpenseClaimRequest request,
+        IExpenseClaimService svc,
+        IEmployeeService employeeSvc,
+        IValidator<CreateExpenseClaimRequest> validator,
+        IOptions<AppOptions> app,
+        CancellationToken ct)
+    {
+        await GuardEmployeeAsync(employeeSvc, request.EmployeeId, ct);
+
+        await validator.ValidateAndThrowAsync(request, ct);
+        var id = await svc.CreateDraftAsync(request, ct);
+        return new DraftCreated(id, ApprovalUrl(app.Value, "expense-claims", id));
+    }
+
+    [McpServerTool(Name = "update_expense_claim_draft"), Authorize(Policy = ExpenseClaimCreate)]
+    [Description("Edit a DRAFT or REJECTED expense claim — full replace of header + lines (delete-and-recreate). Only allowed while Draft/Rejected; editing a submitted/approved/paid claim throws expense_claim.not_editable. employeeId must resolve to an existing employee (resolve via list_employees).")]
+    public async Task UpdateExpenseClaimDraftAsync(
+        [Description("The expense claim id to edit.")] long expenseClaimId,
+        UpdateExpenseClaimRequest request,
+        IExpenseClaimService svc,
+        IEmployeeService employeeSvc,
+        IValidator<UpdateExpenseClaimRequest> validator,
+        CancellationToken ct)
+    {
+        await GuardEmployeeAsync(employeeSvc, request.EmployeeId, ct);
+
+        await validator.ValidateAndThrowAsync(request, ct);
+        await svc.UpdateDraftAsync(expenseClaimId, request, ct);
+    }
+
+    [McpServerTool(Name = "list_expense_claims"), Authorize(Policy = ExpenseClaimRead)]
+    [Description("List expense claims for the caller's company, optionally filtered by status, employee and date range.")]
+    public static Task<IReadOnlyList<ExpenseClaimListItem>> ListExpenseClaimsAsync(
+        IExpenseClaimService svc,
+        [Description("Filter: claim status, e.g. Draft or Paid.")] string? status = null,
+        [Description("Filter: include only this employee's claims.")] long? employeeId = null,
+        [Description("Filter: only claims with ClaimDate on/after this date.")] DateOnly? dateFrom = null,
+        [Description("Filter: only claims with ClaimDate on/before this date.")] DateOnly? dateTo = null,
+        CancellationToken ct = default) =>
+        svc.ListAsync(status, employeeId, dateFrom, dateTo, ct);
+
+    [McpServerTool(Name = "get_expense_claim"), Authorize(Policy = ExpenseClaimRead)]
+    [Description("Get the full detail (header + lines + status + journal entry id once paid) of one expense claim by id. Returns null if not found in the caller's company.")]
+    public static Task<ExpenseClaimDetail?> GetExpenseClaimAsync(
+        IExpenseClaimService svc,
+        [Description("The expense claim id.")] long id,
+        CancellationToken ct) =>
+        svc.GetDetailAsync(id, ct);
+
+    // ── mcp-expansion-v2 — Fixed assets (read + draft) ─────────────────────────
+    // Thin wrappers over IFixedAssetService — the SAME service the /fixed-assets REST route
+    // uses. Only CreateDraftAsync/UpdateDraftAsync/ListAsync/GetDetailAsync/the two report
+    // methods/ListDepreciationRunsAsync are wrapped; Activate/Dispose/WriteOff/Cancel/
+    // GenerateDepreciationAsync are NOT exposed (state-changing — human-only, spec HARD
+    // INVARIANT). Create/Update DTOs already carry an optional (nullable) VendorInvoiceId, so
+    // no MCP-only require-list guard applies (mirrors how QuotationId is optional/unguarded on
+    // create_tax_invoice_draft above).
+
+    [McpServerTool(Name = "create_fixed_asset_draft"), Authorize(Policy = FixedAssetManage)]
+    [Description("Create a DRAFT fixed asset (no document number — reversible, posts NO journal entry). Returns the draft id and an approval deep-link for a human to review then activate. The agent cannot activate, dispose, write off or run depreciation. vendorInvoiceId, if supplied, is not validated for existence here — the service applies its own check.")]
+    public async Task<DraftCreated> CreateFixedAssetDraftAsync(
+        CreateFixedAssetRequest request,
+        IFixedAssetService svc,
+        IValidator<CreateFixedAssetRequest> validator,
+        IOptions<AppOptions> app,
+        CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        var id = await svc.CreateDraftAsync(request, ct);
+        return new DraftCreated(id, ApprovalUrl(app.Value, "fixed-assets", id));
+    }
+
+    [McpServerTool(Name = "update_fixed_asset_draft"), Authorize(Policy = FixedAssetManage)]
+    [Description("Edit a DRAFT fixed asset — full replace (recomputes DepreciableBase/MonthlyAmount from the new inputs). Only allowed while still Draft; editing an activated/disposed/written-off/cancelled asset throws fixed_asset.not_editable.")]
+    public async Task UpdateFixedAssetDraftAsync(
+        [Description("The fixed asset id to edit.")] long fixedAssetId,
+        UpdateFixedAssetRequest request,
+        IFixedAssetService svc,
+        IValidator<UpdateFixedAssetRequest> validator,
+        CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        await svc.UpdateDraftAsync(fixedAssetId, request, ct);
+    }
+
+    [McpServerTool(Name = "list_fixed_assets"), Authorize(Policy = FixedAssetRead)]
+    [Description("List fixed assets for the caller's company, optionally filtered by status, category and acquire-date range.")]
+    public static Task<IReadOnlyList<FixedAssetListItem>> ListFixedAssetsAsync(
+        IFixedAssetService svc,
+        [Description("Filter: asset status, e.g. Draft, Active, Disposed, WrittenOff, Cancelled.")] string? status = null,
+        [Description("Filter: asset category.")] string? category = null,
+        [Description("Filter: only assets with AcquireDate on/after this date.")] DateOnly? dateFrom = null,
+        [Description("Filter: only assets with AcquireDate on/before this date.")] DateOnly? dateTo = null,
+        CancellationToken ct = default) =>
+        svc.ListAsync(status, category, dateFrom, dateTo, ct);
+
+    [McpServerTool(Name = "get_fixed_asset"), Authorize(Policy = FixedAssetRead)]
+    [Description("Get the full detail (accumulated depreciation, NBV, disposal fields, depreciation run-line history) of one fixed asset by id. Returns null if not found in the caller's company.")]
+    public static Task<FixedAssetDetail?> GetFixedAssetAsync(
+        IFixedAssetService svc,
+        [Description("The fixed asset id.")] long id,
+        CancellationToken ct) =>
+        svc.GetDetailAsync(id, ct);
+
+    [McpServerTool(Name = "get_fixed_asset_register"), Authorize(Policy = FixedAssetRead)]
+    [Description("Get the fixed asset register (every asset's cost, accumulated depreciation and NBV) as of a date. Defaults to today.")]
+    public static Task<IReadOnlyList<FixedAssetRegisterItem>> GetFixedAssetRegisterAsync(
+        IFixedAssetService svc,
+        IClock clock,
+        [Description("As-of date; omit for today.")] DateOnly? asOfDate = null,
+        CancellationToken ct = default) =>
+        svc.GetRegisterReportAsync(asOfDate ?? clock.TodayInBangkok(), ct);
+
+    [McpServerTool(Name = "get_accumulated_depreciation_report"), Authorize(Policy = FixedAssetRead)]
+    [Description("Get the accumulated depreciation report: every asset's monthly depreciation charges for a calendar year plus the year total. Defaults to the current year.")]
+    public static Task<IReadOnlyList<AccumulatedDepreciationReportItem>> GetAccumulatedDepreciationReportAsync(
+        IFixedAssetService svc,
+        IClock clock,
+        [Description("Calendar year; omit for the current year.")] int? year = null,
+        CancellationToken ct = default) =>
+        svc.GetAccumulatedDepreciationReportAsync(year ?? clock.TodayInBangkok().Year, ct);
+
+    [McpServerTool(Name = "list_depreciation_runs"), Authorize(Policy = FixedAssetRead)]
+    [Description("List monthly depreciation run history (year/month/total amount/asset count/journal entry id). Read-only — the agent cannot generate a new run.")]
+    public static Task<IReadOnlyList<DepreciationRunListItem>> ListDepreciationRunsAsync(
+        IFixedAssetService svc,
+        CancellationToken ct) =>
+        svc.ListDepreciationRunsAsync(ct);
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>Build the human-approval deep-link <c>{App:BaseUrl}/&lt;route&gt;/{id}?action=approve</c>.
@@ -1428,6 +1632,23 @@ public sealed class TeasMcpTools
             throw new McpE2Exception("mcp.vendor_required",
                 $"Vendor id {vendorId} does not exist in the caller's company. " +
                 "Resolve a vendor via list_vendors or create one via create_vendor first.");
+    }
+
+    /// <summary>mcp-expansion-v2 — asserts the employee exists in the caller's company
+    /// (tenant-scoped via the automatic RLS + global query filter). Throws
+    /// <see cref="McpE2Exception"/> with code <c>mcp.employee_required</c> when not found.
+    /// ExpenseClaimService already validates EmployeeId itself (throws
+    /// expense_claim.employee_missing) — this guard is added anyway for the same reason
+    /// GuardVendorAsync exists alongside VendorInvoiceService's own vendor check: a clean,
+    /// agent-facing "resolve via list_employees first" error, consistent with every other
+    /// required-FK tool in this file.</summary>
+    private static async Task GuardEmployeeAsync(
+        IEmployeeService svc, long employeeId, CancellationToken ct)
+    {
+        if (employeeId <= 0 || await svc.GetAsync(employeeId, ct) is null)
+            throw new McpE2Exception("mcp.employee_required",
+                $"Employee id {employeeId} does not exist in the caller's company. " +
+                "Resolve an employee via list_employees first.");
     }
 }
 
