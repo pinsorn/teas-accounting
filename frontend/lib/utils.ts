@@ -32,6 +32,15 @@ export function formatDate(d: Date | string): string {
   return dateFmt.format(date);
 }
 
+/** Absolute day gap between two yyyy-MM-dd date strings. Used by bank
+ *  reconciliation to warn when a manual match confirm falls outside the
+ *  ±7-day auto-suggest window (specs/bank-reconciliation.md D4) — the API
+ *  stays permissive, this is FE-only warning math. */
+export function dayGap(a: string, b: string): number {
+  const ms = Math.abs(new Date(a).getTime() - new Date(b).getTime());
+  return Math.round(ms / 86400000);
+}
+
 /** Today's date in Asia/Bangkok as yyyy-MM-dd. doc_date is server-authoritative;
  *  this is only the locked UI display (CLAUDE.md §10 — never user-typed). */
 export function bangkokToday(): string {

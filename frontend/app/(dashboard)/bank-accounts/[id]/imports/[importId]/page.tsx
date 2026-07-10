@@ -11,7 +11,7 @@ import {
   useCreateInlineJournal, useIgnoreLine, useUnignoreLine, useGlAccounts,
 } from '@/lib/queries';
 import type { StatementImportLineItem } from '@/lib/types';
-import { formatTHB, formatDate } from '@/lib/utils';
+import { formatTHB, formatDate, dayGap } from '@/lib/utils';
 
 // Bank reconciliation (specs/bank-reconciliation.md B4.4) — matching screen for one statement
 // import: per-line suggest+confirm, inline-JE modal with a CoA contra-account selector,
@@ -160,9 +160,24 @@ function SuggestModal({
   const tc = useTranslations('common');
   const q = useMatchSuggestions(bankAccountId, line.statementLineId);
   const confirmMatch = useConfirmMatch(bankAccountId, importId);
+  const confirmDialog = useConfirm();
   const suggestions = q.data ?? [];
 
-  async function confirm(docType: 'Receipt' | 'PaymentVoucher', docId: number) {
+  async function confirm(docType: 'Receipt' | 'PaymentVoucher', docId: number, docDate: string) {
+    // Ham ruling (Codex finding #7): manual confirm-match stays unrestricted
+    // (cheques clearing >7 days are real), but warn — and require explicit
+    // proceed — when the gap exceeds the auto-suggest window (D4, ±7 days).
+    const gap = dayGap(line.txnDate, docDate);
+    if (gap > 7) {
+      const ok = await confirmDialog({
+        description: (
+          <div role="alert" className="alert alert-warning text-sm">
+            {t('matchWindowWarning', { days: gap })}
+          </div>
+        ),
+      });
+      if (!ok) return;
+    }
     try {
       await confirmMatch.mutateAsync({
         lineId: line.statementLineId,
@@ -195,7 +210,7 @@ function SuggestModal({
                 {' · '}{formatDate(s.docDate)}{' · '}{formatTHB(s.amount)}{' · '}{s.partyName}
               </span>
               <button className="btn btn-primary btn-xs" data-testid="suggest-confirm"
-                disabled={confirmMatch.isPending} onClick={() => confirm(s.docType, s.docId)}>
+                disabled={confirmMatch.isPending} onClick={() => confirm(s.docType, s.docId, s.docDate)}>
                 {tc('confirm')}
               </button>
             </li>

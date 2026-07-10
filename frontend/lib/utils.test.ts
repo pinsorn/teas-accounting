@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { bangkokMonthStart, bangkokMonthEnd } from './utils';
+import { bangkokMonthStart, bangkokMonthEnd, dayGap } from './utils';
 
 // GL live-testing Finding 1 (2026-07-07) — the old monthStart/monthEnd used
 // `new Date(y, m, 1).toISOString().slice(0, 10)`, which converts through UTC
@@ -35,5 +35,24 @@ describe('bangkokMonthStart / bangkokMonthEnd', () => {
 
     vi.setSystemTime(new Date('2028-02-15T10:00:00Z')); // 2028 is a leap year
     expect(bangkokMonthEnd()).toBe('2028-02-29');
+  });
+});
+
+// Bank reconciliation match-window warning (specs/bank-reconciliation.md D4 —
+// auto-suggest window is ±7 days). Pins the boundary so a future edit can't
+// silently loosen the FE warning threshold.
+describe('dayGap', () => {
+  it('is 0 for identical dates', () => {
+    expect(dayGap('2026-07-10', '2026-07-10')).toBe(0);
+  });
+
+  it('is order-independent (absolute value)', () => {
+    expect(dayGap('2026-07-01', '2026-07-08')).toBe(7);
+    expect(dayGap('2026-07-08', '2026-07-01')).toBe(7);
+  });
+
+  it('does not exceed the window at exactly 7 days, but does at 8', () => {
+    expect(dayGap('2026-07-01', '2026-07-08')).toBe(7);
+    expect(dayGap('2026-07-01', '2026-07-09')).toBe(8);
   });
 });
