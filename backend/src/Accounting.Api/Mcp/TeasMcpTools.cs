@@ -10,6 +10,7 @@ using Accounting.Application.Master;
 using Accounting.Application.Purchase;
 using Accounting.Application.Reports;
 using Accounting.Application.Sales;
+using Accounting.Application.Tax;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using FluentValidation;
@@ -38,11 +39,14 @@ public sealed record McpTaxInvoiceLineInput(
     [property: Description("Line description in Thai.")]
     string DescriptionTh,
     decimal Quantity,
+    [property: Description("No UOM master list exists in TEAS (loose int, no FK) — pass 1 unless you have a real reason to vary it. uomText is the actual human-facing unit label.")]
     int UomId,
+    [property: Description("Free-text unit label shown on the document (e.g. \"ชิ้น\", \"ครั้ง\"). There is no UOM master to resolve against.")]
     string UomText,
     [property: Description("Caller-supplied unit price. The product's master price is NOT applied.")]
     decimal UnitPrice,
     decimal DiscountPercent,
+    [property: Description("Id of an active tax code in the caller's company — resolve via list_tax_codes.")]
     int TaxCodeId,
     string TaxCode,
     decimal TaxRate,
@@ -55,10 +59,12 @@ public sealed record McpChainLineInput(
     [property: Description("Line description in Thai.")]
     string DescriptionTh,
     decimal Quantity,
+    [property: Description("Free-text unit label shown on the document (e.g. \"ชิ้น\", \"ครั้ง\"). There is no UOM master to resolve against.")]
     string UomText,
     [property: Description("Caller-supplied unit price. The product's master price is NOT applied.")]
     decimal UnitPrice,
     decimal DiscountPercent,
+    [property: Description("Id of an active tax code in the caller's company — resolve via list_tax_codes.")]
     int TaxCodeId,
     string TaxCode,
     decimal TaxRate,
@@ -75,6 +81,7 @@ public sealed record McpReceiptLineInput(
     decimal UnitPrice,
     decimal Amount,
     string ProductType = "GOOD",
+    [property: Description("Free-text unit label shown on the document (e.g. \"ชิ้น\", \"ครั้ง\"). There is no UOM master to resolve against.")]
     string? UomText = null);
 
 /// <summary>E2 — MCP-only create request for Tax Invoice drafts. Wraps <see cref="McpTaxInvoiceLineInput"/>
@@ -139,10 +146,12 @@ public sealed record McpPurchaseOrderLineInput(
     [property: Description("Line description in Thai.")]
     string DescriptionTh,
     decimal Quantity,
+    [property: Description("Free-text unit label shown on the document (e.g. \"ชิ้น\", \"ครั้ง\"). There is no UOM master to resolve against.")]
     string? UomText,
     [property: Description("Caller-supplied purchase unit cost. The product's master price is NOT applied.")]
     decimal UnitPrice,
     decimal DiscountPercent,
+    [property: Description("Id of an active tax code in the caller's company — resolve via list_tax_codes.")]
     int? TaxCodeId,
     string? TaxCode,
     decimal TaxRate,
@@ -247,6 +256,16 @@ public sealed class TeasMcpTools
     // mcp-expansion-v2 — fixed assets (read + draft). Grants already exist (SqlScript 620).
     private const string FixedAssetRead        = Pfx + "fixedasset.read";
     private const string FixedAssetManage      = Pfx + "fixedasset.manage";
+    // specs/mcp-error-surfacing.md §2 — 4 new read-only master-data resolver tools
+    // (list_tax_codes/list_wht_types/list_expense_categories/list_business_units). No
+    // dedicated read permission exists for tax codes, WHT types or business units, and
+    // expense categories' own sys.expense_category.read is NOT in McpScopes.All (adding
+    // it would be a new grantable scope — out of scope here). Per spec: reuse the
+    // closest read policy the audience that hit these gaps already holds. All four
+    // fields (taxCodeId, whtTypeId, expenseCategoryId, businessUnitId) are required by
+    // create_vendor_invoice_draft (the prod background's exact complaint), so this
+    // reuses VendorInvoiceRead — already in McpScopes.All, zero new grants needed.
+    private const string MasterDataResolverRead = VendorInvoiceRead;
 
     /// <summary>Agent-facing result of a create-draft tool: the new draft id plus a
     /// deep-link the agent shows the user. The user opens it, reviews the document
@@ -602,7 +621,7 @@ public sealed class TeasMcpTools
         svc.GetDetailAsync(id, ct);
 
     [McpServerTool(Name = "create_vendor_invoice_draft"), Authorize(Policy = VendorInvoiceCreate)]
-    [Description("Create a DRAFT vendor invoice / input-VAT record (no document number — reversible). doc_date is pinned to today; input VAT is derived server-side per ม.82/4. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. E3: vendorId must resolve to an existing vendor; each line references an existing expense category (validated company-scoped by the service).")]
+    [Description("Create a DRAFT vendor invoice / input-VAT record (no document number — reversible). doc_date is pinned to today; input VAT is derived server-side per ม.82/4. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. E3: vendorId must resolve to an existing vendor; each line references an existing expense category (validated company-scoped by the service). Resolve expenseCategoryId via list_expense_categories, taxCodeId via list_tax_codes, whtTypeId via list_wht_types, and businessUnitId via list_business_units (some companies REQUIRE a businessUnitId).")]
     public async Task<DraftCreated> CreateVendorInvoiceDraftAsync(
         CreateVendorInvoiceRequest request,
         IVendorInvoiceService svc,
@@ -639,7 +658,7 @@ public sealed class TeasMcpTools
         svc.GetDetailAsync(id, ct);
 
     [McpServerTool(Name = "create_payment_voucher_draft"), Authorize(Policy = PaymentVoucherCreate)]
-    [Description("Create a DRAFT payment voucher (no document number — reversible). doc_date is pinned to today. The service derives input VAT per Thai law (ม.82/5 non-VAT vendor → 0; ม.81 exempt product → 0; else the company standard rate) and computes WHT — the agent only drafts; a human reviews + posts (which issues the 50ทวิ certificate). Returns the draft id and an approval deep-link. The agent cannot approve or post. E3: vendorId must resolve to an existing vendor; the header expense category is validated company-scoped by the service.")]
+    [Description("Create a DRAFT payment voucher (no document number — reversible). doc_date is pinned to today. The service derives input VAT per Thai law (ม.82/5 non-VAT vendor → 0; ม.81 exempt product → 0; else the company standard rate) and computes WHT — the agent only drafts; a human reviews + posts (which issues the 50ทวิ certificate). Returns the draft id and an approval deep-link. The agent cannot approve or post. E3: vendorId must resolve to an existing vendor; the header expense category is validated company-scoped by the service. Resolve expenseCategoryId via list_expense_categories, taxCodeId via list_tax_codes, whtTypeId via list_wht_types, bankAccountId via list_bank_accounts, and businessUnitId via list_business_units (some companies REQUIRE a businessUnitId).")]
     public async Task<DraftCreated> CreatePaymentVoucherDraftAsync(
         CreatePaymentVoucherRequest request,
         IPaymentVoucherService svc,
@@ -779,6 +798,40 @@ public sealed class TeasMcpTools
         IFinancialReportService svc,
         CancellationToken ct) =>
         svc.GeneralLedgerAccountsAsync(ct);
+
+    // ── specs/mcp-error-surfacing.md §2 — master-data resolver tools ───────────
+    // Pattern: thin wrappers over an existing (or, for tax codes, new minimal) read
+    // service, exactly like list_gl_accounts above. Picker tools for the
+    // taxCodeId/whtTypeId/expenseCategoryId/businessUnitId fields every draft-create
+    // tool's lines require but had no way to resolve (prod investigation, background).
+
+    [McpServerTool(Name = "list_tax_codes"), Authorize(Policy = MasterDataResolverRead)]
+    [Description("List active tax codes for the caller's company: id, code, Thai name, rate (0 for exempt/zero-rated codes, else the company's standard VAT rate — not gated on whether the company is VAT-registered, since an INPUT code still reflects what a vendor charged even when the caller itself cannot issue Tax Invoices), tax type (VAT/WHT) and direction (input/output). A non-VAT-registered company (ม.86/4) cannot use OUTPUT codes at all, but its INPUT codes remain valid for recording vendor-charged VAT. Picker for taxCodeId on tax-invoice/quotation/vendor-invoice/payment-voucher line inputs.")]
+    public static Task<IReadOnlyList<TaxCodeListItem>> ListTaxCodesAsync(
+        ITaxCodeService svc,
+        CancellationToken ct) =>
+        svc.ListAsync(ct);
+
+    [McpServerTool(Name = "list_wht_types"), Authorize(Policy = MasterDataResolverRead)]
+    [Description("List active withholding-tax (WHT) types for the caller's company: whtTypeId, code, Thai/English name, income type code (ม.40), PND form type, current rate. Picker for whtTypeId on payment-voucher lines and vendor invoices.")]
+    public static Task<IReadOnlyList<WhtTypeListItem>> ListWhtTypesAsync(
+        IWhtTypeService svc,
+        CancellationToken ct) =>
+        svc.ListAsync(includeInactive: false, ct);
+
+    [McpServerTool(Name = "list_expense_categories"), Authorize(Policy = MasterDataResolverRead)]
+    [Description("List active expense categories for the caller's company: categoryId, code, Thai/English name, default expense account/tax code/WHT type ids, capex/COGS flags. Picker for expenseCategoryId on vendor-invoice and payment-voucher lines.")]
+    public static async Task<IReadOnlyList<ExpenseCategoryDto>> ListExpenseCategoriesAsync(
+        IExpenseCategoryService svc,
+        CancellationToken ct) =>
+        (await svc.ListAsync(ct)).Where(c => c.IsActive).ToList();
+
+    [McpServerTool(Name = "list_business_units"), Authorize(Policy = MasterDataResolverRead)]
+    [Description("List active business units for the caller's company: id, code, name. Picker for businessUnitId on every draft-create tool — some companies REQUIRE a businessUnitId (\"Business Unit is required for this company\").")]
+    public static Task<IReadOnlyList<BusinessUnitListItem>> ListBusinessUnitsAsync(
+        IBusinessUnitService svc,
+        CancellationToken ct) =>
+        svc.ListAsync(includeInactive: false, ct);
 
     [McpServerTool(Name = "get_journal"), Authorize(Policy = JournalRead)]
     [Description("Get the full detail (header + debit/credit lines) of one journal entry (JV) by id. Throws if not found in the caller's company (or belongs to another tenant).")]
@@ -1653,8 +1706,12 @@ public sealed class TeasMcpTools
 }
 
 /// <summary>E2 — thrown by MCP create-draft guards when a required list-only constraint
-/// is violated. The MCP SDK surfaces the message as a tool error (IsError = true);
-/// the <see cref="Code"/> is embedded in the message for the caller to parse.</summary>
+/// is violated. The SDK's own catch-all does NOT surface this message (confirmed on prod
+/// v1.18.0 — it swallows every exception into a generic "An error occurred invoking '...'."
+/// string); <see cref="McpErrorSurfacingFilterExtensions.AddErrorSurfacingFilter"/> is what
+/// forwards this exception's <see cref="Exception.Message"/> verbatim as a tool error
+/// (IsError = true). The <see cref="Code"/> is embedded in the message for the caller to
+/// parse (e.g. <c>[mcp.employee_required] ...</c>).</summary>
 public sealed class McpE2Exception(string code, string detail)
     : Exception($"[{code}] {detail}")
 {

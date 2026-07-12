@@ -63,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Master.ICompanyService,          Master.CompanyService>();
         services.AddScoped<Application.Master.IDocumentPrefixService,   Master.DocumentPrefixService>();
         services.AddScoped<Application.Master.IExpenseCategoryService,  Master.ExpenseCategoryService>();
+        services.AddScoped<Application.Master.ITaxCodeService,          Master.TaxCodeService>();
 
         services.AddScoped<Application.Purchase.IPaymentVoucherService, Purchase.PaymentVoucherService>();
         services.AddScoped<Application.Purchase.IVendorInvoiceService,  Purchase.VendorInvoiceService>();
