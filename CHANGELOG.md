@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.19.0](https://github.com/pinsorn/teas-accounting/compare/v1.18.0...v1.19.0) (2026-07-12)
+
+
+### Features
+
+* **bank:** warn on manual match confirm outside the 7-day suggest window ([806f241](https://github.com/pinsorn/teas-accounting/commit/806f241e66d99ecb867c4d4451da5916103de531))
+* **bank:** warn on manual match confirm outside the 7-day window ([215525d](https://github.com/pinsorn/teas-accounting/commit/215525de506531d65ec3ecb65832c11bba7f34f9))
+* **mcp:** surface business errors to MCP clients + master-data resolver tools ([6a56bba](https://github.com/pinsorn/teas-accounting/commit/6a56bbac55150682bd04363e425e7e3453560c46))
+* **mcp:** surface business errors to MCP clients + master-data resolver tools ([c2736e7](https://github.com/pinsorn/teas-accounting/commit/c2736e70cbbfc2ea502ee5093d0bc40489a5a56a))
+
 ## [1.18.0](https://github.com/pinsorn/teas-accounting/compare/v1.17.0...v1.18.0) (2026-07-10)
 
 
