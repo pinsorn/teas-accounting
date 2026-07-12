@@ -496,6 +496,43 @@ public sealed class ExpenseCategoryService(AccountingDbContext db, ITenantContex
         await db.ExpenseCategories.Where(c => c.CompanyId == tenant.CompanyId)
             .OrderBy(c => c.CategoryCode)
             .Select(c => new ExpenseCategoryDto(c.CategoryId, c.CategoryCode, c.NameTh, c.NameEn,
-                c.DefaultIsRecoverableVat, c.IsCapex, c.IsCogs, c.IsActive))
+                c.DefaultIsRecoverableVat, c.IsCapex, c.IsCogs, c.IsActive,
+                c.DefaultExpenseAccountId, c.DefaultTaxCodeId, c.DefaultWhtTypeId))
             .ToListAsync(ct);
+}
+
+// specs/mcp-error-surfacing.md §2 — read-only resolver for list_tax_codes. Rate is NOT a
+// scalar on tax.tax_codes (see SqlScripts/450_seed_demo_company_tax_codes.sql's header
+// comment: held in companies.vat_rate + the per-line snapshot; CreateAsync never seeds
+// tax.tax_rates), so an exempt/zero-rated code reports 0 and every other (VAT-taxable) code
+// reports the company's single vat_rate — this mirrors how VAT is actually derived
+// elsewhere (TaxInvoiceService etc.), not a fictional per-code rate table join.
+public sealed class TaxCodeService(AccountingDbContext db, ITenantContext tenant) : ITaxCodeService
+{
+    public async Task<IReadOnlyList<TaxCodeListItem>> ListAsync(CancellationToken ct)
+    {
+        var vatRate = await db.Companies.AsNoTracking()
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.VatRate)
+            .FirstOrDefaultAsync(ct);
+
+        // c.Category is [NotMapped] (computed from IsExempt/IsZeroRated) — can't be
+        // translated inside the SQL projection, so project the raw mapped columns first
+        // and compute Category client-side, same shape as TaxCode.Category's own logic.
+        var rows = await db.TaxCodes.AsNoTracking()
+            .Where(c => c.CompanyId == tenant.CompanyId && c.IsActive)
+            .OrderBy(c => c.Code)
+            .Select(c => new
+            {
+                c.TaxCodeId, c.Code, c.NameTh, c.IsExempt, c.IsZeroRated, c.TaxType, c.Direction,
+            })
+            .ToListAsync(ct);
+
+        return rows.Select(c => new TaxCodeListItem(
+            c.TaxCodeId, c.Code, c.NameTh,
+            (c.IsExempt || c.IsZeroRated) ? 0m : vatRate,
+            c.TaxType.ToString(), c.Direction.ToString(),
+            c.IsExempt ? "EXEMPT" : c.IsZeroRated ? "ZERO_RATED" : "TAXABLE"))
+            .ToList();
+    }
 }

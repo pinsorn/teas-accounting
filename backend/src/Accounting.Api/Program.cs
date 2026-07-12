@@ -5,6 +5,7 @@ using Accounting.Api;
 using Accounting.Api.Authorization;
 using Accounting.Api.BackgroundServices;
 using Accounting.Api.Endpoints;
+using Accounting.Api.Mcp;
 using Accounting.Api.Middleware;
 using Accounting.Api.OAuth;
 using Accounting.Api.Scheduling;
@@ -264,9 +265,16 @@ builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransfo
 // [Authorize(Policy = "apiperm:<scope>")] gating on each tool, resolved by the same
 // PermissionPolicyProvider the /api/v1 endpoints use. The /mcp endpoint itself is
 // pinned to the X-Api-Key scheme + per-key rate-limit at MapMcp (below).
+// specs/mcp-error-surfacing.md §1 — AddErrorSurfacingFilter() MUST come after
+// AddAuthorizationFilters() (DI-registration order = outer-to-inner CallToolFilters
+// wrapping order): auth's filter registers first so it stays OUTERMOST, catching an
+// unauthorized call before this filter's try/catch ever runs — never converts a
+// 401/403-equivalent into a friendly business error. See the filter's own doc comment
+// for the full ordering proof.
 builder.Services.AddMcpServer()
     .WithHttpTransport(o => o.Stateless = true)
     .AddAuthorizationFilters()
+    .AddErrorSurfacingFilter()
     .WithTools<Accounting.Api.Mcp.TeasMcpTools>();
 
 // Sprint 14 — /api/v1/* is ApiKey-scheme-only (auth isolation: root/BFF stays
