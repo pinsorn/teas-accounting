@@ -689,3 +689,9 @@ stage alongside the rest.
   symmetrically in a future cycle.
 - F4 (documented limitation): PV-from-VI WHT is opt-in; an omitted WHT on a
   WHT-liable VI yields an under-withheld DRAFT — human approve gate mitigates.
+
+### Hotfix spot-review (Opus, APPROVE, 2026-07-13 ~21:50)
+- F1 LOW residual: concurrent PARTIAL receipts on one BN can both post (web-only —
+  MCP is full-qty; BillingNote.Version token protects the full-cover race). Same
+  disposition as parent D5/F4; row-lock or partial-unique index if seen in practice.
+- F2 nit: directBnApps sums computed but unused (Keys only) — harmless.
