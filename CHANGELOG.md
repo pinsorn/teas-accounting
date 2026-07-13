@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.1](https://github.com/pinsorn/teas-accounting/compare/v1.20.0...v1.20.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* **receipt:** settle + guard direct BillingNote applications; chain edges for skip-DO FKs ([9289ded](https://github.com/pinsorn/teas-accounting/commit/9289ded08a19857fc9511b1399549880bf40744c))
+* **receipt:** settle + guard direct BillingNote applications; chain edges for skip-DO FKs ([3b082ce](https://github.com/pinsorn/teas-accounting/commit/3b082cee33f3dff070aee9478f9564616d851a7a))
+
 ## [1.20.0](https://github.com/pinsorn/teas-accounting/compare/v1.19.0...v1.20.0) (2026-07-13)
 
 
