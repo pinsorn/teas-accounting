@@ -4,6 +4,7 @@ using Accounting.Application.Ledger;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Purchase;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -121,6 +122,56 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
             "Created", toStatus: "Draft", module: "purchase");
         await _db.SaveChangesAsync(ct);
         return vi.VendorInvoiceId;
+    }
+
+    // mcp-document-chain (D1) — PO → Vendor Invoice, inheriting vendor + lines. Footgun:
+    // PurchaseOrderLine has NO ExpenseCategoryId/ProductType (unlike a VendorInvoiceLineInput,
+    // which requires one) — so the caller's header ExpenseCategoryId is applied to EVERY
+    // inherited line (mirrors how CreateVendorInvoiceFromPvAsync uses a single
+    // pv.ExpenseCategoryId for all lines). Guards: PO must be Approved at CREATE time (the
+    // standalone path only checks PO status at POST); one-VI-per-PO (today the standalone path
+    // allows multiple VIs per PO by design — this is the NEW §B guard for the from-PO path only).
+    public async Task<long> CreateFromPurchaseOrderAsync(
+        long purchaseOrderId, CreateViFromPoRequest req, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var po = await _db.PurchaseOrders.AsNoTracking().Include(p => p.Lines)
+                .FirstOrDefaultAsync(p => p.PurchaseOrderId == purchaseOrderId, ct)
+            ?? throw new DomainException("po.not_found", $"Purchase Order {purchaseOrderId} not found.");
+        if (po.Status != PurchaseOrderStatus.Approved)
+            throw new DomainException("po.not_approved",
+                $"Purchase Order {purchaseOrderId} must be Approved before creating a Vendor Invoice.");
+        if (await _db.VendorInvoices.AnyAsync(
+                v => v.PurchaseOrderId == purchaseOrderId && v.Status != DocumentStatus.Voided, ct))
+            throw new DomainException("po.vi_exists",
+                $"Purchase Order {purchaseOrderId} already has a Vendor Invoice.");
+
+        var viReq = new CreateVendorInvoiceRequest(
+            DocDate:              _clock.TodayInBangkok(),
+            VendorId:             po.VendorId,
+            VendorTaxInvoiceNo:   req.VendorTaxInvoiceNo,
+            VendorTaxInvoiceDate: req.VendorTaxInvoiceDate,
+            VatClaimPeriod:       req.VatClaimPeriod,
+            CurrencyCode:         po.CurrencyCode,
+            ExchangeRate:         po.ExchangeRate,
+            Notes:                po.Notes,
+            Lines: po.Lines.OrderBy(l => l.LineNo).Select(l => new VendorInvoiceLineInput(
+                ExpenseCategoryId: req.ExpenseCategoryId,
+                ExpenseAccountId:  null,
+                Description:       l.DescriptionTh,
+                Amount:            l.LineAmount,
+                VatRate:           l.TaxRate)).ToList(),
+            HasInputVat:     req.HasInputVat,
+            PurchaseOrderId: po.PurchaseOrderId,
+            BusinessUnitId:  req.BusinessUnitId ?? po.BusinessUnitId);
+
+        var viId = await CreateDraftAsync(viReq, ct);
+        _activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
+            "CreatedVendorInvoice", note: $"→ ใบกำกับภาษีซื้อ {viId}", module: "purchase");
+        await _db.SaveChangesAsync(ct);
+        return viId;
     }
 
     private async Task<List<VendorInvoiceLine>> BuildLinesAsync(

@@ -30,7 +30,12 @@ public sealed record CreateVendorInvoiceRequest(
     long? PurchaseOrderId = null,   // Sprint 12 — optional retroactive PO link
     // cont.79 — Business Unit (GL dimension). Required when Company.RequiresBusinessUnit;
     // embedded in the VI doc number at POST (MM-YYYY-VI-{BU}-NNNN). Trailing-defaulted.
-    int? BusinessUnitId = null);
+    int? BusinessUnitId = null,
+    // mcp-document-chain — MCP-only field: when PurchaseOrderId is set AND Lines is empty, the
+    // MCP tool routes to IVendorInvoiceService.CreateFromPurchaseOrderAsync instead of
+    // CreateDraftAsync, applying this category to every line inherited from the PO (which has
+    // no per-line category of its own). Unused by the REST/UI standalone path.
+    int? ExpenseCategoryId = null);
 
 public sealed record SetClaimPeriodRequest(int VatClaimPeriod);
 
@@ -48,6 +53,27 @@ public sealed class CreateViFromPvValidator : AbstractValidator<CreateViFromPvRe
 {
     public CreateViFromPvValidator()
     {
+        RuleFor(x => x.VendorTaxInvoiceNo).NotEmpty().MaximumLength(50);
+    }
+}
+
+// mcp-document-chain (D1) — PO→VI convenience create (the guided path off a PO). Vendor + lines
+// are inherited from the PO (PurchaseOrderLine has NO ExpenseCategoryId/ProductType — D1 footgun),
+// so the caller supplies ONE header expense category applied to every inherited line, plus the
+// vendor's tax-invoice legal refs (ม.82/4), mirroring CreateViFromPvRequest's shape.
+public sealed record CreateViFromPoRequest(
+    int      ExpenseCategoryId,
+    string   VendorTaxInvoiceNo,
+    DateOnly VendorTaxInvoiceDate,
+    int?     VatClaimPeriod = null,   // null → period of VendorTaxInvoiceDate (ม.82/4 default)
+    bool?    HasInputVat = null,
+    int?     BusinessUnitId = null);
+
+public sealed class CreateViFromPoValidator : AbstractValidator<CreateViFromPoRequest>
+{
+    public CreateViFromPoValidator()
+    {
+        RuleFor(x => x.ExpenseCategoryId).GreaterThan(0);
         RuleFor(x => x.VendorTaxInvoiceNo).NotEmpty().MaximumLength(50);
     }
 }
@@ -99,6 +125,14 @@ public sealed record VendorInvoiceDetail(
 public interface IVendorInvoiceService
 {
     Task<long> CreateDraftAsync(CreateVendorInvoiceRequest req, CancellationToken ct);
+
+    /// <summary>mcp-document-chain (D1) — create a Draft Vendor Invoice pre-filled from a
+    /// Purchase Order (PO must be Approved; one-VI-per-PO guard). Inherits vendor + lines from
+    /// the PO, applying <paramref name="req"/>'s ExpenseCategoryId to every inherited line (a PO
+    /// line has no expense category of its own). Sets VendorInvoice.PurchaseOrderId so the
+    /// existing POST-time auto-close (≥95%, PostAsync) still fires. Returns the new
+    /// vendor_invoice_id.</summary>
+    Task<long> CreateFromPurchaseOrderAsync(long purchaseOrderId, CreateViFromPoRequest req, CancellationToken ct);
     Task UpdateDraftAsync(long id, CreateVendorInvoiceRequest req, CancellationToken ct);
     Task SetClaimPeriodAsync(long id, int vatClaimPeriod, CancellationToken ct);
     Task<VendorInvoicePostedResult> PostAsync(long id, CancellationToken ct);

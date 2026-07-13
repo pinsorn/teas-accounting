@@ -57,6 +57,37 @@ public sealed record PaymentVoucherPostedResult(
     long? WhtCertificateId,
     string? WhtCertNo);
 
+// mcp-document-chain (D1) — VI→PV convenience create (the guided path off a posted Vendor
+// Invoice). Vendor + expense category + lines are all inherited from the VI (a VI line HAS
+// ExpenseAccountId+ExpenseCategoryId, unlike a PO line) — the caller supplies only the payment
+// mechanics. Self-withhold/gross-up is intentionally NOT exposed here: it is invalid for a
+// VI-linked PV anyway (CreatePaymentVoucherValidator, Phase 2 only).
+public sealed record CreatePvFromViRequest(
+    PaymentMethod PaymentMethod,
+    string?  ChequeNo = null,
+    DateOnly? ChequeDate = null,
+    long?    BankAccountId = null,
+    string?  Notes = null,
+    int?     BusinessUnitId = null,
+    // mcp-document-chain — the VI carries NO withholding data at all, so WHT is opt-in here:
+    // when supplied, applied uniformly to every inherited line. WhtTypeId omitted → falls back
+    // to the expense category's default (exactly like CreateDraftAsync's own
+    // `input.WhtTypeId ?? category.DefaultWhtTypeId`); WhtRate omitted → 0 (no withholding).
+    int?     WhtTypeId = null,
+    decimal? WhtRate = null);
+
+public sealed class CreatePvFromViValidator : AbstractValidator<CreatePvFromViRequest>
+{
+    public CreatePvFromViValidator()
+    {
+        When(x => x.PaymentMethod == PaymentMethod.Cheque, () =>
+        {
+            RuleFor(x => x.ChequeNo).NotEmpty().WithMessage("Cheque payment requires ChequeNo.");
+            RuleFor(x => x.ChequeDate).NotNull().WithMessage("Cheque payment requires ChequeDate.");
+        });
+    }
+}
+
 public sealed class CreatePaymentVoucherValidator : AbstractValidator<CreatePaymentVoucherRequest>
 {
     public CreatePaymentVoucherValidator()

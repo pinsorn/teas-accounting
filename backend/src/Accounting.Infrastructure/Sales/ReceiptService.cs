@@ -178,9 +178,23 @@ public sealed partial class ReceiptService : IReceiptService
                 // (doc number allocated) and belong to the same customer.
                 var bn = bns.FirstOrDefault(b => b.BillingNoteId == bnId)
                     ?? throw new DomainException("rc.invoice_missing", $"Invoice {bnId} not found.");
+                // mcp-document-chain (§B addition, Ham 2026-07-13 — MONEY GUARD, the reverse of
+                // rc.non_vat_no_ti above): a VAT-registered company must settle its Tax Invoice,
+                // NEVER a BillingNote directly — a BN carries no output VAT line, so crediting
+                // Sales straight from it would silently under-report ภ.พ.30. Non-VAT unchanged
+                // (that IS its revenue-recognition path).
+                if (tax.VatMode)
+                    throw new DomainException("rc.vat_co_no_bn_settle",
+                        "ออกใบกำกับภาษีจากใบแจ้งหนี้ก่อน แล้วรับชำระกับใบกำกับภาษี");
                 if (bn.Status == BillingNoteStatus.Draft)
                     throw new DomainException("rc.invoice_not_issued",
                         $"Invoice {bn.BillingNoteId} must be issued before a receipt applies to it.");
+                // mcp-document-chain (D5) — dedup guard: a Settled Invoice is already fully
+                // collected; block a further application (mirrors the TI over-collection guard
+                // above, which a Settled/PAID TI already fails via the outstanding check).
+                if (bn.Status == BillingNoteStatus.Settled)
+                    throw new DomainException("rc.invoice_already_settled",
+                        $"Invoice {bn.BillingNoteId} is already fully settled.");
                 if (bn.CustomerId != customer.CustomerId)
                     throw new DomainException("rc.invoice_customer_mismatch",
                         $"Invoice {bn.BillingNoteId} is for a different customer.");

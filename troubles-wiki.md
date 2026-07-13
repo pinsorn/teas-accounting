@@ -308,6 +308,13 @@ Entry format — terse, greppable by symptom:
   inserted DocNo prefix or resetting `teas_test` periodically.
 - **Seen:** 2026-07-08, mcp-expansion read-side gate run (§B/§C/§E) — 1 failure out of 645
   `Accounting.Api.Tests`, isolated re-run green.
+- **Also seen on:** `Empty_period_throws_no_data` (same class/`RandPeriod()`) — 2026-07-13,
+  mcp-document-chain gate. Full-suite run failed it once (845 tests, unrelated to any
+  sales/purchase/MCP code path touched that cycle); isolated re-run with a fresh random draw
+  passed immediately. Confirms the fix generalizes to every test in this class, not just the
+  Pnd53 one. Note: repeated full-suite reruns IN THE SAME SESSION raise the collision odds
+  further (each run leaves more far-future rows behind) — don't be surprised if it flakes more
+  often the more times you've already run the gate today.
 
 ## MCP round-trip test: `result.Content.OfType<TextContentBlock>().Single()` throws "Sequence contains no elements" for a tool that returns C# `null`; or `JsonElement.GetProperty("someNullProperty")` throws `KeyNotFoundException`
 - **Root cause:** the MCP SDK (`ModelContextProtocol.Server`) serializes tool return values with default
@@ -380,6 +387,27 @@ Entry format — terse, greppable by symptom:
   files as a regression signal — they fail identically on a clean checkout with no vitest
   config change.
 - **Seen:** 2026-07-04, frontend medium/low fixes (M6/F1/L6, `fix/review-findings-2026-07-04`).
+
+## `corepack pnpm run test -- --run lib` silently STAYS IN WATCH MODE (no pnpm on PATH, must use corepack)
+- **Symptom:** the FE test command returns instantly with "running in background", then the
+  output file sits at 0 bytes / near-zero CPU on the node workers for many minutes — looks
+  like a hang, not a fast failure (different symptom from the sibling entry above, same repo
+  quirk family).
+- **Root cause:** two stacked issues. (1) `pnpm` is not on PATH in this environment at all
+  (Windows, no global pnpm install) — you MUST invoke it via `corepack pnpm ...` or
+  `corepack pnpm exec ...`; plain `pnpm` errors "not recognized". (2) `corepack pnpm run test
+  -- --run lib` does NOT strip the middle `--` the way a bare `pnpm run` would: it forwards a
+  LITERAL `"--"` token into the script's argv, so the actual invocation becomes
+  `vitest "--" "--run" "lib"` (confirmed by the banner: it prints `DEV` mode, not `RUN`).
+  Vitest then starts in interactive watch mode — with the default glob (see sibling entry
+  above) it also collects `e2e/*.spec.ts`/`manual/*.spec.ts` Playwright files as "0 test" and
+  then just sits there watching, producing no output and pegging near-zero CPU forever.
+- **Fix:** skip `pnpm run` entirely for ad-hoc args — call the binary directly:
+  `corepack pnpm exec vitest run lib` (or `lib/<file>.test.ts`). This both forces run-once
+  mode correctly AND scopes past the Playwright-spec collision. Kill any stray `node.exe`
+  workers left in watch mode before retrying (`Get-Process node | Where StartTime -gt <recent>
+  | Stop-Process -Force`) — they don't self-exit.
+- **Seen:** 2026-07-13, mcp-document-chain gate finishing (this cycle's FE gate run).
 
 ## CS0433 "'Program' exists in both 'Accounting.Api' and 'Accounting.Workers'" when a test project references both
 - **Root cause:** `Accounting.Api/Program.cs` and `Accounting.Workers/Program.cs` are both

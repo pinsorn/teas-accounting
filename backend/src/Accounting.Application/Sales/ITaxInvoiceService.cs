@@ -14,6 +14,19 @@ public interface ITaxInvoiceService
     /// <c>BillingNoteId</c> set. Returns the new tax_invoice_id.</summary>
     Task<long> CreateFromBillingNoteAsync(long billingNoteId, CancellationToken ct);
 
+    /// <summary>mcp-document-chain (D1) — Delivery Order → Tax Invoice, draft-only (does NOT
+    /// auto-post, unlike the legacy <c>IDeliveryOrderService.CreateTaxInvoiceAsync</c>/GenerateTiAsync
+    /// combined-DO path). Exact clone of <see cref="CreateFromBillingNoteAsync"/> sourcing lines from
+    /// the DO instead. Funnels through the VAT chokepoint (ti.non_vat_blocked for non-VAT).
+    /// Stamps <c>DeliveryOrderId</c>. Guard: one TI per DO (no other TI already carries it).</summary>
+    Task<long> CreateFromDeliveryOrderAsync(long deliveryOrderId, CancellationToken ct);
+
+    /// <summary>mcp-document-chain (D1) — Sales Order → Tax Invoice, draft-only, for a
+    /// service-only SO (§A2 skip-DO path; <c>DeliveryRequired == false</c>). Guard: SO must be
+    /// Posted and service-only; one Invoice per SO (no BillingNote/TI already carries it).
+    /// Stamps <c>SalesOrderId</c>.</summary>
+    Task<long> CreateFromSalesOrderAsync(long salesOrderId, CancellationToken ct);
+
     /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit: replaces header + delete-and-
     /// recreates ALL lines, recomputing totals server-side (client Lines only; never trust a
     /// client total). Throws <c>ti.cannot_edit_after_post</c> once the TI has left Draft.

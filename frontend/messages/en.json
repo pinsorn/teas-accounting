@@ -1557,6 +1557,7 @@
     "total": "Total",
     "post": "Post",
     "createDo": "Create Delivery Order",
+    "createInvoice": "Create Invoice",
     "create": "New sales order",
     "expectedDelivery": "Delivery due",
     "businessUnit": "Business unit",

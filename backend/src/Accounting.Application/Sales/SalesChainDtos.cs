@@ -91,7 +91,11 @@ public sealed record SalesOrderDetail(
     long SalesOrderId, string? DocNo, string Status, DateOnly DocDate,
     long CustomerId, string CustomerName, int? BusinessUnitId,
     decimal SubtotalAmount, decimal VatAmount, decimal TotalAmount,
-    long? QuotationId, IReadOnlyList<ChainLineDto> Lines);
+    long? QuotationId, IReadOnlyList<ChainLineDto> Lines,
+    // mcp-document-chain (D4) — server-derived: true when ANY line is a physical good
+    // (GOOD | EXEMPT_GOOD) → a Delivery Order is mandatory before invoicing (§A2).
+    // All-service SOs (SERVICE | EXEMPT_SERVICE) may invoice directly from the SO.
+    bool DeliveryRequired = false);
 
 public sealed record DeliveryOrderListItem(
     long DeliveryOrderId, string? DocNo, string Status, DateOnly DocDate,

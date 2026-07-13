@@ -4,6 +4,7 @@ using Accounting.Application.Ledger;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.ETax;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -86,6 +87,11 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             .Where(x => x.CompanyId == _tenant.CompanyId)
             .FirstOrDefaultAsync(x => x.BillingNoteId == billingNoteId, ct)
             ?? throw new DomainException("billing_note.not_found", $"Invoice {billingNoteId} not found.");
+        // mcp-document-chain (§B addition, Ham 2026-07-13) — one active TI per BN.
+        if (await _db.TaxInvoices.AnyAsync(
+                t => t.CompanyId == _tenant.CompanyId && t.BillingNoteId == billingNoteId, ct))
+            throw new DomainException("bn.ti_exists",
+                $"Invoice {billingNoteId} already has a linked Tax Invoice.");
 
         var lines = bn.Lines.OrderBy(l => l.LineNo).Select(l => new TaxInvoiceLineInput(
             l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity, 1, l.UomText,
@@ -104,6 +110,92 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         await _db.SaveChangesAsync(ct);
         _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId,
             "CreatedFromInvoice", note: $"จากใบแจ้งหนี้ {bn.DocNo ?? bn.BillingNoteId.ToString()}");
+        await _db.SaveChangesAsync(ct);
+        return tiId;
+    }
+
+    // mcp-document-chain (D1) — Delivery Order → Tax Invoice, DRAFT-ONLY (does NOT auto-post,
+    // unlike the legacy combined-DO path GenerateTiAsync/DeliveryOrderService.CreateTaxInvoiceAsync).
+    // Exact clone of CreateFromBillingNoteAsync above, sourcing lines from the DO instead
+    // (line-map mirrors GenerateTiAsync, SalesOrderDeliveryServices.cs). VAT chokepoint blocks
+    // non-VAT companies up-front. Guard: one TI per DO (no other TI already carries it).
+    public async Task<long> CreateFromDeliveryOrderAsync(long deliveryOrderId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        await EnsureVatRegisteredAsync(ct);
+
+        var dord = await _db.DeliveryOrders.AsNoTracking().Include(x => x.Lines)
+            .Where(x => x.CompanyId == _tenant.CompanyId)
+            .FirstOrDefaultAsync(x => x.DeliveryOrderId == deliveryOrderId, ct)
+            ?? throw new DomainException("do.not_found", $"Delivery Order {deliveryOrderId} not found.");
+        if (dord.Status is not (DeliveryOrderStatus.Issued or DeliveryOrderStatus.Delivered))
+            throw new DomainException("do.not_issued",
+                $"Delivery Order {deliveryOrderId} must be issued before creating a Tax Invoice.");
+        if (await _db.TaxInvoices.AnyAsync(
+                t => t.CompanyId == _tenant.CompanyId && t.DeliveryOrderId == deliveryOrderId, ct))
+            throw new DomainException("do.ti_exists",
+                $"Delivery Order {deliveryOrderId} already has a linked Tax Invoice.");
+
+        var lines = dord.Lines.OrderBy(l => l.LineNo).Select(l => new TaxInvoiceLineInput(
+            l.ProductId, null, l.DescriptionTh, l.Quantity, 1, l.UomText,
+            l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate,
+            l.ProductType)).ToList();   // Sprint 13h P7 pattern — DO→TI cascade
+
+        // §4.6 / ม.80 — chain-copy: DO lines were already rate-derived at their own origin
+        // builder; inherit those rates, do NOT re-derive (deriveLineTax:false).
+        var tiId = await CreateDraftCoreAsync(new CreateTaxInvoiceRequest(
+            dord.DocDate, dord.CustomerId, false, dord.CurrencyCode, dord.ExchangeRate,
+            dord.Notes, null, null, lines, dord.BusinessUnitId), deriveLineTax: false, ct);
+
+        var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
+        ti.DeliveryOrderId = dord.DeliveryOrderId;
+        await _db.SaveChangesAsync(ct);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId,
+            "CreatedFromDeliveryOrder", note: $"จากใบส่งของ {dord.DocNo ?? dord.DeliveryOrderId.ToString()}");
+        await _db.SaveChangesAsync(ct);
+        return tiId;
+    }
+
+    // mcp-document-chain (D1) — Sales Order → Tax Invoice, direct (service-only skip-DO path,
+    // §A2), DRAFT-ONLY. Guard: SO must be Posted + service-only (a goods line means a Delivery
+    // Order is mandatory — the MCP layer recomputes and enforces the same rule up-front); one TI
+    // per SO (no other TI already carries it).
+    public async Task<long> CreateFromSalesOrderAsync(long salesOrderId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        await EnsureVatRegisteredAsync(ct);
+
+        var so = await _db.SalesOrders.AsNoTracking().Include(x => x.Lines)
+            .Where(x => x.CompanyId == _tenant.CompanyId)
+            .FirstOrDefaultAsync(x => x.SalesOrderId == salesOrderId, ct)
+            ?? throw new DomainException("so.not_found", $"Sales Order {salesOrderId} not found.");
+        if (so.Status != SalesOrderStatus.Posted)
+            throw new DomainException("so.not_posted",
+                "Sales Order must be Posted before creating a Tax Invoice.");
+        if (so.Lines.Any(l => l.ProductType is "GOOD" or "EXEMPT_GOOD"))
+            throw new DomainException("so.delivery_required",
+                $"Sales Order {salesOrderId} has goods lines — create a Delivery Order first.");
+        if (await _db.TaxInvoices.AnyAsync(
+                t => t.CompanyId == _tenant.CompanyId && t.SalesOrderId == salesOrderId, ct))
+            throw new DomainException("so.invoice_exists",
+                $"Sales Order {salesOrderId} already has an Invoice.");
+
+        var lines = so.Lines.OrderBy(l => l.LineNo).Select(l => new TaxInvoiceLineInput(
+            l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity, 1, l.UomText,
+            l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate,
+            l.ProductType)).ToList();
+
+        var tiId = await CreateDraftCoreAsync(new CreateTaxInvoiceRequest(
+            so.DocDate, so.CustomerId, false, so.CurrencyCode, so.ExchangeRate,
+            so.Notes, null, null, lines, so.BusinessUnitId), deriveLineTax: false, ct);
+
+        var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
+        ti.SalesOrderId = so.SalesOrderId;
+        await _db.SaveChangesAsync(ct);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId,
+            "CreatedFromSalesOrder", note: $"จากใบสั่งขาย {so.DocNo ?? so.SalesOrderId.ToString()}");
         await _db.SaveChangesAsync(ct);
         return tiId;
     }

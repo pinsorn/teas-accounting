@@ -42,6 +42,14 @@ public class TaxInvoice : ITenantOwned, IAuditable, IConcurrencyVersioned
     /// (Invoice → Tax Invoice, manual, VAT only). Nullable: legacy/standalone TIs.</summary>
     public long? BillingNoteId { get; set; }
 
+    /// <summary>mcp-document-chain — source Sales Order this TI was created directly from
+    /// (service-only SO skip-DO path, §A2). Nullable: most TIs have no direct SO origin.</summary>
+    public long? SalesOrderId { get; set; }
+
+    /// <summary>mcp-document-chain — source Delivery Order this TI was created directly from
+    /// (DO → TI draft path). Nullable: most TIs originate elsewhere.</summary>
+    public long? DeliveryOrderId { get; set; }
+
     // ---- Supplier snapshot (frozen) ----
     public required string SupplierTaxId      { get; set; }
     public required string SupplierBranchCode { get; set; }

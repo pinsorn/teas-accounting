@@ -277,6 +277,13 @@ builder.Services.AddMcpServer()
     .AddErrorSurfacingFilter()
     .WithTools<Accounting.Api.Mcp.TeasMcpTools>();
 
+// mcp-document-chain (D6/§A5) — static, company-agnostic server instructions sent at the MCP
+// init handshake (McpServerOptions.ServerInstructions, ModelContextProtocol 1.4.0). CANNOT vary
+// per company (stateless server, no tenant at registration) — the per-company variance (VAT vs
+// non-VAT sales-chain steps) lives in the get_workflow_guide TOOL instead (dynamic, per-call).
+builder.Services.AddOptions<ModelContextProtocol.Server.McpServerOptions>()
+    .Configure(o => o.ServerInstructions = Accounting.Api.Mcp.TeasServerInstructions.Text);
+
 // Sprint 14 — /api/v1/* is ApiKey-scheme-only (auth isolation: root/BFF stays
 // JWT-default, so an X-Api-Key on a root route → 401, and a JWT on v1 → 401).
 // ponytail: global FallbackPolicy — any route with no auth metadata requires an authenticated

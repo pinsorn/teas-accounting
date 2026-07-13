@@ -1004,6 +1004,10 @@ export interface SalesOrderDetail {
   customerId: number; customerName: string; businessUnitId: number | null;
   subtotalAmount: number; vatAmount: number; totalAmount: number;
   quotationId: number | null; lines: ChainLineDto[];
+  // mcp-document-chain (D4) — true when any line is a physical good (GOOD/EXEMPT_GOOD):
+  // a Delivery Order is mandatory before invoicing. false (all SERVICE/EXEMPT_SERVICE) →
+  // invoice directly from the SO.
+  deliveryRequired: boolean;
 }
 export interface DeliveryOrderListItem {
   deliveryOrderId: number; docNo: string | null; status: string; docDate: string;

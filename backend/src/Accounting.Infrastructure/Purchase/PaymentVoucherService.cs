@@ -103,6 +103,73 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         return viId;
     }
 
+    /// <summary>
+    /// mcp-document-chain (D1) — create a Payment Voucher pre-filled from a POSTED Vendor
+    /// Invoice and link it back (PaymentVoucher.VendorInvoiceId, so the existing POST-time AP
+    /// settlement at :409-442 fires unchanged). Inherits cleanly: a VI line HAS
+    /// ExpenseAccountId+ExpenseCategoryId (unlike a PO line), so every field maps directly.
+    /// The header ExpenseCategoryId (a single value on CreatePaymentVoucherRequest) is taken
+    /// from the VI's first line — this cycle settles one VI with one PV in full, so a
+    /// multi-category VI is the one simplification here (documented; a future v2 could split
+    /// per category). WHT is intentionally NOT auto-derived per line (the VI carries no WHT
+    /// data at all) — WhtTypeId/WhtRate default to null/0, exactly like CreateDraftAsync's own
+    /// category-default fallback when the caller omits WhtTypeId. A human reviewer may still
+    /// adjust WHT on the draft via the web UI before approving/posting.
+    /// Guards: VI must be Posted; one ACTIVE PV per VI (SettlementStatus != PAID AND no other
+    /// non-Voided PV already linked to this VI).
+    /// </summary>
+    public async Task<long> CreateFromVendorInvoiceAsync(
+        long vendorInvoiceId, CreatePvFromViRequest req, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var vi = await _db.VendorInvoices.AsNoTracking().Include(v => v.Lines)
+                .FirstOrDefaultAsync(v => v.VendorInvoiceId == vendorInvoiceId, ct)
+            ?? throw new DomainException("vi.not_found", $"Vendor Invoice {vendorInvoiceId} not found.");
+        if (vi.Status != DocumentStatus.Posted)
+            throw new DomainException("vi.not_posted",
+                $"Vendor Invoice {vendorInvoiceId} must be Posted before a Payment Voucher can settle it.");
+        if (vi.SettlementStatus == "PAID")
+            throw new DomainException("vi.already_settled",
+                $"Vendor Invoice {vendorInvoiceId} is already fully settled.");
+        if (await _db.PaymentVouchers.AnyAsync(
+                p => p.VendorInvoiceId == vendorInvoiceId && p.Status != DocumentStatus.Voided, ct))
+            throw new DomainException("vi.pv_exists",
+                $"Vendor Invoice {vendorInvoiceId} already has an active Payment Voucher.");
+
+        var pvReq = new CreatePaymentVoucherRequest(
+            DocDate:           _clock.TodayInBangkok(),
+            VendorId:          vi.VendorId,
+            ExpenseCategoryId: vi.Lines.First().ExpenseCategoryId,
+            PaymentMethod:     req.PaymentMethod,
+            ChequeNo:          req.ChequeNo,
+            ChequeDate:        req.ChequeDate,
+            BankAccountId:     req.BankAccountId,
+            CurrencyCode:      vi.CurrencyCode,
+            ExchangeRate:      vi.ExchangeRate,
+            Description:       $"ชำระใบกำกับภาษีซื้อ {vi.DocNo ?? vi.VendorInvoiceId.ToString()}",
+            Notes:             req.Notes,
+            Lines: vi.Lines.OrderBy(l => l.LineNo).Select(l => new PaymentVoucherLineInput(
+                ExpenseAccountId: l.ExpenseAccountId,
+                Description:      l.Description,
+                Amount:           l.Amount,
+                TaxCodeId:        l.TaxCodeId,
+                VatRate:          l.VatRate,
+                IsRecoverableVat: l.IsRecoverableVat,
+                WhtTypeId:        req.WhtTypeId,
+                WhtRate:          req.WhtRate ?? 0m,
+                ProductType:      l.ProductType)).ToList(),
+            VendorInvoiceId: vi.VendorInvoiceId,
+            BusinessUnitId:  req.BusinessUnitId ?? vi.BusinessUnitId);
+
+        var pvId = await CreateDraftAsync(pvReq, ct);
+        _activity.Record("VendorInvoice", vi.VendorInvoiceId, vi.DocNo, vi.CompanyId,
+            "CreatedPaymentVoucher", note: $"→ ใบสำคัญจ่าย {pvId}", module: "purchase");
+        await _db.SaveChangesAsync(ct);
+        return pvId;
+    }
+
     public async Task<long> CreateDraftAsync(CreatePaymentVoucherRequest req, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)

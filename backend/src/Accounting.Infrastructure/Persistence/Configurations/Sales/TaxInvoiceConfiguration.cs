@@ -81,6 +81,15 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
             .OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(t => t.BillingNoteId).HasFilter("billing_note_id IS NOT NULL");
 
+        // mcp-document-chain — optional FKs to a direct SO/DO origin (service-only skip-DO path,
+        // and DO→TI draft path respectively).
+        b.HasOne<SalesOrder>().WithMany().HasForeignKey(t => t.SalesOrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(t => t.SalesOrderId).HasFilter("sales_order_id IS NOT NULL");
+        b.HasOne<DeliveryOrder>().WithMany().HasForeignKey(t => t.DeliveryOrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(t => t.DeliveryOrderId).HasFilter("delivery_order_id IS NOT NULL");
+
         b.ToTable(t =>
         {
             t.HasCheckConstraint("ck_ti_invoice_type", "invoice_type = 'FULL'");
