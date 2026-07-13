@@ -6,6 +6,7 @@ using Accounting.Application.Identity;
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Audit;
 using Accounting.Domain.Entities.Identity;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
@@ -719,6 +720,219 @@ public sealed class McpDocumentChainTests
             Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 1_605m, BillingNoteId: bnId)]),
             default);
         (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("rc.vat_co_no_bn_settle");
+    }
+
+    // ── v1.20.1 HOTFIX (H1) — prod evidence 2026-07-13: direct BillingNoteId receipt
+    // applications (non-VAT settle path) never flipped the BN to Settled and had no
+    // over-collection guard, so a second receipt against the same BN posted revenue twice.
+
+    [SkippableFact]
+    public async Task Direct_bn_settlement_flips_billing_note_to_settled_h1a()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "SERVICE", 500m, 0m);
+        long bnId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            bnId = await bnSvc.CreateFromSalesOrderAsync(soId, default);
+            await bnSvc.IssueAsync(bnId, default);
+        }
+
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var rcSvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            var rcId = await rcSvc.CreateDraftAsync(new CreateReceiptRequest(
+                today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
+                Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 500m, BillingNoteId: bnId)]),
+                default);
+            await rcSvc.PostAsync(rcId, default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var bn = await db.BillingNotes.AsNoTracking().FirstAsync(b => b.BillingNoteId == bnId);
+        // prod evidence: BN 4 stayed status=ISSUED after RC-5 fully covered it — assert the
+        // STATUS actually flips, not just that the JE lines up (D3(b) JE pin already covers that).
+        bn.Status.Should().Be(BillingNoteStatus.Settled);
+        bn.SettledAt.Should().NotBeNull();
+    }
+
+    [SkippableFact]
+    public async Task Second_receipt_against_the_same_bn_is_rejected_when_it_would_overcollect_h1b()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "SERVICE", 1_000m, 0m);
+        long bnId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            bnId = await bnSvc.CreateFromSalesOrderAsync(soId, default);
+            await bnSvc.IssueAsync(bnId, default);
+        }
+
+        // First receipt: partial (700 of 1000) — posts fine, BN stays Issued (not yet covered).
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var rcSvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            var rc1Id = await rcSvc.CreateDraftAsync(new CreateReceiptRequest(
+                today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
+                Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 700m, BillingNoteId: bnId)]),
+                default);
+            await rcSvc.PostAsync(rc1Id, default);
+        }
+
+        // Second receipt: 500 more would bring the total applied to 1,200 > 1,000 — must be
+        // rejected AT POST (mirrors the TI over-applied guard, :445) since a create-time-only
+        // check would miss two drafts created before either posts (the actual double-revenue race).
+        await using var s2 = sp.CreateAsyncScope();
+        var rcSvc2 = s2.ServiceProvider.GetRequiredService<IReceiptService>();
+        var rc2Id = await rcSvc2.CreateDraftAsync(new CreateReceiptRequest(
+            today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
+            Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 500m, BillingNoteId: bnId)]),
+            default);
+        var act = () => rcSvc2.PostAsync(rc2Id, default);
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("receipt.over_applied");
+
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var bn = await db.BillingNotes.AsNoTracking().FirstAsync(b => b.BillingNoteId == bnId);
+        bn.Status.Should().Be(BillingNoteStatus.Issued, "the rejected 2nd receipt must not settle or double-book the BN");
+    }
+
+    [SkippableFact]
+    public async Task Partial_bn_application_does_not_flip_status_h1c()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "SERVICE", 1_000m, 0m);
+        long bnId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            bnId = await bnSvc.CreateFromSalesOrderAsync(soId, default);
+            await bnSvc.IssueAsync(bnId, default);
+        }
+
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var rcSvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            var rcId = await rcSvc.CreateDraftAsync(new CreateReceiptRequest(
+                today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
+                // Partial applications aren't creatable via MCP this cycle (full-qty only),
+                // but the web UI can craft one directly against the service — must not flip.
+                Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 400m, BillingNoteId: bnId)]),
+                default);
+            await rcSvc.PostAsync(rcId, default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var bn = await db.BillingNotes.AsNoTracking().FirstAsync(b => b.BillingNoteId == bnId);
+        bn.Status.Should().Be(BillingNoteStatus.Issued);
+        bn.SettledAt.Should().BeNull();
+    }
+
+    // ── v1.20.1 HOTFIX (H2) — get_document_chain's resolver didn't traverse the NEW
+    // TaxInvoice.SalesOrderId/DeliveryOrderId + BillingNote.SalesOrderId FKs, so a chain
+    // from a Quotation stopped at the SO for a skip-DO Invoice, and a chain anchored on
+    // that Invoice never resolved its upstream SO/Quotation. ──
+
+    [SkippableFact]
+    public async Task Document_chain_traverses_the_skip_do_edge_both_directions_h2()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "SERVICE", 800m, 0m);
+
+        long qId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var soSvc = s.ServiceProvider.GetRequiredService<ISalesOrderService>();
+            qId = (await soSvc.GetAsync(soId, default))!.QuotationId!.Value;
+        }
+
+        long bnId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            bnId = await bnSvc.CreateFromSalesOrderAsync(soId, default);   // skip-DO: SO → Invoice, direct
+            await bnSvc.IssueAsync(bnId, default);
+        }
+
+        long rcId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var rcSvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            rcId = await rcSvc.CreateDraftAsync(new CreateReceiptRequest(
+                today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
+                Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 800m, BillingNoteId: bnId)]),
+                default);
+            await rcSvc.PostAsync(rcId, default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var chainSvc = s2.ServiceProvider.GetRequiredService<IDocumentCrossRefService>();
+
+        // Down-walk: Quotation → SO → Invoice(BN) → Receipt, with NO Delivery Order at all.
+        var fromQ = await chainSvc.GetChainAsync("quotation", qId, default);
+        fromQ.Should().NotBeNull();
+        fromQ!.SalesOrder!.Id.Should().Be(soId);
+        fromQ.DeliveryOrders.Should().BeEmpty();
+        fromQ.Invoices.Select(n => n.Id).Should().Contain(bnId);
+        fromQ.Receipts.Select(n => n.Id).Should().Contain(rcId);
+
+        // Up-walk: anchored on the Invoice itself → resolves upstream SO + Quotation.
+        var fromBn = await chainSvc.GetChainAsync("billing-note", bnId, default);
+        fromBn.Should().NotBeNull();
+        fromBn!.SalesOrder!.Id.Should().Be(soId);
+        fromBn!.Quotation!.Id.Should().Be(qId);
+    }
+
+    // ── v1.20.1 HOTFIX (H3) — investigate: prod reported the web "ยืนยันชำระครบแล้ว"
+    // (MarkSettled) button on an Issued BN logging "Issued → Issued" without changing
+    // status. Reproduce against the fixture; document if it can't be reproduced. ──
+
+    [SkippableFact]
+    public async Task MarkSettled_on_an_issued_billing_note_flips_to_settled_h3_repro()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "SERVICE", 500m, 0m);
+        long bnId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            bnId = await bnSvc.CreateFromSalesOrderAsync(soId, default);
+            await bnSvc.IssueAsync(bnId, default);
+            await bnSvc.MarkSettledAsync(bnId, default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var bn = await db.BillingNotes.AsNoTracking().FirstAsync(b => b.BillingNoteId == bnId);
+        bn.Status.Should().Be(BillingNoteStatus.Settled);
+        bn.SettledAt.Should().NotBeNull();
+
+        // The prod report was of a LOGGED "Issued → Issued" transition — assert the actual
+        // activity row's metadata here, not just the resulting status.
+        var log = await db.Set<ActivityLog>().AsNoTracking()
+            .Where(a => a.EntityType == "BillingNote" && a.EntityId == bnId && a.ActivityType == "Settled")
+            .OrderByDescending(a => a.ActivityId).FirstAsync();
+        using var meta = JsonDocument.Parse(log.MetadataJson!);
+        meta.RootElement.GetProperty("fromStatus").GetString().Should().Be("Issued");
+        meta.RootElement.GetProperty("toStatus").GetString().Should().Be("Settled");
     }
 
     // ── D8 #9 — tenancy: get_sales_order/list_sales_orders scope to caller company ──

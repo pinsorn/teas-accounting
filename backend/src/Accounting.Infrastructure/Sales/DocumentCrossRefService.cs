@@ -223,11 +223,16 @@ public sealed class DocumentCrossRefService(
         {
             var tis = await db.TaxInvoices.AsNoTracking()
                 .Where(t => t.CompanyId == cid && tiIds.Contains(t.TaxInvoiceId))
-                .Select(t => new { t.BillingNoteId, t.QuotationId })
+                .Select(t => new { t.BillingNoteId, t.QuotationId, t.SalesOrderId, t.DeliveryOrderId })
                 .ToListAsync(ct);
             foreach (var t in tis)
             {
                 if (t.BillingNoteId is long b) invIds.Add(b);
+                // v1.20.1 HOTFIX (H2) — mcp-document-chain's NEW forward FKs (TI created
+                // directly from a SO/DO, skip-DO or DO-direct path). Without these, a chain
+                // anchored on such a TI never resolved its upstream SO/DO/Q.
+                if (t.SalesOrderId is long tso) soIds.Add(tso);
+                if (t.DeliveryOrderId is long tdo) doIds.Add(tdo);
                 quotationId ??= t.QuotationId;
             }
             // Legacy Pattern X: DO carries TaxInvoiceId.
@@ -241,11 +246,15 @@ public sealed class DocumentCrossRefService(
         {
             var invs = await db.BillingNotes.AsNoTracking()
                 .Where(b => b.CompanyId == cid && invIds.Contains(b.BillingNoteId))
-                .Select(b => new { b.DeliveryOrderId, b.QuotationId })
+                .Select(b => new { b.DeliveryOrderId, b.QuotationId, b.SalesOrderId })
                 .ToListAsync(ct);
             foreach (var b in invs)
             {
                 if (b.DeliveryOrderId is long d) doIds.Add(d);
+                // v1.20.1 HOTFIX (H2) — mcp-document-chain's NEW BillingNote.SalesOrderId FK
+                // (Invoice created directly from a service-only SO, skip-DO path). Without
+                // this, a chain anchored on such an Invoice never resolved its upstream SO/Q.
+                if (b.SalesOrderId is long bso) soIds.Add(bso);
                 quotationId ??= b.QuotationId;
             }
         }
@@ -292,6 +301,18 @@ public sealed class DocumentCrossRefService(
                 .Where(x => x.CompanyId == cid && x.SalesOrderId != null && soIds.Contains(x.SalesOrderId!.Value))
                 .Select(x => x.DeliveryOrderId).ToListAsync(ct);
             foreach (var d in doDown) doIds.Add(d);
+
+            // v1.20.1 HOTFIX (H2) — skip-DO edges: an Invoice/TI created DIRECTLY from a
+            // service-only SO (mcp-document-chain) never showed up walking down from the SO,
+            // since the only down-edge was SO→DO. Add the two direct SalesOrderId FKs.
+            var tiFromSo = await db.TaxInvoices.AsNoTracking()
+                .Where(x => x.CompanyId == cid && x.SalesOrderId != null && soIds.Contains(x.SalesOrderId!.Value))
+                .Select(x => x.TaxInvoiceId).ToListAsync(ct);
+            foreach (var t in tiFromSo) tiIds.Add(t);
+            var invFromSo = await db.BillingNotes.AsNoTracking()
+                .Where(x => x.CompanyId == cid && x.SalesOrderId != null && soIds.Contains(x.SalesOrderId!.Value))
+                .Select(x => x.BillingNoteId).ToListAsync(ct);
+            foreach (var b in invFromSo) invIds.Add(b);
         }
 
         if (doIds.Count > 0)
@@ -305,6 +326,12 @@ public sealed class DocumentCrossRefService(
                 .Where(x => x.CompanyId == cid && doIds.Contains(x.DeliveryOrderId) && x.TaxInvoiceId != null)
                 .Select(x => x.TaxInvoiceId!.Value).ToListAsync(ct);
             foreach (var t in tiFromDo) tiIds.Add(t);
+            // v1.20.1 HOTFIX (H2) — mcp-document-chain's NEW TaxInvoice.DeliveryOrderId forward
+            // FK (TI created directly from a DO, TaxInvoiceService.CreateFromDeliveryOrderAsync).
+            var tiFromDoNew = await db.TaxInvoices.AsNoTracking()
+                .Where(x => x.CompanyId == cid && x.DeliveryOrderId != null && doIds.Contains(x.DeliveryOrderId!.Value))
+                .Select(x => x.TaxInvoiceId).ToListAsync(ct);
+            foreach (var t in tiFromDoNew) tiIds.Add(t);
         }
 
         if (invIds.Count > 0)

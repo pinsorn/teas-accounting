@@ -502,6 +502,51 @@ public sealed partial class ReceiptService : IReceiptService
             await _db.SaveChangesAsync(ct);
         }
 
+        // v1.20.1 HOTFIX (H1, prod evidence 2026-07-13) — direct BillingNoteId applications
+        // (the non-VAT settle path this cycle added, RebuildLinesAndTotalsAsync's BillingNoteId
+        // branch above) previously updated nothing here: no Settled flip, no over-collection
+        // guard, so a second receipt against the same BN posted revenue TWICE. Mirrors the TI
+        // over-applied guard above (:445) and the Sprint-13i indirect-BN flip above — but a BN
+        // carries no AmountPaid column, so "already paid" is a SUM over sales.receipt_applications
+        // of POSTED receipts for that BN (this receipt is already saved Posted above, so the sum
+        // below already includes it).
+        var directBnApps = rc.Applications
+            .Where(a => a.BillingNoteId.HasValue)
+            .GroupBy(a => a.BillingNoteId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.AppliedAmount));
+        if (directBnApps.Count > 0)
+        {
+            var directBnIds = directBnApps.Keys.ToList();
+            var paidByDirectBn = await _db.ReceiptApplications
+                .Where(a => a.BillingNoteId.HasValue && directBnIds.Contains(a.BillingNoteId!.Value))
+                .Join(_db.Receipts.Where(r => r.Status == DocumentStatus.Posted && r.CompanyId == rc.CompanyId),
+                    a => a.ReceiptId, r => r.ReceiptId, (a, r) => a)
+                .GroupBy(a => a.BillingNoteId!.Value)
+                .Select(g => new { BillingNoteId = g.Key, Paid = g.Sum(x => x.AppliedAmount) })
+                .ToDictionaryAsync(x => x.BillingNoteId, x => x.Paid, ct);
+
+            var directBns = await _db.BillingNotes
+                .Where(b => directBnIds.Contains(b.BillingNoteId) && b.CompanyId == rc.CompanyId)
+                .ToListAsync(ct);
+
+            foreach (var bn in directBns)
+            {
+                var paid = paidByDirectBn.TryGetValue(bn.BillingNoteId, out var p) ? p : 0m;
+                if (paid > bn.TotalAmount + 0.01m)
+                    throw new DomainException("receipt.over_applied",
+                        $"Applying to Invoice {bn.DocNo} would exceed its total {bn.TotalAmount} " +
+                        $"(total applied so far: {paid}).");
+                if (paid >= bn.TotalAmount && bn.Status == BillingNoteStatus.Issued)
+                {
+                    bn.Status = BillingNoteStatus.Settled;
+                    bn.SettledAt = now;
+                    _activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId,
+                        "Settled", "Issued", "Settled", note: $"ชำระครบจากใบเสร็จ {rcNo}");
+                }
+            }
+            await _db.SaveChangesAsync(ct);
+        }
+
         await _gl.PostReceiptAsync(rc.ReceiptId, ct);
 
         await tx.CommitAsync(ct);
