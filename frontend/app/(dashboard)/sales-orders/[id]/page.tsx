@@ -9,7 +9,7 @@ import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCompanyProfile, usePaperDoc, useSystemInfo } from '@/lib/queries';
+import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCreateInvoiceFromSalesOrder, useCompanyProfile, usePaperDoc, useSystemInfo } from '@/lib/queries';
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
@@ -23,6 +23,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
   const q = useSalesOrder(soId);
   const post = usePostSalesOrder();
   const makeDo = useCreateDeliveryOrder();
+  const makeInvoice = useCreateInvoiceFromSalesOrder();
   // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
   // print); the company profile stays ONLY as the logo source (not in the DTO).
   const company = useCompanyProfile();
@@ -62,6 +63,18 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
     }
   }
 
+  // mcp-document-chain (D9) — service-only SO (deliveryRequired=false) invoices directly,
+  // skipping the Delivery Order step. Polymorphic response: navigate to whichever doc came back.
+  async function createInvoiceDirect() {
+    try {
+      const r = await makeInvoice.mutateAsync(soId);
+      toast.success(tc('save'));
+      router.push(r.tax_invoice_id != null ? `/tax-invoices/${r.tax_invoice_id}` : `/invoices/${r.billing_note_id}`);
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
+
   if (!d || !paper.data) return <div className="p-6 text-base-content/50">{tc('loading')}</div>;
 
   return (
@@ -83,9 +96,15 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
               </button>
             )}
             {d.status === 'Posted' && (
-              <button data-testid="so-create-do" className="btn btn-primary btn-sm" disabled={makeDo.isPending} onClick={createDelivery}>
-                {t('createDo')}
-              </button>
+              d.deliveryRequired ? (
+                <button data-testid="so-create-do" className="btn btn-primary btn-sm" disabled={makeDo.isPending} onClick={createDelivery}>
+                  {t('createDo')}
+                </button>
+              ) : (
+                <button data-testid="so-create-invoice" className="btn btn-primary btn-sm" disabled={makeInvoice.isPending} onClick={createInvoiceDirect}>
+                  {t('createInvoice')}
+                </button>
+              )
             )}
           </>
         }

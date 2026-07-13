@@ -98,7 +98,14 @@ public sealed record McpCreateTaxInvoiceRequest(
     DateOnly? DueDate,
     IReadOnlyList<McpTaxInvoiceLineInput> Lines,
     int? BusinessUnitId = null,
-    long? QuotationId = null);
+    long? QuotationId = null,
+    // mcp-document-chain (§B addition, Ham 2026-07-13) — draft-only DO/SO-chain Tax Invoice
+    // from an Invoice (BillingNote): the OPTIONAL วางบิล hop for a VAT company (the company
+    // normally collects via a Tax Invoice directly). When set, every other field is ignored
+    // (lines/customer/etc. are inherited from the BillingNote) — mutually exclusive with
+    // quotationId/request-fed Lines.
+    [property: Description("Id of a BillingNote (Invoice) to draft a Tax Invoice from — the OPTIONAL วางบิล hop. When set, every other field is ignored (lines/customer inherited from the BillingNote). Mutually exclusive with quotationId.")]
+    long? BillingNoteId = null);
 
 /// <summary>E2 — MCP-only create request for Quotation drafts.</summary>
 public sealed record McpCreateQuotationRequest(
@@ -116,7 +123,7 @@ public sealed record McpCreateQuotationRequest(
 /// <summary>E2 — MCP-only create request for Receipt drafts (standalone non-VAT cash bill with own lines).</summary>
 public sealed record McpCreateReceiptRequest(
     DateOnly DocDate,
-    [property: Description("Id of an existing customer in the caller's company (required).")]
+    [property: Description("Id of an existing customer in the caller's company (required). Must match the invoiceId's customer when invoiceId is set.")]
     long CustomerId,
     string PaymentMethod,
     string? ChequeNo,
@@ -125,9 +132,19 @@ public sealed record McpCreateReceiptRequest(
     string CurrencyCode,
     decimal ExchangeRate,
     string? Notes,
-    [property: Description("Own line items (standalone non-VAT cash bill). Each line must reference a valid productId.")]
-    IReadOnlyList<McpReceiptLineInput> Lines,
-    int? BusinessUnitId = null);
+    [property: Description("Own line items (standalone non-VAT cash bill). Only used when invoiceId is omitted. Each line must reference a valid productId.")]
+    IReadOnlyList<McpReceiptLineInput>? Lines = null,
+    int? BusinessUnitId = null,
+    // mcp-document-chain (§B) — settlement mode. VAT company → resolves to a Tax Invoice
+    // (must be Posted); non-VAT company → resolves to an Invoice/BillingNote (must be issued).
+    // Lines/amounts derive from the invoice automatically — omit lines. Absent → today's
+    // unchanged standalone cash-bill behavior (byte-identical).
+    [property: Description("Id of a posted invoice to settle (VAT co → Tax Invoice id; non-VAT co → Invoice/BillingNote id — resolved automatically from the company's VAT mode). Present → settlement mode: amount derives from the invoice's outstanding balance; omit lines. Absent → standalone cash-bill receipt (unchanged behavior).")]
+    long? InvoiceId = null,
+    [property: Description("Settlement mode only: id of a WHT type the customer withheld — resolve via list_wht_types. Omit if the customer withheld nothing.")]
+    int? WhtTypeId = null,
+    [property: Description("Settlement mode only: the base amount the customer's withholding was calculated on (usually the invoice's ex-VAT subtotal). Required when whtTypeId is set.")]
+    decimal? WhtBaseAmount = null);
 
 // ── E3 MCP-path-only purchase input shapes ───────────────────────────────────
 // Only the Purchase Order carries product lines, so only it needs an MCP-only
@@ -234,6 +251,10 @@ public sealed class TeasMcpTools
     // D2 — update_invoice_draft (billing note). No MCP create tool exists for billing notes,
     // so this reuses the exact RBAC permission code (mirrors the BFF's managePol).
     private const string BillingNoteManage     = Pfx + "sales.billing_note.manage";
+    // mcp-document-chain (D7) — Sales Order tools. NEW scope: mirrors the DO precedent
+    // (manage-only, no separate .read). Maps to the existing RBAC perm
+    // Permissions.Sales.SalesOrderManage — no McpConsentScopes override needed.
+    private const string SalesOrderManage      = Pfx + "sales.sales_order.manage";
     // C1 — report tools. Each scope IS its exact RBAC permission code (identity mapping;
     // see spec mcp-expansion.md §C correction — report.read has no OR-of-perms mechanism).
     private const string ReportTrialBalance    = Pfx + "report.trial_balance.read";
@@ -273,7 +294,9 @@ public sealed class TeasMcpTools
     public sealed record DraftCreated(
         [property: Description("The id of the newly created draft document.")] long Id,
         [property: Description("Deep-link the user opens to review and approve/post the draft (the agent cannot post).")]
-        string ApprovalUrl);
+        string ApprovalUrl,
+        [property: Description("Ready-made Thai-labeled markdown link — paste this verbatim in your reply so the human can click through and approve. Do not construct your own link from ApprovalUrl.")]
+        string ApprovalLinkMarkdown);
 
     /// <summary>Agent-facing result of a master-data create tool: auto-applied (no
     /// human-approve step needed — master data is mutable and carries no tax-point).</summary>
@@ -294,7 +317,9 @@ public sealed class TeasMcpTools
         [property: Description("Document id.")] long Id,
         [property: Description("Document number (null while still a draft — assigned only on post/issue).")] string? DocNo,
         [property: Description("When the draft was created (UTC).")] DateTimeOffset CreatedAt,
-        [property: Description("Deep-link for a human to open, review and approve/post the draft.")] string ApprovalUrl);
+        [property: Description("Deep-link for a human to open, review and approve/post the draft.")] string ApprovalUrl,
+        [property: Description("Ready-made Thai-labeled markdown link — paste this verbatim so the human can click through and approve.")]
+        string ApprovalLinkMarkdown);
 
     /// <summary>E5 — status snapshot for a single document.</summary>
     public sealed record DocumentStatusResult(
@@ -340,7 +365,7 @@ public sealed class TeasMcpTools
         svc.GetDetailAsync(id, ct);
 
     [McpServerTool(Name = "create_tax_invoice_draft"), Authorize(Policy = TaxInvoiceCreate)]
-    [Description("Create a DRAFT tax invoice (no document number, no tax-point — reversible). VAT is derived server-side from company master data; doc_date is pinned to today. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. E2: every line must carry a productId resolving to an existing product in the caller's company; customerId must resolve to an existing customer.")]
+    [Description("Create a DRAFT tax invoice (no document number, no tax-point — reversible). VAT is derived server-side from company master data; doc_date is pinned to today. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. Two modes: (1) billingNoteId absent — request-fed draft (unchanged): every line must carry a productId resolving to an existing product; customerId must resolve to an existing customer; optional quotationId reverse-link. (2) billingNoteId set — draft-only Tax Invoice inherited from an Invoice (BillingNote), the OPTIONAL วางบิล hop (a VAT company normally collects via create_invoice_draft directly instead); every other field is ignored. Mutually exclusive with quotationId. Guard: one active Tax Invoice per BillingNote.")]
     public async Task<DraftCreated> CreateTaxInvoiceDraftAsync(
         McpCreateTaxInvoiceRequest request,
         ITaxInvoiceService svc,
@@ -350,6 +375,16 @@ public sealed class TeasMcpTools
         IOptions<AppOptions> app,
         CancellationToken ct)
     {
+        if (request.BillingNoteId is { } billingNoteId)
+        {
+            if (request.QuotationId is not null)
+                throw new McpE2Exception("mcp.bad_input",
+                    "billingNoteId and quotationId are mutually exclusive — pass exactly one.");
+            var idFromBn = await svc.CreateFromBillingNoteAsync(billingNoteId, ct);
+            return new DraftCreated(idFromBn, ApprovalUrl(app.Value, "tax-invoices", idFromBn),
+                ApprovalLinkMarkdown(app.Value, "tax-invoices", idFromBn));
+        }
+
         // E2 — list-only enforcement (MCP path only; does not touch the shared validator).
         await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
         foreach (var line in request.Lines)
@@ -368,7 +403,8 @@ public sealed class TeasMcpTools
 
         await validator.ValidateAndThrowAsync(appRequest, ct);
         var id = await svc.CreateDraftAsync(appRequest, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "tax-invoices", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "tax-invoices", id),
+            ApprovalLinkMarkdown(app.Value, "tax-invoices", id));
     }
 
     // ── Receipts ─────────────────────────────────────────────────────────────
@@ -396,40 +432,92 @@ public sealed class TeasMcpTools
         svc.GetDetailAsync(id, ct);
 
     [McpServerTool(Name = "create_receipt_draft"), Authorize(Policy = ReceiptCreate)]
-    [Description("Create a DRAFT receipt (no document number — reversible). doc_date is pinned to today. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. E2: this tool creates a standalone non-VAT cash-bill receipt; every line must carry a productId resolving to an existing product in the caller's company; customerId must resolve to an existing customer.")]
+    [Description("Create a DRAFT receipt (no document number — reversible). doc_date is pinned to today. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. Two modes: (1) invoiceId absent — standalone non-VAT cash-bill receipt (unchanged E2 behavior): every line must carry a productId resolving to an existing product; customerId must resolve to an existing customer. (2) invoiceId set — settlement mode: settles a posted invoice in FULL (this cycle has no partial settlement); amount/lines derive from the invoice automatically (omit lines); a VAT company's invoiceId resolves to a Tax Invoice (must be Posted, not already PAID), a non-VAT company's resolves to an Invoice/BillingNote (must be issued, not already Settled). Optionally attach whtTypeId+whtBaseAmount if the customer withheld tax.")]
     public async Task<DraftCreated> CreateReceiptDraftAsync(
         McpCreateReceiptRequest request,
         IReceiptService svc,
         ICustomerService customerSvc,
         IProductService productSvc,
+        ICompanyTaxConfigService taxCfg,
+        AccountingDbContext db,
         IValidator<CreateReceiptRequest> validator,
         IOptions<AppOptions> app,
         CancellationToken ct)
     {
-        // E2 — list-only enforcement (MCP path only; does not touch the shared validator).
         await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
-        foreach (var line in request.Lines)
-            await GuardProductAsync(productSvc, line.ProductId, ct);
 
-        // Map to the shared Application DTO. UnitPrice passed as-is (spec §E2 req 3).
-        // Standalone cash-bill: Lines set, Applications empty.
-        if (!Enum.TryParse<Accounting.Domain.Enums.PaymentMethod>(request.PaymentMethod, ignoreCase: true, out var pm))
+        if (!Enum.TryParse<PaymentMethod>(request.PaymentMethod, ignoreCase: true, out var pm))
             throw new McpE2Exception("mcp.invalid_payment_method",
                 $"Unknown payment method '{request.PaymentMethod}'.");
+
+        IReadOnlyList<ReceiptApplicationInput> applications = [];
+        IReadOnlyList<ReceiptLineInput> lines = [];
+        List<ReceiptWhtLineInput>? whtLines = null;
+
+        if (request.InvoiceId is { } invoiceId)
+        {
+            // §B / D1 — polymorphic by company VAT mode (CRUX-1): VAT co → Tax Invoice;
+            // non-VAT co → Invoice (BillingNote). Settles the FULL outstanding amount
+            // (no partial settlement this cycle).
+            var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+            if (vatMode)
+            {
+                var ti = await db.TaxInvoices.AsNoTracking()
+                    .Where(t => t.TaxInvoiceId == invoiceId)
+                    .Select(t => new { t.Status, t.TotalAmount, t.AmountPaid })
+                    .FirstOrDefaultAsync(ct)
+                    ?? throw new McpE2Exception("mcp.not_found", $"Tax invoice {invoiceId} not found.");
+                if (ti.Status != DocumentStatus.Posted)
+                    throw new McpE2Exception("mcp.domain_rule",
+                        $"Tax invoice {invoiceId} must be posted before a receipt can settle it.");
+                var outstanding = ti.TotalAmount - ti.AmountPaid;
+                if (outstanding <= 0m)
+                    throw new McpE2Exception("mcp.domain_rule",
+                        $"Tax invoice {invoiceId} is already fully paid — nothing to settle.");
+                applications = [new ReceiptApplicationInput(TaxInvoiceId: invoiceId, AppliedAmount: outstanding)];
+            }
+            else
+            {
+                var bn = await db.BillingNotes.AsNoTracking()
+                    .Where(b => b.BillingNoteId == invoiceId)
+                    .Select(b => new { b.Status, b.TotalAmount })
+                    .FirstOrDefaultAsync(ct)
+                    ?? throw new McpE2Exception("mcp.not_found", $"Invoice {invoiceId} not found.");
+                if (bn.Status == BillingNoteStatus.Draft)
+                    throw new McpE2Exception("mcp.domain_rule",
+                        $"Invoice {invoiceId} must be issued before a receipt can settle it.");
+                if (bn.Status == BillingNoteStatus.Settled)
+                    throw new McpE2Exception("mcp.domain_rule",
+                        $"Invoice {invoiceId} is already fully settled.");
+                applications = [new ReceiptApplicationInput(
+                    TaxInvoiceId: null, AppliedAmount: bn.TotalAmount, BillingNoteId: invoiceId)];
+            }
+            if (request.WhtTypeId is { } whtTypeId)
+                whtLines = [new ReceiptWhtLineInput(whtTypeId, request.WhtBaseAmount ?? 0m)];
+        }
+        else
+        {
+            // E2 — list-only enforcement (MCP path only; does not touch the shared validator).
+            foreach (var line in request.Lines ?? [])
+                await GuardProductAsync(productSvc, line.ProductId, ct);
+            lines = (request.Lines ?? []).Select(l => new ReceiptLineInput(
+                l.DescriptionTh, l.Quantity, l.UnitPrice, l.Amount,
+                l.ProductId, null, l.ProductType, l.UomText)).ToList();
+        }
 
         var appRequest = new CreateReceiptRequest(
             request.DocDate, request.CustomerId, pm,
             request.ChequeNo, request.ChequeDate, request.BankAccountId,
             request.CurrencyCode, request.ExchangeRate, request.Notes,
-            Applications: [],
+            Applications: applications,
             BusinessUnitId: request.BusinessUnitId,
-            Lines: request.Lines.Select(l => new ReceiptLineInput(
-                l.DescriptionTh, l.Quantity, l.UnitPrice, l.Amount,
-                l.ProductId, null, l.ProductType, l.UomText)).ToList());
+            WhtLines: whtLines,
+            Lines: applications.Count > 0 ? null : lines);
 
         await validator.ValidateAndThrowAsync(appRequest, ct);
         var id = await svc.CreateDraftAsync(appRequest, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "receipts", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "receipts", id),
+            ApprovalLinkMarkdown(app.Value, "receipts", id));
     }
 
     // ── Quotations ───────────────────────────────────────────────────────────
@@ -482,7 +570,145 @@ public sealed class TeasMcpTools
 
         await validator.ValidateAndThrowAsync(appRequest, ct);
         var id = await svc.CreateDraftAsync(appRequest, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "quotations", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "quotations", id),
+            ApprovalLinkMarkdown(app.Value, "quotations", id));
+    }
+
+    // ── Sales Orders / Delivery Orders / Invoices (mcp-document-chain) ────────
+    // Every hop below is a thin wrapper over the SAME Application service the web BFF uses
+    // (D1 reuse map) — no posting/business logic lives here. Full-qty only (§A3): every hop
+    // moves 100% of the upstream document's quantity, no partial delivery/billing.
+
+    [McpServerTool(Name = "list_sales_orders"), Authorize(Policy = SalesOrderManage)]
+    [Description("List sales orders for the caller's company, optionally filtered by status (Draft | Posted | Closed | Cancelled).")]
+    public static Task<IReadOnlyList<SalesOrderListItem>> ListSalesOrdersAsync(
+        ISalesOrderService svc,
+        [Description("Filter: SO status, e.g. Posted or Closed.")] string? status = null,
+        CancellationToken ct = default) =>
+        svc.ListAsync(status, ct);
+
+    [McpServerTool(Name = "get_sales_order"), Authorize(Policy = SalesOrderManage)]
+    [Description("Get the full detail (header + lines + chain state) of one sales order by id, including deliveryRequired: true means at least one line is a physical good (GOOD/EXEMPT_GOOD) — a Delivery Order is mandatory before invoicing (§A2, server-enforced); false means the SO is service-only and create_invoice_draft may be called directly with salesOrderId. Returns null if not found in the caller's company.")]
+    public static Task<SalesOrderDetail?> GetSalesOrderAsync(
+        ISalesOrderService svc,
+        [Description("The sales order id.")] long id,
+        CancellationToken ct) =>
+        svc.GetAsync(id, ct);
+
+    [McpServerTool(Name = "create_sales_order_draft"), Authorize(Policy = SalesOrderManage)]
+    [Description("Create a DRAFT sales order from an ACCEPTED quotation — inherits customer + lines + prices frozen from the quotation. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. Guard: the quotation must not already have been converted to a Sales Order (one SO per quotation).")]
+    public async Task<DraftCreated> CreateSalesOrderDraftAsync(
+        [Description("Id of an ACCEPTED quotation in the caller's company.")] long quotationId,
+        IQuotationService svc,
+        IOptions<AppOptions> app,
+        CancellationToken ct)
+    {
+        var id = await svc.ConvertToSalesOrderAsync(quotationId, ct);
+        return new DraftCreated(id, ApprovalUrl(app.Value, "sales-orders", id),
+            ApprovalLinkMarkdown(app.Value, "sales-orders", id));
+    }
+
+    [McpServerTool(Name = "create_delivery_order_draft"), Authorize(Policy = DeliveryOrderManage)]
+    [Description("Create a DRAFT delivery order from a POSTED sales order. Full quantities only (§A3) — every SO line is delivered in full; there is no partial-delivery input. Returns the draft id and an approval deep-link for a human to review then issue. The agent cannot issue. Guard: the SO must be Posted and must not already have an active Delivery Order (one DO per SO in this full-qty world).")]
+    public async Task<DraftCreated> CreateDeliveryOrderDraftAsync(
+        [Description("Id of a POSTED sales order in the caller's company.")] long salesOrderId,
+        ISalesOrderService svc,
+        AccountingDbContext db,
+        ITenantContext tenant,
+        IOptions<AppOptions> app,
+        CancellationToken ct)
+    {
+        // Full-qty MCP wrapper (D1) — builds the request from ALL SO lines; the reused service
+        // method enforces SO-Posted. "No active DO for this SO" (D5) is enforced HERE (not in
+        // the shared service) because that method is ALSO the existing partial-delivery path
+        // (multiple DOs per SO, covering different lines/quantities) — a shared-layer guard
+        // would have broken that still-supported flow.
+        var so = await db.SalesOrders.AsNoTracking().Include(x => x.Lines)
+            .Where(x => x.CompanyId == tenant.CompanyId)
+            .FirstOrDefaultAsync(x => x.SalesOrderId == salesOrderId, ct)
+            ?? throw new McpE2Exception("mcp.not_found", $"Sales Order {salesOrderId} not found.");
+        if (await db.DeliveryOrders.AnyAsync(
+                d => d.SalesOrderId == salesOrderId && d.Status != DeliveryOrderStatus.Cancelled, ct))
+            throw new McpE2Exception("mcp.do_exists",
+                $"Sales Order {salesOrderId} already has a Delivery Order — call get_document_status(delivery-order, ...) instead of creating another.");
+
+        var req = new CreateDeliveryOrderRequest(
+            DocDate: so.DocDate, CustomerId: so.CustomerId, BusinessUnitId: so.BusinessUnitId,
+            IsCombinedWithTi: false, Notes: null, FromSalesOrderId: so.SalesOrderId,
+            Lines: so.Lines.OrderBy(l => l.LineNo).Select(l => new DeliveryLineInput(
+                SalesOrderLineId: l.LineId, ProductId: l.ProductId, DescriptionTh: l.DescriptionTh,
+                Quantity: l.Quantity, UomText: l.UomText, UnitPrice: l.UnitPrice,
+                DiscountPercent: l.DiscountPercent, TaxCodeId: l.TaxCodeId, TaxCode: l.TaxCode,
+                TaxRate: l.TaxRate, ProductType: l.ProductType)).ToList());
+
+        var id = await svc.CreateDeliveryOrderAsync(salesOrderId, req, ct);
+        return new DraftCreated(id, ApprovalUrl(app.Value, "delivery-orders", id),
+            ApprovalLinkMarkdown(app.Value, "delivery-orders", id));
+    }
+
+    [McpServerTool(Name = "create_invoice_draft"), Authorize(Policy = BillingNoteManage)]
+    [Description("Create a DRAFT invoice from a Delivery Order (goods path) OR directly from a service-only Sales Order (§A2 skip-DO path). Exactly one of deliveryOrderId/salesOrderId must be set. POLYMORPHIC by company VAT mode (CRUX-1): a VAT-registered company gets a DRAFT TAX INVOICE (ใบกำกับภาษี — the sibling of create_tax_invoice_draft, no document number/tax point yet); a non-VAT company (ม.86/4) gets a DRAFT INVOICE (ใบแจ้งหนี้ / BillingNote) instead — it cannot issue Tax Invoices. Passing salesOrderId for a SO with any goods line (deliveryRequired=true) throws mcp.domain_rule telling you to call create_delivery_order_draft first. Returns the draft id and an approval deep-link. The agent cannot post/issue. Guard: no double-billing the same source (one invoice per DO/SO).")]
+    public async Task<DraftCreated> CreateInvoiceDraftAsync(
+        [Description("Id of an Issued/Delivered delivery order to invoice (goods path). Exactly one of deliveryOrderId/salesOrderId must be set.")]
+        long? deliveryOrderId,
+        [Description("Id of a Posted, service-only sales order to invoice directly (skips the Delivery Order step). Exactly one of deliveryOrderId/salesOrderId must be set.")]
+        long? salesOrderId,
+        IBillingNoteService bnSvc,
+        ITaxInvoiceService tiSvc,
+        ICompanyTaxConfigService taxCfg,
+        IOptions<AppOptions> app,
+        CancellationToken ct)
+    {
+        if ((deliveryOrderId is null) == (salesOrderId is null))
+            throw new McpE2Exception("mcp.bad_input",
+                "Exactly one of deliveryOrderId or salesOrderId must be set.");
+
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+        long id = (vatMode, deliveryOrderId, salesOrderId) switch
+        {
+            (true, { } doId, null)  => await tiSvc.CreateFromDeliveryOrderAsync(doId, ct),
+            (true, null, { } soId)  => await tiSvc.CreateFromSalesOrderAsync(soId, ct),
+            (false, { } doId, null) => await bnSvc.CreateFromDeliveryOrderAsync(doId, ct),
+            (false, null, { } soId) => await bnSvc.CreateFromSalesOrderAsync(soId, ct),
+            _ => throw new McpE2Exception("mcp.bad_input",
+                "Exactly one of deliveryOrderId or salesOrderId must be set."),
+        };
+        var route = vatMode ? "tax-invoices" : "invoices";
+        return new DraftCreated(id, ApprovalUrl(app.Value, route, id), ApprovalLinkMarkdown(app.Value, route, id));
+    }
+
+    [McpServerTool(Name = "create_billing_note_draft"), Authorize(Policy = BillingNoteManage)]
+    [Description("Create a DRAFT Invoice (ใบแจ้งหนี้ / BillingNote) from a Delivery Order OR directly from a service-only Sales Order (§A2 skip-DO path) — the SAME source/state/dedup guards as create_invoice_draft's non-VAT branch. Works for ANY company. For a VAT-registered company this is the OPTIONAL วางบิล (billing) hop BEFORE create_tax_invoice_draft(billingNoteId) — the company normally collects via a Tax Invoice directly (create_invoice_draft); use this tool only when you explicitly need a billing note first. For a non-VAT company this produces the SAME document create_invoice_draft does (not an error — they are equivalent there; no need to call both). Exactly one of deliveryOrderId/salesOrderId must be set. Returns the draft id and an approval deep-link. The agent cannot issue. Guard: no double-billing the same source (one Invoice per DO/SO).")]
+    public async Task<DraftCreated> CreateBillingNoteDraftAsync(
+        [Description("Id of an Issued/Delivered delivery order to invoice. Exactly one of deliveryOrderId/salesOrderId must be set.")]
+        long? deliveryOrderId,
+        [Description("Id of a Posted, service-only sales order to invoice directly (skips the Delivery Order step). Exactly one of deliveryOrderId/salesOrderId must be set.")]
+        long? salesOrderId,
+        IBillingNoteService bnSvc,
+        IOptions<AppOptions> app,
+        CancellationToken ct)
+    {
+        if ((deliveryOrderId is null) == (salesOrderId is null))
+            throw new McpE2Exception("mcp.bad_input",
+                "Exactly one of deliveryOrderId or salesOrderId must be set.");
+
+        var id = deliveryOrderId is { } doId
+            ? await bnSvc.CreateFromDeliveryOrderAsync(doId, ct)
+            : await bnSvc.CreateFromSalesOrderAsync(salesOrderId!.Value, ct);
+
+        return new DraftCreated(id, ApprovalUrl(app.Value, "invoices", id),
+            ApprovalLinkMarkdown(app.Value, "invoices", id));
+    }
+
+    [McpServerTool(Name = "get_workflow_guide"), Authorize(Policy = QuotationRead)]
+    [Description("Get this company's exact document-chain workflow steps (sales + purchase), in Thai, tailored to whether the company is VAT-registered. Call this BEFORE advancing any document chain — a non-VAT company (ม.86/4) has NO Tax Invoice hop and sees a warning instead. Read-only.")]
+    public static async Task<string> GetWorkflowGuideAsync(
+        ICompanyTaxConfigService taxCfg,
+        CancellationToken ct)
+    {
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+        return (vatMode ? TeasServerInstructions.VatGuide : TeasServerInstructions.NonVatGuide)
+            + TeasServerInstructions.PurchaseGuide;
     }
 
     // ── Customers ────────────────────────────────────────────────────────────
@@ -598,7 +824,8 @@ public sealed class TeasMcpTools
 
         await validator.ValidateAndThrowAsync(appRequest, ct);
         var id = await svc.CreateDraftAsync(appRequest, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "purchase-orders", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "purchase-orders", id),
+            ApprovalLinkMarkdown(app.Value, "purchase-orders", id));
     }
 
     // ── Vendor Invoices (E3) ──────────────────────────────────────────────────
@@ -621,21 +848,38 @@ public sealed class TeasMcpTools
         svc.GetDetailAsync(id, ct);
 
     [McpServerTool(Name = "create_vendor_invoice_draft"), Authorize(Policy = VendorInvoiceCreate)]
-    [Description("Create a DRAFT vendor invoice / input-VAT record (no document number — reversible). doc_date is pinned to today; input VAT is derived server-side per ม.82/4. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. E3: vendorId must resolve to an existing vendor; each line references an existing expense category (validated company-scoped by the service). Resolve expenseCategoryId via list_expense_categories, taxCodeId via list_tax_codes, whtTypeId via list_wht_types, and businessUnitId via list_business_units (some companies REQUIRE a businessUnitId).")]
+    [Description("Create a DRAFT vendor invoice / input-VAT record (no document number — reversible). doc_date is pinned to today; input VAT is derived server-side per ม.82/4. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. Two modes: (1) purchaseOrderId absent — standalone (unchanged): vendorId must resolve to an existing vendor; each line references an existing expense category (validated company-scoped by the service). (2) purchaseOrderId set — inherits vendor + lines from an APPROVED Purchase Order (omit vendorId/lines); expenseCategoryId is REQUIRED and applied to every inherited line (a PO line carries no category of its own). Guard: one Vendor Invoice per Purchase Order. Resolve expenseCategoryId via list_expense_categories, taxCodeId via list_tax_codes, whtTypeId via list_wht_types, and businessUnitId via list_business_units (some companies REQUIRE a businessUnitId).")]
     public async Task<DraftCreated> CreateVendorInvoiceDraftAsync(
         CreateVendorInvoiceRequest request,
         IVendorInvoiceService svc,
         IVendorService vendorSvc,
         IValidator<CreateVendorInvoiceRequest> validator,
+        IValidator<CreateViFromPoRequest> fromPoValidator,
         IOptions<AppOptions> app,
         CancellationToken ct)
     {
+        if (request.PurchaseOrderId is { } poId)
+        {
+            // §B — purchaseOrderId now REAL: inherits vendor + lines from the PO.
+            if (request.ExpenseCategoryId is not { } categoryId)
+                throw new McpE2Exception("mcp.expense_category_required",
+                    "expenseCategoryId is required when purchaseOrderId is set — resolve via list_expense_categories. It is applied to every line inherited from the Purchase Order.");
+            var fromPoReq = new CreateViFromPoRequest(
+                categoryId, request.VendorTaxInvoiceNo, request.VendorTaxInvoiceDate,
+                request.VatClaimPeriod, request.HasInputVat, request.BusinessUnitId);
+            await fromPoValidator.ValidateAndThrowAsync(fromPoReq, ct);
+            var idFromPo = await svc.CreateFromPurchaseOrderAsync(poId, fromPoReq, ct);
+            return new DraftCreated(idFromPo, ApprovalUrl(app.Value, "vendor-invoices", idFromPo),
+                ApprovalLinkMarkdown(app.Value, "vendor-invoices", idFromPo));
+        }
+
         // E3 — list-only enforcement (vendor only; VI lines carry an expense category, not a product).
         await GuardVendorAsync(vendorSvc, request.VendorId, ct);
 
         await validator.ValidateAndThrowAsync(request, ct);
         var id = await svc.CreateDraftAsync(request, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "vendor-invoices", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "vendor-invoices", id),
+            ApprovalLinkMarkdown(app.Value, "vendor-invoices", id));
     }
 
     // ── Payment Vouchers (E3) ─────────────────────────────────────────────────
@@ -658,15 +902,28 @@ public sealed class TeasMcpTools
         svc.GetDetailAsync(id, ct);
 
     [McpServerTool(Name = "create_payment_voucher_draft"), Authorize(Policy = PaymentVoucherCreate)]
-    [Description("Create a DRAFT payment voucher (no document number — reversible). doc_date is pinned to today. The service derives input VAT per Thai law (ม.82/5 non-VAT vendor → 0; ม.81 exempt product → 0; else the company standard rate) and computes WHT — the agent only drafts; a human reviews + posts (which issues the 50ทวิ certificate). Returns the draft id and an approval deep-link. The agent cannot approve or post. E3: vendorId must resolve to an existing vendor; the header expense category is validated company-scoped by the service. Resolve expenseCategoryId via list_expense_categories, taxCodeId via list_tax_codes, whtTypeId via list_wht_types, bankAccountId via list_bank_accounts, and businessUnitId via list_business_units (some companies REQUIRE a businessUnitId).")]
+    [Description("Create a DRAFT payment voucher (no document number — reversible). doc_date is pinned to today. The service derives input VAT per Thai law (ม.82/5 non-VAT vendor → 0; ม.81 exempt product → 0; else the company standard rate) and computes WHT — the agent only drafts; a human reviews + posts (which issues the 50ทวิ certificate). Returns the draft id and an approval deep-link. The agent cannot approve or post. Two modes: (1) vendorInvoiceId absent — standalone (unchanged): vendorId must resolve to an existing vendor; the header expense category is validated company-scoped by the service. (2) vendorInvoiceId set — settles a POSTED Vendor Invoice in full: inherits vendor + expense category + lines from the VI (omit vendorId/expenseCategoryId/lines); only paymentMethod/chequeNo/chequeDate/bankAccountId/notes are read. Guard: one active Payment Voucher per Vendor Invoice. Resolve bankAccountId via list_bank_accounts.")]
     public async Task<DraftCreated> CreatePaymentVoucherDraftAsync(
         CreatePaymentVoucherRequest request,
         IPaymentVoucherService svc,
         IVendorService vendorSvc,
         IValidator<CreatePaymentVoucherRequest> validator,
+        IValidator<CreatePvFromViRequest> fromViValidator,
         IOptions<AppOptions> app,
         CancellationToken ct)
     {
+        if (request.VendorInvoiceId is { } viId)
+        {
+            // §B — vendorInvoiceId now REAL: inherits vendor + expense category + lines from the VI.
+            var fromViReq = new CreatePvFromViRequest(
+                request.PaymentMethod, request.ChequeNo, request.ChequeDate,
+                request.BankAccountId, request.Notes, request.BusinessUnitId);
+            await fromViValidator.ValidateAndThrowAsync(fromViReq, ct);
+            var idFromVi = await svc.CreateFromVendorInvoiceAsync(viId, fromViReq, ct);
+            return new DraftCreated(idFromVi, ApprovalUrl(app.Value, "payment-vouchers", idFromVi),
+                ApprovalLinkMarkdown(app.Value, "payment-vouchers", idFromVi));
+        }
+
         // E3 — list-only enforcement (vendor only; the PV expense category is a header field,
         // validated company-scoped by PaymentVoucherService). COMPLIANCE: the call flows through
         // the unchanged PaymentVoucherService, so the per-line input-VAT guards (ม.82/5 / ม.81)
@@ -675,7 +932,8 @@ public sealed class TeasMcpTools
 
         await validator.ValidateAndThrowAsync(request, ct);
         var id = await svc.CreateDraftAsync(request, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "payment-vouchers", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "payment-vouchers", id),
+            ApprovalLinkMarkdown(app.Value, "payment-vouchers", id));
     }
 
     // ── Vendors (E3 — master data, auto like E1) ──────────────────────────────
@@ -1150,10 +1408,10 @@ public sealed class TeasMcpTools
         CancellationToken ct)
     {
         await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
-        foreach (var line in request.Lines)
+        foreach (var line in request.Lines ?? [])
             await GuardProductAsync(productSvc, line.ProductId, ct);
 
-        if (!Enum.TryParse<Accounting.Domain.Enums.PaymentMethod>(request.PaymentMethod, ignoreCase: true, out var pm))
+        if (!Enum.TryParse<PaymentMethod>(request.PaymentMethod, ignoreCase: true, out var pm))
             throw new McpE2Exception("mcp.invalid_payment_method",
                 $"Unknown payment method '{request.PaymentMethod}'.");
 
@@ -1163,7 +1421,7 @@ public sealed class TeasMcpTools
             request.CurrencyCode, request.ExchangeRate, request.Notes,
             Applications: [],
             BusinessUnitId: request.BusinessUnitId,
-            Lines: request.Lines.Select(l => new ReceiptLineInput(
+            Lines: (request.Lines ?? []).Select(l => new ReceiptLineInput(
                 l.DescriptionTh, l.Quantity, l.UnitPrice, l.Amount,
                 l.ProductId, null, l.ProductType, l.UomText)).ToList());
 
@@ -1335,8 +1593,9 @@ public sealed class TeasMcpTools
             .Select(t => new { t.TaxInvoiceId, t.DocNo, t.CreatedAt })
             .ToListAsync(ct);
         items.AddRange(tis.Select(t => new PendingApprovalItem(
-            "tax-invoice", t.TaxInvoiceId, t.DocNo,
-            t.CreatedAt, ApprovalUrl(app.Value, "tax-invoices", t.TaxInvoiceId))));
+            "tax-invoice", t.TaxInvoiceId, t.DocNo, t.CreatedAt,
+            ApprovalUrl(app.Value, "tax-invoices", t.TaxInvoiceId),
+            ApprovalLinkMarkdown(app.Value, "tax-invoices", t.TaxInvoiceId))));
 
         // Quotations
         var qs = await db.Quotations
@@ -1344,8 +1603,9 @@ public sealed class TeasMcpTools
             .Select(q => new { q.QuotationId, q.DocNo, q.CreatedAt })
             .ToListAsync(ct);
         items.AddRange(qs.Select(q => new PendingApprovalItem(
-            "quotation", q.QuotationId, q.DocNo,
-            q.CreatedAt, ApprovalUrl(app.Value, "quotations", q.QuotationId))));
+            "quotation", q.QuotationId, q.DocNo, q.CreatedAt,
+            ApprovalUrl(app.Value, "quotations", q.QuotationId),
+            ApprovalLinkMarkdown(app.Value, "quotations", q.QuotationId))));
 
         // Receipts
         var rcs = await db.Receipts
@@ -1353,8 +1613,9 @@ public sealed class TeasMcpTools
             .Select(r => new { r.ReceiptId, r.DocNo, r.CreatedAt })
             .ToListAsync(ct);
         items.AddRange(rcs.Select(r => new PendingApprovalItem(
-            "receipt", r.ReceiptId, r.DocNo,
-            r.CreatedAt, ApprovalUrl(app.Value, "receipts", r.ReceiptId))));
+            "receipt", r.ReceiptId, r.DocNo, r.CreatedAt,
+            ApprovalUrl(app.Value, "receipts", r.ReceiptId),
+            ApprovalLinkMarkdown(app.Value, "receipts", r.ReceiptId))));
 
         // Purchase Orders
         var pos = await db.PurchaseOrders
@@ -1362,8 +1623,9 @@ public sealed class TeasMcpTools
             .Select(p => new { p.PurchaseOrderId, p.DocNo, p.CreatedAt })
             .ToListAsync(ct);
         items.AddRange(pos.Select(p => new PendingApprovalItem(
-            "purchase-order", p.PurchaseOrderId, p.DocNo,
-            p.CreatedAt, ApprovalUrl(app.Value, "purchase-orders", p.PurchaseOrderId))));
+            "purchase-order", p.PurchaseOrderId, p.DocNo, p.CreatedAt,
+            ApprovalUrl(app.Value, "purchase-orders", p.PurchaseOrderId),
+            ApprovalLinkMarkdown(app.Value, "purchase-orders", p.PurchaseOrderId))));
 
         // Vendor Invoices
         var vis = await db.VendorInvoices
@@ -1371,8 +1633,9 @@ public sealed class TeasMcpTools
             .Select(v => new { v.VendorInvoiceId, v.DocNo, v.CreatedAt })
             .ToListAsync(ct);
         items.AddRange(vis.Select(v => new PendingApprovalItem(
-            "vendor-invoice", v.VendorInvoiceId, v.DocNo,
-            v.CreatedAt, ApprovalUrl(app.Value, "vendor-invoices", v.VendorInvoiceId))));
+            "vendor-invoice", v.VendorInvoiceId, v.DocNo, v.CreatedAt,
+            ApprovalUrl(app.Value, "vendor-invoices", v.VendorInvoiceId),
+            ApprovalLinkMarkdown(app.Value, "vendor-invoices", v.VendorInvoiceId))));
 
         // Payment Vouchers
         var pvs = await db.PaymentVouchers
@@ -1380,16 +1643,17 @@ public sealed class TeasMcpTools
             .Select(p => new { p.PaymentVoucherId, p.DocNo, p.CreatedAt })
             .ToListAsync(ct);
         items.AddRange(pvs.Select(p => new PendingApprovalItem(
-            "payment-voucher", p.PaymentVoucherId, p.DocNo,
-            p.CreatedAt, ApprovalUrl(app.Value, "payment-vouchers", p.PaymentVoucherId))));
+            "payment-voucher", p.PaymentVoucherId, p.DocNo, p.CreatedAt,
+            ApprovalUrl(app.Value, "payment-vouchers", p.PaymentVoucherId),
+            ApprovalLinkMarkdown(app.Value, "payment-vouchers", p.PaymentVoucherId))));
 
         return items.OrderBy(i => i.CreatedAt).ToList();
     }
 
     [McpServerTool(Name = "get_document_status"), Authorize(Policy = TaxInvoiceRead)]
-    [Description("Get the current status of a document THIS API key created, by type and id. Returns status string, whether it has been posted/approved, and the document number (null if still a draft). Returns not-found for documents in other companies OR not created by this key. Use this to poll whether a draft the agent created has been approved and posted by a human. Only documents created via THIS connector/API key are visible (anti-enumeration guard) — documents created in the web UI or by other keys return not_found by design.")]
+    [Description("Get the current status of a document THIS API key created, by type and id. Returns status string, whether it has been posted/approved, and the document number (null if still a draft). Returns not-found for documents in other companies OR not created by this key. Use this to poll whether a draft the agent created has been approved and posted by a human. Only documents created via THIS connector/API key are visible (anti-enumeration guard) — documents created in the web UI or by other keys return not_found by design. NOTE: sales-order/delivery-order/billing-note are tenant-scoped only (these doc types carry no per-key ownership stamp) — verify-then-advance for those hops via get_sales_order/get_delivery_order/get_invoice instead if you need the same-key guarantee.")]
     public static async Task<DocumentStatusResult> GetDocumentStatusAsync(
-        [Description("Document type: tax-invoice | quotation | receipt | purchase-order | vendor-invoice | payment-voucher.")] string type,
+        [Description("Document type: tax-invoice | quotation | receipt | purchase-order | vendor-invoice | payment-voucher | sales-order | delivery-order | billing-note.")] string type,
         [Description("Document id.")] long id,
         ITenantContext tenant,
         AccountingDbContext db,
@@ -1443,8 +1707,32 @@ public sealed class TeasMcpTools
                 .FirstOrDefaultAsync(ct)
                 ?? throw new McpE2Exception("mcp.not_found", $"Payment voucher {id} not found."),
 
+            // mcp-document-chain (D8 #10) — SalesOrder/DeliveryOrder/BillingNote carry no
+            // CreatedViaApiKeyName column (not part of this cycle's schema change), so these
+            // three branches are tenant-scoped only (EF global query filter / RLS), NOT
+            // per-key-owner-scoped like the six branches above. This is not a NEW exposure:
+            // get_sales_order/get_delivery_order/get_invoice already expose the same
+            // status/doc_no tenant-wide to any caller holding that doc type's own scope.
+            "sales-order" => await db.SalesOrders
+                .Where(s => s.SalesOrderId == id)
+                .Select(s => new DocumentStatusResult(s.Status.ToString(), s.Status != SalesOrderStatus.Draft, s.DocNo))
+                .FirstOrDefaultAsync(ct)
+                ?? throw new McpE2Exception("mcp.not_found", $"Sales order {id} not found."),
+
+            "delivery-order" => await db.DeliveryOrders
+                .Where(d => d.DeliveryOrderId == id)
+                .Select(d => new DocumentStatusResult(d.Status.ToString(), d.Status != DeliveryOrderStatus.Draft, d.DocNo))
+                .FirstOrDefaultAsync(ct)
+                ?? throw new McpE2Exception("mcp.not_found", $"Delivery order {id} not found."),
+
+            "billing-note" => await db.BillingNotes
+                .Where(b => b.BillingNoteId == id)
+                .Select(b => new DocumentStatusResult(b.Status.ToString(), b.Status != BillingNoteStatus.Draft, b.DocNo))
+                .FirstOrDefaultAsync(ct)
+                ?? throw new McpE2Exception("mcp.not_found", $"Invoice {id} not found."),
+
             _ => throw new McpE2Exception("mcp.invalid_type",
-                $"Unknown document type '{type}'. Valid types: tax-invoice, quotation, receipt, purchase-order, vendor-invoice, payment-voucher.")
+                $"Unknown document type '{type}'. Valid types: tax-invoice, quotation, receipt, purchase-order, vendor-invoice, payment-voucher, sales-order, delivery-order, billing-note.")
         };
     }
 
@@ -1506,7 +1794,8 @@ public sealed class TeasMcpTools
 
         await validator.ValidateAndThrowAsync(request, ct);
         var id = await svc.CreateDraftAsync(request, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "expense-claims", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "expense-claims", id),
+            ApprovalLinkMarkdown(app.Value, "expense-claims", id));
     }
 
     [McpServerTool(Name = "update_expense_claim_draft"), Authorize(Policy = ExpenseClaimCreate)]
@@ -1564,7 +1853,8 @@ public sealed class TeasMcpTools
     {
         await validator.ValidateAndThrowAsync(request, ct);
         var id = await svc.CreateDraftAsync(request, ct);
-        return new DraftCreated(id, ApprovalUrl(app.Value, "fixed-assets", id));
+        return new DraftCreated(id, ApprovalUrl(app.Value, "fixed-assets", id),
+            ApprovalLinkMarkdown(app.Value, "fixed-assets", id));
     }
 
     [McpServerTool(Name = "update_fixed_asset_draft"), Authorize(Policy = FixedAssetManage)]
@@ -1631,6 +1921,35 @@ public sealed class TeasMcpTools
     /// authenticated session + <c>.post</c> permission, so a URL leak cannot post.</summary>
     private static string ApprovalUrl(AppOptions app, string route, long id) =>
         $"{app.BaseUrl.TrimEnd('/')}/{route}/{id}?action=approve";
+
+    /// <summary>§A6/D6 — per-doc-type Thai label + a "{prefix}-{id}" placeholder (the real
+    /// doc_no isn't allocated yet on a Draft) wrapped in a ready-made markdown link, so the
+    /// agent pastes it verbatim instead of constructing its own link text from ApprovalUrl.</summary>
+    private static readonly IReadOnlyDictionary<string, (string Label, string Prefix)> ApprovalDocLabels =
+        new Dictionary<string, (string, string)>
+        {
+            ["tax-invoices"]     = ("ใบกำกับภาษี", "TI"),
+            ["quotations"]       = ("ใบเสนอราคา", "QT"),
+            ["receipts"]         = ("ใบเสร็จรับเงิน", "RC"),
+            ["purchase-orders"]  = ("ใบสั่งซื้อ", "PO"),
+            ["vendor-invoices"]  = ("ใบกำกับภาษีซื้อ", "VI"),
+            ["payment-vouchers"] = ("ใบสำคัญจ่าย", "PV"),
+            ["expense-claims"]   = ("ใบเบิกค่าใช้จ่าย", "EC"),
+            ["fixed-assets"]     = ("สินทรัพย์ถาวร", "FA"),
+            ["sales-orders"]     = ("ใบสั่งขาย", "SO"),
+            ["delivery-orders"]  = ("ใบส่งของ", "DO"),
+            // mcp-document-chain (audit fix) — "invoices" is the BillingNote (ใบแจ้งหนี้) route:
+            // used by create_billing_note_draft and by create_invoice_draft's non-VAT branch.
+            // Was missing, so both fell back to the raw English route name instead of a Thai
+            // label (§A6 requires a Thai-labeled markdown link per doc type).
+            ["invoices"]         = ("ใบแจ้งหนี้", "IV"),
+        };
+
+    private static string ApprovalLinkMarkdown(AppOptions app, string route, long id)
+    {
+        var (label, prefix) = ApprovalDocLabels.TryGetValue(route, out var v) ? v : (route, route);
+        return $"[👉 กดตรวจและอนุมัติ{label} {prefix}-{id}]({ApprovalUrl(app, route, id)})";
+    }
 
     /// <summary>§A — mints a time-limited, tamper-proof token embedding docType+docId+company+branch
     /// and returns the PUBLIC, browser-openable URL (spec mcp-expansion.md §A.2). docType+docId

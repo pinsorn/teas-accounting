@@ -35,6 +35,11 @@ public class BillingNote : ITenantOwned, IAuditable, IConcurrencyVersioned
     /// (DO → Invoice, manual). Nullable: Invoices may be created standalone.</summary>
     public long? DeliveryOrderId { get; set; }
 
+    /// <summary>mcp-document-chain — source Sales Order this Invoice was created directly
+    /// from (service-only SO skip-DO path, §A2). Nullable: Invoices may be created standalone
+    /// or via a Delivery Order instead.</summary>
+    public long? SalesOrderId { get; set; }
+
     public string CurrencyCode { get; set; } = "THB";
     public decimal ExchangeRate { get; set; } = 1m;
     public decimal SubtotalAmount { get; set; }

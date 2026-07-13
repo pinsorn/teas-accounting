@@ -1557,6 +1557,7 @@
     "total": "รวม",
     "post": "ยืนยัน (Post)",
     "createDo": "สร้างใบส่งของ",
+    "createInvoice": "สร้างใบแจ้งหนี้",
     "create": "สร้างใบสั่งขาย",
     "expectedDelivery": "กำหนดส่ง",
     "businessUnit": "หน่วยธุรกิจ",

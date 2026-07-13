@@ -25,6 +25,13 @@ public interface IPaymentVoucherService
     /// </summary>
     Task<long> CreateVendorInvoiceFromPvAsync(long paymentVoucherId, CreateViFromPvRequest req, CancellationToken ct);
 
+    /// <summary>mcp-document-chain (D1) — create a Draft Payment Voucher pre-filled from a
+    /// POSTED Vendor Invoice (VI must be Posted; one-active-PV-per-VI guard). Inherits vendor +
+    /// expense category (from the VI's first line) + lines; sets VendorInvoice.VendorInvoiceId
+    /// so the existing POST-time AP settlement (PostAsync) fires. Returns the new
+    /// payment_voucher_id.</summary>
+    Task<long> CreateFromVendorInvoiceAsync(long vendorInvoiceId, CreatePvFromViRequest req, CancellationToken ct);
+
     // cont.76 — incompleteOnly=true returns only POSTED docs whose advisory completeness fails.
     Task<Sales.CursorPage<PaymentVoucherListItem>> ListAsync(
         long? cursor, int limit, CancellationToken ct, bool incompleteOnly = false);

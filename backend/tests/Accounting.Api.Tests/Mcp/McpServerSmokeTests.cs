@@ -336,16 +336,20 @@ public sealed class McpServerSmokeTests
             new Dictionary<string, object?> { ["request"] = request });
 
         result.IsError.Should().NotBe(true);
-        // UseStructuredContent defaults to false, so the DraftCreated { Id, ApprovalUrl }
-        // record comes back JSON-serialized inside a TextContentBlock (camelCase props).
+        // UseStructuredContent defaults to false, so the DraftCreated
+        // { Id, ApprovalUrl, ApprovalLinkMarkdown } record comes back JSON-serialized
+        // inside a TextContentBlock (camelCase props). mcp-document-chain (D6/§A6) —
+        // ApprovalLinkMarkdown is the 3rd field, added to every DraftCreated construction site.
         var text = result.Content.OfType<TextContentBlock>().Single().Text;
         using var doc = JsonDocument.Parse(text);
         var root = doc.RootElement;
         var id = root.GetProperty("id").GetInt64();
         var url = root.GetProperty("approvalUrl").GetString();
+        var markdown = root.GetProperty("approvalLinkMarkdown").GetString();
 
         id.Should().BeGreaterThan(0);
         url.Should().Be($"http://localhost:3000/quotations/{id}?action=approve");
+        markdown.Should().NotBeNullOrWhiteSpace().And.Contain(url!);
     }
 
     // (d) COMPLIANCE — an under-scoped key (read-only, no quotation.create) must be

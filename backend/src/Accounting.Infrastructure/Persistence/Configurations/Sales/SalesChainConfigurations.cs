@@ -201,6 +201,10 @@ internal sealed class BillingNoteConfiguration : IEntityTypeConfiguration<Billin
         b.HasOne<DeliveryOrder>().WithMany().HasForeignKey(x => x.DeliveryOrderId)
             .OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.DeliveryOrderId).HasFilter("delivery_order_id IS NOT NULL");
+        // mcp-document-chain — source SO link (service-only SO → Invoice, skip-DO path).
+        b.HasOne<SalesOrder>().WithMany().HasForeignKey(x => x.SalesOrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.SalesOrderId).HasFilter("sales_order_id IS NOT NULL");
     }
 }
 

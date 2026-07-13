@@ -45,6 +45,10 @@ public static class McpScopes
         "expense.claim.read", "expense.claim.create",
         "master.employee.manage",
         "fixedasset.read", "fixedasset.manage",
+        // mcp-document-chain (D7) — Sales Order tools (create_sales_order_draft, get_sales_order,
+        // list_sales_orders). NEW const; identity-mapped to Permissions.Sales.SalesOrderManage
+        // (mirrors the DeliveryOrderManage precedent — manage-only, no separate .read).
+        "sales.sales_order.manage",
     };
 
     // Mirror of ApiKeyService.McpForbiddenSuffixes (defense-in-depth invariant, asserted in tests).

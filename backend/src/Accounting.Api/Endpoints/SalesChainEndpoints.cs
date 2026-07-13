@@ -1,4 +1,5 @@
 using Accounting.Api.Authorization;
+using Accounting.Application.Abstractions;
 using Accounting.Application.Sales;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -71,6 +72,18 @@ public static class SalesChainEndpoints
         so.MapPost("/{id:long}/delivery-orders", async (long id,
             [FromBody] CreateDeliveryOrderRequest req, ISalesOrderService s, CancellationToken ct) =>
             Results.Ok(new { delivery_order_id = await s.CreateDeliveryOrderAsync(id, req, ct) }));
+        // mcp-document-chain (D9) — SO → Invoice, direct (service-only skip-DO path, §A2).
+        // Polymorphic by company VAT mode (CRUX-1), mirroring create_invoice_draft's MCP-side
+        // polymorphism exactly — same reused service methods, one FK response field set.
+        so.MapPost("/{id:long}/create-invoice", async (long id,
+            IBillingNoteService bnSvc, ITaxInvoiceService tiSvc, ICompanyTaxConfigService taxCfg,
+            CancellationToken ct) =>
+        {
+            var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+            return vatMode
+                ? Results.Ok(new { tax_invoice_id = await tiSvc.CreateFromSalesOrderAsync(id, ct), billing_note_id = (long?)null })
+                : Results.Ok(new { billing_note_id = await bnSvc.CreateFromSalesOrderAsync(id, ct), tax_invoice_id = (long?)null });
+        });
         so.MapGet("/", async ([FromQuery] string? status, ISalesOrderService s, CancellationToken ct) =>
             Results.Ok(await s.ListAsync(status, ct)));
         so.MapGet("/{id:long}", async (long id, ISalesOrderService s, CancellationToken ct) =>

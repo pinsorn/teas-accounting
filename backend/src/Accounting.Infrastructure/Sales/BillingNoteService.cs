@@ -118,6 +118,62 @@ public sealed class BillingNoteService(
         return bn.BillingNoteId;
     }
 
+    // mcp-document-chain (D1) — SO → Invoice, direct (service-only skip-DO path, §A2). Mirrors
+    // CreateFromDeliveryOrderAsync, sourcing lines from SalesOrder.Lines instead. Guards: SO must
+    // be Posted; SO must be service-only (a goods line means a Delivery Order is mandatory — the
+    // MCP layer recomputes and enforces the same rule up-front so the error text stays actionable);
+    // one Invoice per SO (no BillingNote already carrying this SalesOrderId).
+    public async Task<long> CreateFromSalesOrderAsync(long salesOrderId, CancellationToken ct)
+    {
+        Auth();
+        var so = await db.SalesOrders.AsNoTracking().Include(x => x.Lines)
+            .Where(x => x.CompanyId == tenant.CompanyId)
+            .FirstOrDefaultAsync(x => x.SalesOrderId == salesOrderId, ct)
+            ?? throw new DomainException("so.not_found", $"Sales Order {salesOrderId} not found.");
+        if (so.Status != SalesOrderStatus.Posted)
+            throw new DomainException("so.not_posted",
+                "Sales Order must be Posted before creating an Invoice.");
+        if (so.Lines.Any(l => l.ProductType is "GOOD" or "EXEMPT_GOOD"))
+            throw new DomainException("so.delivery_required",
+                $"Sales Order {salesOrderId} has goods lines — create a Delivery Order first.");
+        if (await db.BillingNotes.AnyAsync(
+                b => b.CompanyId == tenant.CompanyId && b.SalesOrderId == salesOrderId, ct))
+            throw new DomainException("so.invoice_exists",
+                $"Sales Order {salesOrderId} already has an Invoice.");
+
+        var bn = new BillingNote
+        {
+            CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
+            Status = BillingNoteStatus.Draft, DocDate = clock.TodayInBangkok(), DueDate = clock.TodayInBangkok(),
+            CustomerId = so.CustomerId, CustomerName = so.CustomerName,
+            CustomerAddress = so.CustomerAddress, CustomerTaxId = so.CustomerTaxId,
+            CustomerType = so.CustomerType, BusinessUnitId = so.BusinessUnitId,
+            SalesOrderId = so.SalesOrderId,
+            CurrencyCode = so.CurrencyCode, ExchangeRate = so.ExchangeRate,
+        };
+        int n = 1;
+        foreach (var l in so.Lines.OrderBy(l => l.LineNo))
+        {
+            bn.Lines.Add(new BillingNoteLine
+            {
+                LineNo = n++, ProductId = l.ProductId, ProductCode = l.ProductCode,
+                ProductType = l.ProductType, DescriptionTh = l.DescriptionTh,
+                Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
+                DiscountPercent = l.DiscountPercent, DiscountAmount = l.DiscountAmount,
+                LineAmount = l.LineAmount,
+                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxAmount = l.TaxAmount, TotalAmount = l.TotalAmount,
+            });
+            bn.SubtotalAmount += l.LineAmount; bn.VatAmount += l.TaxAmount; bn.TotalAmount += l.TotalAmount;
+        }
+        db.BillingNotes.Add(bn);
+        await db.SaveChangesAsync(ct);    // assigns BillingNoteId — activity.Record needs it
+        activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Created",
+            toStatus: "Draft", note: $"จากใบสั่งขาย {so.DocNo ?? so.SalesOrderId.ToString()}");
+        await db.SaveChangesAsync(ct);    // ponytail: second save needed (activity row staged after ID assigned)
+        return bn.BillingNoteId;
+    }
+
     private async Task<BillingNote> LoadAsync(long id, CancellationToken ct) =>
         await db.BillingNotes.Include(x => x.Lines).Include(x => x.TaxInvoiceLinks)
             .Where(x => x.CompanyId == tenant.CompanyId)

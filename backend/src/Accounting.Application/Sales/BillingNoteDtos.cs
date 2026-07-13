@@ -58,6 +58,14 @@ public interface IBillingNoteService
     /// <c>DeliveryOrderId</c> set. Returns the new billing_note_id.</summary>
     Task<long> CreateFromDeliveryOrderAsync(long deliveryOrderId, CancellationToken ct);
 
+    /// <summary>mcp-document-chain (D1) — create a Draft Invoice (ใบแจ้งหนี้) directly from a
+    /// service-only Sales Order (§A2 skip-DO path; SO must be Posted AND every line SERVICE/
+    /// EXEMPT_SERVICE — a goods line throws <c>mcp.domain_rule</c> telling the caller to create
+    /// a Delivery Order first). Copies the SO's lines + customer snapshot with
+    /// <c>SalesOrderId</c> set. Guard: one Invoice per SO (no BillingNote/TI already carries it).
+    /// Returns the new billing_note_id.</summary>
+    Task<long> CreateFromSalesOrderAsync(long salesOrderId, CancellationToken ct);
+
     Task UpdateDraftAsync(long id, CreateBillingNoteRequest req, CancellationToken ct);
     Task DeleteDraftAsync(long id, CancellationToken ct);
     Task IssueAsync(long id, CancellationToken ct);

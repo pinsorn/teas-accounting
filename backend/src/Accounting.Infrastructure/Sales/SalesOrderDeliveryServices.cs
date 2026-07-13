@@ -95,6 +95,13 @@ public sealed class SalesOrderService(
         if (so.Status != SalesOrderStatus.Posted)
             throw new DomainException("so.not_posted",
                 "Sales Order must be Posted before creating a Delivery Order.");
+        // NOTE (mcp-document-chain) — a "no 2nd DO for this SO" guard does NOT belong here:
+        // this shared method is ALSO the existing partial-delivery path (multiple DOs against
+        // one SO, each covering different lines/quantities — see Sprint10ChainTests
+        // Partial_delivery_keeps_so_open_until_fully_delivered / ImmutabilityAndGuardTests
+        // DeliveryOrder_exceeding_so_line_qty_is_rejected). The MCP full-qty-only assumption
+        // (§A3) is enforced at the MCP TOOL layer instead (create_delivery_order_draft), not
+        // here, so the still-supported general partial-delivery flow keeps working unchanged.
 
         // §4.6 / ม.86 / ม.80 — DO creation is request-fed (the client picks the line tax rate),
         // so the company VAT mode is the authoritative backstop here, exactly as the SO/Quotation
@@ -192,7 +199,10 @@ public sealed class SalesOrderService(
             so.SubtotalAmount, so.VatAmount, so.TotalAmount, so.QuotationId,
             so.Lines.OrderBy(l => l.LineNo).Select(l => new ChainLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList());
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+            // mcp-document-chain (D4) — GOOD/EXEMPT_GOOD lines are physical; a Delivery Order
+            // is mandatory before invoicing. EXEMPT_GOOD counts as a good (still a physical thing).
+            DeliveryRequired: so.Lines.Any(l => l.ProductType is "GOOD" or "EXEMPT_GOOD"));
     }
 
     private async Task<string> SubNumAsync(

@@ -75,6 +75,8 @@ const MCP_DEFAULT_SCOPES = [
   'expense.claim.read', 'expense.claim.create',
   'master.employee.manage',
   'fixedasset.read', 'fixedasset.manage',
+  // mcp-document-chain (D7) — Sales Order tools. Mirrors McpScopes.All.
+  'sales.sales_order.manage',
 ];
 
 export default function ApiKeysSettingsPage() {

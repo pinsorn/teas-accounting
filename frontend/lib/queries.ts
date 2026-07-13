@@ -1589,6 +1589,21 @@ export function useCreateInvoiceFromDeliveryOrder() {
     },
   });
 }
+// mcp-document-chain (D9) — SO → Invoice, direct (service-only skip-DO path). Polymorphic
+// by company VAT mode: exactly one of billing_note_id/tax_invoice_id comes back non-null.
+export function useCreateInvoiceFromSalesOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiPost<{ billing_note_id: number | null; tax_invoice_id: number | null }>(
+        `sales-orders/${id}/create-invoice`),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['sales-order', id] });
+      qc.invalidateQueries({ queryKey: ['billing-notes'] });
+      qc.invalidateQueries({ queryKey: ['tax-invoices'] });
+    },
+  });
+}
 
 // ───────────────────────── Sprint 13h P6.2 — Billing Note ─────────────────
 export function useBillingNotes(status?: string) {
