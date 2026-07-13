@@ -497,6 +497,12 @@ Symptom: deploy-api probe `total_sql_scripts` FAILs (prod says 68, repo ships 88
 Root cause: prod's `sys.applied_sql_scripts` ledger only records scripts run since the DB's creation — the 2026-06 migration squash baked older scripts into EF migrations, so they were never individually recorded. Repo file count is NOT a valid expectation for prod.
 Fix: derive the expectation from the TARGET DB (pre-deploy count + number of NEW scripts). Prod baseline after v1.17.0 = 68. The per-release `new_sql_scripts=<n>` probe is the one that actually matters.
 
+## Deploy probe against EF migrations history table: default name `__EFMigrationsHistory` does not exist on prod (v1.20.0)
+Symptom: a deploy-probe query `SELECT ... FROM "__EFMigrationsHistory" WHERE "MigrationId" LIKE '%<Name>'` throws `42P01: relation "__EFMigrationsHistory" does not exist` on prod, even though the migration DID apply (or is about to).
+Root cause: this project configures a CUSTOM EF migrations-history table — `sys.__ef_migrations` (lower_snake_case columns `migration_id`/`product_version`, schema `sys`), not the EF default `dbo.__EFMigrationsHistory`. `PostgresFixture` uses the same custom table for tests (see the "Regenerating an already-applied EF migration" entry above), so this has been true all along — it just hadn't been hit from a *deploy probe* before.
+Fix: any pre-/post-deploy probe verifying a migration was recorded must query `sys.__ef_migrations` (`SELECT count(*) FROM sys.__ef_migrations WHERE migration_id LIKE '%<MigrationName>'`), never the EF default name.
+Seen: 2026-07-13, v1.20.0 deploy (McpDocumentChain migration) — pre-deploy check against the default name failed with 42P01; corrected before the actual deploy-api script ran (which used the right table and passed `mcp_chain_migration_applied=1`).
+
 ## Release-please PR needs --admin merge (branch protection, 2026-07-10)
 Symptom: `gh pr merge <release-PR>` fails "base branch policy prohibits the merge"; statusCheckRollup is EMPTY.
 Root cause: CI workflow doesn't trigger on the release-please branch (only touches CHANGELOG/manifest), so required checks never report; --auto never fires either.
