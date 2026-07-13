@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.0](https://github.com/pinsorn/teas-accounting/compare/v1.19.0...v1.20.0) (2026-07-13)
+
+
+### Features
+
+* **mcp:** agent-draftable document chain (sales + purchase) with human approval per hop ([f9d9ddb](https://github.com/pinsorn/teas-accounting/commit/f9d9ddb4bf8869400f2cccc7cc2f99b9e9159a36))
+* **mcp:** agent-draftable document chain (sales + purchase) with human approval per hop ([972dddb](https://github.com/pinsorn/teas-accounting/commit/972dddb8aaf2ef8ea8153a280bd7da78a8750e31))
+
 ## [1.19.0](https://github.com/pinsorn/teas-accounting/compare/v1.18.0...v1.19.0) (2026-07-12)
 
 
