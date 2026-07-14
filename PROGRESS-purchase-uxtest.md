@@ -135,6 +135,21 @@ Judge UX/UI ease-of-use + spec compliance. Then refresh outdated manual (Thai, M
 - Quota hit 85% ~15:05 (resets ~17:30). Insurance checkpoint done (this write + commit +
   chained wakeup). Continue browser work freely; new Claude dispatches avoided.
 
+## Final (2026-07-14 ~15:20, quota 90% → wrapped)
+- PV #3 posted → 07-2026-PV-TEST-PROF-0001; 50ทวิ auto-issued 07-2026-WT-0001:
+  Pnd3 ✓ (individual), ม.40(8) ค่าบริการ(บุคคลธรรมดา), 20,000 × 3.00% = 600 ✓,
+  refs to PV correct, พิมพ์/PDF available. WHT flow VERIFIED end-to-end.
+- AP settlement VERIFIED via MCP: VI-TEST-0001 settledAmount 1,070 = PAID, settlingPv
+  PV-OFFI-0001 Posted; vendor ledger VI cr 1,070 → PV dr 1,070 → closing 0; control
+  account 2110 reconciliation balanced=true. Money loop closes.
+- F29 (minor): PO "ปิด" button click = no visible effect, no confirm/toast (fresh session,
+  so NOT the 401 family) — untested further due to quota; retest + define semantics.
+- Minor i18n on /wht-certificates list: แบบยื่น shows "Pnd3" (EN code), ม.40 column shows
+  raw "8" — detail page renders both properly.
+- DROPPED (quota): PO-linked VI browser E2E (mechanism verified in form + on co2 by
+  worker), reports UI pages (AP aging/tax summary UI — data verified via MCP instead).
+- Approve/Post on PV: NO confirm dialog at either step (F7/F28 pattern confirmed twice).
+
 ## Prod test-doc state (BU TEST, Repttown co.)
 - PO 07-2026-PO-TEST-0001 (non-VAT vendor BUTEST-VEND, 4,120) — approved + marked sent.
 - PO 07-2026-PO-TEST-0002 (VAT vendor BUTEST-VEND2, 3,000) — approved.
