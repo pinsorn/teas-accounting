@@ -10,6 +10,7 @@ import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductPicker, taxRateForProductType } from '@/components/forms/ProductPicker';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
+import { PercentRateInput } from '@/components/ui/PercentRateInput';
 import { apiPost } from '@/lib/api';
 import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
@@ -411,9 +412,12 @@ function PvForm() {
               </label>
               <label className="form-control">
                 <span className="label-text">{t('wht')} %</span>
-                <input type="number" step="0.01" className="input input-bordered input-sm"
+                <PercentRateInput
                   value={r.whtRate}
-                  onChange={(e) => setRow(r.key, { whtRate: Number(e.target.value) || 0 })} />
+                  onValueChange={(f) => setRow(r.key, { whtRate: f })}
+                  max={30}
+                  aria-label={`${t('wht')} %`}
+                />
               </label>
               <button className="btn btn-ghost btn-xs text-error md:col-span-3 md:ml-auto md:w-fit"
                 onClick={() => setRows((rs) => rs.length > 1 ? rs.filter((x) => x.key !== r.key) : rs)}>

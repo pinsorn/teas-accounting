@@ -56,6 +56,14 @@ public sealed class CreateVendorValidator : AbstractValidator<CreateVendorReques
                        && CountryCodes.Common.Contains(c))
             .When(x => x.IsForeign)
             .WithMessage("A valid ISO 3166-1 alpha-2 country code is required for foreign vendors.");
+        // WP1.4 (F13) — a domestic VAT-registered vendor must carry a valid 13-digit Thai Tax
+        // ID (needed to claim input VAT / ภ.พ.30). Foreign vendors are force VAT-registered
+        // (see MasterDataServices.cs VendorService) but have no Thai taxId — scope to !IsForeign.
+        RuleFor(x => x.TaxId)
+            .NotEmpty().WithMessage("vendor.vat_registered_requires_taxid")
+            .Must(t => ThaiTaxId.TryParse(t, out _))
+            .WithMessage("Invalid Thai Tax ID (13 digits + checksum).")
+            .When(x => x.VatRegistered && !x.IsForeign);
     }
 }
 
@@ -76,6 +84,15 @@ public sealed class UpdateVendorValidator : AbstractValidator<UpdateVendorReques
                        && CountryCodes.Common.Contains(c))
             .When(x => x.IsForeign)
             .WithMessage("A valid ISO 3166-1 alpha-2 country code is required for foreign vendors.");
+        // WP1.4 (F13) — same rule as create (simplest defensible option per the design's
+        // grandfathering note): a legacy vat-registered vendor with a missing/invalid taxId
+        // now requires filling it in to save ANY edit. Flagged to Ham as the one sharp edge —
+        // softer alternative is gating NotEmpty on `taxId actually changed`.
+        RuleFor(x => x.TaxId)
+            .NotEmpty().WithMessage("vendor.vat_registered_requires_taxid")
+            .Must(t => ThaiTaxId.TryParse(t, out _))
+            .WithMessage("Invalid Thai Tax ID (13 digits + checksum).")
+            .When(x => x.VatRegistered && !x.IsForeign);
     }
 }
 

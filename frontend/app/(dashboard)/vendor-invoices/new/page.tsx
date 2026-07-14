@@ -11,10 +11,12 @@ import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
+import { PercentRateInput } from '@/components/ui/PercentRateInput';
 import {
   useCreateVendorInvoice, usePostVendorInvoice, useVendor,
-  usePurchaseOrders, usePurchaseOrder, useCompanyBuSetting, useCompanyProfile,
+  usePurchaseOrders, usePurchaseOrder, useCompanyBuSetting, useCompanyProfile, useSystemInfo,
 } from '@/lib/queries';
+import { derivePoLineVatRate } from '@/lib/po-line-vat';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatDateBE, formatTHB } from '@/lib/utils';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -71,6 +73,25 @@ function VendorInvoiceNewForm() {
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
   const [buError, setBuError] = useState(false);
 
+  // Sprint 8.7 — vendor flags drive has_input_vat (auto/lock for non-VAT /
+  // foreign-no-VAT-D vendors). Backend re-derives if not sent; we send explicit.
+  // Declared before the PO-link effect below (WP1.3) so its derivation can read vendor VAT
+  // status — note this reads the CLOSURE's vendor at effect-run time, which on the
+  // "arrive via PO CTA" path (fromPoId) is still stale on the very first run (vendorId hasn't
+  // propagated to a re-render yet); the manual "link a PO from the dropdown" path (vendor
+  // already selected first) is unaffected.
+  const vendor = useVendor(vendorId ?? 0).data;
+  const autoNoInputVat = !!vendor &&
+    (!vendor.vatRegistered || (vendor.isForeign && !vendor.hasThaiVatDReg));
+  const foreignNoVatD = !!vendor?.isForeign && !vendor.hasThaiVatDReg;
+  const hasInputVat = !autoNoInputVat;
+
+  // WP1.2 (F27, D1) / WP1.3 (F14) — company VAT config (source of truth on the BE; FE mirror
+  // only). sys.vatMode === Company.VatRegistered for the caller's tenant (ICompanyTaxConfigService).
+  const sys = useSystemInfo().data;
+  const companyVatRegistered = sys?.vatMode ?? true;
+  const stdRate = sys?.vatRate ?? 0.07;
+
   // Sprint 12 — optional PO link: list Approved POs of the chosen vendor;
   // selecting one pulls its lines into the VI (category still picked by user).
   const approvedPos = usePurchaseOrders('Approved', vendorId ?? undefined).data ?? [];
@@ -86,10 +107,16 @@ function VendorInvoiceNewForm() {
       setVendorLabel(poDetail.vendorName);
     }
     setRows(poDetail.lines.map((l, i) => ({
-      key: i + 1, categoryId: null, recoverable: true,
+      key: i + 1, categoryId: null,
+      // F-1 (Opus Tier-2 review, WP1.2) — force non-recoverable on a non-VAT company so the
+      // live preview's totals box matches how the server actually posts (never claim it under
+      // the recoverable bucket only to have GL book it as cost).
+      recoverable: companyVatRegistered,
       description: l.descriptionTh,
       amount: l.lineAmount,
-      vatRate: l.lineAmount > 0 ? Math.round((l.taxAmount / l.lineAmount) * 100) / 100 : 0.07,
+      // WP1.3 (F14) — scoped derivation: only fall back to the company std rate when BOTH
+      // company and vendor are VAT-registered; a genuinely non-VAT PO/vendor stays 0%.
+      vatRate: derivePoLineVatRate(l, companyVatRegistered, !!vendor?.vatRegistered, stdRate),
       productType: 'GOOD' as ProductTypeStr,
     })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,17 +125,13 @@ function VendorInvoiceNewForm() {
   const options = useMemo(() => claimOptions(tiDate), [tiDate]);
   const effClaim = claim ?? options[0] ?? null;
 
-  // Sprint 8.7 — vendor flags drive has_input_vat (auto/lock for non-VAT /
-  // foreign-no-VAT-D vendors). Backend re-derives if not sent; we send explicit.
-  const vendor = useVendor(vendorId ?? 0).data;
-  const autoNoInputVat = !!vendor &&
-    (!vendor.vatRegistered || (vendor.isForeign && !vendor.hasThaiVatDReg));
-  const foreignNoVatD = !!vendor?.isForeign && !vendor.hasThaiVatDReg;
-  const hasInputVat = !autoNoInputVat;
-
   const subtotal = rows.reduce((s, r) => s + r.amount, 0);
-  const vatRec = rows.reduce((s, r) => s + (r.recoverable ? r.amount * r.vatRate : 0), 0);
-  const vatNon = rows.reduce((s, r) => s + (!r.recoverable ? r.amount * r.vatRate : 0), 0);
+  // F-1 (Opus Tier-2 review, WP1.2) — AND with companyVatRegistered here too (not just at the
+  // row-set sites) so the split is correct even before a category is picked (a fresh row
+  // defaults recoverable=true and the server's guard doesn't apply until save).
+  const rowIsRecoverable = (r: Row) => companyVatRegistered && r.recoverable;
+  const vatRec = rows.reduce((s, r) => s + (rowIsRecoverable(r) ? r.amount * r.vatRate : 0), 0);
+  const vatNon = rows.reduce((s, r) => s + (!rowIsRecoverable(r) ? r.amount * r.vatRate : 0), 0);
   const total = subtotal + vatRec + vatNon;
 
   const canSave =
@@ -235,6 +258,15 @@ function VendorInvoiceNewForm() {
                   : null}
           </div>
         )}
+        {/* WP1.2 (F27, D1) — advisory only; the server forces non-recoverable regardless. */}
+        {!companyVatRegistered && (
+          <div className="mt-2 text-xs text-info">{t('companyNonVatInfo')}</div>
+        )}
+        {/* WP1.4 (F13) — non-blocking nudge: a domestic VAT-registered vendor with no taxId
+            can't support an input-VAT claim (ภ.พ.30). Legacy data still saves. */}
+        {vendor && vendor.vatRegistered && !vendor.isForeign && !vendor.taxId && (
+          <div className="mt-2 text-xs text-warning">{t('vendorTaxIdMissingWarning')}</div>
+        )}
       </SectionCard>
 
       {/* ② ข้อมูลเอกสาร */}
@@ -298,7 +330,13 @@ function VendorInvoiceNewForm() {
                 <ExpenseCategorySelector
                   value={r.categoryId}
                   onChange={(id, cat) =>
-                    setRow(r.key, { categoryId: id, recoverable: cat.defaultIsRecoverableVat })}
+                    // F-1 (Opus Tier-2 review, WP1.2) — a non-VAT company forces non-recoverable
+                    // regardless of the category's own default (server does the same in
+                    // BuildLinesAsync + the CreateDraftAsync/UpdateDraftAsync/PostAsync guards).
+                    setRow(r.key, {
+                      categoryId: id,
+                      recoverable: companyVatRegistered && cat.defaultIsRecoverableVat,
+                    })}
                 />
                 <ProductTypeSelect
                   value={r.productType}
@@ -317,9 +355,13 @@ function VendorInvoiceNewForm() {
                 </label>
                 <label className="form-control">
                   <span className="label-text">{t('vatRate')}</span>
-                  <input type="number" step="0.01" className="input input-bordered input-sm"
+                  <PercentRateInput
                     value={r.vatRate}
-                    onChange={(e) => setRow(r.key, { vatRate: Number(e.target.value) || 0 })} />
+                    onValueChange={(f) => setRow(r.key, { vatRate: f })}
+                    max={30}
+                    quickSet={[0, 7]}
+                    aria-label={t('vatRate')}
+                  />
                 </label>
               </div>
               <div className="mt-2 flex items-center justify-between">

@@ -50,7 +50,15 @@ function buildSchema(edit?: VendorDetail) {
     })
     .superRefine((v, ctx) => {
       const taxId = v.taxId?.trim();
-      if (!taxId) return;
+      // WP1.4 (F13) — a domestic VAT-registered vendor must carry a taxId (server rule mirror,
+      // VendorDtos.cs CreateVendorValidator/UpdateVendorValidator). Foreign vendors are always
+      // force VAT-registered but have no Thai taxId, so scope to !isForeign.
+      if (!taxId) {
+        if (v.vatRegistered && !v.isForeign) {
+          ctx.addIssue({ code: 'custom', path: ['taxId'], message: 'taxIdRequiredForVat' });
+        }
+        return;
+      }
       const unchanged = edit != null && taxId === (edit.taxId ?? '').trim();
       if (!unchanged && !isValidThaiTaxId(taxId)) {
         ctx.addIssue({ code: 'custom', path: ['taxId'], message: 'taxId13' });
@@ -205,9 +213,16 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
           <span className="label-text">{t('nameEn')}</span>
           <input id="vendor-name-en" className="input input-bordered" {...register('nameEn')} />
         </label>
-        <Controller control={control} name="taxId" render={({ field }) => (
-          <TaxIdInput label={t('taxId')} value={field.value ?? ''} onChange={field.onChange} />
-        )} />
+        <div>
+          <Controller control={control} name="taxId" render={({ field }) => (
+            <TaxIdInput
+              label={t('taxId') + (vatRegistered && !foreign ? ' *' : '')}
+              value={field.value ?? ''}
+              onChange={field.onChange}
+            />
+          )} />
+          {err('taxId')}
+        </div>
         <label className="form-control" htmlFor="vendor-branch-code">
           <span className="label-text">{t('branchCode')}</span>
           <input id="vendor-branch-code" className="input input-bordered" inputMode="numeric" maxLength={5}

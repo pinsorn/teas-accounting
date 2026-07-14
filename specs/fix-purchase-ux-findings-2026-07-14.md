@@ -27,24 +27,124 @@ completeness tracking; live A4 preview.
       DefaultExpenseCategories helper.
 
 ## WP1 — MONEY/COMPLIANCE (footgun zone → Opus DESIGN → Sonnet implement, Tier-2 Opus review)
-- [ ] 1.1 F15+addendum: VAT-rate + WHT-rate fields are fractions behind %-labeled inputs,
+- [x] 1.1 F15+addendum: VAT-rate + WHT-rate fields are fractions behind %-labeled inputs,
       no bounds. Fix per D5: percent-presentation layer on VI "อัตรา VAT" and PV
       "หัก ณ ที่จ่าย %" + validation (VAT ∈ {0, 7} typical, hard-cap 0..1 fraction /
       0..100 percent; out-of-range = inline error, not silent accept).
       Accept: typing 7 yields ฿210 VAT on ฿3,000 base; typing 700 rejected.
-- [ ] 1.2 F27 (per D1): non-VAT company VI VAT handling. Server-side rule + FE mirror.
+      DONE 2026-07-14: `components/ui/PercentRateInput.tsx` (conversion in
+      `lib/percent-rate.ts`, exact fractionToPercent/percentToFraction per design) wired into
+      VI line vatRate + PV line whtRate. Grepped `type="number"`+Rate under
+      `app/(dashboard)` — the only 2 other hits (`settings/companies` vatRatePct,
+      `settings/wht-types` rate) already have their OWN correct percent↔fraction conversion
+      (different bug class, out of scope). Backend bound `InclusiveBetween(0m,1m)` already
+      present on BOTH `VendorInvoiceDtos.cs:158` (VI) AND `PaymentVoucherDtos.cs:106-107` (PV
+      line WhtRate+VatRate) — design's "PV gap" was already closed by a prior commit; no
+      backend change needed. Unit test `lib/percent-rate.test.ts` (6 cases, round-trip +
+      clamp-700 + no float dust) — vitest run 40/40 green.
+- [x] 1.2 F27 (per D1): non-VAT company VI VAT handling. Server-side rule + FE mirror.
       Accept: on vatMode=false co, posting VI with recoverable VAT is impossible.
-- [ ] 1.3 F14: VI line pulled from PO defaults vatRate=0 even when company+vendor are
+      DONE 2026-07-14: `VendorInvoiceService.cs` `CreateDraftAsync` (reads `Company.VatRegistered`
+      alongside the existing `RequiresBusinessUnit` query) forces `HasInputVat=false` + every
+      line `IsRecoverableVat=false` when non-VAT — overrides vendor-derived flag AND an explicit
+      `req.HasInputVat=true`. Re-asserted in `PostAsync` as defence. `CreateFromPurchaseOrderAsync`
+      needs no separate touch — it delegates to `CreateDraftAsync`. FE mirror: VI form shows
+      `companyNonVatInfo` advisory (via `useSystemInfo().vatMode`, NOT `useCompanyProfile()` —
+      the design's pseudocode named the wrong hook; `CompanyProfile` has no vatRegistered field).
+      GL posting code untouched. VI-TEST-0001 left as-is per design (documented, no data-fix).
+      Integration test `VendorInvoiceNonVatCompanyTests.cs` (2 cases: forces non-recoverable +
+      VAT-registered-company regression) — passing.
+      **Opus Tier-2 review (2026-07-14, APPROVE-WITH-FIXES — core invariant confirmed good on
+      every GL path) — 3 fixes applied, same branch, no commit:**
+      - **F-1 (FE preview mismatch, MEDIUM):** the design's "FE mirror" said FORCE
+        `recoverable=false` per row on a non-VAT company; only the advisory line shipped, so the
+        live totals box still bucketed the 70 under the *recoverable* row while the server
+        booked it as cost. Fixed in `vendor-invoices/new/page.tsx` at all 3 places `row.recoverable`
+        is set (PO-link effect, `ExpenseCategorySelector` onChange) — both now AND with
+        `companyVatRegistered` — PLUS the `vatRec`/`vatNon` reducers themselves now go through a
+        `rowIsRecoverable()` helper that re-ANDs at read time (covers the pre-category-pick edge
+        case a fresh row starts in). Verified: 1,000 @ 7% on a non-VAT co → total ฿1,070
+        unchanged, but the ฿70 now lands in `vatNon` (non-recoverable), not `vatRec`.
+      - **F-2 (UpdateDraftAsync gap, LOW):** `BuildLinesAsync` re-snapshots
+        `IsRecoverableVat=true` from the category on every edit; `UpdateDraftAsync` had no guard,
+        so an edited non-VAT-co draft's header went inconsistent until `PostAsync` self-healed
+        it. Added the identical guard block after `BuildLinesAsync`, before `RollUp`, in
+        `UpdateDraftAsync` (own one-column `Company.VatRegistered` query, same shape as
+        `CreateDraftAsync`/`PostAsync`'s). New test `NonVatCompany_UpdateDraft_KeepsHeaderNonRecoverable`
+        EXERCISES a real `CreateDraftAsync` → `UpdateDraftAsync` transition (amount 1000→2000,
+        not a no-op) — confirmed non-vacuous by temporarily reverting the guard and re-running:
+        failed with `IsRecoverableVat=True` as expected, then passed again after restoring.
+      - **F-3 (fail-safe direction, LOW):** `CreateDraftAsync`'s missing-company-row fallback was
+        `?? true` (unsafe direction — allows recoverable) while `PostAsync`'s equivalent query
+        defaults to `false` (safe). Changed `CreateDraftAsync` to `?? false` so both guards fail
+        safe identically. Unreachable in practice (an authenticated tenant always has a company
+        row) but now aligned.
+      Re-verified after all 3 fixes: `VendorInvoiceNonVatCompanyTests.cs` 3/3 passing; full
+      Hardening+Persistence+Purchase+Master+Bootstrap regression sweep 262/262 passed (4
+      pre-existing unrelated skips); FE `tsc --noEmit` + `next build` + `vitest run lib` (40/40)
+      all green; Bengali-glyph grep clean. F-4 (vendor taxId grandfathering) and F-5 (internal-
+      path DTO bound) intentionally NOT touched — Fable/Ham calls per the coordinator's message.
+- [x] 1.3 F14: VI line pulled from PO defaults vatRate=0 even when company+vendor are
       both VAT-registered (on VAT co, per co2 verification pull is correct — restrict fix
       to deriving from vendor/company when PO line has no tax, not blanket 0.07).
       Accept: on co2, PO with no VAT data → linked VI line defaults to vendor-derived rate.
-- [ ] 1.4 F13: vendor "จดทะเบียน VAT" requires 13-digit เลขผู้เสียภาษี (create+edit,
+      DONE 2026-07-14: pure `derivePoLineVatRate` extracted to `lib/po-line-vat.ts` (4 unit
+      tests), wired into the VI form's PO-link effect using `useSystemInfo()` for company VAT
+      status. `PoLineDto` (lib/types.ts) does NOT expose `taxRate` — confirmed by reading the
+      type — so the "prefer PO line's own rate" branch is future-proofing only, currently always
+      falls through to the amount-derived/company-vendor-gated branches. KNOWN LIMITATION (not
+      fixed, out of blast radius): on the "arrive via PO CTA" flow (fromPurchaseOrderId), the
+      effect sets `vendorId` and derives `vatRate` in the same tick, so `vendor` (a separate
+      react-query hook keyed on `vendorId`) is still stale/undefined on that first run — the
+      derivation falls back to 0 in that one sub-case. The "manually link a PO from the dropdown"
+      flow (vendor already selected first) is unaffected and is F14's original repro path.
+- [x] 1.4 F13: vendor "จดทะเบียน VAT" requires 13-digit เลขผู้เสียภาษี (create+edit,
       server-side validation; existing rows grandfathered with warning on VI create).
-- [ ] 1.5 F20: expense categories without default GL account (COGS on Repttown).
+      DONE 2026-07-14: `VendorDtos.cs` `CreateVendorValidator` + `UpdateVendorValidator` both
+      gained `RuleFor(x => x.TaxId).NotEmpty()...When(x => x.VatRegistered && !x.IsForeign)`,
+      error code `vendor.vat_registered_requires_taxid`. Wired at BOTH the REST endpoint
+      (`MasterEndpoints.cs`) and the MCP tool (`TeasMcpTools.cs`) — verified by reading both
+      call sites, so a pure-validator unit test covers both entry points. Took the design's
+      "simplest defensible" grandfathering option (same rule on create+update, no
+      changed-field gate) — flagged as the one sharp edge, per the design's own guidance.
+      FE: `VendorForm.tsx` Zod `superRefine` mirrors the rule (`taxIdRequiredForVat` issue);
+      ALSO wired `{err('taxId')}` to actually render — the taxId Zod error was NEVER displayed
+      anywhere in the pre-existing form (dead code), so both the new rule and the pre-existing
+      'taxId13' checksum rule are now visible for the first time. Asterisk on the taxId label
+      when `vatRegistered && !foreign`. VI-create non-blocking warning banner added
+      (`vendorTaxIdMissingWarning`) when the selected vendor is vat-registered-domestic with no
+      taxId. `VendorVatTaxIdValidatorTests.cs` (7 cases: create×4, update×3) — all passing.
+- [x] 1.5 F20: expense categories without default GL account (COGS on Repttown).
       Two parts: (a) seed/backfill mapping for auto-seeded categories (relates to co2/co3
       CreateAsync-bypass gap in memory), (b) FE: disable/badge categories with no account
       in the dropdown instead of 422 at save. Accept: COGS selectable+savable OR visibly
       marked unusable before save.
+      DONE 2026-07-14, all 3 parts: (c) `ExpenseCategorySelector.tsx` disables any `<option>`
+      with `defaultExpenseAccountId == null` + inline note (shape-parsing `pick()` extracted to
+      `lib/expense-category-shape.ts`, 3 unit tests); `lib/types.ts` `ExpenseCategoryLite` gained
+      `defaultExpenseAccountId` (BE `ExpenseCategoryDto` already exposed it — no BE change).
+      (b) new `Migrations/SqlScripts/623_backfill_expense_category_accounts.sql`, mirrors the
+      611 per-company `set_config('app.company_id',…)` GUC-loop pattern exactly (both
+      `sys.expense_categories` and `master.chart_of_accounts` are G1 tables, FORCE RLS, no
+      bypass arm); "5200" universal fallback (NOT 51010 — confirmed absent from
+      `DefaultChartOfAccounts`), COGS prefers a real cost-of-sales account only if one exists.
+      RLS repro test `ExpenseCategoryBackfillRlsTests.cs` uses `SET ROLE pg_database_owner`
+      (per troubles-wiki, NOT "teas_rls_test" — that role SKIPs without CREATEROLE) + runs the
+      ACTUAL script file content — passing (proves the GUC loop fills a NULL row under real RLS,
+      not just under the test suite's superuser bypass connection). (a) per D7, added a
+      `DefaultExpenseCategories(companyId, coaLookup)` helper (19-code set, mirrors
+      430_seed_expense_categories_full.sql's codes/recoverable/capex/cogs flags, remapped onto
+      `DefaultChartOfAccounts`' coarser codes since the granular 62xxx chart only the demo
+      company gets) wired into `CompanyService.CreateAsync`. Integration test
+      `CompanyCreateExpenseCategorySeedTests.cs` — 19 categories, zero NULL defaults, spot-checks
+      RENT→5100, CAPEX→1610, COGS→5200 (no dedicated COGS account exists) — passing. Regression
+      swept: no existing test asserts an exact expense-category count/emptiness on a
+      TestCompanyFactory-created company; full `Hardening`/`Persistence`/`Purchase`/`Master`/
+      `Bootstrap` folders re-run green (261 passed, 0 failed, 4 pre-existing unrelated skips).
+      **Deploy note (not done — out of this dispatch's scope):** 623 is a prod-startup SqlScript
+      (not demo-gated) — DB backup mandatory before deploy; post-deploy verify via the row-count
+      probe in the design (`SELECT company_id, count(*) FILTER (WHERE
+      default_expense_account_id IS NULL) …`).
 
 ## WP2 — AUTH/SESSION UX (F16 family; Opus design for token strategy, Sonnet FE)
 - [ ] 2.1 Token refresh: silent refresh or sliding session (current ~25-30 min hard
@@ -772,6 +872,19 @@ approved own PV (admin not blocked). Two options:
   existing seed-ordering care (memory "RBAC seed-ordering footgun": insert the permission code
   BEFORE the grant script, run RbacAuthMapTests).
 Recommend (A) now, (B) as a tracked compliance follow-up. Marked PROPOSAL either way.
+
+## Residual follow-ups (from Opus Tier-2 review, not blocking WP1 commit)
+- F-5 (LOW, hardening): internal callers `CreateFromPurchaseOrderAsync` +
+  `CreateVendorInvoiceFromPvAsync` build `CreateVendorInvoiceRequest` in-code and call
+  `CreateDraftAsync` directly, bypassing the FluentValidation `InclusiveBetween(0,1)` rate
+  bound (only the REST endpoint runs it). Money-safe today (upstream PO/PV rates are already
+  validated at their own creation; the non-VAT guard is service-level so it holds regardless),
+  but the 700%-type raw-rate defect could in theory enter via a non-REST path. Consider moving
+  the rate bound into `BuildLinesAsync` (service-level) in a later hardening pass; verify the
+  MCP `create_vendor_invoice_draft`/`create_payment_voucher_draft` tools run the DTO validator.
+- F-4 (RESOLVED, Ham 2026-07-14): full enforcement kept — a domestic VAT-registered vendor
+  requires a valid 13-digit taxId on every save (no soft/changed-field gate). Legacy vendors
+  with empty/bad taxId must fill it before any edit saves.
 
 ## Blast-radius cap (this design's WP1+WP2 implementation)
 - WP1.1: +1 shared component + 2 call-site swaps + 1 PV-validator bound. ~5 files.

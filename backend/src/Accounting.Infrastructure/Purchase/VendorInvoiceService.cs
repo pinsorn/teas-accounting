@@ -75,9 +75,19 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
 
         // cont.79 — BU (GL dimension). Required when the company opted in; if supplied
         // it must be an active BU of this tenant (mirror TaxInvoiceService).
-        var requiresBu = await _db.Companies
+        // WP1.2 (F27, D1) — also read VatRegistered here: a non-VAT company must NEVER book
+        // recoverable input VAT, regardless of the vendor's own VAT status or a client/MCP
+        // HasInputVat=true override (D1 — VAT may be entered but always books as cost).
+        var companyFlags = await _db.Companies
             .Where(c => c.CompanyId == _tenant.CompanyId)
-            .Select(c => c.RequiresBusinessUnit).FirstOrDefaultAsync(ct);
+            .Select(c => new { c.RequiresBusinessUnit, c.VatRegistered })
+            .FirstOrDefaultAsync(ct);
+        var requiresBu = companyFlags?.RequiresBusinessUnit ?? false;
+        // F-3 (Opus Tier-2 review) — fail safe in the SAME direction as PostAsync's equivalent
+        // query (missing company row -> non-recoverable, never the reverse). Unreachable in
+        // practice (an authenticated tenant always has a company row) but the two guards must
+        // not disagree on which way is "safe."
+        var companyVatRegistered = companyFlags?.VatRegistered ?? false;
         if (requiresBu && req.BusinessUnitId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
         if (req.BusinessUnitId is { } buId &&
@@ -114,6 +124,14 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
             // Also covers the PV→VI guided path (CreateVendorInvoiceFromPvAsync routes through here).
             CreatedViaApiKeyName = _tenant.ApiKeyName,
         };
+        // WP1.2 (F27, D1) — non-VAT company: force non-recoverable regardless of vendor/category
+        // snapshot or an explicit req.HasInputVat=true. Every line's VAT lands in
+        // NonRecoverableVatAmount (RollUp below), never VatAmount, so header and GL agree.
+        if (!companyVatRegistered)
+        {
+            vi.HasInputVat = false;
+            foreach (var l in vi.Lines) l.IsRecoverableVat = false;
+        }
         RollUp(vi);
 
         _db.VendorInvoices.Add(vi);
@@ -253,6 +271,19 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
 
         _db.VendorInvoiceLines.RemoveRange(vi.Lines);
         vi.Lines = await BuildLinesAsync(req.Lines, ct);
+
+        // F-2 (Opus Tier-2 review) — BuildLinesAsync re-snapshots IsRecoverableVat from the
+        // category (true), so an edit to a non-VAT company's draft must re-apply the WP1.2
+        // guard here too, or the header goes inconsistent (VatAmount gets the VAT back) until
+        // PostAsync self-heals it.
+        var updateCompanyVatRegistered = await _db.Companies
+            .Where(c => c.CompanyId == vi.CompanyId)
+            .Select(c => c.VatRegistered).FirstOrDefaultAsync(ct);
+        if (!updateCompanyVatRegistered)
+        {
+            vi.HasInputVat = false;
+            foreach (var l in vi.Lines) l.IsRecoverableVat = false;
+        }
         RollUp(vi);
 
         await _db.SaveChangesAsync(ct);
@@ -287,6 +318,18 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         var vi = await _db.VendorInvoices.Include(v => v.Lines)
                 .FirstOrDefaultAsync(v => v.VendorInvoiceId == id, ct)
             ?? throw new DomainException("vi.not_found", $"Vendor Invoice {id} not found.");
+
+        // WP1.2 (F27, D1) — re-assert at Post: a draft created before this guard existed (or
+        // via another path) must never post recoverable input VAT on a non-VAT company.
+        var postCompanyVatRegistered = await _db.Companies
+            .Where(c => c.CompanyId == vi.CompanyId)
+            .Select(c => c.VatRegistered).FirstOrDefaultAsync(ct);
+        if (!postCompanyVatRegistered && (vi.HasInputVat || vi.Lines.Any(l => l.IsRecoverableVat)))
+        {
+            vi.HasInputVat = false;
+            foreach (var l in vi.Lines) l.IsRecoverableVat = false;
+            RollUp(vi);
+        }
 
         await _period.EnsureOpenAsync(vi.DocDate, ct);
         EnsureClaimInWindow(vi.VatClaimPeriod, vi.VendorTaxInvoiceDate);

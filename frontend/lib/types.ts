@@ -741,6 +741,9 @@ export interface UpdateVendorRequest {
 export interface ExpenseCategoryLite {
   categoryId: number; categoryCode: string; nameTh: string; nameEn?: string | null;
   defaultIsRecoverableVat: boolean; isCapex: boolean; isCogs?: boolean; isActive?: boolean;
+  // WP1.5c (F20) — null = category has no default GL account (unusable at document save,
+  // vi/pv.expense_account_missing). FE disables the option instead of a 422 mid-form.
+  defaultExpenseAccountId?: number | null;
 }
 
 // Purchase completeness — advisory, POSTED docs only (purchase-completeness spec D2).

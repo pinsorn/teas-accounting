@@ -3,32 +3,13 @@
 import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api';
 import type { ExpenseCategoryLite } from '@/lib/types';
-
 // PV doc number embeds the category code (MM-YYYY-PV-{CATEGORY}-NNNN, plan §17.3),
 // so category is mandatory at PV creation. Non-recoverable VAT (ENT/VEHI, ม.82/5)
 // shows ⚠ "ภาษีซื้อต้องห้าม"; capex shows the asset hint (informational only).
-// Defensive shape parse — list endpoint contract not pinned.
-function pick(raw: unknown): ExpenseCategoryLite[] {
-  const arr =
-    Array.isArray(raw) ? raw
-    : raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown }).items)
-      ? (raw as { items: unknown[] }).items
-      : [];
-  return arr
-    .map((x) => x as Record<string, unknown>)
-    .filter((x) => typeof x.categoryId === 'number')
-    .map((x) => ({
-      categoryId: x.categoryId as number,
-      categoryCode: String(x.categoryCode ?? ''),
-      nameTh: String(x.nameTh ?? x.categoryCode ?? ''),
-      // BP-02 — the BE field is `defaultIsRecoverableVat`; tolerate the legacy
-      // `isRecoverableVat` shape too. Reading the wrong key meant the ม.82/5
-      // ⚠ warning never fired for non-recoverable categories (ENT/VEHI).
-      defaultIsRecoverableVat:
-        (x.defaultIsRecoverableVat ?? x.isRecoverableVat) !== false,
-      isCapex: x.isCapex === true,
-    }));
-}
+// `pick()` (defensive shape parse) lives in lib/expense-category-shape.ts (dependency-free)
+// so WP1.5c's null-account detection is unit-testable under this repo's vitest setup, which
+// has no `@/` alias resolution or DOM env.
+import { pick } from '@/lib/expense-category-shape';
 
 export function ExpenseCategorySelector({
   value,
@@ -77,8 +58,14 @@ export function ExpenseCategorySelector({
           {loading ? 'กำลังโหลด…' : '— เลือกหมวด —'}
         </option>
         {cats.map((c) => (
-          <option key={c.categoryId} value={c.categoryId}>
-            {c.nameTh} ({c.categoryCode}){!c.defaultIsRecoverableVat ? ' ⚠' : ''}
+          <option
+            key={c.categoryId}
+            value={c.categoryId}
+            disabled={c.defaultExpenseAccountId == null}
+          >
+            {c.nameTh} ({c.categoryCode})
+            {!c.defaultIsRecoverableVat ? ' ⚠' : ''}
+            {c.defaultExpenseAccountId == null ? ' — ยังไม่ผูกบัญชี' : ''}
           </option>
         ))}
       </select>
@@ -89,6 +76,21 @@ export function ExpenseCategorySelector({
       )}
       {selected && selected.isCapex && (
         <span className="label-text-alt text-info">บันทึกเป็นสินทรัพย์ (CapEx)</span>
+      )}
+      {/* WP1.5c (F20) — some categories are savable at settings level but have no default GL
+          account (default_expense_account_id NULL) — unusable on a document line (would 422
+          vi/pv.expense_account_missing at save). Disabled above (no 422 mid-form). The
+          /settings/expense-categories page is read-only (reference data, no CRUD) so this only
+          links there to show WHICH categories need a mapping — not a self-service fix. */}
+      {cats.some((c) => c.defaultExpenseAccountId == null) && (
+        <span className="label-text-alt">
+          บางหมวดยังไม่ผูกบัญชี GL — ดูรายการที่{' '}
+          <a href="/settings/expense-categories" target="_blank" rel="noreferrer"
+             className="link link-primary">
+            ตั้งค่า &gt; หมวดค่าใช้จ่าย
+          </a>
+          {' '}(ติดต่อผู้ดูแลระบบเพื่อผูกบัญชี)
+        </span>
       )}
     </div>
   );

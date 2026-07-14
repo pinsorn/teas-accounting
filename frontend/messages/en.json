@@ -388,7 +388,9 @@
     "err": {
       "required": "Required",
       "max50": "Max 50 characters",
-      "max255": "Max 255 characters"
+      "max255": "Max 255 characters",
+      "taxId13": "Tax ID must be 13 digits",
+      "taxIdRequiredForVat": "A VAT-registered vendor requires a 13-digit Tax ID"
     },
     "foreign": {
       "vatRegisteredToggle": "Vendor is VAT-registered",
@@ -1866,7 +1868,9 @@
     "noInputVatInfo": "ℹ Non-VAT vendor — Input VAT not claimable (VAT lumps into expense)",
     "pnd36Warning": "⚠ PND.36 reverse charge — input VAT auto-computed next month",
     "vatDInfo": "ℹ Vendor registered for Thai VAT-D — claim Input VAT normally",
-    "createFromPvHint": "Records a vendor tax invoice received from a vendor. Can optionally link to a Purchase Order."
+    "createFromPvHint": "Records a vendor tax invoice received from a vendor. Can optionally link to a Purchase Order.",
+    "companyNonVatInfo": "ℹ This company is not VAT-registered — input VAT always books as cost (not claimable)",
+    "vendorTaxIdMissingWarning": "⚠ Vendor is VAT-registered but has no Tax ID — required to claim input VAT (ภ.พ.30)"
   },
   "dashboard": {
     "title": "Dashboard",

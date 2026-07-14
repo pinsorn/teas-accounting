@@ -277,14 +277,21 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         // so a real onboarded tenant had an empty CoA and EVERY posting failed with
         // gl.account_missing (422). Kept in sync with 120_seed_demo_company.sql + the 230/240/482
         // account seeds and GlAccountsOptions.
+        // WP1.5a — CoA entities are captured so their EF-generated AccountId can resolve the
+        // expense-category default accounts below (after SaveChangesAsync populates the ids).
+        var coaEntities = new List<ChartOfAccount>();
         foreach (var (code, th, en, type, normal) in DefaultChartOfAccounts)
-            db.ChartOfAccounts.Add(new ChartOfAccount
+        {
+            var coa = new ChartOfAccount
             {
                 CompanyId = e.CompanyId, AccountCode = code,
                 AccountNameTh = th, AccountNameEn = en,
                 AccountType = type, NormalBalance = normal,
                 IsHeader = false, IsActive = true, CreatedAt = DateTimeOffset.UtcNow,
-            });
+            };
+            coaEntities.Add(coa);
+            db.ChartOfAccounts.Add(coa);
+        }
 
         // Sprint 9 B2 — copy the default VAT tax-code set into the new tenant
         // (mirrors seed 240 for company 1). Category is derived from the
@@ -302,6 +309,16 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
             tc.EnsureValid();
             db.TaxCodes.Add(tc);
         }
+        await db.SaveChangesAsync(ct);
+
+        // WP1.5a (F20, D7) — auto-seed the 19 recommended expense categories (mirrors the
+        // 430_seed_expense_categories_full.sql demo set) so a freshly onboarded company never
+        // hits F20 (a savable category with no default GL account → vi/pv.expense_account_missing
+        // at document save). coaEntities are tracked from the loop above; AccountId is now
+        // populated post-SaveChangesAsync.
+        var coaLookup = coaEntities.ToDictionary(c => c.AccountCode, c => c.AccountId);
+        foreach (var cat in DefaultExpenseCategories(e.CompanyId, coaLookup))
+            db.ExpenseCategories.Add(cat);
         await db.SaveChangesAsync(ct);
 
         // Sprint 13k — per-company RBAC: clone the standard role set + grants into the new
@@ -370,6 +387,55 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("4200", "กำไรจากการจำหน่ายสินทรัพย์",       "Gain on Disposal of Assets", AccountType.Revenue,  NormalBalance.Credit),
         ("5460", "ขาดทุนจากการจำหน่ายสินทรัพย์",     "Loss on Disposal of Assets", AccountType.Expense,  NormalBalance.Debit),
     ];
+
+    // WP1.5a (F20, D7) — the 19 recommended expense categories (§17.3 / mirrors
+    // 430_seed_expense_categories_full.sql's code/name/recoverable/capex/cogs set), remapped
+    // onto DefaultChartOfAccounts' coarser codes (CreateAsync seeds 51xx/52xx/53xx.., NOT the
+    // granular 62xxx chart that only the demo company gets via ad-hoc seed scripts). "5200"
+    // (Service Expense) is the universal fallback — present in every CreateAsync company —
+    // mirroring 623_backfill_expense_category_accounts.sql's same fallback for existing tenants.
+    private static readonly (string Code, string Th, string? En, string PreferredAcct,
+        bool Recoverable, bool Capex, bool Cogs)[] DefaultExpenseCategorySpecs =
+    [
+        ("RENT",  "ค่าเช่าออฟฟิศ/อาคาร",         "Office/building rent",  "5100", true,  false, false),
+        ("UTIL",  "ค่าสาธารณูปโภค",              "Utilities",             "5200", true,  false, false),
+        ("SAL",   "เงินเดือน",                   "Salary",                "5400", false, false, false),
+        ("WAGE",  "ค่าจ้างแรงงาน",               "Wages",                 "5400", true,  false, false),
+        ("MARK",  "ค่าโฆษณา/Marketing",          "Advertising/marketing", "5300", true,  false, false),
+        ("PROF",  "ค่าบริการวิชาชีพ",            "Professional services", "5200", true,  false, false),
+        ("IT",    "ค่า IT / Cloud / Software",   "IT / Cloud / Software", "5200", true,  false, false),
+        ("TRAV",  "ค่าเดินทาง / ที่พัก",         "Travel / lodging",      "5200", true,  false, false),
+        ("COMM",  "ค่าโทรศัพท์/Internet",        "Telephone / Internet",  "5200", true,  false, false),
+        ("OFFI",  "วัสดุสำนักงาน",               "Office supplies",       "5200", true,  false, false),
+        ("ENT",   "ค่ารับรอง",                   "Entertainment",         "5200", false, false, false),
+        ("VEHI",  "รถยนต์นั่ง (≤7 ที่นั่ง)",      "Passenger car (<=7)",   "5200", false, false, false),
+        ("INSU",  "ค่าประกันภัย",                "Insurance",             "5200", true,  false, false),
+        ("TRAIN", "ค่าอบรม",                     "Training",              "5200", true,  false, false),
+        ("LEGAL", "ค่าทนาย/บัญชี",               "Legal / accounting",    "5200", true,  false, false),
+        ("INTR",  "ดอกเบี้ยจ่าย",                "Interest expense",      "5200", false, false, false),
+        ("COGS",  "ต้นทุนสินค้าขาย",             "Cost of goods sold",    "5200", true,  false, true),
+        ("CAPEX", "สินทรัพย์ถาวร (capitalize)",  "Fixed asset (capex)",   "1610", true,  true,  false),
+        ("MISC",  "อื่น ๆ",                      "Miscellaneous",         "5200", true,  false, false),
+    ];
+
+    /// <summary>Resolves <see cref="DefaultExpenseCategorySpecs"/> against a company's just-seeded
+    /// CoA (account code → account_id). Falls back to "5200" (present in every DefaultChartOfAccounts
+    /// company) when a spec's preferred code is absent from a caller-supplied lookup — defensive
+    /// only; CreateAsync always passes its own freshly-seeded coaLookup which contains every code
+    /// referenced above.</summary>
+    private static IReadOnlyList<ExpenseCategory> DefaultExpenseCategories(
+        int companyId, IReadOnlyDictionary<string, long> coaLookup)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return DefaultExpenseCategorySpecs.Select(spec => new ExpenseCategory
+        {
+            CompanyId = companyId, CategoryCode = spec.Code, NameTh = spec.Th, NameEn = spec.En,
+            DefaultExpenseAccountId = coaLookup.TryGetValue(spec.PreferredAcct, out var id)
+                ? id : coaLookup.GetValueOrDefault("5200"),
+            DefaultIsRecoverableVat = spec.Recoverable, IsCapex = spec.Capex, IsCogs = spec.Cogs,
+            IsActive = true, CreatedAt = now,
+        }).ToList();
+    }
 
     // Canonical 13 domestic WHT types (kept in sync with seed 220).
     private static readonly (string Code, string Th, string? En, string Inc,
