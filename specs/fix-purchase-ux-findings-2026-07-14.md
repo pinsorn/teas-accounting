@@ -13,13 +13,18 @@ completeness tracking; live A4 preview.
 - [x] D1 (→WP1.2): **force non-recoverable** — non-VAT co may enter VAT but it always
       books as cost (isRecoverableVat=false server-enforced), never claimable.
 - [x] D2 (→WP3.3): **add draft edit** for PO (reuse create form + existing PUT).
-- [ ] D3 (→WP3.4): "ปิด" PO semantics — STILL OPEN; Opus design to PROPOSE semantics
-      (e.g. closed = no further VI/PV linking, excluded from open-PO lists), Ham confirms
-      before implementation of 3.4 only.
-- [ ] D4 (→WP4.9): SoD text — STILL OPEN; default action = align text to actual behavior
-      ("ผู้อนุมัติควรเป็นคนละคนกับผู้สร้าง — super-admin ข้ามได้") unless Ham wants enforcement.
+- [x] D3 (→WP3.4): **CONFIRMED — implement Closed status** per Opus proposal (Approved→Closed:
+      no further VI/PV linking, drops from open-PO lists, activity-logged, reopen if no posted
+      downstream). WP3.4 now UNBLOCKED.
+- [x] D4 (→WP4.9): **align text to behavior** — "ผู้อนุมัติควรเป็นคนละคนกับผู้สร้าง —
+      super-admin ข้ามได้". No enforcement this release (option A). WP4.9 UNBLOCKED.
 - [x] D5 (→WP1.1): **percent UI** — display/accept 7 (%), store fraction 0.07; MCP/API
       contract unchanged (fraction). Validation 0–100 on input, sane-set hint {0, 7}.
+- [x] D6 (→WP2.1): **sliding re-issue (Option A)** — POST /auth/refresh re-issues on active
+      session, absolute cap 8–12h + idle timeout + re-validate user. Not refresh-token (B, defer).
+- [x] D7 (→WP1.5a): **auto-seed 19 expense categories** (with GL mapping) in CompanyService.
+      CreateAsync for new companies; 623 backfill covers existing. Extract shared
+      DefaultExpenseCategories helper.
 
 ## WP1 — MONEY/COMPLIANCE (footgun zone → Opus DESIGN → Sonnet implement, Tier-2 Opus review)
 - [ ] 1.1 F15+addendum: VAT-rate + WHT-rate fields are fractions behind %-labeled inputs,
