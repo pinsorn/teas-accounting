@@ -5,6 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** WP4 4.4 — localStorage key for the super-admin company switcher's last pick, so
+ *  a fresh login can restore it (F17: re-login always reset to the default company). */
+export const LAST_COMPANY_KEY = 'teas.lastCompanyId';
+
 const THB = new Intl.NumberFormat('th-TH', {
   style: 'currency',
   currency: 'THB',
@@ -30,6 +34,18 @@ const dateFmt = new Intl.DateTimeFormat('th-TH', {
 export function formatDate(d: Date | string): string {
   const date = typeof d === 'string' ? new Date(d) : d;
   return dateFmt.format(date);
+}
+
+/** WP4 4.1 — numeric dd/MM/yyyy Buddhist-Era hint shown under native <input type="date">
+ *  fields (which always render in the browser's own locale/calendar). Parses the
+ *  yyyy-MM-dd string directly — never via `new Date()` — so it can't drift a day across
+ *  a UTC/Bangkok timezone boundary. Returns '' for an empty/invalid value. */
+export function formatDateBE(yyyyMmDd: string | undefined | null): string {
+  if (!yyyyMmDd) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(yyyyMmDd);
+  if (!m) return '';
+  const [, y, mo, d] = m;
+  return `${d}/${mo}/${Number(y) + 543}`;
 }
 
 /** Absolute day gap between two yyyy-MM-dd date strings. Used by bank

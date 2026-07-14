@@ -489,6 +489,12 @@ export function usePostVendorInvoice() {
     onSuccess: (_r, id) => {
       qc.invalidateQueries({ queryKey: ['vendor-invoices'] });
       qc.invalidateQueries({ queryKey: ['vendor-invoice', id] });
+      // WP4 4.5 — the "เอกสารอ้างอิง"/"ประวัติกิจกรรม" side-rail panels read these two
+      // query keys; neither was invalidated after any purchase-chain action, so they
+      // sat stale (F10) until a full page reload. Broad (no id) invalidation is fine —
+      // these are cheap GETs and every open detail page re-subscribes on mount anyway.
+      qc.invalidateQueries({ queryKey: ['purchase-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
       invalidateTaxReports(qc);
     },
   });
@@ -503,6 +509,8 @@ export function useApprovePaymentVoucher() {
       qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
       qc.invalidateQueries({ queryKey: ['payment-voucher', id] });
       qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      qc.invalidateQueries({ queryKey: ['purchase-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }
@@ -514,6 +522,8 @@ export function usePostPaymentVoucher() {
       qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
       qc.invalidateQueries({ queryKey: ['payment-voucher', id] });
       qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      qc.invalidateQueries({ queryKey: ['purchase-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
       invalidateTaxReports(qc);
     },
   });
@@ -1725,6 +1735,20 @@ export function useCreatePurchaseOrder() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }),
   });
 }
+// WP3 3.3 (D2) — Draft-only edit, reusing the create form. PUT /purchase-orders/{id}
+// takes the same CreatePurchaseOrderRequest shape as POST (backend: PurchaseOrderEndpoints.cs).
+export function useUpdatePurchaseOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: CreatePurchaseOrderRequest }) =>
+      apiPut<void>(`purchase-orders/${v.id}`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['purchase-orders'] });
+      qc.invalidateQueries({ queryKey: ['purchase-order', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+    },
+  });
+}
 export function usePurchaseOrderAction() {
   const qc = useQueryClient();
   return useMutation({
@@ -1734,6 +1758,8 @@ export function usePurchaseOrderAction() {
       qc.invalidateQueries({ queryKey: ['purchase-orders'] });
       qc.invalidateQueries({ queryKey: ['purchase-order', v.id] });
       qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      qc.invalidateQueries({ queryKey: ['purchase-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }

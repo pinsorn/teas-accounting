@@ -182,85 +182,85 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
       <PageHeader title={isEdit ? t('editTitle') : t('create')} subtitle={isEdit ? edit?.vendorCode : undefined} />
       <form onSubmit={handleSubmit(onSubmit)}>
       <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="form-control">
+        <label className="form-control" htmlFor="vendor-code">
           <span className="label-text">{t('code')} *</span>
-          <input className="input input-bordered disabled:bg-base-200" disabled={isEdit}
+          <input id="vendor-code" className="input input-bordered disabled:bg-base-200" disabled={isEdit}
             {...register('vendorCode')} />
           {err('vendorCode')}
         </label>
-        <label className="form-control">
+        <label className="form-control" htmlFor="vendor-type">
           <span className="label-text">{t('type')}</span>
-          <select className="select select-bordered disabled:bg-base-200" disabled={isEdit}
+          <select id="vendor-type" className="select select-bordered disabled:bg-base-200" disabled={isEdit}
             {...register('vendorType')}>
             <option value="Corporate">{t('corporate')}</option>
             <option value="Individual">{t('individual')}</option>
           </select>
         </label>
-        <label className="form-control">
+        <label className="form-control" htmlFor="vendor-name-th">
           <span className="label-text">{t('nameTh')} *</span>
-          <input className="input input-bordered" {...register('nameTh')} />
+          <input id="vendor-name-th" className="input input-bordered" {...register('nameTh')} />
           {err('nameTh')}
         </label>
-        <label className="form-control">
+        <label className="form-control" htmlFor="vendor-name-en">
           <span className="label-text">{t('nameEn')}</span>
-          <input className="input input-bordered" {...register('nameEn')} />
+          <input id="vendor-name-en" className="input input-bordered" {...register('nameEn')} />
         </label>
         <Controller control={control} name="taxId" render={({ field }) => (
           <TaxIdInput label={t('taxId')} value={field.value ?? ''} onChange={field.onChange} />
         )} />
-        <label className="form-control">
+        <label className="form-control" htmlFor="vendor-branch-code">
           <span className="label-text">{t('branchCode')}</span>
-          <input className="input input-bordered" inputMode="numeric" maxLength={5}
+          <input id="vendor-branch-code" className="input input-bordered" inputMode="numeric" maxLength={5}
             {...branchCodeField}
             onChange={(e) => {
               e.target.value = e.target.value.replace(/\D/g, '').slice(0, 5);
               branchCodeField.onChange(e);
             }} />
         </label>
-        <label className="form-control">
+        <label className="form-control" htmlFor="vendor-branch-name">
           <span className="label-text">{t('branchName')}</span>
-          <input className="input input-bordered" {...register('branchName')} />
+          <input id="vendor-branch-name" className="input input-bordered" {...register('branchName')} />
         </label>
-        <label className="form-control">
+        <label className="form-control" htmlFor="vendor-payment-terms">
           <span className="label-text">{t('paymentTerms')}</span>
-          <input type="number" className="input input-bordered"
+          <input id="vendor-payment-terms" type="number" className="input input-bordered"
             {...register('paymentTermDays', { valueAsNumber: true })} />
         </label>
         {/* cont.78 (Ham) — no vendor-level default WHT type. The 50ทวิ income type is
             chosen PER LINE on the Payment Voucher (from the product/line), so this field
             is dropped from the vendor form. The nullable column stays for back-compat. */}
-        <label className="form-control sm:col-span-2">
+        <label className="form-control sm:col-span-2" htmlFor="vendor-address">
           <span className="label-text">{t('address')}</span>
-          <textarea className="textarea textarea-bordered" {...register('address')} />
+          <textarea id="vendor-address" className="textarea textarea-bordered" {...register('address')} />
         </label>
 
         {/* ITEM 8 — vendor remittance / payment details (all optional). */}
         <div className="sm:col-span-2 rounded-lg border border-base-300 p-3">
           <div className="mb-2 text-sm font-semibold">{t('payment.group')}</div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="form-control">
+            <label className="form-control" htmlFor="vendor-bank-name">
               <span className="label-text">{t('payment.bankName')}</span>
-              <input className="input input-bordered" {...register('bankName')} />
+              <input id="vendor-bank-name" className="input input-bordered" {...register('bankName')} />
             </label>
-            <label className="form-control">
+            <label className="form-control" htmlFor="vendor-bank-account-no">
               <span className="label-text">{t('payment.bankAccountNo')}</span>
-              <input className="input input-bordered" {...register('bankAccountNo')} />
+              <input id="vendor-bank-account-no" className="input input-bordered" {...register('bankAccountNo')} />
             </label>
-            <label className="form-control">
+            <label className="form-control" htmlFor="vendor-bank-account-name">
               <span className="label-text">{t('payment.bankAccountName')}</span>
-              <input className="input input-bordered" {...register('bankAccountName')} />
+              <input id="vendor-bank-account-name" className="input input-bordered" {...register('bankAccountName')} />
             </label>
-            <label className="form-control">
+            <label className="form-control" htmlFor="vendor-swift-code">
               <span className="label-text">{t('payment.swiftCode')}</span>
-              <input className="input input-bordered" placeholder={t('payment.swiftHint')}
+              <input id="vendor-swift-code" className="input input-bordered" placeholder={t('payment.swiftHint')}
                 {...register('swiftCode')} />
             </label>
           </div>
         </div>
 
         <div className="sm:col-span-2 rounded-lg border border-base-300 p-3 space-y-2">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" className="checkbox checkbox-sm"
+          <label className="label cursor-pointer justify-start gap-3" htmlFor="vendor-vat-registered">
+            <input id="vendor-vat-registered" type="checkbox" className="checkbox checkbox-sm"
               checked={vatRegistered} disabled={foreign}
               onChange={(e) => setValue('vatRegistered', e.target.checked)} />
             <span className="label-text">{t('foreign.vatRegisteredToggle')}</span>
@@ -268,8 +268,8 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
           {!vatRegistered && !foreign && (
             <p className="text-xs text-info">{t('foreign.nonVatInfo')}</p>
           )}
-          <label className="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" className="checkbox checkbox-sm" checked={foreign}
+          <label className="label cursor-pointer justify-start gap-3" htmlFor="vendor-foreign">
+            <input id="vendor-foreign" type="checkbox" className="checkbox checkbox-sm" checked={foreign}
               onChange={(e) => {
                 const fg = e.target.checked;
                 setValue('isForeign', fg);
@@ -281,17 +281,17 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
           </label>
           {foreign && (
             <div className="space-y-2 pl-6">
-              <label className="form-control max-w-xs">
+              <label className="form-control max-w-xs" htmlFor="vendor-country-code">
                 <span className="label-text">{t('foreign.country')}</span>
-                <select className="select select-bordered select-sm"
+                <select id="vendor-country-code" className="select select-bordered select-sm"
                   aria-label={t('foreign.country')}
                   value={countryCode || 'US'}
                   onChange={(e) => setValue('countryCode', e.target.value)}>
                   {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </label>
-              <label className="label cursor-pointer justify-start gap-3">
-                <input type="checkbox" className="checkbox checkbox-sm"
+              <label className="label cursor-pointer justify-start gap-3" htmlFor="vendor-vat-d-reg">
+                <input id="vendor-vat-d-reg" type="checkbox" className="checkbox checkbox-sm"
                   checked={hasThaiVatDReg}
                   onChange={(e) => setValue('hasThaiVatDReg', e.target.checked)} />
                 <span className="label-text">{t('foreign.vatDReg')}</span>

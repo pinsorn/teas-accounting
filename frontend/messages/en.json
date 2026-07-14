@@ -10,7 +10,16 @@
     "taxId": "Tax ID",
     "searchPlaceholder": "Search by name or tax ID",
     "emptyCustomer": "No customer found — create one in the Customers menu",
-    "emptyVendor": "No vendor found — create one in the Vendors menu"
+    "emptyVendor": "No vendor found — create one in the Vendors menu",
+    "quickCreate": {
+      "action": "+ Add new vendor",
+      "code": "Code",
+      "nameTh": "Thai name",
+      "type": "Type",
+      "corporate": "Corporate",
+      "individual": "Individual",
+      "vatRegistered": "VAT registered"
+    }
   },
   "create": {
     "cancel": "Cancel",
@@ -29,7 +38,7 @@
       "receipt": "Confirm Receipt posting",
       "credit_note": "Confirm Credit Note posting",
       "debit_note": "Confirm Debit Note posting",
-      "vendor_invoice": "Confirm Vendor Invoice posting",
+      "vendor_invoice": "Confirm recording this vendor tax invoice",
       "quotation": "Confirm Quotation posting",
       "billing_note": "Confirm Invoice posting"
     },
@@ -37,6 +46,24 @@
     "recipients": "Recipients (when e-Tax is enabled)",
     "confirm": "Confirm post",
     "cancel": "Cancel"
+  },
+  "confirmAction": {
+    "poApprove": {
+      "title": "Confirm purchase order approval",
+      "warning": "Approving issues the document number immediately and cannot be reverted to Draft."
+    },
+    "poMarkSent": {
+      "title": "Confirm sent to vendor",
+      "warning": "This will record that the document has been sent to the vendor."
+    },
+    "pvApprove": {
+      "title": "Confirm payment voucher approval",
+      "warning": "Approving makes the document ready to post — the approver must not be the creator."
+    },
+    "pvPost": {
+      "title": "Confirm payment voucher posting",
+      "warning": "Posting books the journal entry immediately and is irreversible."
+    }
   },
   "purchaseChain": {
     "title": "Related documents",
@@ -524,6 +551,7 @@
     "sodHint": "Approver must differ from creator (SoD)",
     "postHint": "Must be approved before it can be posted",
     "settlingVi": "Settling Vendor Invoice",
+    "settleLineDesc": "Pay {docNo}",
     "fromPo": "Referencing Purchase Order",
     "approveWarn": "Approving makes the document postable — the approver must not be the creator",
     "selfWithhold": {
@@ -587,7 +615,12 @@
     "condition": {
       "forever": "Tax borne by payer (forever)",
       "once": "Tax borne by payer (once)"
-    }
+    },
+    "formTypeMap": {
+      "Pnd3": "P.N.D.3",
+      "Pnd53": "P.N.D.53"
+    },
+    "section40": "40({code})"
   },
   "rc": {
     "title": "Receipts",
@@ -1459,6 +1492,14 @@
     "close": "Close",
     "activityLog": "Activity log",
     "activityEmpty": "No activity yet",
+    "activityAction": {
+      "Created": "Created",
+      "Draft": "Draft",
+      "Approved": "Approved",
+      "MarkedSent": "Marked as sent",
+      "Sent": "Sent",
+      "Posted": "Posted"
+    },
     "relatedDocs": "Related documents",
     "draftPreview": "(Draft)",
     "selectCustomer": "Select a customer"
@@ -1674,9 +1715,12 @@
     "unitPrice": "Unit price",
     "pickVendor": "Select a vendor first",
     "approve": "Approve",
-    "sentToVendor": "Send to vendor",
+    "sentToVendor": "Marked as sent",
     "close": "Close",
     "createPv": "Create Payment Voucher",
+    "createVi": "Record Vendor Invoice",
+    "editTitle": "Edit purchase order",
+    "edit": "Edit",
     "cancel": "Cancel",
     "linkedTo": "Linked Vendor Invoices",
     "remaining": "Remaining",
@@ -1822,7 +1866,7 @@
     "noInputVatInfo": "ℹ Non-VAT vendor — Input VAT not claimable (VAT lumps into expense)",
     "pnd36Warning": "⚠ PND.36 reverse charge — input VAT auto-computed next month",
     "vatDInfo": "ℹ Vendor registered for Thai VAT-D — claim Input VAT normally",
-    "createFromPvHint": "Purchase tax-invoice records are created from a payment voucher (PV → record)."
+    "createFromPvHint": "Records a vendor tax invoice received from a vendor. Can optionally link to a Purchase Order."
   },
   "dashboard": {
     "title": "Dashboard",

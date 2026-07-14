@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
@@ -16,7 +16,7 @@ import {
   usePurchaseOrders, usePurchaseOrder, useCompanyBuSetting, useCompanyProfile,
 } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
-import { bangkokToday, formatTHB } from '@/lib/utils';
+import { bangkokToday, formatDateBE, formatTHB } from '@/lib/utils';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PAPER_DOC, companyToCustomer, DRAFT_DOC_NO } from '@/lib/paper-doc-config';
 import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
@@ -43,11 +43,16 @@ function claimOptions(vendorTiDate: string): number[] {
   });
 }
 
-export default function VendorInvoiceNewPage() {
+function VendorInvoiceNewForm() {
   const t = useTranslations('vi');
   const tc = useTranslations('common');
   const tcr = useTranslations('create');
   const router = useRouter();
+  const params = useSearchParams();
+  // WP3 3.2 (F8) — arriving from an approved PO's "บันทึกใบกำกับภาษีซื้อ" CTA:
+  // preselect the vendor + link the PO (mirrors the PV form's fromPurchaseOrderId
+  // / fromVendorInvoiceId prefill pattern).
+  const fromPoId = params.get('fromPurchaseOrderId');
   const create = useCreateVendorInvoice();
   const post = usePostVendorInvoice();
   const company = useCompanyProfile();
@@ -60,7 +65,7 @@ export default function VendorInvoiceNewPage() {
   const [claim, setClaim] = useState<number | null>(null);
   const [rows, setRows] = useState<Row[]>([emptyRow(1)]);
   const [confirm, setConfirm] = useState<{ id: number } | null>(null);
-  const [poId, setPoId] = useState<number | null>(null);
+  const [poId, setPoId] = useState<number | null>(fromPoId ? Number(fromPoId) : null);
   // Sprint BU-PURCH — business unit, optional unless the company opted in.
   const buRequired = useCompanyBuSetting().data?.requiresBusinessUnit ?? false;
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
@@ -73,6 +78,13 @@ export default function VendorInvoiceNewPage() {
   useEffect(() => {
     if (!poDetail || poDetail.purchaseOrderId !== poId) return;
     if (poDetail.businessUnitId != null) setBusinessUnitId(poDetail.businessUnitId);
+    // WP3 3.2 — only auto-pick the vendor when we arrived via the query param (the
+    // in-form "linkPo" dropdown is a manual choice made AFTER a vendor is picked, so
+    // it must never clobber the user's own selection).
+    if (fromPoId) {
+      setVendorId(poDetail.vendorId);
+      setVendorLabel(poDetail.vendorName);
+    }
     setRows(poDetail.lines.map((l, i) => ({
       key: i + 1, categoryId: null, recoverable: true,
       description: l.descriptionTh,
@@ -80,7 +92,8 @@ export default function VendorInvoiceNewPage() {
       vatRate: l.lineAmount > 0 ? Math.round((l.taxAmount / l.lineAmount) * 100) / 100 : 0.07,
       productType: 'GOOD' as ProductTypeStr,
     })));
-  }, [poDetail, poId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poDetail, poId, fromPoId]);
 
   const options = useMemo(() => claimOptions(tiDate), [tiDate]);
   const effClaim = claim ?? options[0] ?? null;
@@ -259,6 +272,7 @@ export default function VendorInvoiceNewPage() {
             <span className="label-text">{t('vendorTiDate')} *</span>
             <input type="date" className="input input-bordered" value={tiDate}
               max={docDate} onChange={(e) => { setTiDate(e.target.value); setClaim(null); }} />
+            <span className="label-text-alt text-base-content/50">= {formatDateBE(tiDate)}</span>
           </label>
           <label className="form-control sm:col-span-2">
             <span className="label-text">{t('claimPeriod')}</span>
@@ -359,5 +373,14 @@ export default function VendorInvoiceNewPage() {
         }}
       />
     </DocumentCreateLayout>
+  );
+}
+
+// useSearchParams() requires a Suspense boundary (mirrors payment-vouchers/new/page.tsx).
+export default function VendorInvoiceNewPage() {
+  return (
+    <Suspense fallback={null}>
+      <VendorInvoiceNewForm />
+    </Suspense>
   );
 }

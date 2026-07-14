@@ -1,10 +1,13 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
@@ -72,9 +75,21 @@ export default function VendorInvoiceListPage() {
 
   return (
     <>
-      {/* purchase-completeness D1 — anti-floating: NO "create floating VI" entry
-          point. VI creation is reached from the PV (PV→VI guided create). */}
-      <PageHeader title={t('title')} subtitle={t('createFromPvHint')} />
+      {/* WP3 3.1 (F18) — the direct create form at /vendor-invoices/new was reachable
+          only via a deep link (PV→VI guided create, or a PO's approved-page CTA); this
+          list had no entry point at all. Add one, and fix the stale subtitle that still
+          described the old PV-only flow. */}
+      <PageHeader
+        title={t('title')}
+        subtitle={t('createFromPvHint')}
+        actions={
+          <PermissionGate scope="purchase.vendor_invoice.create">
+            <Link href="/vendor-invoices/new" data-testid="vendor-invoice-create" className="btn btn-primary btn-sm gap-1">
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </Link>
+          </PermissionGate>
+        }
+      />
       <IncompleteOnlyToggle />
       <DataTable
         data={q.data ?? []}

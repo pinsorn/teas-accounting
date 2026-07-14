@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 import { EntityPickerModal, type PickerRow } from '@/components/ui/EntityPickerModal';
+import { VendorQuickCreateForm } from '@/components/forms/VendorQuickCreateForm';
 import { useCustomer, useVendor } from '@/lib/queries';
 import { formatTaxId } from '@/lib/utils';
 
@@ -95,6 +96,12 @@ export function PartySelectBox({
       emptyText={kind === 'customer' ? tp('emptyCustomer') : tp('emptyVendor')}
       endpoint={kind === 'customer' ? 'customers' : 'vendors'}
       mapRow={mapRow(kind === 'customer' ? 'customerId' : 'vendorId')}
+      // WP3 3.8 — quick-create is vendor-only for now (PO/VI/PV all pick a vendor
+      // through this same modal); customer quick-create is out of scope here.
+      quickCreateLabel={kind === 'vendor' ? tp('quickCreate.action') : undefined}
+      renderQuickCreate={
+        kind === 'vendor' ? (onDone) => <VendorQuickCreateForm onCreated={onDone} /> : undefined
+      }
     />
   );
 

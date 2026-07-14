@@ -27,6 +27,8 @@ export function EntityPickerModal({
   emptyText,
   endpoint,
   mapRow,
+  quickCreateLabel,
+  renderQuickCreate,
 }: {
   open: boolean;
   onClose: () => void;
@@ -38,19 +40,25 @@ export function EntityPickerModal({
   endpoint: string;
   /** Map one raw list row → PickerRow, or null to drop it. */
   mapRow: (raw: Record<string, unknown>) => PickerRow | null;
+  /** WP3 3.8 — label for the "+ create new" toggle. Omit to hide quick-create entirely. */
+  quickCreateLabel?: string;
+  /** Renders the quick-create mini-form; call onDone(id,label) on success. */
+  renderQuickCreate?: (onDone: (id: number, label: string) => void) => React.ReactNode;
 }) {
   const tc = useTranslations('common');
   const [q, setQ] = useState('');
   const [items, setItems] = useState<PickerRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Reset the search box each time the modal opens.
+  // Reset the search box (and the quick-create panel) each time the modal opens.
   useEffect(() => {
     if (!open) return;
     setQ('');
     setItems([]);
+    setCreating(false);
     searchRef.current?.focus();
   }, [open]);
 
@@ -130,33 +138,47 @@ export function EntityPickerModal({
           </label>
         </div>
 
-        <ul className="min-h-[10rem] flex-1 overflow-y-auto px-2 pb-2">
-          {loading && <li className="px-3 py-6 text-center text-sm text-ink-400">…</li>}
-          {!loading && items.length === 0 && (
-            <li className="px-3 py-6 text-center text-sm text-ink-400">{emptyText}</li>
-          )}
-          {!loading &&
-            items.map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-card px-3 py-2.5 text-left hover:bg-peach-50"
-                  onClick={() => {
-                    onSelect(r.id, r.label);
-                    onClose();
-                  }}
-                >
-                  <span className="flex-1 truncate text-sm text-ink-900">{r.label}</span>
-                  {r.sub && (
-                    <span className="shrink-0 font-mono text-xs text-ink-400">{r.sub}</span>
-                  )}
-                </button>
-              </li>
-            ))}
-        </ul>
+        {!creating && (
+          <ul className="min-h-[10rem] flex-1 overflow-y-auto px-2 pb-2">
+            {loading && <li className="px-3 py-6 text-center text-sm text-ink-400">…</li>}
+            {!loading && items.length === 0 && (
+              <li className="px-3 py-6 text-center text-sm text-ink-400">{emptyText}</li>
+            )}
+            {!loading &&
+              items.map((r) => (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-card px-3 py-2.5 text-left hover:bg-peach-50"
+                    onClick={() => {
+                      onSelect(r.id, r.label);
+                      onClose();
+                    }}
+                  >
+                    <span className="flex-1 truncate text-sm text-ink-900">{r.label}</span>
+                    {r.sub && (
+                      <span className="shrink-0 font-mono text-xs text-ink-400">{r.sub}</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
 
-        <div className="flex items-center justify-end gap-2 border-t border-ink-100 px-5 py-3">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
+        {/* WP3 3.8 — quick-create toggle/panel, shared by every EntityPickerModal caller
+            that opts in (currently the vendor picker behind PartySelectBox — PO/VI/PV forms). */}
+        {renderQuickCreate && creating && renderQuickCreate((id, label) => {
+          onSelect(id, label);
+          onClose();
+        })}
+
+        <div className="flex items-center justify-between gap-2 border-t border-ink-100 px-5 py-3">
+          {renderQuickCreate && !creating ? (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCreating(true)}>
+              {quickCreateLabel}
+            </button>
+          ) : <span />}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={creating ? () => setCreating(false) : onClose}>
             {tc('cancel')}
           </button>
         </div>

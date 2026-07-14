@@ -35,6 +35,10 @@ function iconFor(action: string): typeof Clock {
 
 export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: number }) {
   const tc = useTranslations('common');
+  // WP4 4.3 — activity entries carry raw BE event codes (Created/MarkedSent/Posted/…);
+  // map to the Thai label when known, else fall back to the raw code (F11).
+  const tAction = useTranslations('common.activityAction');
+  const label = (code: string): string => (tAction.has(code) ? tAction(code) : code);
   const { data, isLoading } = useDocumentActivity(docType, id);
   const entries = data ?? [];
 
@@ -80,7 +84,7 @@ export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: num
                     </span>
                     <div className="min-w-0">
                       <div className="text-[13.5px] font-semibold text-ink-900">
-                        {e.toStatus ? `${e.action} → ${e.toStatus}` : e.action}
+                        {e.toStatus ? `${label(e.action)} → ${label(e.toStatus)}` : label(e.action)}
                       </div>
                       <div className="mt-0.5 text-[12px] text-ink-500">
                         {formatDate(e.at)} · {e.actor}

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { auth, type LoginResponse } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { isSafeReturnTo } from '@/lib/safe-return-to';
+import { LAST_COMPANY_KEY } from '@/lib/utils';
 
 type FormValues = {
   username: string;
@@ -26,6 +27,29 @@ function safeReturnTo(): string {
   if (typeof window === 'undefined') return '/';
   const rt = new URLSearchParams(window.location.search).get('returnTo');
   return isSafeReturnTo(rt) ? rt : '/';
+}
+
+// WP4 4.4 (F17) — a super-admin's session always came back on the default company
+// after re-login, silently dropping them out of whatever company (e.g. a test BU)
+// they were last working in. If a different, still-accessible company was
+// remembered (CompanySwitcher persists it), switch to it right after login. Fails
+// silently on any error — this is a convenience, never allowed to block login.
+async function restoreLastCompany(): Promise<void> {
+  const wanted = Number(localStorage.getItem(LAST_COMPANY_KEY));
+  if (!Number.isInteger(wanted) || wanted <= 0) return;
+  try {
+    const me = await fetch('/api/proxy/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null));
+    if (!me?.isSuperAdmin || me.companyId === wanted) return;
+    const allowed = (me.allowedCompanies as { id: number }[] | undefined)?.some((c) => c.id === wanted);
+    if (!allowed) return;
+    await fetch('/api/auth/switch-company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId: wanted }),
+    });
+  } catch {
+    // best-effort — the user just lands on the default company, same as before.
+  }
 }
 
 export default function LoginPage() {
@@ -80,6 +104,7 @@ export default function LoginPage() {
         return;
       }
       // BFF route set the httpOnly access_token cookie; middleware will now allow /.
+      await restoreLastCompany();
       // Honour a safe returnTo (the OAuth consent flow) — else the dashboard.
       router.push(safeReturnTo());
       router.refresh();

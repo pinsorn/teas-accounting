@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Building2, ChevronDown, Check, Loader2 } from 'lucide-react';
+import { LAST_COMPANY_KEY } from '@/lib/utils';
 
 // Onboarding-switcher spec (2026-06-16) — super-admin company switcher.
 // Visible ONLY when /me reports isSuperAdmin. Lists allowedCompanies; on select,
@@ -59,6 +60,8 @@ export function CompanySwitcher() {
         setSwitching(false);
         return;
       }
+      // WP4 4.4 (F17) — remember the pick so the next login can restore it.
+      localStorage.setItem(LAST_COMPANY_KEY, String(id));
       // Hard navigation so RSC + React Query refetch under the new company.
       window.location.assign('/');
     } catch {

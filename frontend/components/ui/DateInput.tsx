@@ -1,6 +1,6 @@
 'use client';
 
-import { bangkokToday } from '@/lib/utils';
+import { bangkokToday, formatDateBE } from '@/lib/utils';
 
 // component-patterns.md §5 — Asia/Bangkok, default today, LOCKED for Tax Invoice
 // doc_date (server is authoritative; user never types it — CLAUDE.md §10, §0 DO-NOT list).
@@ -25,11 +25,9 @@ export function DateInput({
         disabled={locked}
         aria-label={label ?? 'date'}
       />
-      {locked && (
-        <span className="label-text-alt text-base-content/50">
-          ล็อกเป็นวันนี้ (Asia/Bangkok)
-        </span>
-      )}
+      <span className="label-text-alt text-base-content/50">
+        {locked ? `ล็อกเป็นวันนี้ (Asia/Bangkok) · = ${formatDateBE(v)}` : `= ${formatDateBE(v)}`}
+      </span>
     </label>
   );
 }

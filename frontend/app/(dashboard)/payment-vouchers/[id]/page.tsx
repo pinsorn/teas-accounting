@@ -13,6 +13,7 @@ import { DocumentNumberBadge } from '@/components/ui/DocumentNumberBadge';
 import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { CompletenessChips } from '@/components/ui/CompletenessBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
+import { ConfirmActionDialog } from '@/components/ui/ConfirmActionDialog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { ActivityLog } from '@/components/doc/ActivityLog';
@@ -31,6 +32,7 @@ export default function PaymentVoucherDetailPage() {
   const t = useTranslations('pv');
   const tc = useTranslations('common');
   const ta = useTranslations('approve');
+  const tca = useTranslations('confirmAction');
   const tpt = useTranslations('productType');
   const { data: d, isLoading, isError } = usePaymentVoucher(id);
   // cont.121 — paper preview data (vendor party block, WHT row, 3-box sign)
@@ -43,6 +45,10 @@ export default function PaymentVoucherDetailPage() {
   const hasScope = useHasScope();
   const [viDialog, setViDialog] = useState(false);
   const [isApproveAction, setIsApproveAction] = useState(false);
+  // WP3 3.6 (F7/F28) — approve/post had no confirm dialog (VI post already has one);
+  // post additionally books an immutable JE.
+  const [confirmApprove, setConfirmApprove] = useState(false);
+  const [confirmPost, setConfirmPost] = useState(false);
 
   useEffect(() => {
     const action = new URLSearchParams(window.location.search).get('action');
@@ -82,7 +88,7 @@ export default function PaymentVoucherDetailPage() {
             {d.status === 'Draft' && !isApproveAction && (
               <PermissionGate scope="purchase.payment_voucher.approve">
                 <button data-testid="pv-approve" className="btn btn-secondary btn-sm" disabled={approve.isPending}
-                  onClick={doApprove} title={t('sodHint')}>
+                  onClick={() => setConfirmApprove(true)} title={t('sodHint')}>
                   {t('approve')}
                 </button>
               </PermissionGate>
@@ -90,7 +96,7 @@ export default function PaymentVoucherDetailPage() {
             {d.status === 'Approved' && (
               <PermissionGate scope="purchase.payment_voucher.post">
                 <button data-testid="pv-post" className="btn btn-primary btn-sm" disabled={post.isPending}
-                  onClick={doPost}>
+                  onClick={() => setConfirmPost(true)}>
                   {t('post')}
                 </button>
               </PermissionGate>
@@ -126,7 +132,7 @@ export default function PaymentVoucherDetailPage() {
                 data-testid="pv-approve-cta"
                 className="btn btn-warning btn-sm"
                 disabled={approve.isPending}
-                onClick={doApprove}
+                onClick={() => setConfirmApprove(true)}
               >
                 {ta('ctaApprove')}
               </button>
@@ -217,6 +223,35 @@ export default function PaymentVoucherDetailPage() {
         open={viDialog}
         defaultDate={d.docDate}
         onClose={() => setViDialog(false)}
+      />
+
+      <ConfirmActionDialog
+        open={confirmApprove}
+        busy={approve.isPending}
+        title={tca('pvApprove.title')}
+        warning={tca('pvApprove.warning')}
+        party={d.vendorName}
+        rows={[
+          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: t('wht'), value: d.whtAmount, muted: true },
+          { label: t('netPaid'), value: d.totalPaid },
+        ]}
+        onClose={() => setConfirmApprove(false)}
+        onConfirm={async () => { await doApprove(); setConfirmApprove(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmPost}
+        busy={post.isPending}
+        title={tca('pvPost.title')}
+        warning={tca('pvPost.warning')}
+        party={d.vendorName}
+        rows={[
+          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: t('wht'), value: d.whtAmount, muted: true },
+          { label: t('netPaid'), value: d.totalPaid },
+        ]}
+        onClose={() => setConfirmPost(false)}
+        onConfirm={async () => { await doPost(); setConfirmPost(false); }}
       />
     </>
   );

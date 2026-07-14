@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PrintMenu } from '@/components/ui/PrintMenu';
-import { useWhtCertificate } from '@/lib/queries';
+import { useWhtCertificate, usePaymentVoucher } from '@/lib/queries';
 import { formatTHB, formatDate, formatTaxId } from '@/lib/utils';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { ActivityLog } from '@/components/doc/ActivityLog';
@@ -15,6 +15,9 @@ export default function WhtCertificateDetailPage() {
   const t = useTranslations('wht');
   const tc = useTranslations('common');
   const { data: d, isLoading, isError } = useWhtCertificate(id);
+  // WP4 4.8 (F23) — the ref chip below showed the internal #id; use the PV's docNo
+  // once it's issued, falling back to #id only while the lookup is still in flight.
+  const pv = usePaymentVoucher(d?.paymentVoucherId ?? 0).data;
 
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
   if (isError || !d) return <p className="text-error">{tc('error')}</p>;
@@ -85,7 +88,7 @@ export default function WhtCertificateDetailPage() {
           <p className="mt-2 text-sm">
             <b>{t('fromPv')}:</b>{' '}
             <Link href={`/payment-vouchers/${d.paymentVoucherId}`} className="link link-primary">
-              PV #{d.paymentVoucherId}
+              {pv?.docNo ?? `PV #${d.paymentVoucherId}`}
             </Link>
           </p>
         </div>

@@ -9,6 +9,7 @@ import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PrintMenu } from '@/components/ui/PrintMenu';
+import { ConfirmActionDialog } from '@/components/ui/ConfirmActionDialog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { ActivityLog } from '@/components/doc/ActivityLog';
@@ -28,6 +29,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   const t = useTranslations('purchaseOrder');
   const tc = useTranslations('common');
   const ta = useTranslations('approve');
+  const tca = useTranslations('confirmAction');
   const q = usePurchaseOrder(poId);
   const act = usePurchaseOrderAction();
   const d = q.data;
@@ -38,6 +40,10 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   const paper = usePaperDoc('purchase-orders', poId);
   const hasScope = useHasScope();
   const [isApproveAction, setIsApproveAction] = useState(false);
+  // WP3 3.6/3.7 — approve issues the doc number immediately and mark-sent stamps
+  // sentToVendorAt; neither had a confirmation step (F7/F9).
+  const [confirmApprove, setConfirmApprove] = useState(false);
+  const [confirmMarkSent, setConfirmMarkSent] = useState(false);
 
   useEffect(() => {
     const action = new URLSearchParams(window.location.search).get('action');
@@ -79,7 +85,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
                 data-testid="po-approve-cta"
                 className="btn btn-warning btn-sm"
                 disabled={act.isPending}
-                onClick={() => run('approve')}
+                onClick={() => setConfirmApprove(true)}
               >
                 {ta('ctaApprove')}
               </button>
@@ -105,13 +111,31 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         />
         {/* Hidden while the ?action=approve banner is up — one approve CTA at a time. */}
         {d.status === 'Draft' && !isApproveAction && (
-          <PermissionGate scope="purchase.purchase_order.approve">
-            <button data-testid="po-approve" className="btn btn-success btn-sm"
-              disabled={act.isPending} onClick={() => run('approve')}>{t('approve')}</button>
-          </PermissionGate>
+          <>
+            <PermissionGate scope="purchase.purchase_order.approve">
+              <button data-testid="po-approve" className="btn btn-success btn-sm"
+                disabled={act.isPending} onClick={() => setConfirmApprove(true)}>{t('approve')}</button>
+            </PermissionGate>
+            {/* WP3 3.3 (D2) — draft-only edit (reuses the create form via PurchaseOrderForm + PUT). */}
+            <PermissionGate scope="purchase.purchase_order.create">
+              <Link href={`/purchase-orders/${poId}/edit`} data-testid="po-edit" className="btn btn-outline btn-sm">
+                {t('edit')}
+              </Link>
+            </PermissionGate>
+          </>
         )}
         {d.status === 'Approved' && (
           <>
+            {/* WP3 3.2 (F8) — the VI hop was previously reachable only from the VI list's
+                deep link, pushing users to skip it and go straight to a PV (breaking the
+                PO → VI → PV chain the manual documents). Placed BEFORE createPv to match
+                chain order. */}
+            <PermissionGate scope="purchase.vendor_invoice.create">
+              <Link href={`/vendor-invoices/new?fromPurchaseOrderId=${poId}`}
+                data-testid="po-create-vi" className="btn btn-primary btn-sm">
+                {t('createVi')}
+              </Link>
+            </PermissionGate>
             {/* ITEM 9 — convenience hand-off to the PV create form, pre-filled from
                 this PO (mirrors the VI→PV fromVendorInvoiceId pattern). No backend
                 PO→PV link; pure client-side pre-fill. */}
@@ -123,7 +147,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
             </PermissionGate>
             <PermissionGate scope="purchase.purchase_order.create">
               <button data-testid="po-mark-sent" className="btn btn-outline btn-sm"
-                disabled={act.isPending} onClick={() => run('mark-sent')}>{t('sentToVendor')}</button>
+                disabled={act.isPending} onClick={() => setConfirmMarkSent(true)}>{t('sentToVendor')}</button>
             </PermissionGate>
             <PermissionGate scope="purchase.purchase_order.cancel">
               <button data-testid="po-close" className="btn btn-secondary btn-sm"
@@ -181,6 +205,28 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <AttachmentsSection parentType="PURCHASE_ORDER" parentId={poId} />
+
+      <ConfirmActionDialog
+        open={confirmApprove}
+        busy={act.isPending}
+        title={tca('poApprove.title')}
+        warning={tca('poApprove.warning')}
+        party={d.vendorName}
+        rows={[
+          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: t('total'), value: d.totalAmount },
+        ]}
+        onClose={() => setConfirmApprove(false)}
+        onConfirm={async () => { await run('approve'); setConfirmApprove(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmMarkSent}
+        busy={act.isPending}
+        title={tca('poMarkSent.title')}
+        warning={tca('poMarkSent.warning')}
+        onClose={() => setConfirmMarkSent(false)}
+        onConfirm={async () => { await run('mark-sent'); setConfirmMarkSent(false); }}
+      />
     </>
   );
 }

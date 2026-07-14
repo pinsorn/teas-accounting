@@ -13,7 +13,7 @@ import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { apiPost } from '@/lib/api';
 import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
 import type { ProductTypeStr } from '@/lib/types';
-import { bangkokToday, formatTaxId } from '@/lib/utils';
+import { bangkokToday, formatDateBE, formatTaxId } from '@/lib/utils';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PAPER_DOC, companyToSeller, DRAFT_DOC_NO, VENDOR_PARTY_LABEL } from '@/lib/paper-doc-config';
 import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
@@ -98,10 +98,40 @@ function PvForm() {
     setPoPrefilled(true);
   }, [po, poPrefilled]);
 
-  // PV settling a VI: seed BU from the VI when present (vendor lines come from the VI link server-side).
+  // WP3 3.5 (F24) — arriving from a posted VI's "ชำระด้วยใบสำคัญจ่าย" CTA: prefill
+  // vendor, one line ("ชำระ <VI docNo>", amount = outstanding = total − settled) and
+  // the expense category/recoverable flag from the VI's first line — the user reviews
+  // and adjusts everything from there (nothing is locked).
+  const [viPrefilled, setViPrefilled] = useState(false);
   useEffect(() => {
-    if (vi?.businessUnitId != null) setBusinessUnitId(vi.businessUnitId);
-  }, [vi]);
+    if (!vi || viPrefilled) return;
+    setVendorId(vi.vendorId);
+    setVendorLabel(vi.vendorName);
+    if (vi.businessUnitId != null) setBusinessUnitId(vi.businessUnitId);
+    const firstLine = vi.lines[0];
+    if (firstLine) {
+      setCategoryId(firstLine.expenseCategoryId);
+      setCatRecoverable(firstLine.isRecoverableVat);
+    }
+    const outstanding = Math.max(vi.totalAmount - vi.settledAmount, 0);
+    // The PV line always RE-DERIVES VAT from productType and adds it on top of `amount`
+    // (never a typed VAT-inclusive figure — that field stays untouched, WP1 territory).
+    // `outstanding` is VAT-inclusive (VI.totalAmount/settledAmount both are), so seeding
+    // `amount` with it verbatim would double-count VAT once the PV re-adds its own 7%.
+    // Scale the VI's own pre-VAT subtotal by the outstanding ratio instead, so the
+    // prefilled line's re-derived total lands back on `outstanding` (exact with no
+    // prior settlement — the common case; a proportional approximation otherwise).
+    const baseAmount = vi.totalAmount > 0
+      ? Math.round((vi.subtotalAmount * (outstanding / vi.totalAmount)) * 100) / 100
+      : outstanding;
+    setRows([{
+      ...emptyRow(1),
+      description: t('settleLineDesc', { docNo: vi.docNo ?? `#${vi.vendorInvoiceId}` }),
+      amount: baseAmount,
+    }]);
+    setViPrefilled(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vi, viPrefilled]);
 
   // Sprint 8.7 — vendor flags drive self-withhold (auto/lock for foreign).
   const vendor = useVendor(vendorId ?? 0).data;
@@ -157,7 +187,7 @@ function PvForm() {
         currencyCode: 'THB',
         exchangeRate: 1,
         description: fromVi
-          ? `${t('settlingVi')} #${fromVi}`
+          ? `${t('settlingVi')} ${vi?.docNo ?? `#${fromVi}`}`
           : fromPo
             ? `${t('fromPo')} ${po?.docNo ?? `#${fromPo}`}`
             : null,
@@ -200,7 +230,7 @@ function PvForm() {
   ];
 
   const docMeta = fromVi
-    ? `${t('settlingVi')} #${fromVi}`
+    ? `${t('settlingVi')} ${vi?.docNo ?? `#${fromVi}`}`
     : fromPo
       ? `${t('fromPo')} ${po?.docNo ?? `#${fromPo}`}`
       : docDate;
@@ -313,6 +343,7 @@ function PvForm() {
                 <span className="label-text">Cheque Date *</span>
                 <input type="date" className="input input-bordered" value={chequeDate}
                   onChange={(e) => setChequeDate(e.target.value)} />
+                <span className="label-text-alt text-base-content/50">= {formatDateBE(chequeDate)}</span>
               </label>
             </>
           )}

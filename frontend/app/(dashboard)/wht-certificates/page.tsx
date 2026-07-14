@@ -34,10 +34,19 @@ export default function WhtCertificateListPage() {
       cell: ({ getValue }) => <span className="tabular-nums">{formatDate(getValue<string>())}</span>,
     },
     { accessorKey: 'payeeName', header: t('payee'), meta: { filter: 'text', filterLabel: t('payee') } },
-    { accessorKey: 'formType', header: t('formType') },
+    {
+      accessorKey: 'formType', header: t('formType'),
+      // WP4 4.10 — raw BE enum code (Pnd3/Pnd53) → Thai form name; unknown codes fall
+      // back to the raw value rather than throwing on a missing i18n key.
+      cell: ({ getValue }) => {
+        const code = getValue<string>();
+        return <span>{t.has(`formTypeMap.${code}`) ? t(`formTypeMap.${code}`) : code}</span>;
+      },
+    },
     {
       accessorKey: 'incomeTypeCode', header: t('incomeType'),
-      cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
+      // WP4 4.10 — raw ม.40 category digit (e.g. "8") → "40(8)".
+      cell: ({ getValue }) => <span className="font-mono">{t('section40', { code: getValue<string>() })}</span>,
     },
     {
       accessorKey: 'whtAmount', header: t('whtAmount'), meta: { align: 'right' },

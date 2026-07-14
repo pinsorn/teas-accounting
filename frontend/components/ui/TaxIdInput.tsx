@@ -27,9 +27,10 @@ export function TaxIdInput({
   const valid = digits.length === 0 || isValidThaiTaxId(digits);
 
   return (
-    <label className="form-control">
+    <label className="form-control" htmlFor="tax-id-input">
       {label && <span className="label-text">{label}</span>}
       <input
+        id="tax-id-input"
         inputMode="numeric"
         className={`input input-bordered ${touched && !valid ? 'input-error' : ''}`}
         value={digits}

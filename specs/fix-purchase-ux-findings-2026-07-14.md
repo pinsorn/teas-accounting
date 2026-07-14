@@ -60,34 +60,140 @@ completeness tracking; live A4 preview.
       duration for errors, keep EN detail collapsible.
 
 ## WP3 — FLOW/DISCOVERABILITY (Sonnet direct, spec-airtight)
-- [ ] 3.1 F18: add "+ บันทึกใบกำกับภาษีซื้อ" button on /vendor-invoices list; fix stale
+- [x] 3.1 F18: add "+ บันทึกใบกำกับภาษีซื้อ" button on /vendor-invoices list; fix stale
       subtitle ("สร้างจากใบสำคัญจ่าย (PV → บันทึก)" no longer true).
-- [ ] 3.2 F8: approved-PO action bar gets "บันทึกใบกำกับภาษีซื้อ" CTA (→ /vendor-invoices/new
+      DONE 2026-07-14 (branch fix/purchase-ux-wp3-wp4): create button + PermissionGate in
+      `vendor-invoices/page.tsx`; `vi.createFromPvHint` text updated in th/en.json.
+- [x] 3.2 F8: approved-PO action bar gets "บันทึกใบกำกับภาษีซื้อ" CTA (→ /vendor-invoices/new
       ?fromPurchaseOrderId=; primary CTA before สร้างใบสำคัญจ่าย to match chain order).
-- [ ] 3.3 F6 (per D2): PO draft edit (reuse create form, PUT exists per API manual).
-- [ ] 3.4 F29 (per D3): PO close — implement semantics or remove button.
-- [ ] 3.5 F24: PV from ชำระด้วยใบสำคัญจ่าย prefills vendor + line (desc "ชำระ <VI docNo>",
+      DONE: CTA added in `purchase-orders/[id]/page.tsx` (before createPv); VI form
+      (`vendor-invoices/new/page.tsx`) reads `fromPurchaseOrderId`, preselects vendor +
+      links the PO via the existing PO-prefill effect.
+- [x] 3.3 F6 (per D2): PO draft edit (reuse create form, PUT exists per API manual).
+      DONE: extracted `components/forms/PurchaseOrderForm.tsx` (create/edit, mirrors
+      QuotationForm's pattern) + `useUpdatePurchaseOrder` (PUT, same
+      CreatePurchaseOrderRequest shape per backend `PurchaseOrderEndpoints.cs`) + new
+      route `purchase-orders/[id]/edit/page.tsx` (Draft-only, bounces to detail
+      otherwise) + "แก้ไข" button on the PO detail page for Draft POs.
+- [ ] 3.4 F29 (per D3): PO close — implement semantics or remove button. SKIPPED —
+      blocked on Ham/D3 decision per dispatch scope.
+- [x] 3.5 F24: PV from ชำระด้วยใบสำคัญจ่าย prefills vendor + line (desc "ชำระ <VI docNo>",
       amount = VI outstanding) — user adjusts, not re-keys. Accept: one click from posted
       VI → PV form complete except payment method review.
-- [ ] 3.6 F7/F28: confirmation dialog on PO approve and PV approve/post (mirror VI post
+      DONE: `payment-vouchers/new/page.tsx` — new viPrefilled effect sets vendorId,
+      businessUnitId, expense category + recoverable flag (from the VI's first line),
+      and one row with `pv.settleLineDesc` ("ชำระ {docNo}"). All fields stay editable.
+      Bug found + fixed during live verification (local dev, Demo Company): the PV line
+      "amount" field is always the PRE-VAT base (the form re-derives VAT from
+      productType and adds it on top), but VI outstanding (totalAmount − settledAmount)
+      is VAT-INCLUSIVE — seeding amount=outstanding verbatim double-counted VAT
+      (฿1,070 outstanding → ฿1,144.90 total). Fixed by scaling the VI's own
+      subtotalAmount by the outstanding ratio instead, so the re-derived total lands
+      back on the VI's outstanding figure (exact with no prior partial settlement — the
+      common case). Verified end-to-end: VI 06-2026-VI-0007 (฿1,070 outstanding) →
+      PV #26 saved with Grand Total ฿1,070.00 exactly, notes correctly show the VI's
+      docNo (ties to 4.8 too).
+- [x] 3.6 F7/F28: confirmation dialog on PO approve and PV approve/post (mirror VI post
       modal: totals + immutable warning). One shared confirm component.
-- [ ] 3.7 F9: "ส่ง PO ให้ vendor" → relabel "บันทึกว่าส่งแล้ว" (or add real email later —
+      DONE: new `components/ui/ConfirmActionDialog.tsx`, wired into PO approve
+      (`purchase-orders/[id]/page.tsx`, both the inline button and the ?action=approve
+      banner CTA), PV approve and PV post (`payment-vouchers/[id]/page.tsx`).
+- [x] 3.7 F9: "ส่ง PO ให้ vendor" → relabel "บันทึกว่าส่งแล้ว" (or add real email later —
       out of scope now) + confirm/undo of the stamp.
-- [ ] 3.8 F4: vendor picker modal "+ เพิ่มผู้ขายใหม่" quick-create (name/type/VAT only).
+      DONE: `purchaseOrder.sentToVendor` relabeled in th/en.json; mark-sent button now
+      opens ConfirmActionDialog (simple variant, no totals) before stamping. "Undo" not
+      implemented — out of scope per dispatch (email/undo explicitly deferred).
+- [x] 3.8 F4: vendor picker modal "+ เพิ่มผู้ขายใหม่" quick-create (name/type/VAT only).
+      DONE: `EntityPickerModal` gained a generic `renderQuickCreate` slot; new
+      `components/forms/VendorQuickCreateForm.tsx` (code/nameTh/type/VAT toggle → POSTs
+      existing `useCreateVendor`, auto-selects on success); wired in
+      `components/create/PartySelectBox.tsx` for `kind==='vendor'` — shared by PO/VI/PV
+      forms (all three already used PartySelectBox). Verified live (local dev): form
+      renders, fields work, POST creates a real vendor row (confirmed via API). NOTE:
+      hit the pre-existing F21 double-POST bug (WP2.3, out of this dispatch's scope) —
+      the vendor was created successfully but a duplicate request's 422 surfaced a
+      false "Unexpected error" toast instead of auto-selecting; reopening the picker
+      and searching finds the new vendor. Not a regression from this work — same
+      trailing-slash proxy race already logged against vendor-invoices in F21; will
+      self-resolve once WP2.3 lands.
 
 ## WP4 — POLISH/i18n/a11y (Haiku-able mechanical batch where zero-judgment, else Sonnet)
-- [ ] 4.1 F2: Thai BE date display for all date inputs (or dual hint) — pick one pattern
+- [x] 4.1 F2: Thai BE date display for all date inputs (or dual hint) — pick one pattern
       app-wide; native input stays, add BE hint text under field.
-- [ ] 4.2 F3: PO/VI list "หน่วยธุรกิจ" column → BU code/name, not #id.
-- [ ] 4.3 F11: activity log event labels → Thai ("Created → Draft" etc.).
-- [ ] 4.4 F17: restore last-used company after re-login (localStorage).
-- [ ] 4.5 F10: refresh เอกสารอ้างอิง/ประวัติกิจกรรม panels after approve/post/mark-sent.
-- [ ] 4.6 F12: form inputs get proper label association (a11y) — vendor form first.
-- [ ] 4.7 F22: VI post-confirm title "ใบรับวางบิล (ผู้ขาย)" → "ใบกำกับภาษีซื้อ".
-- [ ] 4.8 F23: user-facing refs use docNo not internal #id once issued (PV subtitle,
+      DONE: `formatDateBE()` added to `lib/utils.ts` (dd/MM/yyyy-BE, parsed directly from
+      the yyyy-MM-dd string, no Date()/timezone drift); hint wired into the shared
+      `DateInput` component (covers every locked docDate use) plus every raw native
+      date input on purchase pages: PO create/edit (docDate, expectedDeliveryDate), VI
+      new (vendorTaxInvoiceDate), PV new (chequeDate). Native inputs unchanged.
+- [x] 4.2 F3: PO/VI list "หน่วยธุรกิจ" column → BU code/name, not #id.
+      ALREADY DONE in current code (no change needed) — both list pages already render
+      via the shared `useBusinessUnitName()` hook (`buName(r.businessUnitId)` →
+      "CODE — nameTh", `useBusinessUnits(includeInactive=true)` so a since-deactivated
+      BU still resolves). F3 was very likely observed against a stale prod session
+      (same window as the F16 session-expiry findings) or a pre-cont.82 deploy — the
+      shipped code (commit fe16cd4, well before this branch) already fixes it.
+- [x] 4.3 F11: activity log event labels → Thai ("Created → Draft" etc.).
+      DONE: `common.activityAction` map added (Created/Draft/Approved/MarkedSent/Sent/
+      Posted) in th/en.json; `ActivityLog.tsx` looks up both `action` and `toStatus`
+      via `t.has()`, falling back to the raw code for anything not in the map.
+- [x] 4.4 F17: restore last-used company after re-login (localStorage).
+      DONE: `CompanySwitcher` persists the chosen id to `localStorage` (`LAST_COMPANY_KEY`,
+      `lib/utils.ts`) on every successful switch; `login/page.tsx` calls
+      `restoreLastCompany()` right after a successful login (before the redirect) —
+      reads the stored id, confirms via `/api/proxy/me` that the user is still a
+      super-admin with access to it, and POSTs `/api/auth/switch-company` if so. Fails
+      silently on any error (never blocks login); no-op for non-super-admins (only
+      super-admins have `allowedCompanies` / can switch at all).
+- [x] 4.5 F10: refresh เอกสารอ้างอิง/ประวัติกิจกรรม panels after approve/post/mark-sent.
+      DONE — root cause: `usePurchaseOrderAction`, `usePostVendorInvoice`,
+      `useApprovePaymentVoucher`, `usePostPaymentVoucher` never invalidated the
+      `['purchase-chain', …]` / `['activity', …]` query keys the two side-rail panels
+      read (both have `staleTime: 30_000`), so they sat stale until a full reload.
+      Added `qc.invalidateQueries({queryKey:['purchase-chain']})` +
+      `['activity']` to all four mutations in `lib/queries.ts`.
+- [x] 4.6 F12: form inputs get proper label association (a11y) — vendor form first.
+      DONE: every input/select/textarea/checkbox in `VendorForm.tsx` (+ `TaxIdInput.tsx`,
+      rendered only from VendorForm) now has an explicit `id` + matching `htmlFor` on
+      its wrapping `<label>`, on top of the pre-existing implicit wrap-association —
+      removes any ambiguity for AT regardless of how the label's accessible name is
+      computed.
+- [x] 4.7 F22: VI post-confirm title "ใบรับวางบิล (ผู้ขาย)" → "ใบกำกับภาษีซื้อ".
+      DONE: `postConfirm.title.vendor_invoice` → "ยืนยันการบันทึกใบกำกับภาษีซื้อ" in
+      th.json (en.json updated to match).
+- [x] 4.8 F23: user-facing refs use docNo not internal #id once issued (PV subtitle,
       50ทวิ "อ้างอิงใบสำคัญจ่าย: PV #3").
-- [ ] 4.9 F25 (per D4): align SoD text with actual enforcement.
-- [ ] 4.10 /wht-certificates list: แบบยื่น "Pnd3"→"ภ.ง.ด.3", ม.40 column "8"→"40(8) ค่าบริการ".
+      DONE: PV subtitle/description (`payment-vouchers/new/page.tsx`) now uses
+      `vi?.docNo ?? #${fromVi}` (falls back to #id only while the VI lookup is still
+      loading); 50ทวิ detail (`wht-certificates/[id]/page.tsx`) fetches the PV via
+      `usePaymentVoucher` and shows `pv?.docNo ?? PV #${id}`.
+- [ ] 4.9 F25 (per D4): align SoD text with actual enforcement. SKIPPED — blocked on
+      Ham/D4 decision per dispatch scope.
+- [x] 4.10 /wht-certificates list: แบบยื่น "Pnd3"→"ภ.ง.ด.3", ม.40 column "8"→"40(8) ค่าบริการ".
+      DONE (list page only, per dispatch — detail page already renders both fields
+      acceptably per PROGRESS-purchase-uxtest.md's note): `wht.formTypeMap` (Pnd3/Pnd53)
+      + `wht.section40` ("40({code})") added to th/en.json, applied in
+      `wht-certificates/page.tsx` columns. No short-name suffix — `WhtCertificateListItem`
+      doesn't carry the WHT-type description (only the detail DTO does), so "+ short
+      name if available in data" correctly resolves to "not available" here.
+
+## WP3/WP4 verification note (2026-07-14, branch fix/purchase-ux-wp3-wp4)
+`tsc --noEmit` + `next build` green (0 errors) after every edit; Bengali-glyph guard
+clean on all changed files. Live-clicked through the riskiest/most novel items on
+local dev (backend :5080 + `npm run dev` :3000, logged in as `admin`, Demo Company —
+the seeded e2e/rbac-ui test company): PO #11 draft → edit (3.3, PUT persisted,
+BE date hints visible) → approve (3.6 confirm dialog, correct totals) → doc-numbered
++ Approved (4.5 panels updated live, no reload) → new "บันทึกใบกำกับภาษีซื้อ" CTA before
+"สร้างใบสำคัญจ่าย" (3.2) → mark-sent relabeled + simple confirm dialog (3.7) → VI create
+form prefilled vendor+PO link (3.2, BE hint on tiDate) → vendor quick-create form (3.8,
+POST verified via API) → VI-0007 (Posted) "ชำระด้วยใบสำคัญจ่าย" → PV prefilled vendor/
+category/line (3.5) → saved PV #26 with correct total (see 3.5 bug note above) → VI
+list create button + subtitle (3.1) → wht-certificates list Thai form-type/ม.40 mapping
+(4.10) → vendor form label association confirmed via `el.labels[0]` at the DOM level
+(4.6, not just the a11y-tree tool's own rendering). PV approve/post dialogs reuse the
+exact same `ConfirmActionDialog` already proven on PO approve, not re-clicked
+separately. 4.2 and 4.4 verified by code reading only (4.2: already-correct pre-existing
+code; 4.4: needs a two-company super-admin + fresh login cycle, impractical to stage
+safely against this shared local demo DB).
 
 ## No action
 - F5: PO VAT display gated by vatMode && vendor.vatRegistered = by design (wiki entry
