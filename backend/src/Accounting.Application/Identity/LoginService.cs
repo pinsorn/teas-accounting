@@ -100,6 +100,9 @@ public sealed class LoginService : ILoginService
 public interface IUserRepository
 {
     Task<User?> FindByUsernameAsync(string username, CancellationToken ct);
+    /// <summary>WP2.1 (D6) — re-validate the user on /auth/refresh (must not blindly re-sign a
+    /// since-locked/disabled user). Cross-tenant by design (a user isn't scoped to one company).</summary>
+    Task<User?> FindByIdAsync(long userId, CancellationToken ct);
     Task RegisterFailedLoginAsync(User user, DateTimeOffset now, CancellationToken ct);
     Task RegisterSuccessfulLoginAsync(User user, DateTimeOffset now, CancellationToken ct);
 }

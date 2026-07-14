@@ -1,9 +1,11 @@
+using System.Security.Claims;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
 using Accounting.Application.Identity;
 using Accounting.Domain.Common;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Identity;
 
@@ -12,13 +14,24 @@ namespace Accounting.Infrastructure.Identity;
 /// resolves its HQ (or first active) branch, re-issues a JWT scoped to that company, and
 /// audits the switch. The endpoint is the primary 403 gate (anon→401, authed-non-super→403);
 /// this service re-checks <see cref="ITenantContext.IsSuperAdmin"/> as defence in depth.
+///
+/// 2026-07 review fix F-A — ALSO the authoritative enforcement point for the WP2.1 absolute
+/// session cap (<see cref="AbsoluteSessionCap"/>): re-issuing a token here without checking it
+/// let a super-admin (or a stolen super-admin cookie) slide a session past
+/// AbsoluteSessionCapHours forever by repeatedly switching company. The check runs here (not
+/// only at the endpoint) so no future caller of <see cref="ICompanySwitchService"/> can skip
+/// it, and the ORIGINAL auth_time is carried forward onto the re-issued token instead of being
+/// reset to "now".
 /// </summary>
 public sealed class CompanySwitchService(
     AccountingDbContext db,
     ITenantContext tenant,
     IPermissionLookup permissions,
     IJwtTokenIssuer tokens,
-    IActivityRecorder activity) : ICompanySwitchService
+    IActivityRecorder activity,
+    ClaimsPrincipal principal,
+    IClock clock,
+    IOptionsMonitor<JwtOptions> jwtOptions) : ICompanySwitchService
 {
     public async Task<AccessToken> SwitchAsync(int targetCompanyId, CancellationToken ct)
     {
@@ -26,6 +39,12 @@ public sealed class CompanySwitchService(
         // what the caller already holds (the re-issued token keeps is_super_admin = caller's).
         if (!tenant.IsSuperAdmin || tenant.UserId is not { } userId)
             throw new DomainException("auth.forbidden", "Only a super-admin may switch company.");
+
+        // F-A — same absolute-cap check /auth/refresh enforces, before we ever mint a token.
+        // Throws SessionAbsoluteCapExceededException (caught by the endpoint → 403) rather than
+        // silently re-issuing a fresh full-TTL token past the cap.
+        var authTime = AbsoluteSessionCap.CheckOrThrow(
+            principal, clock, jwtOptions.CurrentValue.AbsoluteSessionCapHours);
 
         // Target must exist AND be active. IgnoreQueryFilters + the explicit company predicate:
         // the global filter is bypassed for super-admin anyway, but the predicate keeps the read
@@ -67,7 +86,8 @@ public sealed class CompanySwitchService(
             BranchId: branchId,
             IsSuperAdmin: true,
             Roles: roles,
-            Permissions: perms));
+            Permissions: perms,
+            AuthTime: authTime));
 
         // §4.8 — audit the privileged action. The row's company_id is set deliberately to the
         // target company being switched INTO. audit.activity_log carries RLS (G3, since 585) keyed

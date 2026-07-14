@@ -21,6 +21,12 @@ public sealed class UserRepository : IUserRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Username == username, ct);
 
+    public Task<User?> FindByIdAsync(long userId, CancellationToken ct) =>
+        _db.Users
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+
     public async Task RegisterFailedLoginAsync(User user, DateTimeOffset now, CancellationToken ct)
     {
         var tracked = await _db.Users.IgnoreQueryFilters().FirstAsync(u => u.UserId == user.UserId, ct);

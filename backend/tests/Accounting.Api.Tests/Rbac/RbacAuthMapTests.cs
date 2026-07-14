@@ -43,6 +43,12 @@ public sealed class RbacAuthMapTests
         "GET /documents/purchase-chain",
         "GET /me",
         "GET /me/permissions",
+        // WP2.1 (F16, D6 sliding re-issue) — any authenticated caller may refresh THEIR OWN
+        // token; there is no "permission to refresh". The handler itself is the gate: it
+        // re-validates the caller (auth_time absolute cap, active/not-locked via a live DB
+        // read) and re-issues scoped to the CALLER's own current company/branch/roles — never
+        // widens access. See AuthEndpoints.cs's /refresh doc comment for the full security note.
+        "POST /auth/refresh",
         // OAuth 2.1 consent "accept" (POST /oauth/authorize). Authn-only by design: any logged-in user
         // may authorize an MCP client for THEIR OWN company — there is no permission to "consent". The
         // handler validates the chosen company against the user's memberships + the BFF enforces

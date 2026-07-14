@@ -1,4 +1,6 @@
 import { toast } from 'sonner';
+import { emitSessionExpired } from '@/lib/session-events';
+import { resolveProblemKey } from '@/lib/i18n/problems';
 
 export class ApiError extends Error {
   constructor(
@@ -18,6 +20,12 @@ export class ApiError extends Error {
  */
 const PROXY = '/api/proxy';
 
+// WP2.3 (F21) layer 2 — a genuinely stuck request (hung upstream, dropped connection, the
+// latent 3xx-hang the proxy hardening below also guards) must still REJECT so the caller's
+// mutation settles (`isPending` clears, buttons re-enable) instead of hanging forever. This is
+// the general guarantee — independent of WP2.3's root cause (the trailing-slash 308).
+const REQUEST_TIMEOUT_MS = 30_000;
+
 /**
  * Sprint 13j-PURCH (BP-05, #SR9 class) — surface an RFC7807 ProblemDetails error
  * as a Thai toast. `ApiError` sets `.message` to the body's `detail` (see api-client.ts),
@@ -26,31 +34,52 @@ const PROXY = '/api/proxy';
  * Resolution order: ApiError.message (= ProblemDetails.detail) → body.title → body.detail
  * → caller fallback → "เกิดข้อผิดพลาด". Shared so PO/PV approve/post/mark-sent all map
  * the BE Problem to a meaningful toast with one call.
+ *
+ * WP2.4 (F19) — additionally resolves a Thai message by the stable error CODE first (the
+ * `problems.*` i18n dict), and renders the original detail as a secondary sonner
+ * `description` line (kept available, not primary) with a longer/sticky duration so a domain
+ * error is not gone before the user finishes reading it.
  */
 export function problemToast(err: unknown, fallback: string): void {
   let msg: string | undefined;
+  let code: string | undefined;
   if (err instanceof ApiError) {
     // ApiError.message is the ProblemDetails `detail` (api-client.ts ctor 3rd arg).
     msg = err.message;
+    code = err.code;
     if (!msg || !msg.trim()) {
       const body = err.details as { detail?: string; title?: string } | undefined;
       msg = body?.detail ?? body?.title;
+      code = code ?? body?.title;
     }
   } else if (err && typeof err === 'object') {
     const e = err as { detail?: string; title?: string; message?: string };
     msg = e.detail ?? e.title ?? e.message;
+    code = e.title;
   }
-  toast.error(msg && msg.trim() ? msg : fallback);
+  const detail = msg && msg.trim() ? msg : fallback;
+  const th = code ? resolveProblemKey(code) : null;
+  toast.error(th ?? detail, { duration: 8000, description: th && th !== detail ? detail : undefined });
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${PROXY}/${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    // WP2.3 layer 2 — caller-supplied signal (none today) wins if ever added; otherwise the
+    // request is bounded so it can never hang a mutation forever.
+    signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (res.status === 204) return undefined as T;
   const body = await res.json().catch(() => null);
   if (!res.ok) {
+    // WP2.2 (F16/F1) — every call through this proxy is auth-gated (login itself never goes
+    // through /api/proxy), so a 401 here always means "the session is gone" — expired token,
+    // missing cookie, or (rare) a revoked/locked user. Open the global re-login modal; the
+    // ApiError below still throws so the caller's own catch/mutation state behaves exactly as
+    // before (isPending clears, its own toast may also fire — the modal is the authoritative
+    // recovery path either way). 403 (permission-denied, still authenticated) does NOT trigger it.
+    if (res.status === 401) emitSessionExpired();
     const code = body?.title ?? `http_${res.status}`;
     const detail = body?.detail ?? body?.message ?? res.statusText;
     throw new ApiError(res.status, code, detail, body);

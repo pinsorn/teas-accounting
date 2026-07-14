@@ -147,17 +147,83 @@ completeness tracking; live A4 preview.
       default_expense_account_id IS NULL) …`).
 
 ## WP2 — AUTH/SESSION UX (F16 family; Opus design for token strategy, Sonnet FE)
-- [ ] 2.1 Token refresh: silent refresh or sliding session (current ~25-30 min hard
+- [x] 2.1 Token refresh: silent refresh or sliding session (current ~25-30 min hard
       expiry). Design owns choice (refresh token vs extended TTL + idle logout).
-- [ ] 2.2 Global 401 handler: expired session mid-form → modal "session หมดอายุ —
+      DONE 2026-07-14 (D6 Option A — sliding re-issue): `POST /auth/refresh`
+      (`AuthEndpoints.cs`) re-issues via `JwtTokenIssuer.Issue` on a still-VALID token only (an
+      expired token 401s at the JWT bearer handler before the endpoint runs — sliding never
+      resurrects a dead session). `auth_time` claim (`JwtTokenIssuer.cs`) stamped once at login,
+      carried forward through every re-issue via `TokenClaims.AuthTime`; refusal past
+      `Jwt:AbsoluteSessionCapHours` (default 10h, both appsettings) → 403. Live user
+      re-validation via new `IUserRepository.FindByIdAsync` (active/not-locked) → 403 if failed
+      — never blindly re-signs. Roles/perms RELOADED (not copied) from the caller's current
+      company on every refresh (a revoked grant takes effect immediately). BFF
+      `app/api/auth/refresh/route.ts` mirrors switch-company's cookie re-set exactly.
+      `lib/useSessionKeepAlive.ts` — self-calibrating timer at 60% of the token's real TTL
+      (learned from the refresh response, no extra plumbing), pauses on hidden tab, resumes on
+      activity after idle (15 min cutoff), silently stops on any refresh failure (WP2.2 takes
+      over at the next real API call). Mounted via `components/auth/SessionKeepAlive.tsx` in
+      the dashboard layout. Backend tests `AuthRefreshTests.cs` (6):
+      Refresh_WithValidToken_IssuesNewExpiry, _WithExpiredToken_401, _PastAbsoluteCap_403,
+      _LockedUser_rejected, _InactiveUser_rejected, _WithoutToken_401 — all passing. Found +
+      fixed 2 pre-existing RBAC test-harness gaps the new endpoint exposed (`RbacAuthMapTests`
+      allowlist, `RbacCartesianTests` real-DB-user skip-set) — see troubles-wiki.md. Live-curled
+      `/api/auth/refresh` end-to-end (valid cookie → 200 + fresh expires_at + re-set cookie).
+      Deviation: CompanySwitchService does NOT carry AuthTime forward (out of this WP's file
+      list) — a company switch implicitly resets the absolute-cap clock; flagged, not fixed.
+- [x] 2.2 Global 401 handler: expired session mid-form → modal "session หมดอายุ —
       login ใหม่" + preserve form state (at minimum: don't leave buttons dead; F1 stale
       shell redirect included). Accept: expire token manually → any save shows the modal,
       re-login → same form still filled.
-- [ ] 2.3 F21: hanging duplicate POST after failed save (trailing-slash /api/proxy double
+      DONE 2026-07-14: `lib/session-events.ts` (native `EventTarget`, no new dep — no existing
+      global store found in `lib/`) + `lib/api.ts`'s `request()` dispatches `session-expired` on
+      `res.status === 401`. `SessionExpiredModal.tsx` (in-place re-login via the existing
+      `POST /api/auth/login`, never navigates) mounted in the dashboard layout. DEVIATION from
+      the design's literal "401 AND title starts with auth." check: simplified to "any 401" —
+      verified live that an EXPIRED (present-but-invalid) token's 401 passes through the proxy
+      with NO JSON title at all (only the missing-cookie synthetic 401 carries one), so the
+      title check would silently miss the main real-world case; every 401 reachable through this
+      proxy is auth-gated by construction (login never goes through it), so status-only is both
+      simpler and strictly more correct. Live-verified end-to-end (Demo Company, local dev):
+      filled the VI create form → cleared the session cookie server-side without navigating →
+      clicked Save → modal opened (toast "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่" fired too, WP2.4) →
+      form fields (vendor/tax-invoice-no/description/amount) still fully populated behind the
+      modal → re-logged in → modal closed, form untouched → re-clicked Save → single POST → 201.
+- [x] 2.3 F21: hanging duplicate POST after failed save (trailing-slash /api/proxy double
       request) — find root cause in proxy route handlers; a failed save must leave the
       form usable (no reload needed).
-- [ ] 2.4 F19: error toasts — Thai translations for domain errors, longer/sticky
+      DONE 2026-07-14. **Verify-before-fix: 308 CONFIRMED**, reproduced via curl against
+      `next dev` BEFORE any code change — `POST /api/proxy/vendor-invoices/` → `308 Permanent
+      Redirect` → `Location: /api/proxy/vendor-invoices`; the no-slash retry reaches the handler
+      (401, no cookie). All 3 layers: (1) trailing slash removed from every static create path —
+      18 occurrences (17 in `lib/queries.ts` incl. one the initial grep missed — `api-keys/` —
+      caught by a follow-up sweep — + 1 inline in `payment-vouchers/new/page.tsx`); confirmed
+      zero remain via a repo-wide regex sweep. (2) `AbortSignal.timeout(30_000)` wired into
+      `api.ts`'s `request()` fetch call. (3) proxy 3xx hardening in
+      `app/api/proxy/[...path]/route.ts` — forwards `Location` or returns 502, never a body-less
+      hang. Live-verified: single `POST /api/proxy/vendor-invoices` (no slash) → 201, on two
+      separate saves (network trace captured both times, zero 308s, zero duplicate requests).
+      FE tests: `lib/queries.trailing-slash.test.ts` (source-scan regression guard) +
+      `lib/api.timeout.test.ts` (AbortSignal wiring, mocked fetch + shrunk timeout — doesn't
+      wait out the real 30s).
+- [x] 2.4 F19: error toasts — Thai translations for domain errors, longer/sticky
       duration for errors, keep EN detail collapsible.
+      DONE 2026-07-14: new `lib/i18n/problems.ts` (~55 codes, TH-only dict mirroring
+      `validation.ts`'s pattern — an `en`-locale user already sees the backend's own English
+      detail, so no parallel EN dict). `errorToToast` (`lib/api/errors.ts`) resolves Thai-by-code
+      first (unchanged signature — ALL ~30 existing `toast.error(errorToToast(e))` call sites get
+      correct Thai text for free, zero touch). `problemToast` (`lib/api.ts`) additionally gets
+      `duration: 8000` + the original detail as a sonner `description` (secondary line) —
+      benefits its existing callers (PV/PO/VI detail pages) automatically. New `apiErrorToast`
+      (delegates to the enhanced `problemToast`) swapped into the 5 purchase-scoped create/quick-
+      create forms still using the bare pattern (`vendor-invoices/new` ×2, `payment-vouchers/new`,
+      `VendorForm.tsx`, `VendorQuickCreateForm.tsx`, `CreateViFromPvDialog.tsx`) so the full
+      sticky+collapsible experience reaches every purchase-side error toast, not just the ones
+      already on `problemToast`. Non-purchase pages left on the (now Thai-corrected) plain
+      `errorToToast` path — out of this spec's domain. FE unit tests (`lib/api/errors.test.ts`,
+      4 cases: known code → Thai, unknown code → detail fallback, non-ApiError fallback) +
+      live-verified (the WP2.2 repro's `auth.unauthenticated` 401 rendered as the Thai toast
+      "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่", not the raw "No session." detail).
 
 ## WP3 — FLOW/DISCOVERABILITY (Sonnet direct, spec-airtight)
 - [x] 3.1 F18: add "+ บันทึกใบกำกับภาษีซื้อ" button on /vendor-invoices list; fix stale
@@ -873,7 +939,20 @@ approved own PV (admin not blocked). Two options:
   BEFORE the grant script, run RbacAuthMapTests).
 Recommend (A) now, (B) as a tracked compliance follow-up. Marked PROPOSAL either way.
 
-## Residual follow-ups (from Opus Tier-2 review, not blocking WP1 commit)
+## Residual follow-ups — WP2 (from Opus Tier-2 security review, not blocking commit)
+- F-C (LOW, UX, fails safe): after the WP2.2 session-expired modal re-login, a super-admin who
+  had switched company lands back on their DEFAULT company (POST /auth/login re-scopes there),
+  so an in-progress form holding company-X ids submits under company Y → RLS/cross-tenant guard
+  rejects (404), never mis-posts. Rough edge only. Fix option later: SessionExpiredModal reads
+  the WP4.4 last-company localStorage key and re-switches after re-login.
+- F-D (INFO, acceptable as shipped): proxy 3xx Location pass-through is backend-originated +
+  OpenIddict-validated + fetch-only (no httpOnly JWT replay on the followed hop). No open-redirect
+  in practice; noted for completeness.
+- F-A (HIGH, security) FIXED this round: absolute-cap bypass via switch-company — auth_time now
+  carried forward through CompanySwitchService + the cap 403 enforced on the switch path via a
+  shared CheckOrThrow helper reused by /refresh (see WP2 fix dispatch).
+
+## Residual follow-ups — WP1 (from Opus Tier-2 review, not blocking WP1 commit)
 - F-5 (LOW, hardening): internal callers `CreateFromPurchaseOrderAsync` +
   `CreateVendorInvoiceFromPvAsync` build `CreateVendorInvoiceRequest` in-code and call
   `CreateDraftAsync` directly, bypassing the FluentValidation `InclusiveBetween(0,1)` rate

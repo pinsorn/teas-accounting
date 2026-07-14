@@ -38,10 +38,11 @@ public sealed class CompanySwitchTests
         AccessTokenMinutes = 60,
     }));
 
-    private static string Token(long userId, string username, int companyId, bool isSuper) =>
+    private static string Token(
+        long userId, string username, int companyId, bool isSuper, DateTimeOffset? authTime = null) =>
         Issuer().Issue(new TokenClaims(
             UserId: userId, Username: username, CompanyId: companyId, BranchId: 1,
-            IsSuperAdmin: isSuper, Roles: [], Permissions: [])).Token;
+            IsSuperAdmin: isSuper, Roles: [], Permissions: [], AuthTime: authTime)).Token;
 
     private static HttpRequestMessage Authed(HttpMethod method, string path, string token)
     {
@@ -136,6 +137,89 @@ public sealed class CompanySwitchTests
             .ToListAsync()).Single();
         auditRows.Should().BeGreaterThan(0,
             "the company switch must be recorded in audit.activity_log");
+    }
+
+    /// <summary>F-A (2026-07 review fix) — a switch attempted past the absolute session cap must
+    /// be rejected, exactly like /auth/refresh (AuthRefreshTests.Refresh_PastAbsoluteCap_403),
+    /// not silently reset the cap clock to "now" by minting a fresh token.</summary>
+    [SkippableFact]
+    public async Task Switch_company_past_absolute_cap_is_forbidden()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        var target = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient();
+
+        // auth_time 13h old — past the 10h default AbsoluteSessionCapHours (RbacApiFactory does
+        // not override it, so the appsettings.Development.json default applies — same setup
+        // AuthRefreshTests.Refresh_PastAbsoluteCap_403 relies on).
+        using var req = Authed(HttpMethod.Post, $"/auth/switch-company/{target.CompanyId}",
+            Token(1, "admin", companyId: 1, isSuper: true, authTime: DateTimeOffset.UtcNow.AddHours(-13)));
+        using var resp = await client.SendAsync(req);
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "a session past its absolute lifetime must not be extendable by switching company");
+
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("auth.session_absolute_cap_exceeded");
+    }
+
+    /// <summary>F-A — the core regression this fix closes: before it, CompanySwitchService never
+    /// passed AuthTime into TokenClaims, so JwtTokenIssuer stamped a fresh "now" on every switch,
+    /// letting repeated switching slide a session past the cap forever. The re-issued token's
+    /// auth_time claim must equal the ORIGINAL login time, not "now".</summary>
+    [SkippableFact]
+    public async Task Switch_company_within_cap_carries_original_auth_time_forward()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        var target = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient();
+
+        // 3h into the 10h cap — comfortably within, but far enough from "now" that a reset-to-now
+        // regression is unambiguously detectable from the returned token's claim.
+        var original = DateTimeOffset.UtcNow.AddHours(-3);
+        using var req = Authed(HttpMethod.Post, $"/auth/switch-company/{target.CompanyId}",
+            Token(1, "admin", companyId: 1, isSuper: true, authTime: original));
+        using var resp = await client.SendAsync(req);
+        resp.StatusCode.Should().Be(HttpStatusCode.OK, "a within-cap switch must still succeed");
+
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var accessToken = doc.RootElement.GetProperty("access_token").GetString();
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
+        var authTimeClaim = long.Parse(jwt.Claims.First(c => c.Type == "auth_time").Value);
+        authTimeClaim.Should().Be(original.ToUnixTimeSeconds(),
+            "the switched token must carry the ORIGINAL auth_time forward, never reset it to now");
+    }
+
+    /// <summary>F-A happy path — a within-cap switch is otherwise unaffected: still re-issues a
+    /// token correctly scoped to the target company (mirrors
+    /// Switch_company_as_super_admin_reissues_token_scoped_to_target, with an explicit non-null
+    /// auth_time to prove the new cap check doesn't interfere with the ordinary case).</summary>
+    [SkippableFact]
+    public async Task Switch_company_within_cap_still_reissues_token_for_target_company()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        var target = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient();
+
+        using var req = Authed(HttpMethod.Post, $"/auth/switch-company/{target.CompanyId}",
+            Token(1, "admin", companyId: 1, isSuper: true, authTime: DateTimeOffset.UtcNow.AddHours(-1)));
+        using var resp = await client.SendAsync(req);
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var accessToken = doc.RootElement.GetProperty("access_token").GetString();
+        accessToken.Should().NotBeNullOrEmpty();
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
+        jwt.Claims.First(c => c.Type == "company_id").Value
+            .Should().Be(target.CompanyId.ToString(), "the re-issued token must scope to the target");
     }
 
     [SkippableFact]

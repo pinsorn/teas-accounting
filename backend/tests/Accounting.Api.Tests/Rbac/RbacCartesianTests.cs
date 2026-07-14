@@ -81,6 +81,21 @@ public sealed class RbacCartesianTests
         "POST /system/setup/instance-keys",
     ];
 
+    /// <summary>
+    /// AuthnOnly-at-policy endpoints whose HANDLER does a live <c>sys.users</c> lookup of the
+    /// caller, not just JWT claims. Unlike <see cref="HandlerGatedAuthnOnly"/> (a claims-only
+    /// gate, e.g. is_super_admin, that a synthetic token still satisfies), this harness's
+    /// per-role tokens (<see cref="Token"/>: <c>UserId = 990_000 + hash(role)</c>) have NO
+    /// backing <c>sys.users</c> row for ANY role, including super-admin — so a legitimate 403
+    /// here is expected for every role, not just non-super ones. WP2.1's <c>POST /auth/refresh</c>
+    /// re-validates the caller is active/not-locked via a real DB read by design (D6 security
+    /// note #4: never blindly re-sign) — skip the ALLOW assertion entirely for it.
+    /// </summary>
+    private static readonly HashSet<string> RequiresRealDbUser =
+    [
+        "POST /auth/refresh",
+    ];
+
     private static JwtTokenIssuer Issuer() => new(new StaticOptionsMonitor<JwtOptions>(new JwtOptions
     {
         Issuer = RbacApiFactory.JwtIssuer,
@@ -159,6 +174,12 @@ public sealed class RbacCartesianTests
                 // AuthnOnly-at-policy but super-admin-gated in the handler: a non-super role's 403 is
                 // correct, so don't assert ALLOW for it. Super-admin still asserts ALLOW normally.
                 if (expectAllow && !role.IsSuperAdmin && HandlerGatedAuthnOnly.Contains(ep.Key))
+                    continue;
+
+                // AuthnOnly-at-policy but the handler re-validates the caller against a real
+                // sys.users row — no synthetic Cartesian token (any role) has one, so ALLOW can
+                // never be asserted here regardless of super-admin.
+                if (expectAllow && RequiresRealDbUser.Contains(ep.Key))
                     continue;
 
                 var status = await FireAsync(client, token, ep);

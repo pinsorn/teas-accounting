@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { useCreateVendor } from '@/lib/queries';
-import { errorToToast } from '@/lib/api/errors';
+import { apiErrorToast } from '@/lib/api/errors';
 import type { VendorType } from '@/lib/types';
 
 // WP3 3.8 — inline vendor quick-create, rendered inside EntityPickerModal so a
@@ -49,7 +49,7 @@ export function VendorQuickCreateForm({
       toast.success(tc('save'));
       onCreated(res.vendor_id, nameTh.trim());
     } catch (e) {
-      toast.error(errorToToast(e));
+      apiErrorToast(e);
     }
   }
 

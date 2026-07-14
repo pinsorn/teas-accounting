@@ -2002,6 +2002,11 @@
     "passwordRequired": "Password is required",
     "genericError": "Something went wrong"
   },
+  "sessionExpired": {
+    "title": "Session expired",
+    "description": "Please log in again to continue. Your form data on this page will not be lost.",
+    "submit": "Log in again"
+  },
   "topbar": {
     "switchCompany": "Switch company",
     "currentCompany": "Current company",

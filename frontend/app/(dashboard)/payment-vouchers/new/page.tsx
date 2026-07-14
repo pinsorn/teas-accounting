@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
-import { errorToToast } from '@/lib/api/errors';
+import { apiErrorToast } from '@/lib/api/errors';
 import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductPicker, taxRateForProductType } from '@/components/forms/ProductPicker';
@@ -176,7 +176,7 @@ function PvForm() {
   async function saveDraft() {
     setBusy(true);
     try {
-      const res = await apiPost<{ payment_voucher_id: number }>('payment-vouchers/', {
+      const res = await apiPost<{ payment_voucher_id: number }>('payment-vouchers', {
         docDate,
         vendorId,
         businessUnitId,
@@ -211,7 +211,7 @@ function PvForm() {
       toast.success(tc('save'));
       router.push(`/payment-vouchers/${res.payment_voucher_id}`);
     } catch (e) {
-      toast.error(errorToToast(e));
+      apiErrorToast(e);
     } finally {
       setBusy(false);
     }

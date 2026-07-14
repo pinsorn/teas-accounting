@@ -118,6 +118,16 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AmbientTenantContext>();
 builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<AmbientTenantContext>());
 
+// F-A (2026-07 review fix) — CompanySwitchService (Accounting.Infrastructure, no ASP.NET Core
+// reference) constructor-injects ClaimsPrincipal directly to read auth_time for the absolute
+// session cap check, mirroring how a minimal-API delegate (e.g. /auth/refresh) gets it bound
+// automatically. System.Security.Claims.ClaimsPrincipal is a plain BCL type, so this scoped
+// registration is the only ASP.NET Core-specific piece — resolved from the SAME
+// IHttpContextAccessor AmbientTenantContext above already uses.
+builder.Services.AddScoped(sp =>
+    sp.GetRequiredService<IHttpContextAccessor>().HttpContext?.User
+    ?? new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity()));
+
 // JWT bearer
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
     ?? throw new InvalidOperationException("Configuration section 'Jwt' is required.");

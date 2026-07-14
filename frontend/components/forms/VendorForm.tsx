@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { TaxIdInput, isValidThaiTaxId } from '@/components/ui/TaxIdInput';
 import { useCreateVendor, useUpdateVendor } from '@/lib/queries';
-import { errorToToast } from '@/lib/api/errors';
+import { apiErrorToast } from '@/lib/api/errors';
 import type { CreateVendorRequest, VendorDetail } from '@/lib/types';
 
 // Shared vendor create/edit form. Built from the original `vendors/new` markup so
@@ -178,7 +178,7 @@ export function VendorForm({ edit }: { edit?: VendorDetail } = {}) {
         router.refresh();
       }
     } catch (e) {
-      toast.error(errorToToast(e));
+      apiErrorToast(e);
     }
   }
 

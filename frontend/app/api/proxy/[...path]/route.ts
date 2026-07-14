@@ -46,6 +46,22 @@ async function forward(req: NextRequest, pathParts: string[]) {
     );
   }
 
+  // WP2.3 (F21) layer 3 — redirect:'manual' means a 3xx from the backend arrives here as an
+  // opaque status with NO body; passing it through as-is gives the browser a body-less 3xx it
+  // cannot follow (the exact trailing-slash-308 hang class, and a latent trap for any future
+  // backend redirect). Forward Location so a well-behaved caller CAN follow it; otherwise fail
+  // loud (502) instead of silently hanging the caller's fetch.
+  if (upstream.status >= 300 && upstream.status < 400) {
+    const location = upstream.headers.get('location');
+    if (location) {
+      return new NextResponse(null, { status: upstream.status, headers: { location } });
+    }
+    return NextResponse.json(
+      { title: 'gateway.unexpected_redirect', detail: 'Upstream returned a redirect with no Location.' },
+      { status: 502 },
+    );
+  }
+
   // Pass through status + content-type + body (works for JSON and binary downloads).
   const respHeaders = new Headers();
   const upCt = upstream.headers.get('content-type');

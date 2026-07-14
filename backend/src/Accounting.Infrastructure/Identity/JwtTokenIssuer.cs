@@ -14,6 +14,10 @@ public sealed class JwtOptions
     public required string SigningKey { get; init; }
     /// <summary>Access token lifetime in minutes. Default 60.</summary>
     public int AccessTokenMinutes { get; init; } = 60;
+    /// <summary>WP2.1 (D6) — absolute session cap for the sliding /auth/refresh re-issue,
+    /// measured from the ORIGINAL login (auth_time claim), not the last refresh. Default 10h
+    /// (within the 8–12h range Ham approved); a refresh past this forces full re-login.</summary>
+    public int AbsoluteSessionCapHours { get; init; } = 10;
 }
 
 public sealed class JwtTokenIssuer : IJwtTokenIssuer
@@ -36,6 +40,11 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
 
         var now = DateTime.UtcNow;
         var exp = now.AddMinutes(opts.AccessTokenMinutes);
+        // WP2.1 (D6) — auth_time is the ORIGINAL login instant; preserved across re-issues
+        // (switch-company, refresh) via TokenClaims.AuthTime so /auth/refresh can enforce the
+        // absolute session cap from the true login moment. A fresh login (AuthTime null) stamps
+        // "now" here, becoming the anchor every later re-issue must carry forward.
+        var authTime = c.AuthTime ?? new DateTimeOffset(now, TimeSpan.Zero);
 
         var claims = new List<Claim>
         {
@@ -46,6 +55,7 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
             new(TenantClaims.CompanyId, c.CompanyId.ToString()),
             new(TenantClaims.BranchId, c.BranchId.ToString()),
             new(TenantClaims.IsSuperAdmin, c.IsSuperAdmin ? "true" : "false"),
+            new("auth_time", authTime.ToUnixTimeSeconds().ToString()),
         };
         claims.AddRange(c.Roles.Select(r => new Claim(ClaimTypes.Role, r)));
         claims.AddRange(c.Permissions.Select(p => new Claim(TenantClaims.Permission, p)));

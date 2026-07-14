@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
-import { errorToToast } from '@/lib/api/errors';
+import { apiErrorToast } from '@/lib/api/errors';
 import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { ProductTypeSelect } from '@/components/ui/ProductTypeSelect';
@@ -169,7 +169,7 @@ function VendorInvoiceNewForm() {
       toast.success(tc('save'));
       return res.vendor_invoice_id;
     } catch (e) {
-      toast.error(errorToToast(e));
+      apiErrorToast(e);
       return null;
     }
   }
@@ -408,7 +408,7 @@ function VendorInvoiceNewForm() {
               toast.warning(t('poOverReceipt'), { description: r.poOverReceiptWarning });
             router.push(`/vendor-invoices/${confirm.id}`);
           } catch (e) {
-            toast.error(errorToToast(e));
+            apiErrorToast(e);
           } finally {
             setConfirm(null);
           }

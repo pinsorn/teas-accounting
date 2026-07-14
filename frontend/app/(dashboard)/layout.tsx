@@ -2,6 +2,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SidebarNav } from '@/components/app-shell/SidebarNav';
 import { Topbar } from '@/components/layout/Topbar';
+import { SessionKeepAlive } from '@/components/auth/SessionKeepAlive';
+import { SessionExpiredModal } from '@/components/auth/SessionExpiredModal';
 
 const BACKEND = process.env.BACKEND_API_URL ?? 'http://localhost:5000';
 
@@ -50,6 +52,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // DaisyUI drawer: off-canvas on mobile, static rail on desktop (lg:drawer-open).
     // The checkbox + drawer-toggle is pure CSS — no React state needed.
     <div className="drawer lg:drawer-open h-screen">
+      {/* WP2.1/WP2.2 — no visible chrome; keep-alive is a pure side effect, the modal renders
+          only once a 401 fires the session-expired event. */}
+      <SessionKeepAlive />
+      <SessionExpiredModal />
       <input id="app-drawer" type="checkbox" className="drawer-toggle" />
       {/* Main content area */}
       <div className="drawer-content flex min-w-0 flex-col overflow-hidden">
