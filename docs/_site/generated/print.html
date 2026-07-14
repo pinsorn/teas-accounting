@@ -1,39 +1,81 @@
 <!doctype html><html lang="th"><head><meta charset="utf-8">
-<title>AccountProject User Manual (TH) v0.5</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>คู่มือการใช้งาน TEAS — Thailand Enterprise Accounting System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  :root{--brand:#0f766e;--brand2:#1565c0;--ink:#0f172a;--muted:#64748b;--line:#e6ebf2;--bg:#f6f8fb}
   *{box-sizing:border-box}
-  body{font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif;
-    color:#0f172a;margin:0;padding:0;font-size:14px;line-height:1.6}
-  .cover{height:100vh;display:flex;flex-direction:column;justify-content:center;
-    align-items:center;text-align:center;page-break-after:always}
-  .cover h1{font-size:34px;margin:0 0 8px}
-  .cover .sub{color:#475569;font-size:16px}
-  .wt{padding:24px 36px;page-break-before:always}
-  h2{color:#1565C0;border-bottom:2px solid #e2e8f0;padding-bottom:6px;font-size:22px}
-  h3{color:#0f766e;font-size:16px;margin-top:22px}
-  .pre{background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 12px;font-size:13px}
-  .intro{color:#334155;font-size:13.5px;margin:8px 0 4px}
-  figure{margin:8px 0 18px;page-break-inside:avoid}
-  figure img{width:100%;border:1px solid #cbd5e1;border-radius:6px}
-  figcaption{font-style:italic;color:#475569;font-size:12.5px;margin-top:6px}
-  .intro table{border-collapse:collapse;margin:8px 0;font-size:13px}
-  .intro th,.intro td{border:1px solid #cbd5e1;padding:4px 8px;text-align:left}
-  .intro th{background:#f1f5f9;font-weight:600}
-  .intro ul,.intro ol{margin:4px 0 8px 20px}
-  .intro li{margin:2px 0}
-  .intro code{background:#f1f5f9;padding:1px 4px;border-radius:3px;
-    font-family:'Courier New',monospace;font-size:12px}
-  .intro strong{color:#0f172a}
-  .intro p{margin:6px 0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:var(--ink);
+    margin:0;font-size:14.5px;line-height:1.72;background:var(--bg);
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  /* cover */
+  .cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    align-items:center;text-align:center;page-break-after:always;padding:48px;
+    background:linear-gradient(135deg,#0f766e 0%,#1565c0 100%);color:#fff}
+  .cover .badge{font-size:12px;letter-spacing:4px;text-transform:uppercase;opacity:.82;margin-bottom:20px}
+  .cover h1{font-size:46px;line-height:1.15;margin:0 0 12px;font-weight:800;letter-spacing:-.5px}
+  .cover .sub{font-size:18px;opacity:.95;font-weight:500}
+  .cover .meta{margin-top:30px;font-size:13.5px;opacity:.8;max-width:560px}
+  /* content */
+  main{max-width:900px;margin:0 auto;padding:30px 20px 72px}
+  .wt{background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px 32px;
+    margin:0 0 28px;box-shadow:0 4px 18px rgba(15,23,42,.06);page-break-before:always}
+  h2{color:var(--brand2);font-size:24px;font-weight:700;margin:0 0 16px;padding-bottom:12px;
+    border-bottom:2px solid var(--line);letter-spacing:-.2px}
+  /* step heading -> pill */
+  h3{display:inline-block;color:#fff;background:var(--brand);font-size:12.5px;font-weight:600;
+    padding:5px 15px;border-radius:999px;margin:26px 0 12px;box-shadow:0 2px 6px rgba(15,118,110,.25)}
+  .pre{background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 10px 10px 0;
+    padding:11px 16px;font-size:13.5px;color:#7c2d12;margin:0 0 16px}
+  .intro{color:#334155;font-size:14.5px}
+  .intro p{margin:9px 0}
+  .intro strong{color:var(--ink);font-weight:600}
+  .intro ul,.intro ol{margin:6px 0 12px 22px}
+  .intro li{margin:4px 0}
+  .intro table{border-collapse:collapse;margin:12px 0;font-size:13px;width:100%;
+    border-radius:8px;overflow:hidden;box-shadow:0 0 0 1px var(--line)}
+  .intro th,.intro td{border-bottom:1px solid var(--line);padding:8px 12px;text-align:left}
+  .intro th{background:#f1f5f9;font-weight:600;color:var(--ink)}
+  .intro tr:last-child td{border-bottom:0}
+  .intro code{background:#eef2f7;padding:2px 7px;border-radius:5px;
+    font-family:ui-monospace,'SFMono-Regular','Courier New',monospace;font-size:12.5px;color:#0b4f8a}
+  figure{margin:16px 0 22px;page-break-inside:avoid}
+  figure img{width:100%;border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 6px 20px rgba(15,23,42,.10)}
+  figcaption{color:var(--muted);font-size:12.5px;margin-top:10px;padding-left:12px;
+    border-left:3px solid var(--brand)}
+  @media print{
+    body{background:#fff}
+    main{max-width:none;padding:0}
+    .wt{box-shadow:none;border:0;border-radius:0;padding:0;page-break-before:always}
+    figure img{box-shadow:none}
+  }
   @page{size:A4;margin:14mm}
 </style></head><body>
 <div class="cover">
+  <div class="badge">User Manual</div>
   <h1>คู่มือการใช้งาน TEAS</h1>
   <div class="sub">Thailand Enterprise Accounting System</div>
-  <div class="sub">เวอร์ชัน 0.5 — บทที่ 1–2 (นำร่อง)</div>
+  <div class="meta">ระบบบัญชีวิสาหกิจ VAT-compliant สำหรับธุรกิจไทย — สายเอกสารขาย/ซื้อ, ภาษีหัก ณ ที่จ่าย, แบบยื่นสรรพากร, เงินเดือน และรายงาน</div>
 </div>
+<main>
+
+  <section class="wt">
+    <h2>00.01 — สร้างบริษัทแรกด้วย Setup Wizard</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> มีบัญชี Super Admin ที่ยังไม่มีบริษัทผูกอยู่ · รู้ข้อมูลนิติบุคคล: ชื่อ, เลขผู้เสียภาษี 13 หลัก, สถานะ VAT, ที่อยู่จดทะเบียน</p>
+    <div class="intro"><p>หลังติดตั้งระบบและเข้าสู่ระบบด้วยผู้ดูแลสูงสุด (Super Admin) ครั้งแรก — หากบัญชีนั้น<br><strong>ยังไม่มีบริษัทผูกอยู่</strong> ระบบจะนำเข้าสู่ <strong>หน้า Setup Wizard</strong> โดยอัตโนมัติ เพื่อ<br>สร้าง &quot;บริษัทแรก&quot; ก่อนเข้าใช้งานหน้าอื่น ๆ.</p>
+<p>ระบบดูจากการที่บัญชียัง <strong>ไม่ถูกมอบหมายให้บริษัทใด</strong> (ไม่ใช่ดูจากการที่ฐานข้อมูลว่าง) —<br>Super Admin ที่ไม่มี role จะเข้าสู่ระบบในสถานะ &quot;ยังไม่มีบริษัท&quot; และถูกพาเข้าหน้านี้.</p>
+<p>ในบทนี้จะเห็น:</p>
+<ul>
+<li>หน้า Wizard เปล่าเมื่อเข้าครั้งแรก</li>
+<li>ตัวอย่างการกรอกข้อมูลตั้งบริษัท: ชื่อ (ไทย/อังกฤษ), เลขผู้เสียภาษี, สถานะ VAT +<br>อัตรา + โหมด ภ.พ.30, และที่อยู่จดทะเบียนแบบแยกช่อง (ตามหนังสือรับรอง / ม.86/4)</li>
+</ul>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/00/00.01/step-01-wizard-empty.png" alt="step-01-wizard-empty"/><figcaption>Super Admin ที่ยังไม่มีบริษัทผูกอยู่จะถูกพาเข้าหน้า Setup Wizard นี้โดยอัตโนมัติ — เป็นหน้าแบบ "เต็มจอ" ไม่มีเมนู เพราะต้องสร้างบริษัทแรกให้เสร็จก่อนจึงเข้าใช้งานส่วนอื่นได้. ฟอร์มแบ่งเป็น: ข้อมูลนิติบุคคล, ภาษี (VAT), ที่อยู่จดทะเบียน, และรอบปีบัญชี</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/00/00.01/step-02-wizard-filled.png" alt="step-02-wizard-filled"/><figcaption>ตัวอย่างการกรอก: ชื่อนิติบุคคล (ไทย/อังกฤษ), เลขประจำตัวผู้เสียภาษี 13 หลัก, สถานะจด VAT พร้อมอัตรา (เช่น 0.07) และโหมดยื่น ภ.พ.30 — หมายเหตุ: โหมด "อัตโนมัติ (RD API)" ยังถูกปิดไว้ในขั้นตั้งค่า เลือกได้เฉพาะ "ด้วยตนเอง". ที่อยู่จดทะเบียนกรอกแยกช่อง (บ้านเลขที่/หมู่/ซอย/ถนน/ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์) ให้ตรงหนังสือรับรอง เพื่อนำไปขึ้นหัวใบกำกับภาษี (ม.86/4). เมื่อกด "สร้างบริษัท" ระบบจะสร้างบริษัท สลับ context เข้าบริษัทนั้น แล้วพาเข้า Dashboard</figcaption></figure>
+  </section>
 
   <section class="wt">
     <h2>01.01 — เข้าสู่ระบบ</h2>
@@ -112,11 +154,11 @@
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/02/02.01/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "หน่วยธุรกิจ (Business Unit)" — 3 BUs จาก seed (ECOM อีคอมเมิร์ซ / LAB แล็บ / REPT สัตว์เลื้อยคลาน). คอลัมน์: รหัส, ชื่อ (ไทย), ชื่อ (อังกฤษ), ใช้งาน, [✏️ แก้ไข] [ปิดใช้งาน]</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.01/step-02-enforce-toggle.png" alt="step-02-enforce-toggle"/><figcaption>toggle "บังคับระบุหน่วยธุรกิจในเอกสารรายได้" — เมื่อเปิด: ออกใบกำกับภาษี/ใบเสร็จ/ใบลดหนี้/ใบเพิ่มหนี้ ต้องเลือก BU ทุกครั้ง (กดยังต่อไม่ได้ถ้าไม่เลือก)</figcaption></figure>
 <h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.01/step-03-add-modal.png" alt="step-03-add-modal"/><figcaption>คลิก "+ เพิ่มหน่วยธุรกิจ" → modal เปิด. Fields: รหัส* (A-Z + 0-9, ≤20), ชื่อ (ไทย)*, ชื่อ (อังกฤษ). ปุ่ม "บันทึก" จะ enable เมื่อกรอก required ครบ</figcaption></figure>
-<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.01/step-04-saved.png" alt="step-04-saved"/><figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "TPUXJQ / ทดสอบ PUXJQ / Test BU PUXJQ" ปรากฏพร้อม ✓ ใช้งาน</figcaption></figure>
-<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.01/step-05-edit.png" alt="step-05-edit"/><figcaption>คลิก ✏️ แก้ไข ใน row "TPUXJQ" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU PUXJQ (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.01/step-04-saved.png" alt="step-04-saved"/><figcaption>กด "บันทึก" → POST /api/proxy/business-units → toast เขียว "บันทึก" มุมขวาบน → modal ปิด → row ใหม่ "TA8ZK7 / ทดสอบ A8ZK7 / Test BU A8ZK7" ปรากฏพร้อม ✓ ใช้งาน</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.01/step-05-edit.png" alt="step-05-edit"/><figcaption>คลิก ✏️ แก้ไข ใน row "TA8ZK7" → modal เปิดพร้อมค่าปัจจุบัน. ตัวอย่าง: แก้ "ชื่ออังกฤษ" เป็น "Test BU A8ZK7 (Main)" → กด "บันทึก" → PUT 204 → table refresh. หมายเหตุ: ห้ามแก้รหัส (code) หลังออกเอกสารแล้ว</figcaption></figure>
 <h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.01/step-06-confirm-dialog.png" alt="step-06-confirm-dialog"/><figcaption>กด "ปิดใช้งาน" → custom AlertDialog เปิด (Sprint 13d-P1): "⚠️ ยืนยันการทำรายการ — ปิดใช้งานหน่วยธุรกิจนี้? เอกสารเดิมยังอ้างอิงได้". 2 ปุ่ม: "ยกเลิก" (เทา) + "ยืนยัน" (สีแดง — destructive variant)</figcaption></figure>
-<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.01/step-07-disabled.png" alt="step-07-disabled"/><figcaption>ยืนยัน → DELETE 204 (soft) → "TPUXJQ" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption></figure>
-<h3>ขั้นที่ 8</h3><figure><img src="../captures/02/02.01/step-08-restored.png" alt="step-08-restored"/><figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "TPUXJQ" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.01/step-07-disabled.png" alt="step-07-disabled"/><figcaption>ยืนยัน → DELETE 204 (soft) → "TA8ZK7" row ใช้งาน column เป็น "—" (inactive). ปุ่ม action เปลี่ยน: "ปิดใช้งาน" → "↺ เปิดใช้งานใหม่" (Sprint 13d-P4)</figcaption></figure>
+<h3>ขั้นที่ 8</h3><figure><img src="../captures/02/02.01/step-08-restored.png" alt="step-08-restored"/><figcaption>คลิก "↺ เปิดใช้งานใหม่" → PUT isActive=true → toast "เปิดใช้งานใหม่" → row "TA8ZK7" กลับเป็น ✓ ใช้งาน + ปุ่มกลับเป็น "ปิดใช้งาน"</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -160,9 +202,9 @@
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/02/02.02/step-02-types-overview.png" alt="step-02-types-overview"/><figcaption>สังเกตคอลัมน์ "ประเภท" — แต่ละ row บอก VAT rule: EXEMPT_GOOD (MP-EXM-* ปลา/อาหารสัตว์ = VAT 0%), GOOD (MP-GD-* อุปกรณ์ = VAT 7%), SERVICE (MP-SVC-* บริการ = VAT 7% + อาจ WHT)</figcaption></figure>
 <h3>ขั้นที่ 3</h3><figure><img src="../captures/02/02.02/step-03-add-modal.png" alt="step-03-add-modal"/><figcaption>คลิก "+ เพิ่มสินค้า/บริการ" → modal เปิด. Fields: รหัส (SKU)*, ชื่อ (ไทย)*, ชื่อ (อังกฤษ), ประเภท (dropdown 4 options), หน่วยนับ, ราคาตั้งต้น</figcaption></figure>
 <h3>ขั้นที่ 4</h3><figure><img src="../captures/02/02.02/step-04-type-dropdown.png" alt="step-04-type-dropdown"/><figcaption>dropdown "ประเภท" มี 4 options: GOOD (default), SERVICE, EXEMPT_GOOD, EXEMPT_SERVICE. ตัวเลือกที่ขึ้นต้น "EXEMPT_" = ไม่คิด VAT 7%</figcaption></figure>
-<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.02/step-05-saved.png" alt="step-05-saved"/><figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-Q3IPU / ค่าออกแบบเว็บไซต์ Q3IPU / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/02/02.02/step-05-saved.png" alt="step-05-saved"/><figcaption>กด "บันทึก" → POST → toast "บันทึก" → row ใหม่ "MP-SVC-A9A7W / ค่าออกแบบเว็บไซต์ A9A7W / SERVICE / 15,000.00 / ใช้งาน" ปรากฏ. ระบบจะคิด VAT 7% และเตือนหัก ณ ที่จ่ายอัตโนมัติเมื่อใช้ในเอกสาร</figcaption></figure>
 <h3>ขั้นที่ 6</h3><figure><img src="../captures/02/02.02/step-06-confirm-dialog.png" alt="step-06-confirm-dialog"/><figcaption>กด "ปิดใช้งาน" → AlertDialog เปิด (เหมือน BU 02.01). ถ้าเอกสารเดิมอ้างสินค้านี้ — ยังอ้างได้ (soft delete + audit trail)</figcaption></figure>
-<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.02/step-07-disabled.png" alt="step-07-disabled"/><figcaption>row "MP-SVC-Q3IPU" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/02/02.02/step-07-disabled.png" alt="step-07-disabled"/><figcaption>row "MP-SVC-A9A7W" สถานะเปลี่ยนเป็น "—" + action เป็น "↺ เปิดใช้งานใหม่". Restore = PUT isActive=true (Sprint 13d-P4)</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -261,7 +303,7 @@
 </div>
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/03/03.01/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "ลูกค้า" — รายการลูกค้าทั้งหมด. คอลัมน์: รหัส, ชื่อ, ประเภท, เลขผู้เสียภาษี, สถานะ. ปุ่ม "เพิ่มลูกค้า" มุมขวาบนเปิดฟอร์มสร้างใหม่</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/03/03.01/step-02-form.png" alt="step-02-form"/><figcaption>ฟอร์ม "เพิ่มลูกค้าใหม่" — 4 ส่วน: ข้อมูลทั่วไป, ข้อมูลภาษี, ที่อยู่/ผู้ติดต่อ, เงื่อนไขการค้า. ช่องที่มี * คือบังคับ (รหัส + ชื่อไทย)</figcaption></figure>
-<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.01/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกข้อมูลทั่วไป — รหัส "MC-R8Y8H" + ชื่อไทย. ลูกค้าที่ จดทะเบียน VAT (สวิตช์ "จดทะเบียน VAT" ในส่วนข้อมูลภาษี เปิดเป็นค่าตั้งต้น) ต้องกรอกเลขผู้เสียภาษี 13 หลัก + รหัสสาขา (ม.86/4). เสร็จแล้วกด "บันทึก" ลูกค้าจะพร้อมใช้ในเอกสารขายทันที</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.01/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกข้อมูลทั่วไป — รหัส "MC-AAR52" + ชื่อไทย. ลูกค้าที่ จดทะเบียน VAT (สวิตช์ "จดทะเบียน VAT" ในส่วนข้อมูลภาษี เปิดเป็นค่าตั้งต้น) ต้องกรอกเลขผู้เสียภาษี 13 หลัก + รหัสสาขา (ม.86/4). เสร็จแล้วกด "บันทึก" ลูกค้าจะพร้อมใช้ในเอกสารขายทันที</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -280,7 +322,23 @@
 </div>
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/03/03.02/step-01-list.png" alt="step-01-list"/><figcaption>หน้า "ผู้ขาย" — รายการผู้ขายทั้งหมด. ปุ่ม "เพิ่มผู้ขาย" มุมขวาบนเปิดฟอร์มสร้างใหม่</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/03/03.02/step-02-form.png" alt="step-02-form"/><figcaption>ฟอร์ม "เพิ่มผู้ขาย" — รหัสผู้ขาย*, ประเภท (นิติบุคคล/บุคคลธรรมดา), ชื่อ*, เลขผู้เสียภาษี, รหัสสาขา, เครดิต, ที่อยู่ + ข้อมูลการชำระเงิน (ธนาคาร/เลขบัญชี). มีสวิตช์ "Vendor ต่างประเทศ" / "จด VAT" สำหรับเคสพิเศษ</figcaption></figure>
-<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.02/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกรหัส "MV-QY7D4" + ชื่อไทย. เลือกประเภท/สวิตช์ VAT ให้ตรง กับสถานะจริงของผู้ขาย เพราะมีผลต่อการคิด Input VAT + WHT ตอนทำเอกสารซื้อ. กด "บันทึกผู้ขาย" เพื่อเพิ่มเข้า master</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.02/step-03-fill.png" alt="step-03-fill"/><figcaption>กรอกรหัส "MV-AAXQ7" + ชื่อไทย. เลือกประเภท/สวิตช์ VAT ให้ตรง กับสถานะจริงของผู้ขาย เพราะมีผลต่อการคิด Input VAT + WHT ตอนทำเอกสารซื้อ. กด "บันทึกผู้ขาย" เพื่อเพิ่มเข้า master</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>03.03 — ลูกค้าบุคคลธรรมดา (ไม่มีเลขผู้เสียภาษี)</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login admin (สิทธิ์ master.customer.manage + tax_invoice)</p>
+    <div class="intro"><p>ลูกค้าแบ่งเป็น 2 ประเภท: <strong>นิติบุคคล</strong> (บริษัท/ห้างฯ) และ <strong>บุคคลธรรมดา</strong><br>(ผู้บริโภคทั่วไป, ฟรีแลนซ์, ร้านเล็ก ๆ ที่ไม่จด VAT). การตั้งประเภทให้ถูกมีผลต่อ<br>เอกสารภาษีโดยตรง:</p>
+<ul>
+<li><strong>ประเภท</strong> (บุคคลธรรมดา / นิติบุคคล) — เลือกตอนสร้าง แก้ภายหลังไม่ได้.</li>
+<li><strong>สวิตช์ &quot;จดทะเบียน VAT&quot;</strong> — ลูกค้าบุคคลธรรมดาทั่วไป <strong>ไม่จด VAT</strong> → &quot;ปิด&quot; สวิตช์นี้.<br>เมื่อปิดแล้ว ช่อง <strong>เลขประจำตัวผู้เสียภาษี (13 หลัก) + รหัสสาขา เลิกเป็นช่องบังคับ</strong><br>(เครื่องหมาย * หาย) เพราะไม่ต้องใช้.</li>
+</ul>
+<p><strong>กฎหมาย ม.86/4 #3:</strong> ใบกำกับภาษีต้องมีเลขผู้เสียภาษีของผู้ซื้อ <strong>เฉพาะเมื่อผู้ซื้อจด VAT</strong>.<br>ลูกค้าบุคคลธรรมดาที่ไม่จด VAT จึงออกใบกำกับภาษีให้ได้ตามปกติ แต่บล็อกผู้ซื้อบนเอกสาร<br>แสดงแค่ &quot;ชื่อ&quot; — ไม่มีเลขผู้เสียภาษี (เพราะผู้ซื้อนำไปเคลมภาษีซื้อไม่ได้อยู่แล้ว).</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/03/03.03/step-01-type-individual.png" alt="step-01-type-individual"/><figcaption>สร้างลูกค้าใหม่ — ช่อง "ประเภท" เลือก "บุคคลธรรมดา" (ผู้บริโภคทั่วไป/ฟรีแลนซ์). กรอกรหัส + ชื่อไทย. ประเภทนี้ตั้งได้ตอนสร้าง เท่านั้น แก้ภายหลังไม่ได้</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/03/03.03/step-02-vat-off.png" alt="step-02-vat-off"/><figcaption>ปิดสวิตช์ "จดทะเบียน VAT" (ลูกค้าบุคคลธรรมดาทั่วไปไม่จด VAT) → ช่อง "เลขประจำตัวผู้เสียภาษี" และ "รหัสสาขา" เลิกเป็นช่องบังคับทันที (เครื่องหมาย * หายไป) เพราะ ม.86/4 ไม่ต้องใช้เลขผู้เสียภาษีของผู้ซื้อที่ไม่จด VAT</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/03/03.03/step-03-saved.png" alt="step-03-saved"/><figcaption>บันทึกแล้ว — ลูกค้าบุคคลธรรมดา "คุณมานี ใจดี AB3MD" เข้า master (คอลัมน์ "ประเภท" = บุคคลธรรมดา, ไม่มีเลขผู้เสียภาษี). พร้อมใช้เป็นผู้ซื้อในเอกสารขาย</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/03/03.03/step-04-ti-no-buyer-taxid.png" alt="step-04-ti-no-buyer-taxid"/><figcaption>ออกใบกำกับภาษีให้ "คุณมานี ใจดี AB3MD" — ตัวอย่างเอกสารด้านขวา บล็อกผู้ซื้อ แสดงแค่ "ชื่อ" ไม่มีเลขประจำตัวผู้เสียภาษี 13 หลัก (ม.86/4 #3 ไม่บังคับเมื่อ ผู้ซื้อไม่จด VAT). ยังเป็นใบกำกับภาษีเต็มรูปถูกต้อง และคิด VAT 7% ตามปกติ (ไม่ post)</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -541,17 +599,36 @@
   </section>
 
   <section class="wt">
+    <h2>04.11 — กิจการไม่จด VAT: วงจรขายครบจบ</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login เป็นผู้ใช้ของกิจการที่ไม่จด VAT (co3) · มีลูกค้า + สินค้าในระบบ</p>
+    <div class="intro"><p>กิจการที่ <strong>ไม่จด VAT</strong> ก็มีวงจรขายครบเหมือนกิจการ VAT — เพียงแต่ <strong>ไม่มีภาษีมูลค่าเพิ่ม</strong><br>และ <strong>ออกใบกำกับภาษีไม่ได้</strong> (ม.86). วงจรเอกสารคือ:</p>
+<ol>
+<li><strong>ใบเสนอราคา (Quotation)</strong> — เสนอราคาให้ลูกค้า (ยอดเป็นราคาเต็ม ไม่บวก VAT).</li>
+<li><strong>ใบแจ้งหนี้ / บิลเงินสด (Billing Note)</strong> — เรียกเก็บเงิน. <strong>ไม่ใช่ &quot;ใบกำกับภาษี&quot;</strong> —<br>กิจการไม่จด VAT ออกใบกำกับภาษีไม่ได้ จึงใช้ใบแจ้งหนี้/ใบเสร็จแทน.</li>
+<li><strong>ใบเสร็จรับเงิน (Receipt)</strong> — เมื่อรับเงิน. กิจการไม่จด VAT ออกได้แบบ &quot;บิลเงินสด&quot;<br>ที่ <strong>ไม่ต้องอ้างใบกำกับภาษี</strong> (เพราะไม่มีใบกำกับภาษีให้อ้าง).</li>
+</ol>
+<p><strong>ทุกเอกสารไม่มีบรรทัด VAT — ยอดรวม = ยอดก่อนภาษีเสมอ</strong> (ราคาที่ตกลง = ราคาที่จ่ายจริง).<br>ระบบปรับเมนู + เอกสารให้อัตโนมัติตามสถานะ VAT ของบริษัท (per-company, §4.6).</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/04/04.11/step-01-quotation.png" alt="step-01-quotation"/><figcaption>ใบเสนอราคาของกิจการไม่จด VAT — ตารางรายการ "ไม่มีคอลัมน์ VAT" และกล่องสรุป ยอดรวม = ยอดก่อนภาษี (3 × 1,200 = 3,600) ไม่มีบรรทัดภาษีมูลค่าเพิ่ม</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/04/04.11/step-02-quotation-issued.png" alt="step-02-quotation-issued"/><figcaption>ออกใบเสนอราคาแล้ว → ระบบออกเลขที่เอกสาร. จากหน้านี้แปลงเป็น "ใบแจ้งหนี้" ได้ — แต่ไม่มีปุ่ม "ออกใบกำกับภาษี" (กิจการไม่จด VAT ออกไม่ได้)</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/04/04.11/step-03-billing-note.png" alt="step-03-billing-note"/><figcaption>ใบแจ้งหนี้ / บิลเงินสด (Billing Note) — เอกสารเรียกเก็บเงินของกิจการ ไม่จด VAT. หัวเอกสารคือ "ใบแจ้งหนี้" ไม่ใช่ "ใบกำกับภาษี" และยอดเรียกเก็บ = ยอดก่อนภาษี 3,600 (ไม่มี VAT 7% เพิ่มเหมือนกิจการ VAT)</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/04/04.11/step-04-billing-issued.png" alt="step-04-billing-issued"/><figcaption>ออกใบแจ้งหนี้แล้ว (สถานะ "ออกแล้ว") — เลขที่เอกสารออกตามลำดับ. เมื่อรับเงินจะออก "ใบเสร็จ/บิลเงินสด" อ้างอิงใบแจ้งหนี้นี้ (ดูขั้นถัดไป)</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/04/04.11/step-05-receipt-cashbill.png" alt="step-05-receipt-cashbill"/><figcaption>ฟอร์มใบเสร็จของกิจการไม่จด VAT เปิดเป็นโหมด "บิลเงินสด (ไม่อ้างเอกสาร)" อัตโนมัติ — ไม่ต้องอ้างใบกำกับภาษี (เพราะออกใบกำกับภาษีไม่ได้). กรอกรายการ + ยอดรับ แล้ว "บันทึกเอกสาร" เพื่อออกใบเสร็จ. ยอดรับ = ยอดก่อนภาษี ไม่มี VAT</figcaption></figure>
+  </section>
+
+  <section class="wt">
     <h2>05.01 — ออกและอนุมัติใบสั่งซื้อ</h2>
     <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login admin (สิทธิ์ purchase_order create + approve) · มีผู้ขาย + หน่วยธุรกิจ ในระบบ (บทที่ 3)</p>
     <div class="intro"><p>ใบสั่งซื้อ (Purchase Order / PO) คือเอกสารแรกของงานซื้อ — ใช้สั่งซื้อสินค้า/บริการจาก<br>ผู้ขาย และเป็นเครื่องมือ <strong>ควบคุมการใช้จ่าย</strong> ภายในกิจการ (อนุมัติก่อนซื้อจริง).</p>
 <p><strong>สายงานซื้อเต็มรูป (document chain):</strong></p>
 <p>ใบสั่งซื้อ → <strong>บันทึกใบกำกับภาษีซื้อ</strong> (รับของ + ภาษีซื้อ) → ใบสำคัญจ่าย (จ่ายเงิน +<br>หัก ณ ที่จ่าย) → หนังสือรับรองหัก ณ ที่จ่าย (50ทวิ)</p>
-<p><strong>ขั้นตอนอนุมัติ (workflow):</strong> ใบสั่งซื้อสร้างเป็น &quot;ฉบับร่าง&quot; ก่อน แล้วต้อง <strong>อนุมัติ</strong> จึงจะ<br>ใช้งานต่อได้ — และระบบจะออก <strong>เลขที่เอกสาร (PO-NNNN) ตอนอนุมัติ</strong> เท่านั้น. ระบบนี้รองรับ<br>กิจการขนาดเล็กที่มีผู้ใช้คนเดียว (ผู้สร้างอนุมัติเองได้) แต่กิจการใหญ่สามารถแยกผู้สร้าง/<br>ผู้อนุมัติตามสิทธิ์ได้ (Segregation of Duties).</p>
+<p><strong>ขั้นตอนอนุมัติ (workflow):</strong> ใบสั่งซื้อสร้างเป็น &quot;ฉบับร่าง&quot; ก่อน แล้วต้อง <strong>อนุมัติ</strong> จึงจะ<br>ใช้งานต่อได้ — และระบบจะออก <strong>เลขที่เอกสารตอนอนุมัติ</strong> เท่านั้น รูปแบบ<br>&quot;MM-YYYY-PO-หน่วยธุรกิจ-NNNN&quot; (เช่น &quot;07-2026-PO-ECOM-0001&quot;). ระบบนี้รองรับ<br>กิจการขนาดเล็กที่มีผู้ใช้คนเดียว (ผู้สร้างอนุมัติเองได้) แต่กิจการใหญ่สามารถแยกผู้สร้าง/<br>ผู้อนุมัติตามสิทธิ์ได้ (Segregation of Duties).</p>
+<p><strong>หมายเหตุ VAT บนใบสั่งซื้อ:</strong> ยอดรวมจะมีแถว &quot;ภาษีมูลค่าเพิ่ม 7%&quot; ก็ต่อเมื่อ <strong>ทั้งกิจการ<br>และผู้ขายจดทะเบียน VAT ทั้งคู่</strong> — ถ้ากิจการตั้งค่าไม่จด VAT หรือผู้ขายไม่จด VAT แถวนี้จะ<br>ไม่ปรากฏ (ยอดรวมเป็นยอดก่อนภาษีตรงๆ).</p>
 </div>
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/05/05.01/step-01-form.png" alt="step-01-form"/><figcaption>ฟอร์ม "สร้างใบสั่งซื้อ" — ส่วน ① ผู้ขาย, ② ข้อมูลเอกสาร (วันที่ + วันที่คาดว่าจะส่ง), ③ รายการ. ตัวอย่างเอกสารด้านขวาออกในนามบริษัทเรา ส่งถึงผู้ขาย</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/05/05.01/step-02-fill.png" alt="step-02-fill"/><figcaption>เลือกผู้ขาย "บริษัท ออฟฟิศ ซัพพลาย จำกัด" (ในประเทศ จด VAT) + หน่วย ธุรกิจ + กรอกรายการ (20 × 120). ระบบคำนวณยอดก่อนภาษี 2,400 + VAT 7% ให้อัตโนมัติ</figcaption></figure>
-<h3>ขั้นที่ 3</h3><figure><img src="../captures/05/05.01/step-03-draft.png" alt="step-03-draft"/><figcaption>บันทึกแล้ว → ใบสั่งซื้อสถานะ "ฉบับร่าง" ยัง "ไม่มีเลขที่เอกสาร". มุมขวามีปุ่ม "อนุมัติ" — กิจการตรวจสอบก่อนอนุมัติเพื่อควบคุมการใช้จ่าย</figcaption></figure>
-<h3>ขั้นที่ 4</h3><figure><img src="../captures/05/05.01/step-04-approved.png" alt="step-04-approved"/><figcaption>กด "อนุมัติ" → ระบบออกเลขที่เอกสาร (PO-NNNN) และเปลี่ยนสถานะเป็น "อนุมัติแล้ว". ตอนนี้พร้อมรับของ/บันทึกใบกำกับภาษีซื้อ และสร้างใบสำคัญจ่ายอ้างอิงต่อ</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/05/05.01/step-03-draft.png" alt="step-03-draft"/><figcaption>บันทึกแล้ว → ใบสั่งซื้อสถานะ "ฉบับร่าง" ยัง "ไม่มีเลขที่เอกสาร" (แสดง #id ชั่วคราว). มุมขวามีปุ่ม "อนุมัติ" — กิจการตรวจสอบก่อนอนุมัติเพื่อควบคุมการใช้จ่าย</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/05/05.01/step-04-approved.png" alt="step-04-approved"/><figcaption>กด "อนุมัติ" → ระบบออกเลขที่เอกสาร (MM-YYYY-PO-หน่วยธุรกิจ-NNNN) และเปลี่ยน สถานะเป็น "อนุมัติแล้ว". แถบปุ่มเปลี่ยนเป็น "สร้างใบสำคัญจ่าย" · "ส่ง PO ให้ vendor" (แค่ประทับวันที่ส่ง ไม่ได้ส่งอีเมลจริง) · "ปิด" · "ยกเลิก" — ขั้นถัดไปคือบันทึกใบกำกับ ภาษีซื้อ (05.02) เมื่อได้รับของ/ใบกำกับภาษีจากผู้ขาย</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -564,13 +641,20 @@
 <li><strong>งวดเครดิตภาษีซื้อ (ม.82/4)</strong> — ภาษีซื้อใช้เครดิตได้ตั้งแต่เดือนของใบกำกับฯ ถึง +6 เดือน.</li>
 <li><strong>หมวดค่าใช้จ่าย</strong> — กำหนดว่าภาษีซื้อ &quot;เครดิตได้&quot; หรือเป็น <strong>&quot;ภาษีซื้อต้องห้าม&quot;</strong><br>(เช่น ค่ารับรอง — เครดิตไม่ได้ตามกฎหมาย).</li>
 </ul>
-<p>ถ้าเคยออกใบสั่งซื้อให้ผู้ขายรายนี้ (05.01) ระบบมีตัวเลือก &quot;เชื่อมกับใบสั่งซื้อ&quot; เพื่อดึง<br>รายการมาให้ — ที่นี่แสดงการบันทึกแบบกรอกเอง.</p>
+<p>ถ้าเคยออกใบสั่งซื้อให้ผู้ขายรายนี้ (05.01) ระบบมีตัวเลือก &quot;เชื่อมกับใบสั่งซื้อ (ไม่บังคับ)&quot;<br>เพื่อดึงรายการมาให้ (ดูขั้นที่ 8 ท้ายบทนี้) — ส่วนหลักของบทนี้แสดงการบันทึกแบบกรอกเอง.</p>
+<blockquote>
+<p>⚠️ <strong>คำเตือน — ช่อง &quot;อัตรา VAT&quot; รับค่าเป็นเศษส่วน ไม่ใช่เปอร์เซ็นต์</strong>: พิมพ์ &quot;0.07&quot;<br>สำหรับ VAT 7% — ถ้าพิมพ์ &quot;7&quot; เฉยๆ ระบบจะตีความเป็น 700% ทันทีโดยไม่มีคำเตือน/ตรวจสอบ<br>ค่า (0–1). รายการที่ดึงมาจาก PO (&quot;เชื่อมกับใบสั่งซื้อ&quot;) อาจตั้งอัตรานี้มาให้ไม่ตรง —<br>ตรวจสอบทุกครั้งก่อนบันทึก.</p>
+</blockquote>
+<p>หลัง Post แล้ว ถ้ายังไม่แนบไฟล์ใบกำกับภาษีจากผู้ขาย เอกสารจะขึ้นสถานะ &quot;ไม่สมบูรณ์&quot;<br>(หลักฐานตรวจสรรพากร ม.86/4, ม.82/4) — ดูขั้นที่ 7 การแนบไฟล์.</p>
 </div>
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/05/05.02/step-01-form.png" alt="step-01-form"/><figcaption>ฟอร์ม "บันทึกใบกำกับภาษีซื้อ" — ① ผู้ขาย, ② ข้อมูลเอกสาร (เลขที่/วันที่ ใบกำกับฯ ของผู้ขาย + งวดเครดิต ม.82/4), ③ รายการพร้อมหมวดค่าใช้จ่าย</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/05/05.02/step-02-vendor.png" alt="step-02-vendor"/><figcaption>เลือกผู้ขาย + กรอก "เลขที่ใบกำกับภาษีของผู้ขาย" (เลขต้นฉบับจากผู้ขาย). "งวดเครดิตภาษีซื้อ (ม.82/4)" ตั้งค่าเริ่มต้นเป็นเดือนของใบกำกับฯ — เลือกได้ถึง +6 เดือน</figcaption></figure>
 <h3>ขั้นที่ 3</h3><figure><img src="../captures/05/05.02/step-03-line.png" alt="step-03-line"/><figcaption>เลือก "หมวดค่าใช้จ่าย" + กรอกรายละเอียด + จำนวนเงินก่อน VAT 2,400. กล่องสรุปแยก "ภาษีซื้อ (เครดิตได้)" 168 ออกจาก "ภาษีซื้อต้องห้าม" ตามหมวดที่เลือก</figcaption></figure>
-<h3>ขั้นที่ 4</h3><figure><img src="../captures/05/05.02/step-04-confirm.png" alt="step-04-confirm"/><figcaption>กด "บันทึกเอกสาร (Post)" → กล่องยืนยันสรุปยอดและภาษีซื้อ. การโพสต์ บันทึกภาษีซื้อเข้าระบบ ภ.พ.30 ของงวดที่เลือก</figcaption></figure>
-<h3>ขั้นที่ 5</h3><figure><img src="../captures/05/05.02/step-05-posted.png" alt="step-05-posted"/><figcaption>บันทึกใบกำกับภาษีซื้อเรียบร้อย — ภาษีซื้อถูกบันทึกเข้าระบบเพื่อใช้เครดิต ในแบบ ภ.พ.30. ขั้นถัดไปคือจ่ายเงินผู้ขายด้วย "ใบสำคัญจ่าย" (05.03)</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/05/05.02/step-03b-vatrate.png" alt="step-03b-vatrate"/><figcaption>ช่อง "อัตรา VAT" ปัจจุบันแสดง 0.07 — ช่องนี้รับค่าเป็น "เศษส่วน" (0.07 = 7%) ไม่ใช่เปอร์เซ็นต์ และไม่ตรวจสอบค่าเกินจริง. พิมพ์ "7" เฉยๆ จะกลายเป็น VAT 700% ทันทีโดยไม่มีคำเตือน — ตรวจสอบค่านี้ทุกครั้งก่อนบันทึก</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/05/05.02/step-04-confirm.png" alt="step-04-confirm"/><figcaption>กด "บันทึกเอกสาร (Post)" → กล่องยืนยันเตือนว่า "การบันทึก (Post) ไม่สามารถแก้ไขหรือลบได้ — แก้ไขต้องออกใบลดหนี้ + ออกใหม่ (ม.86/4 / ม.86/12)" พร้อมสรุปยอด VAT/รวม. การโพสต์บันทึกภาษีซื้อเข้าระบบ ภ.พ.30 ของงวดที่เลือก</figcaption></figure>
+<h3>ขั้นที่ 6</h3><figure><img src="../captures/05/05.02/step-05-posted.png" alt="step-05-posted"/><figcaption>บันทึกใบกำกับภาษีซื้อเรียบร้อย — ภาษีซื้อถูกบันทึกเข้าระบบเพื่อใช้เครดิต ในแบบ ภ.พ.30. เอกสารขึ้นป้าย "ไม่สมบูรณ์ / ขาดไฟล์ใบกำกับภาษีจากผู้ขาย" จนกว่าจะ แนบไฟล์ (ขั้นที่ 7). มุมขวามีปุ่ม "ชำระด้วยใบสำคัญจ่าย" ไปสร้างใบสำคัญจ่าย (05.03)</figcaption></figure>
+<h3>ขั้นที่ 7</h3><figure><img src="../captures/05/05.02/step-06-attach.png" alt="step-06-attach"/><figcaption>เลื่อนลงมาที่ส่วน "หลักฐาน" ท้ายเอกสาร แล้วกด "อัปโหลด" — แนบไฟล์ใบกำกับภาษี ตัวจริงที่ผู้ขายออกให้ (หลักฐานตรวจสรรพากร ม.86/4, ม.82/4) เพื่อให้เอกสารพ้นสถานะ "ไม่สมบูรณ์"</figcaption></figure>
+<h3>ขั้นที่ 8</h3><figure><img src="../captures/05/05.02/step-07-po-link.png" alt="step-07-po-link"/><figcaption>(ขั้นทางเลือก) เลือก "เชื่อมกับใบสั่งซื้อ (ไม่บังคับ)" → ระบบดึงรายการจาก PO ที่อนุมัติแล้วมาให้อัตโนมัติ (ยังต้องเลือก "หมวดค่าใช้จ่าย" เอง). อัตรา VAT ที่ ดึงมาคือ 0.07 — ตรวจสอบค่านี้เสมอก่อนบันทึก (ดูคำเตือนขั้นก่อนหน้า)</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -587,7 +671,7 @@
 </div>
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/05/05.03/step-01-form.png" alt="step-01-form"/><figcaption>ฟอร์ม "สร้างใบสำคัญจ่าย" — ① ผู้รับเงิน, ② ข้อมูลเอกสาร (หมวด ค่าใช้จ่าย + วิธีชำระ), ③ รายการ พร้อมช่อง "ประเภทเงินได้ (50ทวิ)" สำหรับหัก ณ ที่จ่าย</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/05/05.03/step-02-fill.png" alt="step-02-fill"/><figcaption>เลือกผู้รับเงิน + หมวดค่าเช่า + รายการ (ค่าเช่า 30,000) + ประเภทเงินได้ "ค่าเช่า (5%)". ระบบหัก ณ ที่จ่าย 1,500 และคำนวณ "จ่ายสุทธิ" = 30,000 + VAT − 1,500</figcaption></figure>
-<h3>ขั้นที่ 3</h3><figure><img src="../captures/05/05.03/step-03-draft.png" alt="step-03-draft"/><figcaption>บันทึกแล้ว → ใบสำคัญจ่ายสถานะ "ฉบับร่าง" แสดงยอดหัก ณ ที่จ่าย และ ยอดจ่ายสุทธิ. ต้อง "อนุมัติ" แล้ว "บันทึก (Post)" จึงลงบัญชีและออก 50ทวิ</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/05/05.03/step-03-draft.png" alt="step-03-draft"/><figcaption>บันทึกแล้ว → ใบสำคัญจ่ายสถานะ "ฉบับร่าง" แสดงยอดหัก ณ ที่จ่าย และ ยอดจ่ายสุทธิ. ระบบมีข้อความกำกับ "ผู้อนุมัติต้องไม่ใช่ผู้สร้าง (SoD)" ข้างวันที่ (สำหรับ super-admin คนเดียวยังอนุมัติเองได้ต่อ — ดู 05.01). ต้อง "อนุมัติ" แล้ว "บันทึก (Post)" จึงลงบัญชีและออก 50ทวิ. วันที่เอกสารล็อกเป็นวันนี้ แก้ไม่ได้</figcaption></figure>
 <h3>ขั้นที่ 4</h3><figure><img src="../captures/05/05.03/step-04-posted.png" alt="step-04-posted"/><figcaption>กด "อนุมัติ" แล้ว "บันทึก (Post)" → ระบบลงบัญชี (เดบิตค่าเช่า/ภาษีซื้อ, เครดิตเงินสด/ภาษีหัก ณ ที่จ่ายค้างนำส่ง) และออกหนังสือรับรอง 50ทวิ ให้อัตโนมัติ</figcaption></figure>
 <h3>ขั้นที่ 5</h3><figure><img src="../captures/05/05.03/step-05-cert.png" alt="step-05-cert"/><figcaption>หนังสือรับรองการหักภาษี ณ ที่จ่าย (50ทวิ) ที่ระบบออกให้ — ระบุผู้ถูกหัก, ประเภทเงินได้, ยอดหัก 1,500 และแบบนำส่ง ภ.ง.ด.53 (จ่ายให้นิติบุคคล). พิมพ์มอบผู้รับเงินได้</figcaption></figure>
   </section>
@@ -676,6 +760,37 @@
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/05/05.05/step-02-domestic-nonvat.png" alt="step-02-domestic-nonvat"/><figcaption>เปลี่ยนเป็น "ร้านโชห่วยตัวอย่าง" (ไม่จด VAT) → ระบบเตือน "เคลม Input VAT ไม่ได้ (VAT รวมเป็นค่าใช้จ่าย)" เพราะผู้ขายไม่จด VAT จึงออกใบกำกับภาษีไม่ได้</figcaption></figure>
 <h3>ขั้นที่ 3</h3><figure><img src="../captures/05/05.05/step-03-foreign-pnd36.png" alt="step-03-foreign-pnd36"/><figcaption>เปลี่ยนเป็น "Amazon Web Services" (ต่างประเทศ ไม่มี VAT-D ไทย) → ระบบเตือน "ภ.พ.36 reverse charge" — ผู้จ่ายในไทยต้องนำส่ง VAT แทน แล้วเคลมภาษีซื้อเดือนถัดไป</figcaption></figure>
 <h3>ขั้นที่ 4</h3><figure><img src="../captures/05/05.05/step-04-foreign-vatd.png" alt="step-04-foreign-vatd"/><figcaption>เปลี่ยนเป็น "Netflix" (ต่างประเทศ แต่จด VAT-D ในไทย) → ระบบแจ้ง "เคลม Input VAT ปกติ" เพราะจดทะเบียน VAT-D ในไทยแล้ว จึงปฏิบัติเหมือนผู้ขายในประเทศจด VAT</figcaption></figure>
+  </section>
+
+  <section class="wt">
+    <h2>05.06 — ผู้ขายบุคคลธรรมดา + 50ทวิ แบบ ภ.ง.ด.3</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login admin (สิทธิ์ master.vendor.manage + payment_voucher create/approve/post) · มีประเภทเงินได้ 50ทวิ (ค่าบริการ) ในระบบ</p>
+    <div class="intro"><p>แบบนำส่งภาษีหัก ณ ที่จ่าย (50ทวิ) ขึ้นกับ <strong>ประเภทของผู้รับเงิน</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>ผู้รับเงิน</th>
+<th>แบบนำส่ง</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>นิติบุคคล</strong> (บริษัท/ห้างฯ)</td>
+<td><strong>ภ.ง.ด.53</strong></td>
+</tr>
+<tr>
+<td><strong>บุคคลธรรมดา</strong> (ฟรีแลนซ์/บุคคลทั่วไป)</td>
+<td><strong>ภ.ง.ด.3</strong></td>
+</tr>
+</tbody></table>
+<p>อัตราการหักเหมือนกัน (เช่น ค่าบริการ 3%, ค่าเช่า 5%) — ต่างกันแค่ &quot;แบบที่นำส่งสรรพากร&quot;.<br>ระบบดู <strong>ประเภทของผู้ขาย</strong> (ตั้งที่ข้อมูลหลัก — บุคคลธรรมดา / นิติบุคคล) แล้วเลือกแบบให้เอง.</p>
+<p>บทนี้: สร้างผู้ขาย <strong>บุคคลธรรมดา</strong> (ฟรีแลนซ์) → จ่ายค่าบริการ + หัก ณ ที่จ่าย 3% →<br>ระบบออก 50ทวิ แบบ <strong>ภ.ง.ด.3</strong> ให้อัตโนมัติ (เทียบ 05.03 ที่จ่ายนิติบุคคล = ภ.ง.ด.53).</p>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/05/05.06/step-01-vendor-type.png" alt="step-01-vendor-type"/><figcaption>สร้างผู้ขายใหม่ — ช่อง "ประเภท" เลือก "บุคคลธรรมดา" (ฟรีแลนซ์/บุคคลทั่วไป). ประเภทนี้เป็นตัวกำหนดว่า 50ทวิ จะเป็นแบบ ภ.ง.ด.3 (บุคคล) หรือ ภ.ง.ด.53 (นิติบุคคล)</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/05/05.06/step-02-nonvat.png" alt="step-02-nonvat"/><figcaption>ปิดสวิตช์ "Vendor จดทะเบียน VAT" (ฟรีแลนซ์บุคคลธรรมดาทั่วไปไม่จด VAT) → ระบบแจ้งว่าเคลมภาษีซื้อไม่ได้ แต่ "WHT ยังหักได้ปกติ". เลขผู้เสียภาษีไม่บังคับ</figcaption></figure>
+<h3>ขั้นที่ 3</h3><figure><img src="../captures/05/05.06/step-03-saved.png" alt="step-03-saved"/><figcaption>บันทึกแล้ว — ผู้ขายบุคคลธรรมดา "นายสมศักดิ์ ฟรีแลนซ์ 99R3K" เข้า master (ประเภท = บุคคลธรรมดา). พร้อมใช้เป็นผู้รับเงินในใบสำคัญจ่าย</figcaption></figure>
+<h3>ขั้นที่ 4</h3><figure><img src="../captures/05/05.06/step-04-pv-wht.png" alt="step-04-pv-wht"/><figcaption>ใบสำคัญจ่ายให้ฟรีแลนซ์ — ค่าบริการ 20,000 + ประเภทเงินได้ "ค่าบริการ (3%)". ระบบหัก ณ ที่จ่าย 600 (ผู้ขายไม่จด VAT จึงไม่มีภาษีซื้อ) — จ่ายสุทธิ = 20,000 − 600</figcaption></figure>
+<h3>ขั้นที่ 5</h3><figure><img src="../captures/05/05.06/step-05-posted.png" alt="step-05-posted"/><figcaption>อนุมัติ + บันทึก (Post) → ระบบลงบัญชีและออกหนังสือรับรอง 50ทวิ ให้. เพราะผู้รับเงินเป็นบุคคลธรรมดา ระบบจะออกแบบ ภ.ง.ด.3 (ไม่ใช่ ภ.ง.ด.53)</figcaption></figure>
+<h3>ขั้นที่ 6</h3><figure><img src="../captures/05/05.06/step-06-pnd3-cert.png" alt="step-06-pnd3-cert"/><figcaption>หนังสือรับรอง 50ทวิ ที่ระบบออกให้ — ช่อง "แบบนำส่ง" = ภ.ง.ด.3 (เพราะผู้รับเงินเป็นบุคคลธรรมดา). เทียบกับ 05.03 ที่จ่ายให้นิติบุคคล = ภ.ง.ด.53. แบบนำส่งจึงตามประเภทของผู้รับเงินโดยอัตโนมัติ</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -782,7 +897,7 @@
     <div class="intro"><p>ใน 07.01 เราดู <strong>ตัวอย่างบนจอ</strong> ของ ภ.พ.30 (ภาษีขาย − ภาษีซื้อ = สุทธิ). เมื่อจะยื่นจริง<br>ระบบ <strong>กรอกแบบ ภ.พ.30 ของกรมสรรพากรให้อัตโนมัติ</strong> จากยอดชุดเดียวกัน: เลขผู้เสียภาษี ·<br>สาขา · ชื่อสถานประกอบการ · งวด (เดือน/ปี) · ยอดขายและภาษีขาย · ยอดซื้อและภาษีซื้อ ·<br>ภาษีที่ต้องชำระ/ขอคืน — <strong>VAT แสดงแยกจากฐาน</strong> (ม.86/4).</p>
 <p>เปิด <strong>/reports/pnd30 → เลือกงวด → &quot;ดาวน์โหลด PDF (ภ.พ.30)&quot;</strong> ได้ไฟล์ที่กรอกครบ<br>พิมพ์ออกยื่นที่สรรพากรได้เลย (ระบบนี้ <strong>ไม่ส่งให้สรรพากรแทน</strong> — เป็นแบบพิมพ์-แล้ว-ยื่นเอง).</p>
 </div>
-    <h3>ขั้นที่ 1</h3><figure><img src="../captures/07/07.07/step-01-pnd30-pdf.png" alt="step-01-pnd30-pdf"/><figcaption>ตัวอย่าง **ภ.พ.30** ที่ระบบกรอกให้ — หัวกระดาษ (ชื่อ/เลขผู้เสียภาษี/สาขา/งวด) + ช่องยอดขายและภาษีขาย − ยอดซื้อและภาษีซื้อ → ภาษีที่ต้องชำระสุทธิ (ตัวอย่างงวด มิ.ย.: ภาษีขาย 6,902 − ภาษีซื้อ 1,281 = ชำระสุทธิ 5,621 — ตรงกับตัวอย่างบนจอใน 07.01). VAT แสดงแยกจากฐาน</figcaption></figure>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/07/07.07/step-01-pnd30-pdf.png" alt="step-01-pnd30-pdf"/><figcaption>ตัวอย่าง **ภ.พ.30** ที่ระบบกรอกให้ — หัวกระดาษ (ชื่อ/เลขผู้เสียภาษี/สาขา/งวด) + ช่องยอดขายและภาษีขาย − ยอดซื้อและภาษีซื้อ → ภาษีที่ต้องชำระสุทธิ (ยอดตรงกับตัวอย่างบนจอใน 07.01). VAT แสดงแยกจากฐาน</figcaption></figure>
   </section>
 
   <section class="wt">
@@ -846,4 +961,22 @@
     <h3>ขั้นที่ 1</h3><figure><img src="../captures/08/08.02/step-01-kpis-charts.png" alt="step-01-kpis-charts"/><figcaption>เลือก "ปี" (และหน่วยธุรกิจถ้าต้องการ) → การ์ด KPI ทั้งปี (รายได้/รายจ่าย/กำไร/VAT สุทธิ/WHT นำส่ง/WHT ถูกหัก) + กราฟแท่งรายเดือน (รายได้-vs-รายจ่าย และ VAT/WHT)</figcaption></figure>
 <h3>ขั้นที่ 2</h3><figure><img src="../captures/08/08.02/step-02-monthly-table.png" alt="step-02-monthly-table"/><figcaption>ตารางรายเดือน 12 เดือน — แตกทุกประเภท: รายได้/รายจ่าย/กำไร · ภาษีขาย/ซื้อ/VAT สุทธิ · ภ.ง.ด.3/53/54/1 · WHT นำส่ง/ถูกหัก + แถวรวมทั้งปี. ตัวเลขที่ขีดเส้นใต้ "คลิกเจาะลึก" ไปหน้าแบบภาษีจริง</figcaption></figure>
   </section>
+
+  <section class="wt">
+    <h2>08.03 — รายงานอายุหนี้เจ้าหนี้ (AP Aging)</h2>
+    <p class="pre"><b>เงื่อนไขก่อนใช้งาน:</b> login admin (สิทธิ์ดูรายงาน) · มีใบแจ้งหนี้ผู้ขายที่ยังค้างจ่าย (ดู บท 5 — ซื้อ/จ่าย)</p>
+    <div class="intro"><p><strong>รายงานอายุหนี้เจ้าหนี้ (AP Aging)</strong> สรุปยอด <strong>ที่ยังค้างจ่าย</strong> ให้ผู้ขายแต่ละราย แล้วแยกตาม<br><strong>ช่วงอายุหนี้</strong> นับจากกำหนดชำระถึงวันที่เลือก:</p>
+<ul>
+<li><strong>ยังไม่ครบกำหนด/current</strong> · <strong>31–60 วัน</strong> · <strong>61–90 วัน</strong> · <strong>เกิน 90 วัน</strong></li>
+</ul>
+<p>ใช้เพื่อ (1) วางแผนกระแสเงินสด — รู้ว่าต้องเตรียมจ่ายเท่าไรเมื่อไร, (2) จัดลำดับการจ่าย —<br>หนี้ที่ค้างนานควรจ่ายก่อน, (3) กระทบยอดเจ้าหนี้กับบัญชีแยกประเภท.</p>
+<p>ปรับได้: <strong>เลือกวันที่ (ณ วันที่)</strong> เพื่อย้อนดูภาพ ณ จุดเวลาใด ๆ · <strong>กรองผู้ขายรายเดียว</strong> ·<br><strong>Export CSV</strong> เอาไปทำงานต่อ. ตัวเลขมาจากใบแจ้งหนี้ผู้ขายที่ยังค้างจริง (ดู บทที่ 5 การซื้อ).</p>
+<blockquote>
+<p>รายงานบริหารตัวอื่น (PO คงค้าง, ภาษีถูกหักรอเครดิต) อยู่ในเมนูรายงานเดียวกัน — เปิดดูได้<br>แบบเดียวกัน เมื่อมีข้อมูลตัวอย่างที่สะอาดจะทยอยเพิ่มลงคู่มือ.</p>
+</blockquote>
+</div>
+    <h3>ขั้นที่ 1</h3><figure><img src="../captures/08/08.03/step-01-ap-aging-table.png" alt="step-01-ap-aging-table"/><figcaption>รายงานอายุหนี้เจ้าหนี้ ณ วันที่เลือก — แต่ละแถว = ผู้ขายหนึ่งราย พร้อมยอดค้างแยกช่วงอายุ (current / 31-60 / 61-90 / เกิน 90) + คอลัมน์รวม และแถวรวมทั้งหมด</figcaption></figure>
+<h3>ขั้นที่ 2</h3><figure><img src="../captures/08/08.03/step-02-controls.png" alt="step-02-controls"/><figcaption>ปรับมุมมองได้ — เลือก "ณ วันที่" เพื่อย้อนภาพ ณ จุดเวลาใด ๆ · กรองผู้ขายรายเดียว · ปุ่ม "ส่งออก CSV" ดาวน์โหลดตารางไปทำงานต่อ (อ่านอย่างเดียว ไม่กระทบข้อมูล)</figcaption></figure>
+  </section>
+</main>
 </body></html>

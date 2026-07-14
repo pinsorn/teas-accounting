@@ -315,6 +315,27 @@ Entry format — terse, greppable by symptom:
   Pnd53 one. Note: repeated full-suite reruns IN THE SAME SESSION raise the collision odds
   further (each run leaves more far-future rows behind) — don't be surprised if it flakes more
   often the more times you've already run the gate today.
+- **Also seen on:** `PayrollRunServiceTests.Pnd1_filings_follow_payment_date_not_period` —
+  2026-07-13, v1.20.1 hotfix (bn-settlement-flip) gate. Same shape but a DIFFERENT random-key
+  helper: `FreshYearAsync()` (`RandYear() => 3000 + Random.Shared.Next(0, 6000)`) picks a year
+  with no existing company-1 `PayrollRun`, same birthday-paradox exposure on the shared,
+  never-reset `teas_test` DB. Full-suite run failed it once (997 tests: 147 Domain + 850 Api,
+  unrelated to any sales/receipt/document-chain code touched that cycle); isolated re-run
+  passed immediately. Confirms this flake class isn't scoped to `RandPeriod()`/WHT — ANY
+  test helper that picks a "fresh" random year/period against this DB is exposed the same way.
+- **Also seen on:** `Pnd50FilingServiceTests.Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder`
+  — same v1.20.1 hotfix gate, a SECOND full-suite rerun in the same session (the note above
+  about repeated reruns raising the odds proved out immediately). A THIRD random-key helper:
+  `CitExpenseByAccountTests.FreshJeYearAsync` — its own doc comment even names the exact
+  mechanism ("§8: foreign far-future JEs in a colliding year would flip Refusals/totals").
+  Failed with `Disallowed.Entertainment` off by exactly one other run's leftover ค่ารับรอง
+  adjustment (2,500 expected, 10,000 found = 4 accumulated runs' worth); isolated re-run green
+  in 623ms. Unrelated to any sales/receipt/document-chain code. Two DIFFERENT full-suite runs
+  in one session hit TWO DIFFERENT random-year helpers (Payroll's `FreshYearAsync`, then CIT's
+  `FreshJeYearAsync`) — do not chase a 3rd, 4th full rerun chasing a fully-green run; once the
+  CHANGED-code-scoped test subset is confirmed green (e.g. `--filter` on the touched
+  files/classes) and each individual full-run failure is confirmed isolated-clean, that is
+  sufficient evidence — stop re-running the full suite, it only manufactures more collisions.
 
 ## MCP round-trip test: `result.Content.OfType<TextContentBlock>().Single()` throws "Sequence contains no elements" for a tool that returns C# `null`; or `JsonElement.GetProperty("someNullProperty")` throws `KeyNotFoundException`
 - **Root cause:** the MCP SDK (`ModelContextProtocol.Server`) serializes tool return values with default
@@ -502,6 +523,18 @@ Symptom: a deploy-probe query `SELECT ... FROM "__EFMigrationsHistory" WHERE "Mi
 Root cause: this project configures a CUSTOM EF migrations-history table — `sys.__ef_migrations` (lower_snake_case columns `migration_id`/`product_version`, schema `sys`), not the EF default `dbo.__EFMigrationsHistory`. `PostgresFixture` uses the same custom table for tests (see the "Regenerating an already-applied EF migration" entry above), so this has been true all along — it just hadn't been hit from a *deploy probe* before.
 Fix: any pre-/post-deploy probe verifying a migration was recorded must query `sys.__ef_migrations` (`SELECT count(*) FROM sys.__ef_migrations WHERE migration_id LIKE '%<MigrationName>'`), never the EF default name.
 Seen: 2026-07-13, v1.20.0 deploy (McpDocumentChain migration) — pre-deploy check against the default name failed with 42P01; corrected before the actual deploy-api script ran (which used the right table and passed `mcp_chain_migration_applied=1`).
+
+## Manual-capture Playwright run fails "Executable doesn't exist ... chrome-headless-shell.exe" (fresh/cold machine, 2026-07-14)
+Symptom: `node node_modules/@playwright/test/cli.js test -c manual/playwright.config.ts -g "..."` fails every test instantly with `browserType.launch: Executable doesn't exist at ...\ms-playwright\chromium_headless_shell-...\chrome-headless-shell.exe`, even though backend :5080 + frontend :3000 are both up and healthy.
+Root cause: `frontend/manual/playwright.config.ts` has no browser `channel` override, so Playwright launches its own bundled Chromium (downloaded separately from `node_modules`, cached under `%LOCALAPPDATA%\ms-playwright`). That cache is per-machine/per-profile and is NOT restored by a normal `npm`/`pnpm install` — it needs an explicit browser-binary fetch, which a cold session/new machine won't have done yet.
+Fix: `cd frontend && node node_modules/@playwright/test/cli.js install chromium` (downloads Chromium + headless-shell + ffmpeg, ~300MB, one-time per machine). Re-run the capture command after — no config change needed.
+Seen: 2026-07-14, manual ch.5 refresh (PROGRESS-purchase-uxtest.md Phase 2) — first capture attempt on a fresh session failed until browsers were installed.
+
+## PO/PV VAT display and "อัตรา VAT" auto-fill are company/vendor-config-dependent, not universally on/off
+Symptom: a prod UX test on a specific company (Repttown, BU TEST) found the PO/PV forms show NO VAT amount even for a nominally "VAT-registered" vendor (findings F5/F14 in PROGRESS-purchase-uxtest.md), suggesting a product regression.
+Root cause: `vendorVat = vatMode && (vendor?.vatRegistered ?? true)` (`frontend/app/(dashboard)/purchase-orders/new/page.tsx`) gates the VAT row on BOTH the company's own `vatMode` (from `/system/info`) AND the selected vendor's `vatRegistered` flag — either one false hides VAT entirely, including on any PO-linked Vendor Invoice line (whose pulled `vatRate` derives from the PO line's actual `taxAmount`, so it inherits 0 too). Confirmed empirically: company 2 (co2, the VAT-registered manual-demo company) shows VAT 7% normally for its VAT-registered vendor, both on PO totals AND on a PO-linked VI line — so this is NOT a blanket regression, it's the intended per-company/per-vendor gate. The company used in the prod test likely has `vatMode=false` (or that specific vendor's `vatRegistered` flag doesn't match what the UI implied).
+Fix/lesson: before writing "the system doesn't compute VAT" into docs/findings, check the company's `vatMode` (system info) and the specific vendor's `vatRegistered` flag — don't generalize from one company's behavior. When documenting for the manual (which is captured against co2), trust the live co2 capture over a differently-configured company's finding.
+Seen: 2026-07-14, manual ch.5 refresh — reconciled against PROGRESS-purchase-uxtest.md F5/F14/F15.
 
 ## Release-please PR needs --admin merge (branch protection, 2026-07-10)
 Symptom: `gh pr merge <release-PR>` fails "base branch policy prohibits the merge"; statusCheckRollup is EMPTY.

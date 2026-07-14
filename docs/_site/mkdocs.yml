@@ -41,3 +41,14 @@ nav:
   - "บทที่ 8 — รายงาน": generated/chapter-08.md
   - "อ้างอิง: หน้าต่างและปุ่มทั้งหมด": reference-modals-buttons.md
   - "สิทธิ์การมองเห็น (RBAC UI Guide)": rbac-ui-guide.md
+  - "อ้างอิง API (API Reference)":
+      - "ภาพรวม (Overview)": api/index.md
+      - "Auth & Identity": api/auth-and-identity.md
+      - "Master Data": api/master-data.md
+      - "Sales": api/sales.md
+      - "Purchases": api/purchases.md
+      - "Payroll": api/payroll.md
+      - "Tax Filings": api/tax-filings.md
+      - "Reports": api/reports.md
+      - "RBAC Admin": api/rbac-admin.md
+      - "System": api/system.md
