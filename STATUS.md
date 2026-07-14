@@ -6,13 +6,30 @@
   full findings log (F1–F27; top: F15 VAT-fraction field accepts "7"→700%,
   F16 ~25-30min token TTL w/ silent-401 UX, F20 COGS no default GL on Repttown,
   F27 non-VAT company can post recoverable input VAT).
-- Phase: **manual ch.5 refreshed + committed/pushed (518e1ed)** — walkthroughs
-  05.01–05.03 updated to live v1.20.1 UI, 05.02 now 8 steps (PO-link demo,
-  fraction-VAT warning, attach-file), fresh captures, site rebuilt, 6/6 pass.
-  Prod browser test PAUSED at PV-post step: session TTL kills logins every
-  ~25-30 min and Claude never types passwords → needs Ham login to finish
-  (PV #2 post → 50ทวิ/WHT PV → reports spot-check → PO-linked VI). Wakeup
-  loop 1hr active; each wake polls prod login state and resumes if live.
+- Phase: **FIX PIPELINE — WP1+WP3+WP4 LANDED on main (65b9b2b); WP2 next, quota-paused.**
+  Fix spec: specs/fix-purchase-ux-findings-2026-07-14.md (Opus design §Design + Ham
+  decisions D1–D7 all confirmed). Prod UX test + manual ch.5 both DONE earlier.
+  - WP3+WP4 (FE flow/polish, F2–F24) merged d88ee51 — Fable diff-reviewed, tsc green.
+  - WP1 (money/compliance, F13/F15/F20/F27) merged 65b9b2b — non-VAT non-recoverable,
+    percent-UI, vendor taxId rule, RLS-safe category backfill 623 + auto-seed. Opus
+    Tier-2 money review APPROVE-WITH-FIXES (F-1/F-2/F-3 applied), 262 backend + 40 FE
+    tests green. **623 SqlScript NOT deployed** — prod deploy needs DB backup +
+    per-company row-count probe (design has both).
+  - **RESUME AFTER QUOTA RESET (5h window, resets ~17:40 / ts 1784041200):**
+    (1) WP2 auth/session — Sonnet implement from §Design WP2.1–2.4 (D6 sliding re-issue
+    Option A: POST /auth/refresh + BFF route + FE keep-alive hook, absolute cap 8-12h +
+    idle timeout; WP2.2 global 401 modal preserving form state; WP2.3 trailing-slash 308
+    root cause — VERIFY-before-fix with Network panel, then app-wide slash removal +
+    AbortController timeout + proxy Location hardening; WP2.4 Thai error toasts by code).
+    Auth = security → Opus Tier-2 review after, then Fable diff + commit + ff main.
+    (2) WP3.4 PO Closed status (D3 confirmed: Approved→Closed, no further VI/PV linking,
+    drops from open-PO lists, activity-logged, reopen if no posted downstream) — needs
+    backend status + /close endpoint. (3) WP4.9 SoD text-align (D4, trivial FE i18n).
+    (4) F-5 residual hardening (move rate bound into BuildLinesAsync) — optional later.
+    Ham's uncommitted edits (CLAUDE.md, specs/fix-codex-review, specs/mcp-document-chain)
+    are intentional — DO NOT commit them.
+  - Quota paused at 82% (block 95%) with WP2 a large footgun dispatch pending; wakeup
+    chained to reset per Ham's "1hr loop = safe" rule.
 - Prior goal: MCP document chain cycle (Ham approved 2026-07-13 morning, autonomous
   while away). Spec: specs/mcp-document-chain.md — §A carries ALL Ham rulings
   (per-hop draft tools, data-driven skip-DO, full-qty only, purchase side in,
