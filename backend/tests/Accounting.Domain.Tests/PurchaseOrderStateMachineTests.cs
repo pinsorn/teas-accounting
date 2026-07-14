@@ -62,6 +62,20 @@ public sealed class PurchaseOrderStateMachineTests
     }
 
     [Fact]
+    public void Reopen_only_from_closed()
+    {
+        var draft = Po(1);
+        Action reopenDraft = () => draft.MarkReopened(T);
+        reopenDraft.Should().Throw<DomainException>()
+            .Which.Code.Should().Be("po.not_closed");
+
+        var po = Po(1); po.MarkApproved(2, "PO-1", T); po.MarkClosed(T);
+        po.MarkReopened(T);
+        po.Status.Should().Be(PurchaseOrderStatus.Approved);
+        po.ClosedAt.Should().BeNull();
+    }
+
+    [Fact]
     public void Cancel_with_reason_blocks_terminal_states()
     {
         var po = Po(1);

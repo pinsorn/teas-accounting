@@ -44,6 +44,10 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   // sentToVendorAt; neither had a confirmation step (F7/F9).
   const [confirmApprove, setConfirmApprove] = useState(false);
   const [confirmMarkSent, setConfirmMarkSent] = useState(false);
+  // WP3.4 (D3, F29) — close/reopen also state-changing + hard to undo (close blocks
+  // further VI/PV linking); mirror the same confirm-dialog treatment.
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmReopen, setConfirmReopen] = useState(false);
 
   useEffect(() => {
     const action = new URLSearchParams(window.location.search).get('action');
@@ -151,9 +155,15 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
             </PermissionGate>
             <PermissionGate scope="purchase.purchase_order.cancel">
               <button data-testid="po-close" className="btn btn-secondary btn-sm"
-                disabled={act.isPending} onClick={() => run('close')}>{t('close')}</button>
+                disabled={act.isPending} onClick={() => setConfirmClose(true)}>{t('close')}</button>
             </PermissionGate>
           </>
+        )}
+        {d.status === 'Closed' && (
+          <PermissionGate scope="purchase.purchase_order.cancel">
+            <button data-testid="po-reopen" className="btn btn-outline btn-sm"
+              disabled={act.isPending} onClick={() => setConfirmReopen(true)}>{t('reopen')}</button>
+          </PermissionGate>
         )}
         {(d.status === 'Draft' || d.status === 'Approved') && (
           <PermissionGate scope="purchase.purchase_order.cancel">
@@ -226,6 +236,22 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         warning={tca('poMarkSent.warning')}
         onClose={() => setConfirmMarkSent(false)}
         onConfirm={async () => { await run('mark-sent'); setConfirmMarkSent(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmClose}
+        busy={act.isPending}
+        title={tca('poClose.title')}
+        warning={tca('poClose.warning')}
+        onClose={() => setConfirmClose(false)}
+        onConfirm={async () => { await run('close'); setConfirmClose(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmReopen}
+        busy={act.isPending}
+        title={tca('poReopen.title')}
+        warning={tca('poReopen.warning')}
+        onClose={() => setConfirmReopen(false)}
+        onConfirm={async () => { await run('reopen'); setConfirmReopen(false); }}
       />
     </>
   );

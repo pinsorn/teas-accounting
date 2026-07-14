@@ -95,6 +95,24 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
                 && x.CompanyId == _tenant.CompanyId && x.IsActive, ct))
             throw new DomainException("bu.invalid", $"Business Unit {buId} not found or inactive.");
 
+        // WP3.4 (D3, F29) — a Closed PO accepts no further VI/PV linking. This is the
+        // single seam every create path funnels through (REST, MCP, and the from-PO
+        // helper CreateFromPurchaseOrderAsync, which already checks Approved before
+        // calling here — this re-check is cheap and closes the gap for a raw
+        // req.PurchaseOrderId passed directly). Already-linked/posted VIs are untouched
+        // — this only blocks a NEW link at create time, never PostAsync.
+        if (req.PurchaseOrderId is { } linkedPoId)
+        {
+            var poStatus = await _db.PurchaseOrders.AsNoTracking()
+                .Where(p => p.PurchaseOrderId == linkedPoId)
+                .Select(p => (PurchaseOrderStatus?)p.Status)
+                .FirstOrDefaultAsync(ct)
+                ?? throw new DomainException("po.not_found", $"Purchase Order {linkedPoId} not found.");
+            if (poStatus != PurchaseOrderStatus.Approved)
+                throw new DomainException("po.not_approved",
+                    $"Purchase Order {linkedPoId} must be Approved to link a Vendor Invoice (status {poStatus}).");
+        }
+
         var vi = new VendorInvoice
         {
             CompanyId = _tenant.CompanyId,

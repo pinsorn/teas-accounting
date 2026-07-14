@@ -241,8 +241,47 @@ completeness tracking; live A4 preview.
       CreatePurchaseOrderRequest shape per backend `PurchaseOrderEndpoints.cs`) + new
       route `purchase-orders/[id]/edit/page.tsx` (Draft-only, bounces to detail
       otherwise) + "แก้ไข" button on the PO detail page for Draft POs.
-- [ ] 3.4 F29 (per D3): PO close — implement semantics or remove button. SKIPPED —
-      blocked on Ham/D3 decision per dispatch scope.
+- [x] 3.4 F29 (per D3): PO close — implement semantics. DONE 2026-07-15 (branch
+      fix/purchase-ux-wp34-wp49). Discovery: the backend close action (endpoint, service
+      `CloseAsync`, domain `MarkClosed`, activity log) and the FE `po-close` button were
+      ALREADY wired end-to-end (commit d88ee51) — the dispatch's "wiring gap" premise was
+      stale by the time this task ran. Remaining gaps closed: (1) FE close button called
+      `run('close')` directly with no confirmation — wrapped in `ConfirmActionDialog`
+      (`confirmAction.poClose`, warning text exactly per D3/dispatch copy). (2) VI-link
+      guard: the FE picker (`usePurchaseOrders('Approved', …)`) already excludes Closed
+      POs, and `CreateFromPurchaseOrderAsync` already required Approved at create time —
+      but the RAW create path (`VendorInvoiceService.CreateDraftAsync` with a bare
+      `req.PurchaseOrderId`, reachable via REST/MCP without going through the from-PO
+      helper) had NO guard; `PostAsync`'s existing check only rejected Draft/Cancelled,
+      never Closed. Added a create-time guard in `CreateDraftAsync` (throws
+      `po.not_approved` for any non-Approved linked PO) — the single seam both create
+      paths funnel through. Deliberately left `PostAsync`'s guard untouched (spec:
+      "already-linked/posted VIs/PVs are untouched" — a VI created while the PO was still
+      Approved must still be postable after the PO closes). (3) Reopen — assessed as a
+      SIMPLE query ("no posted downstream VI" = no Posted VendorInvoice with this
+      PurchaseOrderId; PaymentVoucher has no direct PO FK, only via VendorInvoiceId, so
+      checking VI coverage is sufficient) — IMPLEMENTED: domain `PurchaseOrder.MarkReopened`
+      (Closed→Approved), `PurchaseOrderService.ReopenAsync` (blocks with
+      `po.reopen_blocked` if a Posted VI is linked), `POST /purchase-orders/{id}/reopen`
+      (same `purchase.purchase_order.cancel` permission scope as close — no new RBAC
+      permission code needed, confirmed by re-running `RbacAuthMapTests`, which
+      regenerated `docs/rbac/endpoint-permission-map.generated.md` to include the new
+      route), FE reopen button (`po-reopen`, shown on Closed status) +
+      `confirmAction.poReopen` dialog. (4) Status badge "ปิดแล้ว" and CTA-hiding on Closed
+      were ALREADY correct pre-existing behavior (StatusBadge's `status.Closed` map;
+      approve/VI/PV/mark-sent CTAs are all gated on `d.status === 'Approved'`, so Closed
+      drops out automatically) — no change needed, verified by reading, not re-implemented.
+      Files: `PurchaseOrder.cs` (+MarkReopened), `PurchaseOrderDtos.cs` (+ReopenAsync iface),
+      `PurchaseOrderService.cs` (+ReopenAsync), `PurchaseOrderEndpoints.cs` (+/reopen route),
+      `VendorInvoiceService.cs` (+create-time PO-link guard), `purchase-orders/[id]/page.tsx`
+      (confirm dialogs + reopen button), `messages/th.json`+`en.json` (poClose/poReopen/
+      reopen label/activityAction Closed+Reopened). Tests: new
+      `PurchaseOrderCloseTests.cs` (5 cases: close Approved→Closed, close Draft rejected,
+      VI-link-to-Closed rejected, reopen with no posted VI succeeds, reopen with a posted
+      VI blocked — the last one EXERCISES the real auto-close-on-post transition, not a
+      seeded Closed row) + `PurchaseOrderStateMachineTests.cs` (+1 domain unit test,
+      Reopen_only_from_closed). All passing; Hardening folder regression (194
+      passed/4 pre-existing skips, same skip count as WP1.2's prior run) clean.
 - [x] 3.5 F24: PV from ชำระด้วยใบสำคัญจ่าย prefills vendor + line (desc "ชำระ <VI docNo>",
       amount = VI outstanding) — user adjusts, not re-keys. Accept: one click from posted
       VI → PV form complete except payment method review.
@@ -332,8 +371,20 @@ completeness tracking; live A4 preview.
       `vi?.docNo ?? #${fromVi}` (falls back to #id only while the VI lookup is still
       loading); 50ทวิ detail (`wht-certificates/[id]/page.tsx`) fetches the PV via
       `usePaymentVoucher` and shows `pv?.docNo ?? PV #${id}`.
-- [ ] 4.9 F25 (per D4): align SoD text with actual enforcement. SKIPPED — blocked on
-      Ham/D4 decision per dispatch scope.
+- [x] 4.9 F25 (per D4): align SoD text with actual enforcement. DONE 2026-07-15 (branch
+      fix/purchase-ux-wp34-wp49). Primary target `pv.sodHint` (th.json/en.json) — the
+      literal string named in D4 ("ผู้อนุมัติต้องไม่ใช่ผู้สร้าง (SoD)") — changed to
+      "ผู้อนุมัติควรเป็นคนละคนกับผู้สร้าง — ผู้ดูแลระบบ (super-admin) ข้ามได้" (Option A,
+      no enforcement change), rendered on the PV detail page's approve button title +
+      the Draft-status hint line. ALSO fixed `confirmAction.pvApprove.warning` (same PV
+      page, shown in the approve `ConfirmActionDialog`) — it carried the identical
+      absolute claim ("...ผู้อนุมัติต้องไม่ใช่ผู้สร้าง") without the SoD suffix; left
+      uncorrected it would have contradicted the just-fixed hint on the very same page/
+      click path, undermining D4's "align text to actual behavior" intent. Left
+      `pv.approveWarn` untouched — grepped and confirmed it is DEAD (defined in both
+      message files, referenced nowhere in `frontend/`), so not part of this finding's
+      actual UI surface. EN equivalents updated in en.json (sodHint,
+      confirmAction.pvApprove.warning). No backend/enforcement change (Option A, per D4).
 - [x] 4.10 /wht-certificates list: แบบยื่น "Pnd3"→"ภ.ง.ด.3", ม.40 column "8"→"40(8) ค่าบริการ".
       DONE (list page only, per dispatch — detail page already renders both fields
       acceptably per PROGRESS-purchase-uxtest.md's note): `wht.formTypeMap` (Pnd3/Pnd53)

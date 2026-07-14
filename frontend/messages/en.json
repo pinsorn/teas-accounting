@@ -56,9 +56,17 @@
       "title": "Confirm sent to vendor",
       "warning": "This will record that the document has been sent to the vendor."
     },
+    "poClose": {
+      "title": "Confirm purchase order close",
+      "warning": "Closing the purchase order will block linking any further vendor invoices/payment vouchers to it."
+    },
+    "poReopen": {
+      "title": "Confirm purchase order reopen",
+      "warning": "This will revert the status to Approved and allow linking vendor invoices/payment vouchers again."
+    },
     "pvApprove": {
       "title": "Confirm payment voucher approval",
-      "warning": "Approving makes the document ready to post — the approver must not be the creator."
+      "warning": "Approving makes the document ready to post — the approver should differ from the creator (super-admin can skip)."
     },
     "pvPost": {
       "title": "Confirm payment voucher posting",
@@ -550,7 +558,7 @@
     "post": "Post",
     "approvedBy": "Approved by user",
     "at": "at",
-    "sodHint": "Approver must differ from creator (SoD)",
+    "sodHint": "Approver should differ from the creator — super-admin can skip this",
     "postHint": "Must be approved before it can be posted",
     "settlingVi": "Settling Vendor Invoice",
     "settleLineDesc": "Pay {docNo}",
@@ -1500,7 +1508,9 @@
       "Approved": "Approved",
       "MarkedSent": "Marked as sent",
       "Sent": "Sent",
-      "Posted": "Posted"
+      "Posted": "Posted",
+      "Closed": "Closed",
+      "Reopened": "Reopened"
     },
     "relatedDocs": "Related documents",
     "draftPreview": "(Draft)",
@@ -1719,6 +1729,7 @@
     "approve": "Approve",
     "sentToVendor": "Marked as sent",
     "close": "Close",
+    "reopen": "Reopen",
     "createPv": "Create Payment Voucher",
     "createVi": "Record Vendor Invoice",
     "editTitle": "Edit purchase order",

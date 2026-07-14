@@ -163,6 +163,23 @@ public sealed class PurchaseOrderService(
         await db.SaveChangesAsync(ct);
     }
 
+    // WP3.4 (D3) — Closed → Approved, only when no Vendor Invoice linked to this PO has
+    // POSTED (a Draft-linked VI doesn't block — nothing has been claimed/booked yet).
+    public async Task ReopenAsync(long id, CancellationToken ct)
+    {
+        Auth();
+        var po = await LoadAsync(id, ct);
+        var hasPostedVi = await db.VendorInvoices.AsNoTracking()
+            .AnyAsync(v => v.PurchaseOrderId == id && v.Status == DocumentStatus.Posted, ct);
+        if (hasPostedVi)
+            throw new DomainException("po.reopen_blocked",
+                "Cannot reopen: a posted Vendor Invoice is already linked to this Purchase Order.");
+        po.MarkReopened(clock.UtcNow);
+        activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
+            "Reopened", fromStatus: "Closed", toStatus: "Approved", module: "purchase");
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task CancelAsync(long id, string reason, CancellationToken ct)
     {
         Auth();

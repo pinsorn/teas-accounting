@@ -92,6 +92,18 @@ public class PurchaseOrder : ITenantOwned, IAuditable, IConcurrencyVersioned
         CancellationReason = reason;
         CancelledAt = at;
     }
+
+    /// <summary>WP3.4 (D3) — Closed → Approved, only when no posted downstream Vendor
+    /// Invoice depends on the closed state (checked by the caller/service, which has DB
+    /// access; this guard only enforces the state-machine edge).</summary>
+    public void MarkReopened(DateTimeOffset at)
+    {
+        if (Status != PurchaseOrderStatus.Closed)
+            throw new DomainException("po.not_closed",
+                $"Only a Closed PO can be reopened (status {Status}).");
+        Status = PurchaseOrderStatus.Approved;
+        ClosedAt = null;
+    }
 }
 
 public class PurchaseOrderLine

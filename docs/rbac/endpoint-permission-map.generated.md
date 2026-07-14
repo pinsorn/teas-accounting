@@ -8,12 +8,12 @@
 | Kind | Count |
 |---|---:|
 | Anonymous | 8 |
-| AuthnOnly | 14 |
-| Perm | 288 |
+| AuthnOnly | 15 |
+| Perm | 289 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **342** |
+| **TOTAL** | **344** |
 
 ## Routes
 
@@ -70,6 +70,7 @@
 | DELETE | `/attachments/{id:long}` | Perm | sys.attachment.read |
 | GET | `/attachments/{id:long}/download` | Perm | sys.attachment.read |
 | POST | `/auth/login` | Anonymous | — |
+| POST | `/auth/refresh` | AuthnOnly | — |
 | POST | `/auth/switch-company/{companyId:int}` | Perm | master.company.manage |
 | GET | `/bank-accounts/` | Perm | bank.account.read |
 | POST | `/bank-accounts/` | Perm | bank.account.manage |
@@ -233,6 +234,7 @@
 | POST | `/purchase-orders/{id:long}/mark-sent` | Perm | purchase.purchase_order.create |
 | GET | `/purchase-orders/{id:long}/paper` | Perm | purchase.purchase_order.read |
 | GET | `/purchase-orders/{id:long}/pdf` | Perm | purchase.purchase_order.read |
+| POST | `/purchase-orders/{id:long}/reopen` | Perm | purchase.purchase_order.cancel |
 | GET | `/quotations/` | Perm | sales.quotation.manage |
 | POST | `/quotations/` | Perm | sales.quotation.manage |
 | DELETE | `/quotations/{id:long}` | Perm | sales.quotation.manage |

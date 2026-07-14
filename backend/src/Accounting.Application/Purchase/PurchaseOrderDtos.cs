@@ -71,6 +71,8 @@ public interface IPurchaseOrderService
     Task<PurchaseOrderApprovedResult> ApproveAsync(long id, CancellationToken ct);
     Task MarkSentAsync(long id, CancellationToken ct);
     Task CloseAsync(long id, CancellationToken ct);
+    // WP3.4 (D3) — Closed → Approved, blocked if a posted Vendor Invoice is already linked.
+    Task ReopenAsync(long id, CancellationToken ct);
     Task CancelAsync(long id, string reason, CancellationToken ct);
     Task<IReadOnlyList<PurchaseOrderListItem>> ListAsync(string? status, long? vendorId, CancellationToken ct);
     Task<PurchaseOrderDetail?> GetDetailAsync(long id, CancellationToken ct);

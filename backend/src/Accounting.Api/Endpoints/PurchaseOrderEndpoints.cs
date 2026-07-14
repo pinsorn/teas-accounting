@@ -47,6 +47,11 @@ public static class PurchaseOrderEndpoints
         g.MapPost("/{id:long}/close", async (long id, IPurchaseOrderService s, CancellationToken ct) =>
             { await s.CloseAsync(id, ct); return Results.NoContent(); }).RequireAuthorization(cancel);
 
+        // WP3.4 (D3) — Closed → Approved. Same permission scope as close (both are
+        // lifecycle-ending/reopening actions gated on purchase_order.cancel today).
+        g.MapPost("/{id:long}/reopen", async (long id, IPurchaseOrderService s, CancellationToken ct) =>
+            { await s.ReopenAsync(id, ct); return Results.NoContent(); }).RequireAuthorization(cancel);
+
         g.MapPost("/{id:long}/cancel", async (long id, [FromBody] ReasonBody b,
             IPurchaseOrderService s, CancellationToken ct) =>
             { await s.CancelAsync(id, b.Reason, ct); return Results.NoContent(); })
