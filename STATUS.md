@@ -6,7 +6,26 @@
   full findings log (F1–F27; top: F15 VAT-fraction field accepts "7"→700%,
   F16 ~25-30min token TTL w/ silent-401 UX, F20 COGS no default GL on Repttown,
   F27 non-VAT company can post recoverable input VAT).
-- Phase: **FIX PIPELINE — WP1+WP3+WP4 LANDED on main (65b9b2b); WP2 next, quota-paused.**
+- Phase: **PURCHASE-FINDINGS FIX PIPELINE COMPLETE — WP1–WP4 all landed on main (a86de78).**
+  Prod UX test (F1–F29, commit 0106b0b) + manual ch.5 refresh (518e1ed) + all four fix
+  work-packages shipped: WP3+WP4 (d88ee51), WP1 money/compliance (65b9b2b), WP2 auth/session
+  (d5a9c69), WP3.4 PO close/reopen + WP4.9 SoD (a86de78). Every money/security diff got an
+  Opus Tier-2 review (WP1 money APPROVE-WITH-FIXES → F-1/F-2/F-3 applied; WP2 security
+  APPROVE-WITH-FIXES → F-A absolute-cap-bypass fixed). Fable read every money/security diff
+  personally before each commit. Ham decisions D1–D7 all confirmed + implemented.
+  **NOT DEPLOYED — all on main, no prod release cut.** Pending for a release:
+  (1) EF: no new migration (623 is a startup SqlScript, Closed enum pre-existed) — but the
+  623 backfill runs at API boot on prod → DB backup + per-company row-count probe mandatory.
+  (2) Residuals (tracked in spec): F-C (post-modal re-login company context, fails safe),
+  F-D (proxy Location, acceptable), F-5 (move rate bound into BuildLinesAsync, hardening),
+  WP3.4 reopen has no PV-downstream check (PVs settle VIs not POs, so VI-Posted check suffices).
+  (3) Manual ch.5: remove the F15 fraction-VAT admonition + re-capture 05.02 once percent-UI
+  is visible in prod. (4) Pre-existing broken test found (NOT from this work):
+  McpServerSmokeTests.E3_create_vendor_returns_id_code_name — baseline fails identically,
+  needs separate triage. (5) Ham: rotate the password leaked in logs early this session.
+  Ham's uncommitted edits (CLAUDE.md, specs/fix-codex-review, specs/mcp-document-chain) left
+  intentionally untouched.
+- Prior phase (superseded):
   Fix spec: specs/fix-purchase-ux-findings-2026-07-14.md (Opus design §Design + Ham
   decisions D1–D7 all confirmed). Prod UX test + manual ch.5 both DONE earlier.
   - WP3+WP4 (FE flow/polish, F2–F24) merged d88ee51 — Fable diff-reviewed, tsc green.
