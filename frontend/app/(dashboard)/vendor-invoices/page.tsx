@@ -13,7 +13,7 @@ import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { IncompleteOnlyToggle } from '@/components/ui/IncompleteOnlyToggle';
 import { IncompleteFlag } from '@/components/ui/CompletenessBadge';
 import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
-import { useVendorInvoices, useBusinessUnitName } from '@/lib/queries';
+import { useVendorInvoices, useBusinessUnitName, useBusinessUnits } from '@/lib/queries';
 import type { VendorInvoiceListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
@@ -27,6 +27,10 @@ export default function VendorInvoiceListPage() {
   const incompleteOnly = params.get('incompleteOnly') === 'true';
   const q = useVendorInvoices(incompleteOnly);
   const buName = useBusinessUnitName();
+  // R1 fix (troubles-wiki.md) — `columns` below is memoized on [t, tc] only; an accessorFn
+  // closing over `buName` alone freezes on whatever business-units data was loaded at mount.
+  // Depend on the query's own data so the memo recomputes once it arrives.
+  const { data: businessUnits } = useBusinessUnits(true);
 
   const columns = useMemo<ColumnDef<VendorInvoiceListItem>[]>(() => [
     {
@@ -71,7 +75,7 @@ export default function VendorInvoiceListPage() {
       cell: ({ getValue }) => <StatusBadge status={getValue<string>()} />,
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [t, tc]);
+  ], [t, tc, businessUnits]);
 
   return (
     <>

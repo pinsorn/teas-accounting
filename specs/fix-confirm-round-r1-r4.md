@@ -98,6 +98,23 @@ Footguns: overnight `next dev` serves stale chunks — restart :3000 before beli
       --noEmit` 0 errors; `next build` — `✓ Compiled successfully in 10.2s`, 84/84 routes,
       exit 0; Bengali `ম` grep on `PurchaseOrderForm.tsx` — clean, no matches.
 
+### R2 FINAL DECISION (Ham, 2026-07-15 evening): **Option B — preserve docDate on draft edit**
+- Backend: `PurchaseOrderService.UpdateDraftAsync` stops re-pinning `po.DocDate` on edit —
+  the existing (create-time, server-pinned) DocDate is PRESERVED. `req.DocDate` stays
+  IGNORED (never trust client dates still holds — the date is always server-stamped, just
+  stamped ONCE at create). CreateDraftAsync unchanged (still pins today). Update the §10
+  comment to record the amended rule + this decision.
+- Scope: **PO only** (the case Ham saw and decided on). Other D2 draft-update services keep
+  their re-pin — flagged as a possible follow-up batch, NOT changed here.
+- Tests: find any test asserting re-pin-on-edit for PO and update it to assert PRESERVE
+  (deliberate behavior change); add/adjust an integration test that seeds a draft with a
+  non-today DocDate directly, calls UpdateDraftAsync, asserts DocDate unchanged.
+- FE mirror (`PurchaseOrderForm.tsx`): edit mode shows the doc's STORED docDate (still
+  locked/read-only — client still can't set it); create mode keeps locked-today. Hint text
+  must not lie in edit mode ("ล็อกเป็นวันนี้" is wrong there — use a "ล็อกตามวันที่สร้าง"-style
+  variant).
+- [ ] Implement + gates (backend purchase folder tests, tsc, next build, glyph grep)
+
 ## R3 — po.reopen_blocked toast English-only
 - [x] Add Thai entries to `lib/i18n/problems.ts`:
       - `po.reopen_blocked`: "เปิดใบสั่งซื้อใหม่ไม่ได้ — มีใบกำกับภาษีซื้อที่บันทึก (Post) แล้วเชื่อมกับใบสั่งซื้อนี้"

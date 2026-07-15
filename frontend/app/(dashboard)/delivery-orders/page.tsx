@@ -7,7 +7,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
-import { useDeliveryOrders, useBusinessUnitName } from '@/lib/queries';
+import { useDeliveryOrders, useBusinessUnitName, useBusinessUnits } from '@/lib/queries';
 import type { DeliveryOrderListItem } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 
@@ -19,6 +19,10 @@ export default function DeliveryOrdersPage() {
   const tc = useTranslations('common');
   const q = useDeliveryOrders();
   const buName = useBusinessUnitName();
+  // R1 fix (troubles-wiki.md) — `columns` below is memoized on [t, tc] only; an accessorFn
+  // closing over `buName` alone freezes on whatever business-units data was loaded at mount.
+  // Depend on the query's own data so the memo recomputes once it arrives.
+  const { data: businessUnits } = useBusinessUnits(true);
 
   const columns = useMemo<ColumnDef<DeliveryOrderListItem>[]>(() => [
     {
@@ -59,7 +63,7 @@ export default function DeliveryOrdersPage() {
       ),
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [t, tc]);
+  ], [t, tc, businessUnits]);
 
   return (
     <>
