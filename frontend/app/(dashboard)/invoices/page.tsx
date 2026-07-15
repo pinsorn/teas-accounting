@@ -43,10 +43,20 @@ export default function BillingNotesPage() {
     { accessorKey: 'customerName', header: t('customer'), meta: { filter: 'text', filterLabel: t('customer') } },
     {
       id: 'businessUnit',
+      // R8 fix (troubles-wiki.md) — `row.getValue()` caches this accessorFn's result on
+      // the row object FOREVER (TanStack Table core: `row._valuesCache`), invalidated only
+      // when the `data` array itself gets a new reference — NOT when `columns` (and thus a
+      // fresher `buName` closure) changes. A row built the instant before business-units
+      // resolves (e.g. the redirect straight back to this list right after creating a
+      // draft) bakes in the "#id" fallback permanently, even after the R1 fix's memo
+      // recomputes with the correct data. `accessorFn` still returns the resolved name (so
+      // the faceted filter dropdown/options keep working), but `cell` re-resolves directly
+      // from the immutable `row.original.businessUnitId` on every render — bypassing that
+      // cache — so the DISPLAYED value is always live.
       accessorFn: (r) => buName(r.businessUnitId),
       header: tc('businessUnit'),
       meta: { filter: 'select' },
-      cell: ({ getValue }) => <span className="text-sm text-base-content/70">{getValue<string>()}</span>,
+      cell: ({ row }) => <span className="text-sm text-base-content/70">{buName(row.original.businessUnitId)}</span>,
     },
     {
       accessorKey: 'docDate', header: t('docDate'),
