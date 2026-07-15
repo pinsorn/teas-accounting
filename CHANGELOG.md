@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.2](https://github.com/pinsorn/teas-accounting/compare/v1.21.1...v1.21.2) (2026-07-15)
+
+
+### Bug Fixes
+
+* **purchase:** R2 Option B — preserve DocDate on PO draft edit (Ham decision) ([6368451](https://github.com/pinsorn/teas-accounting/commit/6368451ff2a0a7fdd6f8f19f26203ce93022c3c2))
+* **ui:** BU column stale-memo bug on remaining 8 list pages (same root cause as R1) ([0258260](https://github.com/pinsorn/teas-accounting/commit/0258260c4502ae358d65413a791fbe1090da8050))
+
 ## [1.21.1](https://github.com/pinsorn/teas-accounting/compare/v1.21.0...v1.21.1) (2026-07-15)
 
 
