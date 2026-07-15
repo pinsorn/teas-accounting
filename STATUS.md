@@ -13,6 +13,17 @@
   15/07; create form → "ล็อกเป็นวันนี้"; /vendor-invoices + /invoices fresh mount → BU names.
   Still open for Ham: MCP connector TEAS-Repttown re-auth; other doc types still re-pin
   docDate on draft edit (PO-only per decision scope — batch follow-up if wanted).
+- **PROD SPOT-CHECK RESULT (2026-07-15 ~20:45, fresh Ham login):** footer v1.21.2 ✓;
+  R2-B on prod ✓ (PO #4 /edit shows stored docDate + hint "ล็อกตามวันที่สร้างเอกสาร";
+  create form shows "ล็อกเป็นวันนี้"); /vendor-invoices BU names ✓.
+  **NEW FINDING R8: /invoices (billing notes) BU column STILL "#3"/"#1" on prod** —
+  business-units fetch 200, cache-bust (?cb=1) did NOT help, /vendor-invoices works in the
+  same session → page-specific defect, NOT the deployed-build/cache. The reviewed diff for
+  invoices/page.tsx looked identical to the working pages — root cause TBD (suspect: the
+  billing-note list row's BU field differs, or its buName lookup misses; diagnose locally).
+  RESUME (post quota reset ~21:45): dispatch worker to root-cause /invoices locally →
+  fix → gates → commit → (likely FE-only) hotfix deploy or fold into next release per size
+  → re-verify /invoices on prod via Chrome → close out + final report.
 - Prior: **v1.21.1 DEPLOYED + R1-R4 PROD-VERIFIED (2026-07-15 ~18:20) — pipeline COMPLETE.**
   R1/R3/R4 (731e775) + R2-FE locked docDate (526a55b) → release v1.21.1 @ b08387e (PR #80,
   admin-merged per wiki) → FE-only deploy FE_DEPLOY_OK (deploy-fe-v1211.sh archived in
