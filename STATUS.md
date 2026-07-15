@@ -6,7 +6,15 @@
   full findings log (F1–F27; top: F15 VAT-fraction field accepts "7"→700%,
   F16 ~25-30min token TTL w/ silent-401 UX, F20 COGS no default GL on Repttown,
   F27 non-VAT company can post recoverable input VAT).
-- Phase: **PURCHASE-FINDINGS FIX PIPELINE COMPLETE — WP1–WP4 all landed on main (a86de78).**
+- Phase: **v1.21.0 DEPLOYED TO PROD (2026-07-15 ~10:35) — purchase-findings fix batch LIVE.**
+  Tag v1.21.0 @ bf36ba3 (release-please #79). API + FE both deployed. 623 backfill ran
+  under RLS on prod (expense_null_defaults 2→0), applied_sql_scripts 68→69, version=1.21.0,
+  all regression + v1.20.0-migration probes PASS, DB backed up. FE build OK, teas-web online.
+  Public E2E through teas.kazaki-rio.com GREEN (login 200 / mcp 401 / wellknown 200). Cookie
+  TTL 15min→8h config live (effective on next login). Scripts + DEPLOY-README archived to
+  publish/v1.21.0/. Build worktree removed. Ham: rotate the leaked password; the pre-existing
+  McpServerSmokeTests.E3_create_vendor failure (not from this batch) still needs triage.
+- Prior phase: **PURCHASE-FINDINGS FIX PIPELINE — WP1–WP4 landed on main (a86de78).**
   Prod UX test (F1–F29, commit 0106b0b) + manual ch.5 refresh (518e1ed) + all four fix
   work-packages shipped: WP3+WP4 (d88ee51), WP1 money/compliance (65b9b2b), WP2 auth/session
   (d5a9c69), WP3.4 PO close/reopen + WP4.9 SoD (a86de78). Every money/security diff got an
