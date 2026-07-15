@@ -1,7 +1,19 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- Phase: **v1.21.1 DEPLOYED + R1-R4 PROD-VERIFIED (2026-07-15 ~18:20) — pipeline COMPLETE.**
+- Phase: **v1.21.2 DEPLOYED (2026-07-15 ~20:25) — R2 Option B + BU-column batch LIVE.**
+  Ham decisions executed: (B) PO draft edit now PRESERVES DocDate (§10 amended,
+  UpdateDraftAsync; Create/Approve pinning untouched; new integration test) + BU-column
+  stale-memo fix on all remaining 8 list pages. Commits 0258260 (BU×8) + 6368451 (Option B),
+  release v1.21.2 @ ec8b33c (PR #81), API DEPLOY_OK (backup taken, sql-scripts unchanged 69,
+  version=1.21.2) + FE_DEPLOY_OK, public login 200. Scripts archived publish/v1.21.1/
+  (deploy-*-v1212.sh). Local live-verification: edit preserved docDate 2026-06-22 on PO #8,
+  BU names on 2/8 pages fresh-mount. **Prod Chrome spot-check PENDING a fresh login by Ham**
+  (8h session expired mid-check): PO #4 /edit → hint "ล็อกตามวันที่สร้างเอกสาร" + docDate
+  15/07; create form → "ล็อกเป็นวันนี้"; /vendor-invoices + /invoices fresh mount → BU names.
+  Still open for Ham: MCP connector TEAS-Repttown re-auth; other doc types still re-pin
+  docDate on draft edit (PO-only per decision scope — batch follow-up if wanted).
+- Prior: **v1.21.1 DEPLOYED + R1-R4 PROD-VERIFIED (2026-07-15 ~18:20) — pipeline COMPLETE.**
   R1/R3/R4 (731e775) + R2-FE locked docDate (526a55b) → release v1.21.1 @ b08387e (PR #80,
   admin-merged per wiki) → FE-only deploy FE_DEPLOY_OK (deploy-fe-v1211.sh archived in
   publish/v1.21.1/, no API/DB change) → all four re-verified on prod via Chrome incl. R4
