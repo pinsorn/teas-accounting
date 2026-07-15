@@ -1,7 +1,15 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- Phase: **BU TEST CONFIRM ROUND on prod v1.21.0 DONE (2026-07-15 ~11:30, Claude Chrome).**
+- Phase: **R1-R4 FIX PIPELINE (2026-07-15 ~12:00).** R1/R3/R4 committed 731e775 (Fable
+  diff-reviewed, gates green). R2 root cause = DELIBERATE backend §10 docDate re-pin on
+  every draft edit (PurchaseOrderService.cs:104, traced to D2 workstream) — decision:
+  FE honest-UI fix (lock docDate display like VI form), backend untouched, flag to Ham.
+  Worker (warm) on the R2-FE fix now. NEXT after it returns: Fable review → commit →
+  release-please → deploy FE to prod (publish/v1.21.0 pattern) → Chrome re-verify R1-R4
+  on prod (primary check per Ham) → report. Quota 85% @ 12:00, reset ~14:20 — wakeup
+  chained (12:51). Spec: specs/fix-confirm-round-r1-r4.md.
+- Prior phase: **BU TEST CONFIRM ROUND on prod v1.21.0 DONE (2026-07-15 ~11:30, Claude Chrome).**
   Full purchase chain re-run on prod (PO-TEST-0003 → VI-TEST-0002 → PV-TEST-COGS-0001, all
   posted, VI settled 214/214 PAID). 24 findings CONFIRMED FIXED incl. all money/compliance
   (F15 percent-UI, F27 non-recoverable forced server-side, F20 COGS, F13 taxId, F16 8h+refresh,
