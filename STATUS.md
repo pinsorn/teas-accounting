@@ -21,9 +21,16 @@
   same session → page-specific defect, NOT the deployed-build/cache. The reviewed diff for
   invoices/page.tsx looked identical to the working pages — root cause TBD (suspect: the
   billing-note list row's BU field differs, or its buName lookup misses; diagnose locally).
-  RESUME (post quota reset ~21:45): dispatch worker to root-cause /invoices locally →
-  fix → gates → commit → (likely FE-only) hotfix deploy or fold into next release per size
-  → re-verify /invoices on prod via Chrome → close out + final report.
+  **R8 RESOLVED — v1.21.3 deployed (2026-07-15 ~23:40).** TRUE root cause (2nd bug stacked
+  under R1): TanStack Table `row._valuesCache` caches the accessorFn result PERMANENTLY per
+  row (invalidated only on a new data reference) — a row built before business-units
+  resolved keeps "#id" forever; the R1 memo-deps fix couldn't override it. Deterministic
+  repro: create→save→SPA redirect to list (3/3 fail pre-fix). Fix: BU column `cell` resolves
+  from `row.original.businessUnitId` every render (accessorFn kept for faceted filter) —
+  applied to ALL 9 list pages (f6a8356), release v1.21.3 @ 82ac750 (PR #82), FE-only deploy
+  FE_DEPLOY_OK, prod-verified via Chrome: /invoices names ✓ + SPA-nav → /purchase-orders ✓.
+  Footer shows v1.21.2 = API version (API not redeployed, FE-only — expected).
+  troubles-wiki updated (R8 + next-build-vs-dev corruption footgun).
 - Prior: **v1.21.1 DEPLOYED + R1-R4 PROD-VERIFIED (2026-07-15 ~18:20) — pipeline COMPLETE.**
   R1/R3/R4 (731e775) + R2-FE locked docDate (526a55b) → release v1.21.1 @ b08387e (PR #80,
   admin-merged per wiki) → FE-only deploy FE_DEPLOY_OK (deploy-fe-v1211.sh archived in
