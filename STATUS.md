@@ -1,6 +1,15 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- Phase: **BU TEST CONFIRM ROUND on prod v1.21.0 DONE (2026-07-15 ~11:30, Claude Chrome).**
+  Full purchase chain re-run on prod (PO-TEST-0003 → VI-TEST-0002 → PV-TEST-COGS-0001, all
+  posted, VI settled 214/214 PAID). 24 findings CONFIRMED FIXED incl. all money/compliance
+  (F15 percent-UI, F27 non-recoverable forced server-side, F20 COGS, F13 taxId, F16 8h+refresh,
+  F21 single-POST). 4 new issues found: R1 PO-list BU column still #id (F3 not actually fixed
+  on that page), R2 PO edit-save resets docDate to today (data bug), R3 po.reopen_blocked
+  toast EN-only, R4 PV-from-VI under-settles a VAT-carrying VI of a non-VAT vendor (edge).
+  Full log: PROGRESS-purchase-uxtest.md §CONFIRM ROUND. MCP connector token expired —
+  Ham must re-auth the claude.ai TEAS-Repttown connector.
 - Goal (2026-07-14, Ham away): purchase-side UX/UI test on PROD (BU TEST) via
   Claude Chrome + refresh outdated manual ch.5. PROGRESS-purchase-uxtest.md =
   full findings log (F1–F27; top: F15 VAT-fraction field accepts "7"→700%,

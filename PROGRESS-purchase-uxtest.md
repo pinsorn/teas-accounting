@@ -196,3 +196,59 @@ Judge UX/UI ease-of-use + spec compliance. Then refresh outdated manual (Thai, M
 ## Attempt log
 - 2026-07-14 11:12 session start, wakeup scheduled (1hr heartbeat). Ham answered 3 setup Qs.
 - 11:28 oriented: manual pipeline located, plan written.
+
+## CONFIRM ROUND on prod v1.21.0 (2026-07-15 ~11:00, Fable-personal Claude Chrome, BU TEST @ Repttown)
+Full chain re-run: PO #1 (draft) → edit (BU→TEST) → approve → VI from PO CTA →
+save+post → PV from VI → approve → post. New docs: 07-2026-PO-TEST-0003 (Closed),
+07-2026-VI-TEST-0002 (Posted, settled 214/214 = PAID), 07-2026-PV-TEST-COGS-0001 (Posted).
+Vendor NOT created (validation test only, form abandoned).
+
+### CONFIRMED FIXED (browser + server evidence)
+- F15/WP1.1 ✓ VI อัตรา VAT = percent UI (chips 0%/7%): type 7 → 7% → ฿14 on ฿200; type 700 →
+  clamped 30%. PV หัก ณ ที่จ่าย %: type 3 → 3% → ฿6.42 on ฿214. Stored fraction 0.07 (API-verified).
+- F27/WP1.2 ✓ non-VAT co: FE advisory ×2 shown; totals put VAT in ภาษีซื้อต้องห้าม (฿14), เครดิตได้ ฿0;
+  server: hasInputVat=false? (header vatAmount=0), line isRecoverableVat=false, nonRecoverableVat=14.
+- F20/WP1.5 ✓ COGS selectable (19 categories, none disabled), VI saved+posted with COGS; 623 backfill live.
+- F13/WP1.4 ✓ vendor จด VAT + no taxId → inline Thai error "ผู้ขายจด VAT ต้องระบุเลขผู้เสียภาษี 13 หลัก", save blocked; asterisk on label.
+- F16/WP2.1 ✓ POST /api/auth/refresh → 200 ok, expires_at = now+8h (8h TTL live). Keep-alive endpoint proven.
+- F21/WP2.3 ✓ VI save = single POST /api/proxy/vendor-invoices (no slash) 201; PV same. Zero 308, zero dup.
+- F19/WP2.4 ✓ Thai toasts (over-receipt warning in Thai, sticky).
+- F18/WP3.1 ✓ VI list create button + new subtitle.
+- F8/WP3.2 ✓ approved-PO CTA "บันทึกใบกำกับภาษีซื้อ" BEFORE สร้างใบสำคัญจ่าย; prefills vendor+PO+BU.
+- F6/WP3.3 ✓ PO draft แก้ไข → /edit route, PUT persists (BUT see R2).
+- F29/WP3.4 ✓ close (auto-closed on full VI receipt, ค้างเหลือ shows -14 over-receipt), เปิดใหม่ button
+  on Closed, reopen with posted VI correctly BLOCKED (but see R3).
+- F24/WP3.5 ✓ PV from VI prefill: vendor/BU/category/line "ชำระ <docNo>" (see R4 edge).
+- F7+F28/WP3.6 ✓ confirm dialogs on PO approve, PV approve, PV post — totals + immutable warning.
+- F9/WP3.7 ✓ "บันทึกว่าส่งแล้ว" relabel (button present on approved PO).
+- F2/WP4.1 ✓ BE hints "= dd/MM/2569" under date inputs (PO edit, VI new).
+- F11/WP4.3 ✓ activity log Thai (สร้างเอกสาร → ฉบับร่าง, อนุมัติ → อนุมัติ).
+- F17/WP4.4+F-C ✓ (indirect) fresh morning login landed on Repttown (last-used), not personal co.
+- F10/WP4.5 ✓ side panels refresh live after approve/post (no reload), all hops.
+- F12/WP4.6 ✓ vendor form 16/16 inputs label-associated (DOM el.labels check).
+- F22/WP4.7 ✓ post-confirm title "ยืนยันการบันทึกใบกำกับภาษีซื้อ" + ม.86/4/ม.86/12 warning.
+- F23/WP4.8 ✓ PV subtitle "ชำระใบกำกับภาษีซื้อเลขที่ 07-2026-VI-TEST-0002" (docNo).
+- F25/WP4.9 ✓ SoD hint + pvApprove dialog both "ผู้อนุมัติควรเป็นคนละคนกับผู้สร้าง — super-admin ข้ามได้".
+- WP4.10 ✓ WHT list: แบบยื่น "ภ.ง.ด.3", ประเภทเงินได้ "40(8)".
+- F26 ✓ dead: PV post works on live session (was F16 family).
+
+### NOT RE-TESTABLE THIS ROUND
+- WP2.2 session-expired modal + form preserve: 8h token can't be expired in-browser (HttpOnly).
+  Live-verified at implementation (local dev); refresh endpoint + Thai 401 toast code paths deployed.
+- F14 VAT-registered-co PO-pull derivation: needs co2; prod BU TEST co is non-VAT (rate 0 = by design).
+
+### NEW FINDINGS (confirm round)
+- R1 (bug, was F3/WP4.2 "already fixed" claim): PO LIST หน่วยธุรกิจ column shows "#3"/"#1" raw id on
+  prod — business-units fetch 200 and VI list resolves names fine; PO list page alone broken.
+- R2 (bug, data): PO draft EDIT-SAVE silently resets docDate to today (12/07 → 15/07 verified
+  server-side docDate=2026-07-15). Only BU was changed in the edit.
+- R3 (i18n gap): po.reopen_blocked toast English-only ("Cannot reopen: a posted Vendor Invoice is
+  already linked to this Purchase Order.") — code missing from lib/i18n/problems.ts.
+- R4 (money edge, minor): PV-from-VI prefill under-settles when VI carries VAT but vendor re-derives
+  0% (non-VAT vendor whose VI had manual 7%): VI outstanding 214 → PV total 200. User-adjustable.
+- R5 (cosmetic): VI post-confirm dialog shows "VAT ฿0.00" while the ฿14 non-recoverable VAT is
+  inside Total ฿214 — no ภาษีซื้อต้องห้าม row in dialog.
+- R6 (cosmetic): activity entries "อนุมัติ → อนุมัติ"/"บันทึกแล้ว → บันทึกแล้ว" redundant; PO auto-close
+  on VI post writes NO activity entry.
+- R7 (positive, note): over-receipt guard toast in Thai "รับเกินใบสั่งซื้อ: รวม VI 214.00 > PO 200.00
+  (เกิน 105%) — โปรดตรวจสอบ" fired on VI post; PO auto-closes on full receipt.
