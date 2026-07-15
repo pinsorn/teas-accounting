@@ -21,6 +21,22 @@ describe('errorToToast — WP2.4 domain-error Thai resolution', () => {
     expect(errorToToast(err)).toBe('ผู้ขายที่จดทะเบียน VAT ต้องมีเลขผู้เสียภาษี 13 หลัก');
   });
 
+  it('R3: resolves po.reopen_blocked to Thai', () => {
+    const err = new ApiError(
+      422,
+      'po.reopen_blocked',
+      'Cannot reopen: a posted Vendor Invoice is already linked to this Purchase Order.',
+    );
+    expect(errorToToast(err)).toBe(
+      'เปิดใบสั่งซื้อใหม่ไม่ได้ — มีใบกำกับภาษีซื้อที่บันทึก (Post) แล้วเชื่อมกับใบสั่งซื้อนี้',
+    );
+  });
+
+  it('R3: resolves po.not_approved to Thai', () => {
+    const err = new ApiError(422, 'po.not_approved', 'PO must be Approved to link a Vendor Invoice.');
+    expect(errorToToast(err)).toBe('เชื่อมใบสั่งซื้อไม่ได้ — ใบสั่งซื้อต้องอยู่ในสถานะอนุมัติแล้ว');
+  });
+
   it('falls back to the backend detail for an unrecognized code', () => {
     const err = new ApiError(500, 'some.unmapped_code', 'Something specific went wrong.');
     expect(errorToToast(err)).toBe('Something specific went wrong.');

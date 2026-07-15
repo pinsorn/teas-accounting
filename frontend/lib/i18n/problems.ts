@@ -38,6 +38,9 @@ const TH: Record<string, string> = {
   'vi.po_link_invalid': 'เชื่อมกับใบสั่งซื้อนี้ไม่ได้',
   'vi.claim_period_closed': 'งวดภาษีนี้ปิดแล้ว ไม่สามารถเครมภาษีซื้อได้',
   'vi.claim_period_out_of_range': 'วันที่เครมภาษีซื้ออยู่นอกช่วงที่กำหนด',
+  'vi.vat_rate_out_of_range': 'อัตราภาษีมูลค่าเพิ่มไม่ถูกต้อง ต้องอยู่ระหว่าง 0 ถึง 1',
+  'vi.no_docno': 'ไม่สามารถออกเลขที่เอกสารใบกำกับภาษีซื้อได้',
+  'vi.invalid_amount': 'จำนวนเงินรวมต้องมากกว่า 0',
 
   // pv.* (Payment Voucher / ใบสำคัญจ่าย)
   'pv.not_found': 'ไม่พบใบสำคัญจ่ายนี้',
@@ -55,12 +58,24 @@ const TH: Record<string, string> = {
   'pv.vi_cross_tenant': 'ใบกำกับภาษีซื้อนี้ไม่ได้อยู่ในบริษัทเดียวกัน',
   'pv.vi_not_posted': 'ใบกำกับภาษีซื้อนี้ยังไม่ได้บันทึก',
   'pv.vi_over_settle': 'ยอดชำระเกินยอดคงค้างของใบกำกับภาษีซื้อ',
+  'pv.wht_rate_out_of_range': 'อัตราภาษีหัก ณ ที่จ่ายไม่ถูกต้อง ต้องอยู่ระหว่าง 0 ถึง 1',
+  'pv.not_approved': 'บันทึก (Post) ใบสำคัญจ่ายได้เฉพาะใบที่อนุมัติแล้วเท่านั้น',
+  'pv.no_docno': 'ไม่สามารถออกเลขที่เอกสารใบสำคัญจ่ายได้',
+  'pv.invalid_amount': 'จำนวนเงินที่ชำระต้องมากกว่า 0',
 
   // po.* (Purchase Order / ใบสั่งซื้อ)
   'po.not_found': 'ไม่พบใบสั่งซื้อนี้',
   'po.not_draft': 'แก้ไขได้เฉพาะใบสั่งซื้อที่ยังเป็นฉบับร่าง',
-  'po.not_approved': 'ใบสั่งซื้อนี้ยังไม่ได้รับการอนุมัติ',
+  // R3 (confirm-round 2026-07-15) — Ham-specified wording; this code is also thrown by the
+  // "close"/"mark sent" guards (same CODE, different call-sites) where this text reads a
+  // little off-context ("เชื่อม..." = "link"), but a single code → single message dict can't
+  // branch by call-site without a backend change (out of scope for an FE-only fix).
+  'po.not_approved': 'เชื่อมใบสั่งซื้อไม่ได้ — ใบสั่งซื้อต้องอยู่ในสถานะอนุมัติแล้ว',
   'po.vi_exists': 'มีใบกำกับภาษีซื้อเชื่อมกับใบสั่งซื้อนี้อยู่แล้ว',
+  // R3 — WP3.4+ (close/reopen) codes, missing from the WP2.4 pass (2026-07-14, predates WP3.4).
+  'po.reopen_blocked': 'เปิดใบสั่งซื้อใหม่ไม่ได้ — มีใบกำกับภาษีซื้อที่บันทึก (Post) แล้วเชื่อมกับใบสั่งซื้อนี้',
+  'po.terminal': 'ไม่สามารถยกเลิกใบสั่งซื้อนี้ได้ เนื่องจากอยู่ในสถานะสุดท้ายแล้ว',
+  'po.not_closed': 'เปิดใบสั่งซื้อใหม่ได้เฉพาะใบที่อยู่ในสถานะปิดแล้วเท่านั้น',
 
   // wht.*
   'wht.not_found': 'ไม่พบหนังสือรับรองหัก ณ ที่จ่ายนี้',

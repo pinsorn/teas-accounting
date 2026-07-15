@@ -13,6 +13,7 @@ import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { PercentRateInput } from '@/components/ui/PercentRateInput';
 import { apiPost } from '@/lib/api';
 import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
+import { derivePvPrefillBase } from '@/lib/pv-prefill';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatDateBE, formatTaxId } from '@/lib/utils';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -53,6 +54,10 @@ function PvForm() {
 
   const [vendorId, setVendorId] = useState<number | null>(null);
   const [vendorLabel, setVendorLabel] = useState('');
+  // R4 — declared here (not at its old spot below) so the VI-prefill effect further down
+  // can read it: it needs the vendor's CURRENT vatRegistered flag to compute the rate the
+  // form will actually re-derive for the prefilled line.
+  const vendor = useVendor(vendorId ?? 0).data;
   // Sprint BU-PURCH — business unit, optional unless the company opted in.
   const buRequired = useCompanyBuSetting().data?.requiresBusinessUnit ?? false;
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
@@ -114,28 +119,32 @@ function PvForm() {
       setCategoryId(firstLine.expenseCategoryId);
       setCatRecoverable(firstLine.isRecoverableVat);
     }
+    // R4 — `vendorId` was JUST set above on this same pass, so `vendor` (fetched by the
+    // PREVIOUS vendorId, often null) hasn't caught up yet on this render; wait for it to
+    // resolve to THIS VI's vendor before deriving the rate (this effect re-fires on the
+    // `vendor` dependency below, still guarded by `!viPrefilled`).
+    if (!vendor || vendor.vendorId !== vi.vendorId) return;
     const outstanding = Math.max(vi.totalAmount - vi.settledAmount, 0);
-    // The PV line always RE-DERIVES VAT from productType and adds it on top of `amount`
-    // (never a typed VAT-inclusive figure — that field stays untouched, WP1 territory).
-    // `outstanding` is VAT-inclusive (VI.totalAmount/settledAmount both are), so seeding
-    // `amount` with it verbatim would double-count VAT once the PV re-adds its own 7%.
-    // Scale the VI's own pre-VAT subtotal by the outstanding ratio instead, so the
-    // prefilled line's re-derived total lands back on `outstanding` (exact with no
-    // prior settlement — the common case; a proportional approximation otherwise).
-    const baseAmount = vi.totalAmount > 0
-      ? Math.round((vi.subtotalAmount * (outstanding / vi.totalAmount)) * 100) / 100
-      : outstanding;
+    // The PV line always RE-DERIVES VAT (rate = vendor.vatRegistered ? rate-for-productType
+    // : 0) and adds it on top of `amount` — it never accepts a VAT-inclusive figure
+    // directly. Ham decision: prefill must land the PV grand total EXACTLY on `outstanding`
+    // in every vendor/VAT combo, so compute base from the SAME rate the form will actually
+    // apply to this row (not the VI's own historical rate — those can differ, e.g. a
+    // non-VAT-registered vendor's VI carrying non-recoverable VAT).
+    const productType = firstLine?.productType ?? 'GOOD';
+    const rate = vendor.vatRegistered ? taxRateForProductType(productType) : 0;
+    const baseAmount = derivePvPrefillBase(outstanding, rate);
     setRows([{
       ...emptyRow(1),
       description: t('settleLineDesc', { docNo: vi.docNo ?? `#${vi.vendorInvoiceId}` }),
       amount: baseAmount,
+      productType,
     }]);
     setViPrefilled(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vi, viPrefilled]);
+  }, [vi, viPrefilled, vendor]);
 
   // Sprint 8.7 — vendor flags drive self-withhold (auto/lock for foreign).
-  const vendor = useVendor(vendorId ?? 0).data;
   const foreignNoVatD = !!vendor?.isForeign && !vendor.hasThaiVatDReg;
   const foreignVatD = !!vendor?.isForeign && !!vendor.hasThaiVatDReg;
   const selfWithholdLocked = !!vendor?.isForeign;

@@ -10,7 +10,7 @@ import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, RowLink, dateRangeFilter } from '@/components/ui/DataTable';
 import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
-import { usePurchaseOrders, useBusinessUnitName } from '@/lib/queries';
+import { usePurchaseOrders, useBusinessUnitName, useBusinessUnits } from '@/lib/queries';
 import type { PurchaseOrderListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 
@@ -21,6 +21,12 @@ export default function PurchaseOrdersPage() {
   const tc = useTranslations('common');
   const q = usePurchaseOrders();
   const buName = useBusinessUnitName();
+  // R1 fix — `columns` below is memoized on [t, tc] only (stable across renders), so an
+  // accessorFn closing over `buName` alone freezes on whatever business-units data was
+  // loaded (or not yet loaded) at mount, permanently showing "#id" if this page mounts
+  // before that query resolves. Depend on the query's own data so the memo recomputes
+  // once it arrives.
+  const { data: businessUnits } = useBusinessUnits(true);
 
   const columns = useMemo<ColumnDef<PurchaseOrderListItem>[]>(() => [
     {
@@ -70,7 +76,7 @@ export default function PurchaseOrdersPage() {
       ),
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [t, tc]);
+  ], [t, tc, businessUnits]);
 
   return (
     <>
