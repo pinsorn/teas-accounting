@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.3](https://github.com/pinsorn/teas-accounting/compare/v1.21.2...v1.21.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* **ui:** BU column stuck on #id via TanStack row._valuesCache — resolve in cell, all 9 list pages ([f6a8356](https://github.com/pinsorn/teas-accounting/commit/f6a835602f4d54f7e1fbd6da5c9fcbd108f7dc33))
+
 ## [1.21.2](https://github.com/pinsorn/teas-accounting/compare/v1.21.1...v1.21.2) (2026-07-15)
 
 
