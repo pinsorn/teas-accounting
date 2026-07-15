@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.21.0](https://github.com/pinsorn/teas-accounting/compare/v1.20.1...v1.21.0) (2026-07-15)
+
+
+### Features
+
+* **auth:** WP2 sliding session + global 401 recovery + 308 fix + Thai errors (F16/F19/F21) ([d5a9c69](https://github.com/pinsorn/teas-accounting/commit/d5a9c6964301184c098594901f6b035f0053a598))
+* **purchase-ux:** WP3+WP4 FE flow/discoverability/polish (findings F2-F24) ([d88ee51](https://github.com/pinsorn/teas-accounting/commit/d88ee51126904b829223f73d200632fdd759c102))
+* **purchase:** WP1 money/compliance — non-VAT non-recoverable, percent-UI, category backfill (F13/F15/F20/F27) ([65b9b2b](https://github.com/pinsorn/teas-accounting/commit/65b9b2b08757ca9afd245f62f8f67ce47558256d))
+* **purchase:** WP3.4 PO close/reopen + confirm dialog; WP4.9 SoD text (F29/F25) ([a86de78](https://github.com/pinsorn/teas-accounting/commit/a86de78e3509c02ff12467981d45bb79fa9a959e))
+
+
+### Bug Fixes
+
+* **purchase:** F-C re-switch company after modal re-login; F-5 service-level rate bounds ([91e374d](https://github.com/pinsorn/teas-accounting/commit/91e374d626e9ee83f12e3b40cb0220446908ffbf))
+
 ## [1.20.1](https://github.com/pinsorn/teas-accounting/compare/v1.20.0...v1.20.1) (2026-07-13)
 
 
