@@ -256,3 +256,44 @@ build would otherwise crash API startup entirely):
     WHERE matched_payment_voucher_id IS NOT NULL GROUP BY 1 HAVING count(*)>1;
 Watch items (non-blocking): empty AccountNoRaw fails-closed on future adapters;
 ExpenseClaim mark-paid path bare save (pre-existing, future concurrency pass).
+
+## SelfWithholdMode PV investigation (2026-07-10)
+
+**VERDICT: NOT A BUG.** The GL cash/bank credit line == actual cash out in both
+WHT payer modes. The suspicion's premise (`TotalPaid = subtotal+vat−wht` always)
+is false — that formula is only the DEDUCT branch.
+
+Root: `TotalPaid` is computed CONDITIONALLY on the payer mode at
+`PaymentVoucherService.cs:219-221`:
+`totalPaid = selfWithhold ? subtotal+vatTotal : subtotal+vatTotal−whtTotal`.
+Both `selfWithhold` (:215) and `totalPaid` (:219) derive from the same
+`payerMode` (:151), so they cannot desync at draft time. The GL cash line credits
+`pv.TotalPaid` (`GlPostingService.cs:220`); bank-rec matches on `p.TotalPaid`
+(`BankReconciliationService.cs:83` suggest, `:141` confirm-guard). All three read
+the SAME field → self-consistent, no drift.
+
+Worked example — subtotal 1,000, VAT 7% (70), WHT 3%, recoverable VAT:
+
+*DEDUCT (normal withhold):* WHT=30 (`WhtPayerModes.Compute` :59). `TotalPaid`=1,040.
+JE: Dr expense 1,000 (`GlPostingService.cs:182`) + Dr input-VAT 70 (:190) =1,070;
+Cr WHT-payable 30 (:214) + Cr bank 1,040 (:220) =1,070. Vendor receives 1,040;
+cash out 1,040 = cash line. ✔
+
+*GROSS_UP_FOREVER (self-withhold):* income=1000/0.97=1,030.93, WHT=30.93
+(`WhtPayerModes.cs:47-48`). `selfWithhold`→`TotalPaid`=1,070. JE: Dr expense 1,000
+(:182) + Dr input-VAT 70 (:190) + Dr gross-up 30.93 (`GlPostingService.cs:205`)
+=1,100.93; Cr WHT-payable 30.93 (:214) + Cr bank 1,070 (:220) =1,100.93. Vendor
+receives 1,070 (paid full); cash out 1,070 = cash line. ✔
+
+Dr==Cr does NOT mask a wrong split: the gross-up debit (:205) and WHT-payable
+credit (:214) are both `pv.WhtAmount` and cancel exactly, so balance reduces to
+Dr(subtotal+vat)==Cr(TotalPaid=subtotal+vat) — no WHT-rounding path can leave it
+balanced-but-wrong. Any wrong `TotalPaid` here would throw at `BuildAndPostAsync`,
+not drift silently.
+
+Doc smell only (no code change): `PaymentVoucher.cs:52` comment states
+`= subtotal+vat−wht` as if universal — true only for DEDUCT. `GlPostingService.cs`
+:198 correctly notes `TotalPaid = subtotal+vat` under self-withhold. No fix
+required; optionally tighten the :52 comment to name both branches. Not chased:
+a draft-UPDATE recompute path (out of scope) — if one exists it must reuse the
+same :219-221 conditional.

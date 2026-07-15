@@ -695,3 +695,160 @@ stage alongside the rest.
   MCP is full-qty; BillingNote.Version token protects the full-cover race). Same
   disposition as parent D5/F4; row-lock or partial-unique index if seen in practice.
 - F2 nit: directBnApps sums computed but unused (Keys only) — harmless.
+- 2026-07-13 evening — v1.20.1 HOTFIX round (sonnet), fresh worktree
+  `Z:\temp\claude\wt-teas-v1201`, branch `fix/bn-settlement-flip` off `origin/main` @
+  `d795c98`. H1 (money blocker) fixed in `ReceiptService.PostAsync`: direct
+  `BillingNoteId` receipt applications now flip the BN to `Settled` when fully covered
+  and reject over-collection with `receipt.over_applied`, mirroring the existing TI
+  guard/flip pattern — placed at POST time (not create/rebuild as the ticket's prose
+  literally said) because that's the only point that closes the actual two-concurrent-
+  drafts double-revenue race; see the H1 checklist item above for the full reasoning.
+  H2 fixed in `DocumentCrossRefService.GetChainAsync`: added the 4 missing up/down
+  traversal edges for the NEW `TaxInvoice.SalesOrderId`/`DeliveryOrderId` and
+  `BillingNote.SalesOrderId` FKs (skip-DO direct-invoice paths never traversed before).
+  H3 investigated and NOT reproduced — `MarkSettledAsync` is correct by code reading and
+  by a new + a pre-existing test; documented instead of guessing (see H3 checklist item).
+  5 new tests added to `McpDocumentChainTests.cs`. Full suite: 997 total / 989 passed /
+  0 failed / 8 skipped (one flaky unrelated Payroll test on the first run, isolated
+  re-run + a second full run both green — see gate evidence above and the
+  troubles-wiki.md "Also seen on" addition). No `git commit` made — orchestrator-owned.
+
+## HOTFIX round (found in prod chain E2E, 2026-07-13 evening) — v1.20.1
+
+Prod walk QT-7→SO-4→IV(BN)-4→RC-5 proved the JE exactly matches D3(b)
+(journal 4: Dr 1120/500, Cr 4000/500) BUT exposed:
+
+- [x] H1 **BLOCKER (money): direct-BN settlement never flips the BN to Settled and has
+  NO amount guard.** ReceiptService's apply-payments section (:432-499) handles TI
+  applications (AmountPaid/PaymentStatus + amount guard :445) and the Sprint-13i
+  TI-linked-BN flip (:465-499) — but a DIRECT BillingNoteId application (the non-VAT
+  path THIS cycle added) updates nothing. Consequence: `rc.invoice_already_settled`
+  (:195) keys on a status that never arrives, and there is no BN equivalent of the
+  :445 over-collection check → a second receipt against the same BN posts revenue
+  TWICE. Prod evidence: BN 4 status=ISSUED after RC-5 fully covered it.
+  FIX (at receipt POST, same section): for each BillingNoteId application, sum
+  applied_amount across POSTED receipts for that BN; flip Settled (+SettledAt,
+  activity, mirroring :496-499) when covered. GUARD (at create/rebuild): existing
+  posted applications + new application > bn.TotalAmount → DomainException
+  rc.overpaid-style with actionable text. Tests: (a) direct-BN settle flips Settled
+  (assert STATUS, not just JE), (b) second receipt against the same BN rejected,
+  (c) partial application does NOT flip (stays Issued) even though partials aren't
+  creatable via MCP this cycle (web can craft one).
+  **✅ IMPLEMENTED** — `ReceiptService.PostAsync` (`ReceiptService.cs`, new block right
+  after the Sprint-13i indirect-BN flip, before `_gl.PostReceiptAsync`): groups direct
+  `BillingNoteId` applications, sums `sales.receipt_applications` of POSTED receipts per
+  BN (no `AmountPaid` column added, per the dispatch), throws `receipt.over_applied`
+  when the sum would exceed `bn.TotalAmount`, else flips `Issued`→`Settled` (+`SettledAt`,
+  activity row) once fully covered. **Placement deviation from the ticket's literal
+  wording, flagged:** the ticket said "GUARD (at create/rebuild)"; implemented instead
+  at POST time, mirroring TI's `:445` guard exactly (which is what the dispatch text
+  explicitly pointed at). This is the placement that actually closes the double-revenue
+  race: two receipt DRAFTS created against the same BN before either posts both pass a
+  create-time-only check (0 posted applications for either at that point); only a
+  POST-time re-query (re-reading `sales.receipt_applications` at the moment of truth,
+  same pattern as TI's `:445`) catches the second one. A create-time guard alone would
+  give better UX (earlier rejection) but not close the actual money hole — not added,
+  Ponytail (the post-time guard alone satisfies "no BN equivalent of the :445
+  over-collection check"). Tests (all in `McpDocumentChainTests.cs`):
+  `Direct_bn_settlement_flips_billing_note_to_settled_h1a`,
+  `Second_receipt_against_the_same_bn_is_rejected_when_it_would_overcollect_h1b`,
+  `Partial_bn_application_does_not_flip_status_h1c` — all green (see evidence below).
+- [x] H2 (UX/consistency): document-chain resolver does not traverse the NEW
+  SalesOrderId/DeliveryOrderId FKs — chain from quotation stops at SO (misses
+  BN/RC via skip-DO edge); chain from BN misses upstream SO/Q. Add the edges in
+  whatever service backs get_document_chain + the FE DocumentChain panel data.
+  **✅ IMPLEMENTED** — `DocumentCrossRefService.GetChainAsync` (only service backing both
+  the `get_document_chain` MCP tool and the REST endpoint the FE `DocumentChain` panel
+  reads — confirmed a single shared code path, so no separate FE change was needed).
+  Up-walk: the `tiIds` block now also reads `TaxInvoice.SalesOrderId`/`DeliveryOrderId`
+  into `soIds`/`doIds`; the `invIds` block now also reads `BillingNote.SalesOrderId`
+  into `soIds`. Down-walk: the `soIds` block now also queries `TaxInvoice`/`BillingNote`
+  rows with `SalesOrderId` in the frontier (the skip-DO edge) into `tiIds`/`invIds`; the
+  `doIds` block now also queries `TaxInvoice.DeliveryOrderId` (the new DO→TI forward FK,
+  distinct from the pre-existing legacy `DeliveryOrder.TaxInvoiceId` reverse-FK it
+  already handled) into `tiIds`. Ordering preserved the existing single-pass topological
+  sequence (rc→ti→inv→do→so up; q→so→do→inv down) so no extra loop/fixed-point pass was
+  needed. Test: `Document_chain_traverses_the_skip_do_edge_both_directions_h2` (new, in
+  `McpDocumentChainTests.cs`) builds a non-VAT service-only Q→SO→Invoice(direct,
+  skip-DO)→Receipt chain and asserts BOTH directions: from `quotation` the chain reaches
+  the Invoice + Receipt with an empty `DeliveryOrders` list; from `billing-note` the
+  chain resolves the upstream SalesOrder + Quotation. Green (see evidence below).
+- [x] H3 (investigate while in there): web "ยืนยันชำระครบแล้ว" (MarkSettled) on BN 4
+  logged "Issued → Issued" and did NOT change status — reproduce; if broken, fix in
+  the same pass (likely related state handling).
+  **INVESTIGATED, NOT REPRODUCED — no code change.** Read `BillingNoteService.MarkSettledAsync`
+  (`BillingNoteService.cs:283-294`) end to end: it guards `bn.Status != Issued` (throws
+  otherwise), then unconditionally sets `Status = Settled` + `SettledAt`, then calls
+  `activity.Record(..., "Settled", "Issued", "Settled", ...)` — the from/to strings are
+  HARDCODED LITERALS, not derived from the entity's actual before/after value, and this
+  is the ONLY `activity.Record` call anywhere in the codebase that pairs `"Issued"` with
+  anything for this action (grepped every `activity.Record` call touching `BillingNote`).
+  There is no `"Issued"`→`"Issued"` pair possible from this code path — either the guard
+  throws (no log row at all) or it logs `"Issued"`→`"Settled"` and the status DOES flip.
+  Checked for side-channel explanations too: no immutability trigger on
+  `sales.billing_notes` (unlike TI/Receipt's field-level triggers — confirmed via
+  `322_billing_notes_rls.sql`, RLS-only), `Version` is a plain EF concurrency token with
+  no manual client-supplied stamping on this endpoint (`POST /billing-notes/{id}/mark-settled`
+  takes no body), and the FE button (`invoices/[id]/page.tsx:118`) calls exactly this
+  endpoint via `useBillingNoteAction`, nothing generic/older in between. Wrote a
+  reproduction test exercising the EXACT scenario (Issue → MarkSettled) and asserting
+  BOTH the resulting status AND the actual `activity_log` row's `MetadataJson` (not just
+  a downstream side-effect): `MarkSettled_on_an_issued_billing_note_flips_to_settled_h3_repro`
+  — green: status flips to `Settled`, `SettledAt` is set, and the logged row reads
+  `fromStatus:"Issued"`/`toStatus:"Settled"` exactly, never `"Issued"`/`"Issued"`. This is
+  also independently corroborated by a PRE-EXISTING green test in this same file,
+  `Dedup_guard_rejects_a_receipt_on_a_settled_billing_note`, which already calls
+  `MarkSettledAsync` on an Issued BN and depends on it correctly flipping to `Settled`
+  for its own assertion to pass — it was green before this hotfix too. Recommend: if
+  this reproduces again in prod, capture the actual `audit.activity_log` row + the exact
+  request timeline (was H1's bug — BN stuck Issued after a fully-covering receipt — still
+  live at the time of the click, and was there possibly a SECOND concurrent action on the
+  same BN?) rather than re-guessing from code alone; no root cause found in this pass.
+
+Gates: targeted tests for H1 a-c + H2 chain traversal test + full suite green;
+Fable diff review + Opus spot-review of H1 (money) before commit.
+
+**Gate evidence (worker, 2026-07-13, worktree `Z:\temp\claude\wt-teas-v1201`,
+branch `fix/bn-settlement-flip`, off `origin/main` @ `d795c98`):**
+- `dotnet build` (full solution): 0 warnings / 0 errors (re-confirmed after a follow-up
+  tightening — see below).
+- Targeted new tests (H1 a/b/c + H2 + H3), `--filter` on the 5 new test names: 5/5 green.
+- `Mcp`-filtered subset (`McpDocumentChainTests` + `McpReadExpansionTests` + smoke etc.):
+  175/175 green (170 pre-existing + 5 new).
+- `DocumentChain|Receipt|BillingNote`-filtered subset: 62/62 green (regression check on
+  every test touching the two files this hotfix edited).
+- Follow-up hardening: added explicit `CompanyId` filters to the two new H1 queries
+  (`directBns`, the `Receipts` join) to match the STRONGER belt-and-braces precedent set
+  by the Sprint-13i block immediately above them (which explicitly filters `TaxInvoices`
+  by `t.CompanyId == rc.CompanyId` even though the EF global query filter already scopes
+  by tenant) — a defense-in-depth tightening, not a behavior fix. Re-built (0/0) and
+  re-ran the combined `Mcp|DocumentChain|Receipt|BillingNote` filter: 207/207 green.
+- Full suite run #1 (before the tightening): 1 failure —
+  `Accounting.Api.Tests.Payroll.PayrollRunServiceTests.Pnd1_filings_follow_payment_date_not_period`
+  — isolated re-run passed immediately (10s). Confirmed the SAME KNOWN
+  random-year/period-collision flake class already documented in `troubles-wiki.md`
+  (`WhtBatchExportServiceTests`/`RandPeriod()` entry), just a different helper
+  (`FreshYearAsync`/`RandYear()`) hitting the same shared, never-reset `teas_test` DB;
+  unrelated to any file this hotfix touched. Appended an "Also seen on" note to that
+  wiki entry. Immediate full re-run: **147 Domain (147/147) + 850 Api (842 passed / 0
+  failed / 8 skipped) = 997 total / 989 passed / 0 failed / 8 skipped — clean.**
+- Full suite run #2 (after the tightening, to re-confirm post-edit): hit a SECOND,
+  DIFFERENT unrelated flake —
+  `Accounting.Api.Tests.TaxFilings.Pnd50FilingServiceTests.Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder`
+  (`CitExpenseByAccountTests.FreshJeYearAsync`, a THIRD random-year helper of the same
+  class — its own doc comment names the exact collision mechanism). Isolated re-run
+  passed in 623ms. Confirms the flake class generalizes across the whole "pick a fresh
+  random year against the shared `teas_test`" pattern, and that repeated full-suite
+  reruns in one session raise the odds of hitting one (documented, with both occurrences,
+  in `troubles-wiki.md`). Per that entry's own guidance, did NOT chase a 3rd full rerun
+  chasing an all-green run — the regression-scoped subset (207/207, run twice, before AND
+  after the tightening edit) is the definitive proof of no regression from this hotfix's
+  3-file diff; both full-suite failures were in modules this hotfix never touched
+  (Payroll, CIT/PND50) and both isolated-confirmed clean.
+- Combined tally across the two full runs: 997 total (147 Domain + 850 Api) each time;
+  passed 989/988 (one unrelated flake each run), 0 failures attributable to this hotfix,
+  8 skipped (baseline). Reconciles exactly: v1.20.0 baseline 992 total/984 passed/8
+  skipped + this hotfix's 5 new tests = 997 total/989 passed/8 skipped when the
+  session-accumulation flake doesn't land.
+- `Fable diff review` / `Opus spot-review of H1 (money)` — pending, orchestrator-owned
+  (not this dispatch's gate to run).
