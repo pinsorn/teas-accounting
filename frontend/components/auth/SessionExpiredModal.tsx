@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { AlertTriangle } from 'lucide-react';
-import { auth, type LoginResponse } from '@/lib/auth';
+import { auth, restoreLastCompany, type LoginResponse } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { sessionEvents, SESSION_EXPIRED_EVENT } from '@/lib/session-events';
 
@@ -24,6 +24,12 @@ type FormValues = {
  * re-setting the httpOnly cookie) — the page never navigates, so every open form's React state
  * is untouched. Closing on success just dismisses the overlay; the user re-submits their own
  * save (auto-retry isn't attempted — the failed mutation's own error path already ran).
+ *
+ * F-C follow-up (Opus Tier-2 review): a super-admin who had switched company lands back on
+ * their DEFAULT company on re-login (POST /auth/login always re-scopes there), so an
+ * in-progress form holding company-X ids would then fail to save under company Y. Before
+ * closing, restoreLastCompany() (shared with the login page's WP4.4 fix) re-switches back
+ * to the last-used company if it differs — best-effort, never blocks/traps the user here.
  */
 export function SessionExpiredModal() {
   const t = useTranslations('sessionExpired');
@@ -58,6 +64,7 @@ export function SessionExpiredModal() {
         toast.info(tl('mfaPrompt'));
         return;
       }
+      await restoreLastCompany();
       setOpen(false);
       setNeedMfa(false);
       reset();

@@ -991,11 +991,28 @@ approved own PV (admin not blocked). Two options:
 Recommend (A) now, (B) as a tracked compliance follow-up. Marked PROPOSAL either way.
 
 ## Residual follow-ups — WP2 (from Opus Tier-2 security review, not blocking commit)
-- F-C (LOW, UX, fails safe): after the WP2.2 session-expired modal re-login, a super-admin who
+- [x] F-C (LOW, UX, fails safe): after the WP2.2 session-expired modal re-login, a super-admin who
   had switched company lands back on their DEFAULT company (POST /auth/login re-scopes there),
   so an in-progress form holding company-X ids submits under company Y → RLS/cross-tenant guard
   rejects (404), never mis-posts. Rough edge only. Fix option later: SessionExpiredModal reads
   the WP4.4 last-company localStorage key and re-switches after re-login.
+  DONE 2026-07-15 (branch fix/purchase-ux-fc-f5): extracted the login page's existing
+  `restoreLastCompany()` (WP4.4/F17 — reads `LAST_COMPANY_KEY`, confirms via `/api/proxy/me`
+  the user is still a super-admin with access, then POSTs the existing
+  `/api/auth/switch-company` route) out of `login/page.tsx` into a shared export in
+  `lib/auth.ts` (no behavior change — same fetch calls, same fail-silent catch). Wired into
+  `SessionExpiredModal.tsx`'s `onSubmit` success path: `await restoreLastCompany()` runs right
+  after the in-place re-login succeeds and BEFORE `setOpen(false)` closes the modal — so a
+  save immediately after re-login goes out under the restored company. Never a hard navigation
+  (unlike `CompanySwitcher`'s `switchTo`, which does `window.location.assign('/')` — that would
+  defeat WP2.2's whole point of preserving in-place form state), and `restoreLastCompany`'s own
+  try/catch already fails silently on any error (network blip, no-longer-allowed company, etc.)
+  so a failed restore never traps the user in the modal — they just land on the default company,
+  same as before this fix. `login/page.tsx` now imports the shared function instead of defining
+  its own copy (net one function, not a duplicate). Files:
+  `frontend/lib/auth.ts` (+restoreLastCompany export), `frontend/app/(auth)/login/page.tsx`
+  (import instead of local def), `frontend/components/auth/SessionExpiredModal.tsx` (call +
+  doc comment). Verified: `tsc --noEmit` clean, `next build` green (0 errors).
 - F-D (INFO, acceptable as shipped): proxy 3xx Location pass-through is backend-originated +
   OpenIddict-validated + fetch-only (no httpOnly JWT replay on the followed hop). No open-redirect
   in practice; noted for completeness.
@@ -1004,7 +1021,7 @@ Recommend (A) now, (B) as a tracked compliance follow-up. Marked PROPOSAL either
   shared CheckOrThrow helper reused by /refresh (see WP2 fix dispatch).
 
 ## Residual follow-ups — WP1 (from Opus Tier-2 review, not blocking WP1 commit)
-- F-5 (LOW, hardening): internal callers `CreateFromPurchaseOrderAsync` +
+- [x] F-5 (LOW, hardening): internal callers `CreateFromPurchaseOrderAsync` +
   `CreateVendorInvoiceFromPvAsync` build `CreateVendorInvoiceRequest` in-code and call
   `CreateDraftAsync` directly, bypassing the FluentValidation `InclusiveBetween(0,1)` rate
   bound (only the REST endpoint runs it). Money-safe today (upstream PO/PV rates are already
@@ -1012,6 +1029,33 @@ Recommend (A) now, (B) as a tracked compliance follow-up. Marked PROPOSAL either
   but the 700%-type raw-rate defect could in theory enter via a non-REST path. Consider moving
   the rate bound into `BuildLinesAsync` (service-level) in a later hardening pass; verify the
   MCP `create_vendor_invoice_draft`/`create_payment_voucher_draft` tools run the DTO validator.
+  DONE 2026-07-15 (branch fix/purchase-ux-fc-f5): moved the bound into
+  `VendorInvoiceService.BuildLinesAsync` (`backend/src/Accounting.Infrastructure/Purchase/
+  VendorInvoiceService.cs`) — the single seam `CreateDraftAsync`, `UpdateDraftAsync`, AND
+  `CreateFromPurchaseOrderAsync` (which delegates to `CreateDraftAsync`) all funnel through.
+  Rejects `input.VatRate < 0m || > 1m` with `DomainException("vi.vat_rate_out_of_range", ...)`
+  BEFORE the `net`/`vat` computation, naming the line number + offending value. DTO validators
+  kept as-is (defence in depth, not removed) — no GL/settlement math touched.
+  **PV WHT rate — same in-code-bypass shape confirmed, NOT already safe:**
+  `PaymentVoucherService.CreateFromVendorInvoiceAsync` builds a `CreatePaymentVoucherRequest`
+  in-code from `CreatePvFromViRequest.WhtRate` — and `CreatePvFromViValidator` (`PaymentVoucherDtos.cs`)
+  does NOT bound `WhtRate` at all (only checks cheque fields), so an out-of-range rate reaches
+  `CreateDraftAsync` unchecked via the REST "create PV from VI" endpoint, same defect class as
+  the VI side. (PV has no separate `BuildLinesAsync` — `CreateDraftAsync`'s own inline line loop
+  IS the one seam both the direct-create and from-VI paths share, since PV has no
+  `UpdateDraftAsync`.) Added the identical `input.WhtRate < 0m || > 1m` guard
+  (`DomainException("pv.wht_rate_out_of_range", ...)`) in that loop, next to the pre-existing
+  VatRate checks (ม.82/5 / ม.81 / standard-rate-only — VatRate was already tightly bound there,
+  tighter than [0,1], so no change needed on the PV VAT side). DTO validator's own
+  `WhtRate InclusiveBetween(0,1)` (direct-create path) kept as-is.
+  Tests: new `backend/tests/Accounting.Api.Tests/Hardening/PurchaseRateBoundTests.cs` (4 cases,
+  service-layer calls mirroring the internal-caller shape — DTO validator never runs on these
+  calls, so they're the only line of defence): VI VatRate=7.0 → `vi.vat_rate_out_of_range`;
+  VI VatRate=0.07 → unaffected (VatAmount=70 exactly, unchanged behavior); PV WhtRate=3.0 →
+  `pv.wht_rate_out_of_range`; PV WhtRate=0.03 → unaffected (WhtAmount=30 exactly). All 4 passing
+  with `TEAS_TEST_PG` set (0 skipped — confirms real DB, not a silent skip). Regression:
+  `dotnet build` 0 errors; Hardening + Mcp folders 226 passed/4 pre-existing unrelated skips
+  (same baseline as WP1.2's prior runs); `Accounting.Api.Tests.Purchase` folder 39/39 passed.
 - F-4 (RESOLVED, Ham 2026-07-14): full enforcement kept — a domestic VAT-registered vendor
   requires a valid 13-digit taxId on every save (no soft/changed-field gate). Legacy vendors
   with empty/bad taxId must fill it before any edit saves.

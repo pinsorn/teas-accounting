@@ -254,6 +254,16 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 throw new DomainException("pv.vat_rate_invalid",
                     $"Line {i + 1}: VAT rate must be 0% or the standard {standardVatRate:P0} — got {input.VatRate:P0}.");
 
+            // F-5 (Opus Tier-2 review) — same in-code-bypass shape as the VI side:
+            // CreatePaymentVoucherValidator bounds WhtRate InclusiveBetween(0,1) only on the
+            // REST create-PV path; CreateFromVendorInvoiceAsync builds this same request
+            // in-code from CreatePvFromViRequest.WhtRate (which CreatePvFromViValidator does
+            // NOT bound at all) and calls CreateDraftAsync directly, skipping the validator.
+            // This loop is the one seam both callers funnel through.
+            if (input.WhtRate < 0m || input.WhtRate > 1m)
+                throw new DomainException("pv.wht_rate_out_of_range",
+                    $"Line {i + 1}: WHT rate {input.WhtRate} is out of range; must be a fraction between 0 and 1.");
+
             lines.Add(new PaymentVoucherLine
             {
                 LineNo            = i + 1,

@@ -226,6 +226,16 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
                 ?? throw new DomainException("vi.expense_account_missing",
                     $"Line {i + 1}: no expense account (category '{cat.CategoryCode}' has no default).");
 
+            // F-5 (Opus Tier-2 review) — the FluentValidation InclusiveBetween(0,1) bound on
+            // VatRate only runs on the REST DTO; internal callers that build
+            // CreateVendorInvoiceRequest in-code (CreateFromPurchaseOrderAsync, PV→VI) call
+            // CreateDraftAsync/UpdateDraftAsync directly and skip it. BuildLinesAsync is the one
+            // seam every create/update path funnels through, so enforce the same bound here
+            // before computing VAT — a rate already in [0,1] is unaffected.
+            if (input.VatRate < 0m || input.VatRate > 1m)
+                throw new DomainException("vi.vat_rate_out_of_range",
+                    $"Line {i + 1}: VAT rate {input.VatRate} is out of range; must be a fraction between 0 and 1.");
+
             var net = Math.Round(input.Amount, 4, MidpointRounding.AwayFromZero);
             var vat = Math.Round(net * input.VatRate, 2, MidpointRounding.AwayFromZero);
 
