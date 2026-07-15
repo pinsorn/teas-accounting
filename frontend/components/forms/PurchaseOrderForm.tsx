@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
+import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import {
   useCreatePurchaseOrder, useUpdatePurchaseOrder, useSystemInfo, useVendor,
@@ -92,7 +93,12 @@ export function PurchaseOrderForm({ edit }: { edit?: PurchaseOrderDetail } = {})
   const [buError, setBuError] = useState(false);
 
   const today = bangkokToday();
-  const [docDate, setDocDate] = useState(edit?.docDate ?? today);
+  // R2 (confirm-round 2026-07-15) — backend UNCONDITIONALLY re-pins DocDate to server-today
+  // on both CreateDraftAsync and UpdateDraftAsync (§10 — "never trust req.DocDate"), a
+  // deliberate rule Fable/Ham decided NOT to change. The FE bug was showing an editable
+  // field the server silently ignored; docDate is therefore always `today` (a locked
+  // display of what WILL be saved), never user input or the edited doc's stored value.
+  const docDate = today;
   // ITEM 1 — expected-delivery defaults to today (editable), same source as docDate.
   const [expected, setExpected] = useState(edit?.expectedDeliveryDate ?? today);
   const [notes, setNotes] = useState(edit?.notes ?? '');
@@ -117,7 +123,6 @@ export function PurchaseOrderForm({ edit }: { edit?: PurchaseOrderDetail } = {})
   useEffect(() => {
     if (!edit) return;
     reset({ vendorId: edit.vendorId, lines: edit.lines.map(toLine) });
-    setDocDate(edit.docDate);
     setExpected(edit.expectedDeliveryDate ?? today);
     setBusinessUnitId(edit.businessUnitId ?? null);
     setNotes(edit.notes ?? '');
@@ -294,17 +299,7 @@ export function PurchaseOrderForm({ edit }: { edit?: PurchaseOrderDetail } = {})
         {/* ② ข้อมูลเอกสาร */}
         <SectionCard number={2} title={tcr('docInfo')}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="form-control">
-              <span className="label-text">{t('docDate')}</span>
-              <input
-                type="date"
-                className="input input-bordered"
-                value={docDate}
-                onChange={(e) => setDocDate(e.target.value)}
-                aria-label={t('docDate')}
-              />
-              <span className="label-text-alt text-base-content/50">= {formatDateBE(docDate)}</span>
-            </label>
+            <DateInput value={docDate} locked label={t('docDate')} />
             <label className="form-control">
               <span className="label-text">{t('expectedDelivery')}</span>
               <input

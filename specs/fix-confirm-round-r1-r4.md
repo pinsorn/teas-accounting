@@ -62,15 +62,41 @@ Footguns: overnight `next dev` serves stale chunks — restart :3000 before beli
       saved → `GET /api/proxy/purchase-orders/9` → `docDate: "2026-07-15"` (today),
       `businessUnitId: 7`. Confirms the exact prod symptom locally, and confirms it's driven
       entirely server-side.
-- [x] STOPPED per spec instruction — root cause is BACKEND (deliberate §10 rule extended to
-      UpdateDraftAsync). NO FIX APPLIED. This is a release-scope decision: is "re-pin docDate
-      on every draft edit, indefinitely" the intended behavior (matches CREATE's rule, and a
-      literal reading of "never trust client dates"), or should an EDIT of an
-      already-dated draft preserve the existing docDate unless the user explicitly changes
-      it (what the confirm-round tester expected)? Needs Fable/Ham to decide before any
-      backend change — out of this FE-only spec's blast radius regardless.
-- [ ] Accept: NOT MET (blocked by the above — no fix shipped, by design per spec's own stop
-      condition).
+- [x] STOPPED (backend fix) per spec instruction — root cause is BACKEND (deliberate §10 rule
+      extended to UpdateDraftAsync). This is a release-scope decision for Fable/Ham: is
+      "re-pin docDate on every draft edit, indefinitely" the intended behavior (matches
+      CREATE's rule), or should an edit preserve the existing docDate unless explicitly
+      changed? **Backend decision made by the coordinator: do NOT touch the §10 rule.**
+- [x] FE honest-UI fix (follow-up dispatch, same day) — since the backend WILL silently
+      discard docDate on both create and edit, the FE bug was showing an EDITABLE field the
+      server ignores. Fixed `components/forms/PurchaseOrderForm.tsx` (used by both
+      create and `[id]/edit`):
+      - Replaced the plain editable `<input type="date">` docDate field with the shared
+        `<DateInput value={docDate} locked label={t('docDate')} />` component
+        (`components/ui/DateInput.tsx`) — same locked-date pattern already used by the VI,
+        PV, receipts, and tax-invoice forms (disabled input + hint
+        "ล็อกเป็นวันนี้ (Asia/Bangkok) · = dd/MM/2569" under the field, i.e. point 3's
+        BE-year hint is preserved for free since `DateInput` already renders it). No new
+        i18n key needed — reused the existing `t('docDate')` label and DateInput's own
+        (already-generic, non-namespaced) hint text.
+      - `docDate` changed from `useState(edit?.docDate ?? today)` to a plain
+        `const docDate = today;` — always `bangkokToday()`, in BOTH create and edit mode, so
+        the field (and the paper-preview `issueDate`) show what the server WILL actually
+        save, never the stale stored value on an existing draft. Removed the now-dead
+        `setDocDate` calls (the onChange handler and the edit-rehydrate effect's
+        `setDocDate(edit.docDate)`).
+      - `expectedDeliveryDate` untouched — stays a normal editable input (backend honors it
+        verbatim, confirmed at PurchaseOrderService.cs:105).
+      - Payload shape UNCHANGED — `submit()` still sends `docDate` in the POST/PUT body
+        (now always `today`, harmless since the server ignores it either way per point 4).
+      - Verified live on local dev: `/purchase-orders/new` → docDate field greyed-out,
+        shows today (2026-07-15) with the lock hint. `/purchase-orders/8/edit` (PO #8, whose
+        STORED docDate is 2026-06-22, unmodified) → docDate field still shows locked
+        **07/15/2026** (today), not the stale 06/22/2026 — confirms point 2 (edit mode shows
+        today, not the stored value).
+- [x] Accept: FE now tells the truth about docDate in both create and edit. Gates: `npx tsc
+      --noEmit` 0 errors; `next build` — `✓ Compiled successfully in 10.2s`, 84/84 routes,
+      exit 0; Bengali `ম` grep on `PurchaseOrderForm.tsx` — clean, no matches.
 
 ## R3 — po.reopen_blocked toast English-only
 - [x] Add Thai entries to `lib/i18n/problems.ts`:
@@ -145,11 +171,12 @@ Footguns: overnight `next dev` serves stale chunks — restart :3000 before beli
 
 Blast-radius cap: FE only, ≤8 files (source+tests+i18n). Hitting the cap or a backend root
 cause = stop-and-report, no fix.
-**Files touched (6, under the 8-file cap):**
+**Files touched (7, under the 8-file cap):**
 `app/(dashboard)/purchase-orders/page.tsx`, `app/(dashboard)/payment-vouchers/new/page.tsx`,
-`lib/i18n/problems.ts`, `lib/api/errors.test.ts`, `lib/pv-prefill.ts` (new),
-`lib/pv-prefill.test.ts` (new).
-**R2: backend root cause confirmed → STOPPED per spec, no backend fix applied.**
+`components/forms/PurchaseOrderForm.tsx`, `lib/i18n/problems.ts`, `lib/api/errors.test.ts`,
+`lib/pv-prefill.ts` (new), `lib/pv-prefill.test.ts` (new).
+**R2: backend root cause confirmed and coordinator decided NOT to change it → FE honest-UI
+fix shipped instead (locked docDate field, see R2 section) — no backend fix applied.**
 
 ## Attempt log
 
@@ -172,3 +199,17 @@ cause = stop-and-report, no fix.
   and the regression scenario live via browser + direct API test-data creation (new vendor
   id 51 "R4TEST", VI id 29 → posted as 07-2026-VI-0001; local dev DB only).
 - All gates green. Left changes uncommitted in the working tree per instructions.
+
+### 2026-07-15 — follow-up dispatch (R2 FE honest-UI fix, backend decision: keep §10 as-is)
+- Coordinator decided NOT to touch the backend §10 rule; asked for an FE fix so the PO form
+  doesn't show an editable docDate the server silently ignores, mirroring the VI/PV/receipts/
+  tax-invoice forms' existing shared `DateInput` locked-date component.
+- Fixed `components/forms/PurchaseOrderForm.tsx` (shared by create + edit): swapped the plain
+  editable docDate `<input>` for `<DateInput value={docDate} locked label={t('docDate')} />`;
+  `docDate` is now `const docDate = today` (was `useState`) so both create AND edit always
+  show/send today, never the stale stored value or a user edit. `expectedDeliveryDate` and the
+  PUT/POST payload shape are unchanged.
+- Verified live: `/purchase-orders/new` shows locked today; `/purchase-orders/8/edit` (PO #8,
+  stored docDate 2026-06-22, never re-saved) shows locked **07/15/2026**, not the stale date.
+- Gates: `npx tsc --noEmit` 0 errors; `next build` compiled successfully, 84/84 routes;
+  Bengali grep on the changed file clean. Left uncommitted per instructions.
