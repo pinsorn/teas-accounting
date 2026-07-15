@@ -93,12 +93,13 @@ export function PurchaseOrderForm({ edit }: { edit?: PurchaseOrderDetail } = {})
   const [buError, setBuError] = useState(false);
 
   const today = bangkokToday();
-  // R2 (confirm-round 2026-07-15) — backend UNCONDITIONALLY re-pins DocDate to server-today
-  // on both CreateDraftAsync and UpdateDraftAsync (§10 — "never trust req.DocDate"), a
-  // deliberate rule Fable/Ham decided NOT to change. The FE bug was showing an editable
-  // field the server silently ignored; docDate is therefore always `today` (a locked
-  // display of what WILL be saved), never user input or the edited doc's stored value.
-  const docDate = today;
+  // R2 AMENDED (Ham decision, 2026-07-15 evening) — backend now PRESERVES the existing
+  // DocDate on UpdateDraftAsync (only CreateDraftAsync pins it, once, to server-today).
+  // The field stays LOCKED either way (the client still can never set it — `req.DocDate`
+  // is ignored on both paths) but what it displays differs: create mode shows what CREATE
+  // WILL stamp (today); edit mode shows the doc's actual STORED value (what edit will
+  // PRESERVE), never a user edit.
+  const docDate = isEdit && edit ? edit.docDate : today;
   // ITEM 1 — expected-delivery defaults to today (editable), same source as docDate.
   const [expected, setExpected] = useState(edit?.expectedDeliveryDate ?? today);
   const [notes, setNotes] = useState(edit?.notes ?? '');
@@ -299,7 +300,12 @@ export function PurchaseOrderForm({ edit }: { edit?: PurchaseOrderDetail } = {})
         {/* ② ข้อมูลเอกสาร */}
         <SectionCard number={2} title={tcr('docInfo')}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DateInput value={docDate} locked label={t('docDate')} />
+            <DateInput
+              value={docDate}
+              locked
+              label={t('docDate')}
+              lockedHint={isEdit ? 'ล็อกตามวันที่สร้างเอกสาร (Asia/Bangkok)' : undefined}
+            />
             <label className="form-control">
               <span className="label-text">{t('expectedDelivery')}</span>
               <input

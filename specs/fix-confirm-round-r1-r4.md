@@ -113,7 +113,48 @@ Footguns: overnight `next dev` serves stale chunks — restart :3000 before beli
   locked/read-only — client still can't set it); create mode keeps locked-today. Hint text
   must not lie in edit mode ("ล็อกเป็นวันนี้" is wrong there — use a "ล็อกตามวันที่สร้าง"-style
   variant).
-- [ ] Implement + gates (backend purchase folder tests, tsc, next build, glyph grep)
+- [x] Implemented (2026-07-15 evening):
+      - Backend `PurchaseOrderService.UpdateDraftAsync` (`backend/src/Accounting.Infrastructure/
+        Purchase/PurchaseOrderService.cs`): removed the `po.DocDate = clock.TodayInBangkok();`
+        re-pin line entirely — DocDate is simply never assigned in this method now, so EF
+        Core leaves the loaded entity's existing value untouched. `req.DocDate` remains
+        unread/ignored (unchanged). `CreateDraftAsync` untouched (still pins to today,
+        once). §10 comment rewritten to record the amendment + Ham's 2026-07-15 decision
+        and the reasoning (single stamp-then-preserve vs. re-pin-every-edit).
+      - No pre-existing test asserted "PO edit re-pins DocDate" (grepped the whole `tests/`
+        tree for `re-pin`/`repin`/`DocDate` near PO — the only PO DocDate assertions are
+        `Create_pins_docdate_to_today_ignoring_caller_value` (Create, unaffected) and
+        `Approve_repins_docdate_and_buckets_docno_to_today` (Approve, unaffected, still
+        re-pins per §4.3 — untouched). The bug had NO test coverage, consistent with it
+        shipping unnoticed.
+      - Added `UpdateDraft_preserves_docdate_when_editing_an_unrelated_field` to
+        `tests/Accounting.Api.Tests/Hardening/Sprint12PurchaseOrderTests.cs`: creates a
+        draft, seeds a non-today DocDate directly via `db.PurchaseOrders` (Draft rows are
+        mutable), calls the REAL `UpdateDraftAsync` changing only `Notes`, asserts DocDate
+        is unchanged and Notes persisted. Exercises the actual transition per
+        verification-before-completion discipline (doesn't just seed-and-assert).
+      - FE `components/forms/PurchaseOrderForm.tsx`: `docDate` is now
+        `isEdit && edit ? edit.docDate : today` (was unconditionally `today`) — edit mode
+        shows the doc's real stored value, create mode unchanged. Checked `DateInput`'s API
+        first per instruction: added an optional `lockedHint?: string` prop (backward
+        compatible — every other call site, unchanged, keeps the default text) instead of
+        new i18n keys; `PurchaseOrderForm` passes
+        `lockedHint={isEdit ? 'ล็อกตามวันที่สร้างเอกสาร (Asia/Bangkok)' : undefined}` so edit
+        mode's hint no longer claims "locked to today."
+- [x] Gates: backend `dotnet build` — 0 Warning(s), 0 Error(s). Purchase folder
+      (`FullyQualifiedName~.Purchase.`) — 39/39 passed, 0 skipped. Hardening folder
+      (`FullyQualifiedName~.Hardening.`) — 194 passed, 4 skipped (pre-existing
+      `TaxFormFillDiagnostic` skips, unrelated), 0 failed, 198 total — includes the new
+      test (verified by name in `-v normal` output). FE `npx tsc --noEmit` — 0 errors;
+      `next build` — compiled successfully, 84/84 routes. Bengali `ম` grep on all 4 changed
+      files — clean.
+      Live verification (local dev): `/purchase-orders/new` shows locked
+      `07/15/2026` + "ล็อกเป็นวันนี้ (Asia/Bangkok) · = 15/07/2569" (unchanged).
+      `/purchase-orders/8/edit` (PO #8, stored docDate `2026-06-22`) shows locked
+      `06/22/2026` + "ล็อกตามวันที่สร้างเอกสาร (Asia/Bangkok) · = 22/06/2569" (new, honest).
+      End-to-end: edited PO #8 via the real form (BU only) → saved →
+      `GET /api/proxy/purchase-orders/8` → `docDate: "2026-06-22"` (PRESERVED, was
+      resetting to today before this change), `businessUnitId: 7`.
 
 ## R3 — po.reopen_blocked toast English-only
 - [x] Add Thai entries to `lib/i18n/problems.ts`:

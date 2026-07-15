@@ -101,8 +101,14 @@ public sealed class PurchaseOrderService(
         var po = await LoadAsync(id, ct);
         if (po.Status != PurchaseOrderStatus.Draft)
             throw new DomainException("po.not_draft", "Only a Draft PO can be edited.");
-        // §10 — re-pin to today on edit too (never trust req.DocDate); else the rule is half-applied.
-        po.DocDate = clock.TodayInBangkok(); po.ExpectedDeliveryDate = req.ExpectedDeliveryDate;
+        // §10 AMENDED (Ham decision, 2026-07-15 — R2 confirm-round) — DocDate is stamped
+        // ONCE, at CreateDraftAsync, and PRESERVED across every subsequent edit; it is
+        // never re-pinned here. `req.DocDate` is still ignored either way (client dates
+        // are never trusted) — the difference is which server-set value wins: the
+        // ORIGINAL create-time stamp, not "now" at save time. The earlier rule (re-pin on
+        // every edit, matching create) silently reset a draft's date each time a user
+        // tweaked an unrelated field (e.g. business unit), which is the bug this reverses.
+        po.ExpectedDeliveryDate = req.ExpectedDeliveryDate;
         po.BusinessUnitId = req.BusinessUnitId; po.CurrencyCode = req.CurrencyCode;
         po.ExchangeRate = req.ExchangeRate; po.Notes = req.Notes;
         po.InternalNotes = req.InternalNotes;

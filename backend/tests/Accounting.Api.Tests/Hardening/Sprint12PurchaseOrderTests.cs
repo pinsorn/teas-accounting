@@ -158,6 +158,48 @@ public sealed class Sprint12PurchaseOrderTests
             "§10 — DocDate is server-today; a back-dated request value must be ignored");
     }
 
+    // R2 confirm-round (Ham decision, 2026-07-15) — §10 AMENDED: UpdateDraftAsync must
+    // PRESERVE the existing DocDate, not re-pin it to today on every edit. The old rule
+    // silently reset a draft's date whenever the user edited an unrelated field (e.g. BU) —
+    // exact repro: seed a non-today DocDate, edit ONLY Notes via the real update path, assert
+    // DocDate is unchanged. `req.DocDate` is still ignored either way (never trust the caller).
+    [SkippableFact]
+    public async Task UpdateDraft_preserves_docdate_when_editing_an_unrelated_field()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var vid = await NewVendor(sp);
+        long poId;
+        await using (var s = sp.CreateAsyncScope())
+            poId = await s.ServiceProvider.GetRequiredService<IPurchaseOrderService>()
+                .CreateDraftAsync(Req(vid), default);
+
+        // Seed a non-today DocDate directly (Draft rows are mutable) — mirrors the
+        // confirm-round evidence (docDate ≠ today before the edit).
+        var stale = new SystemClock().TodayInBangkok().AddDays(-23);
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var po = await db.PurchaseOrders.FirstAsync(p => p.PurchaseOrderId == poId);
+            po.DocDate = stale;
+            await db.SaveChangesAsync(default);
+        }
+
+        // Drive the REAL transition: call UpdateDraftAsync, changing only Notes.
+        // Req(vid) itself carries a back-dated DocDate (2026-05-01) as req.DocDate — must
+        // still be ignored, same as Create.
+        await using (var s = sp.CreateAsyncScope())
+            await s.ServiceProvider.GetRequiredService<IPurchaseOrderService>()
+                .UpdateDraftAsync(poId, Req(vid) with { Notes = "แก้ไขแล้ว" }, default);
+
+        await using var rs = sp.CreateAsyncScope();
+        var rdb = rs.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var updated = await rdb.PurchaseOrders.AsNoTracking().FirstAsync(p => p.PurchaseOrderId == poId);
+        updated.DocDate.Should().Be(stale,
+            "§10 AMENDED — UpdateDraftAsync preserves the existing DocDate; only Create/Approve pin it");
+        updated.Notes.Should().Be("แก้ไขแล้ว");
+    }
+
     [SkippableFact]
     public async Task Cancel_stores_reason()
     {

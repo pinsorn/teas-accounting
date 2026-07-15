@@ -8,10 +8,15 @@ export function DateInput({
   value,
   locked = true,
   label,
+  lockedHint,
 }: {
   value?: string;
   locked?: boolean;
   label?: string;
+  // R2 (PO edit, 2026-07-15) — override the default "locked to today" hint for a caller
+  // whose locked value ISN'T today (e.g. a stored/preserved date). Optional, backward
+  // compatible: every other call site keeps the original text unchanged.
+  lockedHint?: string;
 }) {
   const v = value ?? bangkokToday();
   return (
@@ -26,7 +31,9 @@ export function DateInput({
         aria-label={label ?? 'date'}
       />
       <span className="label-text-alt text-base-content/50">
-        {locked ? `ล็อกเป็นวันนี้ (Asia/Bangkok) · = ${formatDateBE(v)}` : `= ${formatDateBE(v)}`}
+        {locked
+          ? `${lockedHint ?? 'ล็อกเป็นวันนี้ (Asia/Bangkok)'} · = ${formatDateBE(v)}`
+          : `= ${formatDateBE(v)}`}
       </span>
     </label>
   );
