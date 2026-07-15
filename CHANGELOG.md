@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.1](https://github.com/pinsorn/teas-accounting/compare/v1.21.0...v1.21.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* **purchase:** R1 PO-list BU column stale memo; R3 Thai for po/vi/pv error codes; R4 PV-from-VI prefill lands exactly on VI outstanding ([731e775](https://github.com/pinsorn/teas-accounting/commit/731e7752307390660e906e091af27f190e1b68ce))
+* **purchase:** R2 FE — lock docDate display to server-pinned today (create+edit) ([526a55b](https://github.com/pinsorn/teas-accounting/commit/526a55bea99fb35eb75a88f697f14fdaa845db38))
+
 ## [1.21.0](https://github.com/pinsorn/teas-accounting/compare/v1.20.1...v1.21.0) (2026-07-15)
 
 
