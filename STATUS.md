@@ -1,26 +1,16 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- Phase: **R1-R4 FIX PIPELINE (2026-07-15 ~12:00).** R1/R3/R4 committed 731e775 (Fable
-  diff-reviewed, gates green). R2 root cause = DELIBERATE backend §10 docDate re-pin on
-  every draft edit (PurchaseOrderService.cs:104, traced to D2 workstream) — decision:
-  FE honest-UI fix (lock docDate display like VI form), backend untouched, flag to Ham.
-  R2-FE fix DONE by worker + **Fable diff-review PASSED** (PurchaseOrderForm.tsx: docDate
-  → `const today` + shared locked DateInput, dead setDocDate removed, payload unchanged;
-  gates tsc/build/glyph green; spec updated) — **UNCOMMITTED in working tree, quota 95%
-  hit before commit**. RESUME STEPS (wakeup 12:51 standing, chain past reset ~14:20):
-  1. `git add frontend/components/forms/PurchaseOrderForm.tsx specs/fix-confirm-round-r1-r4.md`
-     + commit "fix(purchase): R2 FE — lock docDate display to server-pinned today (create+edit)"
-     + push (diff already reviewed, no re-review needed).
-  2. Release: release-please PR should appear after push → per troubles-wiki: `gh pr merge <n>
-     --merge --admin`, wait for tag v1.21.1 on origin, build from the TAG commit (MinVer).
-  3. Deploy FE-ONLY to prod per publish/v1.21.0/ archived scripts (plink key repttown_deploy;
-     no API/DB change in this batch — FE overlay + build + pm2 restart teas-web + 3 probes).
-  4. Chrome re-verify on prod (PRIMARY check per Ham): R1 PO list BU names; R2 PO create/edit
-     docDate locked field; R3 reopen PO-TEST-0003 → Thai toast; R4 create small VI (non-VAT
-     vendor, VAT 7%) → post → PV-from-VI prefill = outstanding exact → post PV to settle clean.
-  5. Update PROGRESS-purchase-uxtest.md + STATUS + report to Ham. Flag: backend §10 docDate
-     re-pin decision (keep vs preserve-on-edit) still open for Ham.
+- Phase: **v1.21.1 DEPLOYED + R1-R4 PROD-VERIFIED (2026-07-15 ~18:20) — pipeline COMPLETE.**
+  R1/R3/R4 (731e775) + R2-FE locked docDate (526a55b) → release v1.21.1 @ b08387e (PR #80,
+  admin-merged per wiki) → FE-only deploy FE_DEPLOY_OK (deploy-fe-v1211.sh archived in
+  publish/v1.21.1/, no API/DB change) → all four re-verified on prod via Chrome incl. R4
+  full chain (VI-TEST-0003 321 → PV prefill 321 exact → posted → settled PAID). Details:
+  PROGRESS-purchase-uxtest.md §R1-R4 FIX ROUND.
+  **OPEN for Ham:** (1) backend §10 docDate re-pin on draft edit — keep (current; FE now
+  shows locked-today honestly) vs preserve-on-edit (backend change + API deploy);
+  (2) same stale-memo BU-column bug latent in 8 other list pages (troubles-wiki entry) —
+  batch-fix candidate; (3) MCP connector TEAS-Repttown needs re-auth (token expired).
 - Prior phase: **BU TEST CONFIRM ROUND on prod v1.21.0 DONE (2026-07-15 ~11:30, Claude Chrome).**
   Full purchase chain re-run on prod (PO-TEST-0003 → VI-TEST-0002 → PV-TEST-COGS-0001, all
   posted, VI settled 214/214 PAID). 24 findings CONFIRMED FIXED incl. all money/compliance

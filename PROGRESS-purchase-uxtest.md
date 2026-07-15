@@ -252,3 +252,21 @@ Vendor NOT created (validation test only, form abandoned).
   on VI post writes NO activity entry.
 - R7 (positive, note): over-receipt guard toast in Thai "รับเกินใบสั่งซื้อ: รวม VI 214.00 > PO 200.00
   (เกิน 105%) — โปรดตรวจสอบ" fired on VI post; PO auto-closes on full receipt.
+
+## R1-R4 FIX ROUND — deployed v1.21.1 + prod re-verified (2026-07-15 ~18:20, Claude Chrome)
+Fixes: spec specs/fix-confirm-round-r1-r4.md, commits 731e775 (R1/R3/R4) + 526a55b (R2-FE),
+release v1.21.1 @ b08387e (PR #80), FE-only deploy (deploy-fe-v1211.sh, FE_DEPLOY_OK, no
+API/DB change). Prod re-verification, all via Chrome:
+- R1 ✓ /purchase-orders fresh mount: BU column "TEST — Repttown Test" (root cause was columns
+  useMemo freezing buName's pre-fetch closure — latent in 8 other list pages, see troubles-wiki).
+- R2 ✓ PO create + edit (/purchase-orders/4/edit): docDate locked DateInput + hint
+  "ล็อกเป็นวันนี้ (Asia/Bangkok) · = 15/07/2569". Backend §10 re-pin kept AS-IS (deliberate rule,
+  D2 workstream) — **OPEN DECISION for Ham**: keep re-pin (current, FE now honest) vs
+  preserve-on-edit (needs backend change + API deploy).
+- R3 ✓ reopen Closed PO-TEST-0003 → blocked + Thai toast "เปิดใบสั่งซื้อใหม่ไม่ได้ — มีใบกำกับภาษีซื้อ
+  ที่บันทึก (Post) แล้วเชื่อมกับใบสั่งซื้อนี้" (EN detail as secondary line).
+- R4 ✓ full E2E: VI 07-2026-VI-TEST-0003 (BUTEST-VEND non-VAT, 300 + 7% = 321, nonRec 21) posted →
+  PV-from-VI prefill grand total ฿321.00 EXACT (pre-fix: 300) → PV 07-2026-PV-TEST-OFFI-0002
+  posted → VI settled 321/321 PAID (API-verified). Clean state, no dangling docs.
+- New test docs this round: PO #4 draft "R2 edit-lock check" (left as Draft fixture),
+  VI-TEST-0003 + PV-TEST-OFFI-0002 (posted, settled, ไม่สมบูรณ์=no receipt file as usual).
