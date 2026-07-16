@@ -33,6 +33,15 @@ function iconFor(action: string): typeof Clock {
   return Check;
 }
 
+// S12 (R6-parity) — action and toStatus often localize to the SAME Thai label (e.g.
+// action=Sent, toStatus=Sent → "ส่งแล้ว"); showing both then reads as a redundant
+// "ส่งแล้ว → ส่งแล้ว". Collapse to the single label whenever the localized strings match.
+// Pure (already-localized strings in, no i18n hook) so it's unit-testable in isolation.
+export function activityHeadline(actionLabel: string, toStatusLabel: string | null): string {
+  if (toStatusLabel && actionLabel !== toStatusLabel) return `${actionLabel} → ${toStatusLabel}`;
+  return toStatusLabel ?? actionLabel;
+}
+
 export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: number }) {
   const tc = useTranslations('common');
   // WP4 4.3 — activity entries carry raw BE event codes (Created/MarkedSent/Posted/…);
@@ -84,7 +93,7 @@ export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: num
                     </span>
                     <div className="min-w-0">
                       <div className="text-[13.5px] font-semibold text-ink-900">
-                        {e.toStatus ? `${label(e.action)} → ${label(e.toStatus)}` : label(e.action)}
+                        {activityHeadline(label(e.action), e.toStatus ? label(e.toStatus) : null)}
                       </div>
                       <div className="mt-0.5 text-[12px] text-ink-500">
                         {formatDate(e.at)} · {e.actor}

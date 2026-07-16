@@ -230,6 +230,10 @@ export function usePostReceipt() {
       qc.invalidateQueries({ queryKey: ['paper-doc'] });
       // A receipt is a counted agent-approval type (not VAT/P&L-affecting).
       qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
+      // S12-FE (F10-parity) — posting a receipt also flips the status shown in the
+      // linked invoice/TI's own ref+activity rail (e.g. Settled) — see useQuotationAction.
+      qc.invalidateQueries({ queryKey: ['doc-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }
@@ -1513,6 +1517,28 @@ export function useQuotationAction() {
       qc.invalidateQueries({ queryKey: ['paper-doc'] });
       // 'send' clears a quotation off the pending-agent-approvals count.
       qc.invalidateQueries({ queryKey: ['pending-agent-approvals'] });
+      // S12-FE (F10-parity) — the "เอกสารอ้างอิง"/"ประวัติกิจกรรม" side-rail panels
+      // read these two query keys; neither was invalidated after send/accept/reject/
+      // cancel/convert, so they sat stale until a full reload. Broad (no id)
+      // invalidation mirrors the purchase-side WP4.5 fix — cheap GETs, every open
+      // detail page re-subscribes on mount anyway.
+      qc.invalidateQueries({ queryKey: ['doc-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
+    },
+  });
+}
+// S15 (2026-07-16 fix) — Draft-only edit. Mirrors useUpdatePurchaseOrder: backend PUT
+// reuses CreateSalesOrderRequest wholesale (no separate Update DTO), see
+// SalesChainEndpoints.cs so.MapPut.
+export function useUpdateSalesOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: CreateSalesOrderRequest }) =>
+      apiPut<void>(`sales-orders/${v.id}`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: ['sales-order', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -1543,6 +1569,9 @@ export function usePostSalesOrder() {
       qc.invalidateQueries({ queryKey: ['sales-orders'] });
       qc.invalidateQueries({ queryKey: ['sales-order', id] });
       qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      // S12-FE (F10-parity) — see useQuotationAction.
+      qc.invalidateQueries({ queryKey: ['doc-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }
@@ -1662,6 +1691,9 @@ export function useBillingNoteAction() {
       qc.invalidateQueries({ queryKey: ['billing-notes'] });
       qc.invalidateQueries({ queryKey: ['billing-note', v.id] });
       qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      // S12-FE (F10-parity) — see useQuotationAction.
+      qc.invalidateQueries({ queryKey: ['doc-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }

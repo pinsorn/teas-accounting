@@ -1,11 +1,15 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DocActionBar } from '@/components/ui/DocActionBar';
+import { ConfirmActionDialog } from '@/components/ui/ConfirmActionDialog';
+import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
@@ -19,6 +23,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
   const soId = Number(id);
   const t = useTranslations('salesOrder');
   const tc = useTranslations('common');
+  const tca = useTranslations('confirmAction');
   const router = useRouter();
   const q = useSalesOrder(soId);
   const post = usePostSalesOrder();
@@ -32,11 +37,14 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
   // so the DO must not be VAT-coded nor combined with a TI. (Backend re-derives this
   // too; this keeps the request honest.)
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // S11 — post issues the doc number immediately with no confirm step.
+  const [confirmPost, setConfirmPost] = useState(false);
   const d = q.data;
 
   async function doPost() {
     try { await post.mutateAsync(soId); toast.success(tc('save')); }
     catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+    finally { setConfirmPost(false); }
   }
 
   async function createDelivery() {
@@ -91,9 +99,15 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
         actions={
           <>
             {d.status === 'Draft' && (
-              <button data-testid="so-post" className="btn btn-primary btn-sm" disabled={post.isPending} onClick={doPost}>
-                {t('post')}
-              </button>
+              <>
+                {/* S15 (F6-parity) — draft-only edit (reuses SalesOrderForm via `edit`). */}
+                <Link data-testid="so-edit" href={`/sales-orders/${soId}/edit`} className="btn btn-secondary btn-sm gap-1">
+                  <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
+                </Link>
+                <button data-testid="so-post" className="btn btn-primary btn-sm" disabled={post.isPending} onClick={() => setConfirmPost(true)}>
+                  {t('post')}
+                </button>
+              </>
             )}
             {d.status === 'Posted' && (
               d.deliveryRequired ? (
@@ -110,6 +124,9 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
         }
       />
 
+      {/* S10 — BU wasn't visible anywhere on the SO detail page though the API carries it. */}
+      <div className="mb-4"><BusinessUnitBadge businessUnitId={d.businessUnitId} /></div>
+
       <div className="detail-grid">
         <div className="paper-wrap">
           <PaperDocument {...paperDtoToProps(paper.data, { logo: company.data?.logoUrl })} />
@@ -121,6 +138,20 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <AttachmentsSection parentType="SALES_ORDER" parentId={soId} />
+
+      <ConfirmActionDialog
+        open={confirmPost}
+        busy={post.isPending}
+        title={tca('soPost.title')}
+        warning={tca('soPost.warning')}
+        party={d.customerName}
+        rows={[
+          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: t('total'), value: d.totalAmount },
+        ]}
+        onClose={() => setConfirmPost(false)}
+        onConfirm={doPost}
+      />
     </>
   );
 }

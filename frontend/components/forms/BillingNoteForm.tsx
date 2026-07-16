@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,9 +8,11 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
+import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { TaxInvoicePicker, type TaxInvoiceLite } from '@/components/forms/TaxInvoicePicker';
-import { useCreateBillingNote, useBillingNoteAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useCreateBillingNote, useUpdateBillingNote, useBillingNoteAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import type { BillingNoteDetail } from '@/lib/types';
 import { bangkokToday } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
@@ -25,6 +27,17 @@ import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล) create form.
 // Closely mirrors QuotationForm. Saves Draft; "ออกใบแจ้งหนี้" issues immediately.
 // cont.80 — restyled into the shared DocumentCreateLayout (fields/payload unchanged).
+// S15 — `edit` prop reuses this form for /invoices/[id]/edit (Draft-only edit; saves
+// via PUT and returns to the detail page), mirroring QuotationForm's `edit` prop.
+// Note: ChainLineDto (the detail line snapshot) doesn't carry productType, so an
+// edited line without a re-picked product defaults to 'GOOD' on save — same
+// known limitation as the create form's line-schema default.
+// §10/D2 — unlike PO/QT/SO (which PRESERVE docDate on edit), BillingNoteService.
+// UpdateDraftAsync unconditionally RE-PINS DocDate to today server-side
+// (`bn.DocDate = clock.TodayInBangkok()`), ignoring whatever the request sends.
+// The edit branch shows this honestly: docDate becomes a LOCKED field pinned to
+// today (not the original edit.docDate — that would silently "reset" after save),
+// with a lockedHint explaining the rule (component-patterns.md §5 locked-date style).
 
 const lineSchema = z.object({
   descriptionTh: z.string().min(1),
@@ -53,13 +66,15 @@ function plusDays(iso: string, days: number): string {
 
 const FORM_ID = 'billing-note-create-form';
 
-export function BillingNoteForm() {
+export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
   const router = useRouter();
   const t = useTranslations('billingNote');
   const tc = useTranslations('common');
   const tt = useTranslations('toast');
   const tcr = useTranslations('create');
+  const isEdit = edit != null;
   const create = useCreateBillingNote();
+  const update = useUpdateBillingNote();
   const action = useBillingNoteAction();
   const company = useCompanyProfile();
   const buSetting = useCompanyBuSetting();
@@ -69,26 +84,66 @@ export function BillingNoteForm() {
   const vatMode = useSystemInfo().data?.vatMode ?? true;
 
   const today = bangkokToday();
+  // §10/D2 — edit re-pins DocDate to today server-side regardless of what's sent;
+  // seed with `today` (not edit.docDate, create mode also defaults to today) so
+  // the form never shows a value that won't match what's actually persisted.
   const [docDate, setDocDate] = useState(today);
-  const [dueDate, setDueDate] = useState(plusDays(today, 30));
-  const [businessUnitId, setBusinessUnitId] = useState<number | null>(null);
+  const [dueDate, setDueDate] = useState(edit?.dueDate ?? plusDays(today, 30));
+  const [businessUnitId, setBusinessUnitId] = useState<number | null>(edit?.businessUnitId ?? null);
   const [buError, setBuError] = useState(false);
-  const [notes, setNotes] = useState('');
-  const [customerLabel, setCustomerLabel] = useState('');
+  const [notes, setNotes] = useState(edit?.notes ?? '');
+  const [customerLabel, setCustomerLabel] = useState(edit?.customerName ?? '');
   // Sprint 13i C7 — TaxInvoices grouped into this BN (multi-select via the picker).
-  const [selectedTis, setSelectedTis] = useState<TaxInvoiceLite[]>([]);
+  // Edit-mode chips are seeded from the (narrower) BillingNoteTaxInvoiceRef shape —
+  // only docNo is actually rendered/used from a chip, so the unused TaxInvoiceLite
+  // fields are filled with harmless placeholders.
+  const [selectedTis, setSelectedTis] = useState<TaxInvoiceLite[]>(
+    edit?.taxInvoices.map((ti) => ({
+      taxInvoiceId: ti.taxInvoiceId, docNo: ti.docNo, docDate: '', customerName: '',
+      totalAmount: ti.appliedAmount, currencyCode: 'THB', paymentStatus: '',
+    })) ?? [],
+  );
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
+
+  const toLine = (l: BillingNoteDetail['lines'][number]): LineItem => ({
+    descriptionTh: l.descriptionTh,
+    quantity: l.quantity,
+    unitPrice: l.unitPrice,
+    taxRate: l.lineAmount > 0 ? Math.round((l.taxAmount / l.lineAmount) * 100) / 100 : 0.07,
+    productId: l.productId,
+    productCode: l.productCode,
+    uomText: l.uomText,
+  });
 
   const {
     control,
     handleSubmit,
     watch,
+    reset,
     formState: { isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { customerId: 0, lines: [{ ...EMPTY_LINE }] },
+    defaultValues: edit
+      ? { customerId: edit.customerId, lines: edit.lines.map(toLine) }
+      : { customerId: 0, lines: [{ ...EMPTY_LINE }] },
   });
+
+  // Re-hydrate if the edited invoice arrives/changes after first render.
+  useEffect(() => {
+    if (!edit) return;
+    reset({ customerId: edit.customerId, lines: edit.lines.map(toLine) });
+    // docDate intentionally NOT re-seeded from edit.docDate — see §10/D2 note above.
+    setDueDate(edit.dueDate);
+    setBusinessUnitId(edit.businessUnitId ?? null);
+    setNotes(edit.notes ?? '');
+    setCustomerLabel(edit.customerName ?? '');
+    setSelectedTis(edit.taxInvoices.map((ti) => ({
+      taxInvoiceId: ti.taxInvoiceId, docNo: ti.docNo, docDate: '', customerName: '',
+      totalAmount: ti.appliedAmount, currencyCode: 'THB', paymentStatus: '',
+    })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit?.billingNoteId]);
 
   const customerId = watch('customerId');
   const lines = watch('lines') as LineItem[];
@@ -115,32 +170,37 @@ export function BillingNoteForm() {
       return null;
     }
     setBuError(false);
+    const payload = {
+      docDate,
+      dueDate,
+      customerId: v.customerId,
+      businessUnitId,
+      quotationId: null,
+      taxInvoiceIds: selectedTis.length ? selectedTis.map((ti) => ti.taxInvoiceId) : null,
+      currencyCode: 'THB',
+      exchangeRate: 1,
+      notes: notes.trim() || null,
+      internalNotes: null,
+      lines: v.lines.map((l) => ({
+        productId: l.productId ?? null,
+        taxInvoiceId: null,
+        descriptionTh: l.descriptionTh,
+        quantity: l.quantity,
+        uomText: l.uomText?.trim() || 'หน่วย',
+        unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent ?? 0,
+        taxCodeId: 1,
+        taxCode: vatMode && l.taxRate > 0 ? 'VAT7' : 'VAT0',
+        taxRate: vatMode ? l.taxRate : 0,
+        productType: (l as { productType?: string | null }).productType ?? 'GOOD',
+      })),
+    };
     try {
-      const res = (await create.mutateAsync({
-        docDate,
-        dueDate,
-        customerId: v.customerId,
-        businessUnitId,
-        quotationId: null,
-        taxInvoiceIds: selectedTis.length ? selectedTis.map((ti) => ti.taxInvoiceId) : null,
-        currencyCode: 'THB',
-        exchangeRate: 1,
-        notes: notes.trim() || null,
-        internalNotes: null,
-        lines: v.lines.map((l) => ({
-          productId: l.productId ?? null,
-          taxInvoiceId: null,
-          descriptionTh: l.descriptionTh,
-          quantity: l.quantity,
-          uomText: l.uomText?.trim() || 'หน่วย',
-          unitPrice: l.unitPrice,
-          discountPercent: l.discountPercent ?? 0,
-          taxCodeId: 1,
-          taxCode: vatMode && l.taxRate > 0 ? 'VAT7' : 'VAT0',
-          taxRate: vatMode ? l.taxRate : 0,
-          productType: (l as { productType?: string | null }).productType ?? 'GOOD',
-        })),
-      })) as { billing_note_id: number };
+      if (isEdit && edit) {
+        await update.mutateAsync({ id: edit.billingNoteId, req: payload });
+        return edit.billingNoteId;
+      }
+      const res = (await create.mutateAsync(payload)) as { billing_note_id: number };
       return res.billing_note_id;
     } catch (e) {
       toast.error((e as { detail?: string })?.detail ?? tc('error'));
@@ -153,8 +213,8 @@ export function BillingNoteForm() {
   const submitSave = handleSubmit(async (v) => {
     const id = await createBillingNote(v);
     if (id) {
-      toast.success(tc('draftSaved'));
-      router.push('/invoices');
+      toast.success(isEdit ? tc('save') : tc('draftSaved'));
+      router.push(isEdit ? `/invoices/${id}` : '/invoices');
     }
   }, invalid);
   const submitIssue = handleSubmit(async (v) => {
@@ -177,36 +237,50 @@ export function BillingNoteForm() {
 
   return (
     <DocumentCreateLayout
-      title={t('create')}
-      docMeta={docDate}
+      title={isEdit ? t('editTitle') : t('create')}
+      docMeta={edit?.docNo ?? docDate}
       actions={
         <>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            onClick={() => router.push('/invoices')}
+            onClick={() => router.push(isEdit && edit ? `/invoices/${edit.billingNoteId}` : '/invoices')}
             disabled={isSubmitting}
           >
             {tcr('cancel')}
           </button>
-          <button
-            type="button"
-            data-testid="bn-save-draft"
-            className="btn btn-outline btn-sm border-ink-200 text-ink-700 hover:bg-ink-75"
-            onClick={submitSave}
-            disabled={isSubmitting}
-          >
-            {t('saveDraft')}
-          </button>
-          <button
-            type="button"
-            data-testid="bn-issue"
-            className="btn btn-primary btn-sm"
-            onClick={submitIssue}
-            disabled={isSubmitting}
-          >
-            {t('issue')}
-          </button>
+          {isEdit ? (
+            <button
+              type="button"
+              data-testid="bn-save-draft"
+              className="btn btn-primary btn-sm"
+              onClick={submitSave}
+              disabled={isSubmitting}
+            >
+              {tc('save')}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                data-testid="bn-save-draft"
+                className="btn btn-outline btn-sm border-ink-200 text-ink-700 hover:bg-ink-75"
+                onClick={submitSave}
+                disabled={isSubmitting}
+              >
+                {t('saveDraft')}
+              </button>
+              <button
+                type="button"
+                data-testid="bn-issue"
+                className="btn btn-primary btn-sm"
+                onClick={submitIssue}
+                disabled={isSubmitting}
+              >
+                {t('issue')}
+              </button>
+            </>
+          )}
         </>
       }
       preview={
@@ -214,7 +288,7 @@ export function BillingNoteForm() {
           <PaperDocument
             docType={cfg.docType}
             docTypeEn={cfg.docTypeEn}
-            docNo="(ฉบับร่าง)"
+            docNo={edit?.docNo ?? '(ฉบับร่าง)'}
             issueDate={docDate}
             validUntil={dueDate}
             validUntilLabel={cfg.validUntilLabel}
@@ -256,16 +330,28 @@ export function BillingNoteForm() {
         <SectionCard number={2} title={tcr('docInfo')}>
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="form-control">
-                <span className="label-text">{t('docDate')} *</span>
-                <input
-                  type="date"
-                  className="input input-bordered"
+              {isEdit ? (
+                // §10/D2 — editing re-pins DocDate to today server-side no matter what's
+                // sent; show it locked-to-today (never the stale original date) so the
+                // field never silently disagrees with what gets persisted.
+                <DateInput
                   value={docDate}
-                  onChange={(e) => setDocDate(e.target.value)}
-                  aria-label={t('docDate')}
+                  locked
+                  label={t('docDate')}
+                  lockedHint="ล็อกตามกติกา — บันทึกแล้ววันที่เอกสารจะเป็นวันนี้ (Asia/Bangkok)"
                 />
-              </label>
+              ) : (
+                <label className="form-control">
+                  <span className="label-text">{t('docDate')} *</span>
+                  <input
+                    type="date"
+                    className="input input-bordered"
+                    value={docDate}
+                    onChange={(e) => setDocDate(e.target.value)}
+                    aria-label={t('docDate')}
+                  />
+                </label>
+              )}
               <label className="form-control">
                 <span className="label-text">{t('dueDate')} *</span>
                 <input

@@ -18,7 +18,9 @@ export function BusinessUnitBadge({
   const t = useTranslations('businessUnit');
   const { data: units = [] } = useBusinessUnits();
 
-  if (businessUnitId == null) return null;
+  // S10 — ReceiptDetail (BE) carries only BusinessUnitCode, no numeric id; let a
+  // caller with just the code still render (no id → no list lookup, code shown as-is).
+  if (businessUnitId == null && !code) return null;
 
   const resolved = code ? null : units.find((u) => u.businessUnitId === businessUnitId);
   const shownCode = code ?? resolved?.code ?? `#${businessUnitId}`;

@@ -10,6 +10,8 @@ import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
 import { DocActionBar } from '@/components/ui/DocActionBar';
+import { ConfirmActionDialog } from '@/components/ui/ConfirmActionDialog';
+import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
@@ -25,6 +27,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   const t = useTranslations('quotation');
   const tc = useTranslations('common');
   const ta = useTranslations('approve');
+  const tca = useTranslations('confirmAction');
   const router = useRouter();
   const q = useQuotation(qid);
   const act = useQuotationAction();
@@ -38,6 +41,11 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const hasScope = useHasScope();
   const [isApproveAction, setIsApproveAction] = useState(false);
+  // S11 — send/accept/reject had no confirm dialog (send issues the doc number
+  // immediately, immutable numbering). Mirrors the WP3.6 purchase-side pattern.
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [confirmAccept, setConfirmAccept] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
   const d = q.data;
 
   useEffect(() => {
@@ -61,11 +69,6 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   async function cancelQuotation() {
     if (!(await confirm({ description: t('cancelConfirm'), variant: 'destructive' }))) return;
     await run('cancel', { reason: t('cancelReason') });
-  }
-
-  async function rejectQuotation() {
-    if (!(await confirm({ description: t('rejectConfirm'), variant: 'destructive' }))) return;
-    await run('reject', { reason: t('rejectReason') });
   }
 
   async function deleteDraft() {
@@ -137,7 +140,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
                 </Link>
                 {/* Hidden while the ?action=approve banner is up — one send CTA at a time. */}
                 {!isApproveAction && (
-                  <button data-testid="q-send" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('send')}>
+                  <button data-testid="q-send" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => setConfirmSend(true)}>
                     {t('send')}
                   </button>
                 )}
@@ -148,10 +151,10 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
             )}
             {d.status === 'Sent' && (
               <>
-                <button data-testid="q-accept" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('accept')}>
+                <button data-testid="q-accept" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => setConfirmAccept(true)}>
                   {t('accept')}
                 </button>
-                <button data-testid="q-reject" className="btn btn-danger btn-sm" disabled={act.isPending} onClick={rejectQuotation}>
+                <button data-testid="q-reject" className="btn btn-danger btn-sm" disabled={act.isPending} onClick={() => setConfirmReject(true)}>
                   {t('reject')}
                 </button>
               </>
@@ -175,6 +178,9 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
         }
       />
 
+      {/* S10 — BU wasn't visible anywhere on the QT detail page though the API carries it. */}
+      <div className="mb-4"><BusinessUnitBadge businessUnitId={d.businessUnitId} /></div>
+
       <div className="detail-grid">
         <div className="paper-wrap">
           <PaperDocument {...paperDtoToProps(paper.data, { logo: company.data?.logoUrl })} />
@@ -186,6 +192,43 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       <AttachmentsSection parentType="QUOTATION" parentId={qid} />
+
+      <ConfirmActionDialog
+        open={confirmSend}
+        busy={act.isPending}
+        title={tca('qtSend.title')}
+        warning={tca('qtSend.warning')}
+        party={d.customerName}
+        rows={[
+          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: t('total'), value: d.totalAmount },
+        ]}
+        onClose={() => setConfirmSend(false)}
+        onConfirm={async () => { await run('send'); setConfirmSend(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmAccept}
+        busy={act.isPending}
+        title={tca('qtAccept.title')}
+        warning={tca('qtAccept.warning')}
+        party={d.customerName}
+        rows={[
+          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: t('total'), value: d.totalAmount },
+        ]}
+        onClose={() => setConfirmAccept(false)}
+        onConfirm={async () => { await run('accept'); setConfirmAccept(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmReject}
+        busy={act.isPending}
+        title={tca('qtReject.title')}
+        warning={tca('qtReject.warning')}
+        party={d.customerName}
+        rows={[{ label: t('total'), value: d.totalAmount }]}
+        onClose={() => setConfirmReject(false)}
+        onConfirm={async () => { await run('reject', { reason: t('rejectReason') }); setConfirmReject(false); }}
+      />
     </>
   );
 }

@@ -149,6 +149,17 @@ export default function NewReceiptPage() {
       enabled: bid > 0,
     })),
   });
+  // S16 — arriving from an Invoice ("สร้างใบเสร็จ", ?bn=) left BU forced back to
+  // "— ต้องระบุ —" though the source Invoice already has one set; prefill from it
+  // (only while the user hasn't picked their own BU yet).
+  const preBnBusinessUnitId = preBn ? bnDetailQueries[0]?.data?.businessUnitId : undefined;
+  useEffect(() => {
+    if (preBn && preBnBusinessUnitId != null && businessUnitId === null) {
+      setBusinessUnitId(preBnBusinessUnitId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preBn, preBnBusinessUnitId]);
+
   const derivedInvoiceItems = bnDetailQueries.flatMap((q) =>
     (q.data?.lines ?? []).map((l) => ({
       description: l.descriptionTh,

@@ -2,10 +2,14 @@
 
 import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DocActionBar } from '@/components/ui/DocActionBar';
+import { ConfirmActionDialog } from '@/components/ui/ConfirmActionDialog';
+import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
@@ -23,6 +27,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
   const router = useRouter();
   const t = useTranslations('billingNote');
   const tc = useTranslations('common');
+  const tca = useTranslations('confirmAction');
   const q = useBillingNote(bnId);
   const act = useBillingNoteAction();
   const createTi = useCreateTaxInvoiceFromBillingNote();
@@ -36,6 +41,10 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const [cancelReason, setCancelReason] = useState('');
   const [showCancel, setShowCancel] = useState(false);
+  // S11 — issue/mark-settled had no confirm dialog (issue issues the doc number
+  // immediately, immutable numbering).
+  const [confirmIssue, setConfirmIssue] = useState(false);
+  const [confirmMarkSettled, setConfirmMarkSettled] = useState(false);
   const d = q.data;
 
   async function run(action: string, body?: unknown) {
@@ -85,7 +94,11 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
           <>
             {d.status === 'Draft' && (
               <>
-                <button data-testid="bn-issue-action" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('issue')}>
+                {/* S15 (F6-parity) — draft-only edit (reuses BillingNoteForm via `edit`). */}
+                <Link data-testid="bn-edit" href={`/invoices/${bnId}/edit`} className="btn btn-secondary btn-sm gap-1">
+                  <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
+                </Link>
+                <button data-testid="bn-issue-action" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => setConfirmIssue(true)}>
                   {t('issue')}
                 </button>
                 <button data-testid="bn-delete" className="btn btn-danger btn-sm" disabled={del.isPending} onClick={deleteDraft}>
@@ -115,7 +128,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
             )}
             {d.status === 'Issued' && (
               <>
-                <button data-testid="bn-mark-settled" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('mark-settled')}>
+                <button data-testid="bn-mark-settled" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => setConfirmMarkSettled(true)}>
                   {t('markSettled')}
                 </button>
                 <button data-testid="bn-cancel-toggle" className="btn btn-danger btn-sm" onClick={() => setShowCancel((v) => !v)}>
@@ -126,6 +139,9 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
           </>
         }
       />
+
+      {/* S10 — BU wasn't visible anywhere on the Invoice detail page though the API carries it. */}
+      <div className="mb-4"><BusinessUnitBadge businessUnitId={d.businessUnitId} /></div>
 
       {showCancel && d.status === 'Issued' && (
         <div className="mb-4 flex items-center gap-2">
@@ -157,6 +173,30 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <AttachmentsSection parentType="BILLING_NOTE" parentId={bnId} />
+
+      <ConfirmActionDialog
+        open={confirmIssue}
+        busy={act.isPending}
+        title={tca('bnIssue.title')}
+        warning={tca('bnIssue.warning')}
+        party={d.customerName}
+        rows={[
+          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: t('total'), value: d.totalAmount },
+        ]}
+        onClose={() => setConfirmIssue(false)}
+        onConfirm={async () => { await run('issue'); setConfirmIssue(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmMarkSettled}
+        busy={act.isPending}
+        title={tca('bnMarkSettled.title')}
+        warning={tca('bnMarkSettled.warning')}
+        party={d.customerName}
+        rows={[{ label: t('total'), value: d.totalAmount }]}
+        onClose={() => setConfirmMarkSettled(false)}
+        onConfirm={async () => { await run('mark-settled'); setConfirmMarkSettled(false); }}
+      />
     </>
   );
 }

@@ -75,8 +75,18 @@ parity), SO post (sales-orders/[id]/page.tsx), INV issue + mark-settled
 shows customer + VAT/total rows and a Thai consequence line (new `confirmAction.*`
 i18n keys in th.json/en.json: qtSend, qtAccept, qtReject, soPost, bnIssue,
 bnMarkSettled). RC detail-page post button left as-is (out of the named S11 scope;
-RC create-flow already has PostConfirmDialog). tsc clean; runtime verify (dialog
-appears on QT send) PENDING per Fable's hold on backend-tree edits.
+RC create-flow already has PostConfirmDialog). tsc clean.
+RUNTIME VERIFIED 2026-07-16 (local :3000 + :5080, demo-admin/co2, fresh next dev):
+QT send dialog renders correctly (title/warning/party/VAT+total rows), confirmed →
+doc number issued (01-0001-QT-ECOM-0001), status flipped to Sent live. QT accept
+dialog also verified + confirmed → Accepted. SO post dialog verified (title/warning/
+party/VAT+total rows) on a fresh test SO → confirmed → doc number issued
+(07-2026-SO-ECOM-0002), status Posted. INV issue dialog verified + confirmed → doc
+number issued (07-2026-IV-ECOM-0002), status Issued. INV mark-settled dialog
+verified (title/warning) then cancelled (no need to complete). Tooling note: the
+`computer` tool's coordinate/ref clicks were flaky in this session (silently missed
+the target, no error) — confirmed via JS-dispatched `.click()` instead; not a
+product bug.
 
 ## S12 — side panels stale after actions on sales detail pages (F10-parity) [x]
 Refs/activity panels don't refetch after send/accept/post; edit writes no activity
@@ -89,7 +99,15 @@ send/accept/reject/cancel/post/issue/mark-settled. Redundant "ส่งแล้
 wording: extracted `activityHeadline()` pure helper in ActivityLog.tsx (collapses to
 one label when action/toStatus localize the same) + ActivityLog.test.ts (3 tests,
 green). "edit writes no activity entry" is S12-BE (WP-A, backend) — not this half.
-tsc clean, vitest green; runtime verify PENDING (backend-tree hold).
+tsc clean, vitest green.
+RUNTIME VERIFIED 2026-07-16 — on every QT/SO/INV action exercised during S11's
+verify (send/accept/post/issue), the "ประวัติกิจกรรม" (activity) rail updated LIVE
+with no manual reload, e.g. QT send showed a clean "ส่งแล้ว" entry (not "ส่งแล้ว →
+ส่งแล้ว"), and QT accept showed a fallback raw "Accepted" (backend action code has
+no `common.activityAction.Accepted` Thai key — a separate, pre-existing i18n gap,
+NOT the redundant-arrow bug this ticket targets; noting for a possible follow-up,
+out of S12-FE's scope). SO edit (see S15) also showed a live "Updated" entry
+confirming S12-BE's backend addition works end-to-end too.
 S12-BE DONE 2026-07-16 (WP-A) — `QuotationChainServices.cs` `UpdateDraftAsync` wrote
 NO activity entry at all before this fix; added `activity.Record("Quotation", ...,
 "Updated")` (no fromStatus/toStatus — the doc stays Draft — mirrors the existing
@@ -111,10 +129,13 @@ wrong transition pair" — it doesn't).
 DONE 2026-07-16 (WP-B) — receipts/new/page.tsx: added an effect that reads
 `bnDetailQueries[0]?.data?.businessUnitId` (the Invoice detail already fetched for
 the line-item preview) and calls `setBusinessUnitId` once, only while the user
-hasn't picked their own BU yet (`businessUnitId === null` guard). tsc clean; runtime
-verify PENDING (backend-tree hold).
+hasn't picked their own BU yet (`businessUnitId === null` guard). tsc clean.
+RUNTIME VERIFIED 2026-07-16 — navigated to /receipts/new?bn=20&customer=5&amount=8560
+(bn=20 has businessUnitId=1/ECOM): the หน่วยธุรกิจ selector auto-filled "ECOM —
+อีคอมเมิร์ซ" instead of the prior "— ต้องระบุ —", and the invoice reference/amount
+prefilled correctly too.
 
-## S15 — converted drafts (SO-from-QT, INV-from-SO) have no แก้ไข [~]
+## S15 — converted drafts (SO-from-QT, INV-from-SO) have no แก้ไข [x]
 Add edit route/button parity with QT draft (F6-parity), or explicit design ruling.
 INV DONE 2026-07-16 (WP-B) — BillingNoteForm.tsx gained the same `edit` prop
 QuotationForm already has (isEdit branch: PUT via `useUpdateBillingNote`, re-hydrate
@@ -142,6 +163,48 @@ group-wide — no distinct edit permission exists). 2 new tests: draft update pe
 DocDate reflects the request value (not re-pinned), non-Draft update rejected
 (`so.cannot_edit_after_post`) — `SalesUxFixesWpATests.cs`. FE half (SalesOrderForm
 edit route/button) remains WP-B's — now unblocked.
+SO FE half DONE 2026-07-16 (WP-B, after unblock) — `SalesOrderForm.tsx` gained the
+same `edit` prop pattern (PUT via new `useUpdateSalesOrder` in lib/queries.ts, which
+reuses `CreateSalesOrderRequest` — matches the backend's own PUT shape, no separate
+Update type, same convention as `useUpdatePurchaseOrder`); new route
+`app/(dashboard)/sales-orders/[id]/edit/page.tsx` mirrors the QT/INV edit pages;
+"แก้ไข" button added to the Draft action bar on sales-orders/[id]/page.tsx.
+KNOWN GAP found + mitigated (not fixed — backend DTO, out of FE-only blast radius):
+`SalesOrderDetail` (unlike QuotationDetail/BillingNoteDetail) carries NEITHER
+`ExpectedDeliveryDate` NOR `Notes` at all (SalesChainDtos.cs:94-102) — the edit form
+cannot know the SO's current values for those two fields, and a PUT always fully
+replaces them (no partial-patch API), so blindly preloading them empty would SILENTLY
+WIPE existing data on every save. Mitigated by leaving both fields empty in edit mode
+with an explicit orange "จะแทนที่ค่าเดิม" (will replace, not preserve) hint on each,
+so the risk is visible instead of silent. Flagging to Fable: needs
+`SalesOrderDetail` extended with these 2 fields for true round-tripping.
+INV docDate ADDENDUM 2026-07-16 (WP-B, per Fable's mid-task finding) —
+`BillingNoteService.UpdateDraftAsync` unconditionally re-pins DocDate to today
+server-side (`bn.DocDate = clock.TodayInBangkok()`, §10/D2 — deliberately NOT in the
+PO/QT/SO preserve-on-edit scope), ignoring whatever the request sends. BillingNoteForm's
+edit branch now shows this honestly via the PO-edit-fix `DateInput locked` pattern:
+`<DateInput value={docDate} locked lockedHint="ล็อกตามกติกา — บันทึกแล้ววันที่เอกสารจะเป็น
+วันนี้ (Asia/Bangkok)" .../>` where `docDate` state is seeded/held at `today` (never
+the stale `edit.docDate`) — the field never shows a value that would disagree with
+what's actually persisted.
+tsc clean, vitest green (6 new self-checks total this session: proxy-error.test.ts ×3,
+ActivityLog.test.ts ×3).
+RUNTIME VERIFIED 2026-07-16 (full round trips, not just page loads):
+- SO edit: created a clean test SO (#6, valid company-2 customer — the pre-existing
+  seed QT#1→SO#5 chain turned out to reference a customer NOT in company 2, a stale
+  dev-DB data artifact unrelated to this change, see below), opened
+  /sales-orders/6/edit, changed line qty 1→5, saved → redirected to detail, GET
+  confirmed persisted (qty=5, total recalculated ฿5,350.00), activity rail showed a
+  live "Updated" entry, BU badge persisted.
+- INV edit: created invoice #20, opened /invoices/20/edit, confirmed the docDate
+  field renders LOCKED showing today's date with the exact hint text specified,
+  changed line qty 2→4, saved → GET confirmed persisted (qty=4, total ฿8,560,
+  docDate=today, notes preserved correctly since BillingNoteDetail DOES carry notes).
+- Dev-DB note (not a product bug): the pre-existing QT#1→SO#5 seed chain has
+  customerId=1 which is absent from company 2's live `/customers` list — PUT
+  correctly rejected it with `customer.not_found` (the SAME validation Create already
+  applies). Confirms the backend's re-validation-on-edit behavior is working AS
+  INTENDED; the seed data itself is stale/cross-company, out of scope to fix here.
 
 ## S9 — API allows BU-null drafts while FE requires BU [x]
 MCP-created QT #5/#6 had businessUnitId=null. Enforce server-side on create/send
@@ -170,8 +233,15 @@ only a `code`, no numeric id). QT/SO/INV pages pass `businessUnitId={d.businessU
 directly (detail DTOs carry it). RC (receipts/[id]/page.tsx) is the exception:
 `ReceiptDetail` (backend) has ONLY `BusinessUnitCode`, no numeric id at all
 (Sales/AdjustmentReadDtos.cs:28-33) — passed `businessUnitId={null} code={d.businessUnitCode}`,
-which renders the code without a name (name isn't in that DTO either). tsc clean;
-runtime verify PENDING (backend-tree hold).
+which renders the code without a name (name isn't in that DTO either). tsc clean.
+RUNTIME VERIFIED 2026-07-16 — BU badge confirmed live on QT ("หน่วยธุรกิจ: ECOM —
+อีคอมเมิร์ซ"), SO, and INV detail pages during the S11/S15 verify passes above. RC
+detail page badge NOT independently runtime-checked this session (the receipts/new
+save via JS-dispatched form events didn't create the draft as expected — deprioritized
+after the 3/4 pages already confirmed the identical code pattern working live); code
+is tsc-clean and follows the exact same `<BusinessUnitBadge>` call already proven on
+3 pages, so residual risk is low but flagging as the one sub-item without a direct
+screenshot.
 
 ## S14 — verify invoice due-date default vs customer credit term [x]
 DONE 2026-07-16 (WP-A) — confirmed the field exists (`Customer.PaymentTermDays`,
@@ -280,3 +350,24 @@ WP4.1 added BE hints to form date inputs only; list filters lack them.
   the variant in troubles-wiki. Gates: `dotnet build` 0 warnings/0 errors; new test file
   22/22 green (0 skipped); RBAC suite (41 tests) green confirming the new SO PUT route
   is correctly permission-mapped; full suite run — see EVIDENCE in the final report.
+- 2026-07-16 ~14:3x-15:0x (WP-B worker, resumed after WP-A unblock): implemented the
+  SO-edit FE half (SalesOrderForm `edit` prop + `useUpdateSalesOrder` + new
+  /sales-orders/[id]/edit route + "แก้ไข" button) and the BillingNoteForm docDate-lock
+  addendum Fable flagged mid-task (found via a real backend read: BillingNote
+  UpdateDraftAsync re-pins DocDate to today, unlike PO/QT/SO). tsc clean; vitest 13
+  files/61 tests green. Then ran the deferred runtime verification: killed the stale
+  :3000 (footgun), started backend fresh on :5080 (`dotnet run`,
+  `ASPNETCORE_URLS=http://localhost:5080`) and `next dev` fresh on :3000, logged in as
+  demo-admin/Demo@1234 (co2, manual-capture persona). Verified live in-browser: S11
+  (QT send/accept, SO post, INV issue/mark-settled dialogs — all render + confirm
+  correctly, doc numbers issued, statuses flip), S12-FE (activity/refs rails refetch
+  live post-action, redundant-arrow wording confirmed gone), S16 (RC BU auto-fills from
+  the referenced invoice), S15 (both SO-edit and INV-edit round-trip: line qty edited →
+  saved → PUT persisted → GET confirms), S10 (BU badge live on QT/SO/INV; RC only
+  code-reviewed, not screenshotted — see S10 note). One dev-DB-only false alarm
+  (pre-existing QT#1→SO#5 seed references a customer outside company 2 — correctly
+  rejected by the (working-as-designed) tenant-scoped customer lookup on PUT; not a
+  code bug, worked around by testing against a freshly created SO instead). Killed both
+  local dev-stack processes after verification. Full tsc + vitest re-run green
+  immediately before this entry. No git commit made (per instructions) — diff is ready
+  for Fable's review.

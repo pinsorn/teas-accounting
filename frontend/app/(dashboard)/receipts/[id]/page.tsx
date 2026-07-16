@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DocActionBar } from '@/components/ui/DocActionBar';
 import { PrintMenu } from '@/components/ui/PrintMenu';
+import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
@@ -80,6 +81,10 @@ export default function ReceiptDetailPage() {
       {d.status === 'Draft' && d.createdViaApiKey && (
         <div className="mb-4"><AgentPendingBadge /></div>
       )}
+
+      {/* S10 — BU wasn't visible anywhere on the RC detail page though the API carries
+          the code (ReceiptDetail has no numeric businessUnitId, code only). */}
+      <div className="mb-4"><BusinessUnitBadge businessUnitId={null} code={d.businessUnitCode} /></div>
 
       {/* ?action=approve — prominent approval banner for agent-created drafts */}
       {isApproveAction && d.status === 'Draft' && (

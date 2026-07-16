@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { classifyUpstreamFailure } from '@/lib/proxy-error';
 
 /**
  * Authenticated BFF proxy. The browser calls /api/proxy/<backend-path>; this handler
@@ -37,13 +38,16 @@ async function forward(req: NextRequest, pathParts: string[]) {
       body: hasBody ? await req.arrayBuffer() : undefined,
       cache: 'no-store',
       redirect: 'manual',
+      // S13a — an unbounded fetch here hangs the caller forever on a stuck upstream
+      // (this is the BFF for ALL API traffic). AbortSignal.timeout throws a
+      // TimeoutError (not a plain AbortError) that we distinguish below so a timeout
+      // surfaces as a clear 504 instead of the generic "connection failed" 502.
+      signal: AbortSignal.timeout(30_000),
     });
   } catch (e) {
-    console.error('[/api/proxy] upstream fetch failed:', e);
-    return NextResponse.json(
-      { title: 'gateway.error', detail: 'Connection to backend failed.' },
-      { status: 502 },
-    );
+    const { body, status } = classifyUpstreamFailure(e);
+    console.error(`[/api/proxy] upstream fetch ${status === 504 ? 'timed out' : 'failed'}:`, e);
+    return NextResponse.json(body, { status });
   }
 
   // WP2.3 (F21) layer 3 — redirect:'manual' means a 3xx from the backend arrives here as an

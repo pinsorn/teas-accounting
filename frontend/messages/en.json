@@ -71,6 +71,30 @@
     "pvPost": {
       "title": "Confirm payment voucher posting",
       "warning": "Posting books the journal entry immediately and is irreversible."
+    },
+    "qtSend": {
+      "title": "Confirm sending the quotation",
+      "warning": "Sending issues the document number immediately and the draft can no longer be edited."
+    },
+    "qtAccept": {
+      "title": "Confirm the customer accepted this quotation",
+      "warning": "This records the customer's acceptance and unlocks converting it to a sales order."
+    },
+    "qtReject": {
+      "title": "Confirm the customer rejected this quotation",
+      "warning": "This records the customer's rejection and ends the workflow for this quotation."
+    },
+    "soPost": {
+      "title": "Confirm sales order confirmation (Post)",
+      "warning": "Posting issues the document number immediately and cannot be reverted to Draft."
+    },
+    "bnIssue": {
+      "title": "Confirm issuing the invoice",
+      "warning": "Issuing the invoice issues the document number immediately and cannot be reverted to Draft."
+    },
+    "bnMarkSettled": {
+      "title": "Confirm marking as fully paid",
+      "warning": "This records that this invoice has been paid in full."
     }
   },
   "purchaseChain": {
@@ -1621,7 +1645,8 @@
     "pickCustomer": "Select a customer first",
     "subtotal": "Subtotal",
     "vat": "VAT",
-    "grandTotal": "Total"
+    "grandTotal": "Total",
+    "editTitle": "Edit Sales Order"
   },
   "deliveryOrder": {
     "listTitle": "Delivery Orders",
@@ -1678,7 +1703,8 @@
     "pickCustomer": "Select a customer first",
     "notes": "Notes",
     "taxInvoices": "Grouped Tax Invoices",
-    "pickCustomerFirst": "Select a customer first"
+    "pickCustomerFirst": "Select a customer first",
+    "editTitle": "Edit Invoice"
   },
   "attachment": {
     "title": "Attachments",
