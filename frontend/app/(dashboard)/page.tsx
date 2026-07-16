@@ -35,7 +35,10 @@ export default function DashboardPage() {
   const monthNo = now.getMonth() + 1;
 
   const profile = useCompanyProfile().data;
-  const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // S1 fix (2026-07-16) — undefined vatMode must NEVER be treated as true: a
+  // non-VAT company would otherwise flash the VAT card/quick-action for the
+  // ~1s before /system/info resolves. Default false (hidden) until known.
+  const vatMode = useSystemInfo().data?.vatMode ?? false;
 
   const summary = useTaxSummary(year);
   const months = summary.data?.months ?? [];
@@ -96,19 +99,27 @@ export default function DashboardPage() {
         </p>
       </header>
 
-      {/* KPI tiles — current month */}
+      {/* KPI tiles — current month. S1 fix: skeleton while the tax summary is still
+          loading, instead of flashing ฿0.00 (and, for the VAT tile, flashing it on a
+          non-VAT company before vatMode is known). */}
       <section aria-label={t('kpi.section')}
         className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <Kpi label={t('kpi.revenue')} value={formatTHB(cur?.revenue ?? 0)} icon={TrendingUp} tone="emerald" />
-        <Kpi label={t('kpi.expense')} value={formatTHB(cur?.expense ?? 0)} icon={TrendingDown} tone="rose" />
-        <Kpi label={t('kpi.netProfit')} value={formatTHB(cur?.netProfit ?? 0)} icon={Wallet}
-          tone={(cur?.netProfit ?? 0) >= 0 ? 'emerald' : 'rose'} />
-        {vatMode && (
-          <Kpi label={t('kpi.vatNet')} icon={Receipt} tone="amber"
-            value={netVat >= 0 ? formatTHB(netVat) : formatTHB(-netVat)}
-            hint={netVat === 0 ? undefined : netVat > 0 ? t('payable') : t('refundable')} />
+        {summary.isLoading ? (
+          Array.from({ length: 4 }, (_, i) => <KpiSkeleton key={i} />)
+        ) : (
+          <>
+            <Kpi label={t('kpi.revenue')} value={formatTHB(cur?.revenue ?? 0)} icon={TrendingUp} tone="emerald" />
+            <Kpi label={t('kpi.expense')} value={formatTHB(cur?.expense ?? 0)} icon={TrendingDown} tone="rose" />
+            <Kpi label={t('kpi.netProfit')} value={formatTHB(cur?.netProfit ?? 0)} icon={Wallet}
+              tone={(cur?.netProfit ?? 0) >= 0 ? 'emerald' : 'rose'} />
+            {vatMode && (
+              <Kpi label={t('kpi.vatNet')} icon={Receipt} tone="amber"
+                value={netVat >= 0 ? formatTHB(netVat) : formatTHB(-netVat)}
+                hint={netVat === 0 ? undefined : netVat > 0 ? t('payable') : t('refundable')} />
+            )}
+            <Kpi label={t('kpi.whtPaid')} value={formatTHB(cur?.whtPaidTotal ?? 0)} icon={Coins} tone="sky" />
+          </>
         )}
-        <Kpi label={t('kpi.whtPaid')} value={formatTHB(cur?.whtPaidTotal ?? 0)} icon={Coins} tone="sky" />
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -208,6 +219,18 @@ function Kpi({ label, value, icon: Icon, tone, hint }: {
       </div>
       <div className="mt-1.5 text-xl font-bold tabular-nums">{value}</div>
       {hint && <div className="text-[11px] opacity-70">{hint}</div>}
+    </div>
+  );
+}
+
+function KpiSkeleton() {
+  return (
+    <div className="rounded-xl border border-base-300 bg-base-100 p-4">
+      <div className="flex items-center justify-between">
+        <span className="skeleton-shimmer h-3 w-16 rounded" />
+        <span className="skeleton-shimmer h-4 w-4 rounded" />
+      </div>
+      <div className="mt-1.5 skeleton-shimmer h-6 w-24 rounded" />
     </div>
   );
 }

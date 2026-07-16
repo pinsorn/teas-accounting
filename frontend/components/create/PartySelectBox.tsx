@@ -102,6 +102,11 @@ export function PartySelectBox({
       renderQuickCreate={
         kind === 'vendor' ? (onDone) => <VendorQuickCreateForm onCreated={onDone} /> : undefined
       }
+      // S8 fix (2026-07-16) — customer picker has no inline quick-create form; a
+      // plain new-tab link to /customers/new is the minimal fix (spec: no inline
+      // form build). Ignored for the vendor picker, which already has one above.
+      createHref={kind === 'customer' ? '/customers/new' : undefined}
+      createLabel={kind === 'customer' ? tp('createCustomer') : undefined}
     />
   );
 

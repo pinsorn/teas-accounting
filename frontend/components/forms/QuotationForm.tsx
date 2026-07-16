@@ -12,7 +12,7 @@ import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { useCreateQuotation, useUpdateQuotation, useQuotationAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
 import type { QuotationDetail } from '@/lib/types';
-import { bangkokToday } from '@/lib/utils';
+import { bangkokToday, formatDateBE } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { PAPER_DOC, companyToSeller } from '@/lib/paper-doc-config';
@@ -67,8 +67,10 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
   const buRequired = buSetting.data?.requiresBusinessUnit ?? false;
   // Non-VAT companies (ม.86): no VAT on any document. The line VAT column is
   // already hidden by LineItemsTable, so a stale default rate must not leak into
-  // the totals/preview — force the effective rate to 0 here.
-  const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // the totals/preview — force the effective rate to 0 here. S1 fix (2026-07-16):
+  // default false (hidden) until vatMode is actually known — a true default
+  // flashed the VAT preview row for non-VAT companies before hydrate.
+  const vatMode = useSystemInfo().data?.vatMode ?? false;
 
   const today = bangkokToday();
   const [docDate, setDocDate] = useState(edit?.docDate ?? today);
@@ -314,6 +316,7 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
                 onChange={(e) => setDocDate(e.target.value)}
                 aria-label={t('docDate')}
               />
+              <span className="label-text-alt text-base-content/50">= {formatDateBE(docDate)}</span>
             </label>
             <label className="form-control">
               <span className="label-text">{t('validUntil')} *</span>
@@ -324,6 +327,7 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
                 onChange={(e) => setValidUntil(e.target.value)}
                 aria-label={t('validUntil')}
               />
+              <span className="label-text-alt text-base-content/50">= {formatDateBE(validUntil)}</span>
             </label>
             <div className="sm:col-span-2">
               <BusinessUnitSelector

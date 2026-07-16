@@ -6,6 +6,7 @@
   "party": {
     "selectCustomer": "Select customer",
     "selectVendor": "Select vendor",
+    "createCustomer": "+ Add new customer",
     "change": "Change",
     "taxId": "Tax ID",
     "searchPlaceholder": "Search by name or tax ID",

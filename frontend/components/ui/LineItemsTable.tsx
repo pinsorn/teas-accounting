@@ -89,7 +89,10 @@ export function LineItemsTable({
   const options = vatOptions(stdRate);
   // Non-VAT companies (ม.86): no VAT rate column at all (not merely 0%). Also off
   // when the caller disables it (e.g. a purchase from a non-VAT-registered vendor).
-  const showVat = (sys?.vatMode ?? true) && vatEnabled;
+  // S1 fix (2026-07-16) — undefined vatMode must never be treated as true: default
+  // hidden until /system/info actually resolves, so the column never flashes in
+  // for a non-VAT company then disappears.
+  const showVat = (sys?.vatMode ?? false) && vatEnabled;
 
   const set = (i: number, patch: Partial<LineItem>) =>
     onChange(value.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));

@@ -70,7 +70,9 @@ export function SalesOrderForm({ edit }: { edit?: SalesOrderDetail } = {}) {
   const buSetting = useCompanyBuSetting();
   const buRequired = buSetting.data?.requiresBusinessUnit ?? false;
   // Non-VAT company (ม.86): no VAT on the SO. Don't let the hidden line rate leak.
-  const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // S1 fix (2026-07-16) — default false (hidden) until vatMode is actually known,
+  // so the VAT preview row never flashes for a non-VAT company before hydrate.
+  const vatMode = useSystemInfo().data?.vatMode ?? false;
 
   const [docDate, setDocDate] = useState(edit?.docDate ?? bangkokToday());
   // expectedDeliveryDate/notes: SalesOrderDetail doesn't return either (see KNOWN

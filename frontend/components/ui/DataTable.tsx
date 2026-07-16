@@ -21,6 +21,7 @@ import {
 } from '@tanstack/react-table';
 import { useTranslations } from 'next-intl';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDateBE } from '@/lib/utils';
 
 // cont.81 (Ham) — ONE TanStack-powered table for every list page. Unified style
 // (the existing `table table-zebra` in a rounded card), global search, per-column
@@ -252,6 +253,12 @@ export function DataTable<T>({
 }
 
 function ColumnFilter<T>({ column, allLabel }: { column: Column<T, unknown>; allLabel: string }) {
+  // S3 fix (2026-07-16) — status filter dropdowns showed the raw PascalCase enum
+  // ("Accepted"/"Draft") while the table's own status badges are Thai. Every list
+  // page names its status column 'status' (or 'paymentStatus' for TI), and the
+  // `status` i18n namespace already has every value StatusBadge uses — reuse it
+  // here so the fix is one shared place, not a per-page sweep.
+  const tStatus = useTranslations('status');
   const variant = column.columnDef.meta?.filter;
   const label = column.columnDef.meta?.filterLabel
     ?? (typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id);
@@ -270,6 +277,13 @@ function ColumnFilter<T>({ column, allLabel }: { column: Column<T, unknown>; all
           <input type="date" className="input input-bordered" value={to}
             onChange={(e) => set([from, e.target.value])} aria-label={`${label} to`} />
         </span>
+        {/* S5/S7 fix — Buddhist-Era hint, same "= dd/MM/2569" pattern as the create-form
+            date inputs (WP4.1), so a list filter's date isn't the only mm/dd/yyyy-only spot. */}
+        {(from || to) && (
+          <span className="label-text-alt text-base-content/50">
+            {from ? `= ${formatDateBE(from)}` : ''}{from && to ? ' – ' : ''}{to ? `= ${formatDateBE(to)}` : ''}
+          </span>
+        )}
       </label>
     );
   }
@@ -280,6 +294,11 @@ function ColumnFilter<T>({ column, allLabel }: { column: Column<T, unknown>; all
     const options = Array.from(column.getFacetedUniqueValues().keys())
       .filter((v) => v != null && v !== '')
       .sort();
+    const isStatusCol = column.id === 'status' || column.id === 'paymentStatus';
+    const optionLabel = (raw: string) => {
+      if (!isStatusCol) return raw;
+      try { return tStatus(raw); } catch { return raw; }
+    };
     return (
       <label className="form-control">
         <span className="label-text text-ink-600">{label}</span>
@@ -290,7 +309,7 @@ function ColumnFilter<T>({ column, allLabel }: { column: Column<T, unknown>; all
           aria-label={label}
         >
           <option value="">{allLabel}</option>
-          {options.map((o) => <option key={String(o)} value={String(o)}>{String(o)}</option>)}
+          {options.map((o) => <option key={String(o)} value={String(o)}>{optionLabel(String(o))}</option>)}
         </select>
       </label>
     );

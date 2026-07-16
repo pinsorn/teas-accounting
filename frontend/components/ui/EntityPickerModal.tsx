@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Search, X } from 'lucide-react';
+import { Search, X, Plus } from 'lucide-react';
 import { apiGet, qs } from '@/lib/api';
 
 // ITEM 2+3 — shared "search & pick" MODAL behind VendorSelector / CustomerSelector.
@@ -29,6 +29,8 @@ export function EntityPickerModal({
   mapRow,
   quickCreateLabel,
   renderQuickCreate,
+  createHref,
+  createLabel,
 }: {
   open: boolean;
   onClose: () => void;
@@ -44,6 +46,14 @@ export function EntityPickerModal({
   quickCreateLabel?: string;
   /** Renders the quick-create mini-form; call onDone(id,label) on success. */
   renderQuickCreate?: (onDone: (id: number, label: string) => void) => React.ReactNode;
+  /** S8 fix (2026-07-16) — minimal alternative to `renderQuickCreate` for pickers
+   *  that don't have an inline quick-create form yet (currently the customer
+   *  picker): a plain link that opens `createHref` in a NEW TAB, so the user can
+   *  create the record without losing the in-progress document form. Combined
+   *  with the focus-refetch effect below, the newly created record shows up in
+   *  the list as soon as the user tabs back. Ignored when `renderQuickCreate` is set. */
+  createHref?: string;
+  createLabel?: string;
 }) {
   const tc = useTranslations('common');
   const [q, setQ] = useState('');
@@ -52,6 +62,10 @@ export function EntityPickerModal({
   const [creating, setCreating] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  // S8 fix — bumped whenever the window regains focus while the modal is open, so
+  // a customer created via the `createHref` new-tab link reappears without the
+  // user needing to retype/clear the search box.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Reset the search box (and the quick-create panel) each time the modal opens.
   useEffect(() => {
@@ -71,6 +85,14 @@ export function EntityPickerModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  // S8 fix — refetch on window focus while open (see refreshTick above).
+  useEffect(() => {
+    if (!open) return;
+    const onFocus = () => setRefreshTick((n) => n + 1);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [open]);
 
   // Debounced search (300ms). Empty query lists the first page so the modal is
   // never blank on open. Defensive shape parsing — list endpoints aren't pinned.
@@ -102,9 +124,9 @@ export function EntityPickerModal({
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-    // mapRow is a stable inline arrow per render; endpoint/q/open drive the fetch.
+    // mapRow is a stable inline arrow per render; endpoint/q/open/refreshTick drive the fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, open, endpoint]);
+  }, [q, open, endpoint, refreshTick]);
 
   if (!open) return null;
 
@@ -177,6 +199,14 @@ export function EntityPickerModal({
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCreating(true)}>
               {quickCreateLabel}
             </button>
+          ) : createHref && !creating ? (
+            // S8 fix — new tab so the in-progress document form (customer picked
+            // from a QT/SO/Invoice/Receipt) is never lost; refetch-on-focus above
+            // brings the new customer back into this list on return.
+            <a href={createHref} target="_blank" rel="noopener noreferrer"
+              className="btn btn-ghost btn-sm gap-1">
+              <Plus className="h-4 w-4" aria-hidden /> {createLabel}
+            </a>
           ) : <span />}
           <button type="button" className="btn btn-ghost btn-sm" onClick={creating ? () => setCreating(false) : onClose}>
             {tc('cancel')}

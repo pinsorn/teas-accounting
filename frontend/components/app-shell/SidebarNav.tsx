@@ -144,10 +144,12 @@ export function SidebarNav() {
   // Settings page → react-query dedupes (default 5-min staleTime).
   const profile = useCompanyProfile();
   const logoSrc = resolveLogoUrl(profile.data?.logoUrl);
-  // ม.86 — hide VAT-only items (ภ.พ.30) for non-VAT companies. Default true so the
-  // menu is unchanged before /system/info resolves and for VAT registrants.
+  // ม.86 — hide VAT-only items (ภ.พ.30) for non-VAT companies. S1 fix (2026-07-16):
+  // default FALSE (hidden) until /system/info actually resolves — undefined must
+  // never be treated as true, or a non-VAT company briefly sees VAT-only items
+  // flash in before they're removed.
   const sysInfo = useSystemInfo();
-  const vatMode = sysInfo.data?.vatMode ?? true;
+  const vatMode = sysInfo.data?.vatMode ?? false;
   // Default false: super-admin-only items appear only once /me/permissions confirms.
   const mePerms = useMePermissions();
   const me = mePerms.data;
@@ -248,52 +250,58 @@ export function SidebarNav() {
       {/* Nav */}
       {gatesReady && <span data-testid="nav-gates-ready" hidden aria-hidden />}
       <nav className="flex-1 overflow-y-auto px-2.5 py-3">
-        {SECTIONS.map((section) => (
-          <div key={section.key} className="mb-1.5">
-            {section.key !== 'overview' &&
-              (collapsed ? (
-                <div className="mx-2 mb-1 mt-1.5 border-t border-ink-100" />
-              ) : (
-                <div className="px-3 pb-1.5 pt-3 text-[10.5px] font-bold uppercase tracking-[1.2px] text-ink-500">
-                  {t(`section.${section.key}`)}
-                </div>
-              ))}
-            {section.items
-              .filter((it) =>
-                (!it.vatOnly || vatMode)
-                && (!it.superAdminOnly || isSuperAdmin)
-                && (!it.perm || isSuperAdmin || myPerms.includes(it.perm)))
-              .map(({ href, key, Icon, badge }) => {
-              const active = href === activeHref;
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  title={t(key)}
-                  onClick={closeDrawer}
-                  className={`relative flex items-center gap-3 rounded-field px-3 py-2 text-[13.5px] transition-colors ${
-                    collapsed ? 'justify-center px-2.5' : ''
-                  } ${
-                    active
-                      ? 'bg-peach-50 font-semibold text-peach-700'
-                      : 'font-medium text-ink-600 hover:bg-base-300 hover:text-ink-900'
-                  }`}
-                >
-                  {active && (
-                    <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-peach-500" aria-hidden />
-                  )}
-                  <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
-                  {!collapsed && <span className="truncate">{t(key)}</span>}
-                  {!collapsed && badge != null && badge > 0 && (
-                    <span className="ml-auto rounded-full bg-peach-100 px-1.5 py-px text-[11px] font-bold text-peach-700">
-                      {badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {SECTIONS.map((section) => {
+          // S1 fix (2026-07-16) — while /me/permissions is still loading, every
+          // perm-gated item filters out and the section would render an orphan
+          // header over an empty body. Compute the visible items FIRST and skip
+          // the whole section (header included) when there are none.
+          const visibleItems = section.items.filter((it) =>
+            (!it.vatOnly || vatMode)
+            && (!it.superAdminOnly || isSuperAdmin)
+            && (!it.perm || isSuperAdmin || myPerms.includes(it.perm)));
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={section.key} className="mb-1.5">
+              {section.key !== 'overview' &&
+                (collapsed ? (
+                  <div className="mx-2 mb-1 mt-1.5 border-t border-ink-100" />
+                ) : (
+                  <div className="px-3 pb-1.5 pt-3 text-[10.5px] font-bold uppercase tracking-[1.2px] text-ink-500">
+                    {t(`section.${section.key}`)}
+                  </div>
+                ))}
+              {visibleItems.map(({ href, key, Icon, badge }) => {
+                const active = href === activeHref;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    title={t(key)}
+                    onClick={closeDrawer}
+                    className={`relative flex items-center gap-3 rounded-field px-3 py-2 text-[13.5px] transition-colors ${
+                      collapsed ? 'justify-center px-2.5' : ''
+                    } ${
+                      active
+                        ? 'bg-peach-50 font-semibold text-peach-700'
+                        : 'font-medium text-ink-600 hover:bg-base-300 hover:text-ink-900'
+                    }`}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-peach-500" aria-hidden />
+                    )}
+                    <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
+                    {!collapsed && <span className="truncate">{t(key)}</span>}
+                    {!collapsed && badge != null && badge > 0 && (
+                      <span className="ml-auto rounded-full bg-peach-100 px-1.5 py-px text-[11px] font-bold text-peach-700">
+                        {badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer */}

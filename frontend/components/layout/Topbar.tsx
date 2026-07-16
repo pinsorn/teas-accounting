@@ -12,7 +12,13 @@ import { CompanySwitcher } from '@/components/layout/CompanySwitcher';
 // segment. Search pill is presentational for now (no global search backend).
 
 // Path segment → nav translation key (mirrors SidebarNav routes).
+// S2 fix (2026-07-16) — this map was missing most non-sales routes (e.g.
+// `customers`), so /customers rendered "แดชบอร์ด > customers" (raw EN slug)
+// while sales routes (already listed) showed Thai. Swept every top-level
+// route folder under app/(dashboard) — including nested reports/* and
+// settings/* segments — so no dashboard route falls back to its raw slug.
 const SEG_KEY: Record<string, string> = {
+  customers: 'customers',
   quotations: 'quotations',
   'sales-orders': 'salesOrders',
   'delivery-orders': 'deliveryOrders',
@@ -25,11 +31,45 @@ const SEG_KEY: Record<string, string> = {
   vendors: 'vendors',
   'vendor-invoices': 'vendorInvoices',
   'purchase-orders': 'purchaseOrders',
+  'outstanding-po': 'outstandingPo',
+  'ap-aging': 'apAging',
   'payment-vouchers': 'paymentVouchers',
+  'expense-claims': 'expenseClaims',
+  'fixed-assets': 'fixedAssets',
+  depreciation: 'depreciation',
   'wht-certificates': 'whtCerts',
+  'wht-receivable': 'whtReceivable',
+  payroll: 'payroll',
+  'period-close': 'periodClose',
+  documents: 'documents',
   'tax-filings': 'taxFilings',
+  'missing-wht-cert': 'missingWhtCert',
+  'bank-accounts': 'bankAccounts',
   settings: 'section.settings',
   reports: 'section.reports',
+  // settings/*
+  company: 'company',
+  companies: 'companies',
+  roles: 'roles',
+  users: 'users',
+  products: 'products',
+  'business-units': 'businessUnits',
+  employees: 'employees',
+  'wht-types': 'whtTypes',
+  'expense-categories': 'expenseCategories',
+  'api-keys': 'apiKeys',
+  // reports/*
+  'tax-summary': 'taxSummary',
+  'trial-balance': 'trialBalance',
+  'balance-sheet': 'balanceSheet',
+  'profit-loss': 'profitLoss',
+  'general-ledger': 'generalLedger',
+  'bank-reconciliation': 'bankReconciliation',
+  'ar-aging': 'arAging',
+  'customer-statement': 'customerStatement',
+  'vendor-ledger': 'vendorLedger',
+  'sales-summary': 'salesSummary',
+  pnd30: 'pnd30',
 };
 
 export function Topbar() {

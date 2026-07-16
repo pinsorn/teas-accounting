@@ -6,6 +6,7 @@
   "party": {
     "selectCustomer": "เลือกลูกค้า",
     "selectVendor": "เลือกผู้ขาย",
+    "createCustomer": "+ สร้างลูกค้าใหม่",
     "change": "เปลี่ยน",
     "taxId": "เลขผู้เสียภาษี",
     "searchPlaceholder": "ค้นหาชื่อ หรือเลขผู้เสียภาษี",

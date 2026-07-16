@@ -80,8 +80,9 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
   const buSetting = useCompanyBuSetting();
   const buRequired = buSetting.data?.requiresBusinessUnit ?? false;
   // Non-VAT company (ม.86): no VAT on the Invoice — the hidden line rate must not
-  // leak into totals/payload/preview. Mirrors QuotationForm.
-  const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // leak into totals/payload/preview. Mirrors QuotationForm. S1 fix (2026-07-16):
+  // default false (hidden) until vatMode is actually known.
+  const vatMode = useSystemInfo().data?.vatMode ?? false;
 
   const today = bangkokToday();
   // §10/D2 — edit re-pins DocDate to today server-side regardless of what's sent;

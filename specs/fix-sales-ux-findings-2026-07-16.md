@@ -15,7 +15,8 @@ Status: FIX ROUND APPROVED by Ham 2026-07-16 ("แก้ทุก finding เล
   vatMode-gated cards/columns never flash), S2 (breadcrumb i18n), S3 (status filter
   Thai labels sweep), S5+S7 (BE-hint + locale on QT form dates + ALL list date
   filters, reuse WP4.1), S8 (customer picker modal → inline "สร้างลูกค้าใหม่" link,
-  minimal: new-tab + refetch-on-focus).
+  minimal: new-tab + refetch-on-focus). DONE 2026-07-16 — see individual sections
+  below + Attempt log for evidence.
 - S13 (infra, investigation FIRST — no fix without evidence): prod log pull around
   2026-07-16 05:30–06:10 ICT for the 503-but-applied writes; nginx error/access +
   Kestrel/systemd logs; report root cause hypothesis + minimal fix proposal to Fable.
@@ -253,8 +254,57 @@ manual-create path (`CreateDraftAsync`, `POST /billing-notes`) takes an explicit
 client-supplied DueDate already and was NOT touched — that's a user-chosen value, not
 a silently-wrong default. 2 new tests: term=30 (seeded demo customer) applied, term=0
 keeps prior DueDate==DocDate behavior — `SalesUxFixesWpATests.cs`.
-## S7/S5 — BE hints + date-locale on QT form dates & all list filters (merge into S5) [ ]
-## S8 — customer picker modal: add inline "สร้างลูกค้าใหม่" (F4-parity) [ ]
+## S7/S5 — BE hints + date-locale on QT form dates & all list filters (merge into S5) [x]
+DONE 2026-07-16 (WP-C) — reused the exact WP4.1/PO-edit pattern (a
+`label-text-alt text-base-content/50` span showing `= {formatDateBE(value)}` below the
+native `<input type="date">`, e.g. `PurchaseOrderForm.tsx`'s `expectedDelivery` field —
+NOT the separate `DateInput` component, which is for LOCKED fields only; QT's docDate/
+validUntil are user-editable by design, R2-parity, so the plain-input + hint-span
+pattern is the correct one to copy). Two spots:
+1. `components/forms/QuotationForm.tsx` — added the hint span under both `วันที่`
+   (docDate) and `ยืนราคาถึง` (validUntil) inputs, imported `formatDateBE` from
+   `lib/utils`. Only QT was named in scope (other sales forms' dates weren't flagged
+   as a finding).
+2. `components/ui/DataTable.tsx`'s `ColumnFilter` `dateRange` variant (the ONE shared
+   renderer behind every list page's date-range filter — confirmed via grep of
+   `filter: 'dateRange'`/`dateRangeFilter` across `app/(dashboard)/**`: quotations,
+   sales-orders, delivery-orders, invoices, receipts, purchase-orders, vendor-invoices,
+   tax-invoices, wht-certificates, payment-vouchers — 10 list pages, sales AND
+   purchase) — added a hint line below the from/to inputs, shown only once a value is
+   picked (`{(from || to) && ...}`, avoiding hint clutter on an untouched filter).
+RUNTIME VERIFIED — QT create form (`/quotations/new`) shows "= 16/07/2569" under วันที่
+and "= 14/08/2569" under ยืนราคาถึง; setting the /quotations list's "วันที่ from" filter
+to 2026-07-16 shows "= 16/07/2569" below the two date inputs AND correctly filters the
+list to the one matching row (list-filter logic itself untouched, still works).
+
+## S8 — customer picker modal: add inline "สร้างลูกค้าใหม่" (F4-parity) [x]
+DONE 2026-07-16 (WP-C) — minimal fix per spec (no inline form build). Traced the
+"เลือกลูกค้า" modal to `components/create/PartySelectBox.tsx` (`kind="customer"`),
+which is the customer picker behind EVERY sales create form that has one —
+`QuotationForm`, `SalesOrderForm`, `BillingNoteForm`, `DeliveryOrderForm`,
+`tax-invoices/new`, `receipts/new` (confirmed via grep of `kind="customer"`) — all
+routing through the shared `components/ui/EntityPickerModal.tsx`. Two files:
+1. `EntityPickerModal.tsx` — added two new optional props, `createHref`/`createLabel`,
+   independent of the existing `renderQuickCreate` inline-form mechanism (vendor-only,
+   unchanged): when set and no inline quick-create is active, the footer renders a
+   `target="_blank" rel="noopener noreferrer"` link instead of the quick-create toggle
+   button. Added a `refreshTick` state bumped by a `window.addEventListener('focus', ...)`
+   effect (active only while the modal is `open`) and wired into the debounced-search
+   effect's dependency array, so the list refetches when the window regains focus —
+   the new customer (created in the new tab) appears without the user retyping the
+   search box.
+2. `components/create/PartySelectBox.tsx` — passes `createHref="/customers/new"` +
+   `createLabel={tp('createCustomer')}` only for `kind === 'customer'` (vendor keeps
+   its existing inline `VendorQuickCreateForm`, untouched).
+3. `messages/th.json`/`en.json` — new `party.createCustomer` key ("+ สร้างลูกค้าใหม่" /
+   "+ Add new customer").
+`components/ui/CustomerSelector.tsx` (used only in report FILTER contexts —
+ar-aging, customer-statement — not any document-creation flow) was left untouched;
+S8's finding is specifically about the "เลือกลูกค้า" modal on sales creation forms.
+RUNTIME VERIFIED — opened the customer picker from `/quotations/new`: "+ สร้างลูกค้าใหม่"
+link renders in the modal footer with `href="/customers/new"` (new-tab target
+confirmed in source; not independently screenshotted mid-navigation since verifying
+the href + the shared focus-refetch effect is sufficient evidence of the wiring).
 
 ## S4 — BU column "—" on 3 sales list pages (BUG, backend, R8-family) [x]
 Root cause (audited, evidence in PROGRESS): list DTO + ListAsync projection omit
@@ -287,24 +337,90 @@ BusinessUnitId; entity + Detail DTO + FE all have/expect it.
   — should self-resolve now the field is populated, but flagging for WP-B/Fable to
   confirm live.
 
-## S1 — dashboard first-paint flash (UX minor, FE) [ ]
+## S1 — dashboard first-paint flash (UX minor, FE) [x]
 Pre-hydration paint shows ฿0.00 stat cards + "VAT สุทธิ" card (wrong for non-VAT co) +
 empty nav section headers ~1-2s before company context loads.
-- [ ] Show skeleton/shimmer (or hide cards) until company + sysInfo loaded; never render
+- [x] Show skeleton/shimmer (or hide cards) until company + sysInfo loaded; never render
       the vatOnly card before vatMode known; nav sections render only with their items.
+      DONE 2026-07-16 (WP-C) — (a) dashboard (`app/(dashboard)/page.tsx`): KPI tile
+      section now renders 4 `KpiSkeleton` shimmer tiles while `useTaxSummary(...).isLoading`
+      instead of `formatTHB(cur?.revenue ?? 0)` → "฿0.00"; `vatMode` default flipped
+      `?? true` → `?? false` (undefined is no longer treated as VAT-registered), so the
+      "VAT สุทธิ" tile + the tax-invoice quick action never render before `/system/info`
+      resolves. `components/app-shell/SidebarNav.tsx`: same `?? false` default for
+      `vatOnly` gating; section rendering restructured to compute `visibleItems` first
+      and `return null` for the whole section (header included) when empty — fixes the
+      orphan-header-over-nothing flash while `/me/permissions` is still loading (every
+      perm-gated item filters out during that window). (b) VAT column/preview-row flash
+      on sales create forms: `components/ui/LineItemsTable.tsx` `showVat` default
+      flipped to `?? false` (SHARED component — this one fix covers the "อัตราภาษี VAT
+      7%" column on every form that uses it, sales AND purchase); same `?? false` default
+      applied to the local `vatMode` var driving the VAT preview-total row in
+      `QuotationForm.tsx`, `SalesOrderForm.tsx`, `BillingNoteForm.tsx` (the 3 sales
+      create/edit forms with that ternary pattern — matches "quotation/other sales
+      create forms" in scope). `AdjustmentNoteForm.tsx` (CN/DN) and `receipts/new/page.tsx`
+      were investigated and left untouched: CN/DN's VAT row is unconditional (no flash to
+      fix) and its `vatMode` only drives a whole-page `NonVatGuard`, a different/riskier
+      mechanism not named in the finding; receipts/new's `vatMode` already gates its
+      `mode` choice behind an explicit `sysInfo.isLoading` check (no live bug there) —
+      changing scope here was judged to add regression risk without fixing a named
+      symptom. RUNTIME VERIFIED 2026-07-16 (local :3000/:5080, demo-admin, company
+      switched to "Manual Demo Co., Ltd." [VAT] then "Non-VAT Demo Shop"): hard-reload
+      screenshots caught the KPI section as 4 shimmer skeletons (not ฿0.00) and the
+      sidebar showing only the 3 always-visible items (no orphan section headers) during
+      the loading window; post-hydrate the VAT company correctly shows 5 tiles + full
+      nav, the non-VAT company correctly shows 4 tiles (no VAT tile, ever) + nav without
+      taxInvoices/creditNotes/debitNotes; `/quotations/new` on the non-VAT company shows
+      no "อัตราภาษี" column and no VAT preview row. No console errors.
 
-## S2 — breadcrumb i18n inconsistency (i18n minor, FE) [ ]
+## S2 — breadcrumb i18n inconsistency (i18n minor, FE) [x]
 /customers breadcrumb = "แดชบอร์ด > customers" (EN slug) while /quotations shows Thai.
-- [ ] Audit breadcrumb source; map all route segments through nav i18n keys (th.json).
+- [x] Audit breadcrumb source; map all route segments through nav i18n keys (th.json).
+      DONE 2026-07-16 (WP-C) — source is `components/layout/Topbar.tsx`'s `SEG_KEY`
+      map (path segment → `nav.*` i18n key); it only had the sales-side + a few other
+      routes, so any unmapped segment (e.g. `customers`) fell through to the raw slug.
+      Swept every route folder under `app/(dashboard)/` (from a fresh `find` of the
+      directory tree) against every key in `messages/th.json`'s `nav` namespace and
+      added every missing mapping — master data (`customers`), purchase
+      (`outstanding-po`, `ap-aging`, `expense-claims`, `fixed-assets`, `depreciation`,
+      `wht-receivable`), `payroll`, `period-close`, `documents`, `missing-wht-cert`,
+      `bank-accounts`, every `settings/*` sub-route (company/companies/roles/users/
+      products/business-units/employees/wht-types/expense-categories/api-keys), and
+      every `reports/*` sub-route (tax-summary/trial-balance/balance-sheet/profit-loss/
+      general-ledger/bank-reconciliation/ar-aging/customer-statement/vendor-ledger/
+      sales-summary/pnd30). Verified every added key exists in BOTH `th.json` and
+      `en.json`'s `nav` namespace (node script diff, zero missing). Routes with no
+      corresponding nav item (`journals`, `tax-filings/cit`, `bank-accounts/.../imports`)
+      were left unmapped by design — same as before, falls back to the raw segment.
+      RUNTIME VERIFIED — /customers breadcrumb now reads "แดชบอร์ด > ลูกค้า" (was
+      "แดชบอร์ด > customers").
 
-## S3 — list status-filter options raw EN enum (i18n minor, FE) [ ]
+## S3 — list status-filter options raw EN enum (i18n minor, FE) [x]
 /quotations สถานะ dropdown shows "Accepted"/"Draft"; table badges are Thai.
-- [ ] Localize status options via existing status-label map; sweep ALL sales list pages
+- [x] Localize status options via existing status-label map; sweep ALL sales list pages
       (and purchase pages for parity) for the same dropdown pattern.
+      DONE 2026-07-16 (WP-C) — single shared fix in `components/ui/DataTable.tsx`'s
+      `ColumnFilter` (the one place EVERY list page's select-filter dropdown is
+      rendered): for a column whose id is `status` or `paymentStatus` (the convention
+      every list page already uses — verified via a full grep of `filter: 'select'`
+      across `app/(dashboard)/**`), each raw option value is now run through
+      `useTranslations('status')` (the SAME i18n namespace `StatusBadge` already uses
+      for the table's own badges), with a try/catch fallback to the raw value for any
+      status not in the map. One file, covers every sales AND purchase list page
+      (quotations, sales-orders, delivery-orders, invoices, receipts, purchase-orders,
+      vendor-invoices, tax-invoices ×2 columns, wht-certificates, plus fixed-assets/
+      payroll/expense-claims which reuse the same `status` id) without touching each
+      page individually. `isActive`/type/category select filters (booleans/free-form,
+      not the workflow-status enum this finding is about) were left untouched.
+      RUNTIME VERIFIED — /quotations สถานะ dropdown now shows "ทั้งหมด" / "ตอบรับแล้ว" /
+      "ส่งแล้ว" (was "All"/"Accepted"/"Draft"/"Sent"), filter still works (value=
+      "Accepted"/"Sent" underneath, unchanged).
 
-## S5 — list date-range filters native mm/dd/yyyy, no BE hint (UX minor, FE) [ ]
+## S5 — list date-range filters native mm/dd/yyyy, no BE hint (UX minor, FE) [x]
 WP4.1 added BE hints to form date inputs only; list filters lack them.
-- [ ] Reuse the WP4.1 hint component/pattern on list filter date inputs (all list pages).
+- [x] Reuse the WP4.1 hint component/pattern on list filter date inputs (all list pages).
+      DONE 2026-07-16 (WP-C) — merged with S7 below (same fix). See S7 for the
+      evidence/detail (kept together since S7's line covers the "merge into S5" note).
 
 ## Non-fixes (documented for manual instead)
 - S6: ใบวางบิล = ใบแจ้งหนี้ (/invoices) by design; ใบกำกับภาษี/CN/DN hidden on non-VAT co
@@ -371,3 +487,32 @@ WP4.1 added BE hints to form date inputs only; list filters lack them.
   local dev-stack processes after verification. Full tsc + vitest re-run green
   immediately before this entry. No git commit made (per instructions) — diff is ready
   for Fable's review.
+- 2026-07-16 ~15:0x-15:5x (WP-C worker): implemented S1, S2, S3, S5+S7, S8 (see each
+  section above for detail). 11 files under frontend/: `app/(dashboard)/page.tsx`,
+  `components/app-shell/SidebarNav.tsx`, `components/ui/LineItemsTable.tsx`,
+  `components/forms/QuotationForm.tsx`, `components/forms/SalesOrderForm.tsx`,
+  `components/forms/BillingNoteForm.tsx`, `components/layout/Topbar.tsx`,
+  `components/ui/DataTable.tsx`, `components/ui/EntityPickerModal.tsx`,
+  `components/create/PartySelectBox.tsx`, `messages/th.json`+`en.json` (well under the
+  ~20-file cap; a sweep-scoped task that came in at 11 by centralizing every fix at its
+  ONE shared-component choke point — `DataTable.tsx`/`LineItemsTable.tsx`/
+  `EntityPickerModal.tsx`/`Topbar.tsx` — instead of touching each of the 10+ list pages
+  or 6+ forms individually). Gates: `npx tsc --noEmit` clean; `npx vitest run` 13
+  files/61 tests green (unchanged from WP-B's baseline — no regressions, no new test
+  file added: every change this round is conditional-render/event-wiring on existing
+  untested render paths, consistent with the rest of these files, not new extractable
+  pure-function logic). Footgun hit: `dotnet run` on a bare shell defaults to
+  `ASPNETCORE_ENVIRONMENT=Production` and crashes on missing OAuth cert paths — fixed
+  by setting `ASPNETCORE_ENVIRONMENT=Development` explicitly; documented as a new
+  troubles-wiki.md entry (distinct from the existing MSB3027-locked-DLL one). Runtime
+  verified live on local :3000/:5080 (backend fresh `dotnet run`, frontend fresh
+  `next dev`, per the stale-dev-server footgun): logged in as demo-admin,
+  company-switched between "Manual Demo Co., Ltd." (VAT) and "Non-VAT Demo Shop" to
+  exercise both sides of the S1 vatMode-flash fix — dashboard KPI skeleton (not
+  ฿0.00) during load, no VAT tile/nav items ever on the non-VAT company, correct
+  5-tile/full-nav on the VAT company; /customers breadcrumb "ลูกค้า" (S2); /quotations
+  status filter "ตอบรับแล้ว"/"ส่งแล้ว" (S3); QT form + list-filter BE hints
+  "= dd/MM/2569" (S5/S7, confirmed the list filter still actually filters);
+  customer-picker "+ สร้างลูกค้าใหม่" link present with the correct href (S8). No
+  console errors across any navigation. Killed both local dev-stack processes after
+  verification. No git commit made (per instructions) — diff ready for Fable's review.
