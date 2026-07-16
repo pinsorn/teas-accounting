@@ -1,7 +1,20 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- Phase: **v1.21.2 DEPLOYED (2026-07-15 ~20:25) — R2 Option B + BU-column batch LIVE.**
+- Phase: **SALES-SIDE UX TEST (Ham /goal 2026-07-15 ~23:30) — IN PROGRESS, browser
+  phases login-BLOCKED.** PROGRESS-sales-uxtest.md = live log. Done: Phase 0-1
+  (orient, customer VAT validation ✓), Phase 2 partial (quotation list), findings
+  S1–S6 logged + interim report REPORT-sales-uxtest-interim.md sent to Ham, fix spec
+  specs/fix-sales-ux-findings-2026-07-16.md DRAFT (await Ham go), manual ch.4 refreshed
+  + committed 420a4c0 (11/11 captures green, ใบวางบิล=ใบแจ้งหนี้ + vatOnly notes).
+  **Top finding S4 (backend bug): Quotation/SalesOrder/DeliveryOrder list DTOs +
+  projections lack BusinessUnitId → BU column "—" + BU filter dead on those 3 pages;
+  fix = 3 DTOs + 3 projections per BillingNote pattern, needs API deploy.**
+  BLOCKED: prod session expired ~03:1x — Phases 2–5 (QT create/edit/approve → SO →
+  DO → INV → RC + AR reports) resume the moment Ham logs into teas.kazaki-rio.com
+  (wakeup chain standing, checks hourly). MCP connector TEAS-Repttown also needs
+  re-auth (token expired).
+- Prior phase: **v1.21.2 DEPLOYED (2026-07-15 ~20:25) — R2 Option B + BU-column batch LIVE.**
   Ham decisions executed: (B) PO draft edit now PRESERVES DocDate (§10 amended,
   UpdateDraftAsync; Create/Approve pinning untouched; new integration test) + BU-column
   stale-memo fix on all remaining 8 list pages. Commits 0258260 (BU×8) + 6368451 (Option B),
