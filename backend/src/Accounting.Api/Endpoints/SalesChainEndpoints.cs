@@ -67,6 +67,16 @@ public static class SalesChainEndpoints
             var id = await svc.CreateDraftAsync(req, ct);
             return Results.Created($"/sales-orders/{id}", new { sales_order_id = id });
         });
+        // S15 (2026-07-16 fix) — Draft-only edit, same auth/permission shape as the create
+        // above (soPol, applied group-wide) and the same shape as the Quotation PUT.
+        so.MapPut("/{id:long}", async (long id, [FromBody] CreateSalesOrderRequest req,
+            IValidator<CreateSalesOrderRequest> v, ISalesOrderService svc, CancellationToken ct) =>
+        {
+            var r = await v.ValidateAsync(req, ct);
+            if (!r.IsValid) return Results.ValidationProblem(r.ToDictionary());
+            await svc.UpdateDraftAsync(id, req, ct);
+            return Results.NoContent();
+        });
         so.MapPost("/{id:long}/post", async (long id, ISalesOrderService s, CancellationToken ct) =>
             { await s.PostAsync(id, ct); return Results.NoContent(); });
         so.MapPost("/{id:long}/delivery-orders", async (long id,

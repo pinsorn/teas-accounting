@@ -27,6 +27,15 @@ public sealed class SalesOrderService(
             .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
 
+        // S9 (2026-07-16 fix) — same company-level BU requirement as Quotation/TaxInvoice/
+        // Receipt: a direct SO create (POST /sales-orders) must not slip a null BU through
+        // when the company opted in.
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+
         var so = new SalesOrder
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
@@ -63,6 +72,72 @@ public sealed class SalesOrderService(
         activity.Record("SalesOrder", so.SalesOrderId, so.DocNo, so.CompanyId, "Created", toStatus: "Draft");
         await db.SaveChangesAsync(ct);
         return so.SalesOrderId;
+    }
+
+    // S15 (2026-07-16 fix) — Draft-only full edit, mirrors Quotation's UpdateDraftAsync:
+    // replaces line items wholesale (drop+add), recomputes header aggregates. DocDate is
+    // user-editable (§10 Option B — passed through from the request, never re-pinned).
+    public async Task UpdateDraftAsync(long id, CreateSalesOrderRequest req, CancellationToken ct)
+    {
+        Auth();
+        var so = await db.SalesOrders.Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.SalesOrderId == id, ct)
+            ?? throw new DomainException("so.not_found", $"Sales Order {id} not found.");
+        if (so.Status != SalesOrderStatus.Draft)
+            throw new DomainException("so.cannot_edit_after_post",
+                "Sales Order can only be edited while in Draft.");
+
+        var cust = await db.Customers.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
+            ?? throw new DomainException("customer.not_found", "Customer not found.");
+
+        // S9 (2026-07-16 fix) — same company-level BU requirement as Create; an edit can
+        // otherwise re-null a previously-valid BU before Post.
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+
+        so.DocDate = req.DocDate;
+        so.ExpectedDeliveryDate = req.ExpectedDeliveryDate;
+        so.CustomerId = cust.CustomerId;
+        so.CustomerName = cust.NameTh;
+        so.CustomerAddress = cust.BillingAddress;
+        so.CustomerTaxId = cust.TaxId;
+        so.CustomerType = cust.CustomerType;
+        so.BusinessUnitId = req.BusinessUnitId;
+        so.CurrencyCode = req.CurrencyCode;
+        so.ExchangeRate = req.ExchangeRate;
+        so.Notes = req.Notes;
+
+        db.RemoveRange(so.Lines);
+        so.Lines.Clear();
+        so.SubtotalAmount = so.VatAmount = so.TotalAmount = 0m;
+
+        // §4.6 / ม.80 — VAT rate + tax-code classification come from company master data.
+        var cfg = await taxCfg.GetAsync(ct);
+        var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
+        var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+        int n = 1;
+        foreach (var l in req.Lines)
+        {
+            var (prodType, taxRate, taxCode) =
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
+            var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
+            so.Lines.Add(new SalesOrderLine
+            {
+                LineNo = n++, ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
+                Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
+                DiscountPercent = l.DiscountPercent, LineAmount = net,
+                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxAmount = vat, TotalAmount = total,
+            });
+            so.SubtotalAmount += net; so.VatAmount += vat; so.TotalAmount += total;
+        }
+        // S12-BE (2026-07-16 fix) — same activity-logging parity as Quotation's draft edit.
+        activity.Record("SalesOrder", so.SalesOrderId, so.DocNo, so.CompanyId, "Updated");
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task PostAsync(long id, CancellationToken ct)
@@ -185,7 +260,7 @@ public sealed class SalesOrderService(
         return await qy.OrderByDescending(x => x.SalesOrderId)
             .Select(x => new SalesOrderListItem(
                 x.SalesOrderId, x.DocNo, x.Status.ToString(), x.DocDate,
-                x.CustomerName, x.TotalAmount, x.QuotationId)).ToListAsync(ct);
+                x.CustomerName, x.TotalAmount, x.QuotationId, x.BusinessUnitId)).ToListAsync(ct);
     }
 
     public async Task<SalesOrderDetail?> GetAsync(long id, CancellationToken ct)
@@ -368,7 +443,7 @@ public sealed class DeliveryOrderService(
             .Select(x => new DeliveryOrderListItem(
                 x.DeliveryOrderId, x.DocNo, x.Status.ToString(), x.DocDate,
                 x.CustomerName, x.IsCombinedWithTi, x.TaxInvoiceId, x.SalesOrderId,
-                x.CustomerId, x.TotalAmount))
+                x.CustomerId, x.TotalAmount, x.BusinessUnitId))
             .ToListAsync(ct);
     }
 

@@ -72,7 +72,9 @@ public sealed record QuotationListItem(
     DateOnly ValidUntilDate, string CustomerName, decimal TotalAmount,
     long? ConvertedToSoId,
     // M4a — non-null when draft was created by an MCP/API-key agent.
-    string? CreatedViaApiKey = null);
+    string? CreatedViaApiKey = null,
+    // S4 (2026-07-16 fix) — BU column on the list page; was omitted, causing "—" always.
+    int? BusinessUnitId = null);
 
 public sealed record QuotationDetail(
     long QuotationId, string? DocNo, string Status, DateOnly DocDate,
@@ -85,7 +87,9 @@ public sealed record QuotationDetail(
 
 public sealed record SalesOrderListItem(
     long SalesOrderId, string? DocNo, string Status, DateOnly DocDate,
-    string CustomerName, decimal TotalAmount, long? QuotationId);
+    string CustomerName, decimal TotalAmount, long? QuotationId,
+    // S4 (2026-07-16 fix) — BU column on the list page; was omitted, causing "—" always.
+    int? BusinessUnitId = null);
 
 public sealed record SalesOrderDetail(
     long SalesOrderId, string? DocNo, string Status, DateOnly DocDate,
@@ -102,7 +106,9 @@ public sealed record DeliveryOrderListItem(
     string CustomerName, bool IsCombinedWithTi, long? TaxInvoiceId, long? SalesOrderId,
     // Non-VAT receipt apply-to-DO (cont. 68): the DO picker scopes by customer and
     // prefills the applied amount, so the list item must carry both.
-    long CustomerId = 0, decimal TotalAmount = 0);
+    long CustomerId = 0, decimal TotalAmount = 0,
+    // S4 (2026-07-16 fix) — BU column on the list page; was omitted, causing "—" always.
+    int? BusinessUnitId = null);
 
 public sealed record DeliveryOrderDetail(
     long DeliveryOrderId, string? DocNo, string Status, DateOnly DocDate,
@@ -134,6 +140,9 @@ public interface IQuotationService
 public interface ISalesOrderService
 {
     Task<long> CreateDraftAsync(CreateSalesOrderRequest req, CancellationToken ct);
+    // S15 (2026-07-16 fix) — Draft-only full edit, mirrors Quotation's UpdateDraftAsync
+    // (§10 Option B: DocDate is user-editable, passed through from the request verbatim).
+    Task UpdateDraftAsync(long id, CreateSalesOrderRequest req, CancellationToken ct);
     Task PostAsync(long id, CancellationToken ct);
     Task<long> CreateDeliveryOrderAsync(long salesOrderId, CreateDeliveryOrderRequest req, CancellationToken ct);
     Task<IReadOnlyList<SalesOrderListItem>> ListAsync(string? status, CancellationToken ct);

@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 289 |
+| Perm | 290 |
 | Assertion | 6 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **344** |
+| **TOTAL** | **345** |
 
 ## Routes
 
@@ -286,6 +286,7 @@
 | GET | `/sales-orders/` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/` | Perm | sales.sales_order.manage |
 | GET | `/sales-orders/{id:long}` | Perm | sales.sales_order.manage |
+| PUT | `/sales-orders/{id:long}` | Perm | sales.sales_order.manage |
 | GET | `/sales-orders/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/sales-orders/{id:long}/create-invoice` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/{id:long}/delivery-orders` | Perm | sales.sales_order.manage |

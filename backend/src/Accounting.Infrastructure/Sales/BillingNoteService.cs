@@ -44,6 +44,14 @@ public sealed class BillingNoteService(
                 && c.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
 
+        // S9 (2026-07-16 fix) — same company-level BU requirement as Quotation/TaxInvoice/
+        // Receipt: a direct Invoice create must not slip a null BU through when opted in.
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+
         var bn = new BillingNote
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
@@ -83,11 +91,19 @@ public sealed class BillingNoteService(
             throw new DomainException("do.invoice_exists",
                 $"Delivery Order {deliveryOrderId} already has an Invoice.");
 
+        // S14 (2026-07-16 fix) — DueDate previously always equalled DocDate, ignoring the
+        // customer's credit term. Apply PaymentTermDays when set; keep prior behavior
+        // (DueDate = DocDate) when 0/unset.
+        var custTermDays = await db.Customers.AsNoTracking()
+            .Where(c => c.CustomerId == dord.CustomerId).Select(c => c.PaymentTermDays).FirstOrDefaultAsync(ct);
+        var docDate = clock.TodayInBangkok();
+        var dueDate = custTermDays > 0 ? docDate.AddDays(custTermDays) : docDate;
+
         var bn = new BillingNote
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
             // §10 — chain-copy re-derives DocDate deterministically to Asia/Bangkok today.
-            Status = BillingNoteStatus.Draft, DocDate = clock.TodayInBangkok(), DueDate = clock.TodayInBangkok(),
+            Status = BillingNoteStatus.Draft, DocDate = docDate, DueDate = dueDate,
             CustomerId = dord.CustomerId, CustomerName = dord.CustomerName,
             CustomerAddress = dord.CustomerAddress, CustomerTaxId = dord.CustomerTaxId,
             CustomerType = dord.CustomerType, BusinessUnitId = dord.BusinessUnitId,
@@ -141,10 +157,18 @@ public sealed class BillingNoteService(
             throw new DomainException("so.invoice_exists",
                 $"Sales Order {salesOrderId} already has an Invoice.");
 
+        // S14 (2026-07-16 fix) — DueDate previously always equalled DocDate, ignoring the
+        // customer's credit term. Apply PaymentTermDays when set; keep prior behavior
+        // (DueDate = DocDate) when 0/unset.
+        var custTermDays = await db.Customers.AsNoTracking()
+            .Where(c => c.CustomerId == so.CustomerId).Select(c => c.PaymentTermDays).FirstOrDefaultAsync(ct);
+        var docDate = clock.TodayInBangkok();
+        var dueDate = custTermDays > 0 ? docDate.AddDays(custTermDays) : docDate;
+
         var bn = new BillingNote
         {
             CompanyId = tenant.CompanyId, BranchId = tenant.BranchId,
-            Status = BillingNoteStatus.Draft, DocDate = clock.TodayInBangkok(), DueDate = clock.TodayInBangkok(),
+            Status = BillingNoteStatus.Draft, DocDate = docDate, DueDate = dueDate,
             CustomerId = so.CustomerId, CustomerName = so.CustomerName,
             CustomerAddress = so.CustomerAddress, CustomerTaxId = so.CustomerTaxId,
             CustomerType = so.CustomerType, BusinessUnitId = so.BusinessUnitId,
@@ -212,6 +236,14 @@ public sealed class BillingNoteService(
             .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId
                 && c.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
+
+        // S9 (2026-07-16 fix) — same company-level BU requirement as Create; an edit can
+        // otherwise re-null a previously-valid BU before Issue.
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
 
         bn.DocDate = clock.TodayInBangkok(); bn.DueDate = req.DueDate;   // §10 — re-pin on edit
         bn.CustomerId = cust.CustomerId; bn.CustomerName = cust.NameTh;

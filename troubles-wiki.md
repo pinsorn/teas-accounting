@@ -271,6 +271,12 @@ Entry format — terse, greppable by symptom:
   `Stop-Process -Id <N> -Force` → rerun `dotnet build`. If PID is stale/unknown, `Get-Process -Name
   testhost` to find any survivors first.
 - **Seen:** 2026-07-08, mcp-expansion Codex-minor-fix follow-up task.
+- **Variant (2026-07-16, WP-A sales-ux-findings):** the locking process was `Accounting.Api.exe`
+  itself, not `testhost` — a stale `dotnet run` dev-server left running from an earlier session,
+  holding its own `Accounting.Domain.dll`/`Accounting.Application.dll`/`Accounting.Infrastructure.dll`
+  copies locked. Same symptom/fix: `taskkill //PID <N> //F` (or `Stop-Process -Id <N> -Force` in
+  PowerShell), confirm via `tasklist //FI "PID eq <N>"` first if unsure what the PID is before
+  killing it — a build worker doesn't know if it's the user's live server.
 
 ## Posted-document "immutability" trigger doesn't fire on a header-only field edit (Receipt trigger 570, or any `fn_enforce_*_immutability`-style trigger)
 - **Root cause:** `fn_enforce_receipt_immutability()` (`SqlScripts/570_receipt_immutability_rls.sql`) —

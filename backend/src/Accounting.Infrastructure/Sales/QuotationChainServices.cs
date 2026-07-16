@@ -52,6 +52,15 @@ public sealed class QuotationService(
                 $"request specified {req.BusinessUnitId}.");
         req = req with { BusinessUnitId = effBu };
 
+        // S9 (2026-07-16 fix) — company-level BU requirement (same rule already enforced
+        // on TaxInvoice/Receipt/TaxAdjustmentNote): MCP/API drafts must not slip through
+        // with a null BU when the company opted in.
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+
         var cust = await db.Customers.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
@@ -116,6 +125,14 @@ public sealed class QuotationService(
             .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
             ?? throw new DomainException("customer.not_found", "Customer not found.");
 
+        // S9 (2026-07-16 fix) — same company-level BU requirement as Create; an edit can
+        // otherwise re-null a previously-valid BU before Send.
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
+        if (requiresBu && req.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
+
         q.DocDate = req.DocDate;
         q.ValidUntilDate = req.ValidUntilDate;
         q.CustomerId = cust.CustomerId;
@@ -154,6 +171,8 @@ public sealed class QuotationService(
             });
             q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;
         }
+        // S12-BE (2026-07-16 fix) — draft edits previously wrote no activity entry at all.
+        activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Updated");
         await db.SaveChangesAsync(ct);
     }
 
@@ -181,6 +200,13 @@ public sealed class QuotationService(
         var q = await LoadAsync(id, ct);
         if (q.Status != QuotationStatus.Draft)
             throw new DomainException("quotation.bad_status", "Only a Draft quotation can be sent.");
+        // S9 (2026-07-16 fix) — defense at the numbering gate: catches drafts created BEFORE
+        // this fix (e.g. MCP agent drafts) that already carry a null BU on a BU-required company.
+        var requiresBu = await db.Companies
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
+        if (requiresBu && q.BusinessUnitId is null)
+            throw new DomainException("bu.required", "Business Unit is required for this company.");
         q.DocNo = await SubPrefixNumberAsync("QT", q.BusinessUnitId, q.DocDate, ct);
         q.Status = QuotationStatus.Sent;
         q.SentAt = clock.UtcNow;
@@ -289,7 +315,7 @@ public sealed class QuotationService(
             .Select(x => new QuotationListItem(
                 x.QuotationId, x.DocNo, x.Status.ToString(), x.DocDate,
                 x.ValidUntilDate, x.CustomerName, x.TotalAmount, x.ConvertedToSoId,
-                x.CreatedViaApiKeyName))
+                x.CreatedViaApiKeyName, x.BusinessUnitId))
             .ToListAsync(ct);
     }
 
