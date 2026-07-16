@@ -1,6 +1,20 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **PAYROLL + REPORTS UX TEST COMPLETE (2026-07-16 ~23:1x, Chrome on prod, Repttown).**
+  Goal (Ham /goal): เงินเดือน + รายงาน ละเอียด, UX-first → Finding report → Manual ถ้าไม่มีปัญหา.
+  Payroll draft lifecycle tested end-to-end (create/calc/dup-guard/delete — NEVER posted, zero
+  GL impact); all 14 report pages tested, cross-report numbers tie everywhere checked.
+  **20 findings** → `REPORT-payroll-reports-uxtest.md`; fix spec
+  `specs/fix-payroll-reports-findings-2026-07-16.md` **PENDING HAM APPROVAL**. Highlights:
+  ChunkLoadError white-screens (2×, CF 503 on _next chunks, no error boundary); blank error
+  toasts app-wide (openPdf statusText on HTTP/2); employee edit modal stale-cache seed =
+  silent data-revert risk; i18n leaks (common.yes/no, report.total); P&L dev note on prod.
+  **S13 SMOKING GUN CAPTURED**: PUT employees/2 → origin 204 / browser 503; origin log has
+  ZERO 503s all day → all 5xx generated at CF edge (evidence chain in report §Infra, window
+  22:10–22:40 ICT for Ham's CF log pull). **Manual ใหม่ DEFERRED** — เงื่อนไข "ไม่มีปัญหา"
+  ไม่ผ่าน; ทำหลัง fix round. Cleanup: no payroll runs left; BUTEST-EMP salary now ฿30,000
+  (test fixture, harmless).
 - **v1.21.4 DEPLOYED TO PROD (2026-07-16 ~21:37, Ham-approved "deploy เลยลุย").** Sales
   fix round LIVE — 83e47f9 (WP-A backend), e71f3e3 (WP-B FE flow), 996d91a (WP-C polish),
   all 16 S1-S16 findings. release-please PR #83 admin-merged (checks never fire on that
