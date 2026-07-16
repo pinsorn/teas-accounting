@@ -1,7 +1,37 @@
 # Fix spec — sales-side UX findings (2026-07-16, from PROGRESS-sales-uxtest.md)
 
-Status: DRAFT — test still in progress (Phases 3–5 pending prod login); S-numbers may
-grow. Do NOT dispatch until Ham approves the fix round.
+Status: TEST COMPLETE 2026-07-16 — findings final (S1–S16, see REPORT-sales-uxtest.md).
+Do NOT dispatch until Ham approves the fix round.
+
+## S13 — intermittent 503 on prod writes that still APPLY (INFRA, investigate FIRST) [ ]
+PUT /api/proxy/quotations/6, POST .../send, POST /api/proxy/sales-orders/5/post + one
+RSC GET all returned 503 (~05:3x-06:0x 2026-07-16) yet every operation applied; FE
+retry/refetch masked it. Investigate nginx/proxy timeout+buffering vs Kestrel; risk =
+duplicate apply on non-idempotent POST retry. FE: surface a real error when final
+retry fails; consider idempotency keys on send/post endpoints.
+
+## S11 — no confirm dialog on QT ส่ง (issues doc number!), QT ตอบรับ, SO post, INV ออก [ ]
+Only RC post has the WP3.6-style dialog. Add parity dialogs (totals + consequence
+text) at minimum on number-issuing/immutable hops: QT send, SO post, INV issue.
+
+## S12 — side panels stale after actions on sales detail pages (F10-parity) [ ]
+Refs/activity panels don't refetch after send/accept/post; edit writes no activity
+entry; "ส่งแล้ว → ส่งแล้ว" wording redundant (R6-parity).
+
+## S16 — receipt-from-invoice doesn't prefill BU from upstream invoice [ ]
+/receipts/new?bn=5 leaves BU "— ต้องระบุ —" though invoice has businessUnitId=3.
+
+## S15 — converted drafts (SO-from-QT, INV-from-SO) have no แก้ไข [ ]
+Add edit route/button parity with QT draft (F6-parity), or explicit design ruling.
+
+## S9 — API allows BU-null drafts while FE requires BU [ ]
+MCP-created QT #5/#6 had businessUnitId=null. Enforce server-side on create/send
+(company requires BU), align MCP tool validation.
+
+## S10 — QT detail page doesn't display หน่วยธุรกิจ [ ]
+## S14 — verify invoice due-date default vs customer credit term [ ]
+## S7/S5 — BE hints + date-locale on QT form dates & all list filters (merge into S5) [ ]
+## S8 — customer picker modal: add inline "สร้างลูกค้าใหม่" (F4-parity) [ ]
 
 ## S4 — BU column "—" on 3 sales list pages (BUG, backend, R8-family) [ ]
 Root cause (audited, evidence in PROGRESS): list DTO + ListAsync projection omit

@@ -1,19 +1,17 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- Phase: **SALES-SIDE UX TEST (Ham /goal 2026-07-15 ~23:30) — IN PROGRESS, browser
-  phases login-BLOCKED.** PROGRESS-sales-uxtest.md = live log. Done: Phase 0-1
-  (orient, customer VAT validation ✓), Phase 2 partial (quotation list), findings
-  S1–S6 logged + interim report REPORT-sales-uxtest-interim.md sent to Ham, fix spec
-  specs/fix-sales-ux-findings-2026-07-16.md DRAFT (await Ham go), manual ch.4 refreshed
-  + committed 420a4c0 (11/11 captures green, ใบวางบิล=ใบแจ้งหนี้ + vatOnly notes).
-  **Top finding S4 (backend bug): Quotation/SalesOrder/DeliveryOrder list DTOs +
-  projections lack BusinessUnitId → BU column "—" + BU filter dead on those 3 pages;
-  fix = 3 DTOs + 3 projections per BillingNote pattern, needs API deploy.**
-  BLOCKED: prod session expired ~03:1x — Phases 2–5 (QT create/edit/approve → SO →
-  DO → INV → RC + AR reports) resume the moment Ham logs into teas.kazaki-rio.com
-  (wakeup chain standing, checks hourly). MCP connector TEAS-Repttown also needs
-  re-auth (token expired).
+- Phase: **SALES-SIDE UX TEST COMPLETE (2026-07-16 ~06:1x).** Full chain E2E on prod
+  BU TEST: QT (create/edit-preserves-docDate/send/accept) → SO post → INV issue →
+  RC post (confirm dialog ✓) → Settled ✓ → AR aging balanced ✓ → PDF ✓.
+  FINAL report: REPORT-sales-uxtest.md (16 findings). Fix spec ready for Ham go:
+  specs/fix-sales-ux-findings-2026-07-16.md. Manual ch.4 refreshed (420a4c0).
+  **Top findings: S13 prod intermittently 503s on writes that still APPLY (proxy layer
+  — investigate first, dup-risk); S4 QT/SO/DO list DTOs lack BusinessUnitId (BU column
+  dead ×3 pages, needs API deploy); S11 no confirm dialogs on QT send (issues number!)
+  / SO post / INV issue — only RC has one.** Test docs left: QT #5/#8 drafts +
+  QT/SO/IV/RC-TEST-0002 chain (settled). MCP connector TEAS-Repttown still needs
+  re-auth (Ham). Awaiting Ham: fix-round go/no-go on S-findings.
 - Prior phase: **v1.21.2 DEPLOYED (2026-07-15 ~20:25) — R2 Option B + BU-column batch LIVE.**
   Ham decisions executed: (B) PO draft edit now PRESERVES DocDate (§10 amended,
   UpdateDraftAsync; Create/Approve pinning untouched; new integration test) + BU-column

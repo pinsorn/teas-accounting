@@ -106,7 +106,16 @@ BU column (v1.21.3 fix regression watch), confirm dialogs, i18n, date locale.
   dispatched to audit ALL sales list DTOs for missing BusinessUnitId (S4 scope) + FE
   sidebar nav BN/TI question. Next wakeup re-checks login.
 
-## Resume steps (next wakeup, in order)
+## COMPLETE (2026-07-16 ~06:1x) — all browser phases DONE after Ham login
+Phase 2-5 full run: QT #6 edit (BU set, docDate preserved ✓) → send → QT-TEST-0002 →
+accept → SO-TEST-0002 post → IV-TEST-0002 issue → RC-TEST-0002 post w/ confirm dialog →
+invoice Settled ✓ → AR aging balanced ✓ → PDF 200 ✓. New findings S7–S16 (top: S13
+intermittent prod 503-but-succeeds on writes; S11 no confirm dialogs QT/SO/INV hops;
+S16 RC no BU prefill; S15 converted drafts uneditable). FINAL report:
+REPORT-sales-uxtest.md (supersedes interim). Fix spec to be extended with S7-S16.
+Test docs left on prod: QT #8 + #5 drafts; QT/SO/IV/RC-TEST-0002 chain (settled).
+
+## Resume steps (OBSOLETE — test complete; kept for audit)
 1. Check quota state (~/.claude/quota-guard/state.json); if 5h window still >90%,
    re-schedule 60-min wakeup + stop.
 2. git add PROGRESS-sales-uxtest.md; commit checkpoint (pending from cliff).
