@@ -32,8 +32,40 @@ UX-focused, อย่างละเอียด → REPORT findings → ถ้�
       on reload; cross-report number consistency verified end-to-end)
 - [x] REPORT-payroll-reports-uxtest.md written (9 payroll + 11 report findings + S13 chain)
 - [x] specs/fix-payroll-reports-findings-2026-07-16.md created — PENDING HAM APPROVAL
-- [ ] Manual ใหม่ — DEFERRED: goal condition "หากไม่มีปัญหา" not met (พบ bug จริงหลายตัว);
-      ทำหลัง fix round ปิด มิฉะนั้น manual จะ document พฤติกรรมที่กำลังจะเปลี่ยน
+- [x] Ham decision (2026-07-16 ~23:2x): **"แก้ทั้งหมดเลย แก้หมดแล้วค่อยทำ manual"**
+      → fix round APPROVED, manual AFTER fixes. Manual-writer agent stopped (no files
+      written — tree clean).
+
+## FIX ROUND state (spec: specs/fix-payroll-reports-findings-2026-07-16.md)
+Quota hit 88% at fix-round start → Claude-worker dispatches frozen; route implementation
+to CODEX (separate pool). Fable reviews diffs + commits.
+Work packages (sequential — shared messages/*.json + one build env):
+- [ ] W1 (Codex): FE error-infra + employees + i18n + copy — P1 (lib/api.ts openPdf/
+      downloadFile problem-body + Thai fallback), R1 (global-error boundary TH + reload
+      btn + ChunkLoadError auto-retry-once), P2 (employees modal stale seed → seed after
+      fetch settles / re-seed on dataUpdatedAt), P4 (pencil: spinner + error toast +
+      refetch on error-cached click), P8 (aria-label), P3 (common.yes/no th+en),
+      R3 (report.total th+en), R2 (remove P&L dev note), P7 (BE hint วันที่จ่าย payroll
+      modal — copy pattern from QT form), P9 (destructive confirm red + toast copy)
+- [ ] W2 (Codex): payroll UX — P5 zero-salary warning badge + link, P6 payslip breakdown
+      modal (fields already in API payload: grossTaxable/grossNonTaxable/pitWithheld/
+      ssoEmployee/netPay + explainer ภาษีตามงวดที่เหลือของปี)
+- [ ] W3 (Codex): reports — R5 export TB/BS/P&L (backend endpoints per GL export pattern
+      + FE buttons), R4 vendor-ledger dates → Thai BE, R7 date presets P&L/sales-summary,
+      R8 GL picker code-prefix match, R9 bank-recon empty-state link, R11 copy,
+      R6 sales-summary: investigate basis + explanatory footnote/empty-state (do NOT
+      change data basis without Ham), R10 investigate picker double-click
+- [ ] Gates per WP: tsc --noEmit + next build; W3 backend: dotnet build + targeted tests;
+      Bengali ম grep on touched files
+- [ ] Fable: personal diff review EVERY WP before commit (no exceptions)
+- [ ] After W1-W3 all committed: deploy round (v1.21.5?) — ASK HAM before deploy
+- [ ] AFTER fixes verified: manual chapters 06+08 (re-dispatch with updated behaviors;
+      prior dispatch prompt in this session's history — reuse structure/facts + updates)
+
+## Resume steps (quota reset)
+1. Read this file + spec checklist + REPORT (findings detail)
+2. Check Codex task states (TaskList / codex-out); review any returned diffs personally
+3. Continue at first unchecked WP; commits autonomous after gates + diff review
 
 ## Findings log
 - PR-1 (bug, app-wide): openPdf/downloadFile (frontend/lib/api.ts:171,181) throw

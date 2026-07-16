@@ -1,7 +1,9 @@
 # Spec — Fix payroll + reports UX findings (2026-07-16)
 
 Source: `REPORT-payroll-reports-uxtest.md` (full evidence + repro there; this is the work checklist).
-Status: **PENDING HAM APPROVAL** — ไม่เริ่มจนกว่า Ham สั่ง (pattern เดียวกับ sales fix round).
+Status: **APPROVED โดย Ham 2026-07-16 "แก้ทั้งหมดเลย แก้หมดแล้วค่อยทำ manual"** — fix ALL,
+manual after. Execution grouped W1/W2/W3 per PROGRESS-payroll-reports-uxtest.md §FIX ROUND
+(quota-arbitrage: Codex implements, Fable reviews+commits).
 
 ## Checklist (ordered by impact — see report §ข้อเสนอลำดับ fix)
 
