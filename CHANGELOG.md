@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.21.4](https://github.com/pinsorn/teas-accounting/compare/v1.21.3...v1.21.4) (2026-07-16)
+
+
+### Bug Fixes
+
+* **sales-ui:** WP-B — confirm dialogs on QT send/accept/reject + SO post + INV issue/mark-settled (S11), live side-rail refetch + activity wording (S12-FE), SO+INV draft edit routes (S15), receipt BU prefill from invoice (S16), BU badge on detail pages (S10), BFF proxy 30s timeout with distinct 504 (S13a) ([e71f3e3](https://github.com/pinsorn/teas-accounting/commit/e71f3e321a810d3bbec43d70aa4196306313b332))
+* **sales-ui:** WP-C polish — hydration skeleton + vatMode never-flash (S1), breadcrumb i18n all routes (S2), status filter Thai labels (S3), BE date hints on forms + list filters (S5/S7), customer picker create link (S8) ([996d91a](https://github.com/pinsorn/teas-accounting/commit/996d91aac3373be4632edd00fd1586526237e570))
+* **sales:** WP-A backend — BU in QT/SO/DO list DTOs (S4), company BU requirement on create/edit/send gates (S9), invoice due date honors customer credit term (S14), draft-edit activity entries (S12-BE), SO draft update endpoint (S15-BE), double-call transition guards verified (S13b) ([83e47f9](https://github.com/pinsorn/teas-accounting/commit/83e47f9bc80068f09ab0e55c114a1dd2bd2eb866))
+
 ## [1.21.3](https://github.com/pinsorn/teas-accounting/compare/v1.21.2...v1.21.3) (2026-07-15)
 
 
