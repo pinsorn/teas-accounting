@@ -11,7 +11,14 @@
   dead ×3 pages, needs API deploy); S11 no confirm dialogs on QT send (issues number!)
   / SO post / INV issue — only RC has one.** Test docs left: QT #5/#8 drafts +
   QT/SO/IV/RC-TEST-0002 chain (settled). MCP connector TEAS-Repttown still needs
-  re-auth (Ham). Awaiting Ham: fix-round go/no-go on S-findings.
+  re-auth (Ham).
+- **FIX ROUND DONE (2026-07-16 evening, Ham-approved "แก้ทุก finding"):** S1–S16 all
+  landed on main — 83e47f9 (WP-A backend), e71f3e3 (WP-B FE flow), 996d91a (WP-C
+  polish). Gates green (17 new BE tests, suite baseline+2; FE tsc + 61 vitest;
+  runtime-verified local both VAT/non-VAT cos). S13 = Cloudflare edge (origin clean).
+  **NEXT = Ham decisions: (1) release/deploy — backend changed, needs API deploy w/
+  DB backup (no schema change); (2) CF dashboard 5xx pull 13:02-13:12 ICT 07-16;
+  (3) LE cert rate-limit cleanup (npm-1/9/11/23); (4) prod test-doc cleanup.**
 - Prior phase: **v1.21.2 DEPLOYED (2026-07-15 ~20:25) — R2 Option B + BU-column batch LIVE.**
   Ham decisions executed: (B) PO draft edit now PRESERVES DocDate (§10 amended,
   UpdateDraftAsync; Create/Approve pinning untouched; new integration test) + BU-column
