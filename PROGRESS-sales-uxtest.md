@@ -44,8 +44,11 @@ BU column (v1.21.3 fix regression watch), confirm dialogs, i18n, date locale.
 - [ ] Phase 4: delivery order, invoice from SO (CTA), tax invoice, posting + JE check.
 - [ ] Phase 5: billing note + receipt, settlement loop closes (AR side), customer
       statement/AR aging spot-check via MCP.
-- [ ] Phase 6: findings triage — file findings list; if clean → manual ch.4 refresh
-      (local Playwright pipeline, dispatch worker — quota permitting).
+- [~] Phase 6a: manual ch.4 refresh DISPATCHED EARLY (2026-07-16 ~04:3x, sonnet worker,
+      LOCAL pipeline — no prod needed) while browser test blocked at login. Scope:
+      doc-numbering format, S6 (ใบวางบิล=ใบแจ้งหนี้ + vatOnly menu note), customer VAT
+      validation note, neutral-caption the buggy BU column. Worker reports diff, no commit.
+- [ ] Phase 6b: findings triage + final report after Phases 2–5 complete.
 - [ ] Final: findings report for Ham + commit.
 
 ## Findings log (S-numbers)
