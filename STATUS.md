@@ -27,6 +27,16 @@
   no longer flashes empty section headers ✓. Sales fix round CLOSED end-to-end.
   Remaining for Ham (unchanged): CF 5xx log pull (S13), LE cert rate-limit cleanup,
   prod test-doc cleanup (QT #5/#8 drafts), MCP connector re-auth.
+- **PURCHASE-SIDE REGRESSION CHECK on v1.21.4 PASSED (2026-07-16 ~22:1x, Chrome, BU
+  TEST):** /purchase-orders list BU names + Thai status filter ✓; PO #4 /edit docDate
+  still locked w/ R2-B hint + new BE hint on วันที่คาดว่าจะส่ง ✓; PO detail BU badge +
+  CTAs + Thai activity ✓; VI-from-PO form INTACT — อัตรา VAT percent field + chips
+  still present on non-VAT co (LineItemsTable vatMode change did NOT hide purchase VAT
+  fields), PO prefill + ล็อกวันนี้ + งวด ม.82/4 all ✓. No docs posted (rendering-level
+  regression only; purchase backend untouched by v1.21.4). Observation: SPA
+  transitions intermittently slow (5-10s) tonight — one transient Next router wedge
+  when navigating away mid-load (recovered by hard nav, NOT reproducible) — likely
+  S13/edge-latency family; fold into the CF log review.
 - Phase: **SALES-SIDE UX TEST COMPLETE (2026-07-16 ~06:1x).** Full chain E2E on prod
   BU TEST: QT (create/edit-preserves-docDate/send/accept) → SO post → INV issue →
   RC post (confirm dialog ✓) → Settled ✓ → AR aging balanced ✓ → PDF ✓.
