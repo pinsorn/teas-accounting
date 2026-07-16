@@ -19,9 +19,14 @@
   archived + **committed** to publish/v1.21.4/ (aef6b91 — first time a deploy archive
   was actually git-tracked; publish/ is gitignored, prior v1.21.0-v1.21.3 archives were
   left untracked on disk despite STATUS.md claiming otherwise — fixed via `git add -f`).
-  **Open for Ham:** footer `/system/info` version + live `/quotations` BU-column check
-  both need a fresh Ham login (session is Ham-only, no public version endpoint) — not
-  yet verified live; every automated/credential-free probe is green.
+  **PROD SPOT-CHECK PASSED (2026-07-16 ~21:5x, fresh Ham login, Fable via Chrome):**
+  footer v1.21.4 ✓; BU columns show names on /quotations + /sales-orders +
+  /delivery-orders incl. via SPA-nav (R8-lesson repro method) ✓; BU + status filters
+  populated/Thai (S3/S4) ✓; QT detail BU badge (S10) ✓; S11 confirm dialog live on
+  QT #8 send (warning ออกเลขทันที + totals; cancelled, no number consumed) ✓; S1 nav
+  no longer flashes empty section headers ✓. Sales fix round CLOSED end-to-end.
+  Remaining for Ham (unchanged): CF 5xx log pull (S13), LE cert rate-limit cleanup,
+  prod test-doc cleanup (QT #5/#8 drafts), MCP connector re-auth.
 - Phase: **SALES-SIDE UX TEST COMPLETE (2026-07-16 ~06:1x).** Full chain E2E on prod
   BU TEST: QT (create/edit-preserves-docDate/send/accept) → SO post → INV issue →
   RC post (confirm dialog ✓) → Settled ✓ → AR aging balanced ✓ → PDF ✓.
