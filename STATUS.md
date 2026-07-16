@@ -1,6 +1,27 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **v1.21.4 DEPLOYED TO PROD (2026-07-16 ~21:37, Ham-approved "deploy เลยลุย").** Sales
+  fix round LIVE — 83e47f9 (WP-A backend), e71f3e3 (WP-B FE flow), 996d91a (WP-C polish),
+  all 16 S1-S16 findings. release-please PR #83 admin-merged (checks never fire on that
+  branch, per wiki) → tag v1.21.4 @ f09cfcf. Built from a fresh worktree
+  `Z:\temp\claude\wt-teas-v1214-build` (real path, not subst — MinVer confirmed `1.21.4`
+  in Accounting.Api.deps.json before shipping). Code-only release: no EF migration, no
+  new SqlScript — `applied_sql_scripts` stayed 69. API `DEPLOY_OK` (DB backup
+  `teas-pre-v1.21.4-deploy-*.sql.gz` 281820B; all probes PASS incl. new S15-B probe
+  `sales_order_put_route_exists=401` for the new `PUT /sales-orders/{id}` endpoint —
+  unauthenticated, route confirmed present without touching any real doc). FE
+  `FE_DEPLOY_OK` (content-check on S13a proxy-timeout anchor). Public E2E through
+  teas.kazaki-rio.com GREEN: login 200, /mcp 401, /.well-known 200, PUT
+  /api/proxy/sales-orders/999999999 401 through the full CDN→NPM→app path. S13b
+  (quotation-send double-call safety) verified by the 17 new backend tests
+  (SalesUxFixesWpATests) pre-deploy, no live probe per plan. Scripts + DEPLOY-README
+  archived + **committed** to publish/v1.21.4/ (aef6b91 — first time a deploy archive
+  was actually git-tracked; publish/ is gitignored, prior v1.21.0-v1.21.3 archives were
+  left untracked on disk despite STATUS.md claiming otherwise — fixed via `git add -f`).
+  **Open for Ham:** footer `/system/info` version + live `/quotations` BU-column check
+  both need a fresh Ham login (session is Ham-only, no public version endpoint) — not
+  yet verified live; every automated/credential-free probe is green.
 - Phase: **SALES-SIDE UX TEST COMPLETE (2026-07-16 ~06:1x).** Full chain E2E on prod
   BU TEST: QT (create/edit-preserves-docDate/send/accept) → SO post → INV issue →
   RC post (confirm dialog ✓) → Settled ✓ → AR aging balanced ✓ → PDF ✓.
