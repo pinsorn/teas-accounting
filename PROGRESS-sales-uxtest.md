@@ -106,6 +106,25 @@ BU column (v1.21.3 fix regression watch), confirm dialogs, i18n, date locale.
   dispatched to audit ALL sales list DTOs for missing BusinessUnitId (S4 scope) + FE
   sidebar nav BN/TI question. Next wakeup re-checks login.
 
+## FIX ROUND COMPLETE (2026-07-16 evening) — all S-findings implemented
+Ham approved "แก้ทุก finding เลย". Landed on main, all Fable-diff-reviewed:
+- 83e47f9 WP-A backend: S4, S9, S14, S12-BE, S15-BE (new PUT /sales-orders), S13b
+  double-call guards verified — 17 new tests, suite baseline+2.
+- e71f3e3 WP-B FE flow: S11 dialogs, S12-FE refetch+wording, S15 SO+INV edit routes
+  (INV edit shows docDate locked+hint per D2 re-pin), S16 RC BU prefill, S10 BU
+  badges, S13a BFF 30s timeout → 504. Runtime-verified local (VAT co2).
+- 996d91a WP-C polish: S1 skeleton + vatMode??false, S2 breadcrumbs, S3 status filter
+  i18n, S5/S7 BE hints sweep (shared DataTable), S8 picker create link. Runtime-
+  verified both VAT + non-VAT demo cos.
+- S13 investigation: 503s = Cloudflare edge (origin clean); Ham action = CF dashboard
+  5xx 13:02-13:12 ICT 2026-07-16. Also LE rate-limit on npm-1/9/11/23 certs (Ham FYI).
+REMAINING (needs Ham):
+1. DEPLOY decision — backend changed (S4/S9/S14/S15-BE) → next release needs API
+   deploy (DB backup per SOP, no schema change); FE-only is NOT enough this time.
+2. Cloudflare log pull (S13 confirm) + cert rate-limit cleanup.
+3. Prod test-doc cleanup (QT #5/#8 drafts; chain -0002 docs are posted/immutable).
+4. Post-deploy: prod re-verify BU columns on QT/SO/DO lists + spot-check dialogs.
+
 ## COMPLETE (2026-07-16 ~06:1x) — all browser phases DONE after Ham login
 Phase 2-5 full run: QT #6 edit (BU set, docDate preserved ✓) → send → QT-TEST-0002 →
 accept → SO-TEST-0002 post → IV-TEST-0002 issue → RC-TEST-0002 post w/ confirm dialog →
