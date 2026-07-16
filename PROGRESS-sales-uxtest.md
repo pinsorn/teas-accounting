@@ -44,10 +44,14 @@ BU column (v1.21.3 fix regression watch), confirm dialogs, i18n, date locale.
 - [ ] Phase 4: delivery order, invoice from SO (CTA), tax invoice, posting + JE check.
 - [ ] Phase 5: billing note + receipt, settlement loop closes (AR side), customer
       statement/AR aging spot-check via MCP.
-- [~] Phase 6a: manual ch.4 refresh DISPATCHED EARLY (2026-07-16 ~04:3x, sonnet worker,
-      LOCAL pipeline — no prod needed) while browser test blocked at login. Scope:
-      doc-numbering format, S6 (ใบวางบิล=ใบแจ้งหนี้ + vatOnly menu note), customer VAT
-      validation note, neutral-caption the buggy BU column. Worker reports diff, no commit.
+- [x] Phase 6a: manual ch.4 refresh DONE + committed 420a4c0 (2026-07-16 ~05:0x).
+      Sonnet worker, LOCAL pipeline: 11/11 walkthrough captures green, gen-markdown +
+      mkdocs clean. Content: ใบวางบิล=ใบแจ้งหนี้ note (04.03), vatOnly menu admonition
+      (04.04 + 04.10), doc-number caption fixed to MM-YYYY-PREFIX-BU-NNNN (04.04).
+      Customer-VAT note = ch.3 territory, skipped correctly. Worker live-confirmed S4
+      BU "—" on local sales-orders list too (bug is in code, not env). Fable diff-reviewed
+      3 source files personally; docs/_site includes stale-catchup for other chapters
+      (sources untouched). Glyph check clean.
 - [ ] Phase 6b: findings triage + final report after Phases 2–5 complete.
 - [ ] Final: findings report for Ham + commit.
 
