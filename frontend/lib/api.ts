@@ -170,7 +170,7 @@ export async function printPdf(path: string): Promise<void> {
 /** Open a PDF in a new tab WITHOUT auto-triggering the print dialog (user prints from the viewer). */
 export async function openPdf(path: string): Promise<void> {
   const res = await fetch(`${PROXY}/${path}`);
-  if (!res.ok) throw new ApiError(res.status, 'open_failed', res.statusText);
+  if (!res.ok) await throwFileResponseError(res, 'open_failed');
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
@@ -180,7 +180,7 @@ export async function openPdf(path: string): Promise<void> {
 /** A binary download (PDF/XML) via the proxy — returns a blob URL the caller revokes. */
 export async function downloadFile(path: string, filename: string) {
   const res = await fetch(`${PROXY}/${path}`);
-  if (!res.ok) throw new ApiError(res.status, 'download_failed', res.statusText);
+  if (!res.ok) await throwFileResponseError(res, 'download_failed');
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -190,4 +190,21 @@ export async function downloadFile(path: string, filename: string) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+async function throwFileResponseError(res: Response, fallbackCode: string): Promise<never> {
+  const body = await res.json().catch(() => null) as { title?: string; detail?: string } | null;
+  const fallback = res.status === 422
+    ? 'ไม่มีข้อมูลสำหรับเงื่อนไขที่เลือก'
+    : res.status >= 500
+      ? 'เชื่อมต่อไม่สำเร็จ — ลองใหม่อีกครั้ง'
+      : res.status === 404
+        ? 'ไม่พบไฟล์ที่ต้องการ'
+        : 'ดาวน์โหลดไฟล์ไม่สำเร็จ';
+  throw new ApiError(
+    res.status,
+    body?.title ?? fallbackCode,
+    body?.detail ?? body?.title ?? fallback,
+    body,
+  );
 }

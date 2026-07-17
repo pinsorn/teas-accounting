@@ -93,11 +93,6 @@ export default function ProfitLossPage() {
         </table>
       </div>
 
-      {pl.data?.note && (
-        <p data-testid="pl-note" className="mt-3 text-xs text-base-content/60">
-          {pl.data.note}
-        </p>
-      )}
     </>
   );
 }

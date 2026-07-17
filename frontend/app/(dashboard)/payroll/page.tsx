@@ -13,7 +13,7 @@ import { usePayrollRuns, useCreatePayrollRun } from '@/lib/queries';
 import { openPdf } from '@/lib/api';
 import type { PayrollRunListItem } from '@/lib/types';
 import { errorToToast } from '@/lib/api/errors';
-import { formatTHB } from '@/lib/utils';
+import { formatDateBE, formatTHB } from '@/lib/utils';
 import { PayrollStatusBadge, formatPeriod } from './_status';
 
 const SCOPE = 'payroll.run.manage';
@@ -72,7 +72,7 @@ export default function PayrollRunsPage() {
   async function submit() {
     try {
       await create.mutateAsync({ periodYearMonth: period, payDate, notes: notes || null });
-      toast.success(tc('save'));
+      toast.success(t('created'));
       setOpen(false); setNotes('');
     } catch (e) { toast.error(errorToToast(e)); }
   }
@@ -123,6 +123,7 @@ export default function PayrollRunsPage() {
                 <span className="label-text">{t('payDate')} *</span>
                 <input type="date" className="input input-bordered" value={payDate}
                   onChange={(e) => setPayDate(e.target.value)} />
+                <span className="label-text-alt text-base-content/50">= {formatDateBE(payDate)}</span>
               </label>
               <label className="form-control sm:col-span-2">
                 <span className="label-text">{t('notes')}</span>

@@ -30,8 +30,8 @@ export default function PayrollRunDetailPage() {
   const del = useDeletePayrollRun();
   const run = q.data;
 
-  async function act(fn: () => Promise<unknown>, ok: string, confirmMsg?: string) {
-    if (confirmMsg && !(await confirm({ description: confirmMsg }))) return;
+  async function act(fn: () => Promise<unknown>, ok: string, confirmMsg?: string, destructive = false) {
+    if (confirmMsg && !(await confirm({ description: confirmMsg, variant: destructive ? 'destructive' : 'default' }))) return;
     try { await fn(); toast.success(ok); } catch (e) { toast.error(errorToToast(e)); }
   }
 
@@ -77,7 +77,7 @@ export default function PayrollRunDetailPage() {
             {run.status === 'DRAFT' && (
               <PermissionGate scope="payroll.run.manage">
                 <button data-testid="pr-delete" className="btn btn-ghost btn-sm text-error gap-1" disabled={busy}
-                  onClick={() => act(async () => { await del.mutateAsync(id); router.push('/payroll'); }, tc('delete'), t('deleteConfirm'))}>
+                  onClick={() => act(async () => { await del.mutateAsync(id); router.push('/payroll'); }, tc('delete'), t('deleteConfirm'), true)}>
                   <Trash2 className="h-4 w-4" aria-hidden /> {tc('delete')}
                 </button>
               </PermissionGate>

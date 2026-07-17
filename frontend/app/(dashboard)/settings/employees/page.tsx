@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Pencil } from 'lucide-react';
@@ -48,30 +48,47 @@ export default function EmployeesSettingsPage() {
   const confirm = useConfirm();
   const [edit, setEdit] = useState<Editing | null>(null);
   const [editId, setEditId] = useState<number>(0);
+  const [editAttempt, setEditAttempt] = useState(0);
   const detail = useEmployee(editId);
 
   const rows = q.data ?? [];
 
-  // Open the edit modal: seed from the loaded detail (hydrated by the effect below).
-  function openEdit(row: EmployeeListItem) { setEditId(row.employeeId); }
-  // When detail arrives for the row being edited, populate the form once.
-  if (detail.data && edit === null && editId === detail.data.employeeId) {
-    const d = detail.data;
-    setEdit({
-      employeeId: d.employeeId, isActive: d.isActive,
-      employeeCode: d.employeeCode,
-      titleTh: d.titleTh ?? '', firstNameTh: d.firstNameTh, lastNameTh: d.lastNameTh,
-      titleEn: d.titleEn ?? '', firstNameEn: d.firstNameEn ?? '', lastNameEn: d.lastNameEn ?? '',
-      nationalId: d.nationalId, taxId: d.taxId ?? '',
-      address: d.address,
-      hireDate: d.hireDate.slice(0, 10),
-      terminationDate: d.terminationDate ? d.terminationDate.slice(0, 10) : null,
-      baseSalary: d.baseSalary,
-      bankName: d.bankName ?? '', bankAccountNo: d.bankAccountNo ?? '', bankAccountName: d.bankAccountName ?? '',
-      ssoApplicable: d.ssoApplicable, ssoNumber: d.ssoNumber ?? '',
-      maritalStatus: d.maritalStatus, spouseHasIncome: d.spouseHasIncome, childrenCount: d.childrenCount,
-    });
+  function openEdit(row: EmployeeListItem) {
+    setEdit(null);
+    setEditId(row.employeeId);
+    setEditAttempt((n) => n + 1);
   }
+
+  useEffect(() => {
+    if (editId === 0) return;
+    let cancelled = false;
+    void detail.refetch().then((result) => {
+      if (cancelled) return;
+      if (result.error) {
+        toast.error(errorToToast(result.error));
+        return;
+      }
+      const d = result.data;
+      if (!d || d.employeeId !== editId) return;
+      setEdit({
+        employeeId: d.employeeId, isActive: d.isActive,
+        employeeCode: d.employeeCode,
+        titleTh: d.titleTh ?? '', firstNameTh: d.firstNameTh, lastNameTh: d.lastNameTh,
+        titleEn: d.titleEn ?? '', firstNameEn: d.firstNameEn ?? '', lastNameEn: d.lastNameEn ?? '',
+        nationalId: d.nationalId, taxId: d.taxId ?? '',
+        address: d.address,
+        hireDate: d.hireDate.slice(0, 10),
+        terminationDate: d.terminationDate ? d.terminationDate.slice(0, 10) : null,
+        baseSalary: d.baseSalary,
+        bankName: d.bankName ?? '', bankAccountNo: d.bankAccountNo ?? '', bankAccountName: d.bankAccountName ?? '',
+        ssoApplicable: d.ssoApplicable, ssoNumber: d.ssoNumber ?? '',
+        maritalStatus: d.maritalStatus, spouseHasIncome: d.spouseHasIncome, childrenCount: d.childrenCount,
+      });
+    });
+    return () => { cancelled = true; };
+    // Each pencil click increments editAttempt, including retries for a query in error state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId, editAttempt]);
 
   function close() { setEdit(null); setEditId(0); }
 
@@ -103,8 +120,12 @@ export default function EmployeesSettingsPage() {
       cell: ({ row }) => (
         <PermissionGate scope={SCOPE}>
           <span className="flex gap-1">
-            <button className="btn btn-ghost btn-xs" onClick={() => openEdit(row.original)}>
-              <Pencil className="h-3 w-3" aria-hidden />
+            <button className="btn btn-ghost btn-xs" aria-label="แก้ไข"
+              disabled={detail.isFetching && editId === row.original.employeeId}
+              onClick={() => openEdit(row.original)}>
+              {detail.isFetching && editId === row.original.employeeId
+                ? <span className="loading loading-spinner loading-xs" />
+                : <Pencil className="h-3 w-3" aria-hidden />}
             </button>
             {row.original.isActive && (
               <button className="btn btn-ghost btn-xs text-error"
@@ -121,7 +142,7 @@ export default function EmployeesSettingsPage() {
       ),
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [t, tc, confirm, deactivate]);
+  ], [t, tc, confirm, deactivate, detail.isFetching, editId]);
 
   async function save() {
     if (!edit) return;

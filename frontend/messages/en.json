@@ -198,6 +198,7 @@
     "title": "Payroll",
     "subtitle": "Monthly payroll runs with PIT withholding (ภ.ง.ด.1) and Social Security",
     "create": "New run",
+    "created": "Payroll run created",
     "createHint": "Employees active in the period are pulled in and calculated automatically",
     "period": "Period",
     "periodInvalid": "Period must be YYYYMM (e.g. 202605), month 01–12",
@@ -811,6 +812,7 @@
     "pnd3Note": "ภ.ง.ด.3 note: if any payee address fields were left blank, fill them in RD Prep before validating"
   },
   "report": {
+    "total": "Total",
     "tbTitle": "Trial Balance",
     "bsTitle": "Balance Sheet",
     "assets": "Assets",
@@ -1485,6 +1487,8 @@
     }
   },
   "common": {
+    "yes": "Yes",
+    "no": "No",
     "loading": "Loading…",
     "notFound": "Not found",
     "print": "Print",

@@ -40,7 +40,10 @@ UX-focused, อย่างละเอียด → REPORT findings → ถ้�
 Quota hit 88% at fix-round start → Claude-worker dispatches frozen; route implementation
 to CODEX (separate pool). Fable reviews diffs + commits.
 Work packages (sequential — shared messages/*.json + one build env):
-- [ ] W1 (Codex): FE error-infra + employees + i18n + copy — P1 (lib/api.ts openPdf/
+- [~] W1 (Codex): DISPATCHED 2026-07-17 ~00:2x (background codex-rescue agent; workspace-
+      write; gates tsc+build+ম-grep; no-commit). On wake: review its diff personally,
+      run gates if not evidenced, commit. NOTE: uncommitted PROGRESS edit (this line) —
+      commit at reset. FE error-infra + employees + i18n + copy — P1 (lib/api.ts openPdf/
       downloadFile problem-body + Thai fallback), R1 (global-error boundary TH + reload
       btn + ChunkLoadError auto-retry-once), P2 (employees modal stale seed → seed after
       fetch settles / re-seed on dataUpdatedAt), P4 (pencil: spinner + error toast +
