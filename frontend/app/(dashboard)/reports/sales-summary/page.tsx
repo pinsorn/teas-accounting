@@ -4,15 +4,20 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useSalesSummary } from '@/lib/queries';
-import { formatTHB } from '@/lib/utils';
+import { formatTHB, bangkokMonthStart, bangkokMonthEnd,
+  bangkokYearStart, bangkokYearEnd } from '@/lib/utils';
 
 export default function SalesSummaryPage() {
   const t = useTranslations('report');
   const tc = useTranslations('common');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // R7 — default to the current month instead of an empty range.
+  const [from, setFrom] = useState(bangkokMonthStart());
+  const [to, setTo] = useState(bangkokMonthEnd());
   const [groupBy, setGroupBy] = useState('customer');
   const ss = useSalesSummary(from, to, groupBy);
+
+  function presetThisMonth() { setFrom(bangkokMonthStart()); setTo(bangkokMonthEnd()); }
+  function presetThisYear() { setFrom(bangkokYearStart()); setTo(bangkokYearEnd()); }
 
   return (
     <>
@@ -29,6 +34,10 @@ export default function SalesSummaryPage() {
           <input type="date" className="input input-bordered input-sm"
             value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
+        <div className="flex gap-1">
+          <button type="button" className="btn btn-xs" onClick={presetThisMonth}>{t('presetThisMonth')}</button>
+          <button type="button" className="btn btn-xs" onClick={presetThisYear}>{t('presetThisYear')}</button>
+        </div>
         <label className="form-control">
           <span className="label-text text-xs">{t('groupBy')}</span>
           <select className="select select-bordered select-sm"
@@ -60,7 +69,10 @@ export default function SalesSummaryPage() {
               <tr><td colSpan={5} className="py-6 text-center text-base-content/50">{tc('loading')}</td></tr>
             )}
             {ss.data?.rows.length === 0 && (
-              <tr><td colSpan={5} className="py-6 text-center text-base-content/50">{tc('empty')}</td></tr>
+              <tr><td colSpan={5} className="py-6 text-center text-base-content/50">
+                <div>{tc('empty')}</div>
+                <div className="mx-auto mt-1 max-w-md text-xs">{t('ssBasisNote')}</div>
+              </td></tr>
             )}
             {ss.data?.rows.map((r, i) => (
               <tr key={i}>
@@ -85,6 +97,7 @@ export default function SalesSummaryPage() {
           )}
         </table>
       </div>
+      <p className="mt-3 text-xs text-base-content/60">{t('ssBasisNote')}</p>
     </>
   );
 }

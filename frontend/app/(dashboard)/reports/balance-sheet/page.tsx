@@ -2,9 +2,13 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
+import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useBalanceSheet } from '@/lib/queries';
-import { formatTHB, bangkokToday } from '@/lib/utils';
+import { openPdf, qs } from '@/lib/api';
+import { errorToToast } from '@/lib/api/errors';
+import { formatTHB, bangkokToday, csvCell } from '@/lib/utils';
 import type { BalanceSheetSection } from '@/lib/types';
 
 function Section({ title, section, tc }: {
@@ -52,9 +56,53 @@ export default function BalanceSheetPage() {
   const bs = useBalanceSheet(asOf);
   const balanced = bs.data?.balanced;
 
+  // R5a — full-year BS+P&L PDF (existing backend endpoint, year = the As-of date's year).
+  async function exportPdf() {
+    try {
+      await openPdf(`reports/financial-statements/pdf${qs({ year: Number(asOf.slice(0, 4)) })}`);
+    } catch (e) {
+      toast.error(errorToToast(e));
+    }
+  }
+
+  function exportCsv() {
+    if (!bs.data) return;
+    const section = (title: string, sec: BalanceSheetSection) => [
+      [title],
+      ...sec.rows.map((r) => [`${r.accountCode} ${r.accountNameTh}`, r.balance]),
+      [`${title} ${t('totalRow')}`, sec.total],
+    ];
+    const rows: (string | number)[][] = [
+      ...section(t('assets'), bs.data.assets), [],
+      ...section(t('liabilities'), bs.data.liabilities), [],
+      ...section(t('equity'), bs.data.equity), [],
+      [t('currentPeriodEarnings'), bs.data.currentPeriodEarnings],
+      [t('liabilitiesAndEquityTotal'), bs.data.liabilitiesAndEquityTotal],
+    ];
+    const lines = rows.map((cols) => cols.map(csvCell).join(','));
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `balance-sheet-${asOf}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <>
-      <PageHeader title={t('bsTitle')} />
+      <PageHeader title={t('bsTitle')}
+        actions={
+          <>
+            <button className="btn btn-outline btn-sm gap-1" onClick={exportPdf}>
+              <Download className="h-4 w-4" aria-hidden /> {t('exportFinancialPdf')}
+            </button>
+            <button className="btn btn-outline btn-sm gap-1" disabled={!bs.data} onClick={exportCsv}>
+              <Download className="h-4 w-4" aria-hidden /> {t('exportCsv')}
+            </button>
+          </>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="form-control">

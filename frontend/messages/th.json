@@ -298,6 +298,7 @@
     "difference": "ผลต่าง",
     "unmatchedLinesLabel": "รายการ Statement ที่ยังไม่จับคู่",
     "selectBankAccount": "เลือกบัญชีธนาคารเพื่อดูรายงานกระทบยอด",
+    "noBankAccounts": "ยังไม่มีบัญชีธนาคารในระบบ — เพิ่มได้ที่",
     "exportCsv": "ส่งออก CSV",
     "err": {
       "required": "ต้องระบุ",
@@ -906,7 +907,12 @@
     "closingBalance": "ยอดยกไป",
     "runningBalance": "คงเหลือ",
     "exportPdf": "ดาวน์โหลด PDF",
-    "exportExcel": "ดาวน์โหลด Excel (CSV)"
+    "exportExcel": "ดาวน์โหลด Excel (CSV)",
+    "accountUnresolvedHint": "เลือกบัญชีจากรายการ หรือพิมพ์รหัสบัญชีให้ครบ",
+    "exportFinancialPdf": "ดาวน์โหลด PDF (งบการเงินทั้งปี)",
+    "presetThisMonth": "เดือนนี้",
+    "presetThisYear": "ปีนี้",
+    "ssBasisNote": "คำนวณจากใบกำกับภาษีขายที่บันทึกบัญชีแล้ว — บริษัทที่ไม่ได้จด VAT และรับเงินผ่านใบเสร็จอย่างเดียวจะไม่มีข้อมูลในรายงานนี้ (ดูรายได้ที่ งบกำไรขาดทุน)"
   },
   "periodClose": {
     "title": "ปิดงวดบัญชี",
@@ -1780,7 +1786,7 @@
     "linkedTo": "VI ที่เชื่อม",
     "remaining": "ค้างเหลือ",
     "outstandingReport": "PO ค้าง",
-    "overdueDays": "วันที่เลย",
+    "overdueDays": "เกินกำหนด (วัน)",
     "aging": "อายุ",
     "overdueOnly": "เฉพาะที่เลยกำหนด",
     "notes": "หมายเหตุ",

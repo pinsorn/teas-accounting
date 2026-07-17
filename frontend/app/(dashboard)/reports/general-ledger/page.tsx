@@ -49,7 +49,14 @@ export default function GeneralLedgerPage() {
     });
   }, [accounts.data]);
 
-  const resolvedAccountId = accountOptions.find((a) => a.label === accountText)?.accountId;
+  // R8 — accept a code-only entry too: exact label match first, then exact
+  // accountCode, then a label starting with "<code> " (e.g. "1120" resolves
+  // "1120 — เงินฝากธนาคาร") so a fully-typed code works without picking
+  // from the datalist.
+  const resolvedAccountId = accountText.trim() === '' ? undefined :
+    accountOptions.find((a) => a.label === accountText)?.accountId
+    ?? accountOptions.find((a) => a.accountCode === accountText)?.accountId
+    ?? accountOptions.find((a) => a.label.startsWith(accountText + ' '))?.accountId;
 
   function showReport() {
     if (resolvedAccountId == null) return;
@@ -102,6 +109,9 @@ export default function GeneralLedgerPage() {
               <option key={a.accountId} value={a.label} />
             ))}
           </datalist>
+          {accountText.trim() !== '' && resolvedAccountId == null && (
+            <span className="label-text-alt mt-1 text-warning">{t('accountUnresolvedHint')}</span>
+          )}
         </label>
         <label className="form-control">
           <span className="label-text text-xs">{t('from')}</span>

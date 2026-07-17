@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { MascotGreeting } from '@/components/layout/MascotGreeting';
 import { useApAgingReport } from '@/lib/queries';
-import { formatTHB } from '@/lib/utils';
+import { formatTHB, csvCell } from '@/lib/utils';
 import type { ApAgingRow } from '@/lib/types';
 
 // doc_date discipline (CLAUDE.md §5): default the as-of date to *today* in
@@ -18,12 +18,6 @@ function bangkokToday(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
-}
-
-// Minimal CSV cell escaping (outstanding-po has no CSV helper to reuse).
-function csvCell(v: string | number): string {
-  const s = String(v ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export default function ApAgingPage() {

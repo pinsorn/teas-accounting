@@ -86,6 +86,32 @@ export function bangkokMonthEnd(): string {
   return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 }
 
+/** First/last day of the CURRENT Bangkok-local year, as yyyy-MM-dd — R7 "ปีนี้" preset. */
+export function bangkokYearStart(): string {
+  return `${bangkokToday().split('-')[0]}-01-01`;
+}
+export function bangkokYearEnd(): string {
+  return `${bangkokToday().split('-')[0]}-12-31`;
+}
+
+/** FE-only CSV export cell: OWASP CSV formula-injection mitigation, mirrored
+ *  from the backend's `CsvCell` (ReportEndpoints.cs ~line 21-27) — a text
+ *  cell starting with =, +, -, @ (or a leading tab/CR) gets a leading `'`
+ *  BEFORE RFC-4180 quoting, so a spreadsheet app opens it as literal text,
+ *  never as a formula. The `typeof` check means a legitimate negative
+ *  NUMBER is never routed through the string guard — callers must pass
+ *  amount columns as `number`, not a pre-formatted string. Quoting triggers
+ *  on an embedded comma/quote/CR/LF anywhere in the cell (not just a
+ *  leading char) — the CR check is what lets bank-reconciliation's
+ *  `\r\n`-joined export reuse this unchanged. Single shared copy for every
+ *  FE-only CSV export (was duplicated independently per page). */
+export function csvCell(v: string | number): string {
+  if (typeof v === 'number') return String(v);
+  let s = v ?? '';
+  if (s.length > 0 && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 /** Format Thai Tax ID for display: 0-1055-56123-45-0 */
 export function formatTaxId(taxId: string | null | undefined): string {
   if (!taxId || taxId.length !== 13) return taxId ?? '-';

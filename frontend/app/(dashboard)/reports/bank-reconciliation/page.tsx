@@ -1,26 +1,24 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useBankAccounts, useBankReconciliationReport } from '@/lib/queries';
-import { formatTHB, formatDate } from '@/lib/utils';
+import { formatTHB, formatDate, csvCell } from '@/lib/utils';
 import type { ReconciliationReportItem } from '@/lib/types';
 
 // Bank reconciliation (specs/bank-reconciliation.md B5.3) — mirrors reports/ap-aging/page.tsx:
 // manual `table table-zebra` + filters. CSV export uses explicit "\r\n" (NOT AppendLine/'\n' —
-// the folded footgun) + a UTF-8 BOM, per the spec's own instruction (deviates from ap-aging's
-// own '\n' join on purpose, for strict Excel/RFC4180 compatibility).
+// the folded footgun) + a UTF-8 BOM, per the spec's own instruction, for strict Excel/RFC4180
+// compatibility. Cell escaping is the shared `lib/utils.ts` `csvCell` (its quoting already
+// triggers on an embedded CR, so it composes safely with this file's own `\r\n` row joins).
 function bangkokToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
 }
 function monthStart(): string {
   const d = new Date(bangkokToday());
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-}
-function csvCell(v: string | number): string {
-  const s = String(v ?? '');
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export default function BankReconciliationReportPage() {
@@ -95,7 +93,14 @@ export default function BankReconciliationReportPage() {
       </div>
 
       {!bankAccountId && (
-        <p className="text-sm text-base-content/50">{t('selectBankAccount')}</p>
+        banks.data && banks.data.length === 0 ? (
+          <p className="text-sm text-base-content/50">
+            {t('noBankAccounts')}{' '}
+            <Link href="/bank-accounts" className="link link-primary">{t('title')}</Link>
+          </p>
+        ) : (
+          <p className="text-sm text-base-content/50">{t('selectBankAccount')}</p>
+        )
       )}
 
       {bankAccountId != null && q.isLoading && <p className="text-sm text-base-content/50">{tc('loading')}</p>}

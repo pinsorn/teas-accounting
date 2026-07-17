@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { VendorSelector } from '@/components/ui/VendorSelector';
 import { useVendorLedger } from '@/lib/queries';
-import { formatTHB, bangkokMonthStart, bangkokMonthEnd, docTypeLabelKey } from '@/lib/utils';
+import { formatTHB, formatDate, bangkokMonthStart, bangkokMonthEnd, docTypeLabelKey } from '@/lib/utils';
 import type { SubledgerReconciliation } from '@/lib/types';
 
 function ReconciliationPanel({ r, t }: { r: SubledgerReconciliation; t: (k: string) => string }) {
@@ -108,7 +108,7 @@ export default function VendorLedgerPage() {
                 </tr>
                 {ledger.data.lines.map((l, i) => (
                   <tr key={i}>
-                    <td>{l.docDate}</td>
+                    <td>{formatDate(l.docDate)}</td>
                     <td>{tCross(docTypeLabelKey(l.docType))}</td>
                     <td>{l.docNo}</td>
                     <td>{l.description}</td>

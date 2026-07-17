@@ -298,6 +298,7 @@
     "difference": "Difference",
     "unmatchedLinesLabel": "Unmatched statement lines",
     "selectBankAccount": "Select a bank account to view its reconciliation report.",
+    "noBankAccounts": "No bank accounts in the system yet — add one under",
     "exportCsv": "Export CSV",
     "err": {
       "required": "Required",
@@ -906,7 +907,12 @@
     "closingBalance": "Closing balance",
     "runningBalance": "Balance",
     "exportPdf": "Download PDF",
-    "exportExcel": "Download Excel (CSV)"
+    "exportExcel": "Download Excel (CSV)",
+    "accountUnresolvedHint": "Pick an account from the list, or type the full account code.",
+    "exportFinancialPdf": "Download PDF (full-year financial statements)",
+    "presetThisMonth": "This month",
+    "presetThisYear": "This year",
+    "ssBasisNote": "Computed from posted sales tax invoices only — companies that are not VAT-registered and use receipts only will show no data here (see revenue on the Profit & Loss report)."
   },
   "periodClose": {
     "title": "Period Close",

@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useTrialBalance } from '@/lib/queries';
-import { formatTHB } from '@/lib/utils';
+import { formatTHB, csvCell } from '@/lib/utils';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -18,9 +19,34 @@ export default function TrialBalancePage() {
   const tb = useTrialBalance(asOf, incInactive);
   const balanced = tb.data?.totals.balanced;
 
+  function exportCsv() {
+    if (!tb.data) return;
+    const header = [t('account'), t('type'), t('debit'), t('credit'), t('net')];
+    const body = tb.data.rows.map((r) => [
+      `${r.accountCode} ${r.accountNameTh}`, `${r.accountType} (${r.normalBalance})`,
+      r.debit, r.credit, r.net,
+    ]);
+    const lines = [header, ...body].map((cols) => cols.map(csvCell).join(','));
+    lines.push([t('totalRow'), '', tb.data.totals.debit, tb.data.totals.credit,
+      tb.data.totals.debit - tb.data.totals.credit].map(csvCell).join(','));
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trial-balance-${asOf}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <>
-      <PageHeader title={t('tbTitle')} />
+      <PageHeader title={t('tbTitle')}
+        actions={
+          <button className="btn btn-outline btn-sm gap-1" disabled={!tb.data} onClick={exportCsv}>
+            <Download className="h-4 w-4" aria-hidden /> {t('exportCsv')}
+          </button>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="form-control">
