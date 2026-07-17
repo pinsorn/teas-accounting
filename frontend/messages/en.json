@@ -237,7 +237,18 @@
     "statusPaid": "Paid",
     "statusVoided": "Voided",
     "wht50tawi": "50 bis (annual)",
-    "periodPlaceholder": "YYYYMM e.g. 202601"
+    "periodPlaceholder": "YYYYMM e.g. 202601",
+    "zeroSalaryWarning": "Salary not set",
+    "zeroNetRunWarning": "This run's net total is 0 — check employee salaries under Settings → Employees before approving.",
+    "payslipModal": {
+      "grossTaxable": "Taxable income",
+      "grossNonTaxable": "Non-taxable income",
+      "pitWithheld": "PIT withheld (PND1)",
+      "ssoEmployee": "SSO (employee)",
+      "ssoEmployer": "SSO (employer)",
+      "net": "Net pay",
+      "note": "Tax is calculated by averaging over the remaining pay periods in the year (Section 50(1)) — employees who started mid-year may show zero PIT even if salary meets the threshold."
+    }
   },
   "bank": {
     "title": "Bank Accounts",

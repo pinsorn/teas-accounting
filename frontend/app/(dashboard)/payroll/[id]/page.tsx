@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -11,6 +13,7 @@ import {
   usePayrollRun, useApprovePayrollRun, usePostPayrollRun, usePayPayrollRun, useDeletePayrollRun,
 } from '@/lib/queries';
 import { openPdf, downloadFile } from '@/lib/api';
+import type { PayslipDto } from '@/lib/types';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB } from '@/lib/utils';
 import { PayrollStatusBadge, formatPeriod } from '../_status';
@@ -29,6 +32,7 @@ export default function PayrollRunDetailPage() {
   const pay = usePayPayrollRun();
   const del = useDeletePayrollRun();
   const run = q.data;
+  const [selected, setSelected] = useState<PayslipDto | null>(null);
 
   async function act(fn: () => Promise<unknown>, ok: string, confirmMsg?: string, destructive = false) {
     if (confirmMsg && !(await confirm({ description: confirmMsg, variant: destructive ? 'destructive' : 'default' }))) return;
@@ -114,6 +118,12 @@ export default function PayrollRunDetailPage() {
         )}
       </div>
 
+      {run.status === 'DRAFT' && run.totalNet === 0 && run.payslips.length > 0 && (
+        <div role="alert" className="alert alert-warning mb-3 text-sm">
+          <span>{t('zeroNetRunWarning')}</span>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-box bg-base-100">
         <table className="table table-zebra">
           <thead>
@@ -127,36 +137,75 @@ export default function PayrollRunDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {run.payslips.map((p) => (
-              <tr key={p.payslipId}>
-                <td>
-                  <div className="font-medium">{p.employeeName}</div>
-                  <div className="font-mono text-xs text-ink-500">{p.employeeCode}</div>
-                </td>
-                <td className="text-right tabular-nums">{formatTHB(p.grossTaxable + p.grossNonTaxable)}</td>
-                <td className="text-right tabular-nums">{formatTHB(p.pitWithheld)}</td>
-                <td className="text-right tabular-nums">{formatTHB(p.ssoEmployee)}</td>
-                <td className="text-right font-medium tabular-nums">{formatTHB(p.netPay)}</td>
-                <td className="text-right">
-                  <button className="btn btn-ghost btn-xs gap-1"
-                    onClick={() => pr(`payroll/runs/${id}/payslips/${p.employeeId}/pdf`)}>
-                    <Printer className="h-3 w-3" aria-hidden /> {tc('print')}
-                  </button>
-                  {run.status === 'POSTED' && (
-                    // P-D #4 — annual 50ทวิ (ม.50ทวิ) for this employee; year = the run's
-                    // PAYMENT year (same ม.59 basis as ภ.ง.ด.1/1ก).
+            {run.payslips.map((p) => {
+              const gross = p.grossTaxable + p.grossNonTaxable;
+              return (
+                <tr key={p.payslipId} className="cursor-pointer hover:bg-base-200"
+                  onClick={() => setSelected(p)}>
+                  <td>
+                    <div className="font-medium">{p.employeeName}</div>
+                    <div className="font-mono text-xs text-ink-500">{p.employeeCode}</div>
+                    {gross === 0 && (
+                      <Link href="/settings/employees" className="badge badge-warning badge-sm mt-1 gap-1"
+                        onClick={(e) => e.stopPropagation()}>
+                        {t('zeroSalaryWarning')}
+                      </Link>
+                    )}
+                  </td>
+                  <td className="text-right tabular-nums">{formatTHB(gross)}</td>
+                  <td className="text-right tabular-nums">{formatTHB(p.pitWithheld)}</td>
+                  <td className="text-right tabular-nums">{formatTHB(p.ssoEmployee)}</td>
+                  <td className="text-right font-medium tabular-nums">{formatTHB(p.netPay)}</td>
+                  <td className="text-right">
                     <button className="btn btn-ghost btn-xs gap-1"
-                      onClick={() => pr(`payroll/employees/${p.employeeId}/wht50tawi/pdf`
-                        + `?year=${new Date(run.payDate).getFullYear()}`)}>
-                      <FileText className="h-3 w-3" aria-hidden /> {t('wht50tawi')}
+                      onClick={(e) => { e.stopPropagation(); pr(`payroll/runs/${id}/payslips/${p.employeeId}/pdf`); }}>
+                      <Printer className="h-3 w-3" aria-hidden /> {tc('print')}
                     </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                    {run.status === 'POSTED' && (
+                      // P-D #4 — annual 50ทวิ (ม.50ทวิ) for this employee; year = the run's
+                      // PAYMENT year (same ม.59 basis as ภ.ง.ด.1/1ก).
+                      <button className="btn btn-ghost btn-xs gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          pr(`payroll/employees/${p.employeeId}/wht50tawi/pdf`
+                            + `?year=${new Date(run.payDate).getFullYear()}`);
+                        }}>
+                        <FileText className="h-3 w-3" aria-hidden /> {t('wht50tawi')}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {selected && (
+        <div className="modal modal-open" role="dialog" aria-modal="true">
+          <div className="modal-box">
+            <h3 className="text-lg font-bold">{selected.employeeName}</h3>
+            <p className="font-mono text-xs text-ink-500">{selected.employeeCode}</p>
+            <div className="mt-4 space-y-2 text-sm">
+              <DetailRow label={t('payslipModal.grossTaxable')} value={formatTHB(selected.grossTaxable)} />
+              <DetailRow label={t('payslipModal.grossNonTaxable')} value={formatTHB(selected.grossNonTaxable)} />
+              <DetailRow label={t('payslipModal.pitWithheld')} value={formatTHB(selected.pitWithheld)} />
+              <DetailRow label={t('payslipModal.ssoEmployee')} value={formatTHB(selected.ssoEmployee)} />
+              {selected.ssoEmployer > 0 && (
+                <DetailRow label={t('payslipModal.ssoEmployer')} value={formatTHB(selected.ssoEmployer)} />
+              )}
+              <DetailRow label={t('payslipModal.net')} value={formatTHB(selected.netPay)} strong />
+            </div>
+            <div role="alert" className="alert alert-info mt-4 text-xs">
+              <span>{t('payslipModal.note')}</span>
+            </div>
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setSelected(null)}>{tc('close')}</button>
+            </div>
+          </div>
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setSelected(null)} />
+        </div>
+      )}
     </>
   );
 }
@@ -166,6 +215,15 @@ function Stat({ label, value, strong }: { label: string; value: string; strong?:
     <div className="rounded-box border border-ink-100 bg-base-100 p-3">
       <div className="text-xs text-ink-500">{label}</div>
       <div className={`tabular-nums ${strong ? 'text-lg font-bold' : 'font-medium'}`}>{value}</div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between ${strong ? 'border-t border-ink-100 pt-2 font-bold' : ''}`}>
+      <span className="text-ink-500">{label}</span>
+      <span className="tabular-nums">{value}</span>
     </div>
   );
 }
