@@ -40,30 +40,33 @@ UX-focused, อย่างละเอียด → REPORT findings → ถ้�
 Quota hit 88% at fix-round start → Claude-worker dispatches frozen; route implementation
 to CODEX (separate pool). Fable reviews diffs + commits.
 Work packages (sequential — shared messages/*.json + one build env):
-- [~] W1 (Codex): DISPATCHED 2026-07-17 ~00:2x (background codex-rescue agent; workspace-
-      write; gates tsc+build+ম-grep; no-commit). On wake: review its diff personally,
-      run gates if not evidenced, commit. NOTE: uncommitted PROGRESS edit (this line) —
-      commit at reset. FE error-infra + employees + i18n + copy — P1 (lib/api.ts openPdf/
+- [x] W1 COMMITTED 7bb293d (Codex diff left on disk pre-quota-death; Fable reviewed fully,
+      completed P9 personally (2-line act() variant), ran gates: tsc 0, build OK, ম clean).
+      FE error-infra + employees + i18n + copy — P1 (lib/api.ts openPdf/
       downloadFile problem-body + Thai fallback), R1 (global-error boundary TH + reload
       btn + ChunkLoadError auto-retry-once), P2 (employees modal stale seed → seed after
       fetch settles / re-seed on dataUpdatedAt), P4 (pencil: spinner + error toast +
       refetch on error-cached click), P8 (aria-label), P3 (common.yes/no th+en),
       R3 (report.total th+en), R2 (remove P&L dev note), P7 (BE hint วันที่จ่าย payroll
       modal — copy pattern from QT form), P9 (destructive confirm red + toast copy)
-- [ ] W2 (Codex): payroll UX — P5 zero-salary warning badge + link, P6 payslip breakdown
-      modal (fields already in API payload: grossTaxable/grossNonTaxable/pitWithheld/
-      ssoEmployee/netPay + explainer ภาษีตามงวดที่เหลือของปี)
-- [ ] W3 (Codex): reports — R5 export TB/BS/P&L (backend endpoints per GL export pattern
-      + FE buttons), R4 vendor-ledger dates → Thai BE, R7 date presets P&L/sales-summary,
-      R8 GL picker code-prefix match, R9 bank-recon empty-state link, R11 copy,
-      R6 sales-summary: investigate basis + explanatory footnote/empty-state (do NOT
-      change data basis without Ham), R10 investigate picker double-click
-- [ ] Gates per WP: tsc --noEmit + next build; W3 backend: dotnet build + targeted tests;
-      Bengali ম grep on touched files
-- [ ] Fable: personal diff review EVERY WP before commit (no exceptions)
-- [ ] After W1-W3 all committed: deploy round (v1.21.5?) — ASK HAM before deploy
-- [ ] AFTER fixes verified: manual chapters 06+08 (re-dispatch with updated behaviors;
-      prior dispatch prompt in this session's history — reuse structure/facts + updates)
+- [x] W2 COMMITTED ce9aba1 (Sonnet; P5 zero-salary badge+banner, P6 payslip breakdown
+      modal + ม.50(1) explainer, CE period-hint fix; gates evidenced, Fable diff-reviewed)
+- [x] W3 COMMITTED c71c13b (Sonnet + 2 warm follow-ups; R4 BE dates, R5 TB/BS/P&L
+      CSV + financial-statements PDF wiring, R6 basis footnote (confirmed: posted
+      TaxInvoices only, FinancialReportService.SalesSummaryAsync), R7 presets+defaults,
+      R8 GL picker code-prefix, R9 bank-recon link, R11 copy; shared FE csvCell w/ OWASP
+      formula guard across all 5 FE CSV exports; gates evidenced, Fable diff-reviewed)
+- [x] Gates per WP: tsc --noEmit + next build + ম grep — all green all WPs
+- [x] Fable personal diff review every WP — done
+- [ ] R10 (picker double-click) — investigate-only, OPEN (non-blocking, likely edge/fetch)
+- [ ] Deploy round (v1.21.5) — WAITING HAM APPROVAL (never deploy without it)
+- [x] Manual chapters 06+08 COMMITTED 3ee4433 (Sonnet wrote; Fable read both chapters
+      fully + spot-verified SSO 17,500/875 vs PayrollOptions.cs, GL journal links,
+      PO badge vs code — all accurate; index.md ✅ + mkdocs nav repoint per ch0 precedent)
+
+## GOAL COMPLETE 2026-07-17 ~11:3x — test → 20 findings → fix round (19 fixed, W1-W3) →
+## manual ใหม่ บท 6+8. OPEN: deploy v1.21.5 (awaiting Ham), R10 investigate-only,
+## S13 CF log pull (Ham), payroll POSTED-state e2e (needs test company).
 
 ## Resume steps (quota reset)
 1. Read this file + spec checklist + REPORT (findings detail)

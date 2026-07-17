@@ -1,6 +1,22 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **PAYROLL+REPORTS GOAL COMPLETE (2026-07-17 ~11:3x).** Full arc done: UX test (20
+  findings) → Ham "แก้ทั้งหมดเลย แก้หมดแล้วค่อยทำ manual" → fix round W1 7bb293d (error
+  infra: blank-toast fix in openPdf/downloadFile, global-error boundaries w/ chunk
+  auto-retry, employees modal stale-seed + silent-fail fixes, i18n common.yes/no +
+  report.total, P&L dev-note removal, BE hint, destructive confirm) + W2 ce9aba1
+  (zero-salary badge/banner, payslip breakdown modal + ม.50(1) explainer, CE period
+  hint) + W3 c71c13b (BE dates on statements, TB/BS/P&L CSV + financial-statements PDF
+  wiring, shared FE csvCell w/ OWASP formula guard ×5 exports, month/year presets +
+  defaults, GL picker code-prefix resolve, bank-recon empty link, sales-summary basis
+  footnote — basis confirmed posted TaxInvoices only) → **Manual ใหม่ บท 6 เงินเดือน +
+  บท 8 รายงาน** 3ee4433 (hand-authored, facts verified against code; mkdocs nav wired).
+  All gates green every WP (tsc, next build, ম grep); Fable read every diff.
+  **OPEN:** (1) deploy v1.21.5 — WAITING HAM APPROVAL, all fixes are FE-only, code-only
+  (no migration/SqlScript); (2) R10 picker first-click (investigate-only, non-blocking);
+  (3) S13 CF log pull unchanged (evidence in REPORT-payroll-reports-uxtest.md §Infra);
+  (4) payroll POSTED-state e2e ยังไม่เคยรัน (ต้อง test company แยก — note in spec).
 - **PAYROLL + REPORTS UX TEST COMPLETE (2026-07-16 ~23:1x, Chrome on prod, Repttown).**
   Goal (Ham /goal): เงินเดือน + รายงาน ละเอียด, UX-first → Finding report → Manual ถ้าไม่มีปัญหา.
   Payroll draft lifecycle tested end-to-end (create/calc/dup-guard/delete — NEVER posted, zero
