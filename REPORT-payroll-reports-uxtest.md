@@ -89,6 +89,38 @@ GL report ครบ ยอดยกมา-ยกไป + export PDF/CSV ทำ�
 7. R6 สอบ basis sales-summary แล้วตัดสินใจ (รวม receipts หรือใส่ footnote)
 8. S13: รอ CF log จาก Ham — ฝั่งแอปทำได้แค่ mitigate (R1 + retry idempotent GET)
 
+## RE-VERIFICATION PASS สด — 2026-07-17 ~11:4x (Chrome บน prod v1.21.4, หลัง fix round ลง main)
+
+รอบทดสอบซ้ำเต็มผ่าน Chrome ใน session เดียวกับที่เขียน manual เพื่อยืนยันก่อนปิดงาน:
+
+**Payroll — draft lifecycle ครบวงจรอีกรอบ:**
+- สร้างรอบจ่าย 07/2026 ใหม่ (run #3): modal เปิด → prefill งวด 202607 + วันที่จ่าย 30/07 →
+  submit → toast เขียว → row ขึ้น รับสุทธิ ฿30,000 (เงินเดือน 30,000 ที่ตั้งไว้ persist,
+  calc ทำงาน: ภาษี 0 ตาม annualize จ้างกลางปี, ปกส. 0 ตาม flag)
+- Detail /payroll/3: การ์ด 4 ใบครบ (รวมเงินได้/ภาษี/ปกส./รับสุทธิ), ตาราง payslip, ปุ่ม
+  อนุมัติ+ลบ ตามสถานะ DRAFT
+- พิมพ์สลิป: PDF เปิดใน tab ใหม่ (blob) สำเร็จจริง
+- ลบ draft: confirm → toast "ลบ" → redirect → list ว่าง (บัญชีจริงไม่ถูกแตะเหมือนเดิม)
+- Observation ใหม่รอบนี้: ปุ่ม submit ใน modal ต้องคลิกซ้ำ 1 ครั้ง (คลิกแรกหลัง modal เพิ่ง
+  เปิด ~2s ไม่ติด) — สอดคล้อง R10 (picker/modal first-click) ที่เปิด investigate ไว้;
+  ยังเป็น intermittent เดิม ไม่ใช่ regression ใหม่
+- /settings/employees: เงินเดือน ฿30,000 แสดงถูก; "common.no" ยังโชว์บน prod — ถูกต้อง
+  ตามคาด (fix P3 อยู่ใน main แล้วแต่ยังไม่ deploy)
+
+**Reports — traverse สดครบทั้ง 14 หน้า (ลำดับ: TB, BS, P&L, GL, tax-summary, AR aging,
+AP aging, customer-statement, vendor-ledger, sales-summary, bank-recon, pnd30,
+outstanding-po, wht-receivable):**
+- ทุกหน้าโหลดสำเร็จ — **ศูนย์ crash รอบนี้** (รอบแรกเจอ ChunkLoadError 2 ครั้ง — ยืนยันว่า
+  intermittent ตาม edge ไม่ใช่ deterministic)
+- ตัวเลข tie เหมือน baseline ทุกจุด: TB 30,410=30,410 Dr=Cr ✓ · BS -13,735 ทั้งสองข้าง ✓ ·
+  tax-summary กำไรสุทธิ -14,335 = BS กำไรสะสมงวดปัจจุบัน ✓ · WHT receivable 108 = TB 1180 ✓
+  (อายุขยับ 24→25 วันตามวันที่จริง — คำนวณ aging สดจริง) · outstanding-po วันที่เลย 2→3 วัน
+  ตามเวลาจริง ✓ — การทดสอบรอบก่อนทั้งหมดไม่ทิ้งร่องรอยบนบัญชี (ยอดนิ่งทุกบัญชี)
+- Findings เดิมที่ยังเห็นบน prod (รอ deploy v1.21.5): common.no (P3), ไม่มี export บน
+  TB/BS/P&L (R5), P&L/sales-summary ต้องกรอกวันที่เอง (R7), หัวคอลัมน์ "วันที่เลย" (R11),
+  sales-summary ว่างไม่มีคำอธิบาย (R6) — ทั้งหมดแก้แล้วใน main รอขึ้น prod
+- **ไม่มี finding ใหม่** จากรอบ re-verification นี้
+
 ## สถานะข้อมูลหลังเทสต์ (cleanup)
 
 - payroll runs: **ไม่เหลือ** (draft #1, #2 ลบแล้วทั้งคู่ — ทดสอบปุ่มลบไปในตัว)
