@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.21.5](https://github.com/pinsorn/teas-accounting/compare/v1.21.4...v1.21.5) (2026-07-17)
+
+
+### Bug Fixes
+
+* **fe:** payroll UX round W2 — zero-salary warnings + payslip breakdown modal ([ce9aba1](https://github.com/pinsorn/teas-accounting/commit/ce9aba15596e7a69fd90261ce2b5647e2f7b19e4))
+* **fe:** payroll/reports UX round W1 — error infra + employees modal + i18n ([7bb293d](https://github.com/pinsorn/teas-accounting/commit/7bb293d9adc363c9ce0e0b6a6ed9d7d9151bc0c1))
+* **fe:** reports UX round W3 — dates, exports, presets, picker, basis notes ([c71c13b](https://github.com/pinsorn/teas-accounting/commit/c71c13b9ac9df7387826106ec9c77f62ba6e2312))
+
 ## [1.21.4](https://github.com/pinsorn/teas-accounting/compare/v1.21.3...v1.21.4) (2026-07-16)
 
 
