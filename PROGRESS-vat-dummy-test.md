@@ -104,12 +104,20 @@ connector = **forbidden this round** (points at Repttown, wrong company).
        ภ.พ.30 ขาย 11,000/770, เครดิตยกไป 70; TB 172,440 Dr=Cr; CN JE = 4100 contra
        Dr 1,000 / 2151 Dr 70 / 1130 Cr 1,070. New findings F-11 (CN reason raw enum
        key on UI+printed doc, medium) + F-12 (low UX batch) — in REPORT.
-   [ ] E3 create_vendor root-cause — sonnet dispatched (background), spec
-       specs/fix-e3-create-vendor-ci.md
-   [ ] S13 CF-edge 503 — sonnet read-only prod investigation dispatched (background),
-       spec specs/fix-s13-cf-edge-503.md
-   [ ] manual บท 6 posted-state additions — QUEUED after E3 worker frees backend
-       build/test (capture pipeline needs dotnet run)
+   [x] E3 create_vendor ROOT-CAUSED + FIXED (ac048e8): stale test fixture — E3 sent
+       vatRegistered=true + taxId=null, WP1 65b9b2b (2026-07-14) added the domestic-VAT
+       tax-id validation; fix = valid checksum constant. Suite 897/8/0. CI watch
+       running (bg). Wiki entry rewritten [FIXED].
+   [x] S13 CF-edge 503 investigation COMPLETE (db29473): origin 100% ruled out (zero
+       503s ever logged, no resource pressure). Top hypothesis HIGH = CF Bot Fight
+       Mode scoring the automation browser; NEEDS HAM: CF dashboard checklist (8 items)
+       in specs/fix-s13-cf-edge-503.md; proposed scoped WAF Skip rule drafted.
+   [x] manual บท 6 posted-state additions DONE: Post-JE table (5400/5410/2153/2160/
+       2170 + worked example 127,500), Pay-with-bank + settlement JE, opening-YTD
+       section, dup-guard toast + next-open-period prefill, TIS-620 footnote. All
+       facts code-cited; mkdocs build clean; ম grep 0. Screenshots deferred (🚧
+       convention — walkthrough 06.01 keeps run in DRAFT by design; posted-state
+       captures need full local stack, noted in-manual).
    [ ] leftover: TI PDF visual check (ภ.พ.20 fields — blob tab flaky), สปส.1-10 PDF
        + ภ.ง.ด.1 ใบแนบ visual re-check
 4. co2/co3 untouched ✓. Dummy co5 = safe playground for future rounds.
