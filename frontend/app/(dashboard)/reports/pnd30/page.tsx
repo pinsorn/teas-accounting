@@ -143,7 +143,11 @@ export default function Pnd30Page() {
           </div>
           {filing!.warnings.length > 0 && (
             <ul data-testid="pnd30-warnings" className="mt-3 space-y-1 text-xs text-warning">
-              {filing!.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+              {filing!.warnings.map((w, i) => (
+                <li key={i}>⚠ {w.startsWith('Last day of filing:')
+                  ? t('pnd30DeadlineWarning', { date: filing!.filingDueDate })
+                  : w}</li>
+              ))}
             </ul>
           )}
         </>

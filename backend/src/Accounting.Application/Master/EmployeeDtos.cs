@@ -19,7 +19,9 @@ public sealed record CreateEmployeeRequest(
     decimal BaseSalary,
     string? BankName, string? BankAccountNo, string? BankAccountName,
     bool SsoApplicable, string? SsoNumber,
-    string MaritalStatus, bool SpouseHasIncome, int ChildrenCount);
+    string MaritalStatus, bool SpouseHasIncome, int ChildrenCount,
+    int? YtdOpeningYear = null, decimal YtdOpeningIncome = 0m,
+    decimal YtdOpeningPit = 0m, decimal YtdOpeningSso = 0m);
 
 public sealed record UpdateEmployeeRequest(
     string? TitleTh, string FirstNameTh, string LastNameTh,
@@ -31,11 +33,14 @@ public sealed record UpdateEmployeeRequest(
     string? BankName, string? BankAccountNo, string? BankAccountName,
     bool SsoApplicable, string? SsoNumber,
     string MaritalStatus, bool SpouseHasIncome, int ChildrenCount,
-    bool IsActive);
+    bool IsActive,
+    int? YtdOpeningYear = null, decimal YtdOpeningIncome = 0m,
+    decimal YtdOpeningPit = 0m, decimal YtdOpeningSso = 0m);
 
 public sealed record EmployeeListItem(
     long EmployeeId, string EmployeeCode, string FullNameTh,
-    string NationalId, decimal BaseSalary, bool SsoApplicable, bool IsActive);
+    string NationalId, decimal BaseSalary, bool SsoApplicable, bool IsActive,
+    int? YtdOpeningYear, decimal YtdOpeningIncome, decimal YtdOpeningPit, decimal YtdOpeningSso);
 
 public sealed record EmployeeDetail(
     long EmployeeId, string EmployeeCode,
@@ -48,7 +53,8 @@ public sealed record EmployeeDetail(
     string? BankName, string? BankAccountNo, string? BankAccountName,
     bool SsoApplicable, string? SsoNumber,
     string MaritalStatus, bool SpouseHasIncome, int ChildrenCount,
-    bool IsActive);
+    bool IsActive,
+    int? YtdOpeningYear, decimal YtdOpeningIncome, decimal YtdOpeningPit, decimal YtdOpeningSso);
 
 public interface IEmployeeService
 {
@@ -88,12 +94,24 @@ public sealed class CreateEmployeeValidator : AbstractValidator<CreateEmployeeRe
             .MaximumLength(50).WithMessage("validation.maxLength");
         EmployeeRules.Common(this, x => x.FirstNameTh, x => x.LastNameTh, x => x.NationalId,
             x => x.BaseSalary, x => x.MaritalStatus, x => x.ChildrenCount);
+        RuleFor(x => x.YtdOpeningYear).InclusiveBetween(2000, 2100).When(x => x.YtdOpeningYear.HasValue)
+            .WithMessage("validation.range");
+        RuleFor(x => x.YtdOpeningIncome).GreaterThanOrEqualTo(0m).WithMessage("validation.min");
+        RuleFor(x => x.YtdOpeningPit).GreaterThanOrEqualTo(0m).WithMessage("validation.min");
+        RuleFor(x => x.YtdOpeningSso).GreaterThanOrEqualTo(0m).WithMessage("validation.min");
     }
 }
 
 public sealed class UpdateEmployeeValidator : AbstractValidator<UpdateEmployeeRequest>
 {
     public UpdateEmployeeValidator()
-        => EmployeeRules.Common(this, x => x.FirstNameTh, x => x.LastNameTh, x => x.NationalId,
+    {
+        EmployeeRules.Common(this, x => x.FirstNameTh, x => x.LastNameTh, x => x.NationalId,
             x => x.BaseSalary, x => x.MaritalStatus, x => x.ChildrenCount);
+        RuleFor(x => x.YtdOpeningYear).InclusiveBetween(2000, 2100).When(x => x.YtdOpeningYear.HasValue)
+            .WithMessage("validation.range");
+        RuleFor(x => x.YtdOpeningIncome).GreaterThanOrEqualTo(0m).WithMessage("validation.min");
+        RuleFor(x => x.YtdOpeningPit).GreaterThanOrEqualTo(0m).WithMessage("validation.min");
+        RuleFor(x => x.YtdOpeningSso).GreaterThanOrEqualTo(0m).WithMessage("validation.min");
+    }
 }

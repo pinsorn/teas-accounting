@@ -60,6 +60,12 @@ public class Employee : ITenantOwned
     public bool          SpouseHasIncome { get; set; }
     public int           ChildrenCount   { get; set; }
 
+    // Opening calendar-year payroll totals for companies adopting TEAS mid-year.
+    public int?    YtdOpeningYear   { get; set; }
+    public decimal YtdOpeningIncome { get; set; }
+    public decimal YtdOpeningPit    { get; set; }
+    public decimal YtdOpeningSso    { get; set; }
+
     public bool           IsActive  { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
 
@@ -77,6 +83,10 @@ public class Employee : ITenantOwned
             throw new DomainException("employee.salary_negative", "Base salary cannot be negative.");
         if (ChildrenCount < 0)
             throw new DomainException("employee.children_negative", "Children count cannot be negative.");
+        if (YtdOpeningYear is < 2000 or > 2100)
+            throw new DomainException("employee.ytd_opening_year_invalid", "Opening YTD year must be between 2000 and 2100.");
+        if (YtdOpeningIncome < 0m || YtdOpeningPit < 0m || YtdOpeningSso < 0m)
+            throw new DomainException("employee.ytd_opening_negative", "Opening YTD amounts cannot be negative.");
         if (TerminationDate is { } t && t < HireDate)
             throw new DomainException("employee.termination_before_hire", "Termination date precedes hire date.");
     }

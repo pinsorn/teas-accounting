@@ -105,6 +105,11 @@ const TH: Record<string, string> = {
   'company_info.vat_rate_invalid': 'อัตรา VAT ต้องอยู่ระหว่าง 0 ถึง 1',
   'company_info.pnd30_invalid': "รูปแบบการยื่น ภ.พ.30 ต้องเป็น 'manual' หรือ 'auto'",
 
+  // payroll.*
+  'payroll.duplicate_period': 'มีรอบจ่ายของงวดนี้อยู่แล้ว',
+  'payroll.bank_required': 'กรุณาเลือกบัญชีธนาคารสำหรับจ่ายเงินเดือน',
+  'payroll.bank_not_found': 'ไม่พบบัญชีธนาคารที่เลือกหรือบัญชีถูกปิดใช้งาน',
+
   // customer.* / employee.* / branch.* / coa.* / prefix.* / expense_category.* / product.*
   'customer.not_found': 'ไม่พบลูกค้านี้',
   'customer.duplicate_code': 'รหัสลูกค้านี้มีอยู่แล้ว',

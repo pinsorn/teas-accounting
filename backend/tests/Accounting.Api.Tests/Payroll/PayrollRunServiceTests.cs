@@ -2,8 +2,10 @@ using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Payroll;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Bank;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
+using Accounting.Domain.Payroll;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
@@ -71,12 +73,26 @@ public sealed class PayrollRunServiceTests
         }
     }
 
+    private static async Task<int> FreshOpeningYearAsync(ServiceProvider sp)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        for (var year = 2100; year >= 2000; year--)
+        {
+            var prefix = year.ToString();
+            if (!await db.PayrollRuns.AnyAsync(r => r.PeriodYearMonth.StartsWith(prefix), default))
+                return year;
+        }
+        throw new InvalidOperationException("No unused opening-YTD test year remains.");
+    }
     private static async Task<string> FreshPeriodAsync(ServiceProvider sp, int month) =>
         Period(await FreshYearAsync(sp), month);
 
     private static async Task<long> AddEmployee(
         ServiceProvider sp, decimal salary, MaritalStatus marital = MaritalStatus.Single,
-        bool spouseHasIncome = false, int children = 0, bool sso = true, bool isActive = true)
+        bool spouseHasIncome = false, int children = 0, bool sso = true, bool isActive = true,
+        int? ytdOpeningYear = null, decimal ytdOpeningIncome = 0m,
+        decimal ytdOpeningPit = 0m, decimal ytdOpeningSso = 0m)
     {
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
@@ -87,6 +103,8 @@ public sealed class PayrollRunServiceTests
             HireDate = new DateOnly(2020, 1, 1), BaseSalary = salary,
             SsoApplicable = sso, MaritalStatus = marital,
             SpouseHasIncome = spouseHasIncome, ChildrenCount = children,
+            YtdOpeningYear = ytdOpeningYear, YtdOpeningIncome = ytdOpeningIncome,
+            YtdOpeningPit = ytdOpeningPit, YtdOpeningSso = ytdOpeningSso,
             IsActive = isActive, CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Employees.Add(e);
@@ -338,11 +356,9 @@ public sealed class PayrollRunServiceTests
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
         var year = await FreshYearAsync(sp);
-        var empId = await AddEmployee(sp, 50_000m);   // the only employee we assert on (YTD is per-employee)
+        var empId = await AddEmployee(sp, 50_000m);
 
-        // Month 1 (Jan): 12 months remaining → 1,716.67.
         var run1 = await RunThroughPost(sp, Period(year, 1));
-        // Month 2 (Feb): YTD income 50,000 / YTD PIT 1,716.67 → 11 months remaining → same 1,716.67.
         var run2 = await RunThroughPost(sp, Period(year, 2));
 
         await using var s = sp.CreateAsyncScope();
@@ -351,8 +367,173 @@ public sealed class PayrollRunServiceTests
         var p2 = (await svc.GetAsync(run2, default))!.Payslips.Single(p => p.EmployeeId == empId);
 
         p1.PitWithheld.Should().Be(1_716.67m);
-        p2.PitWithheld.Should().Be(1_716.67m);            // even spread — YTD subtraction is correct
-        p2.YtdIncome.Should().Be(100_000m);              // 2 × 50,000
-        p2.YtdPit.Should().Be(3_433.34m);                // 2 × 1,716.67
+        p2.PitWithheld.Should().Be(p1.PitWithheld);
+        p2.YtdIncome.Should().Be(100_000m);
+        p2.YtdPit.Should().Be(p1.PitWithheld + p2.PitWithheld);
+    }
+    [SkippableFact]
+    public async Task Opening_ytd_is_included_in_midyear_projection_and_sso_allowance()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshOpeningYearAsync(sp);
+        var employeeId = await AddEmployee(sp, 80_000m,
+            ytdOpeningYear: year, ytdOpeningIncome: 480_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 7), new DateOnly(year, 7, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId);
+
+        const int monthsRemaining = 6;
+        var sso = SsoContribution.Monthly(80_000m, 0.05m, 1_650m, 15_000m);
+        var projected = 480_000m + 80_000m * monthsRemaining;
+        const decimal priorInSystemSso = 0m;
+        const decimal openingSso = 0m;
+        var allowances = PayrollAllowanceRates.Default().Annual(
+            MaritalStatus.Single, false, 0,
+            Math.Min(priorInSystemSso + openingSso + sso * monthsRemaining, 9_000m));
+        var expected = ThaiPitCalculator.MonthlyWithholding(
+            projected, allowances, 0m, monthsRemaining, PitSchedule.Current());
+
+        slip.PitWithheld.Should().Be(expected);
+        slip.YtdIncome.Should().Be(560_000m);
+    }
+
+    [SkippableFact]
+    public async Task January_without_opening_keeps_twelve_month_projection_and_sso_allowance()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var employeeId = await AddEmployee(sp, 80_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 1), new DateOnly(year, 1, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId);
+
+        const int monthsRemaining = 12;
+        var sso = SsoContribution.Monthly(80_000m, 0.05m, 1_650m, 15_000m);
+        var allowances = PayrollAllowanceRates.Default().Annual(
+            MaritalStatus.Single, false, 0, Math.Min(sso * monthsRemaining, 9_000m));
+        var expected = ThaiPitCalculator.MonthlyWithholding(
+            80_000m * monthsRemaining, allowances, 0m, monthsRemaining, PitSchedule.Current());
+
+        slip.PitWithheld.Should().Be(expected);
+    }
+
+    [SkippableFact]
+    public async Task Midyear_without_opening_uses_only_remaining_months_for_sso_allowance()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var employeeId = await AddEmployee(sp, 80_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 7), new DateOnly(year, 7, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId);
+
+        const int monthsRemaining = 6;
+        var sso = SsoContribution.Monthly(80_000m, 0.05m, 1_650m, 15_000m);
+        const decimal priorInSystemSso = 0m;
+        const decimal openingSso = 0m;
+        var allowances = PayrollAllowanceRates.Default().Annual(
+            MaritalStatus.Single, false, 0,
+            Math.Min(priorInSystemSso + openingSso + sso * monthsRemaining, 9_000m));
+        var expected = ThaiPitCalculator.MonthlyWithholding(
+            80_000m * monthsRemaining, allowances, 0m, monthsRemaining, PitSchedule.Current());
+
+        slip.PitWithheld.Should().Be(expected);
+    }
+
+    [SkippableFact]
+    public async Task Pay_posts_wages_payable_to_selected_bank_and_blocks_double_pay()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = await FreshPeriodAsync(sp, 9);
+        await AddEmployee(sp, 35_000m);
+
+        int bankAccountId;
+        await using (var setup = sp.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bankGl = await db.ChartOfAccounts.SingleAsync(a => a.AccountCode == "1120");
+            var bank = new BankAccount
+            {
+                CompanyId = 1, BankCode = "TST" + Sfx(), BankName = "ธนาคารทดสอบ",
+                AccountNo = Sfx(), GlCashAccountId = bankGl.AccountId,
+                IsActive = true, CreatedAt = DateTimeOffset.UtcNow, CreatedBy = 1,
+            };
+            db.BankAccounts.Add(bank);
+            await db.SaveChangesAsync();
+            bankAccountId = bank.BankAccountId;
+        }
+
+        var runId = await RunThroughPost(sp, period);
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var beforePay = (await svc.GetAsync(runId, default))!;
+        await svc.PayAsync(runId, new PayPayrollRunRequest(bankAccountId), default);
+
+        var dbAfter = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var settlement = await dbAfter.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .SingleAsync(j => j.Description == $"Payroll settlement {beforePay.DocNo}");
+        var accountIds = settlement.Lines.Select(l => l.AccountId).ToArray();
+        var codes = await dbAfter.ChartOfAccounts.AsNoTracking()
+            .Where(a => accountIds.Contains(a.AccountId))
+            .ToDictionaryAsync(a => a.AccountId, a => a.AccountCode);
+        settlement.DocDate.Should().Be(beforePay.PayDate);
+        settlement.Lines.Single(l => codes[l.AccountId] == "2170").DebitAmount.Should().Be(beforePay.TotalNet);
+        settlement.Lines.Single(l => codes[l.AccountId] == "1120").CreditAmount.Should().Be(beforePay.TotalNet);
+        settlement.TotalDebit.Should().Be(settlement.TotalCredit);
+
+        var doublePay = () => svc.PayAsync(runId, new PayPayrollRunRequest(bankAccountId), default);
+        (await doublePay.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.already_paid");
+    }
+
+    [SkippableFact]
+    public async Task Pay_without_any_active_bank_credits_cash_1110()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        List<BankAccount> activeBanks;
+        await using var setup = sp.CreateAsyncScope();
+        var setupDb = setup.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        activeBanks = await setupDb.BankAccounts.Where(b => b.IsActive).ToListAsync();
+        foreach (var bank in activeBanks) bank.IsActive = false;
+        await setupDb.SaveChangesAsync();
+
+        try
+        {
+            var period = await FreshPeriodAsync(sp, 10);
+            await AddEmployee(sp, 35_000m);
+            var runId = await RunThroughPost(sp, period);
+
+            await using var s = sp.CreateAsyncScope();
+            var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var beforePay = (await svc.GetAsync(runId, default))!;
+            await svc.PayAsync(runId, new PayPayrollRunRequest(null), default);
+
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var settlement = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+                .SingleAsync(j => j.Description == $"Payroll settlement {beforePay.DocNo}");
+            var creditAccountId = settlement.Lines.Single(l => l.CreditAmount == beforePay.TotalNet).AccountId;
+            var creditCode = await db.ChartOfAccounts.AsNoTracking()
+                .Where(a => a.AccountId == creditAccountId).Select(a => a.AccountCode).SingleAsync();
+            creditCode.Should().Be("1110");
+        }
+        finally
+        {
+            foreach (var bank in activeBanks) bank.IsActive = true;
+            await setupDb.SaveChangesAsync();
+        }
     }
 }

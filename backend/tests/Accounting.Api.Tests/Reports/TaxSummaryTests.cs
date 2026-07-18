@@ -3,6 +3,7 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Reports;
 using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
+using Accounting.Domain.Entities.Payroll;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
 using Accounting.TestKit;
@@ -55,7 +56,9 @@ public sealed class TaxSummaryTests
                 .AnyAsync(j => j.DocDate >= from && j.DocDate < to);
             var hasCert = await db.WhtCertificates.IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(w => w.CertDate >= from && w.CertDate < to);
-            if (!hasJe && !hasCert) return y;
+            var hasPayroll = await db.PayrollRuns.AsNoTracking()
+                .AnyAsync(r => r.PayDate >= from && r.PayDate < to);
+            if (!hasJe && !hasCert && !hasPayroll) return y;
         }
     }
 
@@ -222,6 +225,38 @@ public sealed class TaxSummaryTests
 
     // Dr Asset(cash) (rev−exp) + Dr Expense (exp) / Cr Revenue (rev) — balanced, and the
     // Expense account carries exactly `exp` (the Asset line keeps it from skewing the report).
+    [SkippableFact]
+    public async Task Posted_payroll_pit_is_included_in_pnd1_by_pay_date_month()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var svc = s.ServiceProvider.GetRequiredService<ITaxSummaryService>();
+        var year = await FreshYearAsync(db);
+
+        var run = new PayrollRun
+        {
+            CompanyId = 1, BranchId = 1, PeriodYearMonth = $"{year:0000}04",
+            PayDate = new DateOnly(year, 5, 2), DocNo = $"TS-PR-{Guid.NewGuid():N}",
+            Status = DocumentStatus.Posted, TotalPit = 1_234.56m,
+            CreatedAt = DateTimeOffset.UtcNow, PostedAt = DateTimeOffset.UtcNow, PostedBy = 1,
+        };
+        db.PayrollRuns.Add(run);
+        await db.SaveChangesAsync();
+        try
+        {
+            var report = await svc.GetAsync(year, default);
+            report.Months[4].WhtPaidPnd1.Should().Be(1_234.56m);
+            report.Months[3].WhtPaidPnd1.Should().Be(0m, "pay date, not payroll period, selects the month");
+            report.Totals.WhtPaidPnd1.Should().Be(1_234.56m);
+        }
+        finally
+        {
+            db.PayrollRuns.Remove(run);
+            await db.SaveChangesAsync();
+        }
+    }
     private static JournalEntry MakeJe(
         int year, int month, long revAcct, decimal rev, long expAcct, decimal exp, long assetAcct) => new()
     {

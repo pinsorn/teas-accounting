@@ -64,9 +64,19 @@ connector = **forbidden this round** (points at Repttown, wrong company).
 - [x] REPORT-vat-dummy-test.md final for this round: F-1..F-10 + R6 input + R10 log (clean)
 
 ## Next (resume here if interrupted)
-1. Ham decisions needed: F-3 (PIT onboarding-year projection — recommend opening-YTD
-   feature), F-6 (Pay settlement JE design). Batchable fixes: F-4/F-7/F-8/F-9/F-10.
-2. Fix round after Ham input → deploy → re-test loop until clean (standing instruction).
+1. [x] Ham approved ALL recommendations ("แก้เลยเอาตามที่แนะนำเลย") → spec
+   `specs/fix-vat-round-findings.md` (a33143b) → **Codex implementing in working tree**
+   (quota arbitrage, Claude pool 92%). No commits from Codex.
+   Codex background task id: `task-mrqany3j-s65krr` — check via `/codex:status
+   task-mrqany3j-s65krr` (or codex CLI status) at each wakeup; evidence of completion =
+   spec checklist [x] + working-tree diff.
+2. When Codex returns + quota reset (~18:00): Opus Tier-2 review (money/schema/payroll
+   lenses; new SqlScripts 610/611 = migration → prod deploy needs DB backup) → Fable
+   reads full diff → commit → release v1.22.0 → deploy (backup!) → RE-TEST on co5:
+   (a) set EMP001 opening YTD 480,000/8,450×?/5,250 → expect PIT jump to proper level
+   (compute vs ThaiPitCalculator), (b) Pay a run w/ bank → 2170 clears + 1120 moves,
+   (c) new company create → 26 CoA w/ 5000, (d) VI COGS → 5000 not 5200, (e) tax-summary
+   ภ.ง.ด.1 column populated, (f) i18n items visually. Loop until clean.
 3. Plan C leftovers: bank statement IMPORT flow (needs statement file/upload UI at
    /bank-accounts/[id]/imports), TI PDF visual check (ภ.พ.20 fields — blob tab flaky),
    สปส.1-10 PDF + ภ.ง.ด.1 ใบแนบ pages visual re-check, CN (ใบลดหนี้) → ภ.พ.30 reflect,

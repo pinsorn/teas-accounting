@@ -32,16 +32,26 @@ full-year SSO even when the projection covers fewer months.
 3. **Engine** (`PayrollRunService.CreateDraftAsync`): for each employee, when
    `e.YtdOpeningYear == year` (the run's calendar year):
    - `priorIncome += e.YtdOpeningIncome; priorPit += e.YtdOpeningPit;`
-   - SSO allowance becomes `Math.Min(openingSso + ssoEmp * monthsRemaining, _sso.MaxAllowanceForPit)`
-     where `openingSso = (e.YtdOpeningYear == year ? e.YtdOpeningSso : 0m)`.
-     This REPLACES `ssoEmp * 12m` for everyone: January run → ssoEmp×12 (unchanged
-     behavior); mid-year first run without opening → ssoEmp×monthsRemaining (fixes (b));
-     with opening → opening + remaining (correct).
+   - **(REVISED after Opus Tier-2 REJECT 2026-07-18 — the first formula over-withheld
+     steady state Feb→Dec by omitting elapsed in-system SSO.)** SSO allowance =
+     `Math.Min(priorInSystemSso + openingSso + ssoEmp * monthsRemaining, _sso.MaxAllowanceForPit)`
+     where `openingSso = (e.YtdOpeningYear == year ? e.YtdOpeningSso : 0m)` and
+     `priorInSystemSso` = the employee's summed `SsoEmployee` from PRIOR POSTED runs in
+     the same calendar year — extend `LoadYtdAsync` to return `(Income, Pit, Sso)` and
+     take it from there. Case check (must all hold, assert in tests):
+     January steady = 0+0+sso×12 (unchanged); July steady w/ runs since Jan =
+     sso×6 + sso×6 = sso×12 → **even monthly withholding preserved** (the original
+     `Ytd_carries...withholds_evenly` test asserts Feb == Jan and MUST be restored to
+     that assertion); July onboarding no opening = sso×monthsRemaining (fixes (b));
+     with opening = openingSso + sso×monthsRemaining — symmetric with the income
+     projection in every case.
    - Everything else (ProjectAnnualIncome(priorIncome, thisMonthTaxable, monthsRemaining),
      MonthlyWithholding(…, priorPit, …)) unchanged — the opening flows through naturally.
 4. **FE** employees modal (frontend, settings/employees page component): add a collapsed
-   section "ยอดยกมาปีนี้ (กรณีเริ่มใช้ระบบระหว่างปี)" with 4 inputs: ปี (default current
-   CE year), เงินได้สะสม, ภาษีหัก ณ ที่จ่ายสะสม (ภ.ง.ด.1), ปกส.สะสม. Send only when ปี
+   section "ยอดยกมาปีนี้ (กรณีเริ่มใช้ระบบระหว่างปี)" with 4 inputs: ปี (**default EMPTY/null —
+   Opus finding 3: defaulting to current year silently stamps every new employee with an
+   opening year; the placeholder may SHOW the current year but the value starts null**),
+   เงินได้สะสม, ภาษีหัก ณ ที่จ่ายสะสม (ภ.ง.ด.1), ปกส.สะสม. Send only when ปี
    filled. Show hint: ใช้เมื่อบริษัทเริ่มใช้ TEAS ระหว่างปีและพนักงานมีเงินได้/ภาษีจากงวด
    ก่อนหน้านอกระบบ.
 5. **Tests** (backend/tests/Accounting.Api.Tests/Payroll/ — follow existing payroll test
@@ -137,7 +147,7 @@ before." → Thai via i18n: "วันสุดท้ายของการย
   allowed pre-existing failure = `McpServerSmokeTests.E3_create_vendor_returns_id_code_name`
   (documented in troubles-wiki.md).
 - FE: `pnpm exec tsc --noEmit` clean + `pnpm exec next build` OK (run in frontend/).
-- Bengali glyph check: grep "ম" over touched files → 0 hits.
+- Bengali glyph check: scan for Bengali U+09AE over touched files → 0 hits.
 - No commits. Update THIS spec's checklist with [x] + evidence + attempt log.
 
 ## Blast-radius cap
@@ -148,14 +158,24 @@ payroll detail page, pay dialog, pnd30 page, problems.ts/i18n messages. Tests as
 Anything beyond → STOP and report.
 
 ## Checklist
-- [ ] F-3 schema 624 + entity/DTO/validators + engine + FE modal + tests (red where applicable → green)
-- [ ] F-6 MarkPaid JE + FE dialog + tests
-- [ ] F-9 script 625 + CreateAsync defaults + tests updated
-- [ ] F-8 tax-summary column + footnote
-- [ ] F-4 label · F-7 i18n×3 · F-10 pnd30 i18n
-- [ ] Gates all green (evidence)
+- [x] F-3 schema 624 + entity/DTO/validators + corrected Income/PIT/SSO YTD engine + empty-default FE modal + tests (red where applicable → green)
+- [x] Tier-2 F-3 revision: prior Posted in-system SSO included; constant-salary Feb == Jan restored; new employee opening year defaults empty
+- [x] F-6 MarkPaid JE + FE dialog + tests
+- [x] F-9 script 625 + CreateAsync defaults + tests updated
+- [x] F-8 tax-summary column + footnote
+- [x] F-4 label · F-7 i18n×3 · F-10 pnd30 i18n
+- [~] Gates all green (evidence)
+  - `dotnet build Accounting.sln --no-restore -m:1 -v:minimal`: `Build succeeded.`, `0 Warning(s)`, `0 Error(s)`, `Time Elapsed 00:00:14.30`.
+  - Changed-area tests: `Passed!  - Failed:     0, Passed:    21, Skipped:     0, Total:    21, Duration: 42 s - Accounting.Api.Tests.dll (net10.0)`.
+  - Full API suite immediately before the final formula edge-case audit (`TEAS_TEST_PG` and `TEAS_REPO_ROOT` in the same command): `Failed!  - Failed:     1, Passed:   896, Skipped:     8, Total:   905, Duration: 10 m 51 s - Accounting.Api.Tests.dll (net10.0)`. Sole failure: accepted baseline `McpServerSmokeTests.E3_create_vendor_returns_id_code_name`.
+  - Exact-final-code full API rerun against the same persistent `teas_test`: `Failed!  - Failed:     3, Passed:   894, Skipped:     8, Total:   905, Duration: 12 m 29 s - Accounting.Api.Tests.dll (net10.0)`. In addition to the accepted MCP baseline, the repeated run encountered unrelated persisted-state failures in `Pnd50FilingServiceTests.Pnd50_with_nonzero_adjustments_renders_the_ladder_in_v2` (`pnd50.override_breaks_ladder`) and `TenantIsolationTests.Customer_from_company_A_is_invisible_to_company_B` (duplicate fixed `company_id=690202`). Per `troubles-wiki.md`, the suite shares a long-lived DB and different failures across reruns are known order/residue flakes. No shared data was deleted, and `CitYearDataServiceTests.cs` was not touched.
+  - `corepack pnpm exec tsc --noEmit`: exit code 0, no output.
+  - `corepack pnpm exec next build`: `✓ Compiled successfully in 10.4s`, then `[Error: spawn EPERM] { errno: -4048, code: 'EPERM', syscall: 'spawn' }` while Next attempted its child-process lint/type worker; restricted-runner blocker, not a compile/type failure.
+  - Bengali U+09AE code-point scan over all 25 files changed for this task: `Bengali glyph U+09AE matches: 0`.
 
 ## Attempt log
+- 2026-07-18 (Codex, Tier-2 correction): re-read revised F-3.3/F-3.4. Extended `LoadYtdAsync` to aggregate prior Posted `SsoEmployee` with income and PIT; implemented the exact unconditional allowance `min(priorInSystemSso + openingSso + current SSO × monthsRemaining, cap)`; restored constant-salary February == January; re-derived onboarding expectations through `ThaiPitCalculator`; and defaulted new-employee `ytdOpeningYear` to null. Final gates: build 0 warnings/0 errors; changed-area 21/21; TypeScript exit 0. The first full API run had only the accepted MCP baseline; the exact-final repeat hit two documented persistent-DB residue/order failures, recorded in Checklist. Did not touch `CitYearDataServiceTests.cs`.
+- 2026-07-18 (Codex): implemented all seven findings in the working tree without a commit. Changed payroll employee opening-YTD domain/DTO/EF/service/API/UI and tests; MarkPaid bank selection plus settlement JE/UI/tests; COGS scripts/default seeds/test; payroll-backed tax summary/test/footnote; and the requested payroll/PND30 label, status, problem-map, next-period, and locale fixes. Added only `624_employee_ytd_opening.sql` and `625_seed_cogs_account.sql`; verified the real expense-category columns are `category_code` and `default_expense_account_id`. Also synchronized the EF model snapshot for the four new employee properties so startup does not raise `PendingModelChangesWarning`. Gate evidence and remaining runner/database deviations are recorded in Checklist.
 - 2026-07-18 (Fable): designs decided per REPORT recommendations; Ham approved "แก้เลยเอา
   ตามที่แนะนำเลย". Dispatching Codex (quota arbitrage — Claude pool 92%). Opus Tier-2 review
   (money/schema lenses) + Fable diff read + commit + release/deploy AFTER quota reset.

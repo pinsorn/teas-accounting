@@ -395,6 +395,7 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("3300", "กำไรสะสม",                       "Retained Earnings",         AccountType.Equity,    NormalBalance.Credit),
         ("4000", "รายได้จากการขาย",                "Sales Revenue",             AccountType.Revenue,   NormalBalance.Credit),
         ("4100", "รับคืน / ส่วนลด",                "Sales Return / Discount",   AccountType.Revenue,   NormalBalance.Debit),
+        ("5000", "ต้นทุนขาย",                       "Cost of Goods Sold",        AccountType.Expense,   NormalBalance.Debit),
         ("5100", "ค่าใช้จ่ายค่าเช่า",               "Rental Expense",            AccountType.Expense,   NormalBalance.Debit),
         ("5200", "ค่าใช้จ่ายค่าบริการ",             "Service Expense",           AccountType.Expense,   NormalBalance.Debit),
         ("5300", "ค่าใช้จ่ายโฆษณา",                "Advertising Expense",       AccountType.Expense,   NormalBalance.Debit),
@@ -435,7 +436,7 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("TRAIN", "ค่าอบรม",                     "Training",              "5200", true,  false, false),
         ("LEGAL", "ค่าทนาย/บัญชี",               "Legal / accounting",    "5200", true,  false, false),
         ("INTR",  "ดอกเบี้ยจ่าย",                "Interest expense",      "5200", false, false, false),
-        ("COGS",  "ต้นทุนสินค้าขาย",             "Cost of goods sold",    "5200", true,  false, true),
+        ("COGS",  "ต้นทุนสินค้าขาย",             "Cost of goods sold",    "5000", true,  false, true),
         ("CAPEX", "สินทรัพย์ถาวร (capitalize)",  "Fixed asset (capex)",   "1610", true,  true,  false),
         ("MISC",  "อื่น ๆ",                      "Miscellaneous",         "5200", true,  false, false),
     ];

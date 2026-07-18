@@ -32,7 +32,8 @@ public sealed class EmployeeService(AccountingDbContext db, ITenantContext tenan
         Apply(e, req.TitleTh, req.FirstNameTh, req.LastNameTh, req.TitleEn, req.FirstNameEn, req.LastNameEn,
             req.NationalId, req.TaxId, req.Address, req.HireDate, req.TerminationDate, req.BaseSalary,
             req.BankName, req.BankAccountNo, req.BankAccountName, req.SsoApplicable, req.SsoNumber,
-            req.MaritalStatus, req.SpouseHasIncome, req.ChildrenCount);
+            req.MaritalStatus, req.SpouseHasIncome, req.ChildrenCount,
+            req.YtdOpeningYear, req.YtdOpeningIncome, req.YtdOpeningPit, req.YtdOpeningSso);
         e.IsActive = true;
         e.CreatedAt = DateTimeOffset.UtcNow;
         e.EnsureValid();
@@ -49,7 +50,8 @@ public sealed class EmployeeService(AccountingDbContext db, ITenantContext tenan
         Apply(e, req.TitleTh, req.FirstNameTh, req.LastNameTh, req.TitleEn, req.FirstNameEn, req.LastNameEn,
             req.NationalId, req.TaxId, req.Address, req.HireDate, req.TerminationDate, req.BaseSalary,
             req.BankName, req.BankAccountNo, req.BankAccountName, req.SsoApplicable, req.SsoNumber,
-            req.MaritalStatus, req.SpouseHasIncome, req.ChildrenCount);
+            req.MaritalStatus, req.SpouseHasIncome, req.ChildrenCount,
+            req.YtdOpeningYear, req.YtdOpeningIncome, req.YtdOpeningPit, req.YtdOpeningSso);
         e.IsActive = req.IsActive;
         e.EnsureValid();
         await db.SaveChangesAsync(ct);
@@ -71,7 +73,8 @@ public sealed class EmployeeService(AccountingDbContext db, ITenantContext tenan
             .Select(e => new EmployeeListItem(
                 e.EmployeeId, e.EmployeeCode,
                 ((e.TitleTh ?? "") + e.FirstNameTh + " " + e.LastNameTh).Trim(),
-                e.NationalId, e.BaseSalary, e.SsoApplicable, e.IsActive))
+                e.NationalId, e.BaseSalary, e.SsoApplicable, e.IsActive,
+                e.YtdOpeningYear, e.YtdOpeningIncome, e.YtdOpeningPit, e.YtdOpeningSso))
             .ToListAsync(ct);
     }
 
@@ -88,7 +91,7 @@ public sealed class EmployeeService(AccountingDbContext db, ITenantContext tenan
                 e.BankName, e.BankAccountNo, e.BankAccountName,
                 e.SsoApplicable, e.SsoNumber,
                 e.MaritalStatus.ToString().ToUpperInvariant(), e.SpouseHasIncome, e.ChildrenCount,
-                e.IsActive))
+                e.IsActive, e.YtdOpeningYear, e.YtdOpeningIncome, e.YtdOpeningPit, e.YtdOpeningSso))
             .FirstOrDefaultAsync(ct);
 
     private static void Apply(
@@ -96,7 +99,8 @@ public sealed class EmployeeService(AccountingDbContext db, ITenantContext tenan
         string? titleEn, string? firstEn, string? lastEn, string nid, string? taxId,
         EmployeeAddress? addr, DateOnly hire, DateOnly? term, decimal salary,
         string? bankName, string? bankNo, string? bankAcctName, bool ssoApplicable, string? ssoNo,
-        string marital, bool spouseHasIncome, int children)
+        string marital, bool spouseHasIncome, int children,
+        int? ytdOpeningYear, decimal ytdOpeningIncome, decimal ytdOpeningPit, decimal ytdOpeningSso)
     {
         e.TitleTh = titleTh; e.FirstNameTh = firstTh; e.LastNameTh = lastTh;
         e.TitleEn = titleEn; e.FirstNameEn = firstEn; e.LastNameEn = lastEn;
@@ -110,5 +114,7 @@ public sealed class EmployeeService(AccountingDbContext db, ITenantContext tenan
         e.SsoApplicable = ssoApplicable; e.SsoNumber = ssoNo;
         e.MaritalStatus = Enum.Parse<MaritalStatus>(marital, ignoreCase: true);
         e.SpouseHasIncome = spouseHasIncome; e.ChildrenCount = children;
+        e.YtdOpeningYear = ytdOpeningYear; e.YtdOpeningIncome = ytdOpeningIncome;
+        e.YtdOpeningPit = ytdOpeningPit; e.YtdOpeningSso = ytdOpeningSso;
     }
 }

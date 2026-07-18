@@ -73,6 +73,16 @@ public sealed class TaxSummaryService(
             .Select(g => new { g.Key.Month, g.Key.Direction, g.Key.FormType, Wht = g.Sum(x => x.WhtAmount) })
             .ToListAsync(ct);
 
+        // Posted payroll remains in Posted status after settlement (PaidAt marks payment).
+        // ภ.ง.ด.1 follows the run's pay date, matching the payroll filing services.
+        var payrollPitRows = await db.PayrollRuns.AsNoTracking()
+            .Where(r => r.Status == DocumentStatus.Posted
+                     && r.PayDate >= yearStart && r.PayDate < nextYearStart)
+            .GroupBy(r => r.PayDate.Month)
+            .Select(g => new { Month = g.Key, Pit = g.Sum(r => r.TotalPit) })
+            .ToListAsync(ct);
+        var payrollPit = payrollPitRows.ToDictionary(r => r.Month, r => r.Pit);
+
         // ── VAT: reuse the ภ.พ.30 service per month (DRY; respects claim-period) ───
         var months = new List<TaxSummaryMonth>(12);
         for (var m = 1; m <= 12; m++)
@@ -86,7 +96,7 @@ public sealed class TaxSummaryService(
             var pnd3  = Paid(WhtFormType.Pnd3);
             var pnd53 = Paid(WhtFormType.Pnd53);
             var pnd54 = Paid(WhtFormType.Pnd54);
-            var pnd1  = Paid(WhtFormType.Pnd1);
+            var pnd1  = Paid(WhtFormType.Pnd1) + payrollPit.GetValueOrDefault(m);
             var received = whtRows.Where(r => r.Month == m && r.Direction == "R").Sum(r => r.Wht);
 
             months.Add(new TaxSummaryMonth(

@@ -1,0 +1,4 @@
+ALTER TABLE master.employees ADD COLUMN IF NOT EXISTS ytd_opening_year INT NULL;
+ALTER TABLE master.employees ADD COLUMN IF NOT EXISTS ytd_opening_income NUMERIC(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE master.employees ADD COLUMN IF NOT EXISTS ytd_opening_pit NUMERIC(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE master.employees ADD COLUMN IF NOT EXISTS ytd_opening_sso NUMERIC(18,2) NOT NULL DEFAULT 0;

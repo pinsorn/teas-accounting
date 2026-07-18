@@ -11,6 +11,7 @@ import { PermissionGate } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
 import {
   usePayrollRun, useApprovePayrollRun, usePostPayrollRun, usePayPayrollRun, useDeletePayrollRun,
+  useBankAccounts,
 } from '@/lib/queries';
 import { openPdf, downloadFile } from '@/lib/api';
 import type { PayslipDto } from '@/lib/types';
@@ -27,17 +28,31 @@ export default function PayrollRunDetailPage() {
   const confirm = useConfirm();
 
   const q = usePayrollRun(id);
+  const bankAccounts = useBankAccounts();
   const approve = useApprovePayrollRun();
   const post = usePostPayrollRun();
   const pay = usePayPayrollRun();
   const del = useDeletePayrollRun();
   const run = q.data;
   const [selected, setSelected] = useState<PayslipDto | null>(null);
+  const [payOpen, setPayOpen] = useState(false);
+  const [payBankAccountId, setPayBankAccountId] = useState<number | null>(null);
+  const activeBanks = (bankAccounts.data ?? []).filter((b) => b.isActive);
 
   async function act(fn: () => Promise<unknown>, ok: string, confirmMsg?: string, destructive = false) {
     if (confirmMsg && !(await confirm({ description: confirmMsg, variant: destructive ? 'destructive' : 'default' }))) return;
     try { await fn(); toast.success(ok); } catch (e) { toast.error(errorToToast(e)); }
   }
+  async function confirmPay() {
+    try {
+      await pay.mutateAsync({ id, bankAccountId: payBankAccountId });
+      toast.success(t('paid'));
+      setPayOpen(false);
+    } catch (e) {
+      toast.error(errorToToast(e));
+    }
+  }
+
 
   async function pr(path: string) {
     try { await openPdf(path); } catch (e) { toast.error(errorToToast(e)); }
@@ -75,7 +90,10 @@ export default function PayrollRunDetailPage() {
             {run.status === 'POSTED' && run.paidAt == null && (
               <PermissionGate scope="payroll.run.pay">
                 <button className="btn btn-success btn-sm" disabled={busy}
-                  onClick={() => act(() => pay.mutateAsync(id), t('paid'), t('payConfirm'))}>{t('pay')}</button>
+                  onClick={() => {
+                    setPayBankAccountId(activeBanks[0]?.bankAccountId ?? null);
+                    setPayOpen(true);
+                  }}>{t('pay')}</button>
               </PermissionGate>
             )}
             {run.status === 'DRAFT' && (
@@ -180,6 +198,36 @@ export default function PayrollRunDetailPage() {
           </tbody>
         </table>
       </div>
+
+      {payOpen && (
+        <div className="modal modal-open" role="dialog" aria-modal="true">
+          <div className="modal-box">
+            <h3 className="text-lg font-bold">{t('pay')}</h3>
+            <p className="mt-1 text-sm text-base-content/60">{t('payConfirm')}</p>
+            <label className="form-control mt-4">
+              <span className="label-text">{t('payBankAccount')}</span>
+              <select className="select select-bordered" value={payBankAccountId ?? ''}
+                onChange={(e) => setPayBankAccountId(e.target.value ? Number(e.target.value) : null)}
+                disabled={bankAccounts.isLoading || activeBanks.length === 0}>
+                {activeBanks.length === 0 && <option value="">{t('payCash')}</option>}
+                {activeBanks.map((b) => (
+                  <option key={b.bankAccountId} value={b.bankAccountId}>
+                    {b.bankName} — {b.accountNo}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setPayOpen(false)}>{tc('cancel')}</button>
+              <button className="btn btn-success" onClick={confirmPay}
+                disabled={pay.isPending || bankAccounts.isLoading || (activeBanks.length > 1 && payBankAccountId == null)}>
+                {t('confirmPay')}
+              </button>
+            </div>
+          </div>
+          <button className="modal-backdrop" aria-label={tc('close')} onClick={() => setPayOpen(false)} />
+        </div>
+      )}
 
       {selected && (
         <div className="modal modal-open" role="dialog" aria-modal="true">

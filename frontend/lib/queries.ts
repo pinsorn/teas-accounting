@@ -832,7 +832,7 @@ export function useCreatePayrollRun() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll-runs'] }),
   });
 }
-function useRunTransition(action: 'approve' | 'post' | 'pay') {
+function useRunTransition(action: 'approve' | 'post') {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => apiPost<unknown>(`payroll/runs/${id}/${action}`),
@@ -844,7 +844,17 @@ function useRunTransition(action: 'approve' | 'post' | 'pay') {
 }
 export const useApprovePayrollRun = () => useRunTransition('approve');
 export const usePostPayrollRun = () => useRunTransition('post');
-export const usePayPayrollRun = () => useRunTransition('pay');
+export function usePayPayrollRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, bankAccountId }: { id: number; bankAccountId: number | null }) =>
+      apiPost<unknown>(`payroll/runs/${id}/pay`, { bankAccountId }),
+    onSuccess: (_d, { id }) => {
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-run', id] });
+    },
+  });
+}
 export function useDeletePayrollRun() {
   const qc = useQueryClient();
   return useMutation({

@@ -57,11 +57,10 @@ public sealed class CompanyCreateExpenseCategorySeedTests
 
         var cogs = cats.First(c => c.CategoryCode == "COGS");
         cogs.IsCogs.Should().BeTrue();
-        // No dedicated COGS account exists in DefaultChartOfAccounts — falls back to 5200
-        // (same universal fallback as 623_backfill_expense_category_accounts.sql).
+        // F-9: COGS resolves to the dedicated 5000 Cost of Goods Sold account.
         var cogsAccountCode = await db.ChartOfAccounts.AsNoTracking()
             .Where(a => a.AccountId == cogs.DefaultExpenseAccountId)
             .Select(a => a.AccountCode).FirstAsync();
-        cogsAccountCode.Should().Be("5200");
+        cogsAccountCode.Should().Be("5000");
     }
 }

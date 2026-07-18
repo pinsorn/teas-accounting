@@ -892,6 +892,7 @@ export interface EmployeeAddress {
 export interface EmployeeListItem {
   employeeId: number; employeeCode: string; fullNameTh: string;
   nationalId: string; baseSalary: number; ssoApplicable: boolean; isActive: boolean;
+  ytdOpeningYear: number | null; ytdOpeningIncome: number; ytdOpeningPit: number; ytdOpeningSso: number;
 }
 export interface EmployeeDetail {
   employeeId: number; employeeCode: string;
@@ -905,6 +906,7 @@ export interface EmployeeDetail {
   ssoApplicable: boolean; ssoNumber: string | null;
   maritalStatus: string; spouseHasIncome: boolean; childrenCount: number;
   isActive: boolean;
+  ytdOpeningYear: number | null; ytdOpeningIncome: number; ytdOpeningPit: number; ytdOpeningSso: number;
 }
 export interface CreateEmployeeRequest {
   employeeCode: string;
@@ -917,6 +919,8 @@ export interface CreateEmployeeRequest {
   bankName: string | null; bankAccountNo: string | null; bankAccountName: string | null;
   ssoApplicable: boolean; ssoNumber: string | null;
   maritalStatus: string; spouseHasIncome: boolean; childrenCount: number;
+  ytdOpeningYear?: number | null; ytdOpeningIncome?: number;
+  ytdOpeningPit?: number; ytdOpeningSso?: number;
 }
 export type UpdateEmployeeRequest = Omit<CreateEmployeeRequest, 'employeeCode'> & { isActive: boolean };
 
@@ -942,6 +946,7 @@ export interface PayrollRunDetail {
 }
 export interface CreatePayrollRunRequest { periodYearMonth: string; payDate: string; notes: string | null; }
 
+export interface PayPayrollRunRequest { bankAccountId: number | null; }
 export interface WhtCertificateListItem {
   whtCertificateId: number; docNo: string; certDate: string; paymentVoucherId: number | null;
   payeeName: string; payeeTaxId: string | null; incomeTypeCode: string;

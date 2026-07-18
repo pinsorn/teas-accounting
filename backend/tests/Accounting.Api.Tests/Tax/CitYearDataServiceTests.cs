@@ -233,16 +233,23 @@ public sealed class CitYearDataServiceTests
                 .CitAdjustmentId;
         }
 
-        await using var sp2 = Provider(companyId: 2);
-        await using var s2 = sp2.CreateAsyncScope();
-        var svc2 = s2.ServiceProvider.GetRequiredService<ICitYearDataService>();
+        await using (var sp2 = Provider(companyId: 2))
+        await using (var s2 = sp2.CreateAsyncScope())
+        {
+            var svc2 = s2.ServiceProvider.GetRequiredService<ICitYearDataService>();
 
-        (await svc2.ListAdjustmentsAsync(year, default))
-            .Should().NotContain(a => a.CitAdjustmentId == id, "company_id isolation (§4.7)");
+            (await svc2.ListAdjustmentsAsync(year, default))
+                .Should().NotContain(a => a.CitAdjustmentId == id, "company_id isolation (§4.7)");
 
-        var update = async () => await svc2.UpdateAdjustmentAsync(id,
-            new UpsertCitAdjustmentRequest("ม.65ตรี(5)", "hijack", 1m), default);
-        (await update.Should().ThrowAsync<DomainException>())
-            .Which.Code.Should().Be("cit.adjustment_not_found");
+            var update = async () => await svc2.UpdateAdjustmentAsync(id,
+                new UpsertCitAdjustmentRequest("ม.65ตรี(5)", "hijack", 1m), default);
+            (await update.Should().ThrowAsync<DomainException>())
+                .Which.Code.Should().Be("cit.adjustment_not_found");
+        }
+
+        await using var spCleanup = Provider(companyId: 1);
+        await using var sCleanup = spCleanup.CreateAsyncScope();
+        await sCleanup.ServiceProvider.GetRequiredService<ICitYearDataService>()
+            .DeleteAdjustmentAsync(id, default);
     }
 }

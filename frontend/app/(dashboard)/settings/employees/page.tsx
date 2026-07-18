@@ -36,6 +36,8 @@ const EMPTY: Editing = {
   bankName: '', bankAccountNo: '', bankAccountName: '',
   ssoApplicable: true, ssoNumber: '',
   maritalStatus: 'SINGLE', spouseHasIncome: false, childrenCount: 0,
+  ytdOpeningYear: null, ytdOpeningIncome: 0,
+  ytdOpeningPit: 0, ytdOpeningSso: 0,
 };
 
 export default function EmployeesSettingsPage() {
@@ -83,6 +85,8 @@ export default function EmployeesSettingsPage() {
         bankName: d.bankName ?? '', bankAccountNo: d.bankAccountNo ?? '', bankAccountName: d.bankAccountName ?? '',
         ssoApplicable: d.ssoApplicable, ssoNumber: d.ssoNumber ?? '',
         maritalStatus: d.maritalStatus, spouseHasIncome: d.spouseHasIncome, childrenCount: d.childrenCount,
+        ytdOpeningYear: d.ytdOpeningYear, ytdOpeningIncome: d.ytdOpeningIncome,
+        ytdOpeningPit: d.ytdOpeningPit, ytdOpeningSso: d.ytdOpeningSso,
       });
     });
     return () => { cancelled = true; };
@@ -157,6 +161,12 @@ export default function EmployeesSettingsPage() {
       bankName: edit.bankName || null, bankAccountNo: edit.bankAccountNo || null, bankAccountName: edit.bankAccountName || null,
       ssoApplicable: edit.ssoApplicable, ssoNumber: edit.ssoNumber || null,
       maritalStatus: edit.maritalStatus, spouseHasIncome: edit.spouseHasIncome, childrenCount: edit.childrenCount,
+      ...(edit.ytdOpeningYear != null ? {
+        ytdOpeningYear: edit.ytdOpeningYear,
+        ytdOpeningIncome: edit.ytdOpeningIncome ?? 0,
+        ytdOpeningPit: edit.ytdOpeningPit ?? 0,
+        ytdOpeningSso: edit.ytdOpeningSso ?? 0,
+      } : {}),
     };
     try {
       if (edit.employeeId === null) await create.mutateAsync(req);
@@ -315,6 +325,39 @@ export default function EmployeesSettingsPage() {
                 <input className="input input-bordered font-mono" maxLength={5} value={edit.address?.postalCode ?? ''}
                   onChange={(e) => setAddr({ postalCode: e.target.value.replace(/\D/g, '') })} />
               </label>
+
+              <details className="rounded-box border border-base-300 p-3 sm:col-span-2">
+                <summary className="cursor-pointer font-medium">{t('ytdOpeningTitle')}</summary>
+                <p className="mt-2 text-xs text-base-content/60">{t('ytdOpeningHint')}</p>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="form-control">
+                    <span className="label-text">{t('ytdOpeningYear')}</span>
+                    <input type="number" min={2000} max={2100} className="input input-bordered"
+                      value={edit.ytdOpeningYear ?? ''}
+                      onChange={(e) => set({
+                        ytdOpeningYear: e.target.value === '' ? null : Number(e.target.value),
+                      })} />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text">{t('ytdOpeningIncome')}</span>
+                    <input type="number" min={0} step="0.01" className="input input-bordered tabular-nums"
+                      value={edit.ytdOpeningIncome ?? 0}
+                      onChange={(e) => set({ ytdOpeningIncome: Math.max(0, Number(e.target.value) || 0) })} />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text">{t('ytdOpeningPit')}</span>
+                    <input type="number" min={0} step="0.01" className="input input-bordered tabular-nums"
+                      value={edit.ytdOpeningPit ?? 0}
+                      onChange={(e) => set({ ytdOpeningPit: Math.max(0, Number(e.target.value) || 0) })} />
+                  </label>
+                  <label className="form-control">
+                    <span className="label-text">{t('ytdOpeningSso')}</span>
+                    <input type="number" min={0} step="0.01" className="input input-bordered tabular-nums"
+                      value={edit.ytdOpeningSso ?? 0}
+                      onChange={(e) => set({ ytdOpeningSso: Math.max(0, Number(e.target.value) || 0) })} />
+                  </label>
+                </div>
+              </details>
 
               {edit.employeeId !== null && (
                 <label className="label cursor-pointer justify-start gap-3 sm:col-span-2">

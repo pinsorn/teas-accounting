@@ -40,6 +40,9 @@ internal sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         b.Property(e => e.BankAccountName).HasMaxLength(255);
 
         b.Property(e => e.SsoNumber).HasMaxLength(20);
+        b.Property(e => e.YtdOpeningIncome).HasColumnType("numeric(18,2)");
+        b.Property(e => e.YtdOpeningPit).HasColumnType("numeric(18,2)");
+        b.Property(e => e.YtdOpeningSso).HasColumnType("numeric(18,2)");
 
         b.Property(e => e.MaritalStatus)
             .HasConversion(

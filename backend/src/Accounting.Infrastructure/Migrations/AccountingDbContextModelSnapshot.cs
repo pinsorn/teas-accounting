@@ -2692,6 +2692,21 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("title_en");
 
+                    b.Property<decimal>("YtdOpeningIncome")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("ytd_opening_income");
+
+                    b.Property<decimal>("YtdOpeningPit")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("ytd_opening_pit");
+
+                    b.Property<decimal>("YtdOpeningSso")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("ytd_opening_sso");
+
+                    b.Property<int?>("YtdOpeningYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("ytd_opening_year");
                     b.Property<string>("TitleTh")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")

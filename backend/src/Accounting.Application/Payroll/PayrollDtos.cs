@@ -11,6 +11,8 @@ public sealed record CreatePayrollRunRequest(
     string PeriodYearMonth,   // yyyymm (CE year)
     DateOnly PayDate,
     string? Notes);
+public sealed record PayPayrollRunRequest(int? BankAccountId = null);
+
 
 public sealed record PayslipDto(
     long PayslipId, long EmployeeId, string EmployeeCode, string EmployeeName, string NationalId,
@@ -38,7 +40,7 @@ public interface IPayrollRunService
     Task ApproveAsync(long id, CancellationToken ct);
     /// <summary>Approved → Posted: assign the PR doc number + post the balanced GL JV. Immutable after.</summary>
     Task PostAsync(long id, CancellationToken ct);
-    Task PayAsync(long id, CancellationToken ct);
+    Task PayAsync(long id, PayPayrollRunRequest req, CancellationToken ct);
     /// <summary>Delete a DRAFT run (never a posted one).</summary>
     Task DeleteDraftAsync(long id, CancellationToken ct);
     Task<IReadOnlyList<PayrollRunListItem>> ListAsync(CancellationToken ct);

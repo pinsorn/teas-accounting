@@ -83,14 +83,21 @@ public sealed class PayrollRunService(
 
         foreach (var e in employees)
         {
-            var (priorIncome, priorPit) = ytd.GetValueOrDefault(e.EmployeeId);
+            var (priorIncome, priorPit, priorInSystemSso) = ytd.GetValueOrDefault(e.EmployeeId);
+            var hasOpening = e.YtdOpeningYear == year;
+            if (hasOpening)
+            {
+                priorIncome += e.YtdOpeningIncome;
+                priorPit += e.YtdOpeningPit;
+            }
 
             var ssoEmp = e.SsoApplicable
                 ? SsoContribution.Monthly(e.BaseSalary, _sso.Rate, _sso.WageFloor, _sso.WageCeiling)
                 : 0m;
-            var ssoAllowance = e.SsoApplicable
-                ? Math.Min(ssoEmp * 12m, _sso.MaxAllowanceForPit)
-                : 0m;
+            var openingSso = hasOpening ? e.YtdOpeningSso : 0m;
+            var ssoAllowance = Math.Min(
+                priorInSystemSso + openingSso + ssoEmp * monthsRemaining,
+                _sso.MaxAllowanceForPit);
 
             var annualAllowances = _allowances.Annual(
                 e.MaritalStatus, e.SpouseHasIncome, e.ChildrenCount, ssoAllowance);
@@ -165,13 +172,48 @@ public sealed class PayrollRunService(
         await tx.CommitAsync(ct);
     }
 
-    public async Task PayAsync(long id, CancellationToken ct)
+    public async Task PayAsync(long id, PayPayrollRunRequest req, CancellationToken ct)
     {
         var run = await LoadAsync(id, ct);
+        if (run.Status != DocumentStatus.Posted)
+            throw new DomainException("payroll.not_posted", $"Run must be Posted before Pay (current: {run.Status}).");
+        if (run.PaidAt is not null)
+            throw new DomainException("payroll.already_paid", "Run is already marked paid.");
+
+        var activeBanks = await db.BankAccounts.AsNoTracking()
+            .Where(b => b.IsActive)
+            .ToListAsync(ct);
+        var bank = req.BankAccountId is { } selectedId
+            ? activeBanks.SingleOrDefault(b => b.BankAccountId == selectedId)
+            : activeBanks.Count == 1 ? activeBanks[0] : null;
+        if (req.BankAccountId is not null && bank is null)
+            throw new DomainException("payroll.bank_not_found", "The selected active bank account was not found.");
+        if (req.BankAccountId is null && activeBanks.Count > 1)
+            throw new DomainException("payroll.bank_required", "กรุณาเลือกบัญชีธนาคารสำหรับจ่ายเงินเดือน");
+
+        var wagesPayableId = await ResolveAccountIdAsync("2170", ct);
+        long paymentAccountId;
+        if (bank is not null)
+        {
+            paymentAccountId = bank.GlCashAccountId;
+            if (paymentAccountId == 0)
+                paymentAccountId = await ResolveAccountIdAsync("1120", ct);
+        }
+        else
+        {
+            paymentAccountId = await ResolveAccountIdAsync("1110", ct);
+        }
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await gl.PostManualEntryAsync(
+            run.CompanyId, run.BranchId, run.PayDate,
+            $"Payroll settlement {run.DocNo}", run.DocNo,
+            [(wagesPayableId, run.TotalNet, 0m), (paymentAccountId, 0m, run.TotalNet)], ct);
         run.MarkPaid(tenant.UserId ?? 0, clock.UtcNow);
         activity.Record(EntityType, run.PayrollRunId, run.DocNo, run.CompanyId,
             "Paid", fromStatus: "Posted", toStatus: "Paid", module: Module);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task DeleteDraftAsync(long id, CancellationToken ct)
@@ -216,22 +258,32 @@ public sealed class PayrollRunService(
         await db.PayrollRuns.Include(r => r.Payslips).FirstOrDefaultAsync(r => r.PayrollRunId == id, ct)
             ?? throw new DomainException("payroll.not_found", $"Payroll run {id} not found.");
 
-    /// <summary>YTD income/PIT per employee from PRIOR POSTED runs in the same calendar year.</summary>
-    private async Task<Dictionary<long, (decimal Income, decimal Pit)>> LoadYtdAsync(
+    private async Task<long> ResolveAccountIdAsync(string code, CancellationToken ct)
+    {
+        var id = await db.ChartOfAccounts.AsNoTracking()
+            .Where(a => a.AccountCode == code)
+            .Select(a => a.AccountId)
+            .SingleOrDefaultAsync(ct);
+        return id != 0 ? id
+            : throw new DomainException("gl.account_missing", $"GL account '{code}' not found.");
+    }
+
+    /// <summary>YTD income/PIT/employee SSO per employee from PRIOR POSTED runs in the same calendar year.</summary>
+    private async Task<Dictionary<long, (decimal Income, decimal Pit, decimal Sso)>> LoadYtdAsync(
         string period, CancellationToken ct)
     {
         var year = period[..4];
         var currentPeriod = int.Parse(period);
         var rows = await db.Payslips.AsNoTracking()
             .Where(p => p.Run!.Status == DocumentStatus.Posted && p.Run.PeriodYearMonth.StartsWith(year))
-            .Select(p => new { p.EmployeeId, p.Run!.PeriodYearMonth, p.GrossTaxable, p.PitWithheld })
+            .Select(p => new { p.EmployeeId, p.Run!.PeriodYearMonth, p.GrossTaxable, p.PitWithheld, p.SsoEmployee })
             .ToListAsync(ct);
         return rows
             .Where(x => int.Parse(x.PeriodYearMonth) < currentPeriod)   // prior months this year
             .GroupBy(x => x.EmployeeId)
             .ToDictionary(
                 g => g.Key,
-                g => (g.Sum(x => x.GrossTaxable), g.Sum(x => x.PitWithheld)));
+                g => (g.Sum(x => x.GrossTaxable), g.Sum(x => x.PitWithheld), g.Sum(x => x.SsoEmployee)));
     }
 
     private static string ComposeName(Domain.Entities.Master.Employee e) =>

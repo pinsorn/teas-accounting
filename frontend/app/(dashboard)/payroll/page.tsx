@@ -22,6 +22,14 @@ function thisPeriod() {
   const d = new Date();
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
+function nextOpenPeriod(periods: string[]) {
+  const latest = periods.filter((p) => /^\d{6}$/.test(p)).sort().at(-1);
+  if (!latest) return thisPeriod();
+  const year = Number(latest.slice(0, 4));
+  const month = Number(latest.slice(4));
+  return month === 12 ? `${year + 1}01` : `${year}${String(month + 1).padStart(2, '0')}`;
+}
+
 function lastDayIso(period: string) {
   const y = Number(period.slice(0, 4)); const m = Number(period.slice(4));
   return new Date(y, m, 0).toISOString().slice(0, 10);   // last day of the period month
@@ -90,7 +98,7 @@ export default function PayrollRunsPage() {
               <button className="btn btn-outline btn-sm gap-1" onClick={printAnnual}>
                 <Printer className="h-4 w-4" aria-hidden /> {t('pnd1a')}
               </button>
-              <button className="btn btn-primary btn-sm gap-1" onClick={() => { const p = thisPeriod(); setPeriod(p); setPayDate(lastDayIso(p)); setOpen(true); }}>
+              <button className="btn btn-primary btn-sm gap-1" onClick={() => { const p = nextOpenPeriod(rows.map((r) => r.periodYearMonth)); setPeriod(p); setPayDate(lastDayIso(p)); setOpen(true); }}>
                 <Plus className="h-4 w-4" aria-hidden /> {t('create')}
               </button>
             </div>

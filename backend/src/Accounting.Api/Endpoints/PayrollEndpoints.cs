@@ -37,9 +37,10 @@ public static class PayrollEndpoints
             return Results.NoContent();
         }).RequireAuthorization(p + Permissions.Payroll.RunPost);
 
-        g.MapPost("/{id:long}/pay", async (long id, IPayrollRunService svc, CancellationToken ct) =>
+        g.MapPost("/{id:long}/pay", async (long id, [FromBody] PayPayrollRunRequest req,
+            IPayrollRunService svc, CancellationToken ct) =>
         {
-            await svc.PayAsync(id, ct);
+            await svc.PayAsync(id, req, ct);
             return Results.NoContent();
         }).RequireAuthorization(p + Permissions.Payroll.RunPay);
 
