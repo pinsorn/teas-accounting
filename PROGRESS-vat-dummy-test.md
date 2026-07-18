@@ -70,13 +70,32 @@ connector = **forbidden this round** (points at Repttown, wrong company).
    Codex background task id: `task-mrqany3j-s65krr` — check via `/codex:status
    task-mrqany3j-s65krr` (or codex CLI status) at each wakeup; evidence of completion =
    spec checklist [x] + working-tree diff.
-2. When Codex returns + quota reset (~18:00): Opus Tier-2 review (money/schema/payroll
-   lenses; new SqlScripts 610/611 = migration → prod deploy needs DB backup) → Fable
-   reads full diff → commit → release v1.22.0 → deploy (backup!) → RE-TEST on co5:
-   (a) set EMP001 opening YTD 480,000/8,450×?/5,250 → expect PIT jump to proper level
-   (compute vs ThaiPitCalculator), (b) Pay a run w/ bank → 2170 clears + 1120 moves,
-   (c) new company create → 26 CoA w/ 5000, (d) VI COGS → 5000 not 5200, (e) tax-summary
-   ภ.ง.ด.1 column populated, (f) i18n items visually. Loop until clean.
+2. [x] FIX ROUND SHIPPED — **v1.22.1 LIVE on prod** (2026-07-18 ~22:0x): Codex impl
+   (2 rounds — Opus REJECT on SSO formula asymmetry → corrected to
+   min(priorInSystemSso+openingSso+ssoEmp×monthsRemaining, cap), both findings
+   CONFIRMED-CLOSED) → commit 7fed441 → v1.22.0 deploy FAILED (625 RLS 42501:
+   SqlScripts run under NOBYPASSRLS app role, spec wrongly said superuser; rolled
+   back clean, wiki entry added) → 625 rewritten per-company-pin DO block → 05e7fc5
+   → v1.22.1 → API DEPLOY_OK 9/9 (scripts=71, ytd cols 4, 5000 CoA 3/3, COGS remap
+   2/2 — co3 has no COGS category, probe adjusted) + FE_DEPLOY_OK + public probes 200.
+   Note: E3 create_vendor has been failing CI since ~v1.21.5 era (pre-existing, open
+   item, admin-merge pattern documented).
+
+## RE-TEST on co5 (next wakeup after quota reset — v1.22.1 verification):
+   (a) EMP001 employees modal: fill ยอดยกมา (ปี 2026, income 480000, pit 36450
+       [=6×6075 → clean catch-up math], sso 5250) → delete draft 202608 → recreate →
+       breakdown: projected should be 960,000-basis; verify PIT vs hand-calc
+       (allowance = 875[Jul in-system] + 5250 + 875×5 = 10,500; taxable 789,500 →
+       annual 72,900 − priorPit(36,450+1,408.33) = 35,041.67 → /5 = 7,008.33/mo)
+   (b) อนุมัติ+Post 202608 → Pay w/ KBANK dropdown → TB: 2170 = 121,091.67+Aug-net
+       − Aug-net...  actually: July run Paid pre-fix (status only) so 2170 still
+       carries July 121,091.67; after Aug Pay-with-JE: 2170 = July only; 1120 −Aug net
+   (c) new VI (V001, P001, COGS) → posts to 5000 ต้นทุนขาย not 5200 (check TB)
+   (d) tax-summary: ภ.ง.ด.1 column July = 1,408.33 (payroll PIT now included)
+   (e) i18n: payroll filter no raw status.POSTED; dup-period toast Thai; create-run
+       prefill = next open period; ภ.พ.30 warning Thai; SSO header "(รวมนายจ้าง)"
+   (f) employees modal: new-employee create → no spurious opening year persisted
+   Then REPORT update (F-3..F-10 verified-live column) + STATUS + Ham summary.
 3. Plan C leftovers: bank statement IMPORT flow (needs statement file/upload UI at
    /bank-accounts/[id]/imports), TI PDF visual check (ภ.พ.20 fields — blob tab flaky),
    สปส.1-10 PDF + ภ.ง.ด.1 ใบแนบ pages visual re-check, CN (ใบลดหนี้) → ภ.พ.30 reflect,
