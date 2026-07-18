@@ -23,17 +23,17 @@ connector = **forbidden this round** (points at Repttown, wrong company).
       set_config app.company_id=<newId>; model = VatRegisterSnapshotJob.cs:95-98)
 - [x] Ham push-notified (proactive)
 
+- [x] F-1 fix arc COMPLETE: sonnet impl (red→green CompanyCreateRlsTests, suite 890/8/1
+      pre-existing E3) → Opus APPROVE (4 lenses) → Fable diff read → commit 4b92efd →
+      PR #85 merge → tag v1.21.6 → build (MinVer 1.21.6 ✓) → DEPLOY_OK (10/10 probes,
+      backup, scripts 69) → public probes OK → orphan co4 DELETED → dummy recreated via
+      UI = **company 5** seeded 1/1/25/12/15/19/11 (branch/profile/coa/tax/wht/expcat/roles) ✓
+
 ## In-flight
-- [~] sonnet-implementer: implement spec (test-first, CompanyCreateRlsTests red→green,
-      full suite, no commit)
+- (none)
 
 ## Next (resume here if interrupted)
-1. Worker returns → Opus Tier-2 review of diff (RLS/security lens) → Fable reads full diff
-2. Commit fix → release (release-please PR admin-merge → tag → build from tag worktree,
-   REAL path not subst — MinVer) → deploy API (DB backup first; sql_scripts stays 69 —
-   no new script) → public E2E probe
-3. Delete orphan co4 row (verify zero children first) → recreate dummy via UI →
-   verify tax_codes=12, branch 00000, CoA 25, sidebar VAT menus
+3. Switch UI to company 5 → verify badge + sidebar VAT menus (ภ.พ.30 ฯลฯ) + /system/info
 4. Handoff Step 0.4: BU, 2 customers (นิติ+บุคคล), 1 vendor, 2-3 VAT products, 1 bank acct
 5. Test Plan A payroll (3 emps 80k/30k/15k, breakdown vs hand-calc, Post!, ภ.ง.ด.1,
    สปส.1-10, slips, 50ทวิ, ภ.ง.ด.1ก, GL tie 5400/5410/2153/2160/2170, Pay, month 2, negatives)
