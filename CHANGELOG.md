@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.1](https://github.com/pinsorn/teas-accounting/compare/v1.22.0...v1.22.1) (2026-07-18)
+
+
+### Bug Fixes
+
+* **db:** 625 COGS seed must pin app.company_id per company — prod runs SqlScripts under NOBYPASSRLS ([570254b](https://github.com/pinsorn/teas-accounting/commit/570254b13809aba98472b9ec15bf644d961c8fb4))
+
 ## [1.22.0](https://github.com/pinsorn/teas-accounting/compare/v1.21.6...v1.22.0) (2026-07-18)
 
 
