@@ -1,13 +1,19 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **OPEN-ITEMS ROUND ACTIVE (2026-07-19 ~00:2x, Ham go).** 4 tracks: (1) E3
-  create_vendor CI-red root-cause → sonnet dispatched (background, specs/
-  fix-e3-create-vendor-ci.md); (2) S13 CF-edge 503 → sonnet read-only prod
-  investigation dispatched (background, specs/fix-s13-cf-edge-503.md); (3)
-  statement-import + CN(ใบลดหนี้)→ภ.พ.30 test on co5 = Fable browser, in
-  progress; (4) manual บท 6 posted-state additions — QUEUED after E3 worker
-  frees the backend build/test (capture pipeline needs dotnet run).
+- **OPEN-ITEMS ROUND COMPLETE (2026-07-19 ~01:3x) — 4/4 tracks done.**
+  (1) E3 create_vendor FIXED ac048e8 — stale test fixture (taxId null vs WP1
+  domestic-VAT validation 65b9b2b); suite 897/8/0; CI-green confirmation
+  pending (watch bg). (2) S13 CF-edge 503 ROOT-CAUSED db29473 — origin fully
+  ruled out; top hypothesis CF Bot Fight Mode blocking the automation browser;
+  **NEEDS HAM: CF dashboard checklist** (specs/fix-s13-cf-edge-503.md, 8 items;
+  proposed scoped WAF Skip rule drafted, not applied). (3) statement-import +
+  CN→ภ.พ.30 on co5 PASS af89e0d — KBiz CSV import→match RC/PV exact→recon
+  ผลต่าง 0.00; CN-0001 → ภ.พ.30 ขาย 770/เครดิตยกไป 70, TB 172,440 tie; new
+  F-11 (CN reason raw enum key on UI+printed doc) + F-12 (low UX batch).
+  (4) manual บท 6 posted-state 99f3a8f — Post-JE/Pay-JE/opening-YTD/dup-guard,
+  facts code-cited, mkdocs clean (screenshots deferred 🚧). Next candidates:
+  F-11/F-12 fix batch, TI PDF + สปส.1-10 PDF visual re-checks.
 - **(prev) VAT DUMMY ROUND COMPLETE — FIX LOOP CLEAN (2026-07-19 ~00:2x).** v1.22.1 live; all
   F-findings fixed + VERIFIED-LIVE on co5 (F-3 opening-YTD 7,008.33 exact, F-6 Pay JE
   TB-exact, F-9 COGS→5000, F-8 PND1 column, F-4/7/10 UI-i18n). Re-test found ZERO new
