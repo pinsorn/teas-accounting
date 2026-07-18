@@ -1,3 +1,4 @@
+using System.Globalization;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
 using Accounting.Application.Master;
@@ -188,6 +189,18 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         if (await db.Companies.IgnoreQueryFilters().AnyAsync(c => c.TaxId == req.TaxId, ct))
             throw new DomainException("company.duplicate", $"Company with Tax ID '{req.TaxId}' already exists.");
 
+        // specs/fix-company-create-rls-atomic.md — this method seeds rows FOR THE NEW company
+        // (branch, profile, WHT types, CoA, tax codes, expense categories, per-company roles)
+        // while the caller's DB session is pinned to their OWN (existing) app.company_id.
+        // 600_superadmin_scoped_rls.sql retired the is_super_admin data-scope arm from every
+        // company_isolation policy, so every one of those inserts 42501s unless we re-pin
+        // app.company_id LOCAL to the brand-new id inside our own transaction — same idiom as
+        // VatRegisterSnapshotJob.cs:95-98 (is_local=true auto-reverts at COMMIT/ROLLBACK, never
+        // leaks onto the pooled connection). Wrapping everything in one transaction also fixes
+        // the compounding atomicity bug for free: any failure now rolls back the companies-row
+        // insert too, instead of leaving an orphan half-created tenant.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
         // ม.86/4 — compose the legacy free-text registered-address line from the granular parts
         // (shared composer, identical to the ภ.พ.09 hard-edit path). Falls back to the caller's
         // explicit AddressTh when no street-level parts were supplied.
@@ -216,6 +229,14 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         };
         db.Companies.Add(e);
         await db.SaveChangesAsync(ct);
+
+        // master.companies carries no RLS (verified in pg_policies) — the insert above needed
+        // no pin. Every row seeded below DOES carry RLS (G1/G2/G3), scoped to THIS new company,
+        // not the caller's — LOCAL (transaction-scoped) so it reverts automatically at
+        // tx.CommitAsync below and never leaks onto the pooled connection.
+        await db.Database.ExecuteSqlRawAsync(
+            "SELECT set_config('app.company_id', {0}, true)",
+            [e.CompanyId.ToString(CultureInfo.InvariantCulture)], ct);
 
         // MCP OAuth authorize (OAuthEndpoints.cs) requires an active HQ branch to pin the
         // token's branch_id — without this, every onboarded company 400s with
@@ -328,6 +349,7 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT sys.seed_company_roles({e.CompanyId})", ct);
 
+        await tx.CommitAsync(ct);
         return e.CompanyId;
     }
 

@@ -1,6 +1,15 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **VAT DUMMY COMPANY ROUND ACTIVE (2026-07-18 ~12:0x, goal = HANDOFF-vat-dummy-company-test.md).**
+  Step 0 hit a **CRITICAL prod bug (F-1, REPORT-vat-dummy-test.md)**: company creation
+  broken since RLS-600 (2026-07-08) — `CompanyService.CreateAsync` missed by the
+  superadmin-tenant-scope Family-B inventory → 42501 on branches + no wrapping tx →
+  half-created tenant (prod co4 = 0 branches/CoA/tax_codes). Every new-customer
+  onboarding on prod fails. Fix spec `specs/fix-company-create-rls-atomic.md`
+  (1 file, tx + LOCAL company_id pin, NO migration) → sonnet-implementer in flight;
+  Opus Tier-2 review next; then deploy (backup first), delete orphan co4, recreate
+  dummy via UI, continue handoff (payroll Post chain + VAT chain). Ham push-notified.
 - **PAYROLL+REPORTS GOAL COMPLETE (2026-07-17 ~11:3x).** Full arc done: UX test (20
   findings) → Ham "แก้ทั้งหมดเลย แก้หมดแล้วค่อยทำ manual" → fix round W1 7bb293d (error
   infra: blank-toast fix in openPdf/downloadFile, global-error boundaries w/ chunk
