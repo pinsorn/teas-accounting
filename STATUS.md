@@ -1,15 +1,22 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **VAT DUMMY COMPANY ROUND ACTIVE (2026-07-18 ~12:0x, goal = HANDOFF-vat-dummy-company-test.md).**
-  Step 0 hit a **CRITICAL prod bug (F-1, REPORT-vat-dummy-test.md)**: company creation
-  broken since RLS-600 (2026-07-08) — `CompanyService.CreateAsync` missed by the
-  superadmin-tenant-scope Family-B inventory → 42501 on branches + no wrapping tx →
-  half-created tenant (prod co4 = 0 branches/CoA/tax_codes). Every new-customer
-  onboarding on prod fails. Fix spec `specs/fix-company-create-rls-atomic.md`
-  (1 file, tx + LOCAL company_id pin, NO migration) → sonnet-implementer in flight;
-  Opus Tier-2 review next; then deploy (backup first), delete orphan co4, recreate
-  dummy via UI, continue handoff (payroll Post chain + VAT chain). Ham push-notified.
+- **VAT DUMMY ROUND — MAIN ARC DONE (2026-07-18 ~14:2x).** F-1 CRITICAL (company
+  creation broken since RLS-600: CreateAsync missed by Family-B inventory, 42501 +
+  no tx → half-created tenant) → fixed 4b92efd (tx + LOCAL company_id pin, red→green
+  RLS test, Opus APPROVE) → **v1.21.6 deployed** (DEPLOY_OK 10/10, backup, scripts 69)
+  → orphan co4 deleted → dummy co5 seeded FULL via UI (1/25/12/15/19/11). Then the
+  never-run-before paths, all on co5: **payroll Post #1 in history** (07-2026-PR-0001,
+  JE tie exact 127,500, docs ภ.ง.ด.1/สปส.1-10 txt+PDF/สลิป/50ทวิ/ภ.ง.ด.1ก, Pay,
+  month-2 continuity, dup-guard 422) + **full VAT sales chain** QT→SO→DO→IV→TI→RC
+  (7,490 every hop) + TI-0002 unpaid + **purchase chain** PO→VI→PV (10,700) +
+  **ภ.พ.30 real data exact** (ขาย 840 / ซื้อ 700 / สุทธิ 140) + sales-summary/
+  tax-summary/AR aging (1130 tie ✓)/TB (169,230 Dr=Cr)/bank-recon (diff 0.00) —
+  ALL money math ties to hand-calc. Findings F-1..F-10 in REPORT-vat-dummy-test.md;
+  **awaiting Ham: F-3** (PIT onboarding-year under-withholding 1,408 vs 6,075 —
+  recommend opening-YTD/ยอดยกมา feature) + **F-6** (Pay = status-only, no settlement
+  JE, 2170 never clears). Batchable: F-4/F-7/F-8 (tax-summary ภ.ง.ด.1 col blank)/
+  F-9 (COGS→5200, no COGS acct in default CoA)/F-10. Then fix→retest loop per Ham.
 - **PAYROLL+REPORTS GOAL COMPLETE (2026-07-17 ~11:3x).** Full arc done: UX test (20
   findings) → Ham "แก้ทั้งหมดเลย แก้หมดแล้วค่อยทำ manual" → fix round W1 7bb293d (error
   infra: blank-toast fix in openPdf/downloadFile, global-error boundaries w/ chunk
