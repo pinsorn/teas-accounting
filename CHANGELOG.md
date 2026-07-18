@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/pinsorn/teas-accounting/compare/v1.21.6...v1.22.0) (2026-07-18)
+
+
+### Features
+
+* **payroll,tax:** opening-YTD (ยอดยกมา), Pay settlement JE, COGS account, tax-summary PND1 + i18n batch ([7fed441](https://github.com/pinsorn/teas-accounting/commit/7fed441f4c169db5d1edb40da534ca88f42c07f5))
+
 ## [1.21.6](https://github.com/pinsorn/teas-accounting/compare/v1.21.5...v1.21.6) (2026-07-18)
 
 
