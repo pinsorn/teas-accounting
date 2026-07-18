@@ -1,5 +1,12 @@
 # HANDOFF — สร้าง Company Dummy (VAT-enabled) + เทสต์สายที่ยังไม่เคยถูกรันจริง
 
+> **✅ EXECUTED 2026-07-18 (~12:00–14:30).** นิยาม "เสร็จ" ครบ: A ครบ (Post 07-2026-PR-0001
+> + Pay + เอกสารราชการ 5 ชนิด + JE tie 127,500) + B ครบ (TI chain เต็ม + ภ.พ.30 ขาย 840/
+> ซื้อ 700/สุทธิ 140 ตรงมือ) + REPORT + STATUS. โบนัส: F-1 CRITICAL (company create พังจาก
+> RLS-600) เจอ+แก้+deploy v1.21.6 ก่อนเริ่ม, purchase chain PO→VI→PV รันด้วย.
+> ผล: `REPORT-vat-dummy-test.md` (F-1..F-10; F-3/F-6 รอ Ham ตัดสิน) + `PROGRESS-vat-dummy-test.md`
+> (เก็บตกที่เหลือ: statement import, CN, month-2 post, manual บท 6). Dummy = company 5.
+
 Session ถัดไป. สั่งโดย Ham 2026-07-18 หลังปิดรอบ payroll+reports (v1.21.5 live, smoke 7/7).
 เหตุผล: สองสายใหญ่ยังไม่เคยถูก e2e จริงเพราะทำบน Repttown (บัญชีจริง + non-VAT) ไม่ได้:
 (1) payroll หลัง Post ทั้งสาย (JE จริง ลบไม่ได้) (2) ทุกอย่างฝั่ง VAT (ภ.พ.30, ใบกำกับภาษี,
