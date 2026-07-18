@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.2](https://github.com/pinsorn/teas-accounting/compare/v1.22.1...v1.22.2) (2026-07-18)
+
+
+### Bug Fixes
+
+* **cn,bank:** F-11 CN/DN reason Thai labels on form + legal doc; F-12 import format hint, doc-no in confirm dialog, match toasts ([3fc7619](https://github.com/pinsorn/teas-accounting/commit/3fc7619c43309f1dc5a9a6484bc0fb1272d85164))
+
 ## [1.22.1](https://github.com/pinsorn/teas-accounting/compare/v1.22.0...v1.22.1) (2026-07-18)
 
 
