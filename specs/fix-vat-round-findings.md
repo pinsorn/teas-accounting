@@ -17,7 +17,7 @@ full-year SSO even when the projection covers fewer months.
 
 ### Design (decided)
 1. **Schema** — new SqlScript `backend/src/Accounting.Infrastructure/Migrations/SqlScripts/`
-   `610_employee_ytd_opening.sql` (next free prefix after 600; MUST sort last; idempotent
+   `624_employee_ytd_opening.sql` (next free prefix after 623; MUST sort last; idempotent
    `ADD COLUMN IF NOT EXISTS`; DDL-only):
    ```sql
    ALTER TABLE master.employees ADD COLUMN IF NOT EXISTS ytd_opening_year INT NULL;
@@ -75,7 +75,7 @@ never moves (verified on prod: TB identical before/after Pay).
 
 ## F-9 — COGS account + remap
 
-1. SqlScript `611_seed_cogs_account.sql` (idempotent, runs for ALL companies):
+1. SqlScript `625_seed_cogs_account.sql` (idempotent, runs for ALL companies):
    ```sql
    INSERT INTO master.chart_of_accounts (company_id, account_code, account_name_th, account_name_en, account_type, normal_balance, is_header, is_active, created_at)
    SELECT c.company_id, '5000', 'ต้นทุนขาย', 'Cost of Goods Sold', 'EXPENSE', 'DR', FALSE, TRUE, now()
@@ -143,14 +143,14 @@ before." → Thai via i18n: "วันสุดท้ายของการย
 ## Blast-radius cap
 Backend: PayrollRunService.cs, Employee entity+DTOs+service/validator, MasterDataServices.cs
 (DefaultChartOfAccounts + DefaultExpenseCategories), tax-summary report service, MarkPaid
-endpoint/request DTO, 2 new SqlScripts (610, 611). FE: employees modal, payroll list page,
+endpoint/request DTO, 2 new SqlScripts (624, 625). FE: employees modal, payroll list page,
 payroll detail page, pay dialog, pnd30 page, problems.ts/i18n messages. Tests as listed.
 Anything beyond → STOP and report.
 
 ## Checklist
-- [ ] F-3 schema 610 + entity/DTO/validators + engine + FE modal + tests (red where applicable → green)
+- [ ] F-3 schema 624 + entity/DTO/validators + engine + FE modal + tests (red where applicable → green)
 - [ ] F-6 MarkPaid JE + FE dialog + tests
-- [ ] F-9 script 611 + CreateAsync defaults + tests updated
+- [ ] F-9 script 625 + CreateAsync defaults + tests updated
 - [ ] F-8 tax-summary column + footnote
 - [ ] F-4 label · F-7 i18n×3 · F-10 pnd30 i18n
 - [ ] Gates all green (evidence)
