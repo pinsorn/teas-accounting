@@ -1220,7 +1220,10 @@ public sealed class McpServerSmokeTests
         var request = new
         {
             vendorCode = code, vendorType = "Corporate", nameTh = "ผู้ขาย MCP E3", nameEn = (string?)null,
-            taxId = (string?)null, branchCode = (string?)null, branchName = (string?)null,
+            // WP1.4 (F13) requires a valid Thai Tax ID for a domestic VAT-registered vendor
+            // (VendorDtos.cs CreateVendorValidator) — reuse the suite's established valid-checksum
+            // constant (see VendorVatTaxIdValidatorTests.ValidTaxId) rather than null.
+            taxId = "0105556123453", branchCode = (string?)null, branchName = (string?)null,
             vatRegistered = true, address = (string?)null, contactPerson = (string?)null,
             phone = (string?)null, email = (string?)null, paymentTermDays = 30, defaultCurrency = "THB",
             defaultWhtTypeCode = (string?)null,
