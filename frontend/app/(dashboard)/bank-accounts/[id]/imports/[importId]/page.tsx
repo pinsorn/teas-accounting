@@ -41,7 +41,7 @@ export default function ImportMatchingPage(
     if (!ok) return;
     try {
       await unmatch.mutateAsync(l.statementLineId);
-      toast.success(tc('save'));
+      toast.success(t('unmatchSuccess'));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : tc('error'));
     }
@@ -186,7 +186,7 @@ function SuggestModal({
           paymentVoucherId: docType === 'PaymentVoucher' ? docId : null,
         },
       });
-      toast.success(tc('save'));
+      toast.success(t('matchSuccess'));
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : tc('error'));

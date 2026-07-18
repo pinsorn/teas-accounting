@@ -268,6 +268,7 @@
     "currency": "สกุลเงิน",
     "imports": "รายการนำเข้า Statement",
     "importUpload": "นำเข้า Statement",
+    "importFormatHint": "รองรับไฟล์ CSV จาก KBiz (KBank) และ PDF จาก K PLUS",
     "importFileRequired": "กรุณาเลือกไฟล์ CSV หรือ PDF ก่อน",
     "importSuccess": "นำเข้าสำเร็จ {count} รายการ",
     "importOverlapWarning": "ช่วงวันที่นี้ซ้อนทับกับการนำเข้าก่อนหน้าของบัญชีนี้ — ตรวจสอบรายการซ้ำ",
@@ -286,6 +287,8 @@
     "unignore": "ยกเลิกข้าม",
     "unmatch": "ยกเลิกจับคู่",
     "unmatchConfirm": "ยกเลิกการจับคู่รายการนี้? จะกลับไปเป็นยังไม่จับคู่",
+    "matchSuccess": "จับคู่รายการแล้ว",
+    "unmatchSuccess": "ยกเลิกจับคู่แล้ว",
     "matchWindowWarning": "ส่วนต่างวันที่ของการจับคู่นี้คือ {days} วัน — เกินช่วงแนะนำอัตโนมัติ 7 วัน ยืนยันว่าต้องการจับคู่รายการนี้",
     "noSuggestions": "ไม่พบใบเสร็จรับเงิน/ใบสำคัญจ่ายที่ตรงกัน",
     "contraAccount": "บัญชีคู่บัญชี",
@@ -1319,7 +1322,18 @@
     "reasonRequired": "เหตุผลบังคับตามกฎหมาย",
     "grandTotal": "รวมทั้งสิ้น",
     "vat": "ภาษีมูลค่าเพิ่ม",
-    "originalTiRequired": "ระบุใบกำกับภาษีเดิม"
+    "originalTiRequired": "ระบุใบกำกับภาษีเดิม",
+    "reasons": {
+      "Typo": "พิมพ์ผิด/คำนวณผิด",
+      "AmountError": "จำนวนเงินผิด",
+      "CustomerInfo": "ข้อมูลลูกค้าผิด",
+      "Return": "รับคืนสินค้า",
+      "PriceReduce": "ลดราคา/ส่วนลดภายหลัง",
+      "Cancel": "ยกเลิกรายการ",
+      "PriceIncrease": "ราคาเพิ่มขึ้น",
+      "AdditionalCharge": "ค่าใช้จ่ายเพิ่มเติม",
+      "ScopeExpansion": "ขยายขอบเขตงาน"
+    }
   },
   "states": {
     "noAccessTitle": "ต้องมีสิทธิ์ผู้ดูแลระบบ",

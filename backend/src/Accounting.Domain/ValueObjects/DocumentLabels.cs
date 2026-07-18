@@ -39,4 +39,28 @@ public static class DocumentLabels
             ? ("ใบลดหนี้", "CREDIT NOTE", legalRef)
             : ("ใบเพิ่มหนี้", "DEBIT NOTE", legalRef);
     }
+
+    // F-11.2 — the legal document (FE detail view AND PDF; both render this same
+    // model via TaxAdjustmentNoteService.BuildPaperAsync) must not print the raw
+    // CreditNoteReasonCode/DebitNoteReasonCode enum key. DB storage is untouched
+    // (TaxAdjustmentNote.ReasonCode keeps the enum name) — this is display-only.
+    private static readonly Dictionary<string, string> ReasonLabelsTh = new()
+    {
+        ["Typo"] = "พิมพ์ผิด/คำนวณผิด",
+        ["AmountError"] = "จำนวนเงินผิด",
+        ["CustomerInfo"] = "ข้อมูลลูกค้าผิด",
+        ["Return"] = "รับคืนสินค้า",
+        ["PriceReduce"] = "ลดราคา/ส่วนลดภายหลัง",
+        ["Cancel"] = "ยกเลิกรายการ",
+        ["PriceIncrease"] = "ราคาเพิ่มขึ้น",
+        ["AdditionalCharge"] = "ค่าใช้จ่ายเพิ่มเติม",
+        ["ScopeExpansion"] = "ขยายขอบเขตงาน",
+    };
+
+    /// <summary>Thai label for a stored CN/DN reason code; falls back to the raw
+    /// code for any value not in the known set (defensive — never blank).</summary>
+    public static string AdjustmentReasonLabel(string? reasonCode) =>
+        reasonCode is not null && ReasonLabelsTh.TryGetValue(reasonCode, out var label)
+            ? label
+            : reasonCode ?? string.Empty;
 }

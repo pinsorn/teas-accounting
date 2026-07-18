@@ -84,6 +84,7 @@ export function StatementImportSection({ bankAccountId }: { bankAccountId: numbe
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="mb-3 text-lg font-bold">{t('importUpload')}</h3>
+            <p className="mb-2 text-xs text-base-content/60">{t('importFormatHint')}</p>
             <div className="flex flex-col gap-3">
               <input ref={fileRef} type="file" data-testid="import-file"
                 className="file-input file-input-bordered file-input-sm"

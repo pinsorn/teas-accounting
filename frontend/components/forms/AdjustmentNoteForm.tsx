@@ -13,7 +13,7 @@ import { AmountInput } from '@/components/ui/AmountInput';
 import { DateInput } from '@/components/ui/DateInput';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { TaxInvoicePicker } from '@/components/forms/TaxInvoicePicker';
-import { useCreateAdjustmentNote, usePostAdjustmentNote, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useCreateAdjustmentNote, usePostAdjustmentNote, useCompanyBuSetting, useCompanyProfile, useSystemInfo, useTaxInvoice } from '@/lib/queries';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { CREDIT_NOTE_REASONS, DEBIT_NOTE_REASONS, type AdjustmentNoteType } from '@/lib/types';
 import { bangkokToday } from '@/lib/utils';
@@ -80,9 +80,12 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
   const sub = watch('adjustmentSubtotal');
   const rate = watch('taxRate');
   const reasonText = watch('reason');
+  const originalTiId = watch('originalTaxInvoiceId');
   const vat = sub * rate;
   const cfg = PAPER_DOC[isCredit ? 'credit-note' : 'debit-note'];
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // F-12.2 — post-confirm must show the referenced doc number, not the internal id.
+  const originalTi = useTaxInvoice(originalTiId);
 
   async function saveDraft(v: FormValues): Promise<number | null> {
     if (buRequired && businessUnitId === null) {
@@ -192,7 +195,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
               <label className="form-control">
                 <span className="label-text">{t('reasonCode')} *</span>
                 <select className="select select-bordered" {...field}>
-                  {reasons.map((r) => <option key={r} value={r}>{r}</option>)}
+                  {reasons.map((r) => <option key={r} value={r}>{t(`reasons.${r}`)}</option>)}
                 </select>
               </label>
             )} />
@@ -254,7 +257,7 @@ export function AdjustmentNoteForm({ noteType }: { noteType: AdjustmentNoteType 
         docType={isCredit ? 'credit_note' : 'debit_note'}
         open={confirm !== null}
         busy={post.isPending}
-        summary={{ customer: `TI #${watch('originalTaxInvoiceId')}`, total: sub + vat, vat }}
+        summary={{ customer: originalTi.data?.docNo ?? `TI #${originalTiId}`, total: sub + vat, vat }}
         recipients={[]}
         onClose={() => setConfirm(null)}
         onConfirm={async () => {

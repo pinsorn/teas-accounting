@@ -26,7 +26,9 @@ test('credit note corrects a posted tax invoice', async ({ page }) => {
 
   await page.waitForURL(/\/credit-notes\/\d+$/, { timeout: 15_000 });
   await expect(page.locator('body')).toContainText(/-CN-\d{4}/);
-  // Detail references the original posted TI by its allocated doc number + the reason.
+  // Detail references the original posted TI by its allocated doc number + the reason,
+  // shown as its Thai label (F-11.2) — the raw "AmountError" enum key must not appear.
   await expect(page.locator('body')).toContainText(/-TI-\d{4}/);
-  await expect(page.locator('body')).toContainText('AmountError');
+  await expect(page.locator('body')).toContainText('จำนวนเงินผิด');
+  await expect(page.locator('body')).not.toContainText('AmountError');
 });

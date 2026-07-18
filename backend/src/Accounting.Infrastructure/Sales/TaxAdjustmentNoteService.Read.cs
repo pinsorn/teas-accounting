@@ -98,7 +98,8 @@ public sealed partial class TaxAdjustmentNoteService
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage),
             new PaperCustomer(d.CustomerName, Pdf.PaperFormat.TaxId(d.CustomerTaxId), null, d.CustomerAddress),
             new[] { new PaperLine(
-                $"เหตุผล ({d.ReasonCode}): {d.Reason}", null, null, null, null, null, d.SubtotalAmount) },
+                $"เหตุผล ({DocumentLabels.AdjustmentReasonLabel(d.ReasonCode)}): {d.Reason}",
+                null, null, null, null, null, d.SubtotalAmount) },
             new PaperSummary(d.SubtotalAmount, null, null, d.TaxAmount, d.TotalAmount, Pdf.PaperDoc.VatPercent(d.TaxRate), ShowVat: vatMode),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: d.DisplayNotes,
