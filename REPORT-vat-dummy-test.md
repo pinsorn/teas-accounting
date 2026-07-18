@@ -55,3 +55,16 @@ sales-summary basis = posted TIs works correctly on a VAT company (verified). Fo
 
 ## R10 first-click log (this round)
 None observed — no picker/modal first-click misses hit during this entire round (QT/SO/DO/IV/TI/RC/PO/VI/PV pickers all responded first click). Blob-PDF tab flakiness (known wiki entry) was the only interaction quirk.
+
+## Fix round VERIFIED-LIVE on prod v1.22.1 (2026-07-18/19, co5 re-test — all clean)
+| Finding | Live verification |
+|---|---|
+| F-3 | EMP001 opening YTD (2026 / 480,000 / 36,450 / 5,250) via new employees-modal section → recreated run 202608: PIT = **7,008.33 = hand-calc exact** (projection 960,000-basis, catch-up over 5 remaining months; SSO rows unchanged 875/875/750). Modal opening-year defaults empty (no spurious stamping). |
+| F-6 | Pay dialog shows bank selector (KBANK preselected) → Pay posted settlement JE: TB @31/08 — 2170 Dr 115,491.67/Cr 236,583.34 = **121,091.67 remaining (July-only, pre-fix Paid)**, 1120 −118,701.67 exact, Dr=Cr 412,221.67. |
+| F-9 | 5000 ต้นทุนขาย row present in TB; new VI-0002 (COGS, 2,000+140) posts to **5000** (old VI stays on 5200 — no retroactive reclass). Deploy backfill: 5000 in 3/3 companies, remap 2/2 companies-with-COGS. |
+| F-8 | tax-summary ภ.ง.ด.1 column: ก.ค. 1,408.33 + ส.ค. 7,008.33 = 8,416.66 + footnote "ภ.ง.ด.1 รวมเงินเดือนที่ Post แล้ว". |
+| F-4 | Run header card now "ประกันสังคม (รวมนายจ้าง)". |
+| F-7 | Status filter shows "บันทึกบัญชีแล้ว" (raw key gone); create-run modal prefills NEXT open period (202608 after 202607); dup-toast Thai = code+tsc verified (not live-fired). |
+| F-10 | ภ.พ.30 deadline warning now Thai; ภ.พ.30 July updated correctly after new VI (ซื้อ 12,000/840 → สุทธิ 0.00). |
+
+Deploy trail: v1.22.0 rolled back automatically (script 625 RLS 42501 — SqlScripts run under NOBYPASSRLS app role; spec assumption wrong; wiki entry added) → 625 rewritten with per-company `set_config('app.company_id',…,true)` DO-loop → **v1.22.1 API DEPLOY_OK 9/9 + FE_DEPLOY_OK**. Standing open item: `McpServerSmokeTests.E3_create_vendor` red on CI since ~v1.21.5 era (pre-existing, needs separate root-cause round).
