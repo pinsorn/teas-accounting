@@ -120,6 +120,23 @@ connector = **forbidden this round** (points at Repttown, wrong company).
        captures need full local stack, noted in-manual).
    [ ] leftover: TI PDF visual check (ภ.พ.20 fields — blob tab flaky), สปส.1-10 PDF
        + ภ.ง.ด.1 ใบแนบ visual re-check
+3b. F-11/F-12 FIX ARC (2026-07-19 ~02:1x, Ham "เอาตามที่แนะนำเลย"):
+   [x] spec specs/fix-f11-f12-cn-import-polish.md → sonnet impl (8 files, all gates
+       green: tsc/next build/dotnet/164 tests) → Fable diff read → commit 3fc7619
+       → CI green → PR #88 merged → tag v1.22.2 → **DEPLOYED PROD**: MinVer 1.22.2,
+       DB backup teas-pre-v1.22.2-*, DEPLOY_OK (probes incl. sql_scripts unchanged
+       71) + FE_DEPLOY_OK (content anchors จำนวนเงินผิด/KBiz hint) + public probes.
+   [x] F-11 VERIFIED LIVE: CN-0001 doc line = "เหตุผล (ลดราคา/ส่วนลดภายหลัง):" ✓
+       footer v1.22.2 ✓
+   [ ] F-12 visual spot-checks (dropdown Thai, import hint, confirm doc-no, match
+       toast) — optional quick pass
+   [ ] Deploy-script archive commit: `git add -f publish/v1.22.2/` (publish/ is
+       gitignored; v1.22.1 was force-added the same way) + REPORT/STATUS refresh
+   [ ] S13 CF-side: BLOCKED on Ham — CF login is in a different Chrome profile than
+       the extension's; Ham must login in the connected profile (or enable the
+       extension in the logged-in profile) → then check Security→Bots +
+       Security→Events → if confirmed apply the scoped WAF Skip rule from
+       specs/fix-s13-cf-edge-503.md
 4. co2/co3 untouched ✓. Dummy co5 = safe playground for future rounds.
 5. Test Plan A payroll (3 emps 80k/30k/15k, breakdown vs hand-calc, Post!, ภ.ง.ด.1,
    สปส.1-10, slips, 50ทวิ, ภ.ง.ด.1ก, GL tie 5400/5410/2153/2160/2170, Pay, month 2, negatives)
