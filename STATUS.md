@@ -13,10 +13,16 @@
   footnote — basis confirmed posted TaxInvoices only) → **Manual ใหม่ บท 6 เงินเดือน +
   บท 8 รายงาน** 3ee4433 (hand-authored, facts verified against code; mkdocs nav wired).
   All gates green every WP (tsc, next build, ম grep); Fable read every diff.
-  **OPEN:** (1) deploy v1.21.5 — WAITING HAM APPROVAL, all fixes are FE-only, code-only
-  (no migration/SqlScript); (2) R10 picker first-click (investigate-only, non-blocking);
-  (3) S13 CF log pull unchanged (evidence in REPORT-payroll-reports-uxtest.md §Infra);
-  (4) payroll POSTED-state e2e ยังไม่เคยรัน (ต้อง test company แยก — note in spec).
+  **v1.21.5 DEPLOYED + VERIFIED LIVE (2026-07-18, Ham "ทำเลย ๆ"):** release PR #84
+  admin-merged → tag @ 2d786c8 → built from tag worktree (MinVer 1.21.5 ✓) → API
+  `DEPLOY_OK` (probes 10/10 incl. new financial-statements route probe; sql_scripts 69
+  unchanged; DB backup) + `FE_DEPLOY_OK` (content-check anchors P1/R1/P6/W3) → public
+  E2E green → **Chrome smoke test 7/7 PASS** (common.no→ไม่, TB/BS/P&L exports, P&L
+  presets+default, GL code-resolve, payroll BE hint + breakdown modal + destructive
+  confirm, sales-summary footnote, outstanding-po header). Scripts archived
+  publish/v1.21.5/ (ab056f8). **OPEN:** (1) R10 picker/modal first-click intermittent
+  (investigate-only); (2) S13 CF log pull — Ham (evidence §Infra, two windows now);
+  (3) payroll POSTED-state e2e ยังไม่เคยรัน (ต้อง test company แยก).
 - **PAYROLL + REPORTS UX TEST COMPLETE (2026-07-16 ~23:1x, Chrome on prod, Repttown).**
   Goal (Ham /goal): เงินเดือน + รายงาน ละเอียด, UX-first → Finding report → Manual ถ้าไม่มีปัญหา.
   Payroll draft lifecycle tested end-to-end (create/calc/dup-guard/delete — NEVER posted, zero

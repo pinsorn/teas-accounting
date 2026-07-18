@@ -121,6 +121,24 @@ outstanding-po, wht-receivable):**
   sales-summary ว่างไม่มีคำอธิบาย (R6) — ทั้งหมดแก้แล้วใน main รอขึ้น prod
 - **ไม่มี finding ใหม่** จากรอบ re-verification นี้
 
+## POST-DEPLOY VERIFICATION — v1.21.5 LIVE (2026-07-18 ~10:5x, Chrome บน prod, Ham login สด)
+
+Deploy: API `DEPLOY_OK version=1.21.5` (probes 10/10, sql_scripts คงที่ 69, DB backup แล้ว) +
+`FE_DEPLOY_OK` (content checks P1/R1/P6/W3 ผ่าน) + public E2E เขียว. Smoke test ทุก fix บน UI จริง:
+
+| เช็ค | ผล |
+|---|---|
+| (1) employees: คอลัมน์+filter ปกส. | ✅ "ไม่" (common.no หายแล้ว) |
+| (2) trial-balance | ✅ ปุ่ม ส่งออก CSV มา, Dr=Cr ✓, ยอดเดิม 30,410 |
+| (3) balance-sheet + P&L | ✅ ปุ่ม PDF งบการเงินทั้งปี + CSV ทั้งสองหน้า; P&L default เดือนนี้ auto-load (ยอด ก.ค. ตรง tax-summary) + preset เดือนนี้/ปีนี้; dev note หายจากหน้า |
+| (4) GL picker | ✅ พิมพ์ "1120" เฉยๆ → ปุ่มติด → รายงานรันถูก (ยอดยกไป -13,913 ตรง TB) |
+| (5) payroll | ✅ hint พ.ศ. "= 30/07/2569" ใต้วันที่จ่าย; สร้าง draft #4 → คลิกแถวพนักงาน → **breakdown modal เปิด** (เงินได้/ภาษี/ปกส./รับสุทธิ + กล่องอธิบาย ม.50(1)); confirm ลบเป็นสีแดง+icon (P9); ลบแล้ว list ว่าง |
+| (6) sales-summary | ✅ default เดือนนี้ + presets + basis footnote โชว์ทั้ง empty state และท้ายตาราง |
+| (7) outstanding-po | ✅ header "เกินกำหนด (วัน)" (overdue 4 วัน — นับสดต่อเนื่อง) |
+
+ไม่พบ regression; ตัวเลขทุกรายงานเท่า baseline; ไม่มีเอกสาร/JE ใหม่บนบัญชีจริง (draft #4 ลบแล้ว).
+เหลือ observe ต่อ: R10 first-click (ยัง intermittent — ไม่ block), S13 CF log (ฝั่ง Ham).
+
 ## สถานะข้อมูลหลังเทสต์ (cleanup)
 
 - payroll runs: **ไม่เหลือ** (draft #1, #2 ลบแล้วทั้งคู่ — ทดสอบปุ่มลบไปในตัว)
