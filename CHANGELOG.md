@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.6](https://github.com/pinsorn/teas-accounting/compare/v1.21.5...v1.21.6) (2026-07-18)
+
+
+### Bug Fixes
+
+* **master:** company creation atomic + RLS-correct tenant seeding ([4b92efd](https://github.com/pinsorn/teas-accounting/commit/4b92efd50c675a25d2ca73c86e540476445d9070))
+
 ## [1.21.5](https://github.com/pinsorn/teas-accounting/compare/v1.21.4...v1.21.5) (2026-07-17)
 
 
