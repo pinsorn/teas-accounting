@@ -68,3 +68,34 @@ None observed — no picker/modal first-click misses hit during this entire roun
 | F-10 | ภ.พ.30 deadline warning now Thai; ภ.พ.30 July updated correctly after new VI (ซื้อ 12,000/840 → สุทธิ 0.00). |
 
 Deploy trail: v1.22.0 rolled back automatically (script 625 RLS 42501 — SqlScripts run under NOBYPASSRLS app role; spec assumption wrong; wiki entry added) → 625 rewritten with per-company `set_config('app.company_id',…,true)` DO-loop → **v1.22.1 API DEPLOY_OK 9/9 + FE_DEPLOY_OK**. Standing open item: `McpServerSmokeTests.E3_create_vendor` red on CI since ~v1.21.5 era (pre-existing, needs separate root-cause round).
+
+## Open-items round (2026-07-19 ~00:3x, co5 on prod v1.22.1)
+
+### Statement IMPORT flow — PASS (first exercise ever)
+- KBiz CSV synthetic statement (KBANK 123-4-56789-0, period 01–31/07/2026, opening 0.00,
+  deposit 7,490.00 + withdrawal 10,700.00, closing −3,210.00) uploaded via
+  /bank-accounts/1 → "+ นำเข้า Statement": parsed 2 รายการ, toast Thai, status Parsed,
+  metadata (period/line count) rendered correctly in the imports list.
+- กระทบยอดธนาคาร page: both lines Unmatched with BE dates ✓; "ค้นหารายการที่ตรงกัน"
+  suggested the EXACT counterpart docs (07-2026-RC-0001 ฿7,490 / 07-2026-PV-COGS-0001
+  ฿10,700) → confirmed both → Matched, ยกเลิกจับคู่ available.
+- Bank-recon report @31/07 after matching: Statement −3,210.00 = GL −3,210.00,
+  เงินฝากระหว่างทาง 0.00, รายการจ่ายค้าง 0.00, ยังไม่จับคู่ 0.00, **ผลต่าง 0.00** — full tie.
+  (Also confirms the Aug payroll Pay JE does NOT leak into the July cutoff.)
+
+### CN (ใบลดหนี้) → ภ.พ.30 — PASS (money math exact)
+- 07-2026-CN-0001 created against TI-0001 (reason PriceReduce, ปรับ 1,000 + VAT 70 =
+  1,070, Thai amount-in-words correct), posted with immutability warning (ม.86/4 /
+  ม.86/12) ✓; ref chain sidebar now 7 docs.
+- ภ.พ.30 July preview after CN: ขายที่ต้องเสียภาษี **11,000 → ภาษีขาย 770**
+  (12,000−1,000 / 840−70 exact), ซื้อ 12,000/840, ชำระสุทธิ 0.00,
+  **เครดิตยกไปงวดหน้า 70.00** — carry-forward credit logic correct.
+- TB @31/07: Dr=Cr **172,440.00 = 172,440.00** ✓. CN JE correct: 4100 รับคืน/ส่วนลด
+  Dr 1,000 (contra-revenue, ไม่ net 4000), 2151 Dr 70 (คงเหลือ −770), 1130 Cr 1,070
+  (AR 5,350 → 4,280).
+
+### New findings this round
+| # | Sev | Area | Symptom | Recommendation |
+|---|---|---|---|---|
+| F-11 | Medium | CN i18n / legal doc | CN reason-code dropdown shows raw enum keys (Typo/AmountError/CustomerInfo/Return/PriceReduce/Cancel) on the Thai UI, and the raw key prints on the POSTED document line: "เหตุผล (PriceReduce): …" — ใบลดหนี้ is a legal ม.86/10 form; the reason should render in Thai (e.g. ลดราคา/รับคืนสินค้า/ยกเลิก) | Map reason enum → Thai labels in dropdown AND document template |
+| F-12 | Low | UX batch | (a) statement-import modal has no format hint (which bank/format CSV is accepted); (b) CN confirm dialog identifies the ref doc as "TI #1" (internal id) instead of 07-2026-TI-0001; (c) match-confirm toast is a bare "บันทึก" | Batchable polish |

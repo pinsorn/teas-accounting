@@ -1,7 +1,14 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **VAT DUMMY ROUND COMPLETE — FIX LOOP CLEAN (2026-07-19 ~00:2x).** v1.22.1 live; all
+- **OPEN-ITEMS ROUND ACTIVE (2026-07-19 ~00:2x, Ham go).** 4 tracks: (1) E3
+  create_vendor CI-red root-cause → sonnet dispatched (background, specs/
+  fix-e3-create-vendor-ci.md); (2) S13 CF-edge 503 → sonnet read-only prod
+  investigation dispatched (background, specs/fix-s13-cf-edge-503.md); (3)
+  statement-import + CN(ใบลดหนี้)→ภ.พ.30 test on co5 = Fable browser, in
+  progress; (4) manual บท 6 posted-state additions — QUEUED after E3 worker
+  frees the backend build/test (capture pipeline needs dotnet run).
+- **(prev) VAT DUMMY ROUND COMPLETE — FIX LOOP CLEAN (2026-07-19 ~00:2x).** v1.22.1 live; all
   F-findings fixed + VERIFIED-LIVE on co5 (F-3 opening-YTD 7,008.33 exact, F-6 Pay JE
   TB-exact, F-9 COGS→5000, F-8 PND1 column, F-4/7/10 UI-i18n). Re-test found ZERO new
   issues. Open items: E3 create_vendor CI-red (pre-existing), S13 CF-edge 503s,

@@ -96,10 +96,22 @@ connector = **forbidden this round** (points at Repttown, wrong company).
        prefill = next open period; ภ.พ.30 warning Thai; SSO header "(รวมนายจ้าง)"
    (f) employees modal: new-employee create → no spurious opening year persisted
    Then REPORT update (F-3..F-10 verified-live column) + STATUS + Ham summary.
-3. Plan C leftovers: bank statement IMPORT flow (needs statement file/upload UI at
-   /bank-accounts/[id]/imports), TI PDF visual check (ภ.พ.20 fields — blob tab flaky),
-   สปส.1-10 PDF + ภ.ง.ด.1 ใบแนบ pages visual re-check, CN (ใบลดหนี้) → ภ.พ.30 reflect,
-   month-2 payroll POST (left draft 202608), manual บท 6 posted-state additions.
+3. OPEN-ITEMS ROUND (2026-07-19 ~00:3x):
+   [x] statement IMPORT flow — PASS: synthetic KBiz CSV (7,490 in / 10,700 out,
+       closing −3,210) → parsed 2 lines → match suggestions EXACT (RC-0001/
+       PV-COGS-0001) → both Matched → recon report ผลต่าง 0.00 full tie.
+   [x] CN → ภ.พ.30 — PASS: 07-2026-CN-0001 (PriceReduce 1,000+70) posted vs TI-0001;
+       ภ.พ.30 ขาย 11,000/770, เครดิตยกไป 70; TB 172,440 Dr=Cr; CN JE = 4100 contra
+       Dr 1,000 / 2151 Dr 70 / 1130 Cr 1,070. New findings F-11 (CN reason raw enum
+       key on UI+printed doc, medium) + F-12 (low UX batch) — in REPORT.
+   [ ] E3 create_vendor root-cause — sonnet dispatched (background), spec
+       specs/fix-e3-create-vendor-ci.md
+   [ ] S13 CF-edge 503 — sonnet read-only prod investigation dispatched (background),
+       spec specs/fix-s13-cf-edge-503.md
+   [ ] manual บท 6 posted-state additions — QUEUED after E3 worker frees backend
+       build/test (capture pipeline needs dotnet run)
+   [ ] leftover: TI PDF visual check (ภ.พ.20 fields — blob tab flaky), สปส.1-10 PDF
+       + ภ.ง.ด.1 ใบแนบ visual re-check
 4. co2/co3 untouched ✓. Dummy co5 = safe playground for future rounds.
 5. Test Plan A payroll (3 emps 80k/30k/15k, breakdown vs hand-calc, Post!, ภ.ง.ด.1,
    สปส.1-10, slips, 50ทวิ, ภ.ง.ด.1ก, GL tie 5400/5410/2153/2160/2170, Pay, month 2, negatives)
