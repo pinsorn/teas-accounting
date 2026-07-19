@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.7](https://github.com/pinsorn/teas-accounting/compare/v1.22.6...v1.22.7) (2026-07-19)
+
+
+### Bug Fixes
+
+* **numbering:** off-by-one retry cap left last-attempt doc_no collision uncaught (ambient-tx 500) ([af5ab8a](https://github.com/pinsorn/teas-accounting/commit/af5ab8a29333fef092e5ac220c80b652595b1ee3))
+
 ## [1.22.6](https://github.com/pinsorn/teas-accounting/compare/v1.22.5...v1.22.6) (2026-07-19)
 
 
