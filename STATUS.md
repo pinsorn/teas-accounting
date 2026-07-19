@@ -1,7 +1,15 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **OPEN-ITEMS ROUND COMPLETE (2026-07-19 ~01:3x) — 4/4 tracks done.**
+- **F-11/F-12 FIX ARC SHIPPED — v1.22.2 LIVE (2026-07-19 ~02:3x).** Ham
+  "เอาตามที่แนะนำเลย" → spec → sonnet impl (8 files) → Fable diff read →
+  3fc7619 → CI green → PR #88 → tag → deployed (MinVer 1.22.2, DB backup,
+  DEPLOY_OK scripts-unchanged 71, FE_DEPLOY_OK content anchors, public
+  probes). **F-11 VERIFIED LIVE** on CN-0001 (Thai reason label on legal
+  doc). F-12 live via content anchors; visual eyeball optional (TEAS session
+  expired post-deploy). Remaining: S13 CF-dashboard check + WAF Skip rule =
+  **waiting on Ham** (CF login in different Chrome profile than extension).
+- **(prev) OPEN-ITEMS ROUND COMPLETE (2026-07-19 ~01:3x) — 4/4 tracks done.**
   (1) E3 create_vendor FIXED ac048e8 — stale test fixture (taxId null vs WP1
   domestic-VAT validation 65b9b2b); suite 897/8/0; CI-green confirmation
   pending (watch bg). (2) S13 CF-edge 503 ROOT-CAUSED db29473 — origin fully

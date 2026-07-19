@@ -99,3 +99,17 @@ Deploy trail: v1.22.0 rolled back automatically (script 625 RLS 42501 — SqlScr
 |---|---|---|---|---|
 | F-11 | Medium | CN i18n / legal doc | CN reason-code dropdown shows raw enum keys (Typo/AmountError/CustomerInfo/Return/PriceReduce/Cancel) on the Thai UI, and the raw key prints on the POSTED document line: "เหตุผล (PriceReduce): …" — ใบลดหนี้ is a legal ม.86/10 form; the reason should render in Thai (e.g. ลดราคา/รับคืนสินค้า/ยกเลิก) | Map reason enum → Thai labels in dropdown AND document template |
 | F-12 | Low | UX batch | (a) statement-import modal has no format hint (which bank/format CSV is accepted); (b) CN confirm dialog identifies the ref doc as "TI #1" (internal id) instead of 07-2026-TI-0001; (c) match-confirm toast is a bare "บันทึก" | Batchable polish |
+
+### F-11/F-12 fix arc — v1.22.2 SHIPPED + F-11 VERIFIED LIVE (2026-07-19 ~02:3x)
+| Finding | Status |
+|---|---|
+| F-11 | **VERIFIED LIVE**: CN-0001 document line now renders "เหตุผล (ลดราคา/ส่วนลดภายหลัง): …" — raw enum key gone from the legal doc; fix covers dropdown + FE detail + PDF (single shared BuildPaperAsync source) + DN codes; e2e test that pinned the raw key now guards the label. |
+| F-12 | Shipped in same release; live-verified via deploy content anchors (จำนวนเงินผิด + "รองรับไฟล์ CSV จาก KBiz" present in built FE) + tsc/next build/164 backend tests. Visual eyeball pass pending (TEAS session expired post-deploy) — optional. |
+
+Deploy trail: 3fc7619 → CI green → PR #88 → tag v1.22.2 → MinVer 1.22.2 ✓ → DB backup
+teas-pre-v1.22.2-deploy-*.sql.gz → DEPLOY_OK (version=1.22.2, sql_scripts unchanged 71)
+→ FE_DEPLOY_OK → public probes (login/oauth 200, proxy auth-gate 401) → scripts archived
+publish/v1.22.2/ (4fcdaaa).
+
+S13 status: origin ruled out; CF-dashboard confirmation + scoped WAF Skip rule = waiting
+on Ham (CF login lives in a different Chrome profile than the extension's).
