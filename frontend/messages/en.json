@@ -1565,6 +1565,7 @@
     "view": "View",
     "delete": "Delete",
     "confirmDelete": "Confirm delete?",
+    "deleted": "Deleted",
     "deactivate": "Deactivate",
     "posted": "Posted",
     "draftSaved": "Draft saved",
