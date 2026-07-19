@@ -282,3 +282,37 @@ path. Choose the cleaner of these two (opus decides with reasoning, prefer the f
   already covered) — omitted; ADDED tax.wht_certificates (WHERE direction='P') — PaymentVoucherService
   allocates its WT-NNNN doc_no through the identical NextAsync path, carries the same drift risk, was
   missing from the contract's draft list. Did not commit (per dispatch contract — orchestrator commits).
+- 2026-07-20 ~00:xx (opus-debugger, attempt 2) **RESOLVED — root cause was NOT a 25P02 aborted tx.**
+  Reproduced first (systematic-debugging). An isolated EF probe proved EF Core 10.0.7 + Npgsql 10.0.1
+  AutoSavepoints DO recover an ambient-tx doc_no collision (single-command INSERT and UPDATE both) —
+  the tx is NOT left aborted. A drift-of-3 real TI post (`TaxInvoiceService.PostAsync`) already PASSED
+  on the unfixed tree. The REAL bug is an **off-by-one in the retry cap**: `AllocateAndSaveAsync`'s
+  catch guard was `when (attempt < MaxAttempts && IsDocNoCollision(ex))`, so a collision on the LAST
+  attempt (attempt == MaxAttempts) was NOT caught — the raw `DbUpdateException`(23505) escaped (→ the
+  generic 500 `internal_error`, exactly the swarm body; the `doc.number_alloc_exhausted` after the
+  loop was UNREACHABLE dead code). Because every `NextAsync` bump is enrolled in the caller's ambient
+  tx, the escaping exception unwinds past `tx.CommitAsync`, rolling back all bumps → the counter never
+  climbs → the very next post re-collides identically (the deterministic 3/3 ar01 saw). This only
+  triggers when a bucket is drifted DEEPER than `MaxAttempts`(5); the shared **JV bucket** (every
+  GL-posting doc — TI/VI/PV — allocates a JE, PO approve does NOT → the exact round-3 split) was the
+  deep-drifted one, unhealed because **626 did not actually apply on the v1.22.6 prod deploy** (the
+  flagged applied_sql_scripts concern — normal posting can't create drift, so a persistent deep drift
+  means 626 never ran). Repro: `NumberSequenceAmbientTxRetryTests` seeds the JV bucket drift=8 (>5) and
+  drives the real TI post → **fails on the unfixed tree with a raw 23505 out of AllocateAndSaveAsync
+  line 58**, passes with the fix.
+  **FIX (one file, `NumberedDocumentWriter.cs`): (1)** catch the collision on EVERY attempt and throw
+  the clean `doc.number_alloc_exhausted` (422, never a raw 500) only on true exhaustion; **(2)** an
+  EXPLICIT per-attempt savepoint placed AFTER allocate() and BEFORE SaveChanges() (dispatch option A
+  mechanism) rolls back ONLY the failed insert while the bump survives — belt-and-braces, independent
+  of EF's AutoSavepoints; **(3)** raise `MaxAttempts` 5→50 so realistic residual drift climbs past and
+  the post COMMITS, persisting the healed counter (self-heals in one post, like the pre-H8 no-tx path).
+  **Chose A over B (separate committed connection):** A + the off-by-one fix provably works AND
+  preserves the no-gap invariant the 5 `NumberSequenceTransactionSafetyTests` assert (a non-doc_no
+  failure still propagates and rolls the allocation back — verified those 5 still green); B would break
+  those tests (durable bump = a gap on failure) and add an RLS-GUC-on-a-new-connection footgun for no
+  benefit at realistic drift depth. All 17 call sites use the shared helper unchanged → every ambient-tx
+  path (TI/RC/VI/PV/expense/adjustment) fixed by the one-file change; PO approve + 626 untouched.
+  Tests drive the REAL entry points (TI post, Receipt post, N-parallel TI post) — NOT PostManualEntryAsync.
+  **DEPLOY CAVEAT (Fable):** the code fix self-heals drift < 50 first-post even if 626 never ran, but a
+  bucket drifted ≥ 50 still needs 626 — so the deploy MUST confirm 626 applied (applied_sql_scripts +2)
+  and that co5's JV bucket sits at ≥ MAX(JE seq) before declaring closed. 626 re-runs are idempotent.
