@@ -368,3 +368,42 @@ mismatched side of the race.
 - The recurring `attachments/3/download` background poll (flagged in §3) is
   unrelated to S13 but looks like it might be worth a separate look — not
   investigated further here, out of scope for this task.
+
+## CF-dashboard verification (2026-07-19 ~13:0x, Ham logged in, checked via Chrome)
+
+Zone kazaki-rio.com (free plan), checked live:
+1. **Security → Settings → Bot traffic: Bot fight mode = OFF** (toggle off; only
+   "JS Detections: On" — detection-only, takes no blocking action). Block AI bots
+   off, AI Labyrinth off. → **H1's mechanism (BFM/SBFM challenge) is NOT enabled.**
+2. **Security → Analytics → Events, filter Host = teas.kazaki-rio.com, last 24h:
+   7 events total, ALL `Block` by Managed rules, ALL from US scanner IPs**
+   (34.31.88.250 ×6, 185.8.106.168 ×1) — legitimate WAF blocks of probe traffic.
+   **ZERO events from Thai IPs / the automation browser session**, despite this
+   session driving hours of heavy CDP traffic against teas today (statement
+   import, CN flows, 4 deploy verifications) with **zero 503s observed**.
+3. Zone-wide "Mitigated: 272 / 24h" decomposes into the managed-rule scanner
+   blocks across hosts — no challenge actions on teas at all.
+4. Incident windows (07-16 13:0x/22:1x-22:4x, 07-18 13:2x) are now OUTSIDE the
+   free plan's 24h sampled-event retention — cannot be checked retroactively.
+
+## VERDICT (revised)
+- **H1 REFUTED** for the checkable window: no bot-management mechanism is armed
+  on this zone, and CF logged no challenge/block against our traffic. The
+  proposed WAF Skip rule would be a NO-OP — **do not apply it**.
+- H2 (CF edge↔origin connection race) is now the leading hypothesis by
+  elimination, consistent with: intermittent incident windows, origin logging
+  clean 2xx for browser-visible 503s, zero incidents today.
+- Action taken: none (nothing to fix in CF; origin-side nginx hardening from
+  the proposal held back — weak evidence, shared-infra blast radius on the
+  multi-tenant VPS, and the symptom has not recurred since 07-18).
+
+## Standing playbook if S13 recurs
+1. Note exact time + path + browser Ray ID (from the 503 page / response headers).
+2. CF dash → Security → Analytics → Events (same-day — 24h retention!) filter
+   Host=teas; if empty → not a security action, points harder at H2.
+3. Origin: `sudo grep '<path>' /opt/npm/data/logs/proxy-host-13_access.log`
+   (wiki method) — 2xx-or-absent confirms edge-side failure.
+4. If recurrence is frequent: apply the origin-side hardening from this spec
+   (`/data/nginx/custom/http_top.conf` keepalive widening + proxy_next_upstream,
+   http-level so no NPM UI/DB edit needed) and/or toggle SSL/TLS → HTTP/2 to
+   Origin off as an isolation test.

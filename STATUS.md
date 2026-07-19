@@ -7,9 +7,14 @@
   deploy; verify pass found delete-toast raw key `common.deleted` (latent on
   Quotation too) → 2-line i18n fix → v1.22.4 FE-only deploy (API stays
   1.22.3 by design) → toast "ลบแล้ว" verified; test drafts cleaned, co5 =
-  CN-0001 Posted only. New wiki: never sudo the FE deploy script. Remaining:
-  S13 CF-dashboard check + WAF Skip rule = **waiting on Ham** (CF login in
-  different Chrome profile than extension).
+  CN-0001 Posted only. New wiki: never sudo the FE deploy script.
+- **S13 CLOSED-FOR-NOW (2026-07-19 ~13:0x, CF dashboard checked via Ham's
+  login).** Bot Fight Mode OFF; Events(host=teas, 24h) = 7 scanner blocks
+  (US IPs, Managed rules) and ZERO events from our heavy automation traffic
+  → H1 bot-scoring REFUTED; WAF Skip rule = no-op, NOT applied. Leading
+  hypothesis by elimination: CF edge↔origin connection race (intermittent;
+  no recurrence since 07-18). Recurrence playbook appended to
+  specs/fix-s13-cf-edge-503.md (check CF Events SAME-DAY — 24h retention).
 - **(prev) F-11/F-12 FIX ARC SHIPPED — v1.22.2 LIVE (2026-07-19 ~02:3x).** Ham
   "เอาตามที่แนะนำเลย" → spec → sonnet impl (8 files) → Fable diff read →
   3fc7619 → CI green → PR #88 → tag → deployed (MinVer 1.22.2, DB backup,
