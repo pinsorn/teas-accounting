@@ -1,5 +1,41 @@
 # PROGRESS — VAT co5 usage drive (2026-07-19 ~13:1x)
 
+## 🔴 CRIT-1 REOPENED (2026-07-20 ~03:xx) — v1.22.6 fix INCOMPLETE
+Round-3 swarm verdict: **PO approve 200 3/3 (FIXED)** but **TI post 500 3/3 (STILL BROKEN)**.
+Root cause of the incompleteness (Fable, confirmed from source + pm2 + prod DB):
+- The v1.22.6 fix (626 reconcile + retry guard) only works for the **no-ambient-transaction** path
+  (PO approve — NextAsync auto-commits, bump climbs durably, self-heals). CONFIRMED working.
+- The **ambient-transaction** posts (TI/RC/VI: TaxInvoiceService.PostAsync:483 BeginTransactionAsync,
+  JE NextAsync enrolled via cmd.Transaction=CurrentTransaction) STILL 500: a 23505 on the JE insert
+  ABORTS the whole tx; the retry helper's next NextAsync/SaveChanges hit an aborted tx (25P02) so it
+  can't recover — surfaces as raw internal_error 500 (NOT the clean doc.number_alloc_exhausted, the
+  tell that retry never engaged), and the seq bump rolls back with the tx so the counter never climbs.
+- Test gap that let it ship green: NumberSequenceRetryGuardTests used GlPostingService.PostManualEntryAsync
+  = the auto-commit path, NOT the real ambient-tx PostTaxInvoice/Receipt/VendorInvoice path prod uses.
+  → troubles-wiki lesson: test the REAL posting path, not a convenience path.
+- Prod DB now: all co5 buckets delta≥0 (626 healed history). So a collision requires seq<max at the
+  moment — row-lock makes seq=max collision-proof → the round-3 collisions imply transient sub-max
+  drift under concurrency that the fragile ambient-tx retry turned into a hard 500 instead of healing.
+
+### CORRECTED FIX DESIGN (Fable) — for the next dispatch
+- **NumberedDocumentWriter: explicit savepoint, placed AFTER allocate() and BEFORE SaveChanges().**
+  On a doc_no 23505: RollbackToSavepoint (undoes ONLY the failed insert; the NextAsync bump BEFORE the
+  savepoint survives → tx restored to usable → next iteration's NextAsync climbs from the survived
+  value). Do NOT rely on EF AutoSavepoints (empirically not recovering here). No-ambient-tx path keeps
+  its current working behaviour.
+- Verify: which posting paths open an ambient tx (TI/RC/VI/PV/expense/adjustment via GlPosting) —
+  every one must get the savepoint retry. PO approve stays as-is (works).
+- **TEST MUST exercise the real ambient-tx path** (PostTaxInvoiceAsync/PostReceiptAsync etc.) under a
+  seeded-behind bucket AND under N-parallel, asserting 2xx + climb, not PostManualEntryAsync.
+- Keep 626 reconcile. Re-run reconcile is idempotent.
+- NEW finding to fold: tax01 .txt export 422 pp30_batch.missing_address (co5 profile missing registered
+  house-no — data gap; either fill co5 address or surface a clear message).
+- Round-3 other results: tenant isolation clean all agents; TB Dr=Cr held; SoD holds; company switcher
+  co5-only; known HIGH/MED (FE route-gating, cutoff mismatch [now spans Jul/Aug/Sep payroll], AP-aging
+  tie, AR negatives, api-keys, payroll admin button, users self-lock) reconfirmed for the WP batch.
+
+
+
 ## ROUND 2 — UX SWARM (17:3x, Ham สั่ง 10 accounts + Sonnet 10 ตัวรุม)
 - [x] 10 accounts created on co5 (sales01/acct01/appr01/ap01/ar01/audit01/chief01/admin01/purch01/tax01,
       1 role each, pwd pattern UxSwarm-2026-*) — spec specs/uxswarm-multirole-co5.md

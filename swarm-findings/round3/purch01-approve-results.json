@@ -1,0 +1,17 @@
+[
+  {
+    "poId": 9,
+    "status": 200,
+    "body": "{\"purchaseOrderId\":9,\"docNo\":\"07-2026-PO-0004\",\"approvedBy\":13,\"approvedAt\":\"2026-07-19T16:54:36.7809755+00:00\"}"
+  },
+  {
+    "poId": 10,
+    "status": 200,
+    "body": "{\"purchaseOrderId\":10,\"docNo\":\"07-2026-PO-0005\",\"approvedBy\":13,\"approvedAt\":\"2026-07-19T16:54:56.3227948+00:00\"}"
+  },
+  {
+    "poId": 11,
+    "status": 200,
+    "body": "{\"purchaseOrderId\":11,\"docNo\":\"07-2026-PO-0006\",\"approvedBy\":13,\"approvedAt\":\"2026-07-19T16:55:16.6027923+00:00\"}"
+  }
+]

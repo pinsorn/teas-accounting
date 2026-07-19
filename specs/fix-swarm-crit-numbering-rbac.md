@@ -213,9 +213,49 @@ Officer needs; leave finalize on Chief/Admin. Idempotent.
   (JE amounts) — only the alloc wrapper, confirmed by diff review (git diff --stat, no line inside a
   Debit/Credit/amount computation touched).
 
-## Attempt log
-- 2026-07-19 ~19:1x design drafted (Fable) from swarm findings + prod pm2 log + DB drift query +
-  numbering-code read. Root causes CONFIRMED, not hypothesised.
+═══════════════════════════════════════════════════════════════════════════════════════════
+## CRIT-1 ROUND 2 — v1.22.6 fix INCOMPLETE (ambient-transaction posting path still 500s)
+
+### What v1.22.6 fixed vs missed (round-3 swarm, confirmed)
+- FIXED: no-ambient-transaction numbering — **PO approve 200 3/3 (PO-0004/5/6)**, full sales chain
+  QT→SO→DO→IV all 2xx. NextAsync auto-commits, bump climbs durably, self-heals. 
+- STILL BROKEN: **TI post 500 3/3** (ar01) — the GL-JE-posting path that runs inside an ambient
+  transaction. TaxInvoiceService.PostAsync:483 `BeginTransactionAsync`; inside it, TI doc_no via
+  AllocateAndSaveAsync AND `_gl.PostTaxInvoiceAsync` → JE NextAsync enrolled in the SAME tx
+  (cmd.Transaction = CurrentTransaction). Same failing shape: RC post, VI post, PV post, expense
+  post, adjustment post — every GlPostingService.Post*Async that runs under the caller's ambient tx.
+
+### Root cause of the incompleteness (confirmed)
+A 23505 on the JE insert ABORTS the whole ambient tx. The retry helper then calls NextAsync +
+SaveChanges on an aborted tx (25P02) → cannot recover → surfaces as raw `internal_error` 500 (NOT the
+clean `doc.number_alloc_exhausted`, the tell that the retry never engaged) → and the seq bump rolls
+back with the tx so the counter never climbs. EF's AutoSavepoints did NOT save it empirically.
+Test gap that shipped it green: NumberSequenceRetryGuardTests exercised
+`GlPostingService.PostManualEntryAsync` = the AUTO-COMMIT path, not the ambient-tx PostTaxInvoice/
+Receipt/VendorInvoice path prod actually uses. (troubles-wiki lesson: test the REAL path.)
+
+### CORRECTED FIX (attempt 2 — opus-debugger)
+Make the numbering allocation survive a doc-insert failure so the retry can climb, in the ambient-tx
+path. Choose the cleaner of these two (opus decides with reasoning, prefer the first if viable):
+  (A) **Explicit savepoint in NumberedDocumentWriter, placed AFTER allocate() and BEFORE
+      SaveChanges().** On a doc_no 23505: `RollbackToSavepointAsync` (undoes ONLY the failed insert;
+      the NextAsync bump — before the savepoint — SURVIVES → tx restored to usable) then loop; the
+      next allocate() climbs from the survived value. Release the savepoint on success. Do NOT rely
+      on EF AutoSavepoints. When there is NO ambient tx, keep the current (working) auto-commit path.
+  (B) **Allocate the sequence on a separate, immediately-committed connection** (its own
+      NpgsqlConnection with app.company_id set for RLS), so the bump is durable regardless of the
+      doc tx outcome (burned number = harmless gap). Then a plain retry climbs. More robust but more
+      invasive (RLS GUC on the new connection — get it right or the UPSERT 42501s).
+- Keep 626 reconcile (idempotent; re-runs fine). 
+- **TEST MANDATE (the thing that failed last time): drive the REAL ambient-tx entry points** —
+  TaxInvoiceService.PostAsync / ReceiptService.PostAsync / VendorInvoiceService + PaymentVoucher post
+  — against (1) a sequence bucket seeded BEHIND max, asserting 2xx + doc_no == max+1 + counter climbs,
+  and (2) N parallel posts through the real post method, asserting all 2xx, distinct contiguous, zero
+  23505 leak. A green run on PostManualEntryAsync is NOT acceptable evidence this round.
+- Fable will ALSO verify on prod with a real TI post before declaring closed (not tests alone).
+
+### Attempt log
+- 2026-07-19 ~19:1x design v1 drafted (Fable). Root causes confirmed.
 - 2026-07-19 ~19:3x (post quota-reset) 1a audit DONE (no code leak), doc_no/number_sequences/latest-
   script confirmed, implementation contract written. Dispatching Sonnet impl + Opus review; Fable
   owns 626 reconcile SQL review + final diff + gate + commit.

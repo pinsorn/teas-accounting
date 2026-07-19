@@ -1,0 +1,13 @@
+{
+  "permissions": [
+    "master.product.read",
+    "master.vendor.manage",
+    "purchase.purchase_order.create",
+    "purchase.purchase_order.read",
+    "sys.attachment.read"
+  ],
+  "roles": [
+    "PURCHASING_STAFF"
+  ],
+  "isSuperAdmin": false
+}
