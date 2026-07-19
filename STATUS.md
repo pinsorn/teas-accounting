@@ -1,7 +1,17 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **RESIDUAL NITS SHIPPED — v1.22.3 + v1.22.4 LIVE, ALL VERIFIED (2026-07-19
+- **CO5 USAGE DRIVE COMPLETE (2026-07-19 ~15:1x, Ham "ลองใช้งานซื้อ/ขาย/Payroll/
+  รายงาน").** Fable drove prod v1.22.3 live via Chrome on co5: purchase
+  PO-0002→VI-0003→PV-COGS-0002, sales QT-0002→TI-0003→RC-0002 (direct-TI
+  shortcut), payroll 09/2026 full cycle (create→approve→post→pay KBANK) +
+  08/2026 PIT 7,008.33 = hand-calc exact. Reports: ภ.พ.30 July
+  910/1,050/เครดิตยกไป 140 ✓, TB Dr=Cr + **RE-TEST (c) confirmed (new COGS
+  VI → 5000)**, AR aging tie ✓. Dashboard "VAT 70 ขอคืนได้" sign-bug
+  hypothesis REFUTED (was genuinely a credit). 4 minor findings logged in
+  PROGRESS-vat-usage-drive.md (top: AR-aging table total 5,350 vs control
+  4,280 — net-credit customer C001 hidden from rows). No code changes.
+- **(prev) RESIDUAL NITS SHIPPED — v1.22.3 + v1.22.4 LIVE, ALL VERIFIED (2026-07-19
   ~12:2x, Ham "แก้เลย").** N-1 (CN/DN list shows TI doc-no via server JOIN) +
   N-2 (draft-only delete, 899/8/0 suite, RBAC wiring fixed) → v1.22.3 full
   deploy; verify pass found delete-toast raw key `common.deleted` (latent on
