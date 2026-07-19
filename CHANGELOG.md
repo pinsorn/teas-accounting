@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.3](https://github.com/pinsorn/teas-accounting/compare/v1.22.2...v1.22.3) (2026-07-19)
+
+
+### Bug Fixes
+
+* **cn:** list shows referenced TI doc number (server JOIN); draft-only delete for CN/DN ([2ec7cdf](https://github.com/pinsorn/teas-accounting/commit/2ec7cdfdd35c220401aee4411988be8b5566bc44))
+
 ## [1.22.2](https://github.com/pinsorn/teas-accounting/compare/v1.22.1...v1.22.2) (2026-07-18)
 
 
