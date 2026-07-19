@@ -104,7 +104,9 @@ Deploy trail: v1.22.0 rolled back automatically (script 625 RLS 42501 — SqlScr
 | Finding | Status |
 |---|---|
 | F-11 | **VERIFIED LIVE**: CN-0001 document line now renders "เหตุผล (ลดราคา/ส่วนลดภายหลัง): …" — raw enum key gone from the legal doc; fix covers dropdown + FE detail + PDF (single shared BuildPaperAsync source) + DN codes; e2e test that pinned the raw key now guards the label. |
-| F-12 | Shipped in same release; live-verified via deploy content anchors (จำนวนเงินผิด + "รองรับไฟล์ CSV จาก KBiz" present in built FE) + tsc/next build/164 backend tests. Visual eyeball pass pending (TEAS session expired post-deploy) — optional. |
+| F-12 | **VERIFIED LIVE (eyeball pass, 2026-07-19 ~03:0x)**: (1) import modal hint "รองรับไฟล์ CSV จาก KBiz (KBank) และ PDF จาก K PLUS" ✓; (2) CN post-confirm dialog shows 07-2026-TI-0001 (was TI #1) ✓; (3) unmatch toast "ยกเลิกจับคู่แล้ว" + rematch toast "จับคู่รายการแล้ว" ✓ (unmatch→rematch round-trip, ended Matched as before). CN dropdown all-6 Thai labels ✓; draft preview renders Thai label too ✓. |
+
+Residual nits (not in shipped scope, log only): CN list column "ใบกำกับภาษีเดิม" still shows internal id "#1"; CN draft has no delete button (test draft #2 ฿535 left on co5 — harmless, no GL/VAT effect).
 
 Deploy trail: 3fc7619 → CI green → PR #88 → tag v1.22.2 → MinVer 1.22.2 ✓ → DB backup
 teas-pre-v1.22.2-deploy-*.sql.gz → DEPLOY_OK (version=1.22.2, sql_scripts unchanged 71)
