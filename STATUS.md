@@ -1,7 +1,19 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **CO5 USAGE DRIVE COMPLETE (2026-07-19 ~15:1x, Ham "ลองใช้งานซื้อ/ขาย/Payroll/
+- **USAGE-DRIVE FIX ROUND SHIPPED — v1.22.5 LIVE + VERIFIED (2026-07-19 ~16:4x,
+  Ham "แก้สิ เราต้องการ Webapp สมบูรณ์").** Sonnet impl per
+  specs/fix-usage-drive-findings.md → Fable diff read → d04b290 → CI green →
+  PR #91 → v1.22.5 → full deploy (API DEPLOY_OK 7/7 probes incl. new
+  ar_aging_auth, DB backup, scripts 71 unchanged; FE_DEPLOY_OK no-sudo;
+  public probes 200/200/401). **F-1 VERIFIED LIVE**: AR aging shows C001
+  −1,070 row, table total 4,280 = control banner. **F-3 VERIFIED LIVE**:
+  QT→TI prefill carries ชิ้น/งาน. F-2 = not a code bug (invalidation already
+  present pre-v1.22.3; prod sighting likely stale edge-cached bundle).
+  F-4 = documented CDP screenshot tooling artifact, payroll code clean.
+  Worker flagged: SO has NO prefill path to TI/DO at all (pre-existing gap,
+  out of scope) — backlog candidate.
+- **(prev) CO5 USAGE DRIVE COMPLETE (2026-07-19 ~15:1x, Ham "ลองใช้งานซื้อ/ขาย/Payroll/
   รายงาน").** Fable drove prod v1.22.3 live via Chrome on co5: purchase
   PO-0002→VI-0003→PV-COGS-0002, sales QT-0002→TI-0003→RC-0002 (direct-TI
   shortcut), payroll 09/2026 full cycle (create→approve→post→pay KBANK) +
