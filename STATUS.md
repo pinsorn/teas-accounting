@@ -1,7 +1,17 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **USAGE-DRIVE FIX ROUND SHIPPED — v1.22.5 LIVE + VERIFIED (2026-07-19 ~16:4x,
+- **SWARM CRIT-1/CRIT-2 FIX SHIPPED — v1.22.6 LIVE (2026-07-19 ~23:5x).** 10-role concurrent
+  swarm on co5 exposed doc-number sequence drift (post/approve 500 → 23505 on *_doc_no) +
+  TAX_OFFICER missing tax.filing grant. Root causes CONFIRMED from prod pm2 log + drift query.
+  Fix: 626 reconcile SQL (GREATEST-only, per-company FORCE RLS) + retry-guard helper wired to
+  14 alloc services + 627 tax grant. Sonnet impl → Opus Tier-2 APPROVE (5 lenses) → Fable
+  reviewed 626/627/helper/GL/Receipt money paths personally → 3531052 → CI green → v1.22.6 API
+  deploy: scripts 71→73 (+2), **seq drift co5 JV delta=0 (reconcile healed it)**, ภ.พ.30 alive,
+  public probes 200. Suite 1053/1/8 (1 = documented Pnd50 flaky). Worker also fixed 2 rollout
+  footguns (Receipt CashReceived vs 570-freeze ordering; ExpenseClaim first-attempt guard).
+  NEXT: re-swarm round 3 to PROVE CRIT closed under concurrency (Ham /goal).
+- **(prev) USAGE-DRIVE FIX ROUND SHIPPED — v1.22.5 LIVE + VERIFIED (2026-07-19 ~16:4x,
   Ham "แก้สิ เราต้องการ Webapp สมบูรณ์").** Sonnet impl per
   specs/fix-usage-drive-findings.md → Fable diff read → d04b290 → CI green →
   PR #91 → v1.22.5 → full deploy (API DEPLOY_OK 7/7 probes incl. new
