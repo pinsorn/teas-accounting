@@ -154,4 +154,24 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
         return new TaxAdjustmentNotePostedResult(
             note.NoteId, docNo, now, note.NoteType, note.TotalAmount, note.TaxAmount);
     }
+
+    // fix-cn-list-docno-draft-delete (N-2) — hard-delete a Draft. Allowed because no
+    // doc_no allocated yet (gap-rule not violated); a Posted CN/DN is an immutable tax
+    // document (ม.86/4) and must be rejected. Mirrors QuotationChainServices/
+    // BillingNoteService.DeleteDraftAsync.
+    public async Task DeleteDraftAsync(long noteId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var note = await _db.TaxAdjustmentNotes.FirstOrDefaultAsync(n => n.NoteId == noteId, ct)
+            ?? throw new DomainException("note.not_found", $"Note {noteId} not found.");
+
+        if (note.Status != DocumentStatus.Draft)
+            throw new DomainException("note.cannot_delete_after_post",
+                "Adjustment note can only be deleted while in Draft.");
+
+        _db.TaxAdjustmentNotes.Remove(note);
+        await _db.SaveChangesAsync(ct);
+    }
 }

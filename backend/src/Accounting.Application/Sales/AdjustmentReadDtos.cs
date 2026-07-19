@@ -55,6 +55,9 @@ public sealed record AdjustmentNoteListItem(
     long NoteId, string? DocNo, string NoteType, DateOnly DocDate,
     string CustomerName, decimal TotalAmount, decimal TaxAmount,
     string Status, string CurrencyCode, long OriginalTaxInvoiceId,
+    // fix-cn-list-docno-draft-delete (N-1) — the referenced TI's doc number, joined
+    // server-side so the list shows "07-2026-TI-0001" instead of "#<internal id>".
+    string? OriginalTiDocNo,
     // Sprint 13i C3 — for client-side BU/customer filtering on the list page.
     long CustomerId = 0, int? BusinessUnitId = null);
 

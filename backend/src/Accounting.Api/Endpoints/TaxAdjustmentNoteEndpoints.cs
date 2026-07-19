@@ -30,6 +30,17 @@ public static class TaxAdjustmentNoteEndpoints
                 c.User.HasClaim("perm", Permissions.Sales.DebitNoteCreate) ||
                 c.User.HasClaim(TenantClaimsHelper.IsSuperAdmin, "true")));
 
+        // fix-cn-list-docno-draft-delete (N-2) — Draft-only delete; gated by the same
+        // Create permission (whoever can draft a CN/DN can also delete their own draft —
+        // there is no separate Manage perm for CN/DN, unlike Quotation/SalesOrder).
+        group.MapDelete("/{id:long}", async (long id, ITaxAdjustmentNoteService svc, CancellationToken ct) =>
+            { await svc.DeleteDraftAsync(id, ct); return Results.NoContent(); })
+        .RequireAuthorization(ctx =>
+            ctx.RequireAuthenticatedUser().RequireAssertion(c =>
+                c.User.HasClaim("perm", Permissions.Sales.CreditNoteCreate) ||
+                c.User.HasClaim("perm", Permissions.Sales.DebitNoteCreate) ||
+                c.User.HasClaim(TenantClaimsHelper.IsSuperAdmin, "true")));
+
         group.MapPost("/{id:long}/post", async (long id, ITaxAdjustmentNoteService svc, CancellationToken ct) =>
             Results.Ok(await svc.PostAsync(id, ct)))
         .RequireAuthorization(ctx =>

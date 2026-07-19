@@ -10,10 +10,10 @@
 | Anonymous | 8 |
 | AuthnOnly | 15 |
 | Perm | 290 |
-| Assertion | 6 |
+| Assertion | 7 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **345** |
+| **TOTAL** | **346** |
 
 ## Routes
 
@@ -301,6 +301,7 @@
 | GET | `/system/vat-threshold-status` | AuthnOnly | — |
 | GET | `/tax-adjustment-notes/` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | POST | `/tax-adjustment-notes/` | Assertion | sales.credit_note.create / sales.debit_note.create |
+| DELETE | `/tax-adjustment-notes/{id:long}` | Assertion | sales.credit_note.create / sales.debit_note.create |
 | GET | `/tax-adjustment-notes/{id:long}` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | GET | `/tax-adjustment-notes/{id:long}/paper` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | GET | `/tax-adjustment-notes/{id:long}/pdf` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |

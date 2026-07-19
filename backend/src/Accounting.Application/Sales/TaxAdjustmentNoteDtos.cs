@@ -43,6 +43,9 @@ public interface ITaxAdjustmentNoteService
 {
     Task<long> CreateDraftAsync(CreateTaxAdjustmentNoteRequest req, CancellationToken ct);
     Task<TaxAdjustmentNotePostedResult> PostAsync(long noteId, CancellationToken ct);
+    // fix-cn-list-docno-draft-delete (N-2) — Draft-only hard delete, mirrors
+    // QuotationChainServices/BillingNoteService.DeleteDraftAsync.
+    Task DeleteDraftAsync(long noteId, CancellationToken ct);
     /// <param name="noteType">"CREDIT" | "DEBIT" | null = both.</param>
     Task<CursorPage<AdjustmentNoteListItem>> ListAsync(
         string? noteType, long? cursor, int limit, CancellationToken ct,

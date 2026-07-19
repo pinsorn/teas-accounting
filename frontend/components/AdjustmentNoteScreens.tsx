@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -14,13 +14,14 @@ import { PrintMenu } from '@/components/ui/PrintMenu';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useAdjustmentNotes, useAdjustmentNote, usePostAdjustmentNote, useCompanyProfile, usePaperDoc, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
+import { useAdjustmentNotes, useAdjustmentNote, usePostAdjustmentNote, useDeleteAdjustmentNote, useCompanyProfile, usePaperDoc, useSystemInfo, useBusinessUnitName } from '@/lib/queries';
 import type { AdjustmentNoteListItem } from '@/lib/types';
 import { formatTHB, formatDate } from '@/lib/utils';
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { useHasScope } from '@/components/PermissionGate';
+import { useConfirm } from '@/hooks/useConfirm';
 import { toast } from 'sonner';
 
 type Kind = 'Credit' | 'Debit';
@@ -72,8 +73,12 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
       cell: ({ getValue }) => <span className="tabular-nums">{formatTHB(getValue<number>())}</span>,
     },
     {
-      accessorKey: 'originalTaxInvoiceId', header: t('colOrigTi'),
-      cell: ({ getValue }) => <span className="font-mono">#{getValue<number>()}</span>,
+      id: 'originalTiDocNo', header: t('colOrigTi'),
+      // fix-cn-list-docno-draft-delete (N-1) — show the referenced TI's doc number
+      // (server-joined); defensive fallback to #<id> only (a CN/DN can only reference
+      // a POSTED TI, so docNo always exists in practice).
+      accessorFn: (r) => r.originalTiDocNo ?? `#${r.originalTaxInvoiceId}`,
+      cell: ({ getValue }) => <span className="font-mono">{getValue<string>()}</span>,
     },
     {
       accessorKey: 'status', header: t('colStatus'), meta: { filter: 'select', filterLabel: t('colStatus') },
@@ -128,8 +133,14 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
   const paper = usePaperDoc('tax-adjustment-notes', id);
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const post = usePostAdjustmentNote();
+  const del = useDeleteAdjustmentNote();
+  const confirm = useConfirm();
+  const router = useRouter();
   const hasScope = useHasScope();
   const postScope = kind === 'Credit' ? 'sales.credit_note.post' : 'sales.debit_note.post';
+  // fix-cn-list-docno-draft-delete (N-2) — same permission that gates create (no
+  // separate CN/DN "manage" perm, unlike Quotation/SalesOrder).
+  const createScope = kind === 'Credit' ? 'sales.credit_note.create' : 'sales.debit_note.create';
 
   // B8 (parity) — a human-saved Draft CN/DN must be postable via normal
   // navigation. The CN/DN form offers a Save-as-Draft path, but the detail's
@@ -138,6 +149,17 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
     try {
       await post.mutateAsync(id);
       toast.success(tc('posted'));
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
+
+  async function deleteDraft() {
+    if (!(await confirm({ description: tc('confirmDelete'), variant: 'destructive' }))) return;
+    try {
+      await del.mutateAsync(id);
+      toast.success(tc('deleted'));
+      router.push(c.base);
     } catch (e) {
       toast.error((e as { detail?: string })?.detail ?? tc('error'));
     }
@@ -168,15 +190,29 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
         status={d.status}
         docNo={d.docNo ?? `#${d.noteId}`}
         actions={
-          d.status === 'Draft' && hasScope(postScope) ? (
-            <button
-              data-testid="note-post-action"
-              className="btn btn-primary btn-sm"
-              disabled={post.isPending}
-              onClick={doPost}
-            >
-              {t('post')}
-            </button>
+          d.status === 'Draft' ? (
+            <>
+              {hasScope(postScope) && (
+                <button
+                  data-testid="note-post-action"
+                  className="btn btn-primary btn-sm"
+                  disabled={post.isPending}
+                  onClick={doPost}
+                >
+                  {t('post')}
+                </button>
+              )}
+              {hasScope(createScope) && (
+                <button
+                  data-testid="note-delete-action"
+                  className="btn btn-danger btn-sm gap-1"
+                  disabled={del.isPending}
+                  onClick={deleteDraft}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden /> {tc('delete')}
+                </button>
+              )}
+            </>
           ) : undefined
         }
       />

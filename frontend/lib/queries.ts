@@ -275,6 +275,14 @@ export function usePostAdjustmentNote() {
     },
   });
 }
+// fix-cn-list-docno-draft-delete (N-2) — Draft-only delete, mirrors useDeleteQuotation.
+export function useDeleteAdjustmentNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiDelete(`tax-adjustment-notes/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adjustment-notes'] }),
+  });
+}
 
 // Report/dashboard keys touched by a VAT-affecting post (TI/VI/PV/CN-DN).
 // Prefix-matches the keys defined elsewhere in this file: ['tax-summary',…],

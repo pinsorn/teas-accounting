@@ -63,6 +63,10 @@ public static class RbacEndpointInventory
         {
             ["POST /tax-adjustment-notes/"] =
                 ["sales.credit_note.create", "sales.debit_note.create"],
+            // fix-cn-list-docno-draft-delete (N-2) — Draft-only delete gated by the same
+            // OR-set as create (no separate CN/DN "manage" perm).
+            ["DELETE /tax-adjustment-notes/{id:long}"] =
+                ["sales.credit_note.create", "sales.debit_note.create"],
             ["POST /tax-adjustment-notes/{id:long}/post"] =
                 ["sales.credit_note.post", "sales.debit_note.post"],
             ["GET /tax-adjustment-notes/"] = CnDnRead,

@@ -672,6 +672,8 @@ export interface AdjustmentNoteListItem {
   noteId: number; docNo: string | null; noteType: AdjustmentNoteType; docDate: string;
   customerName: string; totalAmount: number; taxAmount: number; status: DocStatus;
   currencyCode: string; originalTaxInvoiceId: number;
+  // fix-cn-list-docno-draft-delete (N-1) — the referenced TI's doc number (server JOIN).
+  originalTiDocNo: string | null;
   customerId: number; businessUnitId: number | null;
 }
 export interface AdjustmentNoteDetail {

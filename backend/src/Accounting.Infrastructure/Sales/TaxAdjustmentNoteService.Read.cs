@@ -28,11 +28,16 @@ public sealed partial class TaxAdjustmentNoteService
                 ? q.Where(n => n.BusinessUnitId == bu || n.BusinessUnitId == null)
                 : q.Where(n => n.BusinessUnitId == bu);
         if (cursor is { } c) q = q.Where(n => n.NoteId < c);
+        // fix-cn-list-docno-draft-delete (N-1) — single JOIN to the original TI's doc
+        // number so the list shows "07-2026-TI-0001" instead of "#<internal id>"
+        // (was fetched per-row from the FE before). FK-guaranteed to exist.
         var rows = await q.OrderByDescending(n => n.NoteId).Take(lim + 1)
-            .Select(n => new AdjustmentNoteListItem(
-                n.NoteId, n.DocNo, n.NoteType.ToString(), n.DocDate, n.CustomerName,
-                n.TotalAmount, n.TaxAmount, n.Status.ToString(), n.CurrencyCode,
-                n.OriginalTaxInvoiceId, n.CustomerId, n.BusinessUnitId))
+            .Join(_db.TaxInvoices.AsNoTracking(), n => n.OriginalTaxInvoiceId, t => t.TaxInvoiceId,
+                (n, t) => new { n, TiDocNo = t.DocNo })
+            .Select(x => new AdjustmentNoteListItem(
+                x.n.NoteId, x.n.DocNo, x.n.NoteType.ToString(), x.n.DocDate, x.n.CustomerName,
+                x.n.TotalAmount, x.n.TaxAmount, x.n.Status.ToString(), x.n.CurrencyCode,
+                x.n.OriginalTaxInvoiceId, x.TiDocNo, x.n.CustomerId, x.n.BusinessUnitId))
             .ToListAsync(ct);
         var more = rows.Count > lim;
         if (more) rows.RemoveAt(rows.Count - 1);
