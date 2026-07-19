@@ -1,0 +1,67 @@
+#!/bin/bash
+# FE deploy v1.22.4 -- i18n-only fix: common.deleted key added to
+# frontend/messages/th.json + en.json (delete-toast was showing the raw
+# "common.deleted" key instead of a translated string).
+# NO backend/src changes this release (git diff v1.22.3..v1.22.4 --stat is
+# ONLY the two messages files + release-please manifest/changelog) -> API
+# is NOT redeployed, stays on 1.22.3. package.json + pnpm-lock UNCHANGED ->
+# NO pnpm install. Full `git archive v1.22.4 frontend` overlay
+# (--strip-components=1). Rebuild, restart, auto-rollback.
+set -uo pipefail
+D=/opt/npm-sites/teas.kazaki-rio.com/frontend
+cd "$D"
+
+echo "== rename current build (rollback point) =="
+rm -rf .next.old
+mv .next .next.old
+
+echo "== overlay new source =="
+tar xf /tmp/fe-src-v1224.tar --strip-components=1
+echo "overlaid: $(tar tf /tmp/fe-src-v1224.tar | wc -l) entries"
+for f in 'messages/th.json' \
+         'messages/en.json'; do
+  test -e "$f" || { echo "FILE_MISSING: $f -- abort"; rm -rf .next; mv .next.old .next; exit 1; }
+done
+grep -q '"deleted": "ลบแล้ว"' 'messages/th.json' || { echo "CONTENT_CHECK_FAILED th-deleted-key -- abort"; rm -rf .next; mv .next.old .next; exit 1; }
+grep -q '"deleted": "Deleted"' 'messages/en.json' || { echo "CONTENT_CHECK_FAILED en-deleted-key -- abort"; rm -rf .next; mv .next.old .next; exit 1; }
+echo "FILES_PRESENT ok"
+
+echo "== next build =="
+export NODE_ENV=production
+export PUBLIC_BASE_URL=https://teas.kazaki-rio.com
+node node_modules/next/dist/bin/next build > /tmp/fe-build-v1224.log 2>&1
+RC=$?
+if [ $RC -ne 0 ]; then
+  echo "BUILD_FAILED rc=$RC -- rolling back"
+  tail -30 /tmp/fe-build-v1224.log
+  mv .next .next.broken-v1223; mv .next.old .next
+  echo "RESTORED old .next"
+  exit 1
+fi
+echo "BUILD_OK"
+
+echo "== content-check built output =="
+BUILT_OK=0
+if grep -rq 'ลบแล้ว' .next 2>/dev/null; then BUILT_OK=1; fi
+echo "built_output_scan=$BUILT_OK (informational; confirms anchor survived minification)"
+
+echo "== restart + verify =="
+pm2 restart teas-web >/dev/null 2>&1
+sleep 10
+ST=$(pm2 jlist | jq -r '.[]|select(.name=="teas-web")|.pm2_env.status')
+LOGIN=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/login)
+PDF=$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:3100/public/pdf?t=garbage')
+[ "$ST" = "online" ] && echo "PASS pm2_status=$ST" || echo "FAIL pm2_status=$ST"
+[ "$LOGIN" = "200" ] && echo "PASS login=$LOGIN" || echo "FAIL login=$LOGIN"
+[ "$PDF" = "404" ] && echo "PASS public_pdf=$PDF" || echo "FAIL public_pdf=$PDF"
+if [ "$ST" = "online" ] && [ "$LOGIN" = "200" ] && [ "$PDF" = "404" ]; then
+  echo "FE_DEPLOY_OK"
+  rm -rf .next.old
+else
+  echo "FE_DEPLOY_FAILED -- ROLLING BACK"
+  pm2 logs teas-web --lines 12 --nostream 2>&1 | tail -6
+  mv .next .next.broken-v1223; mv .next.old .next
+  pm2 restart teas-web >/dev/null 2>&1; sleep 6
+  curl -s -o /dev/null -w 'ROLLBACK login=%{http_code}\n' http://127.0.0.1:3100/login
+  exit 1
+fi

@@ -115,3 +115,12 @@ publish/v1.22.2/ (4fcdaaa).
 
 S13 status: origin ruled out; CF-dashboard confirmation + scoped WAF Skip rule = waiting
 on Ham (CF login lives in a different Chrome profile than the extension's).
+
+### Residual-nits arc — v1.22.3 + v1.22.4 SHIPPED, ALL VERIFIED LIVE (2026-07-19 ~12:2x)
+| Item | Live verification |
+|---|---|
+| N-1 list TI doc-no | /credit-notes column ใบกำกับภาษีเดิม now shows **07-2026-TI-0001** (server-side JOIN, no per-row fetch) |
+| N-2 draft delete | Deleted the leftover test draft #2 via the NEW delete button (destructive confirm → gone from list) — cleanup + verification in one action; delete-Posted guarded by `note.cannot_delete_after_post` (2 new tests, suite 899/8/0) |
+| Toast bug (found during verify) | Delete toast showed raw key `common.deleted` — key existed only in `toast.*` namespace; Quotation delete had the SAME latent bug all along. Fixed by adding `common.deleted` (th+en), shipped v1.22.4 (FE-only deploy, API intentionally stays 1.22.3) → toast now "ลบแล้ว" verified with a throwaway draft #3 (created + deleted clean) |
+
+co5 end state: CN-0001 (Posted) only — no drafts, no leftovers. New wiki entry: FE deploy script must NOT run under sudo (root pm2 daemon + root-chowned source tree, v1.22.4 incident, recovered same session).

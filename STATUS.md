@@ -1,7 +1,16 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **F-11/F-12 FIX ARC SHIPPED — v1.22.2 LIVE (2026-07-19 ~02:3x).** Ham
+- **RESIDUAL NITS SHIPPED — v1.22.3 + v1.22.4 LIVE, ALL VERIFIED (2026-07-19
+  ~12:2x, Ham "แก้เลย").** N-1 (CN/DN list shows TI doc-no via server JOIN) +
+  N-2 (draft-only delete, 899/8/0 suite, RBAC wiring fixed) → v1.22.3 full
+  deploy; verify pass found delete-toast raw key `common.deleted` (latent on
+  Quotation too) → 2-line i18n fix → v1.22.4 FE-only deploy (API stays
+  1.22.3 by design) → toast "ลบแล้ว" verified; test drafts cleaned, co5 =
+  CN-0001 Posted only. New wiki: never sudo the FE deploy script. Remaining:
+  S13 CF-dashboard check + WAF Skip rule = **waiting on Ham** (CF login in
+  different Chrome profile than extension).
+- **(prev) F-11/F-12 FIX ARC SHIPPED — v1.22.2 LIVE (2026-07-19 ~02:3x).** Ham
   "เอาตามที่แนะนำเลย" → spec → sonnet impl (8 files) → Fable diff read →
   3fc7619 → CI green → PR #88 → tag → deployed (MinVer 1.22.2, DB backup,
   DEPLOY_OK scripts-unchanged 71, FE_DEPLOY_OK content anchors, public
