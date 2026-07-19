@@ -95,6 +95,10 @@ export default function CreateTaxInvoicePage() {
         descriptionTh: l.descriptionTh,
         quantity: l.quantity,
         unitPrice: l.unitPrice,
+        // F-3 (2026-07-19 usage drive) — หน่วยนับ was dropped here: the form field stayed
+        // unset, so saveDraft's `l.uomText || 'หน่วย'` fallback always fired even when the
+        // quotation had a real unit ("ชิ้น"), and the posted TI printed "หน่วย".
+        uomText: l.uomText,
         taxRate: 0.07,    // BU default; product type wiring lands in P7
       })),
     });

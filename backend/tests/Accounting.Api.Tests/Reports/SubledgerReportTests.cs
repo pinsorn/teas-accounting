@@ -393,6 +393,53 @@ public sealed class SubledgerReportTests
         aging.Reconciliation.Balanced.Should().BeTrue();
     }
 
+    // ── F-1 (2026-07-19 usage drive) — a customer whose Credit Note exceeds their outstanding
+    //    balance (e.g. posted AFTER the original TI was already fully paid) has a net CREDIT
+    //    balance. Before the fix, ArAgingAsync only ever queried TaxInvoices (PaymentStatus !=
+    //    "PAID"), so such a customer was entirely absent from the table/CSV while the control-
+    //    account banner (movement-based) still showed the true balance — the two totals visible
+    //    on screen disagreed. ──────────────────────────────────────────────────────────────────
+
+    [SkippableFact]
+    public async Task Customer_with_net_credit_appears_as_negative_row_and_grand_total_ties_to_control()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today;
+        var (tiId, tiTotal) = await PostTi(sp, co.CustomerId, 1000m, today);
+        await PostReceipt(sp, co.CustomerId, tiId, tiTotal, today);   // fully pay → PaymentStatus "PAID"
+
+        // CN posted AFTER the TI is already fully paid (exact live repro) — the TI is excluded
+        // from the TI-only query (PaymentStatus=="PAID"), leaving the CN as this customer's only
+        // contribution: a net CREDIT balance.
+        long noteId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<ITaxAdjustmentNoteService>();
+            noteId = await svc.CreateDraftAsync(new CreateTaxAdjustmentNoteRequest(
+                TaxAdjustmentNoteType.Credit, today, tiId, nameof(CreditNoteReasonCode.AmountError),
+                "F-1 net-credit test", 200m, 0.07m, "THB", 1m, null), default);
+        }
+        TaxAdjustmentNotePostedResult note;
+        await using (var s = sp.CreateAsyncScope())
+            note = await s.ServiceProvider.GetRequiredService<ITaxAdjustmentNoteService>().PostAsync(noteId, default);
+
+        await using var s2 = sp.CreateAsyncScope();
+        var subSvc = s2.ServiceProvider.GetRequiredService<ISubledgerReportService>();
+        var report = await subSvc.ArAgingAsync(today, null, default);
+
+        var row = report.Rows.Should().ContainSingle(r => r.CustomerId == co.CustomerId,
+            "F-1: a net-credit customer must still appear as a row").Which;
+        row.Total.Should().Be(-note.TotalAmount,
+            "the CN is the customer's only movement (the TI is fully paid) — net balance is negative");
+        report.Totals.Total.Should().Be(row.Total, "the table's grand total must reflect the negative row");
+        report.Reconciliation.ControlAccountBalance.Should().Be(-note.TotalAmount);
+        report.Reconciliation.SubLedgerTotal.Should().Be(-note.TotalAmount);
+        report.Reconciliation.Balanced.Should().BeTrue(
+            "the CN posts a balanced GL entry against 1130 — table total must tie to the control account (F-1)");
+    }
+
     // ── S5 — vendor ledger (AP analog, payable-positive orientation) ───────────────────
 
     [SkippableFact]

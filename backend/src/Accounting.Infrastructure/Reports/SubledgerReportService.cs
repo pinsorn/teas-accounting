@@ -173,10 +173,28 @@ public sealed class SubledgerReportService(
                      && t.PaymentStatus != "PAID");
         if (customerId is { } cid) q = q.Where(t => t.CustomerId == cid);
 
-        var raw = await q.Select(t => new
+        var tiRaw = await q.Select(t => new
         {
             t.CustomerId, t.CustomerName, t.CustomerTaxId, t.DocDate,
-            Outstanding = t.TotalAmount - t.AmountPaid,
+            Amount = t.TotalAmount - t.AmountPaid,
+        }).ToListAsync(ct);
+
+        // F-1 (2026-07-19 usage drive) — Credit/Debit Notes net a customer's AR balance but were
+        // never pulled into this report (only TaxInvoices were queried above): a CN posted
+        // against an already-fully-PAID TI leaves that TI excluded by PaymentStatus=="PAID"
+        // while the CN itself still reduces AR, so a net-CREDIT customer vanished from the table
+        // entirely and the visible table total disagreed with the control-account banner (which
+        // ties out via the movement-based ArReconciliationAsync below, unaffected by this gap).
+        // Bucketed by the note's OWN DocDate (same aging rule as TI); CN negative / DN positive,
+        // mirroring ArMovementsAsync's sign convention (Credit reduces AR, Debit increases it).
+        var noteQ = db.TaxAdjustmentNotes.AsNoTracking()
+            .Where(n => n.CompanyId == tenant.CompanyId && n.Status == DocumentStatus.Posted);
+        if (customerId is { } cid2) noteQ = noteQ.Where(n => n.CustomerId == cid2);
+
+        var noteRaw = await noteQ.Select(n => new
+        {
+            n.CustomerId, n.CustomerName, n.CustomerTaxId, n.DocDate,
+            Amount = n.NoteType == TaxAdjustmentNoteType.Credit ? -n.TotalAmount : n.TotalAmount,
         }).ToListAsync(ct);
 
         var customerCodes = await db.Customers.AsNoTracking()
@@ -184,24 +202,31 @@ public sealed class SubledgerReportService(
             .Select(c => new { c.CustomerId, c.CustomerCode })
             .ToDictionaryAsync(c => c.CustomerId, c => c.CustomerCode, ct);
 
-        var rows = raw
-            .Where(x => x.Outstanding > 0m)
-            .GroupBy(x => new { x.CustomerId, x.CustomerName, x.CustomerTaxId })
+        // Grouped by CustomerId alone (not name/taxId — a note's snapshot could in principle
+        // differ from a TI's if the customer master changed between the two doc dates, which
+        // would otherwise split one customer into two rows); display name/taxId from either
+        // source, whichever is present.
+        var rows = tiRaw.Concat(noteRaw)
+            .GroupBy(x => x.CustomerId)
             .Select(g =>
             {
+                var first = g.First();
                 decimal cur = 0m, b3160 = 0m, b6190 = 0m, over90 = 0m;
                 foreach (var x in g)
                 {
                     var age = asOf.DayNumber - x.DocDate.DayNumber;
-                    if (age <= 30) cur += x.Outstanding;              // includes future-dated (age < 0)
-                    else if (age <= 60) b3160 += x.Outstanding;
-                    else if (age <= 90) b6190 += x.Outstanding;
-                    else over90 += x.Outstanding;
+                    if (age <= 30) cur += x.Amount;              // includes future-dated (age < 0)
+                    else if (age <= 60) b3160 += x.Amount;
+                    else if (age <= 90) b6190 += x.Amount;
+                    else over90 += x.Amount;
                 }
                 return new ArAgingRow(
-                    g.Key.CustomerId, customerCodes.GetValueOrDefault(g.Key.CustomerId, ""), g.Key.CustomerName,
-                    g.Key.CustomerTaxId, cur, b3160, b6190, over90, cur + b3160 + b6190 + over90);
+                    g.Key, customerCodes.GetValueOrDefault(g.Key, ""), first.CustomerName,
+                    first.CustomerTaxId, cur, b3160, b6190, over90, cur + b3160 + b6190 + over90);
             })
+            // F-1 — include net-CREDIT customers too (negative Total), not just net-debit ones;
+            // only a customer with a genuinely zero net balance across every bucket is dropped.
+            .Where(r => r.Total != 0m)
             .OrderByDescending(r => r.Total)
             .ToList();
 
