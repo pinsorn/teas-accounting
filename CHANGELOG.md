@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.4](https://github.com/pinsorn/teas-accounting/compare/v1.22.3...v1.22.4) (2026-07-19)
+
+
+### Bug Fixes
+
+* **i18n:** add missing common.deleted key — delete toasts showed raw 'common.deleted' (CN/DN + pre-existing on quotation delete) ([4d3548c](https://github.com/pinsorn/teas-accounting/commit/4d3548c02a21034983c701f3678686b9bb9e4e5a))
+
 ## [1.22.3](https://github.com/pinsorn/teas-accounting/compare/v1.22.2...v1.22.3) (2026-07-19)
 
 
