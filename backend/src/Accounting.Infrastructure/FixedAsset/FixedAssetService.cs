@@ -4,6 +4,7 @@ using Accounting.Application.Ledger;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Ledger;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -189,11 +190,25 @@ public sealed class FixedAssetService(
         Auth();
         var asset = await LoadAsync(id, ct);
         var activateDate = clock.TodayInBangkok();
-        var docNo = await numbers.NextAsync(asset.CompanyId, asset.BranchId, FaPrefix, subPrefix: null, activateDate, ct);
+        var activatedAt = clock.UtcNow;
         // FA-A — no JE posted here. The linked Vendor Invoice (or an opening-balance JE)
         // already booked the cost; this only assigns the doc number and starts the clock.
-        asset.Activate(docNo.Value, tenant.UserId, clock.UtcNow);
-        await SaveGuardedAsync(ct);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); a genuine optimistic-concurrency conflict (unrelated to
+        // doc_no) still surfaces as the same clean domain error SaveGuardedAsync gives elsewhere.
+        try
+        {
+            await NumberedDocumentWriter.AllocateAndSaveAsync(
+                db,
+                c => numbers.NextAsync(asset.CompanyId, asset.BranchId, FaPrefix, subPrefix: null, activateDate, c),
+                (v, first) => { if (first) asset.Activate(v.Value, tenant.UserId, activatedAt); else asset.DocNo = v.Value; },
+                ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new DomainException("fixed_asset.locked_mismatch",
+                "This fixed asset was changed by someone else. Reload and try again.");
+        }
     }
 
     public async Task CancelAsync(long id, CancellationToken ct)

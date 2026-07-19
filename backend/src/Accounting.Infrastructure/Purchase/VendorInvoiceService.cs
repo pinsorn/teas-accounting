@@ -5,6 +5,7 @@ using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Purchase;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -377,11 +378,14 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
             ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == bid)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        var docNo = await _numbers.NextAsync(
-            vi.CompanyId, vi.BranchId, ViPrefix, subPrefix: buCode, vi.DocDate, ct);
-
         var now = _clock.UtcNow;
-        vi.MarkPosted(docNo.Value, _tenant.UserId ?? 0, now);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        var docNo = await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(vi.CompanyId, vi.BranchId, ViPrefix, subPrefix: buCode, vi.DocDate, c),
+            (v, first) => { if (first) vi.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else vi.DocNo = v.Value; },
+            ct);
         _activity.Record("VendorInvoice", vi.VendorInvoiceId, vi.DocNo, vi.CompanyId,
             "Posted", fromStatus: "Draft", toStatus: "Posted", module: "purchase");
         await _db.SaveChangesAsync(ct);

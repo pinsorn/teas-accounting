@@ -2,6 +2,8 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Ledger;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Ledger;
+using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -82,13 +84,15 @@ public sealed class JournalService : IJournalService
             .FirstOrDefaultAsync(j => j.JournalId == journalId, ct)
             ?? throw new DomainException("je.not_found", $"Journal {journalId} not found.");
 
-        var docNo = await _numbers.NextAsync(
-            entry.CompanyId, entry.BranchId, JvPrefix, subPrefix: null, entry.DocDate, ct);
-
         var now = _clock.UtcNow;
-        entry.MarkPosted(docNo, _tenant.UserId ?? 0, now);
 
-        await _db.SaveChangesAsync(ct);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        var docNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(entry.CompanyId, entry.BranchId, JvPrefix, subPrefix: null, entry.DocDate, c),
+            (v, first) => { if (first) entry.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else entry.DocNo = v.Value; },
+            ct)).Value;
         await tx.CommitAsync(ct);
 
         return new JournalPostedResult(entry.JournalId, docNo, now);

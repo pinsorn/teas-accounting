@@ -6,6 +6,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Payroll;
 using Accounting.Domain.Enums;
 using Accounting.Domain.Payroll;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -160,8 +161,14 @@ public sealed class PayrollRunService(
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        var docNo = await numbers.NextAsync(run.CompanyId, run.BranchId, PrefixCode, subPrefix: null, run.PayDate, ct);
-        run.MarkPosted(docNo.Value, tenant.UserId ?? 0, clock.UtcNow);
+        var postedAt = clock.UtcNow;
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            db,
+            c => numbers.NextAsync(run.CompanyId, run.BranchId, PrefixCode, subPrefix: null, run.PayDate, c),
+            (v, first) => { if (first) run.MarkPosted(v.Value, tenant.UserId ?? 0, postedAt); else run.DocNo = v.Value; },
+            ct);
         activity.Record(EntityType, run.PayrollRunId, run.DocNo, run.CompanyId,
             "Posted", fromStatus: "Approved", toStatus: "Posted", module: Module);
         await db.SaveChangesAsync(ct);              // persist docNo + status + audit before GL reads it

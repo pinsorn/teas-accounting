@@ -5,6 +5,8 @@ using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
+using Accounting.Domain.ValueObjects;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -291,9 +293,14 @@ public sealed class BillingNoteService(
             throw new DomainException("billing_note.bad_status", "Only a Draft billing note can be issued.");
         // cont.69 (Ham) — Invoice number prefix BL → IV. Existing BL-numbered invoices
         // keep their numbers; new ones start a fresh IV monthly sequence per BU.
-        bn.DocNo = await SubPrefixNumberAsync("IV", bn.BusinessUnitId, bn.DocDate, ct);
-        bn.Status = BillingNoteStatus.Issued;
-        bn.IssuedAt = clock.UtcNow;
+        var issuedAt = clock.UtcNow;
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            db,
+            c => SubPrefixNumberAsync("IV", bn.BusinessUnitId, bn.DocDate, c),
+            (v, _) => { bn.DocNo = v.Value; bn.Status = BillingNoteStatus.Issued; bn.IssuedAt = issuedAt; },
+            ct);
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Issued", "Draft", "Issued");
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -440,7 +447,7 @@ public sealed class BillingNoteService(
         }
     }
 
-    private async Task<string> SubPrefixNumberAsync(
+    private async Task<DocumentNumber> SubPrefixNumberAsync(
         string prefix, int? buId, DateOnly docDate, CancellationToken ct)
     {
         string? buCode = buId is { } b

@@ -35,10 +35,20 @@
 - Litter to clean: draft QTs #11-13, TI drafts #4-5, RC #9, PO #7-8 (purch01), PVs #8-10 approved.
 
 ## Next (resume here)
-1. REPORT-uxswarm-co5.md consolidation (read 10 findings files) + commit swarm evidence.
-2. Fix spec CRIT-1 (Fable designs from numbering code read) → dispatch Codex → gates → deploy.
-3. CRIT-2 seed fix (needs new SqlScript → DB backup SOP at deploy).
-4. HIGH-1 route-guard shared fix spec (one pattern, many routes) — next batch after CRITs.
+1. [x] swarm evidence committed (26768c4). Fix design spec committed (81099bb):
+   specs/fix-swarm-crit-numbering-rbac.md — root causes CONFIRMED (not hypothesised):
+   CRIT-1 = number_sequences.current_value drift below MAX(doc_no); NextAsync itself is atomic;
+   NO live code leak (1a audit done — all writes via NextAsync, no SqlScript inserts doc_no).
+   CRIT-2 = TAX_OFFICER missing tax.filing.preview grant (seed 530).
+2. [~] Sonnet impl DISPATCHED (~19:3x, quota reset) — task a73a107e3365c2157. Building:
+   626_reconcile_number_sequences.sql (GREATEST-only UPSERT, RLS-safe) + retry-guard helper wired
+   to ~10 alloc sites + 627 tax_officer grant + 4 tests (drift/parallel/reconcile/rbac). No commit.
+   NEXT on return: Opus review (concurrency+SQL+RLS) → Fable diff review (626 SQL line-by-line,
+   never skip) → gate → commit → release → FULL deploy (API + 2 SqlScripts, DB backup,
+   applied_sql_scripts +2 not unchanged) → re-swarm-probe co5 (post/approve under concurrency = no 500).
+3. HIGH batch AFTER CRITs: FE route-guard shared fix (16 /new forms + CN/DN nav + period-close) +
+   report cutoff warning + approver inbox + auditor read-perms. Own spec.
+4. co2/co3 untouched. Swarm doc litter on co5 (draft QT #11-13, TI #4-5, RC #9) — harmless, leave.
 - v1.22.5 fix arc (F-1/F-3) shipped earlier this same day — see STATUS.
 
 

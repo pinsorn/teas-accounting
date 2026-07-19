@@ -85,8 +85,8 @@
 | `sys.role.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `sys.user.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `tax.filing.finalize` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `tax.filing.preview` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `tax.filing.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `tax.filing.preview` | ✓ |  |  |  |  | ✓ | ✓ |  |  | ✓ |  | ✓ |
+| `tax.filing.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `tax.pnd3.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `tax.pnd30.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `tax.pnd53.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
@@ -106,7 +106,7 @@
 | COMPANY_ADMIN | 81 |
 | PURCHASING_STAFF | 5 |
 | SALES_STAFF | 13 |
-| TAX_OFFICER | 12 |
+| TAX_OFFICER | 14 |
 | WAREHOUSE_STAFF | 2 |
 | SUPER_ADMIN | 82 (bypass) |
 

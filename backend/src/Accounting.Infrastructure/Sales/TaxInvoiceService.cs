@@ -6,6 +6,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.ETax;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -499,9 +500,6 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == bid)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        var docNo = await _numbers.NextAsync(
-            ti.CompanyId, ti.BranchId, TiPrefix, subPrefix: buCode, postDate, ct);
-
         // Sprint 10 A3 — snapshot Product.ProductCode onto each linked line so a
         // POSTED TI stays immutable even if the Product master is later edited /
         // deactivated (mirrors the Sprint 5.5 Vendor snapshot pattern).
@@ -527,7 +525,13 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         await _db.SaveChangesAsync(ct);
 
         var now = _clock.UtcNow;
-        ti.MarkPosted(docNo, _tenant.UserId ?? 0, now);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        var docNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(ti.CompanyId, ti.BranchId, TiPrefix, subPrefix: buCode, postDate, c),
+            (v, first) => { if (first) ti.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else ti.DocNo = v.Value; },
+            ct)).Value;
         _activity.Record("TaxInvoice", ti.TaxInvoiceId, docNo, ti.CompanyId, "Posted", "Draft", "Posted");
 
         await _db.SaveChangesAsync(ct);

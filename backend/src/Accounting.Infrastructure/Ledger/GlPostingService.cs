@@ -5,6 +5,7 @@ using Accounting.Domain.Entities.Expense;
 using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -446,8 +447,7 @@ public sealed class GlPostingService : IGlPostingService
             throw new DomainException("gl.unbalanced",
                 $"GL post unbalanced: D={totalD} C={totalC} for {description}.");
 
-        var docNo = await _numbers.NextAsync(companyId, branchId, JvPrefix, subPrefix: null, docDate, ct);
-        var now   = _clock.UtcNow;
+        var now = _clock.UtcNow;
 
         var je = new JournalEntry
         {
@@ -464,9 +464,14 @@ public sealed class GlPostingService : IGlPostingService
             ReversalOfId   = reversalOfId,
         };
         _db.JournalEntries.Add(je);
-        je.MarkPosted(docNo.Value, _tenant.UserId ?? 0, now);
 
-        await _db.SaveChangesAsync(ct);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(companyId, branchId, JvPrefix, subPrefix: null, docDate, c),
+            (v, first) => { if (first) je.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else je.DocNo = v.Value; },
+            ct);
         return je.JournalId;
     }
 
@@ -502,8 +507,7 @@ public sealed class GlPostingService : IGlPostingService
             throw new DomainException("gl.unbalanced",
                 $"GL post unbalanced: D={totalD} C={totalC} for {description}.");
 
-        var docNo = await _numbers.NextAsync(companyId, branchId, JvPrefix, subPrefix: null, docDate, ct);
-        var now   = _clock.UtcNow;
+        var now = _clock.UtcNow;
 
         var je = new JournalEntry
         {
@@ -519,9 +523,14 @@ public sealed class GlPostingService : IGlPostingService
             Lines       = lines,
         };
         _db.JournalEntries.Add(je);
-        je.MarkPosted(docNo.Value, _tenant.UserId ?? 0, now);
 
-        await _db.SaveChangesAsync(ct);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(companyId, branchId, JvPrefix, subPrefix: null, docDate, c),
+            (v, first) => { if (first) je.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else je.DocNo = v.Value; },
+            ct);
         return je.JournalId;
     }
 

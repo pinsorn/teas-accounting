@@ -7,6 +7,7 @@ using Accounting.Domain.Entities.Purchase;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
 using Accounting.Domain.Tax;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -390,11 +391,16 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
         var subPrefix = buCode is null ? pv.SubPrefix : $"{buCode}-{pv.SubPrefix}";
-        var pvNo = await _numbers.NextAsync(
-            pv.CompanyId, pv.BranchId, PvPrefix, subPrefix, postDate, ct);
-
         var now = _clock.UtcNow;
-        pv.MarkPosted(pvNo, _tenant.UserId ?? 0, now);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift). Allocates + persists the PV's own doc_no FIRST, isolated
+        // from the per-WHT-certificate allocations below (each cert gets its own retry-protected
+        // save, further down).
+        var pvNo = await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(pv.CompanyId, pv.BranchId, PvPrefix, subPrefix, postDate, c),
+            (v, first) => { if (first) pv.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else pv.DocNo = v.Value; },
+            ct);
         _activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId,
             "Posted", fromStatus: "Approved", toStatus: "Posted", module: "purchase");
 
@@ -428,14 +434,12 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 var groupIncome = grp.Sum(l =>
                     WhtPayerModes.Compute(l.Amount, l.WhtRate, pv.WhtPayerMode).CertIncome);
                 var groupWht    = grp.Sum(l => l.WhtAmount);
-                var grpNo = (await _numbers.NextAsync(
-                    pv.CompanyId, pv.BranchId, WtPrefix, subPrefix: null, postDate, ct)).Value;
 
                 var cert = new WhtCertificate
                 {
                     CompanyId        = pv.CompanyId,
                     BranchId         = pv.BranchId,
-                    DocNo            = grpNo,
+                    DocNo            = "",   // placeholder — overwritten below before any save is attempted
                     CertDate         = pv.DocDate,
                     PaymentVoucherId = pv.PaymentVoucherId,
                     PayerTaxId       = company.TaxId,
@@ -465,7 +469,13 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                     IssuedBy          = _tenant.UserId,
                 };
                 _db.WhtCertificates.Add(cert);
-                await _db.SaveChangesAsync(ct);
+                // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no
+                // collision (residual sequence drift), isolated per-certificate.
+                var grpNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
+                    _db,
+                    c => _numbers.NextAsync(pv.CompanyId, pv.BranchId, WtPrefix, subPrefix: null, postDate, c),
+                    (v, _) => cert.DocNo = v.Value,
+                    ct)).Value;
 
                 // D3 — the 50 ทวิ is auto-generated here (WHT > 0); the audit hook
                 // lives inside PaymentVoucherService.PostAsync, not WhtCertificateService

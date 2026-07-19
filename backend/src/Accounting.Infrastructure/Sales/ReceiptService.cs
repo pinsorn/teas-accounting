@@ -6,6 +6,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -420,14 +421,23 @@ public sealed partial class ReceiptService : IReceiptService
             ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == sbid)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        var rcNo = await _numbers.NextAsync(rc.CompanyId, rc.BranchId, RcPrefix, subPrefix: buCode, rc.DocDate, ct);
         var now = _clock.UtcNow;
-
-        rc.MarkPosted(rcNo, _tenant.UserId ?? 0, now);
-        _activity.Record("Receipt", rc.ReceiptId, rcNo, rc.CompanyId, "Posted", "Draft", "Posted");
-
-        // Sprint 8.6 — net cash after the customer's withholding.
+        // Sprint 8.6 — net cash after the customer's withholding. Sets BEFORE the retry-guarded
+        // allocate+save below: 570_receipt_immutability_rls.sql freezes cash_received once
+        // status=POSTED, so it must land in the SAME write that flips Draft->Posted, not a later
+        // one (a second UPDATE touching cash_received on an already-Posted row throws 23514).
         rc.CashReceived = rc.Amount - rc.WhtAmount;
+
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift). Allocates + persists the Receipt's own doc_no in isolation,
+        // BEFORE the AR-settlement mutations below — those must run exactly once, never replayed
+        // by a retry.
+        var rcNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(rc.CompanyId, rc.BranchId, RcPrefix, subPrefix: buCode, rc.DocDate, c),
+            (v, first) => { if (first) rc.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else rc.DocNo = v.Value; },
+            ct)).Value;
+        _activity.Record("Receipt", rc.ReceiptId, rcNo, rc.CompanyId, "Posted", "Draft", "Posted");
 
         // Apply payments → update each TI's AmountPaid / PaymentStatus. Only TI
         // applications settle AR; DO applications + standalone lines recognize revenue

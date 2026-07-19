@@ -5,6 +5,7 @@ using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -138,11 +139,14 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
             ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == bid)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        var docNo = await _numbers.NextAsync(
-            note.CompanyId, note.BranchId, note.PrefixCode, subPrefix: buCode, note.DocDate, ct);
-
         var now = _clock.UtcNow;
-        note.MarkPosted(docNo, _tenant.UserId ?? 0, now);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        var docNo = await NumberedDocumentWriter.AllocateAndSaveAsync(
+            _db,
+            c => _numbers.NextAsync(note.CompanyId, note.BranchId, note.PrefixCode, subPrefix: buCode, note.DocDate, c),
+            (v, first) => { if (first) note.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else note.DocNo = v.Value; },
+            ct);
         _activity.Record(EntityTypeOf(note), note.NoteId, docNo, note.CompanyId, "Posted", "Draft", "Posted");
 
         await _db.SaveChangesAsync(ct);

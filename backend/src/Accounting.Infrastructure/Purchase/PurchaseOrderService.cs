@@ -5,6 +5,7 @@ using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Purchase;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.Sales;   // ChainMath
 using Microsoft.EntityFrameworkCore;
@@ -133,9 +134,14 @@ public sealed class PurchaseOrderService(
             ? await db.BusinessUnits.Where(x => x.BusinessUnitId == b)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        var docNo = await numbers.NextAsync(
-            po.CompanyId, po.BranchId, "PO", buCode, po.DocDate, ct);
-        po.MarkApproved(tenant.UserId ?? 0, docNo, clock.UtcNow);   // SoD in entity + ck_po_sod
+        var approvedAt = clock.UtcNow;
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            db,
+            c => numbers.NextAsync(po.CompanyId, po.BranchId, "PO", buCode, po.DocDate, c),
+            (v, first) => { if (first) po.MarkApproved(tenant.UserId ?? 0, v.Value, approvedAt); else po.DocNo = v.Value; },   // SoD in entity + ck_po_sod
+            ct);
         activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,
             "Approved", fromStatus: "Draft", toStatus: "Approved", module: "purchase");
         await db.SaveChangesAsync(ct);

@@ -4,6 +4,8 @@ using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
+using Accounting.Domain.ValueObjects;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -152,9 +154,14 @@ public sealed class SalesOrderService(
             ?? throw new DomainException("so.not_found", $"Sales Order {id} not found.");
         if (so.Status != SalesOrderStatus.Draft)
             throw new DomainException("so.bad_status", "Only a Draft SO can be posted.");
-        so.DocNo = await SubNumAsync("SO", so.BusinessUnitId, so.DocDate, ct);
-        so.Status = SalesOrderStatus.Posted;
-        so.PostedAt = clock.UtcNow; so.PostedBy = tenant.UserId;
+        var postedAt = clock.UtcNow;
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            db,
+            c => SubNumAsync("SO", so.BusinessUnitId, so.DocDate, c),
+            (v, _) => { so.DocNo = v.Value; so.Status = SalesOrderStatus.Posted; so.PostedAt = postedAt; so.PostedBy = tenant.UserId; },
+            ct);
         activity.Record("SalesOrder", so.SalesOrderId, so.DocNo, so.CompanyId, "Posted", "Draft", "Posted");
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -280,7 +287,7 @@ public sealed class SalesOrderService(
             DeliveryRequired: so.Lines.Any(l => l.ProductType is "GOOD" or "EXEMPT_GOOD"));
     }
 
-    private async Task<string> SubNumAsync(
+    private async Task<DocumentNumber> SubNumAsync(
         string prefix, int? buId, DateOnly docDate, CancellationToken ct)
     {
         string? buCode = buId is { } b
@@ -368,10 +375,14 @@ public sealed class DeliveryOrderService(
             ? await db.BusinessUnits.Where(x => x.BusinessUnitId == b)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        dord.DocNo = await numbers.NextAsync(
-            tenant.CompanyId, tenant.BranchId, "DO", buCode, dord.DocDate, ct);
-        dord.Status = DeliveryOrderStatus.Issued;
-        dord.PostedAt = clock.UtcNow; dord.PostedBy = tenant.UserId;
+        var issuedAt = clock.UtcNow;
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            db,
+            c => numbers.NextAsync(tenant.CompanyId, tenant.BranchId, "DO", buCode, dord.DocDate, c),
+            (v, _) => { dord.DocNo = v.Value; dord.Status = DeliveryOrderStatus.Issued; dord.PostedAt = issuedAt; dord.PostedBy = tenant.UserId; },
+            ct);
         activity.Record("DeliveryOrder", dord.DeliveryOrderId, dord.DocNo, dord.CompanyId, "Issued", "Draft", "Issued");
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

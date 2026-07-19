@@ -4,6 +4,8 @@ using Accounting.Application.Sales;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Sales;
 using Accounting.Domain.Enums;
+using Accounting.Domain.ValueObjects;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -207,9 +209,14 @@ public sealed class QuotationService(
             .Select(c => c.RequiresBusinessUnit).FirstAsync(ct);
         if (requiresBu && q.BusinessUnitId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
-        q.DocNo = await SubPrefixNumberAsync("QT", q.BusinessUnitId, q.DocDate, ct);
-        q.Status = QuotationStatus.Sent;
-        q.SentAt = clock.UtcNow;
+        var now = clock.UtcNow;
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500.
+        await NumberedDocumentWriter.AllocateAndSaveAsync(
+            db,
+            c => SubPrefixNumberAsync("QT", q.BusinessUnitId, q.DocDate, c),
+            (v, _) => { q.DocNo = v.Value; q.Status = QuotationStatus.Sent; q.SentAt = now; },
+            ct);
         activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Sent", "Draft", "Sent");
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -335,7 +342,7 @@ public sealed class QuotationService(
             q.CreatedViaApiKeyName);
     }
 
-    private async Task<string> SubPrefixNumberAsync(
+    private async Task<DocumentNumber> SubPrefixNumberAsync(
         string prefix, int? buId, DateOnly docDate, CancellationToken ct)
     {
         string? buCode = buId is { } b

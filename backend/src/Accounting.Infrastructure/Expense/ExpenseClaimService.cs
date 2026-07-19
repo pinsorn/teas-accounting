@@ -4,6 +4,7 @@ using Accounting.Application.Ledger;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Expense;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -234,11 +235,24 @@ public sealed class ExpenseClaimService(
             : null;
         claim.SubPrefix = buCode;
 
-        var docNo = await numbers.NextAsync(claim.CompanyId, claim.BranchId, ExPrefix, claim.SubPrefix, postDate, ct);
         var now = clock.UtcNow;
-
-        claim.MarkPaid(docNo.Value, method, req.BankAccountId, tenant.UserId ?? 0, now);
-        await SaveGuardedAsync(ct);
+        // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
+        // (residual sequence drift); re-allocates and retries instead of a raw 500. A genuine
+        // optimistic-concurrency conflict (unrelated to doc_no) still surfaces as the same clean
+        // domain error SaveGuardedAsync gives elsewhere in this file.
+        try
+        {
+            await NumberedDocumentWriter.AllocateAndSaveAsync(
+                db,
+                c => numbers.NextAsync(claim.CompanyId, claim.BranchId, ExPrefix, claim.SubPrefix, postDate, c),
+                (v, first) => { if (first) claim.MarkPaid(v.Value, method, req.BankAccountId, tenant.UserId ?? 0, now); else claim.DocNo = v.Value; },
+                ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new DomainException("expense_claim.locked_mismatch",
+                "This expense claim was changed by someone else. Reload and try again.");
+        }
 
         // GlPostingService re-queries ExpenseClaims on this SAME DbContext — identity map
         // returns the just-mutated tracked instance (DocNo/PaymentMethod/Status already set).
