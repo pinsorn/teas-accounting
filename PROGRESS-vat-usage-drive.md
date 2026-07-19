@@ -1,6 +1,20 @@
 # PROGRESS — VAT co5 usage drive (2026-07-19 ~13:1x)
 
-## 🔴 CRIT-1 REOPENED (2026-07-20 ~03:xx) — v1.22.6 fix INCOMPLETE
+## 🟢 CRIT-1 REAL ROOT CAUSE FOUND + FIXED (2026-07-20 ~04:xx) — commit af5ab8a
+opus-debugger corrected BOTH the Sonnet's and Fable's diagnosis. Real bug = **off-by-one retry cap**
+in NumberedDocumentWriter: `when (attempt < MaxAttempts ...)` left a collision on the FINAL attempt
+uncaught → raw 500, and doc.number_alloc_exhausted was dead code. In an ambient tx the escape rolls
+the seq bump back → never climbs → deterministic 3/3 on any bucket drifted >cap(5). PO approve (no
+ambient tx) unaffected = the exact round-3 split. Fix: catch every attempt + explicit savepoint after
+allocate/before SaveChanges (bump survives) + cap 5→50. Tests now drive REAL TaxInvoice/Receipt
+PostAsync (drift=8 + N-parallel), RED→GREEN. Suite 148/0/0 + 909/0/8. Fable diff-reviewed the one
+file personally (money, attempt 2). Prod JV NOW = delta=0, 16 rows 16 distinct (healthy, no dup) —
+626 DID run (Opus's "626 didn't run" inference was wrong; my deploy proof was right).
+NEXT: v1.22.7 deploy (API-only) → re-run 626 idempotent as belt-and-braces → **Fable real TI post on
+prod co5 = the closing check** → swarm round 4 (TI/RC/VI post must 2xx under concurrency) → THEN the
+finding batch (specs/fix-swarm-findings-all.md WP1-5) → swarm round 5.
+
+## 🔴 CRIT-1 REOPENED (2026-07-20 ~03:xx) — v1.22.6 fix INCOMPLETE  [superseded by fix above]
 Round-3 swarm verdict: **PO approve 200 3/3 (FIXED)** but **TI post 500 3/3 (STILL BROKEN)**.
 Root cause of the incompleteness (Fable, confirmed from source + pm2 + prod DB):
 - The v1.22.6 fix (626 reconcile + retry guard) only works for the **no-ambient-transaction** path
