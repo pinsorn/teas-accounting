@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.6](https://github.com/pinsorn/teas-accounting/compare/v1.22.5...v1.22.6) (2026-07-19)
+
+
+### Bug Fixes
+
+* **numbering,rbac:** heal doc-number sequence drift under concurrency + grant TAX_OFFICER tax filing ([3531052](https://github.com/pinsorn/teas-accounting/commit/35310523837e538683c817a8c369d3948f3ef20f))
+
 ## [1.22.5](https://github.com/pinsorn/teas-accounting/compare/v1.22.4...v1.22.5) (2026-07-19)
 
 
