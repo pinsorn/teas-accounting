@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.5](https://github.com/pinsorn/teas-accounting/compare/v1.22.4...v1.22.5) (2026-07-19)
+
+
+### Bug Fixes
+
+* **reports,sales:** AR aging includes net-credit customers; QT-&gt;TI convert keeps line unit ([d04b290](https://github.com/pinsorn/teas-accounting/commit/d04b2900c2037b3d024cca611c1683a3a66708f1))
+
 ## [1.22.4](https://github.com/pinsorn/teas-accounting/compare/v1.22.3...v1.22.4) (2026-07-19)
 
 
