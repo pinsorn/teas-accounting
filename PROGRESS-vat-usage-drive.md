@@ -1,5 +1,17 @@
 # PROGRESS — VAT co5 usage drive (2026-07-19 ~13:1x)
 
+## ✅ CRIT-1 FIX v1.22.7 LIVE + PROD-VERIFIED (2026-07-20 ~05:xx)
+- v1.22.7 API deploy DEPLOY_OK: version 1.22.7, health 200, scripts UNCHANGED 73 (no new SqlScript),
+  DB backup, public probes 200, prod drift = **0 buckets below max** (correct query). (First deploy
+  attempt rolled back on a BUGGY belt-and-braces drift-probe SQL — negative-substring; the binary was
+  fine; removed the probe, re-deployed clean. Lesson: keep deploy probes simple.)
+- **CLOSING CHECK PASSED (the one skipped last time): real TI post on prod co5 → TI-0004 Posted,
+  "บันทึก (Post) สำเร็จ"** — the exact TI→JE path that 500'd 3/3 in round 3 now succeeds on v1.22.7.
+- REMAINING for goal: (1) swarm round 4 — concurrency proof that TI/RC/VI post stay 2xx under load
+  (do AFTER quota reset; 10-agent swarm is the expensive bit). (2) THEN finding batch
+  specs/fix-swarm-findings-all.md WP1-5. (3) swarm round 5. Deploy script archived
+  publish/v1.22.7/deploy-api-v1227.sh.
+
 ## 🟢 CRIT-1 REAL ROOT CAUSE FOUND + FIXED (2026-07-20 ~04:xx) — commit af5ab8a
 opus-debugger corrected BOTH the Sonnet's and Fable's diagnosis. Real bug = **off-by-one retry cap**
 in NumberedDocumentWriter: `when (attempt < MaxAttempts ...)` left a collision on the FINAL attempt

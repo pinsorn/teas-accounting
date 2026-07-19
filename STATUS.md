@@ -1,7 +1,17 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **SWARM CRIT-1/CRIT-2 FIX SHIPPED — v1.22.6 LIVE (2026-07-19 ~23:5x).** 10-role concurrent
+- **CRIT-1 REFIX — v1.22.7 LIVE + PROD-VERIFIED (2026-07-20 ~05:xx).** v1.22.6 fixed only the
+  no-ambient-tx path (PO approve); round-3 swarm caught TI post still 500 3/3. opus-debugger found
+  the REAL bug: off-by-one retry cap (`attempt < MaxAttempts` left the final-attempt doc_no collision
+  uncaught → raw 500; in an ambient tx the escape rolls the seq bump back so it never climbs). Fix:
+  catch every attempt + explicit savepoint after allocate/before SaveChanges + cap 5→50; tests now
+  drive the REAL TaxInvoice/Receipt PostAsync (drift=8 + parallel) RED→GREEN. Fable diff-reviewed the
+  one file; af5ab8a → CI green → v1.22.7 API deploy (scripts unchanged 73) → **real TI post on prod
+  co5 = TI-0004 Posted** (the closing check that was skipped for v1.22.6). CRIT-2 already verified
+  (round-3 ภ.พ.30 preview/PDF 200). NEXT (Ham /goal, after quota reset): swarm round 4 (concurrency
+  proof) → fix ALL remaining findings (specs/fix-swarm-findings-all.md WP1-5) → swarm round 5.
+- **(prev) SWARM CRIT-1/CRIT-2 FIX SHIPPED — v1.22.6 LIVE (2026-07-19 ~23:5x).** 10-role concurrent
   swarm on co5 exposed doc-number sequence drift (post/approve 500 → 23505 on *_doc_no) +
   TAX_OFFICER missing tax.filing grant. Root causes CONFIRMED from prod pm2 log + drift query.
   Fix: 626 reconcile SQL (GREATEST-only, per-company FORCE RLS) + retry-guard helper wired to
