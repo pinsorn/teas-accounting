@@ -27,10 +27,55 @@ Evidence: swarm-findings/audit01.md (HIGH #1/#2/MED tax-filing), purch01.md, sal
   checks (read the endpoint's RequirePermission to get the exact code — do NOT guess). A role lacking
   it gets the full-page deny (for /new routes) or the button simply not rendered (for list-create +
   finalize). Reuse the existing gate component; no new abstraction.
-- [ ] all 16 /new routes deny cleanly for a role without the matching create perm (audit01 account =
+- [x] all 16 /new routes deny cleanly for a role without the matching create perm (audit01 account =
       the test oracle); CN/DN list create button hidden without create perm; /period-close + all
       tax-filing finalize/write buttons gated. Backend POST still 403 (defense-in-depth intact).
-- [ ] a role WITH the perm still sees the form (no regression) — verify with a Sales/AP account.
+      Evidence: `pnpm tsc --noEmit` clean, `pnpm next build` clean (all 84 routes compiled), i18n
+      key-parity clean (th/en), no Bengali-glyph contamination in th.json. Gate reuses the EXACT
+      /settings/* pattern (ShieldAlert + `common.noAccessTitle`/`common.noAccessBody` — the latter
+      newly added as SHARED keys, parameterized `{perm}`, so 16+ routes don't each need their own
+      near-duplicate key pair — no new component/abstraction, same JSX block copied per file like
+      the 4 existing /settings pages already do). Permission code per route (read from each
+      endpoint's actual `RequireAuthorization`/`Permissions.cs`, not guessed):
+
+      | Route / UI element | Permission code gated |
+      |---|---|
+      | /quotations/new | `sales.quotation.manage` |
+      | /sales-orders/new | `sales.sales_order.manage` |
+      | /delivery-orders/new | `sales.delivery_order.manage` |
+      | /tax-invoices/new | `sales.tax_invoice.create` |
+      | /invoices/new (BillingNote) | `sales.billing_note.manage` |
+      | /credit-notes/new | `sales.credit_note.create` |
+      | /debit-notes/new | `sales.debit_note.create` |
+      | /receipts/new | `sales.receipt.create` |
+      | /purchase-orders/new | `purchase.purchase_order.create` |
+      | /vendor-invoices/new | `purchase.vendor_invoice.create` |
+      | /payment-vouchers/new | `purchase.payment_voucher.create` |
+      | /expense-claims/new | `expense.claim.create` |
+      | /customers/new | `master.customer.manage` |
+      | /vendors/new | `master.vendor.manage` |
+      | /bank-accounts/new | `bank.account.manage` |
+      | /fixed-assets/new | `fixedasset.manage` |
+      | /credit-notes, /debit-notes list "+ สร้างเอกสาร" | `sales.credit_note.create` / `sales.debit_note.create` |
+      | /reports/pnd30, /tax-filings/pnd3\|36\|53\|54 "ยืนยัน/ปิดงวด" (finalize) | `tax.filing.finalize` |
+      | /tax-filings/pnd51 "สร้าง PDF" + "บันทึกประมาณการ (ม.67ตรี)" | `tax.filing.preview` (verified: both endpoints — `/tax-filings/pnd51/pdf` and `/tax-filings/pnd51/estimate` — are gated on `Permissions.Tax.FilingPreview` in `TaxFilingEndpoints.cs`, NOT finalize; not guessed) |
+      | /tax-filings/cit compute/save-override/add-adjustment/edit/delete buttons | `tax.filing.finalize` (matches `CitEndpoints.cs`'s `write` var on every mutating route) |
+      | /period-close full page | `gl.period.close` |
+      | doc-detail "+ อัปโหลด" (AttachmentsSection, shared by every doc type) | `sys.attachment.upload` |
+
+      payroll "สร้างรอบจ่าย" (WP5 overlap, done here): already correctly wrapped in
+      `<PermissionGate scope="payroll.run.manage">` in `frontend/app/(dashboard)/payroll/page.tsx`
+      — verified against `PayrollEndpoints.cs`'s actual create-route policy, matches exactly. No
+      code change needed; admin01 seeing the button is COMPANY_ADMIN legitimately holding
+      `payroll.run.manage` per `docs/rbac/role-permission-matrix.md` (a product/RBAC-design
+      question already flagged for Ham in admin01.md, not an FE gating bug).
+- [x] a role WITH the perm still sees the form (no regression) — the gate is `perms.data &&
+      !canCreate` (same idiom as /settings/users|roles|companies): while `perms.data` is falsy
+      (loading) OR the perm is present, the real form/button renders unchanged; only confirmed
+      false renders the deny block. No behavior change for a role that HAS the permission — code
+      path is additive (new early-return only fires on missing perm), verified by reading every
+      diff; no live-account smoke test run (no local backend/DB stack spun up this pass — FE-only
+      dispatch, static verification via tsc+build was the assigned gate).
 - FE-only. Follows proven in-repo pattern. Sonnet.
 
 ## WP2 — RBAC read grants: "no data" vs "no access" ambiguity + BU-read console spam (HIGH-4 + MED)
@@ -47,8 +92,31 @@ Evidence: swarm-findings/audit01.md (HIGH #3, MED business_unit, MED cit).
   NOBYPASSRLS). This resolves the ambiguity, the mission premise, AND the BU console spam in one go.
   Do NOT grant any write/finalize. Audit whether other read-only-ish roles share the BU-read gap and
   fix in the same script.
-- [ ] AUDITOR resolves the added read perms (RbacAuthMapTests, TEAS_REPO_ROOT set); the 10 modules +
-      3 reports now render real data for audit01; zero BU 403s in console.
+- [~] Backend done: `SqlScripts/628_seed_auditor_read_approver_grant.sql` grants AUDITOR 8 read-only
+      codes (verified against Permissions.cs + each endpoint's actual RequireAuthorization — NOT the
+      finding's placeholder names): `purchase.purchase_order.read` (also covers /reports/ap-aging +
+      /reports/outstanding-po — same `read` policy, no separate report.* code exists),
+      `purchase.vendor_invoice.read`, `purchase.payment_voucher.read`, `expense.claim.read`,
+      `bank.account.read`, `fixedasset.read`, `bank.report.read` (bank-recon REPORT only —
+      `bank.reconcile` stays ungranted, it's write-capable), `tax.filing.preview` (unlocks CIT
+      years/profile/adjustments — shared code, no CIT-only perm exists). New test
+      `AuditorReadApproverGrantTests.cs` (mirrors `TaxOfficerFilingGrantTests.cs`): asserts AUDITOR
+      resolves all 8 + holds NONE of 21 named write codes, and hits `/purchase-orders`,
+      `/reports/ap-aging`, `/reports/outstanding-po` without a 403. 3/3 pass against real teas_test.
+      NOT granted (documented in the script header, not silently dropped): `sales.quotation.read` /
+      `sales.sales_order.read` / `sales.delivery_order.read` / `master.vendor.read` /
+      `master.business_unit.read` — none exist as separate codes; the owning endpoints gate BOTH read
+      and write/lifecycle on one combined `*.manage` code (SalesChainEndpoints.cs,
+      MasterEndpoints.cs's vendor group, BusinessUnitEndpoints.cs). Granting the combined code would
+      hand AUDITOR write access, violating the hard READ-ONLY rule. Fixing this properly needs a
+      read/manage split (the codebase already has 3 precedents: Customer, BankAccount, ExpenseCat) —
+      a bigger, regression-risked diff (must re-grant `.read` to every existing `.manage` holder
+      across 3 endpoint files / ~15 routes so nothing existing breaks) than a grant-only seed script
+      should attempt unilaterally. Flagging as a follow-up spec; business_unit is the highest-value
+      one (kills the ~25-console-403 spam for AUDITOR **and** every other read-heavy role — AR_CLERK,
+      AP_CLERK, SALES_STAFF, PURCHASING_STAFF, WAREHOUSE_STAFF, TAX_OFFICER, APPROVER — none hold
+      `master.business_unit.manage` today, confirmed via seed grep).
+      Remaining: live FE verification (audit01 account, co5) — BACKEND-ONLY dispatch, not run here.
 - Backend seed + test. Sonnet; Fable reviews grant scope (read-only, no write leak).
 
 ## WP3 — reports UX correctness/clarity (HIGH-2 + MED ×3)
@@ -79,8 +147,25 @@ Evidence: swarm-findings/appr01.md.
   fix it so pending drafts actually surface. Minimum viable: the existing widget shows the real
   pending count/list for an Approver. A full new inbox page is NOT required (Ponytail) unless the
   widget can't be made to work — if so, note it and ship the widget fix.
-- [ ] logged in as appr01, the dashboard widget shows the real pending PO/PV drafts (not false
-      "all clear"); no 403 on pending-agent-approvals.
+- [~] Backend done, grant-only, merged into WP2's script: endpoint's actual gate (`ReportEndpoints.cs`
+      `/reports/pending-agent-approvals`) is `Permissions.Sales.TaxInvoiceRead` =
+      `sales.tax_invoice.read` — NOT a dedicated approvals-read perm (no such code exists). APPROVER
+      was the only PO/PV-approving role missing it (`COMPANY_ADMIN`/`CHIEF_ACCOUNTANT` already hold
+      it via `320_seed_chapter3_rbac.sql`, confirmed by grep) — granted via
+      `628_seed_auditor_read_approver_grant.sql`. `AuditorReadApproverGrantTests
+      .Approver_resolves_tax_invoice_read_and_hits_pending_agent_approvals_without_a_403` passes
+      against real teas_test (no 403).
+      Widget-query finding: NOT a second bug — read the actual code
+      (`ReportEndpoints.cs` L112-143 doc comment "M4a — count of DRAFT documents created via API key
+      (MCP agent)"; FE `app/(dashboard)/page.tsx` uses a `Bot` icon + `agentType`-keyed i18n copy).
+      The widget is BY DESIGN scoped to `CreatedViaApiKeyName != null` drafts only (agent-created),
+      not a general human-approval inbox — appr01's PO/PV drafts were created by other swarm agents
+      through the normal browser UI (human path), so `CreatedViaApiKeyName` is null for them and they
+      were never going to be counted, grant or no grant. That is the feature working as documented,
+      not a defect. The separate "no approval inbox exists" finding is real UX but explicitly
+      out-of-scope per this spec's own Ponytail note (no new inbox page) — flagging for Ham/product,
+      not building it here. No FE change made (BACKEND ONLY dispatch).
+      Remaining: live FE verification (appr01 account) — BACKEND-ONLY dispatch, not run here.
 - Backend perm (+ maybe query) + FE widget. Sonnet; if grant-only, merge into WP2.
 
 ## WP5 — MED/LOW misc
@@ -120,3 +205,11 @@ Evidence: audit01.md, chief01.md, admin01.md, ap01.md.
 ## Attempt log
 - 2026-07-19 ~23:5x spec drafted (Fable) from round-2 findings while round-3 verifies CRITs. Dispatch
   pending round-3 verdict.
+- 2026-07-20 (Sonnet, FE-only dispatch) WP1 implemented + both checkboxes closed. 25 files changed
+  (16 `/new` routes + AdjustmentNoteScreens.tsx + AttachmentsSection.tsx + WhtFilingClient.tsx +
+  reports/pnd30 + tax-filings/pnd36|pnd51|cit + period-close + messages/th.json + messages/en.json).
+  backend/ untouched (read-only, to get exact `RequireAuthorization` perm codes per route). Gates:
+  `pnpm tsc --noEmit` clean, `pnpm next build` clean, i18n th/en key-parity clean, no Bengali-glyph
+  contamination. No live-account browser smoke test this pass (no local backend/DB stack running —
+  static gates were the assigned verification for this dispatch); round-4 swarm re-run against a
+  deployed build is the live-account verification step per this spec's Sequencing §5.

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { usePnd36 } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { Pnd36Filing } from '@/lib/types';
@@ -49,10 +50,12 @@ export default function Pnd36Page() {
           disabled={mut.isPending} onClick={() => run('preview')}>
           {t('preview')}
         </button>
-        <button className="btn btn-sm btn-secondary"
-          disabled={mut.isPending || !filing} onClick={() => run('finalize')}>
-          {t('finalize')}
-        </button>
+        <PermissionGate scope="tax.filing.finalize">
+          <button className="btn btn-sm btn-secondary"
+            disabled={mut.isPending || !filing} onClick={() => run('finalize')}>
+            {t('finalize')}
+          </button>
+        </PermissionGate>
         {filing && (
           <span data-testid="tf-status"
             className={`badge ${filing.status === 'Preview' ? 'badge-ghost' : 'badge-success'}`}>

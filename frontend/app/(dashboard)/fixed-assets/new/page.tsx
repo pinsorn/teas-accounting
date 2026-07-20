@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useCreateFixedAsset, useVendorInvoices, useGlAccounts } from '@/lib/queries';
+import { useCreateFixedAsset, useVendorInvoices, useGlAccounts, useMePermissions } from '@/lib/queries';
 import { problemToast } from '@/lib/api';
 import { bangkokToday } from '@/lib/utils';
 
@@ -15,6 +16,8 @@ const money = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 
 // page (§9.14) offers a separate "Activate" action, mirroring expense-claims/new's
 // save-then-navigate-to-detail handoff. monthly_amount preview is a pure FE calc
 // (round((cost-salvage)/usefulLifeMonths, 2)) — no API round-trip needed.
+const SCOPE = 'fixedasset.manage';
+
 export default function NewFixedAssetPage() {
   const t = useTranslations('fixedAssets');
   const tc = useTranslations('common');
@@ -22,6 +25,7 @@ export default function NewFixedAssetPage() {
   const create = useCreateFixedAsset();
   const vendorInvoices = useVendorInvoices();
   const glAccounts = useGlAccounts();
+  const perms = useMePermissions();
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -71,6 +75,17 @@ export default function NewFixedAssetPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canCreate) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+      </div>
+    );
   }
 
   return (

@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
+import { ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
-import { useYearStatus, useClosePeriod, useCloseYear, useReopenYear } from '@/lib/queries';
+import { useYearStatus, useClosePeriod, useCloseYear, useReopenYear, useMePermissions } from '@/lib/queries';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB } from '@/lib/utils';
 
@@ -26,6 +27,7 @@ export default function PeriodClosePage() {
   const tc = useTranslations('common');
   const locale = useLocale();
   const confirm = useConfirm();
+  const perms = useMePermissions();
   const [year, setYear] = useState(new Date().getFullYear());
 
   // Cycle A #7 follow-up (year-end closing #5) — ONE call for all 12 fiscal
@@ -100,6 +102,20 @@ export default function PeriodClosePage() {
     } finally {
       setYearActionBusy(false);
     }
+  }
+
+  const canAccess = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(MONTH_PERM) ?? false);
+  if (perms.data && !canAccess) {
+    return (
+      <>
+        <PageHeader title={t('title')} />
+        <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+          <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+          <div className="font-semibold">{tc('noAccessTitle')}</div>
+          <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: MONTH_PERM })}</div>
+        </div>
+      </>
+    );
   }
 
   const fy = status.data;

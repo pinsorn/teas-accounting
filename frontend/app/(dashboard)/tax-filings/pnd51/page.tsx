@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { apiPost, openPdf } from '@/lib/api';
 
 const ATTEST_KEYS = [
@@ -123,21 +124,25 @@ export default function Pnd51Page() {
           />
           <span className="label-text text-xs">{t('pnd51Sme')}</span>
         </label>
-        <button
-          className="btn btn-sm btn-primary self-end"
-          disabled={loading || blocked}
-          onClick={generate}
-        >
-          {loading ? t('downloading') : t('pnd51Generate')}
-        </button>
-        <button
-          className="btn btn-sm btn-outline self-end"
-          disabled={savingEstimate || !estimatedProfit}
-          onClick={saveEstimate}
-        >
-          {savingEstimate && <span className="loading loading-spinner loading-xs" />}
-          {t('pnd51SaveEstimate')}
-        </button>
+        <PermissionGate scope="tax.filing.preview">
+          <button
+            className="btn btn-sm btn-primary self-end"
+            disabled={loading || blocked}
+            onClick={generate}
+          >
+            {loading ? t('downloading') : t('pnd51Generate')}
+          </button>
+        </PermissionGate>
+        <PermissionGate scope="tax.filing.preview">
+          <button
+            className="btn btn-sm btn-outline self-end"
+            disabled={savingEstimate || !estimatedProfit}
+            onClick={saveEstimate}
+          >
+            {savingEstimate && <span className="loading loading-spinner loading-xs" />}
+            {t('pnd51SaveEstimate')}
+          </button>
+        </PermissionGate>
       </div>
 
       {/* ── page-2 การคำนวณภาษี worksheet + attestation gate ── */}

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { apiErrorToast } from '@/lib/api/errors';
 import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
@@ -15,6 +15,7 @@ import { PercentRateInput } from '@/components/ui/PercentRateInput';
 import {
   useCreateVendorInvoice, usePostVendorInvoice, useVendor,
   usePurchaseOrders, usePurchaseOrder, useCompanyBuSetting, useCompanyProfile, useSystemInfo,
+  useMePermissions,
 } from '@/lib/queries';
 import { derivePoLineVatRate } from '@/lib/po-line-vat';
 import type { ProductTypeStr } from '@/lib/types';
@@ -418,8 +419,22 @@ function VendorInvoiceNewForm() {
   );
 }
 
+const SCOPE = 'purchase.vendor_invoice.create';
+
 // useSearchParams() requires a Suspense boundary (mirrors payment-vouchers/new/page.tsx).
 export default function VendorInvoiceNewPage() {
+  const tc = useTranslations('common');
+  const perms = useMePermissions();
+  const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canCreate) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+      </div>
+    );
+  }
   return (
     <Suspense fallback={null}>
       <VendorInvoiceNewForm />

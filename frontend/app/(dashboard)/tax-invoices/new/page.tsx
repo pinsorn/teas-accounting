@@ -7,12 +7,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { ShieldAlert } from 'lucide-react';
 import { errorToToast } from '@/lib/api/errors';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
-import { useCreateTaxInvoice, usePostTaxInvoice, useCompanyBuSetting, useQuotation, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useCreateTaxInvoice, usePostTaxInvoice, useCompanyBuSetting, useQuotation, useCompanyProfile, useSystemInfo, useMePermissions } from '@/lib/queries';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
@@ -43,12 +44,14 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const FORM_ID = 'tax-invoice-create-form';
+const SCOPE = 'sales.tax_invoice.create';
 
 export default function CreateTaxInvoicePage() {
   const router = useRouter();
   const t = useTranslations('ti.form');
   const tc = useTranslations('common');
   const tt = useTranslations('toast');
+  const perms = useMePermissions();
   const tcr = useTranslations('create');
   const docDate = bangkokToday(); // server is authoritative; UI locked (CLAUDE.md §10)
 
@@ -153,6 +156,17 @@ export default function CreateTaxInvoicePage() {
       toast.error(errorToToast(e));
       return null;
     }
+  }
+
+  const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canCreate) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+      </div>
+    );
   }
 
   if (!vatMode) return <NonVatGuard title={t('post')} />;

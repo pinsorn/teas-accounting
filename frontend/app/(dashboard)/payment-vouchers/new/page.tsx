@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { apiErrorToast } from '@/lib/api/errors';
 import { DateInput } from '@/components/ui/DateInput';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
@@ -12,7 +12,7 @@ import { ProductPicker, taxRateForProductType } from '@/components/forms/Product
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { PercentRateInput } from '@/components/ui/PercentRateInput';
 import { apiPost } from '@/lib/api';
-import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile } from '@/lib/queries';
+import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile, useMePermissions } from '@/lib/queries';
 import { derivePvPrefillBase } from '@/lib/pv-prefill';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatDateBE, formatTaxId } from '@/lib/utils';
@@ -502,7 +502,21 @@ function PvForm() {
   );
 }
 
+const SCOPE = 'purchase.payment_voucher.create';
+
 export default function PaymentVoucherNewPage() {
+  const tc = useTranslations('common');
+  const perms = useMePermissions();
+  const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canCreate) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+      </div>
+    );
+  }
   return (
     <Suspense fallback={null}>
       <PvForm />

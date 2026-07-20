@@ -95,6 +95,9 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc, c.base]);
 
+  const hasScope = useHasScope();
+  const createScope = kind === 'Credit' ? 'sales.credit_note.create' : 'sales.debit_note.create';
+
   // CN/DN adjust a Tax Invoice's VAT (ม.86/10) — non-VAT issues none → hidden.
   if (!vatMode) return <NonVatGuard title={t(c.titleKey)} />;
 
@@ -103,9 +106,11 @@ export function AdjustmentNoteList({ kind }: { kind: Kind }) {
       <PageHeader
         title={t(c.titleKey)}
         actions={
-          <Link href={`${c.base}/new`} className="btn btn-primary btn-sm gap-1">
-            <Plus className="h-4 w-4" aria-hidden /> {t('create')}
-          </Link>
+          hasScope(createScope) ? (
+            <Link href={`${c.base}/new`} className="btn btn-primary btn-sm gap-1">
+              <Plus className="h-4 w-4" aria-hidden /> {t('create')}
+            </Link>
+          ) : undefined
         }
       />
       <DataTable

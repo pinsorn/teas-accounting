@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { usePnd3, usePnd53, usePnd54 } from '@/lib/queries';
 import { downloadFile, openPdf } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
@@ -81,10 +82,12 @@ export function WhtFilingClient({
           disabled={mut.isPending} onClick={() => run('preview')}>
           {t('preview')}
         </button>
-        <button className="btn btn-sm btn-secondary"
-          disabled={mut.isPending || !filing} onClick={() => run('finalize')}>
-          {t('finalize')}
-        </button>
+        <PermissionGate scope="tax.filing.finalize">
+          <button className="btn btn-sm btn-secondary"
+            disabled={mut.isPending || !filing} onClick={() => run('finalize')}>
+            {t('finalize')}
+          </button>
+        </PermissionGate>
         <button className="btn btn-sm btn-outline" data-testid="tf-download-pdf"
           onClick={() => openPdf(`tax-filings/${form}/pdf?period=${ym.replace('-', '')}`)
             .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>

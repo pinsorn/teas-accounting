@@ -7,7 +7,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { errorToToast } from '@/lib/api/errors';
 import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
@@ -20,7 +20,7 @@ import { InvoicePicker } from '@/components/forms/InvoicePicker';
 import { ProductPicker } from '@/components/forms/ProductPicker';
 import {
   useCreateReceipt, usePostReceipt, useCompanyBuSetting, useWhtBaseSuggest,
-  useCompanyProfile, useSystemInfo,
+  useCompanyProfile, useSystemInfo, useMePermissions,
 } from '@/lib/queries';
 import { apiGet } from '@/lib/api';
 import type { TaxInvoiceDetail, BillingNoteDetail, ProductTypeStr } from '@/lib/types';
@@ -40,6 +40,8 @@ import { LivePreviewPane } from '@/components/create/LivePreviewPane';
 //                 company issues no TI (ม.86/4) and the flow is now DO → Invoice → Receipt.
 //   standalone  — own cash-bill line items, no source document (non-VAT cash receipt).
 type ReceiptMode = 'ti' | 'invoice' | 'standalone';
+
+const SCOPE = 'sales.receipt.create';
 
 const schema = z.object({ customerId: z.number().int().positive() });
 type FormValues = z.infer<typeof schema>;
@@ -69,6 +71,7 @@ export default function NewReceiptPage() {
   const tt = useTranslations('toast');
   const tcr = useTranslations('create');
   const tw = useTranslations('rc.wht');
+  const perms = useMePermissions();
   const [customerLabel, setCustomerLabel] = useState('');
   const docDate = bangkokToday();
   const create = useCreateReceipt();
@@ -321,6 +324,17 @@ export default function NewReceiptPage() {
         { label: tw('amount'), value: -whtAmount, muted: true },
       ]
     : [];
+
+  const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canCreate) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+      </div>
+    );
+  }
 
   return (
     <>

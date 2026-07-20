@@ -7,6 +7,7 @@ import {
   useAttachments, useUploadAttachment, useDeleteAttachment,
   attachmentDownloadUrl,
 } from '@/lib/queries';
+import { PermissionGate } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
 
 const CATEGORIES = [
@@ -64,8 +65,10 @@ export function AttachmentsSection({
         <h2 className="font-semibold">
           📎 {t('title')} (<span data-testid="att-count">{items.length}</span>)
         </h2>
-        <button className="btn btn-primary btn-xs" data-testid="att-upload-open"
-          onClick={() => setOpen(true)}>+ {t('upload')}</button>
+        <PermissionGate scope="sys.attachment.upload">
+          <button className="btn btn-primary btn-xs" data-testid="att-upload-open"
+            onClick={() => setOpen(true)}>+ {t('upload')}</button>
+        </PermissionGate>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-base-300">

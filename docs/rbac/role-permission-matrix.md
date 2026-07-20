@@ -11,18 +11,18 @@
 | Permission | ACCOUNTANT | APPROVER | AP_CLERK | AR_CLERK | AUDITOR | CHIEF_ACCOUNTANT | COMPANY_ADMIN | PURCHASING_STAFF | SALES_STAFF | TAX_OFFICER | WAREHOUSE_STAFF | SUPER_ADMIN |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `bank.account.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `bank.account.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `bank.account.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  |  |  | ✓ |
 | `bank.reconcile` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `bank.report.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `bank.report.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  |  |  | ✓ |
 | `bank.statement.import` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `expense.claim.approve` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `expense.claim.create` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `expense.claim.pay` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `expense.claim.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `expense.claim.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  |  |  | ✓ |
 | `fixedasset.depreciation.run` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `fixedasset.dispose` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `fixedasset.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `fixedasset.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `fixedasset.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.create` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.post` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `gl.journal.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
@@ -45,14 +45,14 @@
 | `purchase.payment_voucher.approve` |  | ✓ |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.payment_voucher.create` | ✓ |  | ✓ |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.payment_voucher.post` | ✓ |  | ✓ |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `purchase.payment_voucher.read` | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `purchase.payment_voucher.read` | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.purchase_order.approve` |  | ✓ |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.purchase_order.cancel` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.purchase_order.create` | ✓ |  | ✓ |  |  |  | ✓ | ✓ |  |  |  | ✓ |
-| `purchase.purchase_order.read` | ✓ | ✓ | ✓ | ✓ |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `purchase.purchase_order.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  | ✓ |
 | `purchase.vendor_invoice.create` | ✓ |  | ✓ |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.vendor_invoice.post` | ✓ |  | ✓ |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `purchase.vendor_invoice.read` | ✓ |  | ✓ |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `purchase.vendor_invoice.read` | ✓ |  | ✓ |  | ✓ | ✓ | ✓ |  |  |  |  | ✓ |
 | `purchase.wht.read` | ✓ |  | ✓ |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `report.audit.read` |  |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `report.general_ledger.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
@@ -74,7 +74,7 @@
 | `sales.sales_order.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.tax_invoice.create` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.tax_invoice.post` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `sales.tax_invoice.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
+| `sales.tax_invoice.read` | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sys.api_key.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `sys.attachment.delete` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sys.attachment.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -85,7 +85,7 @@
 | `sys.role.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `sys.user.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `tax.filing.finalize` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
-| `tax.filing.preview` | ✓ |  |  |  |  | ✓ | ✓ |  |  | ✓ |  | ✓ |
+| `tax.filing.preview` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `tax.filing.read` | ✓ |  |  |  |  | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `tax.pnd3.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `tax.pnd30.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
@@ -98,10 +98,10 @@
 | Role | Granted |
 |---|---:|
 | ACCOUNTANT | 54 |
-| APPROVER | 6 |
+| APPROVER | 7 |
 | AP_CLERK | 15 |
 | AR_CLERK | 23 |
-| AUDITOR | 18 |
+| AUDITOR | 26 |
 | CHIEF_ACCOUNTANT | 74 |
 | COMPANY_ADMIN | 81 |
 | PURCHASING_STAFF | 5 |

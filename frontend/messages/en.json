@@ -1585,7 +1585,9 @@
     },
     "relatedDocs": "Related documents",
     "draftPreview": "(Draft)",
-    "selectCustomer": "Select a customer"
+    "selectCustomer": "Select a customer",
+    "noAccessTitle": "Access denied",
+    "noAccessBody": "This page requires the {perm} permission — please contact your administrator."
   },
   "toast": {
     "validationFailed": "Please complete all required fields",

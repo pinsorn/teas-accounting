@@ -6,8 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useCreateBankAccount, useGlAccounts } from '@/lib/queries';
+import { useCreateBankAccount, useGlAccounts, useMePermissions } from '@/lib/queries';
 
 // Bank reconciliation (specs/bank-reconciliation.md B1.11) — bank-account create form.
 // glCashAccountId left blank ⇒ BE defaults to the company's 1120 account (D6).
@@ -22,12 +23,15 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+const SCOPE = 'bank.account.manage';
+
 export default function NewBankAccountPage() {
   const router = useRouter();
   const t = useTranslations('bank');
   const tc = useTranslations('common');
   const create = useCreateBankAccount();
   const glAccounts = useGlAccounts();
+  const perms = useMePermissions();
 
   const {
     register,
@@ -60,6 +64,17 @@ export default function NewBankAccountPage() {
     errors[field] ? (
       <span className="mt-1 text-xs text-status-danger">{t(`err.${String(errors[field]?.message ?? 'required')}`)}</span>
     ) : null;
+
+  const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canCreate) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+      </div>
+    );
+  }
 
   return (
     <>

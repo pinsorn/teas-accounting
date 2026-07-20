@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmployeeSelector } from '@/components/ui/EmployeeSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
-import { useCreateExpenseClaim } from '@/lib/queries';
+import { useCreateExpenseClaim, useMePermissions } from '@/lib/queries';
 import { problemToast } from '@/lib/api';
 import { bangkokToday } from '@/lib/utils';
 
@@ -26,11 +26,14 @@ const emptyRow = (k: number): Row => ({
   amount: 0, vatRate: 0, isRecoverableVat: true,
 });
 
+const SCOPE = 'expense.claim.create';
+
 export default function NewExpenseClaimPage() {
   const t = useTranslations('expenseClaims');
   const tc = useTranslations('common');
   const router = useRouter();
   const create = useCreateExpenseClaim();
+  const perms = useMePermissions();
 
   const [employeeId, setEmployeeId] = useState<number | null>(null);
   const [claimDate, setClaimDate] = useState(bangkokToday());
@@ -80,6 +83,17 @@ export default function NewExpenseClaimPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canCreate) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+      </div>
+    );
   }
 
   return (

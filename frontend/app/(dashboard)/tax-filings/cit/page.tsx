@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionGate } from '@/components/PermissionGate';
 import { apiDelete, apiGet, apiPost, apiPut, openPdf } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 
@@ -398,10 +399,12 @@ export default function CitYearDataPage() {
         <div className="rounded-lg border border-base-300 p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="font-semibold">{t('summaryTitle')}</h2>
-            <button className="btn btn-sm btn-outline" disabled={computing || loading} onClick={compute}>
-              {computing && <span className="loading loading-spinner loading-xs" />}
-              {t('compute')}
-            </button>
+            <PermissionGate scope="tax.filing.finalize">
+              <button className="btn btn-sm btn-outline" disabled={computing || loading} onClick={compute}>
+                {computing && <span className="loading loading-spinner loading-xs" />}
+                {t('compute')}
+              </button>
+            </PermissionGate>
           </div>
           <dl className="grid grid-cols-2 gap-y-1.5 text-sm">
             <dt className="text-base-content/60">{t('computedNetProfit')}</dt>
@@ -431,10 +434,12 @@ export default function CitYearDataPage() {
                 onChange={(e) => setNote(e.target.value)}
               />
             </label>
-            <button className="btn btn-sm btn-primary" disabled={saving || loading} onClick={saveOverride}>
-              {saving && <span className="loading loading-spinner loading-xs" />}
-              {tc('save')}
-            </button>
+            <PermissionGate scope="tax.filing.finalize">
+              <button className="btn btn-sm btn-primary" disabled={saving || loading} onClick={saveOverride}>
+                {saving && <span className="loading loading-spinner loading-xs" />}
+                {tc('save')}
+              </button>
+            </PermissionGate>
           </div>
         </div>
       </div>
@@ -713,16 +718,18 @@ export default function CitYearDataPage() {
                     {formatTHB(a.amount)}
                   </td>
                   <td className="text-right">
-                    <button className="btn btn-ghost btn-xs" disabled={adjBusy} onClick={() => startEdit(a)}>
-                      {tc('edit')}
-                    </button>
-                    <button
-                      className="btn btn-ghost btn-xs text-error"
-                      disabled={adjBusy}
-                      onClick={() => void deleteAdjustment(a.citAdjustmentId)}
-                    >
-                      {tc('delete')}
-                    </button>
+                    <PermissionGate scope="tax.filing.finalize">
+                      <button className="btn btn-ghost btn-xs" disabled={adjBusy} onClick={() => startEdit(a)}>
+                        {tc('edit')}
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-xs text-error"
+                        disabled={adjBusy}
+                        onClick={() => void deleteAdjustment(a.citAdjustmentId)}
+                      >
+                        {tc('delete')}
+                      </button>
+                    </PermissionGate>
                   </td>
                 </tr>
               ))}
@@ -758,14 +765,16 @@ export default function CitYearDataPage() {
               onChange={(e) => setAmount(e.target.value)}
             />
           </label>
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={adjBusy || !adjValid}
-            onClick={() => void saveAdjustment()}
-          >
-            {adjBusy && <span className="loading loading-spinner loading-xs" />}
-            {editId == null ? t('add') : tc('save')}
-          </button>
+          <PermissionGate scope="tax.filing.finalize">
+            <button
+              className="btn btn-sm btn-primary"
+              disabled={adjBusy || !adjValid}
+              onClick={() => void saveAdjustment()}
+            >
+              {adjBusy && <span className="loading loading-spinner loading-xs" />}
+              {editId == null ? t('add') : tc('save')}
+            </button>
+          </PermissionGate>
           {editId != null && (
             <button className="btn btn-sm btn-ghost" disabled={adjBusy} onClick={resetAdjForm}>
               {tc('cancel')}

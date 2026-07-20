@@ -1585,7 +1585,9 @@
     },
     "relatedDocs": "เอกสารที่เกี่ยวข้อง",
     "draftPreview": "(ฉบับร่าง)",
-    "selectCustomer": "เลือกลูกค้า"
+    "selectCustomer": "เลือกลูกค้า",
+    "noAccessTitle": "ไม่มีสิทธิ์เข้าถึง",
+    "noAccessBody": "หน้านี้ต้องมีสิทธิ์ {perm} — กรุณาติดต่อผู้ดูแลระบบ"
   },
   "toast": {
     "validationFailed": "กรุณากรอกข้อมูลให้ครบถ้วน",
