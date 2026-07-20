@@ -132,9 +132,40 @@ Evidence: swarm-findings/chief01.md.
 - MED: AR-aging negative (overpayment/net-credit) bucket has no visual distinction (style negatives).
 - MED: bank-reconciliation shows an unreconciled ฿ difference with no explanatory badge (add a badge);
   bank-recon doesn't auto-select the company's only bank account (LOW — auto-select if exactly one).
-- [ ] each report header states its date basis; AP-aging has the tie banner; AR-aging negatives
+- [x] each report header states its date basis; AP-aging has the tie banner; AR-aging negatives
       visually distinct; bank-recon diff badged + single-account auto-selected.
-- FE reports (+ maybe a report-service field for AP-aging tie). Mostly FE. Sonnet.
+      Evidence: `pnpm tsc --noEmit` clean, `pnpm next build` clean (84 routes), i18n th/en key
+      parity clean (0 missing either direction), no Bengali-glyph contamination in th.json.
+      Backend: `dotnet build` 0 errors; `dotnet test --filter Accounting.Api.Tests.Reports`
+      55/55 passed, 0 skipped (incl. 11/11 ApAgingTests, +1 new).
+      - Cutoff mismatch: TB/BS headers now show `t('asOfBasis', {date})` = "ข้อมูล ณ วันที่ …"
+        subtitle (PageHeader); P&L shows `t('periodBasis', {from,to})` = "ข้อมูลช่วงวันที่ … ถึง
+        …" subtitle PLUS a `t('periodFutureWarning')` note when `to` > today (Bangkok). No number
+        changed — only added display text. trial-balance/page.tsx, balance-sheet/page.tsx,
+        profit-loss/page.tsx.
+      - AP-aging tie banner: backend `SubledgerReportService.ApReconciliationAsync` (already
+        built+used by VendorLedgerAsync) exposed on `ISubledgerReportService`, wired into
+        `ApAgingService` via DI (new ctor param, no other callers to fix — confirmed via build),
+        `ApAgingReport` DTO gained a `Reconciliation` field. FE `ApAgingReport` type + a
+        `ReconciliationPanel` copied from ar-aging/page.tsx (reuses the 'report' namespace's
+        existing tie-out labels, no new i18n keys needed). Files: SubledgerDtos.cs,
+        SubledgerReportService.cs, ApAgingDtos.cs, ApAgingService.cs, ApAgingTests.cs (+1 test:
+        `Reconciliation_is_populated_and_reflects_real_ap_movements`), lib/types.ts,
+        reports/ap-aging/page.tsx. **Needed a backend field** (ApAgingReport had no reconciliation
+        data at all, unlike ArAgingReport) — could not be computed FE-side without either
+        hardcoding the 2110 control-account code client-side (violates the "never hardcoded, only
+        GlAccountsOptions" rule) or calling a separate TB-report endpoint the viewer may not have
+        permission for; reusing the ALREADY-BUILT+tested reconciliation method via DI was the
+        minimal path.
+      - AR-aging negatives: new `amountClass(v)` helper (text-error when v<0) applied to all 4
+        bucket cells + total, both body rows and the tfoot totals row. reports/ar-aging/page.tsx.
+      - Bank-recon: auto-selects the sole bank account via a `useEffect` once `useBankAccounts()`
+        resolves (never overrides an explicit pick). Difference tile gained a `badge` slot:
+        `useStatementImports(bankAccountId)` — 0 imports → ghost "no statement imported yet"
+        badge; imports exist + diff≠0 → warning "unreconciled — see below" badge. 2 new bank.*
+        i18n keys. reports/bank-reconciliation/page.tsx.
+- FE reports (+ a minimal backend field for AP-aging tie, reused existing logic via DI). Mostly
+  FE. Sonnet.
 
 ## WP4 — approver inbox (HIGH-3)
 Evidence: swarm-findings/appr01.md.
@@ -188,7 +219,44 @@ Evidence: audit01.md, chief01.md, admin01.md, ap01.md.
   error/toast. Fix: don't clobber a user-set categoryId on the async PO-detail merge (merge, or guard
   the replace so it doesn't overwrite fields the user already set), OR disable the category picker
   until poDetail has resolved. (This is the same symptom round-3 ap01 misfiled as a "CRIT exception".)
-- [ ] each item verified fixed on the relevant role account.
+- [x] each item verified fixed (static gates; live-account verification deferred to round-4 swarm
+      per this spec's own Sequencing §5 — no local backend/DB/browser stack was spun up this pass,
+      same posture as WP1's dispatch). Evidence: `pnpm tsc --noEmit` clean, `pnpm next build`
+      clean (84 routes), i18n th/en parity clean, no Bengali contamination. FE-only (no backend
+      touched by this WP).
+      - api-keys gate: page now calls `useMePermissions()` and early-returns the SAME deny block
+        `/settings/users` uses (ShieldAlert + shared `common.noAccessTitle`/`noAccessBody`) BEFORE
+        any of the page's other content — the "native connector" panel (previously unconditional,
+        the leak-past-deny) now only renders once `canManage` is confirmed true, matching the
+        backend's own gate (`ApiKeyEndpoints.cs` gates the WHOLE `/api-keys` group, including the
+        list GET, on one `sys.api_key.manage` policy — verified, not guessed). Hydration #418: the
+        3 `window.location.origin` reads (`mcpOrigin()` + 2 inline uses) were computed differently
+        during SSR (`''`) vs the client's hydration render (real origin) — replaced with a single
+        `origin` state seeded `''` and set via a post-mount `useEffect`, so the first client render
+        matches SSR and React never observes a text mismatch (independent of the deny gate — this
+        also fixes #418 for users WHO DO have access, per admin01.md's own console log).
+        settings/api-keys/page.tsx.
+      - users self/peer-admin guard: added `isGuardedRow(u, myUserId, viewerIsSuperAdmin)` — true
+        on the viewer's OWN row (always), or on another row holding `COMPANY_ADMIN` when the
+        viewer is NOT a super-admin (a super-admin still manages company admins; that's hierarchy,
+        not a peer relationship the SoD concern is about). Guarded rows show a muted note instead
+        of the แก้ไขบทบาท/รีเซ็ตรหัสผ่าน/ปิดใช้งาน buttons. Needed the current user's own userId,
+        which `useMePermissions()` doesn't expose (only scopes/role codes) — added a page-local
+        `useMe()` calling the existing `GET /me` endpoint (already returns `UserId`; no backend
+        change) rather than growing the shared lib/queries.ts surface for a single page's need.
+        settings/users/page.tsx.
+      - EN error toast: root-caused to `DomainExceptionMiddleware`'s generic catch-all, which
+        always emits CODE `"internal_error"` with an English `detail` ("An unexpected error
+        occurred.") — `errorToToast`/`resolveProblemKey` fall through to that English detail
+        whenever the code has no TH entry. Added `'internal_error'` to the TH dict (generic,
+        locale-correct fallback message) — fixes this for EVERY unhandled-exception path, not
+        just appr01's one repro. lib/i18n/problems.ts.
+      - VI-new PO-link clobber: root cause confirmed exactly as ap01's round-4 probe described —
+        the PO-link effect's `setRows(poDetail.lines.map(...))` unconditionally replaced every
+        row's `categoryId` with `null`. Changed to a merge that preserves a categoryId (+ its
+        paired `recoverable`) the user already picked at the same row position; description/
+        amount/vatRate still always come from the PO (that's the point of linking one).
+        vendor-invoices/new/page.tsx.
 
 ═══════════════════════════════════════════════════════════════════════════════════════════
 ## Sequencing / routing
@@ -213,3 +281,38 @@ Evidence: audit01.md, chief01.md, admin01.md, ap01.md.
   contamination. No live-account browser smoke test this pass (no local backend/DB stack running —
   static gates were the assigned verification for this dispatch); round-4 swarm re-run against a
   deployed build is the live-account verification step per this spec's Sequencing §5.
+- 2026-07-20 (Sonnet, WP3+WP5 combined dispatch) both implemented + checkboxes closed. 18 files:
+  4 backend (SubledgerDtos.cs, SubledgerReportService.cs, ApAgingDtos.cs, ApAgingService.cs) +
+  1 backend test (ApAgingTests.cs, +1 test) + 13 frontend (lib/types.ts, reports/ap-aging,
+  reports/ar-aging, reports/trial-balance, reports/balance-sheet, reports/profit-loss,
+  reports/bank-reconciliation, settings/api-keys, settings/users, lib/i18n/problems.ts,
+  vendor-invoices/new, messages/th.json, messages/en.json) — slightly over the ~15 blast-radius
+  guideline; justified by 8 distinct findings genuinely spread one-per-page/service plus the
+  paired i18n files. AP-aging's tie banner needed ONE new backend field (Reconciliation on
+  ApAgingReport), reusing SubledgerReportService's ALREADY-BUILT+tested ApReconciliationAsync via
+  DI rather than duplicating the control-account query or hardcoding the GL account code FE-side.
+  Gates: `pnpm tsc --noEmit` clean, `pnpm next build` clean (84 routes), i18n th/en key-parity
+  clean, no Bengali-glyph contamination, backend `dotnet build` 0 errors, `dotnet test --filter
+  Accounting.Api.Tests.Reports` 55/55 passed 0 skipped (incl. new AP-aging reconciliation test).
+  No live-account browser smoke test this pass — same posture as the WP1 dispatch above (no local
+  backend/DB/browser stack spun up); round-4 swarm re-run against a deployed build is the
+  live-account verification step per this spec's own Sequencing §5.
+
+═══════════════════════════════════════════════════════════════════════════════════════════
+## WP6 — read/manage split so AUDITOR (and read-heavy roles) get true read-only visibility (from WP2)
+Surfaced by WP2 (628 header): quotations, sales-orders, delivery-orders, vendors, business_units gate
+BOTH read AND write/lifecycle on ONE combined `.manage` code — so AUDITOR can't be granted read without
+also getting write. Fully resolving HIGH-4 (auditor "no data" ambiguity) + the ~25-console-403 BU spam
+needs a read/manage SPLIT.
+- Follow the 3 EXISTING in-repo precedents (Customer, BankAccount, ExpenseCategory already split into
+  `.read` + `.manage`): add a `<resource>.read` permission code; change each endpoint's list/get/PDF
+  routes to require `.read` while write/lifecycle routes keep `.manage`.
+- REGRESSION GUARD (the risky part): re-grant the new `.read` to EVERY role that currently holds
+  `.manage` (seed script, mirror 627/628), so no existing user loses list/detail access. Verify via
+  RbacMatrix/AuthMap: every prior `.manage` holder still resolves read; AUDITOR now resolves the 5 new
+  reads; no role gained write.
+- business_unit.read is highest value (kills the BU console-403 spam for AR/AP/SALES/PURCH/WAREHOUSE/
+  TAX/APPROVER too, not just AUDITOR).
+- Footgun (auth surface) → Opus reviews the split + the re-grant completeness before commit.
+- [ ] endpoints split; all prior .manage holders keep read; AUDITOR reads quotation/SO/DO/vendor/BU;
+      zero BU 403 console spam; no role gained write (RbacMatrix green).

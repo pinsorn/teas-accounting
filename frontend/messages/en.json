@@ -302,6 +302,8 @@
     "outstandingPayments": "Outstanding payments",
     "unmatchedLinesNet": "Unmatched lines (net)",
     "difference": "Difference",
+    "diffNoStatementBadge": "No statement imported yet — this difference isn't meaningful",
+    "diffUnreconciledBadge": "Unreconciled items — see details below",
     "unmatchedLinesLabel": "Unmatched statement lines",
     "selectBankAccount": "Select a bank account to view its reconciliation report.",
     "noBankAccounts": "No bank accounts in the system yet — add one under",
@@ -866,6 +868,9 @@
     "asOf": "As of",
     "from": "From",
     "to": "To",
+    "asOfBasis": "Data as of {date}",
+    "periodBasis": "Data for {from} – {to}",
+    "periodFutureWarning": "This range extends to {date}, which hasn't happened yet — it may include future-dated postings.",
     "includeInactive": "Include inactive accounts",
     "balanced": "Dr = Cr ✓",
     "unbalanced": "UNBALANCED!",
@@ -1407,7 +1412,8 @@
     "deactivated": "User deactivated",
     "activated": "User activated",
     "noAccessTitle": "No access",
-    "noAccessBody": "This page requires the user-management permission (sys.user.manage) — please contact an administrator."
+    "noAccessBody": "This page requires the user-management permission (sys.user.manage) — please contact an administrator.",
+    "selfPeerAdminGuardNote": "Can't manage this account here (self/peer-admin lockout protection)."
   },
   "companies": {
     "title": "Manage Companies",

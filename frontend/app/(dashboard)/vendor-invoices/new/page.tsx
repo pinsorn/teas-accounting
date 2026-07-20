@@ -107,12 +107,22 @@ function VendorInvoiceNewForm() {
       setVendorId(poDetail.vendorId);
       setVendorLabel(poDetail.vendorName);
     }
-    setRows(poDetail.lines.map((l, i) => ({
-      key: i + 1, categoryId: null,
+    // WP5 (specs/fix-swarm-findings-all.md, round-4 ap01 HIGH) — MERGE, don't replace: this
+    // effect fires again whenever `poDetail` settles, and used to blindly null out every row's
+    // categoryId even when the user had already picked one on a pre-existing row (by position) —
+    // e.g. the single placeholder row, picked during the async gap before this PO's lines
+    // arrived. That silently discarded the pick with no error/toast, and `canSave` (below)
+    // requires every row to have a categoryId, so Post never enabled. Preserve a row's own
+    // already-chosen categoryId (+ its matching `recoverable`, derived together at pick time —
+    // see ExpenseCategorySelector's onChange below) across the replace; description/amount/
+    // vatRate always come from the PO (that IS the point of linking one).
+    setRows((prev) => poDetail.lines.map((l, i) => ({
+      key: i + 1,
+      categoryId: prev[i]?.categoryId ?? null,
       // F-1 (Opus Tier-2 review, WP1.2) — force non-recoverable on a non-VAT company so the
       // live preview's totals box matches how the server actually posts (never claim it under
       // the recoverable bucket only to have GL book it as cost).
-      recoverable: companyVatRegistered,
+      recoverable: prev[i]?.categoryId != null ? prev[i]!.recoverable : companyVatRegistered,
       description: l.descriptionTh,
       amount: l.lineAmount,
       // WP1.3 (F14) — scoped derivation: only fall back to the company std rate when BOTH

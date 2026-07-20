@@ -13,4 +13,7 @@ public sealed record ApAgingRow(
     decimal Total);
 
 public sealed record ApAgingReport(
-    DateOnly AsOf, IReadOnlyList<ApAgingRow> Rows, ApAgingRow Totals);
+    DateOnly AsOf, IReadOnlyList<ApAgingRow> Rows, ApAgingRow Totals,
+    // WP3 (specs/fix-swarm-findings-all.md) — same control-account tie-out banner AR-aging
+    // already shows (chief01.md MED finding); reuses SubledgerReportService.ApReconciliationAsync.
+    SubledgerReconciliation Reconciliation);

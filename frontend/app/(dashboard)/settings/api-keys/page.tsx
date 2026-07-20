@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Plus, RefreshCw, Copy } from 'lucide-react';
+import { Plus, RefreshCw, Copy, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import {
   useApiKeys, useCreateApiKey, useRotateApiKey, useRevokeApiKey, useBusinessUnits,
+  useMePermissions,
 } from '@/lib/queries';
 import type { ApiKeyListItem, ApiKeyCreatedResult, ApiKeyKind } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
@@ -82,6 +83,7 @@ const MCP_DEFAULT_SCOPES = [
 export default function ApiKeysSettingsPage() {
   const t = useTranslations('apiKey');
   const tc = useTranslations('common');
+  const perms = useMePermissions();
   const q = useApiKeys();
   const create = useCreateApiKey();
   const rotate = useRotateApiKey();
@@ -98,6 +100,33 @@ export default function ApiKeysSettingsPage() {
   const [secret, setSecret] = useState<ApiKeyCreatedResult | null>(null);
   // Track what kind was used when creating — drives MCP panel display.
   const [secretKind, setSecretKind] = useState<ApiKeyKind>('integration');
+  // WP5 (specs/fix-swarm-findings-all.md) — SSR renders '' (no `window`); the real origin lands
+  // via this post-mount effect so the FIRST client render matches the server's ('') and React
+  // never sees a text mismatch. Computing `window.location.origin` inline in JSX (the old
+  // `mcpOrigin()` helper) differed between SSR and the client's hydration render → React error
+  // #418 (admin01.md, chief01.md — seen even by users WITH access, unrelated to the deny gate).
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  // WP5 — the whole /api-keys group (including the list GET) is gated on this ONE scope
+  // server-side (ApiKeyEndpoints.cs `RequireAuthorization(Permissions.Sys.ApiKeyManage)`), so a
+  // denied user's `useApiKeys()` 403s and QueryState correctly shows NoAccessState for the table
+  // — but everything else on the page (the "native connector" panel below) rendered regardless,
+  // unconditionally leaking content past that per-section deny. Short-circuit the WHOLE page like
+  // /settings/users does instead.
+  const canManage = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.data && !canManage) {
+    return (
+      <>
+        <PageHeader title={t('title')} />
+        <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+          <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+          <div className="font-semibold">{tc('noAccessTitle')}</div>
+          <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: SCOPE })}</div>
+        </div>
+      </>
+    );
+  }
 
   const rows = q.data ?? [];
 
@@ -156,7 +185,6 @@ export default function ApiKeysSettingsPage() {
   // Claude Code — remote HTTP MCP with a static header (.mcp.json shape; or `claude mcp add
   // --transport http teas <url> --header "X-Api-Key: <key>"`).
   function mcpConfigSnippet(key: string): string {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return JSON.stringify(
       { mcpServers: { teas: { type: 'http', url: `${origin}/mcp`, headers: { 'X-Api-Key': key } } } },
       null, 2,
@@ -167,7 +195,6 @@ export default function ApiKeysSettingsPage() {
   // The key goes in env; the header uses NO space after the colon to dodge a known Windows
   // arg-mangling bug in npx. (Mobile / the in-app Custom Connector can't do this — OAuth only.)
   function mcpDesktopSnippet(key: string): string {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return JSON.stringify(
       {
         mcpServers: {
@@ -180,10 +207,6 @@ export default function ApiKeysSettingsPage() {
       },
       null, 2,
     );
-  }
-
-  function mcpOrigin(): string {
-    return typeof window !== 'undefined' ? window.location.origin : '';
   }
 
   return (
@@ -261,10 +284,10 @@ export default function ApiKeysSettingsPage() {
           <p className="mb-1 text-xs font-medium text-base-content/70">{t('nativeUrlLabel')}</p>
           <div className="flex items-center gap-2 rounded border border-base-300 bg-base-200 p-2">
             <code className="flex-1 font-mono text-sm" data-testid="native-mcp-url">
-              {mcpOrigin()}/mcp
+              {origin}/mcp
             </code>
             <button className="btn btn-ghost btn-sm" aria-label={t('copy')}
-              onClick={() => copy(`${mcpOrigin()}/mcp`)}>
+              onClick={() => copy(`${origin}/mcp`)}>
               <Copy className="h-4 w-4" aria-hidden />
             </button>
           </div>
@@ -383,10 +406,10 @@ export default function ApiKeysSettingsPage() {
                   <p className="mb-1 text-xs font-medium text-base-content/70">{t('mcpEndpointLabel')}</p>
                   <div className="flex items-center gap-2 rounded border border-base-300 bg-base-200 p-2">
                     <code className="flex-1 font-mono text-sm" data-testid="mcp-endpoint-url">
-                      {mcpOrigin()}/mcp
+                      {origin}/mcp
                     </code>
                     <button className="btn btn-ghost btn-sm" aria-label={t('copy')}
-                      onClick={() => copy(`${mcpOrigin()}/mcp`)}>
+                      onClick={() => copy(`${origin}/mcp`)}>
                       <Copy className="h-4 w-4" aria-hidden />
                     </button>
                   </div>

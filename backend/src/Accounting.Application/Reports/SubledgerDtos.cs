@@ -76,4 +76,9 @@ public interface ISubledgerReportService
     Task<ArAgingReport> ArAgingAsync(DateOnly asOf, long? customerId, CancellationToken ct);
     Task<CustomerStatement> CustomerStatementAsync(long customerId, DateOnly fromDate, DateOnly toDate, CancellationToken ct);
     Task<VendorLedger> VendorLedgerAsync(long vendorId, DateOnly fromDate, DateOnly toDate, CancellationToken ct);
+
+    // WP3 (specs/fix-swarm-findings-all.md) — AP Aging's tie-out banner reuses this ALREADY-
+    // BUILT/tested reconciliation (VendorLedgerAsync already calls it) instead of duplicating the
+    // control-account-balance query in ApAgingService.
+    Task<SubledgerReconciliation> ApReconciliationAsync(DateOnly asOf, CancellationToken ct);
 }

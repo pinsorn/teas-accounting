@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useBalanceSheet } from '@/lib/queries';
 import { openPdf, qs } from '@/lib/api';
 import { errorToToast } from '@/lib/api/errors';
-import { formatTHB, bangkokToday, csvCell } from '@/lib/utils';
+import { formatTHB, bangkokToday, formatDateBE, csvCell } from '@/lib/utils';
 import type { BalanceSheetSection } from '@/lib/types';
 
 function Section({ title, section, tc }: {
@@ -92,6 +92,7 @@ export default function BalanceSheetPage() {
   return (
     <>
       <PageHeader title={t('bsTitle')}
+        subtitle={t('asOfBasis', { date: formatDateBE(asOf) })}
         actions={
           <>
             <button className="btn btn-outline btn-sm gap-1" onClick={exportPdf}>

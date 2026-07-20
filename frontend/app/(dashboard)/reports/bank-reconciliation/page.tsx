@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useBankAccounts, useBankReconciliationReport } from '@/lib/queries';
+import { useBankAccounts, useBankReconciliationReport, useStatementImports } from '@/lib/queries';
 import { formatTHB, formatDate, csvCell } from '@/lib/utils';
 import type { ReconciliationReportItem } from '@/lib/types';
 
@@ -29,8 +29,21 @@ export default function BankReconciliationReportPage() {
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(bangkokToday());
 
+  // LOW (chief01) — a single-bank company had to manually pick its one account on every
+  // visit; auto-select it once the account list resolves (never overrides an explicit pick).
+  useEffect(() => {
+    if (bankAccountId == null && banks.data && banks.data.length === 1) {
+      setBankAccountId(banks.data[0]!.bankAccountId);
+    }
+  }, [banks.data, bankAccountId]);
+
   const q = useBankReconciliationReport(bankAccountId ?? 0, from, to);
   const report = q.data;
+  // MED (chief01) — the unreconciled ผลต่าง had no signal telling the reader whether it's
+  // expected (no bank statement imported yet for this account) or a real reconciling item.
+  const imports = useStatementImports(bankAccountId ?? 0);
+  const noStatementImported = bankAccountId != null && !imports.isLoading
+    && (imports.data?.length ?? 0) === 0;
 
   function exportCsv() {
     if (!report) return;
@@ -114,7 +127,12 @@ export default function BankReconciliationReportPage() {
             <SummaryTile label={t('outstandingPayments')} value={report.outstandingPaymentsTotal} />
             <SummaryTile label={t('unmatchedLinesNet')} value={report.unmatchedLinesNet} />
             <SummaryTile label={t('difference')} value={report.difference}
-              highlight={report.difference !== 0} />
+              highlight={report.difference !== 0}
+              badge={report.difference !== 0 ? (
+                noStatementImported
+                  ? <span className="badge badge-ghost badge-xs">{t('diffNoStatementBadge')}</span>
+                  : <span className="badge badge-warning badge-xs">{t('diffUnreconciledBadge')}</span>
+              ) : undefined} />
           </div>
 
           <ReportSection title={t('unmatchedLinesLabel')} items={report.unmatchedLines} />
@@ -126,13 +144,16 @@ export default function BankReconciliationReportPage() {
   );
 }
 
-function SummaryTile({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+function SummaryTile({ label, value, highlight, badge }: {
+  label: string; value: number; highlight?: boolean; badge?: ReactNode;
+}) {
   return (
     <div className={`rounded-lg border p-3 ${highlight ? 'border-status-danger bg-status-danger-bg' : 'border-base-300'}`}>
       <div className="text-xs text-base-content/60">{label}</div>
       <div className={`text-right tabular-nums font-semibold ${highlight ? 'text-status-danger' : ''}`}>
         {formatTHB(value)}
       </div>
+      {badge && <div className="mt-1 text-right">{badge}</div>}
     </div>
   );
 }

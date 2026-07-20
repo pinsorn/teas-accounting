@@ -12,6 +12,13 @@ import { errorToToast } from '@/lib/api/errors';
 import { formatTHB, bangkokToday } from '@/lib/utils';
 import type { ArAgingRow, SubledgerReconciliation } from '@/lib/types';
 
+// WP3 (specs/fix-swarm-findings-all.md, chief01 MED) — a net-credit/overpayment bucket (or
+// total) reads as a negative number but was rendered identically to a positive one; flag it
+// visually so it doesn't look like a data error at a glance.
+function amountClass(v: number, extra = ''): string {
+  return `text-right tabular-nums${v < 0 ? ' text-error' : ''}${extra ? ` ${extra}` : ''}`;
+}
+
 function ReconciliationPanel({ r, t }: { r: SubledgerReconciliation; t: (k: string) => string }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-base-300 p-3 text-sm">
@@ -112,11 +119,11 @@ export default function ArAgingPage() {
                 <tr key={r.customerId}>
                   <td>{r.customerName}</td>
                   <td className="font-mono text-xs">{r.customerTaxId ?? '—'}</td>
-                  <td className="text-right tabular-nums">{formatTHB(r.current)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(r.bucket31To60)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(r.bucket61To90)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(r.bucketOver90)}</td>
-                  <td className="text-right font-semibold tabular-nums">{formatTHB(r.total)}</td>
+                  <td className={amountClass(r.current)}>{formatTHB(r.current)}</td>
+                  <td className={amountClass(r.bucket31To60)}>{formatTHB(r.bucket31To60)}</td>
+                  <td className={amountClass(r.bucket61To90)}>{formatTHB(r.bucket61To90)}</td>
+                  <td className={amountClass(r.bucketOver90)}>{formatTHB(r.bucketOver90)}</td>
+                  <td className={amountClass(r.total, 'font-semibold')}>{formatTHB(r.total)}</td>
                 </tr>
               ))}
             </tbody>
@@ -124,11 +131,11 @@ export default function ArAgingPage() {
               <tfoot>
                 <tr className="font-semibold">
                   <td colSpan={2}>{t('totalRow')}</td>
-                  <td className="text-right tabular-nums">{formatTHB(totals.current)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(totals.bucket31To60)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(totals.bucket61To90)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(totals.bucketOver90)}</td>
-                  <td className="text-right tabular-nums">{formatTHB(totals.total)}</td>
+                  <td className={amountClass(totals.current)}>{formatTHB(totals.current)}</td>
+                  <td className={amountClass(totals.bucket31To60)}>{formatTHB(totals.bucket31To60)}</td>
+                  <td className={amountClass(totals.bucket61To90)}>{formatTHB(totals.bucket61To90)}</td>
+                  <td className={amountClass(totals.bucketOver90)}>{formatTHB(totals.bucketOver90)}</td>
+                  <td className={amountClass(totals.total)}>{formatTHB(totals.total)}</td>
                 </tr>
               </tfoot>
             )}

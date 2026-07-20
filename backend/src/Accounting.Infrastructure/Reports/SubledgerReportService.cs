@@ -151,7 +151,9 @@ public sealed class SubledgerReportService(
         return new SubledgerReconciliation(code, controlBalance, subLedgerTotal, diff, diff == 0m);
     }
 
-    private async Task<SubledgerReconciliation> ApReconciliationAsync(DateOnly asOf, CancellationToken ct)
+    // WP3 — public (implements ISubledgerReportService) so ApAgingService can reuse it for the
+    // AP-aging tie-out banner, mirroring the one AR-aging already shows (chief01.md MED finding).
+    public async Task<SubledgerReconciliation> ApReconciliationAsync(DateOnly asOf, CancellationToken ct)
     {
         var code = accounts.Value.ApAccount;
         var accountId = await ResolveControlAccountIdAsync(code, ct);

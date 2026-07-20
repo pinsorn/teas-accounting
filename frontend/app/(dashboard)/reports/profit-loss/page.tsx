@@ -9,7 +9,7 @@ import { useProfitLoss, useBusinessUnits } from '@/lib/queries';
 import { openPdf, qs } from '@/lib/api';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB, bangkokToday, bangkokMonthStart, bangkokMonthEnd,
-  bangkokYearStart, bangkokYearEnd, csvCell } from '@/lib/utils';
+  bangkokYearStart, bangkokYearEnd, formatDateBE, csvCell } from '@/lib/utils';
 
 export default function ProfitLossPage() {
   const t = useTranslations('report');
@@ -51,9 +51,17 @@ export default function ProfitLossPage() {
     URL.revokeObjectURL(url);
   }
 
+  // HIGH (chief01) — TB/BS default "as-of today" while P&L defaults to the full current
+  // month, which can pull in future-dated (but already-posted) docs like a payroll run paid
+  // ahead of "today" — two reports can show wildly different numbers for what looks like "the
+  // same period" with no on-screen hint that their cutoffs differ. Surface the exact range
+  // always, and flag it explicitly when it extends past today. Never changes the numbers.
+  const rangeExtendsPastToday = !!from && !!to && to > bangkokToday();
+
   return (
     <>
       <PageHeader title={t('plTitle')}
+        subtitle={from && to ? t('periodBasis', { from: formatDateBE(from), to: formatDateBE(to) }) : undefined}
         actions={
           <>
             <button className="btn btn-outline btn-sm gap-1" onClick={exportPdf}>
@@ -65,6 +73,10 @@ export default function ProfitLossPage() {
           </>
         }
       />
+
+      {rangeExtendsPastToday && (
+        <p className="mb-3 text-xs text-warning">⚠ {t('periodFutureWarning', { date: formatDateBE(to) })}</p>
+      )}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="form-control">

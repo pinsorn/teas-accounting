@@ -7,7 +7,33 @@ import { VendorSelector } from '@/components/ui/VendorSelector';
 import { MascotGreeting } from '@/components/layout/MascotGreeting';
 import { useApAgingReport } from '@/lib/queries';
 import { formatTHB, csvCell } from '@/lib/utils';
-import type { ApAgingRow } from '@/lib/types';
+import type { ApAgingRow, SubledgerReconciliation } from '@/lib/types';
+
+// WP3 (specs/fix-swarm-findings-all.md) — same control-account tie-out banner
+// AR-aging already shows (frontend/app/(dashboard)/reports/ar-aging/page.tsx).
+function ReconciliationPanel({ r, t }: { r: SubledgerReconciliation; t: (k: string) => string }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-base-300 p-3 text-sm">
+      <div>
+        <span className="text-base-content/60">{t('controlAccount')} ({r.controlAccountCode})</span>{' '}
+        <span className="font-semibold tabular-nums">{formatTHB(r.controlAccountBalance)}</span>
+      </div>
+      <div>
+        <span className="text-base-content/60">{t('subLedgerTotal')}</span>{' '}
+        <span className="font-semibold tabular-nums">{formatTHB(r.subLedgerTotal)}</span>
+      </div>
+      {!r.balanced && (
+        <div>
+          <span className="text-base-content/60">{t('difference')}</span>{' '}
+          <span className="font-semibold tabular-nums text-error">{formatTHB(r.difference)}</span>
+        </div>
+      )}
+      <span className={`badge ml-auto ${r.balanced ? 'badge-success' : 'badge-error'}`}>
+        {r.balanced ? t('balanced') : t('notReconciled')}
+      </span>
+    </div>
+  );
+}
 
 // doc_date discipline (CLAUDE.md §5): default the as-of date to *today* in
 // Asia/Bangkok, never the browser's local midnight.
@@ -23,6 +49,9 @@ function bangkokToday(): string {
 export default function ApAgingPage() {
   const t = useTranslations('apAging');
   const tc = useTranslations('common');
+  // Reuses the 'report' namespace's tie-out labels — same words AR-aging's own
+  // ReconciliationPanel already shows, no need to duplicate them under 'apAging'.
+  const tr = useTranslations('report');
   const [asOf, setAsOf] = useState(bangkokToday());
   const [vendorId, setVendorId] = useState<number | null>(null);
 
@@ -83,6 +112,8 @@ export default function ApAgingPage() {
           {t('exportCsv')}
         </button>
       </div>
+
+      {q.data && <ReconciliationPanel r={q.data.reconciliation} t={tr} />}
 
       {showEmpty ? (
         <MascotGreeting title={t('emptyTitle')} subtitle={t('emptySubtitle')} />

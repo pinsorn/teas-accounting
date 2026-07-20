@@ -1,18 +1,43 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Pencil, ShieldAlert, UserPlus, KeyRound, Power } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { QueryState } from '@/components/states/QueryState';
-import { problemToast } from '@/lib/api';
+import { apiGet, problemToast } from '@/lib/api';
 import {
   useCompanies, useMePermissions,
   useRbacUsers, useRbacRoles, useSetUserRoles,
   useCreateUser, useSetUserActive, useResetUserPassword,
 } from '@/lib/queries';
 import type { RbacUserListItem } from '@/lib/types';
+
+// WP5 (specs/fix-swarm-findings-all.md, admin01 LOW) — no shared hook exposes the CURRENT
+// user's own userId today (useMePermissions only returns scopes/role CODES); GET /me already
+// carries it (MeEndpoints.cs MeResponse.UserId), used here directly rather than growing the
+// shared lib/queries.ts surface for a single page's need.
+function useMe() {
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: () => apiGet<{ userId: number | null }>('me'),
+    staleTime: 5 * 60_000,
+  });
+}
+
+// Self/peer-admin SoD guard: never let an admin lock THEMSELVES out from this page, and never
+// let one Company Admin deactivate/reset-password/edit-roles on ANOTHER Company Admin (peers —
+// a Super Admin legitimately outranks and may still manage Company Admins, so the peer half
+// only applies when the acting viewer is not a super-admin).
+function isGuardedRow(
+  u: RbacUserListItem, myUserId: number | null | undefined, viewerIsSuperAdmin: boolean,
+): boolean {
+  if (myUserId != null && myUserId === u.userId) return true;
+  if (viewerIsSuperAdmin) return false;
+  return u.roles.some((r) => r.roleCode === 'COMPANY_ADMIN');
+}
 
 export default function UsersSettingsPage() {
   const t = useTranslations('users');
@@ -87,6 +112,7 @@ function UsersBody({
   const [resetId, setResetId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const setActive = useSetUserActive();
+  const me = useMe();
 
   if (!enabled) {
     return <div className="py-12 text-center text-base-content/50">{tc('loading')}</div>;
@@ -121,7 +147,9 @@ function UsersBody({
               </tr>
             </thead>
             <tbody>
-              {rows.map((u: RbacUserListItem) => (
+              {rows.map((u: RbacUserListItem) => {
+                const guarded = isGuardedRow(u, me.data?.userId, isSuperAdmin);
+                return (
                 <tr key={u.userId} data-testid={`user-row-${u.userId}`}>
                   <td className="font-mono text-sm">{u.username}</td>
                   <td>{u.fullName}</td>
@@ -148,30 +176,37 @@ function UsersBody({
                     </div>
                   </td>
                   <td>
-                    <div className="flex flex-wrap items-center gap-1">
-                      <button className="btn btn-ghost btn-xs gap-1"
-                        onClick={() => setEditingId(u.userId)}
-                        data-testid={`user-edit-${u.userId}`}>
-                        <Pencil className="h-3 w-3" aria-hidden /> {t('editRoles')}
-                      </button>
-                      <button className="btn btn-ghost btn-xs gap-1"
-                        onClick={() => setResetId(u.userId)}
-                        data-testid={`user-reset-${u.userId}`}>
-                        <KeyRound className="h-3 w-3" aria-hidden /> {t('resetPassword')}
-                      </button>
-                      {!u.isSuperAdmin && (
-                        <button className={`btn btn-ghost btn-xs gap-1 ${u.isActive ? 'text-error' : 'text-success'}`}
-                          disabled={setActive.isPending}
-                          onClick={() => toggleActive(u)}
-                          data-testid={`user-active-${u.userId}`}>
-                          <Power className="h-3 w-3" aria-hidden />
-                          {u.isActive ? t('deactivate') : t('activate')}
+                    {guarded ? (
+                      <span className="text-xs text-base-content/40" data-testid={`user-guarded-${u.userId}`}>
+                        {t('selfPeerAdminGuardNote')}
+                      </span>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <button className="btn btn-ghost btn-xs gap-1"
+                          onClick={() => setEditingId(u.userId)}
+                          data-testid={`user-edit-${u.userId}`}>
+                          <Pencil className="h-3 w-3" aria-hidden /> {t('editRoles')}
                         </button>
-                      )}
-                    </div>
+                        <button className="btn btn-ghost btn-xs gap-1"
+                          onClick={() => setResetId(u.userId)}
+                          data-testid={`user-reset-${u.userId}`}>
+                          <KeyRound className="h-3 w-3" aria-hidden /> {t('resetPassword')}
+                        </button>
+                        {!u.isSuperAdmin && (
+                          <button className={`btn btn-ghost btn-xs gap-1 ${u.isActive ? 'text-error' : 'text-success'}`}
+                            disabled={setActive.isPending}
+                            onClick={() => toggleActive(u)}
+                            data-testid={`user-active-${u.userId}`}>
+                            <Power className="h-3 w-3" aria-hidden />
+                            {u.isActive ? t('deactivate') : t('activate')}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

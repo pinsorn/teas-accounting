@@ -20,7 +20,8 @@ namespace Accounting.Infrastructure.Reports;
 /// Multi-tenant: explicit <c>CompanyId == tenant.CompanyId</c> predicate
 /// (CLAUDE.md §4.7) in addition to the global query filter.
 /// </summary>
-public sealed class ApAgingService(AccountingDbContext db, ITenantContext tenant) : IApAgingService
+public sealed class ApAgingService(
+    AccountingDbContext db, ITenantContext tenant, ISubledgerReportService subledger) : IApAgingService
 {
     public async Task<ApAgingReport> GetAsync(DateOnly asOf, long? vendorId, CancellationToken ct)
     {
@@ -72,6 +73,7 @@ public sealed class ApAgingService(AccountingDbContext db, ITenantContext tenant
             rows.Sum(r => r.BucketOver90),
             rows.Sum(r => r.Total));
 
-        return new ApAgingReport(asOf, rows, totals);
+        var reconciliation = await subledger.ApReconciliationAsync(asOf, ct);
+        return new ApAgingReport(asOf, rows, totals, reconciliation);
     }
 }

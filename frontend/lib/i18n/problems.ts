@@ -12,6 +12,12 @@
 import { currentLocale } from './validation';
 
 const TH: Record<string, string> = {
+  // WP5 (specs/fix-swarm-findings-all.md, appr01 LOW) — DomainExceptionMiddleware's generic
+  // catch-all (unexpected exceptions, e.g. the PO-approve 500 appr01 hit) always emits CODE
+  // "internal_error" with an English `detail` ("An unexpected error occurred."); without an
+  // entry here that English sentence surfaced verbatim on an otherwise all-Thai UI.
+  'internal_error': 'เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง หากยังพบปัญหากรุณาติดต่อผู้ดูแลระบบ',
+
   // auth.*
   'auth.required': 'ต้องเข้าสู่ระบบก่อนทำรายการนี้',
   'auth.unauthenticated': 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',

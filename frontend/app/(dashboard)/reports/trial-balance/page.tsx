@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useTrialBalance } from '@/lib/queries';
-import { formatTHB, csvCell } from '@/lib/utils';
+import { formatTHB, formatDateBE, csvCell } from '@/lib/utils';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -41,6 +41,7 @@ export default function TrialBalancePage() {
   return (
     <>
       <PageHeader title={t('tbTitle')}
+        subtitle={t('asOfBasis', { date: formatDateBE(asOf) })}
         actions={
           <button className="btn btn-outline btn-sm gap-1" disabled={!tb.data} onClick={exportCsv}>
             <Download className="h-4 w-4" aria-hidden /> {t('exportCsv')}

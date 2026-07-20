@@ -302,6 +302,8 @@
     "outstandingPayments": "รายการจ่ายค้าง",
     "unmatchedLinesNet": "รายการยังไม่จับคู่ (สุทธิ)",
     "difference": "ผลต่าง",
+    "diffNoStatementBadge": "ยังไม่มีการนำเข้า Statement — ผลต่างนี้ยังไม่มีความหมาย",
+    "diffUnreconciledBadge": "มีรายการยังไม่กระทบยอด — ดูรายละเอียดด้านล่าง",
     "unmatchedLinesLabel": "รายการ Statement ที่ยังไม่จับคู่",
     "selectBankAccount": "เลือกบัญชีธนาคารเพื่อดูรายงานกระทบยอด",
     "noBankAccounts": "ยังไม่มีบัญชีธนาคารในระบบ — เพิ่มได้ที่",
@@ -866,6 +868,9 @@
     "asOf": "ณ วันที่",
     "from": "ตั้งแต่",
     "to": "ถึง",
+    "asOfBasis": "ข้อมูล ณ วันที่ {date}",
+    "periodBasis": "ข้อมูลช่วงวันที่ {from} ถึง {to}",
+    "periodFutureWarning": "ช่วงวันที่นี้รวมถึงวันที่ {date} ซึ่งยังไม่ถึง (อนาคต) — อาจมีรายการที่บันทึกล่วงหน้ารวมอยู่ด้วย",
     "includeInactive": "รวมบัญชีปิด",
     "balanced": "Dr = Cr ✓",
     "unbalanced": "ไม่สมดุล!",
@@ -1407,7 +1412,8 @@
     "deactivated": "ปิดใช้งานผู้ใช้แล้ว",
     "activated": "เปิดใช้งานผู้ใช้แล้ว",
     "noAccessTitle": "ไม่มีสิทธิ์เข้าถึง",
-    "noAccessBody": "หน้านี้ต้องมีสิทธิ์จัดการผู้ใช้ (sys.user.manage) — กรุณาติดต่อผู้ดูแลระบบ"
+    "noAccessBody": "หน้านี้ต้องมีสิทธิ์จัดการผู้ใช้ (sys.user.manage) — กรุณาติดต่อผู้ดูแลระบบ",
+    "selfPeerAdminGuardNote": "จัดการบัญชีนี้จากหน้านี้ไม่ได้ (ป้องกันการล็อกตัวเองหรือผู้ดูแลระบบบริษัทคนอื่น)"
   },
   "companies": {
     "title": "จัดการบริษัท",

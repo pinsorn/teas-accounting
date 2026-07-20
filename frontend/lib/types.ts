@@ -1119,7 +1119,11 @@ export interface ApAgingRow {
   current: number; bucket31To60: number; bucket61To90: number;
   bucketOver90: number; total: number;
 }
-export interface ApAgingReport { asOf: string; rows: ApAgingRow[]; totals: ApAgingRow; }
+export interface ApAgingReport {
+  asOf: string; rows: ApAgingRow[]; totals: ApAgingRow;
+  // WP3 (specs/fix-swarm-findings-all.md) — same tie-out block ArAgingReport already carries.
+  reconciliation: SubledgerReconciliation;
+}
 
 // ───────────────────────── Sprint 14: External API keys ────────────────────
 export type ApiKeyKind = 'integration' | 'mcp';

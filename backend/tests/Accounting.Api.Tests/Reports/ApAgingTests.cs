@@ -158,6 +158,30 @@ public sealed class ApAgingTests
         rep.Totals.Total.Should().Be(0m);
     }
 
+    // ── WP3 (specs/fix-swarm-findings-all.md) — Reconciliation wiring for the AP-aging tie-out
+    //    banner. ApReconciliationAsync's own math (control-account resolution, sub-ledger sum) is
+    //    already covered indirectly via VendorLedgerAsync's existing usage; this only proves the
+    //    field is genuinely wired to real AP movements, not a stub/zero placeholder. ──
+    [SkippableFact]
+    public async Task Reconciliation_is_populated_and_reflects_real_ap_movements()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var vid = (long)(uint)Guid.NewGuid().GetHashCode();
+        var asOf = new DateOnly(2026, 5, 27);
+        await SeedVi(sp, vid, asOf, ageDays: 10, total: 500m, settled: 0m);
+
+        await using var s = sp.CreateAsyncScope();
+        var rep = await s.ServiceProvider.GetRequiredService<IApAgingService>()
+            .GetAsync(asOf, vid, default);
+
+        rep.Reconciliation.Should().NotBeNull();
+        rep.Reconciliation.ControlAccountCode.Should().NotBeNullOrEmpty();
+        // SubLedgerTotal is company-wide (ALL vendors, not just vid), so it must be AT LEAST
+        // this seeded VI's contribution.
+        rep.Reconciliation.SubLedgerTotal.Should().BeGreaterThanOrEqualTo(500m);
+    }
+
     // ── §4.7 multi-tenant: Company A's VI must NOT appear in Company B's report ──
     [SkippableFact]
     public async Task MultiTenant_company_a_vi_absent_from_company_b_report()
