@@ -1,7 +1,23 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **CRIT-1 REFIX — v1.22.7 LIVE + PROD-VERIFIED (2026-07-20 ~05:xx).** v1.22.6 fixed only the
+- **PAUSED (Ham "พักก่อน", 2026-07-20 ~08:xx) — CRIT closed+verified, finding batch WP1/2/3/5
+  committed but NOT yet deployed.** Resume steps below.
+  - CRIT-1/CRIT-2: CLOSED + verified live (v1.22.7 on prod; round-4 10-agent swarm = zero
+    500/23505 across every numbering path, TB Dr=Cr held, tenant/SoD clean).
+  - Finding fixes committed to main, awaiting a v1.22.8 deploy:
+    - WP1 `5c49234` — FE route-guard on 16 /new routes + CN/DN buttons + tax-filing/period-close/
+      attachment (clean deny, backend still 403s).
+    - WP2/WP4 `5c49234` — 628 seed grants AUDITOR module reads + APPROVER pending-approvals read
+      (suite 912/0/8).
+    - WP3/WP5 `043935c` — report date-basis labels + AP-aging tie banner + AR negatives + bank-recon
+      badge; api-keys deny+#418, users self/peer-admin guard, EN-toast i18n, VI-new category clobber.
+  - **RESUME (do NOT auto-start — Ham paused):** (1) WP6 read/manage split (BU/quotation/SO/DO/vendor
+    — footgun auth, Opus review; Claude 7-day pool was 95%, consider Codex/wait). (2) deploy v1.22.8
+    (API has 628 SqlScript → scripts +1, DB backup; FE full) + prod verify. (3) big Sonnet swarm
+    round 5 to confirm every finding closed — needs Claude budget, gate on 7-day recovery.
+  - Spec: specs/fix-swarm-findings-all.md (WP1/2/3/5 [x], WP6 open). Swarm evidence: swarm-findings/.
+- **(prev) CRIT-1 REFIX — v1.22.7 LIVE + PROD-VERIFIED (2026-07-20 ~05:xx).** v1.22.6 fixed only the
   no-ambient-tx path (PO approve); round-3 swarm caught TI post still 500 3/3. opus-debugger found
   the REAL bug: off-by-one retry cap (`attempt < MaxAttempts` left the final-attempt doc_no collision
   uncaught → raw 500; in an ambient tx the escape rolls the seq bump back so it never climbs). Fix:
