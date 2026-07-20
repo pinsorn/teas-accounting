@@ -97,6 +97,12 @@ Evidence: audit01.md, chief01.md, admin01.md, ap01.md.
 - attachment "+ อัปโหลด" on doc detail shown to a `sys.attachment.read`-only role — gate behind
   attachment-write (WP1 button sweep).
 - EN error toast on an otherwise-Thai UI (appr01) — i18n the message.
+- **NEW (round-4 ap01, HIGH-FE):** `vendor-invoices/new/page.tsx` PO-link effect fetches poDetail
+  async then REPLACES all line rows with `categoryId: null`; if the user picks the Expense Category
+  before that async replace lands, the pick is silently clobbered → Post button never enables, no
+  error/toast. Fix: don't clobber a user-set categoryId on the async PO-detail merge (merge, or guard
+  the replace so it doesn't overwrite fields the user already set), OR disable the category picker
+  until poDetail has resolved. (This is the same symptom round-3 ap01 misfiled as a "CRIT exception".)
 - [ ] each item verified fixed on the relevant role account.
 
 ═══════════════════════════════════════════════════════════════════════════════════════════
