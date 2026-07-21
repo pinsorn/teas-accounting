@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.22.8](https://github.com/pinsorn/teas-accounting/compare/v1.22.7...v1.22.8) (2026-07-21)
+
+
+### Bug Fixes
+
+* **rbac,fe:** WP1 route-guard on write pages + WP2 auditor/approver read grants ([5c49234](https://github.com/pinsorn/teas-accounting/commit/5c49234325f4a0b0a77017e3b8806a97fbdd1545))
+* **rbac:** WP6 read/manage split for quotation/SO/DO/vendor/business-unit ([4e1407c](https://github.com/pinsorn/teas-accounting/commit/4e1407c23c6b9c66d04f46b1f8169b176fadd629))
+* **reports,settings:** WP3 reports UX clarity + WP5 misc gate/guard/i18n ([043935c](https://github.com/pinsorn/teas-accounting/commit/043935ce9678d07df4e654bc93585f7b8169ce4e))
+
 ## [1.22.7](https://github.com/pinsorn/teas-accounting/compare/v1.22.6...v1.22.7) (2026-07-19)
 
 
