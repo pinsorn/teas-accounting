@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.9](https://github.com/pinsorn/teas-accounting/compare/v1.22.8...v1.22.9) (2026-07-21)
+
+
+### Bug Fixes
+
+* **deps:** bump System.Security.Cryptography.Xml 10.0.8 -&gt; 10.0.10 (NU1903 HIGH advisory) ([0829332](https://github.com/pinsorn/teas-accounting/commit/0829332fe6c8bee15a8fc8aa98ab8085ad781caa))
+
 ## [1.22.8](https://github.com/pinsorn/teas-accounting/compare/v1.22.7...v1.22.8) (2026-07-21)
 
 
