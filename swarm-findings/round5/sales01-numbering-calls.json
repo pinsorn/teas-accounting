@@ -1,0 +1,137 @@
+[
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations",
+    "method": "POST",
+    "status": 201
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/24/send",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/24/accept",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/24/convert-to-so",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/sales-orders/12/post",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/sales-orders/12/delivery-orders",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/10/issue",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/10/mark-delivered",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/10/create-invoice",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations",
+    "method": "POST",
+    "status": 201
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/25/send",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/25/accept",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/25/convert-to-so",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/sales-orders/13/post",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/sales-orders/13/delivery-orders",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/11/issue",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/11/mark-delivered",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/11/create-invoice",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations",
+    "method": "POST",
+    "status": 201
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/26/send",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/26/accept",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/quotations/26/convert-to-so",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/sales-orders/14/post",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/sales-orders/14/delivery-orders",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/12/issue",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/12/mark-delivered",
+    "method": "POST",
+    "status": 204
+  },
+  {
+    "url": "https://teas.kazaki-rio.com/api/proxy/delivery-orders/12/create-invoice",
+    "method": "POST",
+    "status": 200
+  }
+]

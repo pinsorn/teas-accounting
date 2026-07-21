@@ -1,8 +1,13 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **PAUSED (Ham "พักก่อน", 2026-07-20 ~08:xx) — CRIT closed+verified, finding batch WP1/2/3/5
-  committed but NOT yet deployed.** Resume steps below.
+- **ROUND-5 SWARM VERDICT: ALL FINDING FIXES CONFIRMED CLOSED on v1.22.9 (2026-07-22 ~00:5x).**
+  10/10 agents: WP1 17/17 deny-pages clean; WP2+WP6 15 modules render real data for AUDITOR, BU-403
+  spam = 0; WP3 4/4 report-UX items live; WP4 widget 200 4/4; WP5 api-keys #418 gone + users
+  self-guard + VI-clobber fixed + Thai toast. CRIT regression: sales 27/27, ar 12/12, purch+appr
+  approves all 2xx, TB Dr=Cr 9/9, tenant/SoD clean, zero 500/23505 everywhere. Residual LOW nits
+  (file-response EN toast, statement-imports 403-vs-empty, 2 stray 403s, peer-admin guard untested
+  no-data) logged in swarm-findings/round5/ for a future batch. Goal COMPLETE.
   - CRIT-1/CRIT-2: CLOSED + verified live (v1.22.7 on prod; round-4 10-agent swarm = zero
     500/23505 across every numbering path, TB Dr=Cr held, tenant/SoD clean).
   - Finding fixes committed to main, awaiting a v1.22.8 deploy:

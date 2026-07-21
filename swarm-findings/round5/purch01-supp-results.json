@@ -1,0 +1,100 @@
+{
+  "results": [
+    {
+      "poId": 18,
+      "qty": 9,
+      "approveStatus": 200,
+      "body": {
+        "purchaseOrderId": 18,
+        "docNo": "07-2026-PO-0014",
+        "approvedBy": 13,
+        "approvedAt": "2026-07-21T16:44:41.3631838+00:00"
+      }
+    },
+    {
+      "poId": 19,
+      "qty": 11,
+      "approveStatus": 200,
+      "body": {
+        "purchaseOrderId": 19,
+        "docNo": "07-2026-PO-0015",
+        "approvedBy": 13,
+        "approvedAt": "2026-07-21T16:44:51.0022044+00:00"
+      }
+    }
+  ],
+  "allResponses": [
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/login",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/login",
+      "status": 200
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders",
+      "status": 201
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders",
+      "status": 201
+    }
+  ]
+}

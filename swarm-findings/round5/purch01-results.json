@@ -1,0 +1,374 @@
+{
+  "results": [
+    {
+      "poId": 15,
+      "qty": 3,
+      "step": "approve",
+      "status": null
+    },
+    {
+      "poId": 16,
+      "qty": 5,
+      "step": "approve",
+      "status": null
+    },
+    {
+      "poId": 17,
+      "qty": 7,
+      "step": "approve",
+      "status": null
+    },
+    {
+      "poId": 15,
+      "qty": 3,
+      "step": "mark-sent",
+      "status": 204
+    },
+    {
+      "poId": 16,
+      "qty": 5,
+      "step": "mark-sent",
+      "status": 204
+    },
+    {
+      "poId": 17,
+      "qty": 7,
+      "step": "mark-sent",
+      "status": 204
+    },
+    {
+      "poId": 15,
+      "qty": 3,
+      "step": "close",
+      "status": 204,
+      "finalStatus": "Closed",
+      "docNo": "07-2026-PO-0011"
+    },
+    {
+      "poId": 16,
+      "qty": 5,
+      "step": "close",
+      "status": 204,
+      "finalStatus": "Closed",
+      "docNo": "07-2026-PO-0013"
+    },
+    {
+      "poId": 17,
+      "qty": 7,
+      "step": "close",
+      "status": 204,
+      "finalStatus": "Closed",
+      "docNo": "07-2026-PO-0012"
+    }
+  ],
+  "allResponses": [
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/login",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders",
+      "status": 201
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders",
+      "status": 201
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders",
+      "status": 201
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/login",
+      "status": 200
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "appr01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders/15/mark-sent",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders/16/mark-sent",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "purch01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders/17/mark-sent",
+      "status": 204
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/login",
+      "status": 200
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders/15/close",
+      "status": 204
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders/16/close",
+      "status": 204
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/cdn-cgi/rum?",
+      "status": 204
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/auth/refresh",
+      "status": 200
+    },
+    {
+      "tag": "admin01",
+      "method": "POST",
+      "url": "https://teas.kazaki-rio.com/api/proxy/purchase-orders/17/close",
+      "status": 204
+    }
+  ],
+  "actionResponses": [
+    {
+      "tag": "n/a",
+      "poId": 15,
+      "action": "approve",
+      "status": "button-not-rendered"
+    },
+    {
+      "tag": "n/a",
+      "poId": 16,
+      "action": "approve",
+      "status": "button-not-rendered"
+    },
+    {
+      "tag": "n/a",
+      "poId": 17,
+      "action": "approve",
+      "status": "button-not-rendered"
+    },
+    {
+      "tag": "mark-sent",
+      "poId": 15,
+      "action": "mark-sent",
+      "status": 204
+    },
+    {
+      "tag": "mark-sent",
+      "poId": 16,
+      "action": "mark-sent",
+      "status": 204
+    },
+    {
+      "tag": "mark-sent",
+      "poId": 17,
+      "action": "mark-sent",
+      "status": 204
+    },
+    {
+      "tag": "close",
+      "poId": 15,
+      "action": "close",
+      "status": 204
+    },
+    {
+      "tag": "close",
+      "poId": 16,
+      "action": "close",
+      "status": 204
+    },
+    {
+      "tag": "close",
+      "poId": 17,
+      "action": "close",
+      "status": 204
+    }
+  ]
+}
