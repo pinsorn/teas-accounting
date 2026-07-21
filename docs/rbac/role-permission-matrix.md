@@ -30,6 +30,7 @@
 | `gl.year.close` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.branch.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `master.business_unit.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
+| `master.business_unit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `master.coa.manage` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.company.manage` † |  |  |  |  |  |  |  |  |  |  |  | ✓ |
 | `master.company_profile.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
@@ -39,6 +40,7 @@
 | `master.product.manage` |  |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.product.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `master.vendor.manage` |  |  | ✓ |  |  | ✓ | ✓ | ✓ |  |  |  | ✓ |
+| `master.vendor.read` |  |  | ✓ |  | ✓ | ✓ | ✓ | ✓ |  |  |  | ✓ |
 | `payroll.run.manage` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `payroll.run.pay` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `payroll.run.post` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
@@ -67,11 +69,14 @@
 | `sales.debit_note.post` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.debit_note.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.delivery_order.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
+| `sales.delivery_order.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.quotation.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
+| `sales.quotation.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.receipt.create` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.receipt.post` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.receipt.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.sales_order.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
+| `sales.sales_order.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.tax_invoice.create` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.tax_invoice.post` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.tax_invoice.read` | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
@@ -97,18 +102,18 @@
 
 | Role | Granted |
 |---|---:|
-| ACCOUNTANT | 54 |
-| APPROVER | 7 |
-| AP_CLERK | 15 |
-| AR_CLERK | 23 |
-| AUDITOR | 26 |
-| CHIEF_ACCOUNTANT | 74 |
-| COMPANY_ADMIN | 81 |
-| PURCHASING_STAFF | 5 |
-| SALES_STAFF | 13 |
-| TAX_OFFICER | 14 |
-| WAREHOUSE_STAFF | 2 |
-| SUPER_ADMIN | 82 (bypass) |
+| ACCOUNTANT | 58 |
+| APPROVER | 8 |
+| AP_CLERK | 17 |
+| AR_CLERK | 27 |
+| AUDITOR | 31 |
+| CHIEF_ACCOUNTANT | 79 |
+| COMPANY_ADMIN | 86 |
+| PURCHASING_STAFF | 7 |
+| SALES_STAFF | 17 |
+| TAX_OFFICER | 15 |
+| WAREHOUSE_STAFF | 3 |
+| SUPER_ADMIN | 87 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

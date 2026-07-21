@@ -50,8 +50,12 @@ public static class MasterEndpoints
     // ------------------------- Vendors -------------------------
     private static void MapVendors(IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/vendors").WithTags("Vendors")
-            .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Master.VendorManage);
+        // WP6 (specs/fix-swarm-findings-all.md) — read/manage split (mirrors Customer/BankAccount).
+        // No group-level RequireAuthorization: a group-level policy would AND with the per-route
+        // one, wrongly requiring BOTH manage and read on a read route.
+        var g = app.MapGroup("/vendors").WithTags("Vendors");
+        var readPol = PermissionPolicyProvider.PolicyPrefix + Permissions.Master.VendorRead;
+        var managePol = PermissionPolicyProvider.PolicyPrefix + Permissions.Master.VendorManage;
 
         g.MapPost("/", async ([FromBody] CreateVendorRequest req, IValidator<CreateVendorRequest> v,
             IVendorService svc, CancellationToken ct) =>
@@ -59,7 +63,7 @@ public static class MasterEndpoints
             var val = await v.ValidateAsync(req, ct);
             if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
             return Results.Created($"/vendors/{await svc.CreateAsync(req, ct)}", null);
-        });
+        }).RequireAuthorization(managePol);
         g.MapPut("/{id:long}", async (long id, [FromBody] UpdateVendorRequest req,
             IValidator<UpdateVendorRequest> v, IVendorService svc, CancellationToken ct) =>
         {
@@ -67,15 +71,17 @@ public static class MasterEndpoints
             if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
             await svc.UpdateAsync(id, req, ct);
             return Results.NoContent();
-        });
+        }).RequireAuthorization(managePol);
         // Optional query params MUST be nullable — minimal-API binder rejects a
         // param-less call before the handler body if they're non-nullable
         // (runtime-gotchas §2). Frontend selectors call /vendors with no page.
         g.MapGet("/", async ([FromQuery] string? search, [FromQuery] int? page, [FromQuery] int? pageSize,
             IVendorService svc, CancellationToken ct)
-            => Results.Ok(await svc.ListAsync(search, page ?? 1, pageSize ?? 50, ct)));
+            => Results.Ok(await svc.ListAsync(search, page ?? 1, pageSize ?? 50, ct)))
+            .RequireAuthorization(readPol);
         g.MapGet("/{id:long}", async (long id, IVendorService svc, CancellationToken ct)
-            => await svc.GetByIdAsync(id, ct) is { } v ? Results.Ok(v) : Results.NotFound());
+            => await svc.GetByIdAsync(id, ct) is { } v ? Results.Ok(v) : Results.NotFound())
+            .RequireAuthorization(readPol);
     }
 
     // ------------------------- Chart of Accounts -------------------------

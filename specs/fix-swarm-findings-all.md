@@ -314,5 +314,114 @@ needs a read/manage SPLIT.
 - business_unit.read is highest value (kills the BU console-403 spam for AR/AP/SALES/PURCH/WAREHOUSE/
   TAX/APPROVER too, not just AUDITOR).
 - Footgun (auth surface) → Opus reviews the split + the re-grant completeness before commit.
-- [ ] endpoints split; all prior .manage holders keep read; AUDITOR reads quotation/SO/DO/vendor/BU;
+- [x] endpoints split; all prior .manage holders keep read; AUDITOR reads quotation/SO/DO/vendor/BU;
       zero BU 403 console spam; no role gained write (RbacMatrix green).
+      Evidence (2026-07-21, Sonnet implementer dispatch):
+      - **Permissions.cs**: added 5 new codes — `Sales.QuotationRead`, `Sales.SalesOrderRead`,
+        `Sales.DeliveryOrderRead`, `Master.VendorRead`, `Master.BusinessUnitRead` — plus `Permissions.All`.
+      - **Endpoints split** (routes reclassified; every write/lifecycle route unchanged on `.manage`):
+
+        | File | Read (list/get/PDF/paper) | Manage (unchanged) |
+        |---|---|---|
+        | SalesChainEndpoints.cs (quotations) | GET `/`, GET `/{id}`, GET `/{id}/pdf`, GET `/{id}/paper` | POST `/`, PUT `/{id}`, DELETE `/{id}`, `/send`, `/accept`, `/reject`, `/cancel`, `/convert-to-so` |
+        | SalesChainEndpoints.cs (sales-orders) | GET `/`, GET `/{id}`, GET `/{id}/pdf`, GET `/{id}/paper` | POST `/`, PUT `/{id}`, `/post`, `/delivery-orders`, `/create-invoice` |
+        | SalesChainEndpoints.cs (delivery-orders) | GET `/`, GET `/{id}`, GET `/{id}/pdf`, GET `/{id}/paper` | POST `/`, `/issue`, `/mark-delivered`, `/create-ti`, `/create-invoice` |
+        | MasterEndpoints.cs (vendors) | GET `/`, GET `/{id}` | POST `/`, PUT `/{id}` |
+        | BusinessUnitEndpoints.cs | GET `/`, GET `/{id}` | POST `/`, PUT `/{id}`, DELETE `/{id}`, PUT `/company-setting` |
+
+        Group-level `RequireAuthorization` removed from all 5 groups (would AND with the per-route
+        policy, wrongly requiring BOTH manage+read on a read route — confirmed by reading
+        `RbacEndpointInventory.Classify`, which unions ALL attached `perm:` policies). Matches the
+        Customer/BankAccount/ExpenseCategory precedent exactly (no group-level auth, per-route only).
+        `PrintEndpoints.cs`'s generic `/mark-printed` routes (a separate file, not in blast radius)
+        correctly stayed on `.manage` untouched — confirmed via the regenerated endpoint map diff.
+      - **Seed `629_seed_read_manage_split_grant.sql`** (mirrors 627/628 exactly: code-first insert →
+        template top-up → per-company FORCE-RLS resync loop, NOBYPASSRLS, no curly braces):
+        1. Inserts the 5 new codes into `sys.permissions`.
+        2. REGRESSION GUARD: 5 `INSERT ... SELECT role_code, '<read>' FROM role_permission_templates
+           WHERE permission_code = '<manage>'` statements — derives the manage-holder role set
+           DYNAMICALLY from the table (not hardcoded), so any custom/future manage grant is covered.
+        3. AUDITOR granted all 5 new `.read` codes explicitly.
+        4. `master.business_unit.read` granted explicitly to AR_CLERK, AP_CLERK, SALES_STAFF,
+           PURCHASING_STAFF, WAREHOUSE_STAFF, TAX_OFFICER, APPROVER (628's named gap).
+        5. Per-company resync loop scoped to the 5 new read codes only.
+
+        **Roles re-granted** (read from `docs/rbac/role-permission-matrix.md`'s regenerated diff):
+        `master.business_unit.read` → ALL 11 non-super roles (COMPANY_ADMIN/CHIEF_ACCOUNTANT/
+        ACCOUNTANT via the manage-derived top-up + AUDITOR + the 7 named roles = every non-super
+        role — matches "kills BU spam app-wide"). `master.vendor.read` → AP_CLERK, CHIEF_ACCOUNTANT,
+        COMPANY_ADMIN, PURCHASING_STAFF (pre-existing manage holders, unchanged) + AUDITOR (new).
+        `sales.quotation/sales_order/delivery_order.read` → ACCOUNTANT, AR_CLERK, CHIEF_ACCOUNTANT,
+        COMPANY_ADMIN, SALES_STAFF (pre-existing manage holders, unchanged) + AUDITOR (new). No role
+        gained a `.manage` code it didn't already hold (verified by
+        `ReadManageSplitGrantTests.No_role_gained_write_access_it_did_not_already_have`).
+      - **Tests** — new `backend/tests/Accounting.Api.Tests/Rbac/ReadManageSplitGrantTests.cs` (4
+        tests, mirrors 627/628's test files): (a) AUDITOR resolves all 5 new reads and holds NONE of
+        the 5 paired manage codes; (b) regression guard — every role holding a manage code in
+        `sys.role_permission_templates` (enumerated dynamically via `SqlQueryRaw`, not hardcoded)
+        still resolves the paired read; (c) no role gained a manage code beyond the pre-existing
+        template holders; (d) live HTTP — AUDITOR hits `/quotations`, `/sales-orders`,
+        `/delivery-orders`, `/vendors`, `/business-units` without 403, but POST `/quotations` and
+        POST `/business-units` are still 403. All 4 passed against real `teas_test`.
+        `RbacAuthMapTests` + `RbacMatrixTests` + `RbacCartesianTests` all re-ran and passed
+        (regenerated `docs/rbac/endpoint-permission-map.generated.md` +
+        `docs/rbac/role-permission-matrix.md`, diff reviewed — matches expectations exactly, no
+        superOnly-invariant regression, no SoD regression).
+      - **FE nav-gating tweak found and fixed** (per dispatch instruction to grep for old combined
+        codes used as visibility scopes): `frontend/components/app-shell/SidebarNav.tsx` gated the
+        Vendors/Quotations/SalesOrders/DeliveryOrders/BusinessUnits nav items on the old `.manage`
+        code as a stand-in READ gate (the file's own doc comment says each item should carry "the
+        READ permission of its primary endpoint" — `.manage` was the only option before this split).
+        Updated all 5 to the new `.read` code — a strict widen (629's regression guard means every
+        prior `.manage` holder still resolves `.read`, so nothing that could see the nav item before
+        loses it). Business-units settings page write buttons (edit/deactivate/create) + the vendors/
+        quotations "+ create" buttons + the dashboard "create vendor" quick-action all correctly
+        remained on `.manage` (verified by reading each file — they gate genuine write actions, not
+        visibility) — no change needed there, matching the dispatch's "keep manage for buttons" rule.
+        Found but NOT touched (out of blast radius, separate namespace): `settings/api-keys/page.tsx`
+        lists old `.manage` codes as selectable API-KEY scopes (free-form scope catalog, unrelated to
+        role-based nav gating per `RbacCartesianTests`' own doc comment); `e2e/helpers/rbac-manifest.ts`
+        + `e2e/rbac-admin.spec.ts` + `manual/walkthroughs/*.ts` encode the old codes for Playwright/
+        walkthrough fixtures — changing these needs an actual e2e run to verify, which this dispatch
+        didn't spin up (no Playwright/browser stack running this pass); flagging as a small
+        follow-up, not a regression (they're test fixtures, not runtime gating).
+      - **Gates**: `dotnet build` 0 errors. `pnpm tsc --noEmit` clean. `pnpm next build` clean (all
+        routes compiled). No Bengali-glyph contamination (`grep -c "ম" messages/th.json` = 0; no i18n
+        keys touched by this WP anyway).
+      - **Opus Tier-2 review: REJECT with one HIGH (F1)**, then fixed + re-verified:
+        F1 — 629's step-2 regression guard derived manage-holders ONLY from
+        `sys.role_permission_templates`, but `RbacAdminService.SetRolePermissionsAsync`
+        (RbacAdminService.cs:119) writes custom grants straight to `sys.role_permissions` with no
+        template row, and `CreateRoleAsync` (line 174) makes company-local custom roles that never
+        exist in the template at all — either holding one of the 5 `.manage` codes would silently
+        lose read access on deploy. Fix (Opus-supplied pattern): added step 5b inside 629's existing
+        per-company loop — a direct-grant INSERT that joins `sys.role_permissions` to the 5
+        manage/read pairs via a VALUES list and re-grants `.read` wherever `.manage` is held directly,
+        `NOT EXISTS`-guarded, brace-free, same FORCE-RLS per-company scoping as step 5. Coordinator's
+        prod de-risk check: only SUPER_ADMIN (global, `company_id IS NULL`) holds any of the 5 manage
+        codes outside the template today, and SUPER_ADMIN bypasses per-permission checks entirely on
+        the `is_super_admin` claim (never consults its granted codes) — so current prod exposure is
+        nil; the fix is for correctness on custom grants/roles and future tenants, not a live gap.
+      - **Test hardening** (`ReadManageSplitGrantTests.cs`): the regression-guard test originally
+        enumerated from the template (same blind spot as the SQL bug it was meant to catch — couldn't
+        fail on the case F1 describes). Rewrote to enumerate from `sys.role_permissions` (the
+        EFFECTIVE per-company grants) via a single set-based anti-join query per pair (excluding the
+        `company_id IS NULL` SUPER_ADMIN row for the reason above), and added a new test that creates
+        a custom role via the REAL `RbacAdminService.CreateRoleAsync` + grants it `.manage` via the
+        REAL `SetRolePermissionsAsync` (no template row, by construction), then exercises 629's actual
+        step-5b SQL read from disk (scoped to just that one test company via a single asserted textual
+        substitution of the loop driver — a full-file replay across every company in the shared
+        `teas_test` was timed at over 10 minutes against this DB, which has grown to ~30,000 companies
+        from repeated test runs across sessions; scoping to one company keeps the same real SQL fast).
+        **Confirmed RED without the fix**: temporarily commented out step 5b in 629.sql → the new test
+        failed on the real assertion (`readAfter` was 0), not an infra timeout. **Confirmed GREEN with
+        the fix restored**: same test passes in ~2s. Also found and cleaned up 3 leftover synthetic
+        `WP6_F1_*` test roles left dangling in `teas_test` by earlier crashed attempts of this same
+        test (no cleanup code yet) — added a `finally` block so the test cleans up after itself now.
+      - **Final gates (this pass, clean run — all stale dotnet/testhost processes killed first to
+        avoid colliding on the shared teas_test)**: `dotnet build` 0 errors. Full `dotnet test`:
+        **Accounting.Api.Tests: 918 passed, 0 failed, 8 skipped** (skip count matches baseline
+        exactly) + **Accounting.Domain.Tests: 148 passed, 0 failed, 0 skipped**. `ReadManageSplitGrantTests`
+        filtered run: 5/5 passed. `RbacAuthMapTests`/`RbacMatrixTests`/`RbacCartesianTests` all green
+        (regenerated `docs/rbac/*.md`, unchanged from the pre-F1-fix pass since F1 only affects custom/
+        future grants, not the seeded system-role matrix).

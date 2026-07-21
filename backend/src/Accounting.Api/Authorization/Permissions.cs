@@ -14,8 +14,14 @@ public static class Permissions
         public const string CustomerManage    = "master.customer.manage";
         public const string CustomerRead      = "master.customer.read";    // Sprint 13h P1
         public const string VendorManage      = "master.vendor.manage";
+        // WP6 (specs/fix-swarm-findings-all.md) — split from VendorManage so read-only roles
+        // (AUDITOR etc.) can list/view vendors without write access. Mirrors CustomerRead.
+        public const string VendorRead        = "master.vendor.read";
         public const string CoaManage         = "master.coa.manage";
         public const string BusinessUnitManage = "master.business_unit.manage";
+        // WP6 — split from BusinessUnitManage; the highest-value read split (kills the BU-picker
+        // 403 spam for nearly every non-admin role, not just AUDITOR).
+        public const string BusinessUnitRead   = "master.business_unit.read";
         public const string ProductManage      = "master.product.manage";  // Sprint 10
         public const string ProductRead        = "master.product.read";    // Sprint 10
         public const string EmployeeManage     = "master.employee.manage"; // Payroll P-A
@@ -62,10 +68,16 @@ public static class Permissions
         public const string DebitNoteCreate  = "sales.debit_note.create";
         public const string DebitNotePost    = "sales.debit_note.post";
         public const string DebitNoteRead    = "sales.debit_note.read";    // Sprint 13i B1
-        // Sprint 10 — Q→SO→DO chain (manage = create/transition; read covered by manage).
+        // Sprint 10 — Q→SO→DO chain (manage = create/transition).
+        // WP6 (specs/fix-swarm-findings-all.md) — split each into its own .read code (list/get/PDF)
+        // so read-only roles (AUDITOR etc.) get visibility without write/lifecycle access. Mirrors
+        // the Customer/BankAccount/ExpenseCategory read+manage split already in this codebase.
         public const string QuotationManage     = "sales.quotation.manage";
+        public const string QuotationRead       = "sales.quotation.read";
         public const string SalesOrderManage    = "sales.sales_order.manage";
+        public const string SalesOrderRead      = "sales.sales_order.read";
         public const string DeliveryOrderManage = "sales.delivery_order.manage";
+        public const string DeliveryOrderRead   = "sales.delivery_order.read";
         // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล).
         public const string BillingNoteRead     = "sales.billing_note.read";
         public const string BillingNoteManage   = "sales.billing_note.manage";
@@ -151,8 +163,9 @@ public static class Permissions
     /// <summary>All permission codes — for seed migration.</summary>
     public static readonly IReadOnlyList<string> All =
     [
-        Master.CompanyManage, Master.CompanyProfileManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead, Master.VendorManage,
-        Master.CoaManage, Master.BusinessUnitManage,
+        Master.CompanyManage, Master.CompanyProfileManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead,
+        Master.VendorManage, Master.VendorRead,
+        Master.CoaManage, Master.BusinessUnitManage, Master.BusinessUnitRead,
         Master.ProductManage, Master.ProductRead, Master.EmployeeManage,
         Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage, Sys.ExpenseCatRead,
         Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete, Sys.ApiKeyManage,
@@ -161,7 +174,9 @@ public static class Permissions
         Sales.ReceiptCreate, Sales.ReceiptPost, Sales.ReceiptRead,
         Sales.CreditNoteCreate, Sales.CreditNotePost, Sales.CreditNoteRead,
         Sales.DebitNoteCreate, Sales.DebitNotePost, Sales.DebitNoteRead,
-        Sales.QuotationManage, Sales.SalesOrderManage, Sales.DeliveryOrderManage,
+        Sales.QuotationManage, Sales.QuotationRead,
+        Sales.SalesOrderManage, Sales.SalesOrderRead,
+        Sales.DeliveryOrderManage, Sales.DeliveryOrderRead,
         Sales.BillingNoteRead, Sales.BillingNoteManage,
         Purchase.PaymentVoucherCreate, Purchase.PaymentVoucherApprove, Purchase.PaymentVoucherPost,
         Purchase.PaymentVoucherRead, Purchase.WhtRead,

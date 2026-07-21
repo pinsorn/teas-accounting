@@ -39,7 +39,11 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
     key: 'masterData',
     items: [
       { href: '/customers', key: 'customers', Icon: Users, perm: 'master.customer.read' },
-      { href: '/vendors', key: 'vendors', Icon: Building2, perm: 'master.vendor.manage' },
+      // WP6 (specs/fix-swarm-findings-all.md) — read/manage split shipped a dedicated
+      // .read code; use it (not .manage) so a read-only holder (AUDITOR etc.) sees the
+      // nav item too. Every existing .manage holder keeps it (629's regression-guarded
+      // re-grant), so this is a strict widen, never a narrowing.
+      { href: '/vendors', key: 'vendors', Icon: Building2, perm: 'master.vendor.read' },
       { href: '/settings/products', key: 'products', Icon: Package, perm: 'master.product.manage' },
       // Bank reconciliation (specs/bank-reconciliation.md B1.11) — bank-account master.
       { href: '/bank-accounts', key: 'bankAccounts', Icon: Landmark, perm: 'bank.account.read' },
@@ -48,9 +52,10 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
   {
     key: 'sales',
     items: [
-      { href: '/quotations', key: 'quotations', Icon: FileSignature, perm: 'sales.quotation.manage' },
-      { href: '/sales-orders', key: 'salesOrders', Icon: ListChecks, perm: 'sales.sales_order.manage' },
-      { href: '/delivery-orders', key: 'deliveryOrders', Icon: FileInput, perm: 'sales.delivery_order.manage' },
+      // WP6 — read/manage split; nav mirrors the .read code (see vendors item note above).
+      { href: '/quotations', key: 'quotations', Icon: FileSignature, perm: 'sales.quotation.read' },
+      { href: '/sales-orders', key: 'salesOrders', Icon: ListChecks, perm: 'sales.sales_order.read' },
+      { href: '/delivery-orders', key: 'deliveryOrders', Icon: FileInput, perm: 'sales.delivery_order.read' },
       // Document chain order: Invoice (ใบแจ้งหนี้) precedes the Tax Invoice (ใบกำกับภาษี).
       { href: '/invoices', key: 'billingNotes', Icon: ReceiptText, perm: 'sales.billing_note.read' },
       { href: '/tax-invoices', key: 'taxInvoices', Icon: FileText, vatOnly: true, perm: 'sales.tax_invoice.read' },
@@ -121,7 +126,10 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       // Per-company RBAC admin — super-admin OR a company-admin holding the grant.
       { href: '/settings/roles', key: 'roles', Icon: ShieldCheck, perm: 'sys.role.manage' },
       { href: '/settings/users', key: 'users', Icon: UsersRound, perm: 'sys.user.manage' },
-      { href: '/settings/business-units', key: 'businessUnits', Icon: Layers, perm: 'master.business_unit.manage' },
+      // WP6 — read/manage split; nav mirrors the .read code (see vendors item note above).
+      // This is the highest-value item: kills the BU-picker 403 spam for every read-heavy
+      // role (629 grants master.business_unit.read broadly), not just AUDITOR.
+      { href: '/settings/business-units', key: 'businessUnits', Icon: Layers, perm: 'master.business_unit.read' },
       { href: '/settings/employees', key: 'employees', Icon: Users, perm: 'master.employee.manage' },
       { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent, perm: 'tax.wht_type.manage' },
       { href: '/settings/expense-categories', key: 'expenseCategories', Icon: FolderTree, perm: 'sys.expense_category.manage' },
