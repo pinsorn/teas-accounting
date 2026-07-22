@@ -17,7 +17,14 @@ audit01/A6 chief01/A7 admin01/A8 purch01/A9 tax01/B1 — all granted on co5 only
       Scope: agent/create-draft tools. Drop the key in a local untracked file, tell us the path.
 
 ## Wave A — data prep + recon, co5 (no super-admin needed) — CAN RUN NOW
-- [ ] A1 (sonnet, browser): login purch01 (fallback admin01) on prod co5.
+- [x] A1 (sonnet, browser): login purch01 (fallback admin01) on prod co5.
+      DONE 2026-07-22: purch01 login worked first try; foreign vendor `ARMYAWS859829`
+      (Amazon Web Services, Inc., US, foreign) created + verified in list/detail; full
+      8-area recon table + findings in `swarm-findings/army/A1-prep.md` (key results:
+      K-Plus PDF bank-statement adapter IS live, 1 bank account + 1 prior import exist,
+      0 fixed assets, 0 expense claims, expense categories populated, no e-Tax UI exists
+      anywhere, PND36/PND54 pages confirmed at /tax-filings/pnd36|pnd54). No tenant leak.
+      1 mutation total (the vendor), cap respected.
       (a) Create FOREIGN vendor per `frontend/e2e/foreign-vendor-aws.spec.ts` field pattern
           (e.g. Amazon Web Services, Inc. — foreign flag, no Thai tax-id). Screenshot + list-verify.
       (b) READ-ONLY recon for Wave B dispatches — record what exists vs missing:
@@ -80,3 +87,6 @@ co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock 
 
 ## Attempt log
 - 2026-07-22 12:00 spec written; quota 81% → plan: A1 now, push Ham re B-1/B-2, wakeup at reset for Wave B.
+- 2026-07-22 12:1x A1 executed (sonnet worker) — see checklist entry above + `swarm-findings/army/A1-prep.md`.
+  Quota crossed 85%→89% mid-task; task was already near-done so finished rather than checkpointing —
+  no further Claude-worker dispatches were made from this thread.

@@ -1,0 +1,56 @@
+LOGIN OK as purch01
+TENANT LEAK CHECK (co2/co3 strings on dashboard): clean
+VENDOR CREATED: code=ARMYAWS859829, name=Amazon Web Services, Inc., foreign=true, country=US
+VENDOR VISIBLE IN LIST: true
+VENDOR DETAIL foreign markers present: true
+SIDEBAR ITEMS VISIBLE (purch01):
+TEAS
+ENTERPRISE ACCOUNTING
+แดชบอร์ด
+ข้อมูลหลัก
+ผู้ขาย
+ซื้อ
+ใบสั่งซื้อ
+รายงาน
+PO ค้าง
+เจ้าหนี้ค้างชำระ
+เอกสารแบบฟอร์ม RD
+ตั้งค่า
+ข้อมูลบริษัท
+หน่วยธุรกิจ (Business Unit)
+T
+TEAS
+Enterprise
+TH / EN
+ออกจากระบบ
+RECON /fixed-assets [fixed-assets-list-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-fixed-assets-list-purch01.png
+RECON /fixed-assets/new [fixed-assets-new-purch01]: loaded, 403-like=true, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-fixed-assets-new-purch01.png
+RECON /depreciation [depreciation-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-depreciation-purch01.png
+RECON /bank-accounts [bank-accounts-list-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-bank-accounts-list-purch01.png
+RECON /reports/bank-reconciliation [bank-recon-report-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-bank-recon-report-purch01.png
+RECON /expense-claims [expense-claims-list-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-expense-claims-list-purch01.png
+RECON /expense-claims/new [expense-claims-new-purch01]: loaded, 403-like=true, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-expense-claims-new-purch01.png
+RECON /settings/expense-categories [expense-categories-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-expense-categories-purch01.png
+RECON /invoices [billing-notes-list-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-billing-notes-list-purch01.png
+RECON /wht-certificates [wht-certificates-list-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-wht-certificates-list-purch01.png
+RECON /tax-filings [tax-filings-hub-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-tax-filings-hub-purch01.png
+RECON /tax-filings/pnd36 [pnd36-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-pnd36-purch01.png
+RECON /tax-filings/pnd54 [pnd54-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-pnd54-purch01.png
+RECON /settings/wht-types [wht-types-purch01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-wht-types-purch01.png
+BANK ACCOUNT DETAIL: no bank account rows found to open (0 accounts, or list empty/hidden).
+Some areas 403/blocked for purch01 — re-running recon sweep as admin01 for completeness.
+RECON /fixed-assets [fixed-assets-list-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-fixed-assets-list-admin01.png
+RECON /fixed-assets/new [fixed-assets-new-admin01]: loaded, 403-like=false, 500-like=true, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-fixed-assets-new-admin01.png
+RECON /depreciation [depreciation-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-depreciation-admin01.png
+RECON /bank-accounts [bank-accounts-list-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-bank-accounts-list-admin01.png
+RECON /reports/bank-reconciliation [bank-recon-report-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-bank-recon-report-admin01.png
+RECON /expense-claims [expense-claims-list-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-expense-claims-list-admin01.png
+RECON /expense-claims/new [expense-claims-new-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-expense-claims-new-admin01.png
+RECON /settings/expense-categories [expense-categories-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-expense-categories-admin01.png
+RECON /invoices [billing-notes-list-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-billing-notes-list-admin01.png
+RECON /wht-certificates [wht-certificates-list-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-wht-certificates-list-admin01.png
+RECON /tax-filings [tax-filings-hub-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-tax-filings-hub-admin01.png
+RECON /tax-filings/pnd36 [pnd36-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-pnd36-admin01.png
+RECON /tax-filings/pnd54 [pnd54-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-pnd54-admin01.png
+RECON /settings/wht-types [wht-types-admin01]: loaded, 403-like=false, 500-like=false, shot=Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/A1-recon-wht-types-admin01.png
+[admin01] BANK ACCOUNT DETAIL import format hint: (no format hint text found)
