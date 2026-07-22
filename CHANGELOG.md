@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.22.10](https://github.com/pinsorn/teas-accounting/compare/v1.22.9...v1.22.10) (2026-07-22)
+
+
+### Bug Fixes
+
+* **expense,purchase:** non-VAT company VAT guard + purchase-paper vendor address + UX polish ([c1f54d8](https://github.com/pinsorn/teas-accounting/commit/c1f54d83d5fcd68b31cd3851aa2b1484025a4e19))
+* **fe:** round-5 residual LOW nits — Thai pnd30 toast, bank-recon 403-vs-empty, deny-gate mount race ([1550e39](https://github.com/pinsorn/teas-accounting/commit/1550e3983fdb5347e23a59fac1ddfb7513815ac3))
+
 ## [1.22.9](https://github.com/pinsorn/teas-accounting/compare/v1.22.8...v1.22.9) (2026-07-21)
 
 
