@@ -86,6 +86,7 @@ export default function NewExpenseClaimPage() {
   }
 
   const canCreate = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(SCOPE) ?? false);
+  if (perms.isPending) return null;
   if (perms.data && !canCreate) {
     return (
       <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">

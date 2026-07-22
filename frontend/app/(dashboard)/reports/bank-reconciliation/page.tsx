@@ -42,7 +42,7 @@ export default function BankReconciliationReportPage() {
   // MED (chief01) — the unreconciled ผลต่าง had no signal telling the reader whether it's
   // expected (no bank statement imported yet for this account) or a real reconciling item.
   const imports = useStatementImports(bankAccountId ?? 0);
-  const noStatementImported = bankAccountId != null && !imports.isLoading
+  const noStatementImported = bankAccountId != null && !imports.isLoading && !imports.isError
     && (imports.data?.length ?? 0) === 0;
 
   function exportCsv() {
@@ -129,9 +129,11 @@ export default function BankReconciliationReportPage() {
             <SummaryTile label={t('difference')} value={report.difference}
               highlight={report.difference !== 0}
               badge={report.difference !== 0 ? (
-                noStatementImported
-                  ? <span className="badge badge-ghost badge-xs">{t('diffNoStatementBadge')}</span>
-                  : <span className="badge badge-warning badge-xs">{t('diffUnreconciledBadge')}</span>
+                imports.isError
+                  ? undefined
+                  : noStatementImported
+                    ? <span className="badge badge-ghost badge-xs">{t('diffNoStatementBadge')}</span>
+                    : <span className="badge badge-warning badge-xs">{t('diffUnreconciledBadge')}</span>
               ) : undefined} />
           </div>
 

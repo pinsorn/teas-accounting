@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { openPdf, downloadFile } from '@/lib/api';
+import { apiErrorToast } from '@/lib/api/errors';
 import { usePnd30, useSystemInfo } from '@/lib/queries';
 import { formatTHB } from '@/lib/utils';
 import type { Pnd30Filing } from '@/lib/types';
@@ -82,7 +83,7 @@ export default function Pnd30Page() {
         </PermissionGate>
         <button className="btn btn-sm btn-outline" data-testid="pnd30-download-pdf"
           onClick={() => openPdf(`tax-filings/pnd30/pdf?period=${toPeriod(ym)}`)
-            .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
+            .catch(apiErrorToast)}>
           {t('pnd30DownloadPdf')}
         </button>
         {/* RD Prep "Format กลาง" bulk e-filing .txt (โปรแกรมโอนย้ายข้อมูล) */}
@@ -91,7 +92,7 @@ export default function Pnd30Page() {
           onClick={() => downloadFile(
             `tax-filings/pnd30/batch-file?period=${toPeriod(ym)}`,
             `PP30_${toPeriod(ym)}.txt`)
-            .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
+            .catch(apiErrorToast)}>
           {t('pnd30DownloadBatch')}
         </button>
         {filing && (

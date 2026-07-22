@@ -111,6 +111,11 @@ const TH: Record<string, string> = {
   'company_info.vat_rate_invalid': 'อัตรา VAT ต้องอยู่ระหว่าง 0 ถึง 1',
   'company_info.pnd30_invalid': "รูปแบบการยื่น ภ.พ.30 ต้องเป็น 'manual' หรือ 'auto'",
 
+  // pp30_batch.* (ภ.พ.30 RD Prep "Format กลาง" batch-file export guard — Pp30BatchExportService)
+  'pp30_batch.no_data': 'ไม่มียอดขายในงวดนี้ ไม่สามารถสร้างไฟล์ ภ.พ.30 ได้ (ต้องมียอดขายมากกว่า 0)',
+  'pp30_batch.missing_address':
+    'ข้อมูลที่อยู่จดทะเบียนของบริษัทไม่ครบถ้วน (ต้องมีเลขที่และรหัสไปรษณีย์) กรุณากรอกข้อมูลโปรไฟล์บริษัทให้ครบก่อนสร้างไฟล์ ภ.พ.30',
+
   // payroll.*
   'payroll.duplicate_period': 'มีรอบจ่ายของงวดนี้อยู่แล้ว',
   'payroll.bank_required': 'กรุณาเลือกบัญชีธนาคารสำหรับจ่ายเงินเดือน',
