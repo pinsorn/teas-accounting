@@ -68,6 +68,15 @@ public sealed class ExpenseClaimService(
     private async Task<(List<ExpenseClaimLine> Lines, decimal Subtotal, decimal Vat, decimal Total)> BuildLinesAsync(
         IReadOnlyList<ExpenseClaimLineInput> inputs, int companyId, CancellationToken ct)
     {
+        // F-B (specs/fix-purchase-nonvat-ux.md) — a non-VAT-registered company cannot credit
+        // input VAT (no ภ.พ.30); force every line non-recoverable regardless of client input,
+        // mirroring VendorInvoiceService's WP1.2/F27/D1 guard. BuildLinesAsync is the single seam
+        // every create/update path (REST + MCP create_expense_claim_draft/update_expense_claim_draft)
+        // funnels through, so a DTO carrying vatRate>0 + isRecoverableVat=true for a non-VAT
+        // company can never route an amount to GlPostingService.PostExpenseClaimAsync's 1170 line.
+        var companyVatRegistered = await db.Companies.Where(c => c.CompanyId == companyId)
+            .Select(c => c.VatRegistered).FirstOrDefaultAsync(ct);
+
         var lines = new List<ExpenseClaimLine>();
         for (var i = 0; i < inputs.Count; i++)
         {
@@ -87,9 +96,10 @@ public sealed class ExpenseClaimService(
                     ?? throw new DomainException("expense_claim.expense_account_missing",
                         $"Line {i + 1}: no expense account (category '{category.CategoryCode}' has no default).");
 
+            var isRecoverableVat = companyVatRegistered && input.IsRecoverableVat;
             var net = Math.Round(input.Amount, 4, MidpointRounding.AwayFromZero);
             var vat = Math.Round(net * input.VatRate, 2, MidpointRounding.AwayFromZero);
-            var lineTotal = input.IsRecoverableVat ? net : net + vat;   // §3 JE line rules
+            var lineTotal = isRecoverableVat ? net : net + vat;   // §3 JE line rules
 
             lines.Add(new ExpenseClaimLine
             {
@@ -103,7 +113,7 @@ public sealed class ExpenseClaimService(
                 TaxCodeId         = input.TaxCodeId,
                 VatRate           = input.VatRate,
                 VatAmount         = vat,
-                IsRecoverableVat  = input.IsRecoverableVat,
+                IsRecoverableVat  = isRecoverableVat,
                 LineTotal         = lineTotal,
             });
         }
@@ -224,6 +234,19 @@ public sealed class ExpenseClaimService(
         // double-pay race can't post two JEs — the loser's SaveChangesAsync below throws
         // DbUpdateConcurrencyException once the winner's row-locked UPDATE commits.
         var claim = await LoadAsync(id, ct);
+
+        // F-B (specs/fix-purchase-nonvat-ux.md) — re-assert at Pay: a claim drafted/approved
+        // while the company was VAT-registered (or created before this guard existed) must never
+        // post recoverable input VAT if the company is non-VAT by the time it's paid. Mirrors
+        // VendorInvoiceService.PostAsync's re-guard; BuildLinesAsync already closes the normal
+        // create/edit path, this is defence for the stale-row edge case only.
+        var companyVatRegistered = await db.Companies.Where(c => c.CompanyId == claim.CompanyId)
+            .Select(c => c.VatRegistered).FirstOrDefaultAsync(ct);
+        if (!companyVatRegistered)
+        {
+            await db.Entry(claim).Collection(c => c.Lines).LoadAsync(ct);
+            foreach (var l in claim.Lines) l.IsRecoverableVat = false;
+        }
 
         var postDate = clock.TodayInBangkok();
         await period.EnsureOpenAsync(postDate, ct);

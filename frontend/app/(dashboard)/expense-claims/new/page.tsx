@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { EmployeeSelector } from '@/components/ui/EmployeeSelector';
 import { ExpenseCategorySelector } from '@/components/ui/ExpenseCategorySelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
-import { useCreateExpenseClaim, useMePermissions } from '@/lib/queries';
+import { useCreateExpenseClaim, useMePermissions, useSystemInfo } from '@/lib/queries';
 import { problemToast } from '@/lib/api';
 import { bangkokToday } from '@/lib/utils';
 
@@ -34,6 +34,11 @@ export default function NewExpenseClaimPage() {
   const router = useRouter();
   const create = useCreateExpenseClaim();
   const perms = useMePermissions();
+  // F-B (specs/fix-purchase-nonvat-ux.md) — a non-VAT-registered company cannot credit input
+  // VAT (no ภ.พ.30); same §4.6 vatRegistered/system-info hook the VAT-mode features already use
+  // (mirrors vendor-invoices/new's companyVatRegistered), no new plumbing. Defaults true until
+  // /system/info resolves, matching the VI form's own default.
+  const companyVatRegistered = useSystemInfo().data?.vatMode ?? true;
 
   const [employeeId, setEmployeeId] = useState<number | null>(null);
   const [claimDate, setClaimDate] = useState(bangkokToday());
@@ -47,8 +52,11 @@ export default function NewExpenseClaimPage() {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
 
+  // F-B — a non-VAT company never has a real per-line VAT rate (the select is hidden below);
+  // defend the totals the same way even if a row's in-memory vatRate is stale.
+  const effectiveVatRate = (r: Row) => (companyVatRegistered ? r.vatRate : 0);
   const subtotal = rows.reduce((s, r) => s + r.amount, 0);
-  const vat = rows.reduce((s, r) => s + Math.round(r.amount * r.vatRate * 100) / 100, 0);
+  const vat = rows.reduce((s, r) => s + Math.round(r.amount * effectiveVatRate(r) * 100) / 100, 0);
   const total = subtotal + vat;
 
   const canSave =
@@ -72,8 +80,11 @@ export default function NewExpenseClaimPage() {
           expenseDate: r.expenseDate || null,
           amount: r.amount,
           taxCodeId: null,
-          vatRate: r.vatRate,
-          isRecoverableVat: r.isRecoverableVat,
+          // F-B (specs/fix-purchase-nonvat-ux.md) — a non-VAT company submits vatRate 0 /
+          // isRecoverableVat false regardless of in-memory row state (the controls are hidden
+          // below; the backend guard in ExpenseClaimService.BuildLinesAsync also enforces this).
+          vatRate: companyVatRegistered ? r.vatRate : 0,
+          isRecoverableVat: companyVatRegistered && r.isRecoverableVat,
         })),
       });
       toast.success(tc('save'));
@@ -132,39 +143,59 @@ export default function NewExpenseClaimPage() {
                   <ExpenseCategorySelector
                     value={r.expenseCategoryId}
                     onChange={(id, cat) => setRow(r.key, {
-                      expenseCategoryId: id, isRecoverableVat: cat.defaultIsRecoverableVat,
+                      expenseCategoryId: id,
+                      // F-B — a non-VAT company never defaults a line into "recoverable" (the
+                      // checkbox is hidden below; saveDraft() also forces this at submit time).
+                      isRecoverableVat: companyVatRegistered && cat.defaultIsRecoverableVat,
                     })}
                   />
                 </div>
+                {/* F-C (specs/fix-purchase-nonvat-ux.md) — default-height controls throughout
+                    this row (matches the doc-create forms convention; ExpenseCategorySelector
+                    above was always default-height, these siblings were the -sm outliers). */}
                 <label className="form-control">
                   <span className="label-text">{t('lineDescription')} *</span>
-                  <input className="input input-bordered input-sm" value={r.description}
+                  <input className="input input-bordered" value={r.description}
                     aria-label={`${t('lineDescription')} ${i + 1}`}
                     onChange={(e) => setRow(r.key, { description: e.target.value })} />
                 </label>
                 <label className="form-control">
                   <span className="label-text">{t('expenseDate')}</span>
-                  <input type="date" className="input input-bordered input-sm" value={r.expenseDate}
+                  <input type="date" className="input input-bordered" value={r.expenseDate}
                     onChange={(e) => setRow(r.key, { expenseDate: e.target.value })} />
                 </label>
                 <label className="form-control">
                   <span className="label-text">{t('amount')} *</span>
-                  <input type="number" className="input input-bordered input-sm" value={r.amount}
+                  <input type="number" className="input input-bordered" value={r.amount}
                     onChange={(e) => setRow(r.key, { amount: Number(e.target.value) || 0 })} />
                 </label>
-                <label className="form-control">
-                  <span className="label-text">VAT</span>
-                  <select className="select select-bordered select-sm" value={r.vatRate}
-                    onChange={(e) => setRow(r.key, { vatRate: Number(e.target.value) })}>
-                    <option value={0}>0%</option>
-                    <option value={0.07}>7%</option>
-                  </select>
-                </label>
-                <label className="label cursor-pointer justify-start gap-2 md:col-span-2">
-                  <input type="checkbox" className="checkbox checkbox-sm" checked={r.isRecoverableVat}
-                    onChange={(e) => setRow(r.key, { isRecoverableVat: e.target.checked })} />
-                  <span className="label-text">{t('recoverableVat')}</span>
-                </label>
+                {/* F-B — a non-VAT company can never credit input VAT (no ภ.พ.30): the VAT rate
+                    select and the recoverable checkbox are meaningless there, so hide both. */}
+                {companyVatRegistered && (
+                  <>
+                    <label className="form-control">
+                      <span className="label-text">VAT</span>
+                      <select className="select select-bordered" value={r.vatRate}
+                        onChange={(e) => setRow(r.key, { vatRate: Number(e.target.value) })}>
+                        <option value={0}>0%</option>
+                        <option value={0.07}>7%</option>
+                      </select>
+                    </label>
+                    <div className="form-control md:col-span-2">
+                      <label className="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" className="checkbox" checked={r.isRecoverableVat}
+                          onChange={(e) => setRow(r.key, { isRecoverableVat: e.target.checked })} />
+                        <span className="label-text">{t('recoverableVat')}</span>
+                      </label>
+                      {/* CLARITY (Ham "อ่านไม่เข้าใจ") — the bare "VAT เครดิตได้" checkbox was
+                          cryptic; explain what unchecking it means (wording family reused from
+                          ExpenseCategorySelector.tsx's ม.82/5 warning). */}
+                      {!r.isRecoverableVat && (
+                        <span className="label-text-alt text-warning">{t('recoverableVatHint')}</span>
+                      )}
+                    </div>
+                  </>
+                )}
                 <button type="button" className="btn btn-ghost btn-xs text-error md:col-span-4 md:ml-auto md:w-fit"
                   onClick={() => setRows((rs) => (rs.length > 1 ? rs.filter((x) => x.key !== r.key) : rs))}>
                   <Trash2 className="h-3 w-3" /> {tc('delete')}
@@ -181,7 +212,11 @@ export default function NewExpenseClaimPage() {
 
           <div className="mt-4 flex flex-col items-end gap-1 text-sm">
             <div>{t('subtotal')}: {subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <div>{t('vat')}: {vat.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            {/* F-B — a non-VAT company never has a VAT line to show (always 0; hidden rather
+                than shown as "0.00" so the summary reads as จำนวนเงิน only). */}
+            {companyVatRegistered && (
+              <div>{t('vat')}: {vat.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            )}
             <div className="text-lg font-bold">
               {t('totalAmount')}: {total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>

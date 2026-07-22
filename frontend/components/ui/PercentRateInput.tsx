@@ -20,10 +20,15 @@ interface Props {
   disabled?: boolean;
   className?: string;
   'aria-label'?: string;
+  /** Control height — defaults to 'sm' (every existing call site's current look, unchanged).
+      F-C (specs/fix-purchase-nonvat-ux.md) — pass 'md' to match a row of default-height
+      siblings (e.g. vendor-invoices/new's line row, which mixes this with the default-height
+      ExpenseCategorySelector). */
+  size?: 'sm' | 'md';
 }
 
 export const PercentRateInput = forwardRef<HTMLInputElement, Props>(function PercentRateInput(
-  { value, onValueChange, max = 100, quickSet, disabled, className, ...rest },
+  { value, onValueChange, max = 100, quickSet, disabled, className, size = 'sm', ...rest },
   ref,
 ) {
   const percent = fractionToPercent(value);
@@ -44,7 +49,8 @@ export const PercentRateInput = forwardRef<HTMLInputElement, Props>(function Per
             onValueChange(percentToFraction(p));
           }}
           className={cn(
-            'input input-bordered input-sm w-full pr-6 text-right tabular-nums',
+            'input input-bordered w-full pr-6 text-right tabular-nums',
+            size === 'sm' && 'input-sm',
             className,
           )}
           {...rest}

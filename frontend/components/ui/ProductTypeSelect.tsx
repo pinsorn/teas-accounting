@@ -22,7 +22,7 @@ export function ProductTypeSelect({
     <label className="form-control">
       <span className="label-text">{t('label')}</span>
       <select
-        className="select select-bordered select-sm"
+        className="select select-bordered"
         data-testid={testId}
         value={value}
         onChange={(e) => onChange(e.target.value as ProductTypeStr)}

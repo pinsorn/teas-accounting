@@ -187,9 +187,13 @@ function VendorInvoiceNewForm() {
 
   const cfg = PAPER_DOC['vendor-invoice'];
 
+  // F-D (specs/fix-purchase-nonvat-ux.md) — posting is already VAT-mode-aware (a non-VAT
+  // company's rowIsRecoverable is always false, so vatRec is always 0 here), so VI stays
+  // visible/usable in a non-VAT company. Just drop the "ภาษีซื้อ (เครดิตได้)" recoverable-VAT
+  // row for that company — the wording implies a credit that structurally can never happen there.
   const totalRows: TotalRow[] = [
     { label: t('subtotal'), value: subtotal },
-    { label: t('vat'), value: vatRec },
+    ...(companyVatRegistered ? [{ label: t('vat'), value: vatRec }] : []),
     { label: t('nonRecVat'), value: vatNon, muted: true },
   ];
 
@@ -354,14 +358,17 @@ function VendorInvoiceNewForm() {
                   onChange={(v) => setRow(r.key, { productType: v })}
                   testId="vi-line-product-type"
                 />
+                {/* F-C (specs/fix-purchase-nonvat-ux.md) — default-height controls throughout
+                    this row (matches the doc-create forms convention; ExpenseCategorySelector
+                    was always default-height, these siblings were the -sm outliers). */}
                 <label className="form-control">
                   <span className="label-text">{t('description')} *</span>
-                  <input className="input input-bordered input-sm" value={r.description}
+                  <input className="input input-bordered" value={r.description}
                     onChange={(e) => setRow(r.key, { description: e.target.value })} />
                 </label>
                 <label className="form-control">
                   <span className="label-text">{t('amount')} *</span>
-                  <input type="number" className="input input-bordered input-sm" value={r.amount}
+                  <input type="number" className="input input-bordered" value={r.amount}
                     onChange={(e) => setRow(r.key, { amount: Number(e.target.value) || 0 })} />
                 </label>
                 <label className="form-control">
@@ -372,6 +379,7 @@ function VendorInvoiceNewForm() {
                     max={30}
                     quickSet={[0, 7]}
                     aria-label={t('vatRate')}
+                    size="md"
                   />
                 </label>
               </div>

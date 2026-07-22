@@ -56,6 +56,10 @@ public sealed class PurchaseOrderService(
             Status = PurchaseOrderStatus.Draft, DocDate = docDate,
             ExpectedDeliveryDate = req.ExpectedDeliveryDate,
             VendorId = v.VendorId, VendorName = v.NameTh, VendorTaxId = v.TaxId,
+            // F-A (specs/fix-purchase-nonvat-ux.md) — was never snapshotted, so the printed PO
+            // (BuildPaperAsync below) silently dropped the vendor address even though the column
+            // exists (mirrors VendorInvoiceService.CreateDraftAsync's VendorAddress = vendor.Address).
+            VendorAddress = v.Address,
             VendorType = v.VendorType, BusinessUnitId = req.BusinessUnitId,
             CurrencyCode = req.CurrencyCode, ExchangeRate = req.ExchangeRate,
             Notes = req.Notes, InternalNotes = req.InternalNotes,
@@ -301,7 +305,9 @@ public sealed class PurchaseOrderService(
             DocNo: po.DocNo ?? "(ร่าง)",
             IssueDate: po.DocDate,
             Seller: seller,
-            Customer: new PaperCustomer(po.VendorName, Pdf.PaperFormat.TaxId(po.VendorTaxId)),
+            // F-A (specs/fix-purchase-nonvat-ux.md) — pass the vendor address snapshot through
+            // to the printed/detail paper (was omitted; PV's BuildPaperAsync already did this).
+            Customer: new PaperCustomer(po.VendorName, Pdf.PaperFormat.TaxId(po.VendorTaxId), Address: po.VendorAddress),
             Items: po.Lines.OrderBy(l => l.LineNo).Select(l => new PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             Summary: new PaperSummary(
