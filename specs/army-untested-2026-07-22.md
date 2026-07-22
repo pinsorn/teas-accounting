@@ -42,11 +42,24 @@ co5 legs (B-x, parallel — browser-only, no test-DB conflict):
 - [ ] B-ec (ap01/appr01): **expense claims full cycle** create→approve→pay on co5 (VAT side):
       JE correctness (1170 present for VAT co), attachment, deny-paths. Check specs/expense-claims.md
       8 open items — classify unbuilt vs untested, DON'T file unbuilt as bug.
-- [ ] B-fa (acct01/admin01): **fixed assets** register→activate (FA numbering)→depreciation run→
-      disposal. JE + TB tie after each step.
+- [~] B-fa (acct01/admin01): **fixed assets** register→activate (FA numbering)→depreciation run→
+      disposal. JE + TB tie after each step. IN PROGRESS 2026-07-22: script written
+      (`frontend/army-B-fa.mjs`), pre-read backend `FixedAssetService.cs` confirms no daily
+      proration (full month charged if `DepreciationStartDate <= runDate`) and that the
+      idempotent-retry path returns HTTP 200 with `alreadyExisted:true` (the FE's
+      `depreciation.already_posted` catch branch only fires on a true concurrent race, not a
+      sequential re-run) — flagged as a target finding to verify live, not assumed. Running now.
 - [ ] B-br (acct01): **bank reconciliation FULL** — statement import variants (K-Plus PDF adapter
       esp. — sample pw 06121996 per PROGRESS-cycle-b), suggest/confirm/unmatch, reconcile journal.
-- [ ] B-et (tax01): **e-Tax pipeline** mock RD e-filing per etax-pipeline-mock.spec.ts flow, live.
+- [x] B-et (ar01 post + tax01 audit-read): **e-Tax pipeline** reality-check DONE 2026-07-22 —
+      code-read enumerated 5 observable artifacts (etax.submissions audit row via
+      GET /etax/submissions, TI-detail e-Tax buttons, /system/info etaxEnabled field,
+      email log, XML attachment); posted TI #28 on co5 (2xx); 6 polls over ~15s found
+      **0 audit rows** → **VERDICT: DISABLED-by-config** (ETax:Enabled and/or
+      AutoSendOnTaxInvoicePost false in prod — pipeline never invoked; every code path
+      incl. the no-email no-op writes a row, so 0 rows = never entered, not a runtime
+      fail). No 500s, no tenant leak. Full detail + screenshots in
+      `swarm-findings/army/B-et.md`.
 - [ ] B-bn (ar01/sales01): **billing notes (ใบวางบิล)** flow + **WHT cert (50ทวิ direction P)** print
       → PDF artifacts for Wave C.
 - [ ] B-mcp (needs B-2 key): **MCP agent surface** — create-draft tools via API key →
