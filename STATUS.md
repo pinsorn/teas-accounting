@@ -1,6 +1,10 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **v1.22.10 LIVE (2026-07-22 ~02:5x) — non-VAT F-A..F-D shipped+deployed; NEXT SESSION = army
+  on untested areas, see HANDOFF-untested-army.md.** ExpenseClaim non-VAT 1170 guard (money,
+  Fable-reviewed) + PO paper vendor address + control heights + VI non-VAT wording. Suite 921/0/8.
+  API scripts unchanged 75, FE full, public probes 200. co5 address filled (.txt export unblocked).
 - **ROUND-5 SWARM VERDICT: ALL FINDING FIXES CONFIRMED CLOSED on v1.22.9 (2026-07-22 ~00:5x).**
   10/10 agents: WP1 17/17 deny-pages clean; WP2+WP6 15 modules render real data for AUDITOR, BU-403
   spam = 0; WP3 4/4 report-UX items live; WP4 widget 200 4/4; WP5 api-keys #418 gone + users
