@@ -1,0 +1,27 @@
+[2026-07-22T08:36:34.362Z] login OK: ap01
+[2026-07-22T08:36:39.242Z] VI: vendor ARMYAWS859829 picked
+[2026-07-22T08:36:39.287Z] VI: expense category picked -> ค่า IT / Cloud / Software (IT)
+[2026-07-22T08:36:39.408Z] screenshot: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-rc-01-vi-form-filled.png
+[2026-07-22T08:36:41.430Z] VI posted: id=14 url=https://teas.kazaki-rio.com/vendor-invoices/14
+[2026-07-22T08:36:43.008Z] screenshot: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-rc-02-vi-posted.png
+[2026-07-22T08:36:43.012Z] tenant-leak check clean: VI detail (ap01)
+[2026-07-22T08:36:48.819Z] PV: WHT type picked -> ค่าบริการ ต่างประเทศ (15%)
+[2026-07-22T08:36:48.907Z] screenshot: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-rc-03-pv-form-prefilled.png
+[2026-07-22T08:36:48.912Z] PV pre-submit preview text saved for hand-calc cross-check
+[2026-07-22T08:36:49.895Z] PV draft created: id=17 url=https://teas.kazaki-rio.com/payment-vouchers/17
+[2026-07-22T08:36:49.956Z] screenshot: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-rc-04-pv-draft.png
+[2026-07-22T08:36:49.959Z] tenant-leak check clean: PV draft (ap01)
+[2026-07-22T08:36:55.348Z] login OK: admin01
+[2026-07-22T08:36:59.769Z] PV approved (admin01)
+[2026-07-22T08:37:03.080Z] PV posted (admin01)
+[2026-07-22T08:37:03.159Z] screenshot: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-rc-05-pv-posted.png
+[2026-07-22T08:37:03.161Z] tenant-leak check clean: PV posted detail (admin01)
+[2026-07-22T08:37:12.803Z] login OK: tax01
+[2026-07-22T08:37:17.875Z] screenshot: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-rc-06-pnd36-preview.png
+[2026-07-22T08:37:17.881Z] pnd36 preview captured (screenshot + text dump; no PDF export exists for PND36 in this build)
+[2026-07-22T08:37:17.881Z] tenant-leak check clean: pnd36 preview (tax01)
+[2026-07-22T08:37:23.408Z] screenshot: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-rc-07-pnd54-preview.png
+[2026-07-22T08:37:23.411Z] pnd54 preview captured
+[2026-07-22T08:37:23.411Z] tenant-leak check clean: pnd54 preview (tax01)
+[2026-07-22T08:37:25.305Z] pnd54 pdf fetch status: 200
+[2026-07-22T08:37:25.308Z] pnd54 PDF saved: Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\pdfs\B-rc-pnd54.pdf (283294 bytes)
