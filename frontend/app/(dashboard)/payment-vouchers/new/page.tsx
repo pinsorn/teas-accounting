@@ -151,8 +151,12 @@ function PvForm() {
   const selfWithhold = foreignNoVatD ? true : foreignVatD ? false : manualSelfWithhold;
 
   // cont.77 — input VAT only when the vendor is VAT-registered (a non-VAT vendor issues
-  // no tax invoice → nothing to claim). Default true until the vendor loads.
-  const vendorVat = vendor?.vatRegistered ?? true;
+  // no tax invoice → nothing to claim) AND (for a foreign vendor) it holds a Thai VAT-D
+  // registration (ม.82/5) — dual-flag rule, same predicate as vendor-invoices/new/page.tsx
+  // (autoNoInputVat). A single-flag check missed foreignNoVatD vendors (vatRegistered can
+  // default true even though hasThaiVatDReg is false), fabricating VAT that was never
+  // charged (army B-rc F2). Default true until the vendor loads.
+  const vendorVat = vendor ? vendor.vatRegistered && !foreignNoVatD : true;
 
   // VAT is derived, never typed: 0 if the vendor isn't VAT-registered (ม.82/5) or the
   // product is VAT-exempt (ม.81); otherwise the standard rate for that product type.
@@ -442,11 +446,16 @@ function PvForm() {
           <Plus className="h-4 w-4" aria-hidden /> {t('addLine')}
         </button>
 
-        {!fromVi && (
+        {/* B-rc F3 — settle-from-VI still auto-applies self-withhold GROSS_UP_FOREVER
+            server-side for a foreignNoVatD vendor (saveDraft always sends
+            selfWithholdMode/whtPayerMode null on fromVi; CreateDraftAsync auto-derives),
+            so show the explanation here too, locked/read-only — the toggle and mode
+            choice have no effect on this path (nothing is ever sent for them). */}
+        {(!fromVi || foreignNoVatD) && (
           <div className="mt-4 rounded-lg border border-base-300 p-3">
             <label className="label cursor-pointer justify-start gap-3">
               <input type="checkbox" className="toggle toggle-warning toggle-sm"
-                checked={selfWithhold} disabled={selfWithholdLocked}
+                checked={selfWithhold} disabled={selfWithholdLocked || !!fromVi}
                 onChange={(e) => setManualSelfWithhold(e.target.checked)} />
               <span className="font-semibold">{t('selfWithhold.toggle')}</span>
             </label>
@@ -461,22 +470,31 @@ function PvForm() {
             )}
             {selfWithhold && (
               <div className="mt-3 space-y-2" data-testid="pv-grossup-mode">
-                {(['GROSS_UP_FOREVER', 'GROSS_UP_ONCE'] as const).map((m) => (
-                  <label key={m} className="flex cursor-pointer items-start gap-2 text-sm">
-                    <input
-                      type="radio" name="grossUpMode" className="radio radio-warning radio-sm mt-0.5"
-                      checked={grossUpMode === m} onChange={() => setGrossUpMode(m)}
-                    />
+                {fromVi ? (
+                  <p className="flex items-start gap-2 text-sm">
                     <span>
-                      <span className="font-medium">
-                        {m === 'GROSS_UP_FOREVER' ? t('selfWithhold.mode.forever') : t('selfWithhold.mode.once')}
-                      </span>
-                      <span className="block text-xs text-base-content/60">
-                        {m === 'GROSS_UP_FOREVER' ? t('selfWithhold.mode.foreverHint') : t('selfWithhold.mode.onceHint')}
-                      </span>
+                      <span className="font-medium">{t('selfWithhold.mode.forever')}</span>
+                      <span className="block text-xs text-base-content/60">{t('selfWithhold.mode.foreverHint')}</span>
                     </span>
-                  </label>
-                ))}
+                  </p>
+                ) : (
+                  (['GROSS_UP_FOREVER', 'GROSS_UP_ONCE'] as const).map((m) => (
+                    <label key={m} className="flex cursor-pointer items-start gap-2 text-sm">
+                      <input
+                        type="radio" name="grossUpMode" className="radio radio-warning radio-sm mt-0.5"
+                        checked={grossUpMode === m} onChange={() => setGrossUpMode(m)}
+                      />
+                      <span>
+                        <span className="font-medium">
+                          {m === 'GROSS_UP_FOREVER' ? t('selfWithhold.mode.forever') : t('selfWithhold.mode.once')}
+                        </span>
+                        <span className="block text-xs text-base-content/60">
+                          {m === 'GROSS_UP_FOREVER' ? t('selfWithhold.mode.foreverHint') : t('selfWithhold.mode.onceHint')}
+                        </span>
+                      </span>
+                    </label>
+                  ))
+                )}
                 {wht > 0 && (
                   <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning-content/80">
                     {t('selfWithhold.preview', {

@@ -5,7 +5,7 @@ Grouping = by file-overlap + test-DB rule (ONE dotnet-test runner at a time):
 WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B, WP-C sequential after WP-A.
 
 ## WP-A — CRITICAL money batch (Sonnet implements + Opus reviews, same dispatch)
-- [ ] A1 **CRITICAL [B-rc F1]**: `GlPostingService.PostPaymentVoucherAsync` — VI-linked branch
+- [x] A1 **CRITICAL [B-rc F1]**: `GlPostingService.PostPaymentVoucherAsync` — VI-linked branch
       (`if (pv.VendorInvoiceId is not null)`, ~L162-173) never books the self-withhold gross-up
       **debit** line, while the WHT-payable credit (~L211-217) is unconditional → every
       VI-settling PV with `SelfWithholdMode && WhtAmount>0` 422s `gl.unbalanced`
@@ -15,18 +15,52 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       (grep 2026-07-22): gross-up exists ONLY in else-branch. Proven in-repo pattern → Sonnet.
       TESTS: unit/integration — VI-linked PV + self-withhold posts balanced JE (Dr AP + Dr gross-up
       = Cr WHT + Cr cash); regression: standalone PV path unchanged; non-self-withhold VI-PV unchanged.
-- [ ] A2 **HIGH [B-rc F2]**: `frontend/app/(dashboard)/payment-vouchers/new/page.tsx` ~L159
+- [x] A2 **HIGH [B-rc F2]**: `frontend/app/(dashboard)/payment-vouchers/new/page.tsx` ~L159
       `const vendorVat = vendor?.vatRegistered ?? true;` — single-flag; must use the dual-flag rule
       the VI form uses (`vendor-invoices/new/page.tsx` ~L85-87): no VAT when
       `!vatRegistered || (isForeign && !hasThaiVatDReg)`. Repro: settle-from-VI on ARMYAWS859829
       fabricated base 18,691.59 + VAT 1,308.41 out of a 20,000/0%-VAT VI. Extract or duplicate the
       exact predicate (prefer shared helper if one exists; else copy the VI form's expression).
-- [ ] A3 **LOW [B-rc F3]** (same file as A2, so same WP): self-withhold explanation/toggle block is
+- [x] A3 **LOW [B-rc F3]** (same file as A2, so same WP): self-withhold explanation/toggle block is
       `{!fromVi && ...}` (~L445) yet backend still auto-applies GROSS_UP_FOREVER on the fromVi path —
       show the explanation (read-only/locked state is fine) on fromVi too so the accountant sees
       which 50ทวิ condition applies.
 - Gates: full backend suite green (baseline 921/0/8) + FE tsc + build. Opus review lenses:
   money-formula correctness, both PV branches' JE shape, no behavior change for standalone path.
+  **WP-A implementation evidence (2026-07-22, Sonnet):**
+  - A1: added the self-withhold gross-up debit block (same condition/account/description
+    pattern as the else-branch) to the `VendorInvoiceId is not null` branch,
+    `backend/src/Accounting.Infrastructure/Ledger/GlPostingService.cs`. New test
+    `Vi_settled_foreign_self_withhold_pv_posts_balanced_je`
+    (`backend/tests/Accounting.Api.Tests/Hardening/Sprint87ForeignVendorTests.cs`) reproduces
+    the exact B-rc repro shape (foreign, no VAT-D, ฿20,000 VI, WHT 15%) and asserts a balanced
+    JE (Dr AP 20000 + Dr gross-up 3529.41 = Cr WHT 3529.41 + Cr cash 20000), matching the
+    army hand-calc (฿3,529.41). Regressions confirmed via EXISTING tests, unchanged:
+    standalone self-withhold (`Sprint87ForeignVendorTests` — `Foreign_no_vatd_pv_auto_self_withhold_and_pnd36`,
+    `Domestic_manual_self_withhold_gross_up`, `Gross_up_once_uses_single_iteration_and_condition_3`
+    all still pass, else-branch untouched) and non-self-withhold VI-linked PV
+    (`McpDocumentChainTests.Purchase_chain_settles_vi_with_our_wht_pins_D3c_je` still passes —
+    DEDUCT mode, doesn't hit the new debit block since `pv.SelfWithholdMode` is false).
+  - A2: `vendorVat` now derived as `vendor ? vendor.vatRegistered && !foreignNoVatD : true`,
+    reusing the file's own already-computed `foreignNoVatD` local (same predicate as the VI
+    form's `autoNoInputVat`, algebraically: `!(!vatRegistered || (isForeign && !hasThaiVatDReg))`
+    = `vatRegistered && !foreignNoVatD`). No shared helper existed; predicate copied per spec
+    fallback instruction.
+  - A3: block condition changed `{!fromVi && (...)}` → `{(!fromVi || foreignNoVatD) && (...)}`
+    (only shows on fromVi for the one case backend actually self-withholds via this path);
+    checkbox `disabled={selfWithholdLocked || !!fromVi}` (locked/read-only); the
+    GROSS_UP_FOREVER/GROSS_UP_ONCE radio choice — which has zero effect on this path
+    (`saveDraft` always sends `selfWithholdMode`/`whtPayerMode` null when `fromVi`, so the
+    backend's own auto-derive always resolves GROSS_UP_FOREVER) — is replaced by static
+    "forever" mode text instead of an inert interactive radio, backend behavior unchanged.
+  - Gates: `dotnet build` clean; full `dotnet test` ×2 runs — both 921 passed/8 skipped/930
+    total (skip count = baseline), 1 failure both times in
+    `Pnd50FilingServiceTests.Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder`
+    (TaxFilings, unrelated file/area) — passes clean in isolation; documented pre-existing
+    flake, see `troubles-wiki.md` "Full Accounting.Api.Tests run" entry (this exact method
+    already named there from an unrelated 2026-07-04 fix). `npx tsc --noEmit` in
+    `frontend/` clean (0 errors). `next build` intentionally NOT run per dispatch (another
+    worker's gate).
 - After fix ships: re-drive B-rc flow live (VI→PV→post→ภ.ง.ด.54 vs hand-calc ฿3,529.41 on 20,000)
   — that also un-sticks the blocked half of leg B-rc. PV #17 (Approved, stuck) becomes postable?
   — verify or document.
@@ -82,6 +116,9 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
 - [ ] O4 [B-ec item 4]: expense-claim EDIT for Draft/Rejected = UNBUILT (backend PUT wired, zero
       FE). Build or drop? Ham's call.
 - [ ] O5 [B-rc]: ภ.พ.36 has no PDF export (pnd54-only route). Build parity or accept? Ham's call.
+- [ ] O6 [C1 vision]: 50ทวิ field "ลำดับที่ ... ในแบบ ภ.ง.ด.53" always blank (cert issued at PV post,
+      before the monthly filing; immutable so never backfillable). Options: fill at filing-finalize
+      time on a COPY, print "-", or accept blank (common practice). Compliance call — Ham.
 
 ## Verification plan (after WP-A..D deployed)
 - Re-run targeted live probes: B-rc full chain (the CRITICAL), B-bn fresh WHT PV with empty
@@ -92,4 +129,9 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
 ## Attempt log
 - 2026-07-22 16:1x consolidated from 6 leg reports; WP-A+WP-D dispatched first (parallel-safe),
   WP-B/C sequential next.
-- [ ] O6 [C1 vision]: 50ทวิ field "ลำดับที่ ... ในแบบ ภ.ง.ด.53" always blank (cert issued at PV post, before the monthly filing; immutable so never backfillable). Options: fill at filing-finalize time on a COPY, print "-", or accept blank (common practice). Compliance call — Ham.
+- 2026-07-22 16:2x C1 vision triaged (1 false positive killed vs code, O6 added).
+- 2026-07-22 WP-A (A1/A2/A3) implemented by Sonnet: GlPostingService.cs gross-up debit added
+  to VI-linked branch; PV new-page dual-flag VAT derivation + fromVi self-withhold explanation
+  (locked/read-only). 1 new backend test; existing tests cover both regressions. Full suite
+  921/8/930 twice (1 pre-existing unrelated Pnd50 flake both times, documented in
+  troubles-wiki.md); tsc clean. Not committed — left for Fable's diff review.

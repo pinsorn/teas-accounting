@@ -144,6 +144,75 @@ public sealed class Sprint87ForeignVendorTests
         cert.WhtCondition.Should().Be(2);
     }
 
+    // army B-rc F1 (2026-07-22) — settling a foreign self-withhold vendor's Vendor Invoice
+    // via a linked Payment Voucher used to 422 gl.unbalanced: GlPostingService's
+    // VendorInvoiceId-linked branch booked Dr AP only, never the self-withhold gross-up
+    // debit the standalone (else) branch has, while the WHT-payable credit + full-amount
+    // Cash/Bank credit still fired — credits exceeded debits by exactly WhtAmount every
+    // time. Fixed by adding the same gross-up debit block to the VI-linked branch.
+    [SkippableFact]
+    public async Task Vi_settled_foreign_self_withhold_pv_posts_balanced_je()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider(userId: 1);
+        await using var sp2 = Provider(userId: 2);
+        var v = await CreateVendor(sp, foreign: true, vatD: false);
+        var (cat, exp) = await SeedCategory(sp);
+
+        // Post a Vendor Invoice first — 0% VAT (foreign, no Thai VAT-D → self-assessed via
+        // ภ.พ.36 separately; out of scope here). Mirrors the live army B-rc repro exactly
+        // (AWS cloud hosting, ฿20,000, VI posted before the PV settles it).
+        long viId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var viSvc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+            viId = await viSvc.CreateDraftAsync(new CreateVendorInvoiceRequest(
+                new DateOnly(2026, 5, 16), v, "FVI-" + Sfx(),
+                new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), null, "THB", 1m, null,
+                [new VendorInvoiceLineInput(cat, exp, "AWS hosting", 20000m, 0m)]), default);
+            var dbInner = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            dbInner.SeedViAttachment(viId); await dbInner.SaveChangesAsync();   // VI Post requires the vendor-TI file
+            await viSvc.PostAsync(viId, default);
+        }
+
+        // Settle it via the guided VI→PV create (mcp-document-chain), WHT 15% on the line —
+        // the only realistic way this VI gets paid, since self-withhold auto-locks ON.
+        var whtTypeId = await SvcWhtTypeId(sp);
+        long pvId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var pvSvc = s.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
+            pvId = await pvSvc.CreateFromVendorInvoiceAsync(viId,
+                new CreatePvFromViRequest(PaymentMethod.Transfer, WhtTypeId: whtTypeId, WhtRate: 0.15m), default);
+        }
+
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var pv = await db.PaymentVouchers.FirstAsync(p => p.PaymentVoucherId == pvId);
+            pv.SelfWithholdMode.Should().BeTrue();        // auto (foreign, no VAT-D)
+            pv.WhtPayerMode.Should().Be("GROSS_UP_FOREVER");
+            pv.WhtAmount.Should().Be(3529.41m);            // 20000/0.85*0.15 — matches army hand-calc
+            pv.TotalPaid.Should().Be(20000m);              // AP-clear = subtotal+vat, NOT netted of WHT
+        }
+
+        // Pre-fix this 422s gl.unbalanced (D=20000.00, C=23529.41 = 3529.41 wht + 20000 cash).
+        await ApproveAndPost(sp2, pvId);
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var pv2 = await db2.PaymentVouchers.FirstAsync(p => p.PaymentVoucherId == pvId);
+        pv2.Status.Should().Be(DocumentStatus.Posted);
+        var je = await db2.JournalEntries.Include(j => j.Lines)
+            .FirstAsync(j => j.Reference == pv2.DocNo);
+        je.TotalDebit.Should().Be(je.TotalCredit);
+        // Dr AP (20000, VI settle) + Dr gross-up (3529.41) = Cr WHT payable (3529.41) + Cr cash (20000)
+        je.Lines.Should().Contain(l => l.DebitAmount == 20000m && l.Description!.Contains("AP settle VI"));
+        je.Lines.Should().Contain(l => l.DebitAmount == 3529.41m && l.Description!.Contains("Self-withhold gross-up"));
+        je.Lines.Should().Contain(l => l.CreditAmount == 3529.41m);   // WHT payable
+        je.Lines.Should().Contain(l => l.CreditAmount == 20000m);     // cash/bank
+    }
+
     [SkippableFact]
     public async Task Domestic_manual_self_withhold_gross_up()
     {

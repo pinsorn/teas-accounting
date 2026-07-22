@@ -170,6 +170,23 @@ public sealed class GlPostingService : IGlPostingService
                 DebitAmount = pv.SubtotalAmount + pv.VatAmount, CreditAmount = 0m,
                 Description = $"AP settle VI via {pv.DocNo}",
             });
+
+            // Sprint 8.7 — self-withhold gross-up (Scenario A/B), VI-settlement path.
+            // Mirrors the standalone else-branch below: a VI-linked PV for a foreign
+            // no-Thai-VAT-D vendor still auto-locks self-withhold (CreateDraftAsync's
+            // autoSelfWithhold), so the WHT-payable credit (line ~211) and the Cash/Bank
+            // credit (= TotalPaid, NOT netted of WHT under self-withhold) fire same as
+            // standalone — without this debit the JE was short by exactly WhtAmount
+            // (gl.unbalanced, army B-rc F1).
+            if (pv.SelfWithholdMode && pv.WhtAmount > 0m)
+            {
+                lines.Add(new JournalLine
+                {
+                    LineNo = lineNo++, AccountId = pv.Lines.First().ExpenseAccountId,
+                    DebitAmount = pv.WhtAmount, CreditAmount = 0m,
+                    Description = $"Self-withhold gross-up {pv.DocNo}",
+                });
+            }
         }
         else
         {
