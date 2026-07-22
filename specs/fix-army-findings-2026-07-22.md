@@ -93,16 +93,41 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       be reproduced another way before closing.
 
 ## WP-D — FE nits batch (parallel with WP-A; FE-only, tsc, files disjoint from WP-A)
-- [ ] D1 **MEDIUM [B-ec F1]**: `StatusBadge.tsx` MAP + `messages/{th,en}.json` missing
+- [x] D1 **MEDIUM [B-ec F1]**: `StatusBadge.tsx` MAP + `messages/{th,en}.json` missing
       `Submitted`/`Paid` (PascalCase; existing `PAID` is a different enum) → raw keys
       `status.Submitted`/`status.Paid` visible on expense-claims list/detail. Add both entries ×3 files.
-- [ ] D2 **MEDIUM [B-fa F-1]**: `depreciation/page.tsx` `handleGenerate()` ignores
+- [x] D2 **MEDIUM [B-fa F-1]**: `depreciation/page.tsx` `handleGenerate()` ignores
       `res.alreadyExisted` → false success toast on re-run. Branch on it → show existing
       `alreadyPosted` string. (Concurrency catch-branch stays.)
-- [ ] D3 **LOW [B-ec F2]**: expense-claims list/detail render generic "เกิดข้อผิดพลาด" on 403;
+- [x] D3 **LOW [B-ec F2]**: expense-claims list/detail render generic "เกิดข้อผิดพลาด" on 403;
       use the same permission-named clean-deny the /new page uses (client permission check or map
       403 → ShieldAlert state).
 - Gates: tsc 0 + next build + manual-glance screenshots per item from implementer.
+  **WP-D implementation evidence (2026-07-22, Sonnet):**
+  - D1: `StatusBadge.tsx` MAP gained `Submitted: { tone: 'info', en: 'Submitted' }` and
+    `Paid: { tone: 'success', en: 'Paid' }` (added before the untouched all-caps `PAID` entry).
+    `messages/th.json`/`en.json` `status` namespace gained matching keys — Thai wording reused
+    verbatim from the existing `expenseClaims.submitted`/`expenseClaims.paid` toast strings
+    already shown for these exact transitions (`ส่งอนุมัติแล้ว` / `จ่ายเงินแล้ว`), so the badge
+    text now agrees with the toast the user just saw.
+  - D2: `depreciation/page.tsx` `handleGenerate()` now checks `res.alreadyExisted` first (info
+    toast, existing `t('alreadyPosted')` string), before the `depreciationRunId == null` check;
+    the `ApiError`/`depreciation.already_posted` concurrency catch-branch is untouched.
+  - D3: added the exact `/new`-page client-side permission-check pattern (`useMePermissions()`
+    + `isSuperAdmin || permissions.includes('expense.claim.read')`, `ShieldAlert` +
+    `tc('noAccessTitle')`/`tc('noAccessBody', {perm})` — the same shared `common.noAccessBody`
+    `{perm}`-parameterized key already used by `/new` and several settings pages) to both
+    `expense-claims/page.tsx` (list) and `expense-claims/[id]/page.tsx` (detail), gating BEFORE
+    the existing `isLoading`/`isError` generic-error render on the detail page. A non-permission
+    error (e.g. genuine 404/network) for a user who DOES hold `expense.claim.read` still falls
+    through to the pre-existing generic error state, unchanged.
+  - Gates: `npx tsc --noEmit` from `frontend/` — 0 errors. `npm run build` (next build) —
+    compiled successfully, all 84 routes generated including `/expense-claims`,
+    `/expense-claims/[id]`, `/depreciation`. No manual-glance screenshots taken (no browser
+    session in this worker's scope per dispatch — FE-only tsc/build gates only, no live-browser
+    smoke test requested).
+  - `git status --porcelain -- frontend/` confirms exactly 6 files touched, none under
+    `payment-vouchers/*` (blast cap respected, WP-A's territory untouched).
 
 ## OPEN (Ham / triage decisions — not dispatched)
 - [ ] O1 [B-fa F-2]: FA acquisition posts no GL by design; UI never warns when no VI linked →

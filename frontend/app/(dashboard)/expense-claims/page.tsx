@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { Plus } from 'lucide-react';
+import { Plus, ShieldAlert } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { DataTable, RowLink } from '@/components/ui/DataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { useExpenseClaims } from '@/lib/queries';
+import { useExpenseClaims, useMePermissions } from '@/lib/queries';
 import type { ExpenseClaimListItem } from '@/lib/types';
+
+const READ_SCOPE = 'expense.claim.read';
 
 // Cycle C (specs/expense-claims.md §5) — expense claim list. Mirrors bank-accounts/page.tsx:
 // PageHeader + PermissionGate "New" button + DataTable (client-side status/employee filters).
@@ -18,6 +20,7 @@ export default function ExpenseClaimListPage() {
   const t = useTranslations('expenseClaims');
   const tc = useTranslations('common');
   const q = useExpenseClaims();
+  const perms = useMePermissions();
 
   const columns = useMemo<ColumnDef<ExpenseClaimListItem>[]>(() => [
     {
@@ -49,6 +52,21 @@ export default function ExpenseClaimListPage() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, tc]);
+
+  // D3 (specs/fix-army-findings-2026-07-22.md, B-ec F2) — same client-side permission-check
+  // pattern as expense-claims/new/page.tsx: a 403 (no expense.claim.read) rendered the bare
+  // generic "เกิดข้อผิดพลาด" instead of a permission-named clean-deny state.
+  const canRead = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(READ_SCOPE) ?? false);
+  if (perms.isPending) return null;
+  if (perms.data && !canRead) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: READ_SCOPE })}</div>
+      </div>
+    );
+  }
 
   return (
     <>

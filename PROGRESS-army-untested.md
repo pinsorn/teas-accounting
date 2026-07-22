@@ -38,9 +38,12 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
    swarm-findings/army/C1-vision-forms.md. More C legs when B2 produces artifacts.
 7. [~] CONSOLIDATED → specs/fix-army-findings-2026-07-22.md (WP-A CRITICAL money / WP-B WHT-type
    +stuck-PV / WP-C K-Plus 500 / WP-D FE nits / O1-O5 open Ham decisions).
-   WP-A dispatched (sonnet, background) ~16:2x. SEQUENCE (one tree, one test runner):
-   WP-A done → Fable diff review → Opus review (money) → commit → dispatch WP-D, then WP-B, then
-   WP-C. Verification plan in spec. All 6 leg reports committed (f0007c8 and earlier).
+   WP-A DONE + committed e17d232 (Fable diff review ✓, Opus APPROVE ✓, suite 921/8 ×2).
+   Opus nit N1 (stale comment PaymentVoucherService.cs:291-293 says VI-linked can't
+   self-withhold — now wrong) → fold into WP-B dispatch.
+   ~17:0x WP-D dispatched (FE nits, background). Next: WP-D done → review → commit →
+   WP-B (incl. N1 comment fix) → WP-C → deploy → live re-verify per spec plan.
+   C1 vision done+committed 36fe28c (1 AGY false positive killed, O6 added).
 
 ## Pending gates
 - A1 Tier-1 evidence review (Fable)

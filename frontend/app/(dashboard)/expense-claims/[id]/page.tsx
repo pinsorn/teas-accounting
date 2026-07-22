@@ -4,15 +4,18 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import {
   useExpenseClaim, useSubmitExpenseClaim, useApproveExpenseClaim, useRejectExpenseClaim,
-  usePayExpenseClaim, useCancelExpenseClaim, useBankAccounts,
+  usePayExpenseClaim, useCancelExpenseClaim, useBankAccounts, useMePermissions,
 } from '@/lib/queries';
 import { problemToast } from '@/lib/api';
+
+const READ_SCOPE = 'expense.claim.read';
 
 // Cycle C (specs/expense-claims.md §5) — detail + lifecycle actions. Simpler than
 // payment-vouchers/[id] (no PaperDocument — a claim has no print layout in scope); mirrors
@@ -28,12 +31,28 @@ export default function ExpenseClaimDetailPage() {
   const pay = usePayExpenseClaim();
   const cancel = useCancelExpenseClaim();
   const bankAccounts = useBankAccounts();
+  const perms = useMePermissions();
 
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [payOpen, setPayOpen] = useState(false);
   const [payMethod, setPayMethod] = useState<'CASH' | 'TRANSFER'>('TRANSFER');
   const [payBankAccountId, setPayBankAccountId] = useState<number | null>(null);
+
+  // D3 (specs/fix-army-findings-2026-07-22.md, B-ec F2) — same client-side permission-check
+  // pattern as expense-claims/new/page.tsx: a 403 (no expense.claim.read) rendered the bare
+  // generic "เกิดข้อผิดพลาด" instead of a permission-named clean-deny state.
+  const canRead = perms.data?.isSuperAdmin || (perms.data?.permissions.includes(READ_SCOPE) ?? false);
+  if (perms.isPending) return null;
+  if (perms.data && !canRead) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-12 text-center" data-testid="state-no-access">
+        <ShieldAlert className="h-10 w-10 text-warning" aria-hidden />
+        <div className="font-semibold">{tc('noAccessTitle')}</div>
+        <div className="max-w-md text-sm text-base-content/60">{tc('noAccessBody', { perm: READ_SCOPE })}</div>
+      </div>
+    );
+  }
 
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
   if (isError || !d) return <p className="text-error">{tc('error')}</p>;

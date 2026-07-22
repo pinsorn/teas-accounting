@@ -46,7 +46,12 @@ export default function DepreciationPage() {
 
     try {
       const res = await generate.mutateAsync({ year, month });
-      if (res.depreciationRunId == null) {
+      // D2 (specs/fix-army-findings-2026-07-22.md, B-fa F-1) — a re-run for an already-posted
+      // month returns 200 with the EXISTING run (alreadyExisted: true), not a fresh one; check
+      // this before the depreciationRunId null-check or a re-run shows a false success toast.
+      if (res.alreadyExisted) {
+        toast.info(t('alreadyPosted'));
+      } else if (res.depreciationRunId == null) {
         toast.success(t('noAssetsDue'));
       } else {
         toast.success(t('generateSuccess', { month: label, year }));

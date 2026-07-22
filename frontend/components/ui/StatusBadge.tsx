@@ -23,6 +23,12 @@ const MAP: Record<string, { tone: Tone; en: string }> = {
   Approved: { tone: 'info', en: 'Approved' },
   Posted: { tone: 'success', en: 'Posted' },
   Voided: { tone: 'danger', en: 'Voided' },
+  // D1 (specs/fix-army-findings-2026-07-22.md, B-ec F1) — ExpenseClaimStatus's own
+  // Submitted/Paid (PascalCase; distinct from the all-caps PAID/PARTIAL/UNPAID payment-status
+  // enum below) had no MAP entry, so the badge fell through to the raw status.Submitted /
+  // status.Paid i18n key.
+  Submitted: { tone: 'info', en: 'Submitted' },
+  Paid: { tone: 'success', en: 'Paid' },
   PAID: { tone: 'success', en: 'Paid' },
   PARTIAL: { tone: 'warning', en: 'Partial' },
   UNPAID: { tone: 'draft', en: 'Unpaid' },
