@@ -36,9 +36,20 @@ audit01/A6 chief01/A7 admin01/A8 purch01/A9 tax01/B1 — all granted on co5 only
 
 ## Wave B — flows army, per-topic agents (post quota reset)
 co5 legs (B-x, parallel — browser-only, no test-DB conflict):
-- [ ] B-rc (tax01+ap01 creds): **ภ.พ.36 + ภ.ง.ด.54 reverse charge** — foreign vendor (from A1) →
+- [x] B-rc (tax01+ap01 creds): **ภ.พ.36 + ภ.ง.ด.54 reverse charge** — foreign vendor (from A1) →
       service VI reverse charge → ภ.พ.36 นำส่ง + ภ.ง.ด.54 vs HAND-CALC (agent computes expected
       VAT/WHT itself and compares). GL: ม.83/6 posting. PDF artifacts saved for Wave C.
+      DONE 2026-07-22: VI #14 posted clean (฿20,000/0%VAT); ภ.พ.36 preview MATCHES hand-calc
+      exactly (฿1,400.00). ภ.ง.ด.54 MISMATCH — CRITICAL finding: settling the VI via PV
+      ("ชำระด้วยใบสำคัญจ่าย") with any WHT type ALWAYS 422s (`gl.unbalanced`, raw diagnostic
+      shown to user) because `GlPostingService.PostPaymentVoucherAsync`'s VI-linked branch never
+      books the self-withhold gross-up debit line — 100% reproducible for every foreign
+      no-Thai-VAT-D vendor (self-withhold is auto-locked ON for them). Second HIGH finding: the
+      same PV form mis-derives VAT rate (uses `vendor.vatRegistered` only, not the
+      foreign-no-VatD-aware dual-flag check), corrupting the base/VAT split. ภ.ง.ด.54 ended up
+      ฿0.00 (no WhtCertificate ever created) vs hand-calc ฿3,529.41 expected. Full report + 7
+      screenshots + PND54 PDF + text dumps in `swarm-findings/army/B-rc.md`. No tenant leak.
+      2 documents created (VI #14, PV #17 stuck Approved), cap respected.
 - [x] B-ec (ap01/appr01): **expense claims full cycle** create→approve→pay on co5 (VAT side):
       JE correctness (1170 present for VAT co), attachment, deny-paths. Check specs/expense-claims.md
       8 open items — classify unbuilt vs untested, DON'T file unbuilt as bug.
@@ -53,13 +64,18 @@ co5 legs (B-x, parallel — browser-only, no test-DB conflict):
       (edit/reuse-new-in-edit-mode — hook exists, zero FE surface), 2 stale duplicate test-checklist
       lines (not real gaps). Full report `swarm-findings/army/B-ec.md`. No tenant leak. 1 claim
       created (cap 5). Temp scripts deleted.
-- [~] B-fa (acct01/admin01): **fixed assets** register→activate (FA numbering)→depreciation run→
-      disposal. JE + TB tie after each step. IN PROGRESS 2026-07-22: script written
-      (`frontend/army-B-fa.mjs`), pre-read backend `FixedAssetService.cs` confirms no daily
-      proration (full month charged if `DepreciationStartDate <= runDate`) and that the
-      idempotent-retry path returns HTTP 200 with `alreadyExisted:true` (the FE's
-      `depreciation.already_posted` catch branch only fires on a true concurrent race, not a
-      sequential re-run) — flagged as a target finding to verify live, not assumed. Running now.
+- [x] B-fa (acct01/admin01): **fixed assets** register→activate (FA numbering)→depreciation run→
+      disposal. JE + TB tie after each step.
+      DONE 2026-07-22: full lifecycle driven on co5 as admin01 — registered+activated 2 assets
+      (docNo `07-2026-FA-0001`, `07-2026-FA-0002`, no numbering collision), depreciation run #1
+      posted JE #155 (3,833.33, matches hand-calc `(120000-0)/36 + (6000-0)/12` exactly),
+      depreciation run #2 same month did NOT double-post (idempotent at the data layer — but see
+      F-1: misleading success toast), disposed asset 2 (loss path, JE #157: accum-dep reversal +
+      loss line both correct, matches hand-calc NBV/loss exactly). TB Dr=Cr held at all 6
+      checkpoints incl. a month-end as-of check that actually includes the dep JE. No tenant
+      leak, no 500s/crashes. 3 findings (1 MEDIUM UX, 2 design/testing notes, no HIGH). 2 assets
+      + 2 dep runs, both within cap. Full report + hand-calc table + JE screenshots in
+      `swarm-findings/army/B-fa.md`. Both temp scripts deleted.
 - [ ] B-br (acct01): **bank reconciliation FULL** — statement import variants (K-Plus PDF adapter
       esp. — sample pw 06121996 per PROGRESS-cycle-b), suggest/confirm/unmatch, reconcile journal.
 - [x] B-et (ar01 post + tax01 audit-read): **e-Tax pipeline** reality-check DONE 2026-07-22 —

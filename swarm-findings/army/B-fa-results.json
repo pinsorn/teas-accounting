@@ -1,0 +1,61 @@
+{
+  "id1": 3,
+  "id2": 4,
+  "act1DocNo": "07-2026-FA-0001",
+  "act2DocNo": "07-2026-FA-0002",
+  "results": {
+    "tb": [
+      {
+        "label": "00-baseline",
+        "badgeText": "Dr = Cr ✓",
+        "balanced": true,
+        "totalsText": "รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00",
+        "file": "Y:\\ClaudePlayground\\TEAS-Project\\swarm-findings\\army\\B-fa-tb-00-baseline.png"
+      },
+      {
+        "label": "01-after-A1-activate",
+        "badgeText": "Dr = Cr ✓",
+        "balanced": true,
+        "totalsText": "รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00",
+        "file": "Y:\\ClaudePlayground\\TEAS-Project\\swarm-findings\\army\\B-fa-tb-01-after-A1-activate.png"
+      },
+      {
+        "label": "02-after-A2-activate",
+        "badgeText": "Dr = Cr ✓",
+        "balanced": true,
+        "totalsText": "รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00",
+        "file": "Y:\\ClaudePlayground\\TEAS-Project\\swarm-findings\\army\\B-fa-tb-02-after-A2-activate.png"
+      },
+      {
+        "label": "03-after-dep-run1",
+        "badgeText": "Dr = Cr ✓",
+        "balanced": true,
+        "totalsText": "รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00",
+        "file": "Y:\\ClaudePlayground\\TEAS-Project\\swarm-findings\\army\\B-fa-tb-03-after-dep-run1.png"
+      },
+      {
+        "label": "04-after-dep-run2",
+        "badgeText": "Dr = Cr ✓",
+        "balanced": true,
+        "totalsText": "รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00",
+        "file": "Y:\\ClaudePlayground\\TEAS-Project\\swarm-findings\\army\\B-fa-tb-04-after-dep-run2.png"
+      },
+      {
+        "label": "05-after-disposal",
+        "badgeText": "Dr = Cr ✓",
+        "balanced": true,
+        "totalsText": "รวมทั้งสิ้น ฿116,870.50 ฿116,870.50 ฿0.00",
+        "file": "Y:\\ClaudePlayground\\TEAS-Project\\swarm-findings\\army\\B-fa-tb-05-after-disposal.png"
+      }
+    ],
+    "findings": [],
+    "handCalc": {
+      "expected1": 3333.33,
+      "expected2": 500,
+      "expectedTotal": 3833.33,
+      "expectedNbvAtDisposal": 5500,
+      "expectedGainLoss": -2500
+    },
+    "idempotent": true
+  }
+}

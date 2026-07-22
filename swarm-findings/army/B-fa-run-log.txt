@@ -1,0 +1,36 @@
+[2026-07-22T08:32:46.564Z] === STEP 1: login admin01 ===
+[2026-07-22T08:32:58.912Z] Tenant-leak check on dashboard: leak=false
+[2026-07-22T08:33:03.080Z] TB[00-baseline]: badge="Dr = Cr ✓" balanced=true totals="รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00" -> Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-fa-tb-00-baseline.png
+[2026-07-22T08:33:03.081Z] === STEP 2: register + activate asset 1 (cost 120000, residual 0, life 36mo) ===
+[2026-07-22T08:33:11.788Z] A1: form filled, monthlyAmountPreview line="ค่าเสื่อมราคาต่อเดือน (ประมาณการ): 3,333.33"
+[2026-07-22T08:33:13.785Z] A1: draft created, fixedAssetId=3, url=https://teas.kazaki-rio.com/fixed-assets/3
+[2026-07-22T08:33:34.762Z] A1: activated, docNo="07-2026-FA-0001"
+[2026-07-22T08:33:41.775Z] TB[01-after-A1-activate]: badge="Dr = Cr ✓" balanced=true totals="รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00" -> Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-fa-tb-01-after-A1-activate.png
+[2026-07-22T08:33:48.761Z] === STEP 3: register + activate asset 2 (cost 6000, residual 0, life 12mo) — numbering collision check ===
+[2026-07-22T08:33:56.850Z] A2: form filled, monthlyAmountPreview line="ค่าเสื่อมราคาต่อเดือน (ประมาณการ): 500.00"
+[2026-07-22T08:33:57.652Z] A2: draft created, fixedAssetId=4, url=https://teas.kazaki-rio.com/fixed-assets/4
+[2026-07-22T08:34:17.872Z] A2: activated, docNo="07-2026-FA-0002"
+[2026-07-22T08:34:21.343Z] TB[02-after-A2-activate]: badge="Dr = Cr ✓" balanced=true totals="รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00" -> Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-fa-tb-02-after-A2-activate.png
+[2026-07-22T08:34:27.035Z] Numbering check: docNo1="07-2026-FA-0001" docNo2="07-2026-FA-0002"
+[2026-07-22T08:34:27.036Z] === STEP 4: depreciation run #1 for current month ===
+[2026-07-22T08:34:27.036Z] Run period: 2026-07
+[2026-07-22T08:34:27.036Z] Hand-calc: asset1 monthly=3333.33, asset2 monthly=500, expected run total=3833.33
+[2026-07-22T08:34:33.755Z] Depreciation run #1: rows before=1, after=1, table="เดือน วันที่บันทึก ยอดรวม จำนวนสินทรัพย์ รายการบัญชี กรกฎาคม 2026 2026-07-31 3,833.33 2 155"
+[2026-07-22T08:34:33.758Z] Run #1 JE link: /journals/155
+[2026-07-22T08:34:41.589Z] Run #1 JE detail text (trunc): รายละเอียดสมุดรายวัน (Journal Entry) 07-2026-JV-0051 วันที่เอกสาร 31 ก.ค. 2569 วันที่ลงบัญชี 31 ก.ค. 2569 สถานะ Posted คำอธิบาย ค่าเสื่อมราคา 2026-07 / Depreciation 2026-07 อ้างอิง DEP-202607 บันทึกเมื่อ 22 ก.ค. 2569 บัญชี คำอธิบาย เดบิต เครดิต 5450 ค่าเสื่อมราคา ค่าเสื่อมราคา 2026-07 / Depreciation 2026-07 ฿3,833.33 1690 ค่าเสื่อมราคาสะสม ค่าเสื่อมราคา 2026-07 / Depreciation 2026-07 ฿3,833.33 รวม ฿3,833.33 ฿3,833.33
+[2026-07-22T08:34:49.191Z] TB[03-after-dep-run1]: badge="Dr = Cr ✓" balanced=true totals="รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00" -> Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-fa-tb-03-after-dep-run1.png
+[2026-07-22T08:34:49.191Z] === STEP 5: per-asset run-history verification vs hand-calc ===
+[2026-07-22T08:34:56.510Z] A1 detail after run1 (expected monthly=3333.33): สินทรัพย์ถาวร 07-2026-FA-0001 จำหน่ายสินทรัพย์ ตัดจำหน่าย ใช้งานอยู่ 2026-07-22 เครื่องจักรและอุปกรณ์ (ARMY-BFA) ชื่อสินทรัพย์: ARMY-BFA เครื่องจักรทดสอบ 1 ราคาทุน: 120,000.00 มูลค่าซาก: 0.00 อายุการใช้งาน: 36 เดือน ค่าเสื่อมราคาต่อเดือน: 3,333.33 วันเริ่มคิดค่าเสื่อมราคา: 2026-07-22 ค่าเสื่อมราคาสะสม: 3,333.33 มูลค่าตามบัญชีสุทธิ: 116,666.67 คิดค่าเสื่อมราคาถึง 2026-07 ประวัติค่าเสื่อมราคา งวด จำนวนเงิน ยอดสะสมหลังรายการนี้ 2026-07 3,333.33 3,333.33
+[2026-07-22T08:35:02.755Z] A2 detail after run1 (expected monthly=500): สินทรัพย์ถาวร 07-2026-FA-0002 จำหน่ายสินทรัพย์ ตัดจำหน่าย ใช้งานอยู่ 2026-07-22 อุปกรณ์สำนักงาน (ARMY-BFA) ชื่อสินทรัพย์: ARMY-BFA อุปกรณ์สำนักงานทดสอบ 2 ราคาทุน: 6,000.00 มูลค่าซาก: 0.00 อายุการใช้งาน: 12 เดือน ค่าเสื่อมราคาต่อเดือน: 500.00 วันเริ่มคิดค่าเสื่อมราคา: 2026-07-22 ค่าเสื่อมราคาสะสม: 500.00 มูลค่าตามบัญชีสุทธิ: 5,500.00 คิดค่าเสื่อมราคาถึง 2026-07 ประวัติค่าเสื่อมราคา งวด จำนวนเงิน ยอดสะสมหลังรายการนี้ 2026-07 500.00 500.00
+[2026-07-22T08:35:02.755Z] === STEP 6: depreciation run #2, SAME month — idempotence check ===
+[2026-07-22T08:35:09.614Z] Depreciation run #2 (idempotence): rows before=1, after=1, toast(s)="บันทึกค่าเสื่อมราคาสำหรับ กรกฎาคม 2026 แล้ว"
+[2026-07-22T08:35:09.614Z] Idempotence result: PASS — no new row, no double-post
+[2026-07-22T08:35:19.803Z] TB[04-after-dep-run2]: badge="Dr = Cr ✓" balanced=true totals="รวมทั้งสิ้น ฿110,870.50 ฿110,870.50 ฿0.00" -> Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-fa-tb-04-after-dep-run2.png
+[2026-07-22T08:35:19.803Z] === STEP 7: dispose asset 2 (cheap asset) ===
+[2026-07-22T08:35:24.790Z] A2 detail before disposal: สินทรัพย์ถาวร 07-2026-FA-0002 จำหน่ายสินทรัพย์ ตัดจำหน่าย ใช้งานอยู่ 2026-07-22 อุปกรณ์สำนักงาน (ARMY-BFA) ชื่อสินทรัพย์: ARMY-BFA อุปกรณ์สำนักงานทดสอบ 2 ราคาทุน: 6,000.00 มูลค่าซาก: 0.00 อายุการใช้งาน: 12 เดือน ค่าเสื่อมราคาต่อเดือน: 500.00 วันเริ่มคิดค่าเสื่อมราคา: 2026-07-22 ค่าเสื่อมราคาสะสม: 500.00 มูลค่าตามบัญชีสุทธิ: 5,500.00 คิดค่าเสื่อมราคาถึง 2026-07 ประวัติค่าเสื่อมราคา งวด จำนวนเงิน ยอดสะสมหลังรายการนี้ 2026-07 500.00 500.00
+[2026-07-22T08:35:26.258Z] A2 detail after disposal: สินทรัพย์ถาวร 07-2026-FA-0002 จำหน่ายสินทรัพย์ ตัดจำหน่าย ใช้งานอยู่ 2026-07-22 อุปกรณ์สำนักงาน (ARMY-BFA) ชื่อสินทรัพย์: ARMY-BFA อุปกรณ์สำนักงานทดสอบ 2 ราคาทุน: 6,000.00 มูลค่าซาก: 0.00 อายุการใช้งาน: 12 เดือน ค่าเสื่อมราคาต่อเดือน: 500.00 วันเริ่มคิดค่าเสื่อมราคา: 2026-07-22 ค่าเสื่อมราคาสะสม: 500.00 มูลค่าตามบัญชีสุทธิ: 5,500.00 คิดค่าเสื่อมราคาถึง 2026-07 ประวัติค่าเสื่อมราคา งวด จำนวนเงิน ยอดสะสมหลังรายการนี้ 2026-07 500.00 500.00
+[2026-07-22T08:35:26.258Z] Hand-calc disposal: NBV at disposal=5500, expected gain/(loss)=-2500
+[2026-07-22T08:35:26.348Z] Disposal JE link: /journals/157
+[2026-07-22T08:35:29.444Z] Disposal JE detail text (trunc): รายละเอียดสมุดรายวัน (Journal Entry) 07-2026-JV-0052 วันที่เอกสาร 22 ก.ค. 2569 วันที่ลงบัญชี 22 ก.ค. 2569 สถานะ Posted คำอธิบาย จำหน่ายสินทรัพย์ 07-2026-FA-0002 / Dispose asset 07-2026-FA-0002 อ้างอิง 07-2026-FA-0002 บันทึกเมื่อ 22 ก.ค. 2569 บัญชี คำอธิบาย เดบิต เครดิต 1110 เงินสด จำหน่ายสินทรัพย์ 07-2026-FA-0002 / Dispose asset 07-2026-FA-0002 ฿3,000.00 1690 ค่าเสื่อมราคาสะสม จำหน่ายสินทรัพย์ 07-2026-FA-0002 / Dispose asset 07-2026-FA-0002 ฿500.00 1610 อุปกรณ์และเครื่องใช้สำนักงาน จำหน่ายสินทรัพย์ 07-2026-FA-0002 / Dispose asset 07-2026-FA-0002 ฿6,000.00 5460 ขาดทุนจากการจำหน่ายสินทรัพย์ จำหน่ายสินทรัพย์ 07-2026-FA-0002 / Dispose asset 07-2026-FA-0002 ฿2,500.00 รวม ฿6,000.00 ฿6,000.00
+[2026-07-22T08:35:33.441Z] TB[05-after-disposal]: badge="Dr = Cr ✓" balanced=true totals="รวมทั้งสิ้น ฿116,870.50 ฿116,870.50 ฿0.00" -> Y:\ClaudePlayground\TEAS-Project\swarm-findings\army\B-fa-tb-05-after-disposal.png
+[2026-07-22T08:35:33.441Z] === DONE — writing summary ===
