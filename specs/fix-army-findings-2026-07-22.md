@@ -92,3 +92,4 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
 ## Attempt log
 - 2026-07-22 16:1x consolidated from 6 leg reports; WP-A+WP-D dispatched first (parallel-safe),
   WP-B/C sequential next.
+- [ ] O6 [C1 vision]: 50ทวิ field "ลำดับที่ ... ในแบบ ภ.ง.ด.53" always blank (cert issued at PV post, before the monthly filing; immutable so never backfillable). Options: fill at filing-finalize time on a COPY, print "-", or accept blank (common practice). Compliance call — Ham.
