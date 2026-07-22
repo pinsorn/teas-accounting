@@ -93,8 +93,18 @@ co5 legs (B-x, parallel — browser-only, no test-DB conflict):
       incl. the no-email no-op writes a row, so 0 rows = never entered, not a runtime
       fail). No 500s, no tenant leak. Full detail + screenshots in
       `swarm-findings/army/B-et.md`.
-- [ ] B-bn (ar01/sales01): **billing notes (ใบวางบิล)** flow + **WHT cert (50ทวิ direction P)** print
+- [x] B-bn (ar01/sales01): **billing notes (ใบวางบิล)** flow + **WHT cert (50ทวิ direction P)** print
       → PDF artifacts for Wave C.
+      DONE 2026-07-22: full BN lifecycle (Draft-implicit→Issued→Settled) verified with hand-calc
+      total match (฿10,700 = 10,000×1.07), PDF saved via `/api/proxy/billing-notes/{id}/pdf` (UI
+      download button unreliable under Playwright — API bypass used). WHT cert auto-issue +
+      immutability + hand-calc (฿30 = 1,000×3%) + PDF all confirmed via a working pre-existing cert;
+      SoD (create/approve/post as 3 separate perms) confirmed live. HIGH finding: fresh WHT PV Post
+      422s (`pv.wht_type_missing`) when the Income-Type dropdown is left default — confirm-post modal
+      misleadingly shows a valid-looking preview first, and the PV becomes permanently stuck/
+      uneditable once Approved (live repro left as PV #19, co5). TI-aggregation totals/back-links
+      inconclusive (needs manual re-check). Full detail: `swarm-findings/army/B-bn.md`. 6 documents
+      created (cap respected), no tenant leak, no forbidden actions.
 - [ ] B-mcp (needs B-2 key): **MCP agent surface** — create-draft tools via API key →
       pending-agent-approvals widget lights up for appr01 → approve → doc proceeds. End-to-end.
 co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock periods):
