@@ -39,9 +39,20 @@ co5 legs (B-x, parallel — browser-only, no test-DB conflict):
 - [ ] B-rc (tax01+ap01 creds): **ภ.พ.36 + ภ.ง.ด.54 reverse charge** — foreign vendor (from A1) →
       service VI reverse charge → ภ.พ.36 นำส่ง + ภ.ง.ด.54 vs HAND-CALC (agent computes expected
       VAT/WHT itself and compares). GL: ม.83/6 posting. PDF artifacts saved for Wave C.
-- [ ] B-ec (ap01/appr01): **expense claims full cycle** create→approve→pay on co5 (VAT side):
+- [x] B-ec (ap01/appr01): **expense claims full cycle** create→approve→pay on co5 (VAT side):
       JE correctness (1170 present for VAT co), attachment, deny-paths. Check specs/expense-claims.md
       8 open items — classify unbuilt vs untested, DON'T file unbuilt as bug.
+      DONE 2026-07-22: ap01 (AP_CLERK) and appr01 both had ZERO expense.claim.* grants —
+      fell back to admin01 (create) and chief01 (approve+pay), matching the 2026-07-09 role-
+      split ruling exactly (not a bug). Full create(2 lines: 7% creditable + 0%)→submit→approve→
+      pay drove clean; JE #117 tie-out exact (Dr 5000×2=1500, Dr 1170=70, Cr 1120=1570, balanced).
+      Deny-path (purch01, no perms) → clean 403 at API, generic-but-styled error at FE (LOW finding).
+      2 findings: F1 MEDIUM raw i18n keys "status.Submitted"/"status.Paid" (StatusBadge.tsx MAP +
+      messages/*.json missing those 2 enum values), F2 LOW generic error state on list/detail 403
+      (vs /new's clean permission message). 8-item classification: 6 built+working, 1 UNBUILT
+      (edit/reuse-new-in-edit-mode — hook exists, zero FE surface), 2 stale duplicate test-checklist
+      lines (not real gaps). Full report `swarm-findings/army/B-ec.md`. No tenant leak. 1 claim
+      created (cap 5). Temp scripts deleted.
 - [~] B-fa (acct01/admin01): **fixed assets** register→activate (FA numbering)→depreciation run→
       disposal. JE + TB tie after each step. IN PROGRESS 2026-07-22: script written
       (`frontend/army-B-fa.mjs`), pre-read backend `FixedAssetService.cs` confirms no daily

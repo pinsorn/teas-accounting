@@ -1,0 +1,43 @@
+ap01 perms: isSuperAdmin=false roles=["AP_CLERK"] has-create=false has-approve=false has-pay=false
+ap01 lacks expense.claim.create -> falling back to admin01 for creation
+admin01 perms: has-create=true has-approve=true has-pay=true
+TENANT LEAK CHECK (admin01 dashboard): clean
+SHOT 00-dashboard-admin01: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-00-dashboard-admin01.png
+Employee selected: EMP001 — นายทดสอบ หนึ่ง (id=3)
+Line1 category: ต้นทุนสินค้าขาย (COGS) (id=36)
+Line2 category: ต้นทุนสินค้าขาย (COGS) (id=36)
+SHOT 01-create-form-filled: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-01-create-form-filled.png
+FORM TOTALS TEXT (pre-save excerpt): ยอดรวม: 1,570.00
+CLAIM CREATED: id=2 url=https://teas.kazaki-rio.com/expense-claims/2
+SHOT 02-detail-draft: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-02-detail-draft.png
+DRAFT STATE: status=Draft docNo=null journalEntryId=null subtotal=1500 vat=70 total=1570
+SHOT 03-detail-submitted: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-03-detail-submitted.png
+SUBMITTED STATE: status=Submitted journalEntryId=null
+purch01 perms: has-approve=false has-pay=false
+DENY-PATH PROBE: purch01 POST /approve -> status 403 (expect 401/403)
+purch01 detail view: sees approve button = false (expect false, clean UI deny)
+SHOT 04-purch01-denied-view: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-04-purch01-denied-view.png
+appr01 perms: has-approve=false has-pay=false
+appr01 lacks expense.claim.approve -> falling back to chief01
+chief01 perms: has-approve=true has-pay=true
+SHOT 05-detail-approved-by-chief01: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-05-detail-approved-by-chief01.png
+APPROVED STATE: status=Approved journalEntryId=null
+Pay via TRANSFER, bank account: ธนาคารกสิกรไทย — 123-4-56789-0 (id=1)
+SHOT 06-pay-modal-filled-chief01: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-06-pay-modal-filled-chief01.png
+SHOT 07-detail-paid-chief01: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-07-detail-paid-chief01.png
+PAID STATE: status=Paid docNo=07-2026-EX-0001 journalEntryId=117 subtotal=1500 vat=70 total=1570
+SHOT 08-journal-entry: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-ec-08-journal-entry.png
+JOURNAL ENTRY LINES (raw table text):
+บัญชี	คำอธิบาย	เดบิต	เครดิต
+5000 ต้นทุนขาย	Hotel accommodation (creditable VAT)	฿1,000.00	
+5000 ต้นทุนขาย	Taxi fare (0% VAT, non-creditable)	฿500.00	
+1170 ภาษีซื้อ	Input VAT 07-2026-EX-0001	฿70.00	
+1120 เงินฝากธนาคาร	Cash/Bank 07-2026-EX-0001		฿1,570.00
+รวม	฿1,570.00	฿1,570.00
+JE contains account 1170 (Input VAT) line: true (expect true — VAT company, one creditable line)
+JE API: docNo=07-2026-JV-0050 totalDebit=1570 totalCredit=1570
+  JE line: 5000 ต้นทุนขาย Dr=1000 Cr=0
+  JE line: 5000 ต้นทุนขาย Dr=500 Cr=0
+  JE line: 1170 ภาษีซื้อ Dr=70 Cr=0
+  JE line: 1120 เงินฝากธนาคาร Dr=0 Cr=1570
+B-ec DRIVE COMPLETE
