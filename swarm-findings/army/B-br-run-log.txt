@@ -1,0 +1,90 @@
+acct01 perms: isSuperAdmin=false roles=["ACCOUNTANT"] has-bank.reconcile=true has-bank.statement.import=true
+TENANT LEAK CHECK (acct01 dashboard): clean
+SHOT 00-dashboard-acct01: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-00-dashboard-acct01.png
+SHOT 01-bank-accounts-list: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-01-bank-accounts-list.png
+BANK ACCOUNT: id=1 ธนาคารกสิกรไทย 123-4-56789-0 GL=53
+SHOT 02-bank-account-detail: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-02-bank-account-detail.png
+EXISTING IMPORT: id=1 file=kbiz-statement-co5-jul2026.csv lines=2
+SHOT 03-existing-import-initial: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-03-existing-import-initial.png
+Line1 (RCV00001, MoneyIn 7,490.00) initial status: Matched
+Unmatched: line1 (RCV00001) — reaching Unmatched baseline
+SHOT 04-line1-unmatched-baseline: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-04-line1-unmatched-baseline.png
+Suggest modal for line1 (RCV00001): 07-2026-RC-0001 · 18 ก.ค. 2569 · ฿7,490.00 · บริษัท ลูกค้าทดสอบ จำกัด | ยืนยัน
+SHOT 05-line1-suggest-modal: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-05-line1-suggest-modal.png
+SHOT 06-line1-confirmed: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-06-line1-confirmed.png
+Line1 status after CONFIRM: Matched
+Unmatched: line1 (RCV00001) — 2nd unmatch
+SHOT 07-line1-unmatched-again: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-07-line1-unmatched-again.png
+Line1 status after UNMATCH: Matched
+Suggest modal for line1 (RCV00001) — reconfirm: 07-2026-RC-0001 · 18 ก.ค. 2569 · ฿7,490.00 · บริษัท ลูกค้าทดสอบ จำกัด | ยืนยัน
+SHOT 08-line1-reconfirmed: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-08-line1-reconfirmed.png
+Line1 status after RECONFIRM: Matched
+Line1 status AFTER RELOAD: Matched (expect Matched)
+SHOT 09-existing-after-reload: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-09-existing-after-reload.png
+Built CSV fixture: Z:/temp/claude/Y--ClaudePlayground-TEAS-Project/225a4d63-b294-46d1-b374-d68b02875ecb/scratchpad/B-br-kbiz-new.csv (1554 bytes)
+RESUME: CSV import already exists (id=2) — skipping re-upload.
+SHOT 10-new-csv-import-modal-filled-SKIPPED-already-exists: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-10-new-csv-import-modal-filled-SKIPPED-already-exists.png
+SHOT 11-new-csv-import-result-SKIPPED-already-exists: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-11-new-csv-import-result-SKIPPED-already-exists.png
+NEW IMPORT: id=2 status=Parsed lines=3
+SHOT 12-new-import-lines-initial: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-12-new-import-lines-initial.png
+RESUME: new-line A already Matched (prior run) — skipping re-confirm.
+SHOT 13-new-lineA-suggest-modal-SKIPPED-already-matched: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-13-new-lineA-suggest-modal-SKIPPED-already-matched.png
+SHOT 14-new-lineA-confirmed: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-14-new-lineA-confirmed.png
+New line A (2,140.00) status after confirm: Matched
+Suggest modal for new-line B (PAY00002, 3,210.00) — left unconfirmed on purpose: 07-2026-PV-COGS-0002 · 19 ก.ค. 2569 · ฿3,210.00 · บริษัท ผู้ขายทดสอบ จำกัด | ยืนยัน
+SHOT 15-new-lineB-suggest-modal-left-unconfirmed: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-15-new-lineB-suggest-modal-left-unconfirmed.png
+Suggest modal for new-line C (RCV00099, 500.00) — expect NO suggestions: NO SUGGESTIONS
+SHOT 16-new-lineC-no-suggestions: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-16-new-lineC-no-suggestions.png
+K-Plus PDF sample found: Y:/ClaudePlayground/TEAS-Project/STM_SA5476_01FEB26_08JUL26.pdf — attempting import (password 06121996).
+NOTE: this is a REAL bank statement (gitignored STM_*.pdf, never committed) for a different real-world account — expected to be REJECTED by the account-number-mismatch guard against co5's dummy account 123-4-56789-0, which is the CORRECT behavior, not a bug.
+SHOT 17-kplus-pdf-import-modal-filled: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-17-kplus-pdf-import-modal-filled.png
+SHOT 18-kplus-pdf-import-result: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-18-kplus-pdf-import-result.png
+K-Plus PDF import result (page text scan): รหัสผ่าน PDF
+IMPORTS AFTER PDF ATTEMPT: count=2
+SHOT 19-reconciliation-report-autoselected: Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-br-19-reconciliation-report-autoselected.png
+RECONCILIATION REPORT (page text excerpt): แดชบอร์ด
+รายงาน
+กระทบยอดธนาคาร
+รายงานกระทบยอดธนาคาร
+บัญชีธนาคาร
+ทั้งหมด
+ธนาคารกสิกรไทย — 123-4-56789-0
+จากวันที่
+ถึงวันที่
+ส่งออก CSV
+ยอดคงเหลือตาม Statement
+-฿570.00
+ยอดคงเหลือตามบัญชี GL
+฿8,090.00
+เงินฝากระหว่างทาง
+฿14,980.00
+รายการจ่ายค้าง
+฿4,250.00
+รายการยังไม่จับคู่ (สุทธิ)
+-฿2,710.00
+ผลต่าง
+฿4,780.00
+มีรายการยังไม่กระทบยอด — ดูรายละเอียดด้านล่าง
+รายการ Statement ที่ยังไม่จับคู่ (2)
+รายละเอียด	วันที่	จำนวนเงิน
+โอนเงิน — โอนไป TEST BANK X2002 ผู้ขายทดสอบ รหัสอ้างอิง PAY00002	19 ก.ค. 2569	-฿3,210.00
+รับโอนเงิน — จาก X1003 ไม่ทราบผู้โอน รหัสอ้างอิง RCV00099	21 ก.ค. 2569	฿500.00
+เงินฝากระหว่างทาง (14)
+รายละเอียด	วันที่	จำนวนเงิน
+07-2026-RC-0001 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0002 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0003 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0004 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0005 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0006 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0007 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0008 — บริษัท ลูกค้าทดสอบ จำกัด	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0009 — นายสมชาย ใจดี	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0010 — นายสมชาย ใจดี	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0011 — นายสมชาย ใจดี	20 ก.ค. 2569	฿1,070.00
+07-2026-RC-0012 — นายสมชาย ใจดี	21 ก.ค. 2569	฿1,070.00
+07-2026-RC-0013 — นายสมชาย ใจดี	21 ก.ค. 2569	฿1,070.00
+07-2026-RC-0014 — นายสมชาย ใจดี	21 ก.ค. 2569	฿1,070.00
+รายก
+RECONCILIATION REPORT (raw API): {"bankAccountId":1,"from":"2026-07-01","to":"2026-07-22","statementClosingBalance":-570,"glBalance":8090,"depositsInTransitTotal":14980,"outstandingPaymentsTotal":4250,"unmatchedLinesNet":-2710,"difference":4780,"unmatchedLines":[{"description":"โอนเงิน — โอนไป TEST BANK X2002 ผู้ขายทดสอบ รหัสอ้างอิง PAY00002","date":"2026-07-19","amount":-3210},{"description":"รับโอนเงิน — จาก X1003 ไม่ทราบผู้โอน รหัสอ้างอิง RCV00099","date":"2026-07-21","amount":500}],"depositsInTransit":[{"description":"07-2026-RC-0001 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0002 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0003 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0004 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0005 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0006 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0007 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0008 — บริษัท ลูกค้าทดสอบ จำกัด","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0009 — นายสมชาย ใจดี","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0010 — นายสมชาย ใจดี","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0011 — นายสมชาย ใจดี","date":"2026-07-20","amount":1070},{"description":"07-2026-RC-0012 — นายสมชาย ใจดี","date":"2026-07-21","amount":1070},{"description":"07-2026-RC-0013 — นายสมชาย ใจดี","date":"2026-07-21","amount":1070},{"description":"07-2026-RC-0014 — นายสมชาย ใจดี","date":"2026-07-21","amount":1070}],"outstandingPayments":[{"description":"07-2026-PV-COGS-0002 — บริษัท ผู้ขายทดสอบ จำกัด","date":"2026-07-19","amount":3210},{"description":"07-2026-PV-PROF-0001 — บริษัท ผู้ขายทดสอบ จำกัด","date":"2026-07-21","amount":1040}],"docReconciliationLimited":false}
+B-br DRIVE COMPLETE

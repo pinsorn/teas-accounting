@@ -76,8 +76,14 @@ co5 legs (B-x, parallel — browser-only, no test-DB conflict):
       leak, no 500s/crashes. 3 findings (1 MEDIUM UX, 2 design/testing notes, no HIGH). 2 assets
       + 2 dep runs, both within cap. Full report + hand-calc table + JE screenshots in
       `swarm-findings/army/B-fa.md`. Both temp scripts deleted.
-- [ ] B-br (acct01): **bank reconciliation FULL** — statement import variants (K-Plus PDF adapter
+- [x] B-br (acct01): **bank reconciliation FULL** — statement import variants (K-Plus PDF adapter
       esp. — sample pw 06121996 per PROGRESS-cycle-b), suggest/confirm/unmatch, reconcile journal.
+      DONE 2026-07-22: full existing-import unmatch→suggest→confirm→unmatch→reconfirm→reload
+      cycle proven (state persists); new CSV import matched against REAL existing co5 docs
+      (no helper doc needed); K-Plus PDF sample FOUND + attempted — uncovered a real HIGH bug
+      (500 on correct-password parse of a real multi-page statement; wrong/no-password paths
+      are clean 422s). Recon report diff explains itself (badge + autoselect both verified).
+      No tenant leak. See `swarm-findings/army/B-br.md` + `B-br-*.png`.
 - [x] B-et (ar01 post + tax01 audit-read): **e-Tax pipeline** reality-check DONE 2026-07-22 —
       code-read enumerated 5 observable artifacts (etax.submissions audit row via
       GET /etax/submissions, TI-detail e-Tax buttons, /system/info etaxEnabled field,
