@@ -1,6 +1,10 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **ARMY on untested areas IN FLIGHT (2026-07-22 ~12:0x)** — spec specs/army-untested-2026-07-22.md,
+  checkpoint PROGRESS-army-untested.md. Wave A1 (co5 foreign vendor + recon) dispatched background.
+  BLOCKED on Ham: B-1 non-VAT dummy co + grants, B-2 co5 API key (both super-admin-only).
+  Quota 81% → Wave B launches after 5h reset (~14:30); wakeup chain standing.
 - **v1.22.10 LIVE (2026-07-22 ~02:5x) — non-VAT F-A..F-D shipped+deployed; NEXT SESSION = army
   on untested areas, see HANDOFF-untested-army.md.** ExpenseClaim non-VAT 1170 guard (money,
   Fable-reviewed) + PO paper vendor address + control heights + VI non-VAT wording. Suite 921/0/8.
