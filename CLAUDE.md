@@ -137,7 +137,11 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
     read it.
 
 ## Verification → commit
-- Tier 1: every worker self-verifies against its gates, reports evidence.
+- Tier 1: every worker self-verifies against its gates, reports evidence. EXCEPT the long
+  full suite: when the gate is one deterministic command, the worker reports
+  code-complete (+ build/tsc/filtered evidence) and FABLE runs the suite. Workers
+  babysitting a 13-min run burned 4 stall cycles and ~220k tokens on ONE run
+  (2026-07-26); Fable runs it in a single backgrounded Bash call and reads the log.
 - Tier 2 (risky diffs): fresh cross-family reviewer with named risk lenses
   (spec compliance / regression / security / tests). Security/money/auth →
   Opus review is a valid alternative. Reviewer never touched related code.
