@@ -22,6 +22,36 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## `period.closed` 422 on every new draft, and no button/route can undo it — company looks permanently bricked
+- **Symptom:** a company whose CURRENT real-world month has been closed (`POST /periods/{y}/{m}/close`)
+  can never draft another TaxInvoice/PaymentVoucher/JournalEntry again — `docDate` on every one of
+  these is server-pinned to `_clock.TodayInBangkok()` (never client-controlled, "§10" anti-backdating
+  design), so a caller cannot route around the closed month by sending a different date. The
+  `/period-close` UI shows the closed month with an empty action cell (`{open && <button>close</button>}`
+  — no `else` branch), and the only other period-related route, `POST /periods/{year}/reopen-year`,
+  reopens the FISCAL YEAR close (reverses the year-end closing JE) but explicitly does **not** touch
+  the 12 monthly `AccountingPeriod` rows — confirmed live (`GET /periods/{year}/year-status` still
+  shows `"status":"Closed"` on every month after a year reopen) and in code
+  (`IYearCloseService.cs` comment: "D9.3 — future period-reopen feature's job"). No
+  `POST /periods/{y}/{m}/reopen` (or any spelling) route exists — confirmed both by reading
+  `PeriodEndpoints.cs` (only `close`, `status`, `close-year`, `reopen-year`, `year-status` are
+  mapped) and live (`404` on `/periods/2026/7/reopen`, `/open`, `/reopen-month`).
+- **Root cause:** monthly period-reopen is genuinely UNBUILT (not hidden behind a different role/
+  permission) — a documented future feature (D9.3), not a bug. Once a company's current month is
+  closed, every future document creation attempt is a dead end via the app layer until real-world
+  time rolls into a still-open period (which for a company with ALL FY months pre-closed, as co6 now
+  is, means never, within the fiscal year).
+- **Fix:** there is no app-level fix today. Before closing ANY period on a company you intend to keep
+  using for live/army testing, confirm it's truly the terminal action for that company (matches
+  `swarm-findings/army/B2-ye.md`'s own stated intent for co6: "nothing else runs on co6 after this").
+  If a future leg needs to draft a NEW document on a company whose current month is already closed,
+  either (a) get a monthly-reopen feature built first (real scope, not a workaround), or (b) use a
+  different company with an open current period. Do not attempt to route around it via DocDate — the
+  field is discarded server-side before the period check even runs.
+- **Seen:** 2026-07-25, army V3 (`swarm-findings/army/V3-nonvat-pv-ledger.md`) — blocked the entire
+  mission (a live posted-JE proof of WP-G's fold-not-zero fix) because co6's July 2026 (and every
+  other FY2026 month) was closed by the prior B2-ye leg with no way back.
+
 ## Full `dotnet test` run shows a burst of unrelated failures (e.g. `pk_companies` duplicate key) after a session resume
 - **Symptom:** a long `dotnet test` launched via `run_in_background`/auto-background appears to
   vanish across a session interruption/resume (its output file reads back 0 bytes, or the
