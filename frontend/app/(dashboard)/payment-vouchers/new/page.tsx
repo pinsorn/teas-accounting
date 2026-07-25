@@ -132,7 +132,10 @@ function PvForm() {
     // apply to this row (not the VI's own historical rate — those can differ, e.g. a
     // non-VAT-registered vendor's VI carrying non-recoverable VAT).
     const productType = firstLine?.productType ?? 'GOOD';
-    const rate = vendor.vatRegistered ? taxRateForProductType(productType) : 0;
+    // V1-F1 — use the same dual-flag ม.82/5 predicate as `vendorVat` below (not the
+    // single-flag vendor.vatRegistered), else a foreign vendor without Thai VAT-D gets a
+    // rate the form will never actually apply, landing short of `outstanding`.
+    const rate = vendorVat ? taxRateForProductType(productType) : 0;
     const baseAmount = derivePvPrefillBase(outstanding, rate);
     setRows([{
       ...emptyRow(1),

@@ -519,7 +519,7 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
 - [ ] O7 [B-mcp F2]: pending-agent-approvals widget shows agent drafts to APPROVER, but APPROVER holds zero sales.quotation.* perms — its "ตรวจ" link lands on an empty /quotations (cannot view/act; sales01 had to act instead). Decide: grant APPROVER read on agent-draft doc types, or filter the widget rows by the viewer's per-doc-type permission. Product call — Ham.
 
 ## WP-F — V1 post-deploy residual (2026-07-25, found by the v1.22.11 verify leg)
-- [ ] F1 **MEDIUM (money-adjacent, FE prefill) [V1-F1]**: `payment-vouchers/new/page.tsx` L135
+- [x] F1 **MEDIUM (money-adjacent, FE prefill) [V1-F1]**: `payment-vouchers/new/page.tsx` L135
       (VI-prefill effect) still derives the VAT rate with the SINGLE-flag
       `vendor.vatRegistered ? taxRateForProductType(productType) : 0` — the exact predicate WP-A2
       replaced at L159. For a foreign no-Thai-VAT-D vendor the prefilled line `amount` lands
@@ -532,3 +532,22 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       grand total lands EXACTLY on `outstanding` for all 4 combos (domestic VAT / domestic non-VAT /
       foreign with VAT-D / foreign without VAT-D) — that invariant is the Ham decision documented
       at L130-133. ACCEPTANCE: re-drive VI→PV on ARMYAWS859829 → prefilled amount = 20,000.00.
+      DONE (2026-07-25): rate now reads `vendorVat` (the dual-flag ม.82/5 predicate at L159,
+      unchanged) instead of the single-flag `vendor.vatRegistered` check. Referencing it directly
+      is safe — the effect closure only reads `vendorVat` when the callback fires post-render
+      (React commit phase, after the whole component body incl. L159 has executed), and the
+      pre-existing guard at L126 (`if (!vendor || vendor.vendorId !== vi.vendorId) return;`)
+      ensures `vendor` is loaded before the rate line runs, so `vendorVat`'s `vendor ? ... : true`
+      fallback never applies here. Confirmed with `tsc --noEmit` (0 errors) + `npm run build`
+      (green) — no reordering, no other lines touched. 4-combo reasoning (base = outstanding /
+      (1+rate) rounded, VAT = base*rate, total = base+VAT = outstanding by construction of
+      `derivePvPrefillBase`):
+        - domestic, VAT-registered: vendorVat=true → rate=product rate (e.g. 7%) → total=outstanding.
+        - domestic, non-VAT: vendorVat=false → rate=0 → base=outstanding, VAT=0 → total=outstanding.
+        - foreign, WITH Thai VAT-D: foreignNoVatD=false → vendorVat=vatRegistered&&true → rate=product
+          rate → total=outstanding (was already correct pre-fix, unaffected).
+        - foreign, WITHOUT Thai VAT-D: foreignNoVatD=true → vendorVat=false → rate=0 → base=outstanding,
+          VAT=0 → total=outstanding (this is the combo the bug hit: old code used
+          `vendor.vatRegistered` alone, which can be true even with hasThaiVatDReg=false, wrongly
+          applying a nonzero rate and landing ~6.8% short — now fixed).
+      No e2e spec asserts this prefill number (`grep -r "derivePvPrefillBase\|fromVendorInvoiceId" frontend/e2e` → no matches), so no second file touched.
