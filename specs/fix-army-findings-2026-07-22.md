@@ -516,7 +516,23 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
   suite ×2: both 932/1/8/941, a DIFFERENT single pre-existing flake each run (unrelated files),
   isolated re-run confirmed both non-regressions; new flake instance appended to troubles-wiki.
   Not committed — left for Fable's diff review.
-- [ ] O7 [B-mcp F2]: pending-agent-approvals widget shows agent drafts to APPROVER, but APPROVER holds zero sales.quotation.* perms — its "ตรวจ" link lands on an empty /quotations (cannot view/act; sales01 had to act instead). Decide: grant APPROVER read on agent-draft doc types, or filter the widget rows by the viewer's per-doc-type permission. Product call — Ham.
+- [x] O7 [B-mcp F2]: pending-agent-approvals widget shows agent drafts to APPROVER, but APPROVER holds zero sales.quotation.* perms — its "ตรวจ" link lands on an empty /quotations (cannot view/act; sales01 had to act instead). Decide: grant APPROVER read on agent-draft doc types, or filter the widget rows by the viewer's per-doc-type permission. Product call — Ham.
+      **Graduated from "Ham's call" to fixed-by-convention (WP-I / I1, 2026-07-25, Sonnet):** the
+      repo already has a standing WP1/WP2 rule — never show a link that 403s — so this wasn't a
+      product decision, just an unapplied existing convention. FIX
+      (`frontend/app/(dashboard)/page.tsx`): reused `useHasScope()` (`components/PermissionGate.tsx`)
+      + the SAME per-doc-type `.read` permission codes `SidebarNav.tsx`'s `SECTIONS` already use to
+      gate each doc type's list-page nav item (`sales.tax_invoice.read`, `sales.quotation.read`,
+      `sales.receipt.read`, `purchase.purchase_order.read`, `purchase.vendor_invoice.read`,
+      `purchase.payment_voucher.read`). Each `agentTypes` row now carries its matching `perm`; the
+      push-to-`alerts` loop gates on `a.n > 0 && hasScope(a.perm)`. No new permission, no widened
+      grant — a dropped row is dropped ENTIRELY (not hidden-but-counted), so the widget's own
+      per-type count (`n`) always matches what's rendered (no "1 pending" with zero rows), matching
+      spec's requirement. Backend `/reports/pending-agent-approvals` endpoint intentionally
+      untouched (still gated on `sales.tax_invoice.read` only, per B-mcp F2's own framing — this is
+      an FE display-gate fix, not a backend RBAC change).
+      GATES: `npx tsc --noEmit` (frontend/) — 0 errors. `npm run build` — compiled successfully
+      (see WP-I gate summary below for the consolidated run).
 
 ## WP-F — V1 post-deploy residual (2026-07-25, found by the v1.22.11 verify leg)
 - [x] F1 **MEDIUM (money-adjacent, FE prefill) [V1-F1]**: `payment-vouchers/new/page.tsx` L135
@@ -798,3 +814,43 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       closed all 12 FY2026 months on co6, **no PaymentVoucher (not even a draft) can be created on
       co6 until 2027** — reopen a period first if a future leg needs PV work there (B2-ye proved
       reopen+reclose is clean).
+      **Attempted 2026-07-25 (Sonnet, WP-I), REVERTED — Fable cost/benefit call, design conclusion
+      kept for the next attempt.** First shape tried: guard inside
+      `PaymentVoucherService.CreateDraftAsync` (throw `DomainException("pv.docdate_not_today", ...)`
+      right after §10's `docDate = _clock.TodayInBangkok()`). This broke **35 pre-existing tests**
+      on the full-suite gate — `req.DocDate` is 100% inert past that point (the service always
+      recomputes its own `docDate` for the period gate/persistence), so a wide population of tests
+      calls `svc.CreateDraftAsync(...)` directly with a fixture/filler `DocDate` that was never
+      load-bearing until this guard made it so. `CreateDraftAsync` is the ONE seam every internal
+      caller (`CreateFromVendorInvoiceAsync`, always today, unaffected either way) AND every test
+      funnels through — the wrong layer for a "don't lie to an external caller" check.
+      **Design conclusion (confirmed, keep for the next attempt): the rule belongs in
+      `CreatePaymentVoucherValidator` (`PaymentVoucherDtos.cs`), NOT in `CreateDraftAsync`.** The
+      REST endpoint (`PaymentVoucherEndpoints.cs`, `IValidator<CreatePaymentVoucherRequest>`) and
+      the MCP tool (`TeasMcpTools.CreatePaymentVoucherDraftAsync`, same validator) both already
+      funnel through that validator — the ONLY boundary that needs protecting (an external caller
+      lying about DocDate). Internal callers/tests never go through it when they call the service
+      directly, so a validator-level rule leaves them untouched. Confirmed exhaustively via
+      `grep -rn "CreatePaymentVoucherRequest\|CreatePvFromViRequest" backend/tests backend/src`
+      (46 hits, no other production call path). Concretely:
+      `RuleFor(x => x.DocDate).Equal(_ => new SystemClock().TodayInBangkok())` — no validator in
+      this codebase takes a DI dependency (all are constructed parameterless, including
+      `new CreatePaymentVoucherValidator()` at existing test call sites), so read the clock
+      directly rather than injecting `IClock`. Surfaces as the standard FluentValidation shape
+      (`400 Results.ValidationProblem` on REST, `[mcp.validation] DocDate: ...` on MCP via
+      `McpErrorSurfacingFilter`'s existing `ValidationException` catch) — a field-named validation
+      error, arguably a better fit for a DTO-shape mistake than a 422 domain code, so no new i18n
+      key or DomainException code is needed. Test home: `Sprint87ForeignVendorTests.cs` already
+      tests this validator directly (two pre-existing self-withhold/payer-mode tests,
+      `new CreatePaymentVoucherValidator().Validate(req)`, no DB) — add
+      `DocDate_other_than_bangkok_today_is_rejected_by_validator` /
+      `DocDate_bangkok_today_passes_validator` there, plus one MCP end-to-end smoke test.
+      **Why reverted despite being solved:** cost, not quality — the first (wrong-place) attempt
+      plus its correction cost two full ~12-minute suite runs and a design correction; Fable judged
+      this the smallest item the whole army batch produced and not worth further session time as a
+      bonus item, especially since it isn't a defect harming anyone today (§10's pin itself was
+      never broken — only the DTO's honesty about a field it drops). All code reverted
+      (`PaymentVoucherDtos.cs`, `Sprint87ForeignVendorTests.cs`, `McpServerSmokeTests.cs`,
+      `frontend/lib/i18n/problems.ts` — confirmed clean via `git status`). Re-attempting with the
+      design conclusion above should be a ~10-minute job (one `RuleFor`, two validator tests, no
+      full-suite surprises since the guard never touches `CreateDraftAsync`'s seam this time).

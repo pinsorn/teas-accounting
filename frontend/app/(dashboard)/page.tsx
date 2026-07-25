@@ -6,7 +6,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Receipt, Coins, ListChecks, FileInput,
   AlertTriangle, CheckCircle2, ArrowRight, FileText, Plus, Bot,
 } from 'lucide-react';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, useHasScope } from '@/components/PermissionGate';
 import {
   useTaxSummary, useNumberGaps, useVatThresholdStatus, useVendorInvoices,
   useSystemInfo, useCompanyProfile, usePendingAgentApprovals,
@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const threshold = useVatThresholdStatus().data?.status;
   const incompleteVi = useVendorInvoices(true).data?.length ?? 0;
   const agentApprovals = usePendingAgentApprovals().data;
+  const hasScope = useHasScope();
 
   const companyName = profile?.tradeName || profile?.legalName || t('title');
   const netVat = (cur?.vatPayable ?? 0) - (cur?.vatRefundable ?? 0);
@@ -71,17 +72,24 @@ export default function DashboardPage() {
   // Agent-created drafts pending human approval — one alert per doc type, each
   // linking to its OWN list (the DTO breaks the count out by type; a single
   // /tax-invoices link sent receipt/quotation drafts to the wrong list).
+  // I1 (specs/fix-army-findings-2026-07-22.md O7 / army B-mcp F2) — the widget used to show a
+  // row (and its "ตรวจ" deep-link) to every viewer regardless of whether they can actually open
+  // that doc type — e.g. APPROVER holds zero sales.quotation.* perms, so the link 404s into an
+  // empty list. Standing WP1/WP2 rule: never show a link that 403s. Gate each row on the SAME
+  // per-doc-type READ permission the sidebar nav uses for that doc type's list page
+  // (SidebarNav.tsx SECTIONS), reusing useHasScope (no new permission, no widened grant). A
+  // filtered-out row is dropped entirely, so the count shown always matches the rows rendered.
   if (agentApprovals) {
-    const agentTypes: { key: string; n: number; href: string; type: string }[] = [
-      { key: 'agentTi', n: agentApprovals.taxInvoices, href: '/tax-invoices', type: t('alerts.agentType.taxInvoice') },
-      { key: 'agentQt', n: agentApprovals.quotations, href: '/quotations', type: t('alerts.agentType.quotation') },
-      { key: 'agentRc', n: agentApprovals.receipts, href: '/receipts', type: t('alerts.agentType.receipt') },
-      { key: 'agentPo', n: agentApprovals.purchaseOrders, href: '/purchase-orders', type: t('alerts.agentType.purchaseOrder') },
-      { key: 'agentVi', n: agentApprovals.vendorInvoices, href: '/vendor-invoices', type: t('alerts.agentType.vendorInvoice') },
-      { key: 'agentPv', n: agentApprovals.paymentVouchers, href: '/payment-vouchers', type: t('alerts.agentType.paymentVoucher') },
+    const agentTypes: { key: string; n: number; href: string; type: string; perm: string }[] = [
+      { key: 'agentTi', n: agentApprovals.taxInvoices, href: '/tax-invoices', type: t('alerts.agentType.taxInvoice'), perm: 'sales.tax_invoice.read' },
+      { key: 'agentQt', n: agentApprovals.quotations, href: '/quotations', type: t('alerts.agentType.quotation'), perm: 'sales.quotation.read' },
+      { key: 'agentRc', n: agentApprovals.receipts, href: '/receipts', type: t('alerts.agentType.receipt'), perm: 'sales.receipt.read' },
+      { key: 'agentPo', n: agentApprovals.purchaseOrders, href: '/purchase-orders', type: t('alerts.agentType.purchaseOrder'), perm: 'purchase.purchase_order.read' },
+      { key: 'agentVi', n: agentApprovals.vendorInvoices, href: '/vendor-invoices', type: t('alerts.agentType.vendorInvoice'), perm: 'purchase.vendor_invoice.read' },
+      { key: 'agentPv', n: agentApprovals.paymentVouchers, href: '/payment-vouchers', type: t('alerts.agentType.paymentVoucher'), perm: 'purchase.payment_voucher.read' },
     ];
     for (const a of agentTypes) {
-      if (a.n > 0)
+      if (a.n > 0 && hasScope(a.perm))
         alerts.push({ key: a.key, tone: 'info', icon: Bot, text: t('alerts.agentApprovalsTyped', { n: a.n, type: a.type }), href: a.href, cta: t('alerts.review') });
     }
   }
