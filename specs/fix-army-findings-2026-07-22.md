@@ -601,6 +601,26 @@ VI path has one at every seam. `PaymentVoucherService.CreateDraftAsync` L196-200
       after — the 1170-proof test), `NonVatCompany_ViLinkedPv_PostsNo1170_VatTotalsZero`,
       `VatRegisteredCompany_StandalonePv_StillBooksRecoverableVat` (regression, co5 shape
       unchanged, 1170 still posts 70 for a VAT company).
+      **Opus Tier-2 REJECTED + fix round (2026-07-25, Sonnet):** the "zero VatRate/VatAmount"
+      gate above was WRONG — Fable's spec error (the "VAT totals are 0" acceptance criterion),
+      which I had followed literally and correctly per-spec, but it produced broken money (see
+      the amended TESTS + CORRECT GATE SHAPE bullets below the G3 note). **Fix:** the
+      `!companyVatRegistered` block now sets ONLY `l.IsRecoverableVat = false;` — `VatRate`/
+      `VatAmount` are left untouched, mirroring `VendorInvoiceService`'s WP1.2 block exactly
+      (which also never zeroes them). `GlPostingService`'s pre-existing `expenseGross =
+      l.IsRecoverableVat ? l.Amount : l.Amount + l.VatAmount` fold already routes the VAT into
+      cost from that one flag — no GL code touched. **Tests corrected to assert the RIGHT
+      shape** (Opus F4: the original 3 tests all passed green on the broken zeroing because
+      they only asserted Dr=Cr / no-1170 / VatAmount==0, none of which distinguish "zeroed" from
+      "folded"): standalone renamed `NonVatCompany_StandalonePv_FoldsVatIntoCost_NoInputVatLine`
+      — now asserts `draft.Lines` keep `VatRate==0.07m && VatAmount==70m` (not zeroed),
+      `posted.TotalPaid==1070m`, and the expense-account JE line `DebitAmount==1070m` (not just
+      "no 1170"); VI-linked renamed `NonVatCompany_ViLinkedPv_SettlesViInFull_NoInputVatLine` —
+      now asserts `vi.SettlementStatus=="PAID"` and `vi.SettledAmount==vi.TotalAmount` (proving
+      the VI is NOT stranded PARTIAL) instead of a VatAmount==0 check. Both still assert no
+      Input-VAT-account debit line (resolved via `IOptions<GlAccountsOptions>`, never hardcoded
+      — G3, unaffected by this correction). Regression test unchanged (company IS VAT-registered,
+      so the `!companyVatRegistered` block never fires there).
 - [x] G2 **HIGH (FE) [B2-nv F1]**: `payment-vouchers/new/page.tsx` — read
       `const companyVatRegistered = useSystemInfo().data?.vatMode ?? true;` and fold it into
       `vendorVat` (`companyVatRegistered && vendor.vatRegistered && !foreignNoVatD`); hide the VAT
@@ -619,6 +639,10 @@ VI path has one at every seam. `PaymentVoucherService.CreateDraftAsync` L196-200
       spread-conditional idiom as `vendor-invoices/new`. WP-B(a) WHT-type block (client check +
       inline warning) untouched — confirmed by diff (only 4 edit sites: import line, hook decl,
       `vendorVat` formula, VAT row wrap, totals row wrap).
+      **Opus Tier-2 (2026-07-25): found G2 already correct as implemented — no further FE
+      change made.** The FE always sends the gross amount + the derived rate (never a
+      VAT-exclusive figure), so it was never exposed to the G1 zeroing-vs-folding bug; the
+      review scope for G2 was backend-only.
 - [x] G3 note [B2-nv F3]: co6's output-VAT account is `2151`, not `2130` — future non-VAT/VAT
       assertions must read the account from the company's CoA, not a hardcoded code.
       No code change (note-only, per dispatch). New test file resolves the Input VAT account
@@ -640,19 +664,18 @@ VI path has one at every seam. `PaymentVoucherService.CreateDraftAsync` L196-200
   the 1170 debit AND folds the VAT into cost, and it is exactly what `VendorInvoiceService`'s WP1.2
   block does (it touches neither VatRate nor VatAmount). ภ.พ.30 reads only VendorInvoices, never
   PaymentVouchers, so keeping the PV's VatAmount has no filing side-effect.
-  **Gates (2026-07-25, Sonnet):** `dotnet build` (whole solution) clean, 0 warnings/errors.
-  Targeted run — new `PaymentVoucherNonVatCompanyTests` (3/3) + broader PV/VI regression filter
+  **Gates, corrected round (2026-07-25, Sonnet, post Opus Tier-2 REJECT):** `dotnet build`
+  (whole solution) clean, 0 warnings/errors. Targeted run — corrected
+  `PaymentVoucherNonVatCompanyTests` (3/3) + broader PV/VI regression filter
   (`PaymentVoucher|Sprint87|PurchaseRateBound|VendorInvoice|McpDocumentChain`, 76/76) — all green.
-  `npx tsc --noEmit` — 0 errors. `npm run build` — compiled successfully, `/payment-vouchers/new`
-  route present (6.24 kB). **Final full-suite gate** (auto-backgrounded, >10min, polled to
-  completion): Domain.Tests 155/0/155 clean. Api.Tests — 1 failed, 939 passed, 8 skipped, 948
-  total (12m26s) — skip count matches the 8-baseline exactly, +3 vs. the pre-WP-G 937/8/945
-  baseline (this session's 3 new tests); the 1 failure is
-  `Pnd50FilingServiceTests.Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder` — the
-  same documented `TaxFilings`-shared-row pre-existing flake named in WP-A/B/C/E's evidence
-  (troubles-wiki.md), file untouched by this diff; isolated re-run passed clean 7/7, confirming
-  flake not regression. Not committed — left for Fable's diff review + Opus Tier-2 (per dispatch,
-  MONEY control point).
+  `npx tsc --noEmit` — 0 errors (FE untouched this round, re-verified per Opus's "already
+  correct" finding). `npm run build` — compiled successfully. **Final full-suite gate**
+  (auto-backgrounded, >10min, polled to completion): Domain.Tests 155/0/155 clean. Api.Tests —
+  **0 failed, 940 passed, 8 skipped, 948 total (12m29s)** — fully green this run (the
+  `Pnd50FilingServiceTests` flake that fired on the pre-correction run did not recur here); skip
+  count matches the 8-baseline exactly, +3 vs. the pre-WP-G 937/8/945 baseline (this session's 3
+  corrected tests). Not committed — left for Fable's diff review + Opus Tier-2 re-review (per
+  dispatch, MONEY control point).
 
 ## WP-H — payroll read/filing RBAC (2026-07-25, army B2-pr) — SQL seed = footgun, Opus review
 Root cause verified by Fable: `Permissions.Payroll` has only `RunManage`/`RunPost`/`RunPay` — there is
@@ -707,3 +730,17 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
   knowledge; and two claims (missing name title-prefixes, blank ภ.ง.ด.1ก employee addresses) are
   vision-only — Thai font subsetting makes those cells extract as dot-leaders either way, so they
   are UNCONFIRMED, not proven defects. Re-check by eye before filing either as a bug.
+- WP-G Tier-2 round 2 (2026-07-25): **APPROVE**. Confirmed: PV's header roll-up is unsplit, so
+  `applied = Subtotal + pv.VatAmount` structurally equals VI's `VatAmount + NonRecoverableVatAmount`
+  → a non-VAT VI-linked PV now reaches `PAID` exactly; the FE (gross + rate 0) and REST/MCP from-VI
+  (base + VI's own rate) shapes land the same settlement by different decompositions; the gate never
+  executes for a VAT company so co5 is bit-identical. Two non-blocking nits carried forward:
+  - [ ] G4 (test hardening, do with a filtered run — no full suite needed): the standalone draft
+        assertion in `PaymentVoucherNonVatCompanyTests.cs` (~L101) should assert
+        `!l.IsRecoverableVat` DIRECTLY rather than relying on the absent-1170-debit as a proxy — the
+        flag IS the fix, and a future GL refactor could break it while the account assertion passes.
+        (The VI-linked test already asserts it.)
+  - [ ] G5 (cosmetic, pre-existing, needs a migration to do properly — Ham's call): a non-VAT
+        company's PV header carries `VatAmount = 70` with no recoverable/non-recoverable split, so PV
+        detail/print label folded-into-cost VAT plainly as "VAT" where a VI shows it as
+        `NonRecoverableVatAmount`. The cash quantity is correct; only the label is imprecise.

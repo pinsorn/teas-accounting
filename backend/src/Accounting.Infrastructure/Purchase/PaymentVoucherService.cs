@@ -193,14 +193,22 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         // it must be an active BU of this tenant (mirror TaxInvoiceService).
         // cont.94d — fetch the company's standard VAT rate in the same hop (per-company
         // master data, §4.6) so we can validate each line's rate server-side.
+        // WP-G (specs/fix-army-findings-2026-07-22.md, army B2-nv F1/F2) — also read
+        // VatRegistered here: a non-VAT company must NEVER book recoverable input VAT on a PV,
+        // mirroring VendorInvoiceService's WP1.2 (the PV path had NO company-VAT-mode gate at
+        // all before this).
         var companyCfg = await _db.Companies
             .Where(c => c.CompanyId == _tenant.CompanyId)
-            .Select(c => new { c.RequiresBusinessUnit, c.VatRate })
+            .Select(c => new { c.RequiresBusinessUnit, c.VatRate, c.VatRegistered })
             .FirstOrDefaultAsync(ct);
         var requiresBu = companyCfg?.RequiresBusinessUnit ?? false;
         // EF maps the CLR decimal default 0 to the DB default 0.07; mirror that here so a
         // "0/unset" rate never collapses rule 3 into rejecting the legitimate 7% lines.
         var standardVatRate = companyCfg is { VatRate: > 0m } ? companyCfg.VatRate : 0.07m;
+        // F-3-style fail-safe (mirrors VendorInvoiceService.CreateDraftAsync) — a missing
+        // company row (unreachable for an authenticated tenant) reads as non-recoverable, never
+        // the reverse.
+        var companyVatRegistered = companyCfg?.VatRegistered ?? false;
         if (requiresBu && req.BusinessUnitId is null)
             throw new DomainException("bu.required", "Business Unit is required for this company.");
         if (req.BusinessUnitId is { } buId &&
@@ -296,6 +304,25 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 WhtRate           = input.WhtRate,
                 WhtAmount         = wht,
             });
+        }
+
+        // WP-G (F1/F2) — non-VAT company: force every line non-recoverable. Corrected by Opus
+        // Tier-2 F1 (2026-07-25) — do NOT zero VatRate/VatAmount: GlPostingService's own
+        // expenseGross fold (`l.IsRecoverableVat ? l.Amount : l.Amount + l.VatAmount`) already
+        // routes non-recoverable VAT into cost from this ONE flag, exactly mirroring
+        // VendorInvoiceService's WP1.2 block (which also touches neither VatRate nor
+        // VatAmount). Zeroing understated TotalPaid/cash (the vendor still charged and was
+        // paid the VAT — it just isn't creditable) and, on a VI-linked PV, stranded AP (the
+        // VI's TotalAmount already includes its own non-recoverable VAT via
+        // NonRecoverableVatAmount, so a short settle leaves it permanently PARTIAL — the
+        // vi.pv_exists guard blocks a second PV). Applies to BOTH standalone AND VI-linked
+        // PVs — this is the one seam both REST and the from-VI guided path
+        // (CreateFromVendorInvoiceAsync) funnel through, same as WP-B(a)'s seam. Must run
+        // BEFORE the totals roll up below.
+        if (!companyVatRegistered)
+        {
+            foreach (var l in lines)
+                l.IsRecoverableVat = false;
         }
 
         var subtotal = lines.Sum(l => l.Amount);

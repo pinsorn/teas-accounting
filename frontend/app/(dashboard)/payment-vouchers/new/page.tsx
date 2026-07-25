@@ -12,7 +12,7 @@ import { ProductPicker, taxRateForProductType } from '@/components/forms/Product
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { PercentRateInput } from '@/components/ui/PercentRateInput';
 import { apiPost } from '@/lib/api';
-import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile, useMePermissions } from '@/lib/queries';
+import { useVendor, useWhtTypes, usePurchaseOrder, useVendorInvoice, useCompanyBuSetting, useCompanyProfile, useMePermissions, useSystemInfo } from '@/lib/queries';
 import { derivePvPrefillBase } from '@/lib/pv-prefill';
 import type { ProductTypeStr } from '@/lib/types';
 import { bangkokToday, formatDateBE, formatTaxId } from '@/lib/utils';
@@ -51,6 +51,10 @@ function PvForm() {
   const po = usePurchaseOrder(fromPo ? Number(fromPo) : null).data;
   const docDate = bangkokToday();
   const company = useCompanyProfile();
+  // WP-G (specs/fix-army-findings-2026-07-22.md, army B2-nv F1/F2) — company VAT config
+  // (source of truth on the BE; FE mirror only), same §4.6 sys.vatMode hook the VI/expense-claim
+  // forms already use. Defaults true until /system/info resolves.
+  const companyVatRegistered = useSystemInfo().data?.vatMode ?? true;
 
   const [vendorId, setVendorId] = useState<number | null>(null);
   const [vendorLabel, setVendorLabel] = useState('');
@@ -159,7 +163,10 @@ function PvForm() {
   // (autoNoInputVat). A single-flag check missed foreignNoVatD vendors (vatRegistered can
   // default true even though hasThaiVatDReg is false), fabricating VAT that was never
   // charged (army B-rc F2). Default true until the vendor loads.
-  const vendorVat = vendor ? vendor.vatRegistered && !foreignNoVatD : true;
+  // WP-G — AND with companyVatRegistered too: a non-VAT-registered COMPANY can never claim
+  // input VAT regardless of the vendor's own status (army B2-nv F1, the PV form had no
+  // company-VAT-mode gate at all before this).
+  const vendorVat = companyVatRegistered && (vendor ? vendor.vatRegistered && !foreignNoVatD : true);
 
   // VAT is derived, never typed: 0 if the vendor isn't VAT-registered (ม.82/5) or the
   // product is VAT-exempt (ม.81); otherwise the standard rate for that product type.
@@ -249,7 +256,9 @@ function PvForm() {
 
   const totalRows: TotalRow[] = [
     { label: t('subtotal'), value: subtotal },
-    { label: t('vat'), value: vat },
+    // WP-G — a non-VAT company never has a real VAT line (always 0; hidden rather than
+    // shown as "0.00", mirroring vendor-invoices/new and the expense-claims F-B treatment).
+    ...(companyVatRegistered ? [{ label: t('vat'), value: vat }] : []),
     // Self-withhold: WHT is NOT deducted from the payment — shown as a separate
     // remit-to-RD line so the user sees the true cost of absorbing the tax.
     selfWithhold
@@ -410,15 +419,20 @@ function PvForm() {
                 <input type="number" className="input input-bordered input-sm" value={r.amount}
                   onChange={(e) => setRow(r.key, { amount: Number(e.target.value) || 0 })} />
               </label>
-              <label className="form-control">
-                <span className="label-text">VAT</span>
-                {/* คำนวณอัตโนมัติจากสินค้า/บริการ + สถานะ VAT ของผู้ขาย — แก้เองไม่ได้ */}
-                <div className="input input-bordered input-sm flex items-center bg-base-200 text-base-content/70"
-                  data-testid="pv-line-vat" title={!vendorVat ? t('vendorNoVat') : undefined}>
-                  {(lineVat(r) * 100).toFixed(0)}%
-                  {!vendorVat && <span className="ml-1 text-xs">· {t('vendorNoVatShort')}</span>}
-                </div>
-              </label>
+              {/* WP-G — a non-VAT company can never claim input VAT (no ภ.พ.30): the VAT
+                  rate control is meaningless there, so hide it (mirrors vendor-invoices/new
+                  and the expense-claims F-B treatment). */}
+              {companyVatRegistered && (
+                <label className="form-control">
+                  <span className="label-text">VAT</span>
+                  {/* คำนวณอัตโนมัติจากสินค้า/บริการ + สถานะ VAT ของผู้ขาย — แก้เองไม่ได้ */}
+                  <div className="input input-bordered input-sm flex items-center bg-base-200 text-base-content/70"
+                    data-testid="pv-line-vat" title={!vendorVat ? t('vendorNoVat') : undefined}>
+                    {(lineVat(r) * 100).toFixed(0)}%
+                    {!vendorVat && <span className="ml-1 text-xs">· {t('vendorNoVatShort')}</span>}
+                  </div>
+                </label>
+              )}
               <label className="form-control md:col-span-2">
                 <span className="label-text">{t('whtType')}</span>
                 <select className="select select-bordered select-sm" value={r.whtTypeId ?? ''}
