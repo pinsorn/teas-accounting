@@ -184,7 +184,7 @@ co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock 
       co2/co3/co5.
 
 ## Wave C — vision (AGY primary, Claude-vision fallback), after B artifacts exist
-- [ ] C1: collect Wave B PDF/print artifacts (ภ.พ.30, ภ.พ.36, ภ.ง.ด.1/3/53/54, 50ทวิ, สปส.1-10) →
+- [x] C1 DONE (+ C2 for the B2 artifacts): collect Wave B PDF/print artifacts (ภ.พ.30, ภ.พ.36, ภ.ง.ด.1/3/53/54, 50ทวิ, สปส.1-10) →
       AGY: fetch official RD/SSO form layouts (web) → field-placement compare per form → report
       per-form: match/mismatch table. AGY sandbox only (agy-out), no secrets.
 
@@ -203,10 +203,10 @@ co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock 
 6. ~30-min timebox per leg. Human-paced clicks.
 
 ## Consolidation (Fable)
-- [ ] Wave A verified → Wave B dispatched (co5 legs parallel; co6 legs sequential)
-- [ ] All leg reports → dedupe → severity triage → fix arc spec → fix → re-verify (the 5-round loop)
-- [ ] Post-army sanity: TB tie both cos, no cross-tenant, pm2 zero-500 window
-- [ ] Cleanup frontend/army-*.mjs
+- [x] Wave A verified → Wave B dispatched (co5 legs parallel; co6 legs sequential) — all 8 co5 legs + 3 co6 legs done
+- [x] All leg reports → triaged into specs/fix-army-findings-2026-07-22.md (WP-A..WP-H, 8/8 shipped in v1.22.11+v1.22.12) → re-verified live by legs V1 (10/11), V2 (3/4), V3b (4/4). Verdict: swarm-findings/army/VERDICT-army-2026-07-25.md; Ham-facing: DECISIONS-army-2026-07-25.md
+- [x] Post-army sanity 2026-07-25: TB Dr=Cr on co5 (V1/V2), co6 (B2-nv/pr/ye) and co7 (V3b); zero cross-tenant sightings in any leg; **prod api-out.log grep for internal_error / unhandled exception across the whole army window = 0 hits**
+- [x] Cleanup frontend/army-*.mjs — verified none left (every leg deleted its own temp script)
 
 ## Attempt log
 - 2026-07-22 12:00 spec written; quota 81% → plan: A1 now, push Ham re B-1/B-2, wakeup at reset for Wave B.

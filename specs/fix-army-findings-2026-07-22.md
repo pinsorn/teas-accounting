@@ -732,7 +732,7 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       *Residual gap (not in H1 scope, flag for Ham):* TAX_OFFICER still cannot reach these PDFs
       through the current UI (no dedicated filing page exists outside the admin-gated payroll list/
       detail) — only via direct API call. A minimal filing-only FE surface would be new scope.
-- [ ] H2 decide + implement read/manage split ONLY if H1 alone leaves a hole: adding a real
+- [x] H2 NOT NEEDED (2026-07-25): H1's OR-set closed the hole — TAX_OFFICER reaches all 5 filing artifacts (verified live, leg V2) while payroll administration stays RunManage-only, so no new perm code, no grants, no SqlScripts file. Original option, kept for the record: adding a real
       `payroll.run.read` code is the cleaner long-term shape (mirrors `629_seed_read_manage_split_grant.sql`)
       but costs a new perm code + grants for ACCOUNTANT/CHIEF_ACCOUNTANT/AUDITOR/TAX_OFFICER.
       **Seed-ordering footgun (memory `rbac-seed-ordering-footgun`): insert the perm CODE first, then
