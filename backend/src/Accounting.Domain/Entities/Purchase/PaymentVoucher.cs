@@ -115,6 +115,7 @@ public class PaymentVoucher : ITenantOwned, IAuditable, IConcurrencyVersioned
         Status     = DocumentStatus.Approved;
         ApprovedBy = approverUserId;
         ApprovedAt = approvedAt;
+        Version++;
     }
 
     public void MarkPosted(string docNo, long userId, DateTimeOffset postedAt)
@@ -131,5 +132,29 @@ public class PaymentVoucher : ITenantOwned, IAuditable, IConcurrencyVersioned
         Status = DocumentStatus.Posted;
         PostedAt = postedAt;
         PostedBy = userId;
+        Version++;
+    }
+
+    /// <summary>
+    /// B1(b) (specs/fix-army-findings-2026-07-22.md) — escape hatch for a PV that can never
+    /// Post (e.g. pv.wht_type_missing on an already-approved draft, or a legacy bad Draft that
+    /// predates that guard). Draft OR Approved -&gt; Voided, terminal. Posted throws — immutable
+    /// after Post stays absolute (Opus Tier-2 F2, 2026-07-25: Draft admitted too — Cancel() was
+    /// Approved-only, but the new ApproveAsync re-assert (B1(a)) welds a legacy bad Draft shut
+    /// with NO way to leave Draft — no PV update/delete endpoint exists — which would block
+    /// PeriodCloseService forever; a Draft PV has no JE/DocNo either, so cancelling it is exactly
+    /// as safe as cancelling an Approved one). Mirrors ExpenseClaim.Cancel()'s guard shape.
+    /// DocNo is allocated at Post, so a cancelled Draft/Approved PV never wastes a number, and VI
+    /// release is automatic (settlement is POST-only, so a Draft/Approved PV never touched its
+    /// linked VI — the status flip alone lets CreateFromVendorInvoiceAsync's `Status != Voided`
+    /// guard admit a fresh PV).
+    /// </summary>
+    public void Cancel()
+    {
+        if (Status != DocumentStatus.Draft && Status != DocumentStatus.Approved)
+            throw new DomainException("pv.cannot_cancel",
+                $"Cannot cancel a Payment Voucher in status {Status}; only a Draft or Approved PV may be cancelled.");
+        Status = DocumentStatus.Voided;
+        Version++;
     }
 }

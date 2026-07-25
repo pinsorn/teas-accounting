@@ -73,6 +73,10 @@
       "title": "Confirm payment voucher posting",
       "warning": "Posting books the journal entry immediately and is irreversible."
     },
+    "pvCancel": {
+      "title": "Confirm payment voucher cancellation",
+      "warning": "The payment voucher will be permanently cancelled (Voided) and cannot be recovered — if linked to a vendor invoice, a new payment voucher can be created to settle it again."
+    },
     "qtSend": {
       "title": "Confirm sending the quotation",
       "warning": "Sending issues the document number immediately and the draft can no longer be edited."
@@ -598,6 +602,7 @@
     "wht": "WHT",
     "whtType": "Income type (50ทวิ)",
     "whtTypeNone": "— none —",
+    "whtTypeRequired": "A WHT rate is set — select an Income Type (50ทวิ) or the draft cannot be saved",
     "vendorNoVat": "Vendor is not VAT-registered — no input VAT",
     "vendorNoVatShort": "no VAT",
     "item": "Item (product/service)",
@@ -609,6 +614,7 @@
     "create": "Create Payment Voucher",
     "approve": "Approve",
     "post": "Post",
+    "cancel": "Cancel Payment Voucher",
     "approvedBy": "Approved by user",
     "at": "at",
     "sodHint": "Approver should differ from the creator — super-admin can skip this",

@@ -142,13 +142,20 @@ public sealed class PurchaseRateBoundTests
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        // B1(a) (specs/fix-army-findings-2026-07-22.md) — CreateDraftAsync now rejects a
+        // WhtRate>0 line with no resolvable Income-Type; this test is about the RATE bound
+        // (already in [0,1] behaves unchanged), an orthogonal concern, so give it a real,
+        // onboarding-seeded WHT type (SeedVendorAndCategoryAsync's category has no
+        // DefaultWhtTypeId) rather than relying on the now-removed implicit-null pass.
+        var whtTypeId = await db.WhtTypes.Where(w => w.CompanyId == co.CompanyId && w.Code == "SVC")
+            .Select(w => (int?)w.WhtTypeId).FirstAsync();
 
         var id = await svc.CreateDraftAsync(new CreatePaymentVoucherRequest(
             DocDate: TodayBkk, VendorId: vendorId, ExpenseCategoryId: catId,
             PaymentMethod: PaymentMethod.Transfer, ChequeNo: null, ChequeDate: null, BankAccountId: null,
             CurrencyCode: "THB", ExchangeRate: 1m, Description: null, Notes: null,
             Lines: [new PaymentVoucherLineInput(
-                null, "line", 1000m, null, 0m, false, null, WhtRate: 0.03m)]), default);
+                null, "line", 1000m, null, 0m, false, whtTypeId, WhtRate: 0.03m)]), default);
 
         var pv = await db.PaymentVouchers.Include(p => p.Lines).AsNoTracking()
             .FirstAsync(p => p.PaymentVoucherId == id);

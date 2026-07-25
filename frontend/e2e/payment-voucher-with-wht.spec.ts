@@ -24,8 +24,16 @@ test('payment voucher with WHT: SoD create→approve→post + 50 tawi', async ({
   // pattern no longer resolves (and "มูลค่าก่อนภาษี" also appears in the totals).
   await page.getByRole('textbox', { name: 'รายละเอียด 1' }).fill('e2e consulting');
   await page.getByRole('spinbutton', { name: /^มูลค่าก่อนภาษี/ }).fill('1000');
-  // WHT 3% (the per-line "หัก ณ ที่จ่าย %" numeric input).
-  await page.getByRole('spinbutton', { name: /^หัก ณ ที่จ่าย/ }).fill('0.03');
+  // B1(a) (army B-bn F1) — the FE now client-blocks Save whenever a line has a WHT rate
+  // but no selected Income Type (50ทวิ), so a rate-only entry (no type picked) can no
+  // longer reach Draft-save. Pick any real Income Type (index 0 is "— ไม่หัก —"); the
+  // exact WHT rate is then set explicitly below, overriding whatever rate this type
+  // auto-filled, so the test doesn't depend on which type seed data puts first.
+  await page.getByTestId('pv-line-wht-type').selectOption({ index: 1 });
+  // WHT 3% (the per-line "หัก ณ ที่จ่าย %" numeric input). This is a PERCENT-displayed
+  // field (PercentRateInput) — '3' means 3%, not '0.03' (which resolves to 0.03%, army B-bn
+  // B2). On 1,000 base that's a 30.00 WHT amount, asserted below via the issued 50 ทวิ cert.
+  await page.getByRole('spinbutton', { name: /^หัก ณ ที่จ่าย/ }).fill('3');
 
   await page.getByRole('button', { name: /^บันทึก$|^Save$/ }).click();
   await page.waitForURL(/\/payment-vouchers\/\d+$/, { timeout: 15_000 });
@@ -60,7 +68,11 @@ test('payment voucher with WHT: SoD create→approve→post + 50 tawi', async ({
   expect(list.ok()).toBeTruthy();
   const body = await list.json();
   expect(body.items.length).toBeGreaterThan(0);
-  const certId = body.items[0].whtCertificateId;
+  const cert = body.items[0];
+  // army B-bn B2 — the field previously took a raw fraction ('0.03' = 0.03%, not 3%); a
+  // wrong-order-of-magnitude WHT amount went unasserted. 1,000 base * 3% = 30.00.
+  expect(cert.whtAmount).toBe(30);
+  const certId = cert.whtCertificateId;
   const pdf = await page.request.get(`/api/proxy/wht-certificates/${certId}/pdf`);
   expect(pdf.status()).toBe(200);
 });

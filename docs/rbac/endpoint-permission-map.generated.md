@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 290 |
+| Perm | 291 |
 | Assertion | 7 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **346** |
+| **TOTAL** | **347** |
 
 ## Routes
 
@@ -191,6 +191,7 @@
 | GET | `/payment-vouchers/{id:long}` | Perm | purchase.payment_voucher.read |
 | GET | `/payment-vouchers/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/payment-vouchers/{id:long}/approve` | Perm | purchase.payment_voucher.approve |
+| POST | `/payment-vouchers/{id:long}/cancel` | Perm | purchase.payment_voucher.approve |
 | POST | `/payment-vouchers/{id:long}/mark-printed` | Perm | purchase.payment_voucher.read |
 | GET | `/payment-vouchers/{id:long}/paper` | Perm | purchase.payment_voucher.read |
 | GET | `/payment-vouchers/{id:long}/pdf` | Perm | purchase.payment_voucher.read |

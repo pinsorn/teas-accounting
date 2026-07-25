@@ -265,6 +265,22 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 throw new DomainException("pv.wht_rate_out_of_range",
                     $"Line {i + 1}: WHT rate {input.WhtRate} is out of range; must be a fraction between 0 and 1.");
 
+            // Category auto-fills the default WHT type (CLAUDE.md §12.1) when the
+            // request omits it — required so a WHT line can issue its 50 ทวิ.
+            var resolvedWhtTypeId = input.WhtTypeId ?? category.DefaultWhtTypeId;
+            // B1(a) (specs/fix-army-findings-2026-07-22.md, army B-bn F1) — a line with a WHT
+            // rate but no resolvable Income-Type used to sail through Draft-save AND Approve,
+            // then 422 pv.wht_type_missing only at Post (with a fully-computed, misleading
+            // approve-confirm preview already shown) — and an Approved PV had no way back.
+            // Block it HERE instead, at the one seam both REST + from-VI callers funnel
+            // through, so it never reaches Approve/Post. Same code as the Post-time guard
+            // (PaymentVoucherService.PostAsync's per-WhtType-group WhtType lookup) so the
+            // FE's existing pv.wht_type_missing Thai toast covers this path unchanged.
+            if (input.WhtRate > 0m && resolvedWhtTypeId is null)
+                throw new DomainException("pv.wht_type_missing",
+                    $"Line {i + 1}: WHT rate {input.WhtRate:P0} was set but no Income-Type (50ทวิ) " +
+                    "is selected or defaulted from the expense category.");
+
             lines.Add(new PaymentVoucherLine
             {
                 LineNo            = i + 1,
@@ -276,9 +292,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 VatRate           = input.VatRate,
                 VatAmount         = vat,
                 IsRecoverableVat  = input.IsRecoverableVat,
-                // Category auto-fills the default WHT type (CLAUDE.md §12.1) when the
-                // request omits it — required so a WHT line can issue its 50 ทวิ.
-                WhtTypeId         = input.WhtTypeId ?? category.DefaultWhtTypeId,
+                WhtTypeId         = resolvedWhtTypeId,
                 WhtRate           = input.WhtRate,
                 WhtAmount         = wht,
             });
@@ -288,8 +302,11 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         var vatTotal = lines.Sum(l => l.VatAmount);
         var whtTotal = lines.Sum(l => l.WhtAmount);
 
-        // Sprint 8.7 — self-withhold (canonical from payerMode; VI-linked is blocked
-        // by the validator, so this only ever applies to standalone PV).
+        // Sprint 8.7 — self-withhold (canonical from payerMode). N1 (Opus review, WP-A) —
+        // the validator only blocks EXPLICIT SelfWithholdMode/WhtPayerMode request fields on
+        // a VI-linked request (F-5 above); it does NOT block the auto-derive above
+        // (autoSelfWithhold = foreign vendor without Thai VAT-D), so a VI-linked PV for such a
+        // vendor DOES self-withhold — this line applies to both standalone AND VI-linked PVs.
         var selfWithhold = WhtPayerModes.IsSelfWithhold(payerMode);
         var requiresPnd36 = autoSelfWithhold;
         // Self-withhold: we pay the vendor the full amount (no WHT deducted);
@@ -349,8 +366,16 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             throw new DomainException("auth.required", "User must be authenticated.");
 
         var pv = await _db.PaymentVouchers
+                .Include(p => p.Lines)
                 .FirstOrDefaultAsync(p => p.PaymentVoucherId == paymentVoucherId, ct)
             ?? throw new DomainException("pv.not_found", $"PV {paymentVoucherId} not found.");
+
+        // B1(a) — re-assert at Approve too: CreateDraftAsync's own-loop guard (above) closes
+        // the normal create path, but an already-persisted bad draft (row edited directly, or
+        // saved before this guard existed) must not be allowed to advance either.
+        if (pv.Lines.Any(l => l.WhtRate > 0m && l.WhtTypeId is null))
+            throw new DomainException("pv.wht_type_missing",
+                "A line has a WHT rate set but no Income-Type (50ทวิ) resolved.");
 
         var approver = _tenant.UserId ?? 0;
         // SoD enforced in the entity (and belt-and-braces by DB CHECK ck_pv_sod).
@@ -363,11 +388,72 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             pv.PaymentVoucherId, pv.ApprovedBy!.Value, pv.ApprovedAt!.Value);
     }
 
+    /// <summary>
+    /// B1(b) (specs/fix-army-findings-2026-07-22.md) — escape hatch for a Draft or Approved PV
+    /// stuck behind pv.wht_type_missing (or any other Post-time failure, or a legacy bad Draft
+    /// welded shut by the ApproveAsync re-assert — Opus Tier-2 F2, 2026-07-25): Draft/Approved
+    /// -&gt; Voided, terminal. VI release is automatic — settlement only ever happens at Post, so
+    /// a Draft/Approved PV never touched its linked VI; the status flip alone lets
+    /// CreateFromVendorInvoiceAsync's `Status != Voided` guard admit a fresh PV against the
+    /// same VI. No VI mutation, no new columns, no new permission (endpoint reuses `approve`).
+    /// </summary>
+    public async Task CancelAsync(long paymentVoucherId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var pv = await _db.PaymentVouchers
+                .FirstOrDefaultAsync(p => p.PaymentVoucherId == paymentVoucherId, ct)
+            ?? throw new DomainException("pv.not_found", $"PV {paymentVoucherId} not found.");
+
+        // Opus Tier-2 F2 (2026-07-25) — the activity record must reflect the ACTUAL prior
+        // status (Draft or Approved), not a hardcoded one; capture it before Cancel() mutates.
+        var fromStatus = pv.Status.ToString();
+        pv.Cancel();
+        _activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId,
+            "Voided", fromStatus: fromStatus, toStatus: "Voided", module: "purchase");
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // A concurrent Post (which allocates DocNo + flips to Posted) raced this cancel —
+            // Opus Tier-2 F1 (2026-07-25): Version is now bumped in every transition
+            // (MarkApproved/MarkPosted/Cancel), so the token is actually live both directions.
+            throw new DomainException("pv.locked_mismatch",
+                "This payment voucher was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>
+    /// Opus Tier-2 F1 (2026-07-25) — thin wrapper around <see cref="PostCoreAsync"/> so a
+    /// cancel-vs-post race (Version now bumped in every transition, see PaymentVoucher.cs) maps
+    /// to a clean 409 instead of a raw 500. <see cref="Numbering.NumberedDocumentWriter.AllocateAndSaveAsync"/>'s
+    /// own catch only recognizes the doc_no 23505 collision (DbUpdateException, not
+    /// DbUpdateConcurrencyException — a distinct EF exception the writer never touches), so a
+    /// genuine version conflict inside it (or any other SaveChangesAsync in the post pipeline)
+    /// would otherwise propagate unmapped.
+    /// </summary>
     public async Task<PaymentVoucherPostedResult> PostAsync(long paymentVoucherId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
+        try
+        {
+            return await PostCoreAsync(paymentVoucherId, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new DomainException("pv.locked_mismatch",
+                "This payment voucher was changed by someone else. Reload and try again.");
+        }
+    }
+
+    private async Task<PaymentVoucherPostedResult> PostCoreAsync(long paymentVoucherId, CancellationToken ct)
+    {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var pv = await _db.PaymentVouchers

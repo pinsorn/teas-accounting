@@ -19,7 +19,7 @@ import { PurchaseDocumentChain } from '@/components/doc/PurchaseDocumentChain';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { CreateViFromPvDialog } from '@/components/forms/CreateViFromPvDialog';
 import {
-  usePaymentVoucher, useApprovePaymentVoucher, usePostPaymentVoucher,
+  usePaymentVoucher, useApprovePaymentVoucher, usePostPaymentVoucher, useCancelPaymentVoucher,
   useCompanyProfile, useVendor, usePaperDoc,
 } from '@/lib/queries';
 import { formatDate } from '@/lib/utils';
@@ -42,6 +42,7 @@ export default function PaymentVoucherDetailPage() {
   const paper = usePaperDoc('payment-vouchers', id);
   const approve = useApprovePaymentVoucher();
   const post = usePostPaymentVoucher();
+  const cancel = useCancelPaymentVoucher();
   const hasScope = useHasScope();
   const [viDialog, setViDialog] = useState(false);
   const [isApproveAction, setIsApproveAction] = useState(false);
@@ -49,6 +50,8 @@ export default function PaymentVoucherDetailPage() {
   // post additionally books an immutable JE.
   const [confirmApprove, setConfirmApprove] = useState(false);
   const [confirmPost, setConfirmPost] = useState(false);
+  // B1(b) (specs/fix-army-findings-2026-07-22.md) — Draft/Approved escape hatch.
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     const action = new URLSearchParams(window.location.search).get('action');
@@ -68,6 +71,10 @@ export default function PaymentVoucherDetailPage() {
   }
   async function doPost() {
     try { await post.mutateAsync(id); toast.success(t('post')); }
+    catch (e) { problemToast(e, tc('error')); }
+  }
+  async function doCancel() {
+    try { await cancel.mutateAsync(id); toast.success(t('cancel')); }
     catch (e) { problemToast(e, tc('error')); }
   }
 
@@ -98,6 +105,19 @@ export default function PaymentVoucherDetailPage() {
                 <button data-testid="pv-post" className="btn btn-primary btn-sm" disabled={post.isPending}
                   onClick={() => setConfirmPost(true)}>
                   {t('post')}
+                </button>
+              </PermissionGate>
+            )}
+            {/* B1(b) — escape hatch for a Draft or Approved PV that can never Post (e.g.
+                pv.wht_type_missing on a legacy bad Draft the ApproveAsync re-assert would
+                otherwise weld shut — Opus Tier-2 F2, 2026-07-25). Reuses the approve
+                permission (undo-of-approval); a Draft PV's own creator can't cancel without
+                approve-perm too — accepted SoD per the design, not a bug. */}
+            {(d.status === 'Draft' || d.status === 'Approved') && (
+              <PermissionGate scope="purchase.payment_voucher.approve">
+                <button data-testid="pv-cancel" className="btn btn-ghost btn-sm text-error" disabled={cancel.isPending}
+                  onClick={() => setConfirmCancel(true)}>
+                  {t('cancel')}
                 </button>
               </PermissionGate>
             )}
@@ -252,6 +272,15 @@ export default function PaymentVoucherDetailPage() {
         ]}
         onClose={() => setConfirmPost(false)}
         onConfirm={async () => { await doPost(); setConfirmPost(false); }}
+      />
+      <ConfirmActionDialog
+        open={confirmCancel}
+        busy={cancel.isPending}
+        title={tca('pvCancel.title')}
+        warning={tca('pvCancel.warning')}
+        party={d.vendorName}
+        onClose={() => setConfirmCancel(false)}
+        onConfirm={async () => { await doCancel(); setConfirmCancel(false); }}
       />
     </>
   );

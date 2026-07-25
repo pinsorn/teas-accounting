@@ -540,6 +540,23 @@ export function usePostPaymentVoucher() {
     },
   });
 }
+// B1(b) (specs/fix-army-findings-2026-07-22.md) — Approved-only escape hatch for a PV stuck
+// behind pv.wht_type_missing (or any other Post-time failure). Invalidation mirrors
+// useApprovePaymentVoucher/usePostPaymentVoucher (also refreshes purchase-chain since a
+// VI-linked cancel frees the VI for a new PV).
+export function useCancelPaymentVoucher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<void>(`payment-vouchers/${id}/cancel`),
+    onSuccess: (_r, id) => {
+      qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
+      qc.invalidateQueries({ queryKey: ['payment-voucher', id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      qc.invalidateQueries({ queryKey: ['purchase-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
+    },
+  });
+}
 
 // ───────────────────────── Sprint 8: Business Units ─────────────────────────
 export function useBusinessUnits(includeInactive = false) {

@@ -176,9 +176,20 @@ function PvForm() {
   // Self-withhold pays the vendor in full; the (grossed) WHT goes to RD separately.
   const net = selfWithhold ? subtotal + vat : subtotal + vat - wht;
 
+  // B1(a) (specs/fix-army-findings-2026-07-22.md, army B-bn F1) — a line with a WHT rate
+  // but no selected Income Type (50ทวิ) used to sail through Draft-save AND Approve, then
+  // 422 pv.wht_type_missing only at Post (with an already-misleading approve-confirm
+  // preview shown, and an Approved PV had no way back). Block it here, client-side, before
+  // it can even reach the server seam (PaymentVoucherService.CreateDraftAsync ~L281) that
+  // now enforces the same rule. Simplification: this requires an EXPLICIT pick even for a
+  // category with a server-side default Income Type (e.g. SVC) — the FE has no visibility
+  // into that default, and always requiring an explicit selection keeps the 50ทวิ traceable
+  // instead of depending on an invisible category default.
+  const whtTypeMissing = rows.some((r) => r.whtRate > 0 && r.whtTypeId == null);
   const canSave =
     vendorId !== null && categoryId !== null &&
     rows.every((r) => r.description.trim() !== '' && r.amount > 0) &&
+    !whtTypeMissing &&
     (method !== 'Cheque' || (chequeNo.trim() !== '' && chequeDate !== '')) &&
     (!buRequired || businessUnitId !== null);   // Sprint BU-PURCH
 
@@ -422,6 +433,12 @@ function PvForm() {
                     </option>
                   ))}
                 </select>
+                {/* B1(a) — same rule as canSave above, surfaced inline on the offending row. */}
+                {r.whtRate > 0 && r.whtTypeId == null && (
+                  <span className="label-text-alt text-error" data-testid="pv-line-wht-type-required">
+                    {t('whtTypeRequired')}
+                  </span>
+                )}
               </label>
               <label className="form-control">
                 <span className="label-text">{t('wht')} %</span>

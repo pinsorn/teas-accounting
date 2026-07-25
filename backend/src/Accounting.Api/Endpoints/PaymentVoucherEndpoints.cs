@@ -33,6 +33,17 @@ public static class PaymentVoucherEndpoints
             Results.Ok(await service.PostAsync(id, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherPost);
 
+        // B1(b) (specs/fix-army-findings-2026-07-22.md) — Approved-only escape hatch for a PV
+        // that can never Post. Permission = reuse `approve` (undo-of-approval = approver
+        // authority; avoids a seed migration + RBAC-matrix churn) — creator-only is
+        // intentionally NOT sufficient.
+        group.MapPost("/{id:long}/cancel", async (long id, IPaymentVoucherService service, CancellationToken ct) =>
+        {
+            await service.CancelAsync(id, ct);
+            return Results.NoContent();
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Purchase.PaymentVoucherApprove);
+
         // cont.76 — guided "create บันทึกใบกำกับภาษีซื้อ off this PV" path: pre-fills a VI draft
         // from the PV and links it back. Requires the VI-create permission (it creates a VI).
         group.MapPost("/{id:long}/vendor-invoice", async (long id,

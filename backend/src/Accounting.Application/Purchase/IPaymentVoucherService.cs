@@ -18,6 +18,12 @@ public interface IPaymentVoucherService
     Task<PaymentVoucherPostedResult> PostAsync(long paymentVoucherId, CancellationToken ct);
 
     /// <summary>
+    /// B1(b) (specs/fix-army-findings-2026-07-22.md) — escape hatch for an Approved PV that
+    /// can never Post. Approved -&gt; Voided (terminal); Draft/Posted throw pv.cannot_cancel.
+    /// </summary>
+    Task CancelAsync(long paymentVoucherId, CancellationToken ct);
+
+    /// <summary>
     /// cont.76 — create a Vendor Invoice (บันทึกใบกำกับภาษีซื้อ) pre-filled from this PV and link
     /// it back (PaymentVoucher.VendorInvoiceId). The guided "create VI off a PV" path; reuses the
     /// compliance-correct VI draft pipeline. Throws pv.vi_exists if the PV already has a linked VI.

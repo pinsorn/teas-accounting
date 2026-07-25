@@ -22,6 +22,34 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## Full `dotnet test` run shows a burst of unrelated failures (e.g. `pk_companies` duplicate key) after a session resume
+- **Symptom:** a long `dotnet test` launched via `run_in_background`/auto-background appears to
+  vanish across a session interruption/resume (its output file reads back 0 bytes, or the
+  session reports "no live background children remain"). Rerunning the FULL suite then shows a
+  burst of failures unrelated to the diff under test — e.g. `23505` duplicate key on
+  `pk_companies` inside an otherwise-unrelated test class — that don't reproduce on a clean rerun.
+- **Root cause:** the ORIGINAL background `dotnet test` process was still alive and still writing
+  to the shared `teas_test` Postgres DB; the resume/interruption just orphaned the harness's
+  tracking of it, not the OS process itself. A second `dotnet test` launched believing the first
+  had died then raced the first on the same DB — two suites minting rows (companies, etc.)
+  concurrently collide on PK/unique constraints that a single run never would. This is the same
+  class of footgun as the "one dotnet-test runner at a time" rule, just triggered by a stale
+  background-task handle instead of a deliberate second dispatch.
+- **Fix:** before rerunning a "died" background test suite, verify no stray process is actually
+  still running (`tasklist | grep -i "dotnet\|testhost"` on Windows) and kill it if found, THEN
+  rerun once, cleanly, redirecting full output to a real log file (`dotnet test > file.log 2>&1`,
+  never `| tail -N` as the backgrounded command itself — `tail` truncates what the harness
+  persists, destroying the ability to diagnose a real failure later). Treat a burst of failures
+  across unrelated test classes (not just the single documented Pnd50-family flake) as a signal
+  of DB-level collision from a concurrent run, not a real regression — before spending time
+  triaging each one individually, kill stray processes and rerun clean first.
+- **Seen:** 2026-07-25, WP-B army-findings fix (`specs/fix-army-findings-2026-07-22.md`) — a
+  background suite run's output was orphaned across a coordinator-triggered resume; a naive
+  rerun produced 12 failures including a `FixedAssetServiceTests` `pk_companies` collision and
+  an `ExpenseClaimPermissionTests` failure, neither reproducing on a clean single run (which came
+  back with only the 2 real/expected failures: the documented Pnd50 flake + one genuine
+  regression from the diff).
+
 ## TI/RC/VI/PV post returns raw `500 internal_error` deterministically (`23505` on `ix_journal_entries_company_id_doc_no`) while PO approve / QT send are fine
 - **Symptom:** a document POST that auto-posts a GL journal entry (Tax Invoice / Receipt / Vendor Invoice / Payment Voucher / expense / adjustment) 500s every time (`{"type":"urn:teas:error:internal_error",...,"status":500}`), human-paced, not under load; PO approve and QT send (no JE) succeed. Server log shows a raw `Npgsql.PostgresException 23505: duplicate key ... ix_journal_entries_company_id_doc_no` escaping `NumberedDocumentWriter.AllocateAndSaveAsync`, NOT the clean `doc.number_alloc_exhausted`.
 - **Root cause:** TWO things. (1) `AllocateAndSaveAsync`'s retry catch was `when (attempt < MaxAttempts && IsDocNoCollision(ex))` — a collision on the FINAL attempt fell through the guard, so the raw `DbUpdateException` escaped (→ generic 500); the `doc.number_alloc_exhausted` after the loop was unreachable dead code. (2) Every `NextAsync` bump is enrolled in the caller's ambient (H8) transaction, so the escaping exception unwinds past `tx.CommitAsync` and rolls the bumps back WITH the tx — the counter never climbs and the next post re-collides identically (deterministic). Only bites a bucket drifted DEEPER than `MaxAttempts`. The shared **JV bucket** (every GL post allocates a JE) is the usual culprit; it stays deep-drifted when `626_reconcile_number_sequences.sql` did not actually apply on the deploy (verify `sys.applied_sql_scripts`). NOTE: EF Core 10 AutoSavepoints DO recover an ambient-tx collision (probed) — the tx is NOT left aborted (25P02); the failure is the off-by-one escape, not an abort.
@@ -494,6 +522,18 @@ Entry format — terse, greppable by symptom:
 - **Fix:** a single full-suite failure is not automatically a regression from your diff. Re-run just the failing test (filter by `FullyQualifiedName~<Name>`) in isolation and re-run the FULL suite again — if it passes alone, or a DIFFERENT single test fails on the next full run, it's pre-existing order/connection flakiness. Only escalate if the SAME test fails deterministically across repeated full runs, or it's in a file your diff actually touches.
 - **Seen:** 2026-07-04, H3 PUT-validation fix (`specs/fix-review-findings-2026-07-04.md`) — full run failed `Pnd50FilingServiceTests.Pnd50_with_nonzero_adjustments_renders_the_ladder_in_v2`; isolated re-run of that file failed a DIFFERENT method (`Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder`); a run excluding the new H3 tests entirely failed a THIRD, unrelated test (`TenantIsolationTests.Customer_from_company_A_is_invisible_to_company_B`, raw Npgsql connection reset). None of these files/areas are touched by the H3 diff (Customer/Branch/Vendor/Account validators + endpoints only).
 - **Seen again:** 2026-07-22, WP-A army-findings fix (GlPostingService.cs VI-linked self-withhold gross-up, `specs/fix-army-findings-2026-07-22.md`) — TWO consecutive full-suite runs both failed the SAME method, `Pnd50FilingServiceTests.Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder` (921 passed/8 skipped/1 failed/930 total, identical both times — skip count matched the 921/8 baseline exactly, and the new WP-A test's pass exactly offset the flake's fail in the pass-count). Isolated re-run of that one test (plus the new/regression tests) passed clean. File is `TaxFilings/Pnd50FilingServiceTests.cs` — unrelated to the diff (`Ledger/GlPostingService.cs`, PV frontend page, `Hardening/Sprint87ForeignVendorTests.cs`). Treated as the same pre-existing order/shared-row flakiness, not a regression — but note it can now repeat on the SAME method across separate full runs, not just "a different test each time" as originally observed.
+- **Seen again:** 2026-07-25, WP-B Opus Tier-2 fix round (PaymentVoucher Version-token liveness +
+  Draft-cancel, `specs/fix-army-findings-2026-07-22.md`) — a full-suite run failed 2 tests: the
+  now-familiar `Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder` PLUS a NEW member of
+  this flake class, `Accounting.Api.Tests.TaxFilings.WhtFormPdfFillTests.
+  Pnd54_maps_ma70_amounts_through_to_the_form` (a `HaveCount` assertion on a `WhtFilingRow` list —
+  same `TaxFilings` shared-row family, both failed within the first 10s of the run). Neither file
+  is touched by the diff (`Domain/Entities/Purchase/PaymentVoucher.cs`,
+  `Infrastructure/Purchase/PaymentVoucherService.cs`, the two `PaymentVoucherCancelTests.cs`
+  files); both passed clean on an isolated filtered re-run of just those two tests together. A
+  subsequent full clean re-run (0 failures) confirmed it. Filed here so a future worker recognizes
+  `WhtFormPdfFillTests.Pnd54_maps_ma70_amounts_through_to_the_form` as part of the same
+  `TaxFilings`-shared-state flake pool as `Pnd50FilingServiceTests`, not a fresh regression.
 
 ## Onboarded company has NO head-office branch (until v1.11.1) → MCP consent 400s
 - **Symptom:** OAuth/MCP consent `POST /oauth/authorize` (approve) returns `400 company_has_no_active_branch`; the connector shows "เกิดข้อผิดพลาด กรุณาลองใหม่". OpenIddict logs `access_denied` (ID2015) ONLY for a Deny — an Approve that 400s is OUR handler's `Results.BadRequest`, which bypasses OpenIddict logging (so grep the request body, not OpenIddict errors).

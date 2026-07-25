@@ -66,7 +66,7 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
   — verify or document.
 
 ## WP-B — WHT-type validation + stuck-PV escape (after WP-A; backend+FE, dotnet)
-- [ ] B1 **HIGH [B-bn F1]**: PV with WHT%>0 but Income-Type (50ทวิ) left "— ไม่หัก —" passes
+- [x] B1 **HIGH [B-bn F1]**: PV with WHT%>0 but Income-Type (50ทวิ) left "— ไม่หัก —" passes
       Draft-save AND Approve, shows a fully-computed misleading post-confirm preview, then post
       422s `pv.wht_type_missing`; Approved PV has NO edit/cancel affordance → permanently stuck
       (live: PV #19 co5). FIX (two halves):
@@ -79,15 +79,30 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
           value; no new columns (reason → activity note, exactly like `ExpenseClaim.Cancel()`); no new
           permission. DocNo is allocated at Post, so a cancelled Approved PV wastes no number.
           - Entity `PaymentVoucher.Cancel()` (`…/Entities/Purchase/PaymentVoucher.cs`): guard
-            `Status==Approved` else `throw new DomainException("pv.cannot_cancel", …)` (→422); set
-            `Status=Voided`. Draft & Posted throw → immutable-after-Post stays absolute. (Mirror the
-            `ExpenseClaim.Cancel()` guard shape.)
+            `Status==Draft || Status==Approved` else `throw new DomainException("pv.cannot_cancel", …)`
+            (→422); set `Status=Voided`. **Corrected by Opus Tier-2 F2 (2026-07-25):** Draft is
+            ADMITTED, not rejected — `ApproveAsync`'s B1(a) re-assert can weld a legacy bad Draft
+            shut forever (no PV update/delete endpoint exists to fix it in place), which would then
+            block `PeriodCloseService` on that month indefinitely; a Draft PV has no JE/DocNo, so
+            cancelling it is exactly as safe as cancelling an Approved one. Posted still throws →
+            immutable-after-Post stays absolute. (Mirror the `ExpenseClaim.Cancel()` guard shape.)
           - Service `CancelAsync(long id, CancellationToken ct)` (`…/Infrastructure/Purchase/PaymentVoucherService.cs`
-            + add to `IPaymentVoucherService`): auth guard; load TRACKED pv; `pv.Cancel()`;
-            `_activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId, "Voided",
-            fromStatus:"Approved", toStatus:"Voided", module:"purchase")`; `SaveChangesAsync` wrapped in
-            try/catch `DbUpdateConcurrencyException` → `throw new DomainException("pv.locked_mismatch")`
-            (→409; `Version` is a live concurrency token, config L68 — protects a cancel-vs-post race).
+            + add to `IPaymentVoucherService`): auth guard; load TRACKED pv; capture the pv's CURRENT
+            `Status` before mutating (the activity record's `fromStatus` must be dynamic — Draft or
+            Approved — not hardcoded); `pv.Cancel()`; `_activity.Record("PaymentVoucher",
+            pv.PaymentVoucherId, pv.DocNo, pv.CompanyId, "Voided", fromStatus:<captured>,
+            toStatus:"Voided", module:"purchase")`; `SaveChangesAsync` wrapped in try/catch
+            `DbUpdateConcurrencyException` → `throw new DomainException("pv.locked_mismatch")` (→409).
+            **Corrected by Opus Tier-2 F1 (2026-07-25):** `Version` was configured
+            `.IsConcurrencyToken()` (config L68) but NEVER incremented by any PaymentVoucher
+            transition — an inert token, so this catch was dead code (a cancel-vs-post race could
+            mark a POSTED PV Voided: payment vanishes from bank-rec/ภ.พ.36 while its JE stays, and
+            the VI becomes re-settleable → double payment). Fixed by adding `Version++` to EVERY
+            transition (`MarkApproved`, `MarkPosted`, `Cancel` — mirrors `ExpenseClaim`'s pattern),
+            making the token live both directions; `PostAsync`'s own SaveChanges path (which also
+            calls `MarkPosted`, via `NumberedDocumentWriter.AllocateAndSaveAsync`) needed the SAME
+            `DbUpdateConcurrencyException` → `pv.locked_mismatch` mapping — `NumberedDocumentWriter`
+            only recognizes the doc_no 23505 collision, not a version conflict.
           - VI release is AUTOMATIC + atomic: settlement (`SettledAmount`/`SettlementStatus`/
             `PaymentVoucherApplication`) is POST-only, so an Approved PV never touched the VI. The single
             PV status flip to Voided IS the release — `CreateFromVendorInvoiceAsync`'s `Status != Voided`
@@ -97,23 +112,132 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
             Permission = reuse **approve** (undo-of-approval = approver authority; avoids a seed migration +
             RBAC-matrix churn). Creator-only (`create`) is intentionally NOT sufficient; the approver may
             cancel; an SME single-operator holds all three anyway (cont.77).
-          - FE (`payment-vouchers/[id]/page.tsx`): Cancel btn inside the `d.status==='Approved'` block,
-            `<PermissionGate scope="purchase.payment_voucher.approve">`, opens `ConfirmActionDialog`
-            (`confirmAction.pvCancel.title/warning`), calls a new `useCancelPaymentVoucher` hook
-            (`lib/queries.ts`, invalidate the PV query). i18n: add `pv.cancel` + `confirmAction.pvCancel.*`
-            AND a `Voided` entry to `StatusBadge` MAP + `status.Voided` in messages/{th,en}.json (else a
-            voided PV shows a raw key).
-          - TESTS: domain (Approved→Voided ok; Draft & Posted throw `pv.cannot_cancel`); integration
+          - FE (`payment-vouchers/[id]/page.tsx`): Cancel btn inside the `d.status==='Approved'` block
+            — **corrected by Opus Tier-2 F2 (2026-07-25): also `d.status==='Draft'`** (same permission
+            gate; a Draft PV's own creator can't cancel without approve-perm either — accepted SoD,
+            not a bug), `<PermissionGate scope="purchase.payment_voucher.approve">`, opens
+            `ConfirmActionDialog` (`confirmAction.pvCancel.title/warning`), calls a new
+            `useCancelPaymentVoucher` hook (`lib/queries.ts`, invalidate the PV query). i18n: add
+            `pv.cancel` + `confirmAction.pvCancel.*` AND a `Voided` entry to `StatusBadge` MAP +
+            `status.Voided` in messages/{th,en}.json (else a voided PV shows a raw key).
+          - TESTS: domain (Draft→Voided ok; Approved→Voided ok; Posted throws `pv.cannot_cancel`;
+            Version++ fires on Cancel/MarkApproved/MarkPosted — Opus Tier-2 F1); integration
             (approve→cancel ⇒ Voided; VI-linked approve→cancel ⇒ a NEW PV is creatable from the same VI;
-            cancel a Posted PV ⇒ 422 `pv.cannot_cancel`; caller lacking `approve` ⇒ 403).
+            cancel a Posted PV ⇒ 422 `pv.cannot_cancel`; caller lacking `approve` ⇒ 403; a stale-Version
+            CancelAsync call ⇒ 409 `pv.locked_mismatch`, proving the token is actually live).
       (a) SEAM (keep error code `pv.wht_type_missing`): enforce in `CreateDraftAsync`'s per-line loop
           (`PaymentVoucherService.cs` ~L281 — the one seam BOTH REST + from-VI callers funnel through):
           after `WhtTypeId = input.WhtTypeId ?? category.DefaultWhtTypeId`, if `input.WhtRate>0m &&
           resolved is null` throw `DomainException("pv.wht_type_missing", …)` (blocks draft-save). Add the
           same check at the top of `ApproveAsync` so an already-persisted bad draft can't advance either.
       ACCEPTANCE: PV #19 on co5 can be unstuck via the new path after deploy.
-- [ ] B2 **LOW [B-bn]**: `frontend/e2e/payment-voucher-with-wht.spec.ts` fills WHT% `'0.03'`
+- [x] B2 **LOW [B-bn]**: `frontend/e2e/payment-voucher-with-wht.spec.ts` fills WHT% `'0.03'`
       commented "3%" — field takes plain percent (3). Fix value + add an assertion on the WHT amount.
+- **WP-B implementation evidence (2026-07-25, Sonnet, resumed after a prior worker died mid-edit):**
+  - **Already done by the dead worker** (audited via `git diff` at resume, all verified correct):
+    entity `PaymentVoucher.Cancel()` (Approved→Voided guard, `pv.cannot_cancel` otherwise);
+    service `CancelAsync` (auth guard, tracked load, `Cancel()`, activity record, `SaveChangesAsync`
+    wrapped in try/catch `DbUpdateConcurrencyException` → `pv.locked_mismatch`); interface method;
+    endpoint `POST /{id}/cancel` reusing the `approve` permission; B1(a) server-side seam in
+    `CreateDraftAsync`'s per-line loop + re-assert in `ApproveAsync` (both → `pv.wht_type_missing`);
+    N1 stale-comment fix (`PaymentVoucherService.cs` ~L291, now correctly documents that the
+    self-withhold auto-derive applies to VI-linked PVs too, not just standalone); FE detail-page
+    Cancel button (`PermissionGate` + `ConfirmActionDialog` + `useCancelPaymentVoucher`);
+    `th.json` `pv.cancel`/`confirmAction.pvCancel`; `status.Voided` + StatusBadge `Voided` MAP entry
+    (pre-existing from an earlier commit, not part of this diff); both new backend test files
+    (`PaymentVoucherCancelTests.cs` ×2, domain + API — comprehensive: all TESTS bullet points
+    covered including the VI-release-frees-a-new-PV integration test and the 403 permission gate).
+  - **Gaps found + completed this session:**
+    1. `en.json` `confirmAction.pvCancel` — genuinely missing (exactly where the worker died
+       mid-edit, confirmed via `git diff`: `th.json` had it, `en.json` didn't). Added, matching
+       the `pvPost` pattern.
+    2. B1(a) **client-side block** in `payment-vouchers/new/page.tsx` — not started at all (only
+       the server-side seam existed). Added: `whtTypeMissing` check (`rows.some(rate>0 &&
+       whtTypeId==null)`) folded into `canSave`, plus a per-row inline Thai warning
+       (`pv.whtTypeRequired`, new key in both json files) next to the WHT-type dropdown.
+       **Simplification (noted per Ponytail):** the check requires an EXPLICIT Income-Type pick
+       even for a category that has a server-side `DefaultWhtTypeId` (e.g. SVC) — the FE's
+       `ExpenseCategoryLite` type doesn't carry that field (confirmed via `expense-category-shape.ts`'s
+       whitelist), and plumbing it through (types.ts + shape-parser + selector, 3 more files)
+       would have exceeded the minimal-diff spirit for a UX-only nice-to-have. Always requiring
+       an explicit pick is a defensible, even safer simplification (no invisible-default reliance
+       for a WHT-bearing line) — flagging as a deliberate scope-preserving simplification, not a cut.
+    2. B2 — value fixed `'0.03'`→`'3'`; added `expect(cert.whtAmount).toBe(30)` assertion via the
+       existing WHT-certificate-list fetch. Also had to add a WHT-type dropdown selection
+       (`pv-line-wht-type`, index 1) to the test, made necessary by the new B1(a) client block —
+       the test's original flow (rate typed, no type picked) relied on the SVC category's server
+       default, which the new stricter client check no longer allows through unselected.
+  - **Regression found + fixed by the final gate:** `PurchaseRateBoundTests.
+    PaymentVoucher_CreateDraft_AcceptsNormalWhtRate` (orthogonal rate-bound test, unrelated to
+    WHT-type) broke against the new B1(a) server seam — its category had no `DefaultWhtTypeId`
+    and it passed `whtTypeId: null`. Fixed by looking up the onboarding-seeded "SVC" WhtType and
+    passing its id, keeping the test scoped to what it actually verifies (rate-bound behavior).
+  - Gates: `dotnet build` clean (0 warnings/errors). Full `dotnet test`: first full run raced
+    against a stale/orphaned background process from an earlier session interruption (12 false
+    failures from a `pk_companies` collision — see attempt log); killed the stray process, reran
+    clean twice. First clean run (before the `PurchaseRateBoundTests` fix): 2 failures — 1 the
+    documented `Pnd50FilingServiceTests.Pnd50_with_nonzero_adjustments_renders_the_ladder_in_v2`
+    pre-existing flake (named in `troubles-wiki.md`'s 2026-07-04 entry), 1 real regression (fixed,
+    see above). Targeted filter re-run (`PurchaseRateBoundTests|PaymentVoucherCancelTests|
+    Sprint87ForeignVendorTests`) after the fix: 30/30 passed. **Final full-suite gate: 0 failed,
+    930 passed, 8 skipped, 938 total (Api.Tests, 11m28s) + 152/0/152 (Domain.Tests) — fully green,
+    skip count matches the 8-baseline exactly, +8 passed vs. the pre-WP-B 921/8/930 Api.Tests
+    baseline (the 8 new B1(a)/B1(b) integration tests).** `npx tsc --noEmit` — 0 errors.
+    `npm run build` (next build) — compiled successfully, all routes generated including
+    `/payment-vouchers/new` and `/payment-vouchers/[id]`. `en.json`/`th.json` full key-parity
+    check (all namespaces, not just the touched ones) — 0 mismatches either direction.
+- **Opus Tier-2 REJECTED (2 blockers) + fix round (2026-07-25, Sonnet):**
+  - **F1 (Version inert token):** `PaymentVoucher.Version` was `.IsConcurrencyToken()` (config
+    L68) but no transition ever incremented it — `CancelAsync`'s `DbUpdateConcurrencyException`
+    catch was dead code (a cancel-vs-post race could mark a POSTED PV Voided). Fixed: `Version++`
+    added to `MarkApproved`, `MarkPosted`, and `Cancel` (mirrors `ExpenseClaim`'s pattern exactly).
+    `PostAsync` also needed the same catch — split into a thin public `PostAsync` (auth guard +
+    try/catch → `pv.locked_mismatch`) wrapping the unchanged original body, now private
+    `PostCoreAsync` (avoids re-indenting ~170 lines; `NumberedDocumentWriter.AllocateAndSaveAsync`'s
+    own catch only recognizes the doc_no 23505 collision, a different EF exception, so it never
+    interferes with this).
+  - **F2 (ApproveAsync re-assert welds bad Drafts shut):** `Cancel()` now accepts `Draft` OR
+    `Approved` (Posted still throws `pv.cannot_cancel`, absolute) — a legacy bad Draft
+    (rate&gt;0/no-type) had no PV update/delete endpoint to fix it in place, so B1(a)'s own
+    `ApproveAsync` guard would strand it in Draft forever, blocking `PeriodCloseService`
+    (`period.draft_present`) on that month indefinitely (verified in code, `Ledger/PeriodCloseService.cs`
+    L59-60). `CancelAsync`'s activity record now captures the pv's actual `Status` BEFORE
+    `Cancel()` mutates it (dynamic `fromStatus`, not hardcoded `"Approved"`). FE Cancel button
+    shows on `Draft` too (same permission gate — a Draft's own creator can't self-cancel without
+    `approve` either, accepted SoD, left as-is per dispatch).
+  - **Nits:** cleaned the `PaymentVoucherService.cs` ~L276 comment debris (pointed at a
+    nonexistent `GlPostingService... no,` fragment); this spec's B1(b) design text corrected
+    (Cancel guard is Draft-or-Approved, `Version` liveness now correctly attributed to the F1
+    fix, not an always-true configuration fact); `TeasMcpTools.cs`
+    `create_payment_voucher_draft` description now states whtTypeId is required whenever
+    whtRate&gt;0 and points agents to `list_wht_types`. Toast-string nit skipped per dispatch.
+  - **Tests:** Domain — `Draft_cancels_to_voided` (new), `Posted_cannot_cancel`/
+    `Voided_cannot_cancel_again` (kept, `Draft_cannot_cancel` removed/replaced), plus
+    `Cancel_bumps_version`/`MarkApproved_bumps_version`/`MarkPosted_bumps_version` (new, direct
+    F1 proof). API — `Cancel_a_draft_pv_voids_it_with_dynamic_from_status` (replaces
+    `Cancel_a_draft_pv_is_rejected`; asserts Voided status + `MetadataJson` `fromStatus:"Draft"`);
+    `Cancel_a_posted_pv_is_rejected` kept as-is; two new deterministic version-liveness tests,
+    `Concurrent_version_bump_makes_cancel_throw_locked_mismatch` and
+    `Concurrent_version_bump_makes_post_throw_locked_mismatch` — same scope/DbContext-sharing +
+    out-of-band raw-SQL `UPDATE ... SET version = version + 1` technique as
+    `ExpenseClaimServiceTests.Concurrent_Approve_second_stale_save_throws_DbUpdateConcurrencyException`
+    (grepped per dispatch), but driven through the actual `CancelAsync`/`PostAsync` service calls
+    so the `pv.locked_mismatch` domain-error mapping is proven end-to-end, not just the raw EF
+    exception.
+  - **Gates:** `dotnet build` clean. Targeted filter (`PaymentVoucherCancelTests|
+    PurchaseRateBoundTests|Sprint87ForeignVendorTests|PurchaseAuditTests|McpDocumentChainTests`) —
+    75/75 passed. Full suite run 1: 2 failures — the now-familiar `Pnd50FilingServiceTests.
+    Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder` flake PLUS a new member of the
+    same `TaxFilings`-shared-row flake class, `WhtFormPdfFillTests.
+    Pnd54_maps_ma70_amounts_through_to_the_form` (neither file touched by this diff); isolated
+    filtered re-run of just those two passed clean 2/2, confirming flake not regression (added to
+    `troubles-wiki.md`). **Final clean full-suite gate: 0 failed, 932 passed, 8 skipped, 940
+    total (Api.Tests, 11m42s) + 155/0/155 (Domain.Tests) — skip count matches the 8-baseline
+    exactly, +2 vs. the pre-Tier-2-fix 930/8/938 baseline (the 2 new version-liveness tests).**
+    `npx tsc --noEmit` — 0 errors. `npm run build` — compiled successfully.
+  - Footgun hit + documented: an earlier background test run's process/output got orphaned
+    across a session resume; killing the stray process and rerunning clean was required before
+    these numbers could be trusted (see `troubles-wiki.md`).
 
 ## WP-C — K-Plus PDF import 500 (after WP-B; backend, dotnet, needs local sample)
 - [ ] C1 **HIGH [B-br F1]**: `POST /bank-accounts/{id}/imports` with REAL K-Plus PDF
@@ -216,4 +340,20 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
   (locked/read-only). 1 new backend test; existing tests cover both regressions. Full suite
   921/8/930 twice (1 pre-existing unrelated Pnd50 flake both times, documented in
   troubles-wiki.md); tsc clean. Not committed — left for Fable's diff review.
+- 2026-07-25 WP-B (B1/B2) completed by Sonnet, resuming a prior worker killed mid-edit (dead
+  worker had already done: entity Cancel(), service CancelAsync + concurrency mapping, endpoint,
+  B1(a) server-side seam at CreateDraftAsync+ApproveAsync, N1 comment fix, FE detail-page Cancel
+  button + queries hook, th.json keys, both new backend test files — comprehensive and correct).
+  Gaps closed this session: en.json `confirmAction.pvCancel` (missing exactly where the worker
+  died); B1(a) client-side block on `payment-vouchers/new` (not started — added with a noted
+  simplification, see WP-B evidence above); B2 e2e value fix + WHT-amount assertion + a WHT-type
+  dropdown pick (made necessary by the new client block). Found + fixed one real regression
+  the new server-side seam caused in an unrelated existing test (`PurchaseRateBoundTests.
+  PaymentVoucher_CreateDraft_AcceptsNormalWhtRate`). Env footgun hit: the first backend test
+  launch's background process/output was orphaned across a session resume ("no live background
+  children remain"); a naive rerun raced it and produced 12 false failures (pk_companies
+  collision) before the stray process was found and killed — see troubles-wiki entry added.
+  Final full suite: 0 failed / 930 passed / 8 skipped / 938 total (Api.Tests) + 152/0/152
+  (Domain.Tests), skip count matches baseline exactly. tsc + next build clean. Not committed —
+  left for Fable's diff review + Opus Tier-2 (per dispatch).
 - [ ] O7 [B-mcp F2]: pending-agent-approvals widget shows agent drafts to APPROVER, but APPROVER holds zero sales.quotation.* perms — its "ตรวจ" link lands on an empty /quotations (cannot view/act; sales01 had to act instead). Decide: grant APPROVER read on agent-draft doc types, or filter the widget rows by the viewer's per-doc-type permission. Product call — Ham.
