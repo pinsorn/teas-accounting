@@ -1,10 +1,25 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **ARMY on untested areas IN FLIGHT (2026-07-22 ~12:0x)** — spec specs/army-untested-2026-07-22.md,
-  checkpoint PROGRESS-army-untested.md. Wave A1 (co5 foreign vendor + recon) dispatched background.
-  BLOCKED on Ham: B-1 non-VAT dummy co + grants, B-2 co5 API key (both super-admin-only).
-  Quota 81% → Wave B launches after 5h reset (~14:30); wakeup chain standing.
+- **ARMY COMPLETE — all 11 never-tested areas driven live, VAT + non-VAT + vision.
+  Verdict: `swarm-findings/army/VERDICT-army-2026-07-25.md`** (read that first; per-leg reports +
+  screenshots in the same folder). 10 legs + 2 vision waves + a post-deploy verify leg.
+  - **v1.22.11 LIVE** (2026-07-25 ~17:3x) — 5 work packages shipped: the CRITICAL foreign-vendor
+    ภ.ง.ด.54 chain (VI-linked PV never booked the self-withhold gross-up → always 422), the stuck-PV
+    escape hatch + WHT-type validation, an inert PV concurrency token (race could void a POSTED
+    voucher), the real-statement K-Plus PDF 500, super-admin company-update 500, plus FE nits.
+    Leg V1 re-verified 10/11 items live on prod (PV #17 posts, JE balanced, ภ.ง.ด.54 = ฿3,529.41,
+    PV #19 unstuck). Pre-deploy DB backup taken; applied_sql_scripts 75 → 75.
+  - **co6 = บริษัท ทดสอบ NON-VAT (DUMMY) จำกัด** now exists (id=6, non-VAT) with 3 scoped users
+    (nvadmin01/nvchief01/nvtax01). Its FY2026 is **year-end CLOSED** (B2-ye's terminal state) —
+    reopen exists if a future leg needs it. co5 stays the VAT playground.
+  - **Committed, awaiting the next release:** WP-F (PV prefill dual-flag, `479baae`), WP-G (non-VAT
+    PV gate — Tier-2 rejected round 1, correct shape is the single `IsRecoverableVat=false` flag;
+    the bad acceptance criterion was Fable's own spec error), WP-H (payroll ภ.ง.ด.1/1ก RBAC).
+  - **Ham's scope calls open (O1-O12 in specs/fix-army-findings-2026-07-22.md).** Top one:
+    **O8 — payroll has no day-based proration**; a mid-month hire and a mid-month leaver both got a
+    full month of salary + PIT, in the GL and in the printed ภ.ง.ด.1/1ก. Also O11/O12: สปส.1-10
+    prints but is not submittable (ส่วนที่ 2 unbuilt, no employer account-number field).
 - **v1.22.10 LIVE (2026-07-22 ~02:5x) — non-VAT F-A..F-D shipped+deployed; NEXT SESSION = army
   on untested areas, see HANDOFF-untested-army.md.** ExpenseClaim non-VAT 1170 guard (money,
   Fable-reviewed) + PO paper vendor address + control heights + VI non-VAT wording. Suite 921/0/8.
