@@ -551,3 +551,32 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
           `vendor.vatRegistered` alone, which can be true even with hasThaiVatDReg=false, wrongly
           applying a nonzero rate and landing ~6.8% short — now fixed).
       No e2e spec asserts this prefill number (`grep -r "derivePvPrefillBase\|fromVendorInvoiceId" frontend/e2e` → no matches), so no second file touched.
+
+## WP-G — non-VAT company PV path (2026-07-25, army B2-nv on co6) — MONEY, Opus review mandatory
+Root cause verified by Fable in code: the PV path has **no company-VAT-mode gate at all**, while the
+VI path has one at every seam. `PaymentVoucherService.CreateDraftAsync` L196-200 already loads
+`_db.Companies.Select(c => new { c.RequiresBusinessUnit, c.VatRate })` — it just never reads
+`VatRegistered`; its only VAT guard (L248) is `vendor.VatRegistered`. The FE PV form has no
+`useSystemInfo()`/`vatMode` at all (compare `vendor-invoices/new/page.tsx` L92-93).
+- [ ] G1 **HIGH (money control point) [B2-nv F1/F2]**: add the company gate to
+      `PaymentVoucherService.CreateDraftAsync` — extend the existing L198 projection with
+      `c.VatRegistered`, then mirror `VendorInvoiceService`'s WP1.2 block (L147-152) verbatim in
+      intent: when `!companyVatRegistered`, force every line's `VatRate = 0`, `VatAmount = 0`,
+      `IsRecoverableVat = false` BEFORE the totals roll-up, so header/GL/preview agree. This is the
+      ONE control point both REST and the from-VI guided path funnel through (same seam WP-B(a) used).
+      **Why HIGH even though B2-nv found the ledger clean:** the leg only exercised the VI-LINKED GL
+      branch (Dr AP = subtotal+vat, no 1170 line). The STANDALONE branch
+      (`GlPostingService.PostPaymentVoucherAsync` else-branch, ~L203-211) debits **1170 input VAT**
+      whenever `l.IsRecoverableVat && l.VatAmount > 0` — on a non-VAT company that is exactly the
+      F-B/1170 pollution class (v1.22.10) reaching the ledger through an unguarded door. Prove it
+      either way with a test before deciding severity down.
+- [ ] G2 **HIGH (FE) [B2-nv F1]**: `payment-vouchers/new/page.tsx` — read
+      `const companyVatRegistered = useSystemInfo().data?.vatMode ?? true;` and fold it into
+      `vendorVat` (`companyVatRegistered && vendor.vatRegistered && !foreignNoVatD`); hide the VAT
+      rate control + VAT summary line for a non-VAT company, mirroring the VI form and the
+      expense-claims F-B treatment. Repro: co6 PV form showed a live "7%" VAT UI.
+- [ ] G3 note [B2-nv F3]: co6's output-VAT account is `2151`, not `2130` — future non-VAT/VAT
+      assertions must read the account from the company's CoA, not a hardcoded code.
+- TESTS: non-VAT company + standalone PV on a recoverable-VAT category → posted JE has NO 1170 line
+  and VAT totals are 0; non-VAT company + VI-linked PV → same; VAT company (co5 shape) unchanged
+  (regression); FE tsc + build.

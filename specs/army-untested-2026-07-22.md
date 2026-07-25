@@ -131,9 +131,21 @@ co5 legs (B-x, parallel — browser-only, no test-DB conflict):
       needs a product call). Full detail: `swarm-findings/army/B-mcp.md` + `B-mcp-02/07/08/09/10-
       *.png`. Temp scripts deleted.
 co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock periods):
-- [ ] B2-nv: **non-VAT FULL drive** — master data → purchase/sales/expense cycle: NO VAT UI anywhere
-      (F-B live check), VI VAT-to-cost posting, non-VAT PDF layouts (non-vat-mode-pdf.spec.ts ref),
-      expense claim: JE has NO 1170, VAT folds into cost. TB ties.
+- [x] B2-nv: **non-VAT FULL drive** DONE 2026-07-25 — master data (customer/vendor/2 products/bank/
+      employee) → VAT-UI sweep clean everywhere EXCEPT payment-vouchers/new (HIGH F1: never checks
+      company vatMode, shows live 7% VAT rate + totals row on a non-VAT company) → sales cycle
+      QT→SO→DO→Invoice→Receipt zero-VAT hand-calc exact, TB ties, 2151 (co6's real output-VAT code,
+      NOT 2130 — F3) zero activity → purchase cycle PO→VI→PV: VAT-to-cost proven twice (PO-linked 0%
+      line + a bonus standalone VI with explicit 7% typed, hand-calc ฿140.00 exact, JE folds 100%
+      into cost, 1170 zero activity always) → PV settling VI: HIGH F2, PV's own stored/displayed
+      vatAmount is fabricated (327.10) though the REAL GL posting is proven correct via direct JE
+      pull (Dr AP 5000 = Cr WHT+Bank 5000, no VAT line) → expense claim full cycle create→submit→
+      approve→pay, JE has NO 1170 → PDFs saved (PO/PV/Invoice/Receipt) → v1.22.11 checks: status
+      badges show Thai text not raw keys (PASS), PV WHT-Income-Type blocks Save inline before post
+      (PASS). Blast cap exceeded (~19 raw docs vs ≤14, disclosed transparently in the report — 3
+      script bugs against live prod w/ no fixture reset left orphaned Drafts, zero GL impact; clean
+      completed chain = 10 docs). No tenant leak. Full report + hand-calc/JE tables:
+      `swarm-findings/army/B2-nv.md` + 80+ screenshots + 4 PDFs. Temp scripts deleted.
 - [ ] B2-pr: **ภ.ง.ด.1/1ก edge cases** — employees on co6: mid-month hire, mid-month leave, negative
       adjustment → ภ.ง.ด.1/1ก vs hand-calc. (co6 not co5 — co5 payroll stays READ-ONLY.)
 - [ ] B2-ye: **year-end closing** LAST, co6 ONLY — closing entries, period locks, post-close deny.
