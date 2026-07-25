@@ -1,0 +1,59 @@
+LOGIN OK as ar01
+TENANT LEAK CHECK [ar01-dashboard]: clean
+INVOICES LIST SETTLED: rowCount=10 emptyStateShown=false
+SHOT B-bn-01-invoices-list-settled-ar01 -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-01-invoices-list-settled-ar01.png
+CUSTOMER PICKED: บริษัท ลูกค้าทดสอบ จำกัด
+0105567000315
+TAX INVOICE POSTED: id=26 docNo=null customer=บริษัท ลูกค้าทดสอบ จำกัด
+0105567000315 qty=3 unitPrice=1000
+SHOT B-bn-02-ti1-posted -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-02-ti1-posted.png
+CUSTOMER PICKED: บริษัท ลูกค้าทดสอบ จำกัด
+0105567000315
+TAX INVOICE POSTED: id=27 docNo=null customer=บริษัท ลูกค้าทดสอบ จำกัด
+0105567000315 qty=2 unitPrice=1500
+SHOT B-bn-03-ti2-posted -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-03-ti2-posted.png
+CUSTOMER PICKED: บริษัท ลูกค้าทดสอบ จำกัด
+0105567000315
+BN MULTI-TI PICKER: 0 posted TI(s) available for this customer
+SHOT B-bn-04-bn-new-ti-picked -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-04-bn-new-ti-picked.png
+SHOT B-bn-05-bn-new-filled -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-05-bn-new-filled.png
+BN ISSUED: id=20 status=ออกแล้ว · Issued
+SHOT B-bn-06-bn-issued-detail -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-06-bn-issued-detail.png
+BN DOC NO: null
+HAND-CALC: manual-line total=10000, TI1+TI2 total=6000
+BN DETAIL TEXT SNIPPET (for total tie-out, manual review): contains 10000=false, contains 6000=false
+BN TI BACK-LINK CHIPS ON DETAIL: 0
+BN AFTER MARK-SETTLED: status=ออกแล้ว · Issued
+SHOT B-bn-07-bn-settled-detail -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-07-bn-settled-detail.png
+BN PDF proxy GET failed status=404
+BN PDF SAVED: false
+FATAL ERROR: locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /ออกจากระบบ|sign out/i })[22m
+[2m    - locator resolved to <button title="ออกจากระบบ" class="flex items-center gap-2 rounded-field px-3 py-2 text-[13px] font-medium text-status-danger hover:bg-status-danger-bg ">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <button aria-label="close" class="modal-backdrop"></button> from <div class="drawer-content flex min-w-0 flex-col overflow-hidden">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <button aria-label="close" class="modal-backdrop"></button> from <div class="drawer-content flex min-w-0 flex-col overflow-hidden">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    57 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is visible, enabled and stable[22m
+[2m       - scrolling into view if needed[22m
+[2m       - done scrolling[22m
+[2m       - <button aria-label="close" class="modal-backdrop"></button> from <div class="drawer-content flex min-w-0 flex-col overflow-hidden">…</div> subtree intercepts pointer events[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+    at logout (Y:\ClaudePlayground\TEAS-Project\frontend\army-B-bn.mjs:33:68)
+    at Y:\ClaudePlayground\TEAS-Project\frontend\army-B-bn.mjs:252:11
+SHOT B-bn-99-error-state -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-99-error-state.png

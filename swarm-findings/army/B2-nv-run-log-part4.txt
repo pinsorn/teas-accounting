@@ -1,0 +1,20 @@
+B2-nv PART4 run start 2026-07-25T11:24:00.465Z
+LOGIN OK nvadmin01
+invoice before: {"status":"Draft","docNo":null,"total":3000}
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-301-invoice-draft-before-issue.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-302-invoice-issue-attempted.png
+invoice after issue attempt: {"status":"Issued","docNo":"07-2026-IV-0001"}
+OK: invoice now Issued, docNo=07-2026-IV-0001
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-303-receipt-new-prefilled.png
+receipt post button disabled? false
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-304-receipt-posted.png
+receipt created, id = 27
+receipt detail: {"status":"Posted","vat":0}
+OK: receipt Posted
+PDF-SAVED Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/pdfs/B2-nv-receipt-27.pdf 112860 bytes
+PDF-SAVED Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/pdfs/B2-nv-invoice-23.pdf 113086 bytes
+invoice final status: Settled
+TB total Dr 14500 Cr 14500 tie? true
+1120 bank row: {"accountCode":"1120","accountNameTh":"เงินฝากธนาคาร","accountType":"ASSET","normalBalance":"DR","debit":3000,"credit":6406.54,"net":-3406.54}
+FINDINGS_JSON []
+run end 2026-07-25T11:24:19.878Z

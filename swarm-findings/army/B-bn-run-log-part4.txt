@@ -1,0 +1,16 @@
+LOGIN OK as ap01
+[ap01] buttons on PV19: ["บันทึกเอกสาร (Post)","สร้างบันทึกใบกำกับภาษีซื้อ","พิมพ์ต้นฉบับ","พิมพ์สำเนา","ดาวน์โหลด PDF (สำเนา)","+ อัปโหลด","TH / EN","ออกจากระบบ"]
+[ap01] CAN POST — attempting
+PV19 POSTED: false
+PV19 STATUS AFTER POST: containsPosted=false
+SHOT B-bn-19-pv2-posted -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-19-pv2-posted.png
+PV19 detail contains hand-calc WHT (30): true
+WHT CERTS AFTER PV19 post: rowCount=1
+SHOT B-bn-20-wht-certs-after-pv2 -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-20-wht-certs-after-pv2.png
+WHT CERT API: id=2 raw={"whtCertificateId":2,"docNo":"07-2026-WT-0001","certDate":"2026-07-21","paymentVoucherId":15,"payeeName":"บริษัท ผู้ขายทดสอบ จำกัด","payeeTaxId":"0105566000770","incomeTypeCode":"2","incomeAmount":1000,"whtAmount":30,"formType":"Pnd53","status":"Posted"}
+HAND-CALC WHT: 1000 * 3% = 30 THB expected
+CERT WHT AMOUNT (API field): 30 — matches hand-calc(30): true
+WHT CERT DETAIL immutable-check: editButtonCount=0 (expect 0)
+WHT CERT DETAIL contains hand-calc amount 30.00: true
+SHOT B-bn-21-wht-cert-detail -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-21-wht-cert-detail.png
+WHT CERT PDF SAVED: status=200

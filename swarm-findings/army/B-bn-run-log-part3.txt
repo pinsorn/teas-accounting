@@ -1,0 +1,17 @@
+LOGIN OK as ap01
+WHT CERTS BEFORE PV2: rowCount=1
+VENDOR PICKED: บริษัท ผู้ขายทดสอบ จำกัด 0105566000770
+PV2 EXPENSE CATEGORY: ค่าบริการวิชาชีพ (PROF)
+SHOT B-bn-17-pv2-new-filled -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-17-pv2-new-filled.png
+PV2 DRAFT CREATED: id=19 vendor=บริษัท ผู้ขายทดสอบ จำกัด 0105566000770 amount=1000 whtPercent=3%
+ap01 cannot approve directly (SoD) — switching to appr01
+LOGIN OK as appr01
+PV2 approve dialog used: true
+PV2 APPROVED by appr01; containsApproved=true
+SHOT B-bn-18-pv2-approved -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-18-pv2-approved.png
+FATAL ERROR: locator.waitFor: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /บันทึกเอกสาร \(Post\)|^Post$/ }) to be visible[22m
+
+    at Y:\ClaudePlayground\TEAS-Project\frontend\army-B-bn-pv.mjs:131:19
+SHOT B-bn-98-pv2-error-state -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-98-pv2-error-state.png

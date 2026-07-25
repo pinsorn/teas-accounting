@@ -1,0 +1,70 @@
+B2-nv PART2 run start 2026-07-25T11:16:44.480Z
+LOGIN OK nvadmin01
+VI resumed, status: Draft
+VI before post: {"subtotal":5000,"vat":0,"nonRecVat":0,"total":5000}
+OK: VI recoverable vatAmount is 0 (all VAT, if any, is non-recoverable/cost)
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-101-vi-detail-before-post.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-102-vi-posted.png
+VI status after post attempt: Posted
+OK: VI posted 16
+OK item4: 1170 (input VAT) has zero activity today on co6
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-103-pv-prefilled-from-vi.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-104-pv-wht-type-missing-blocked.png
+OK item8b: PV Save disabled + inline error shown when WHT rate set but no Income Type picked
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-105-pv-wht-type-picked.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-106-pv-draft-detail.png
+PV draft created (settling VI) 21
+LOGOUT OK
+LOGIN OK nvchief01
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-107-pv-approved.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-108-pv-posted.png
+PV approved+posted by chief
+LOGOUT OK
+LOGIN OK nvadmin01
+PV after post: {"subtotal":4672.9,"vat":327.1,"wht":93.46,"total":4906.54,"status":"Posted"}
+FINDING HIGH - PV #21 on non-VAT co6 posted with vatAmount=327.1 > 0
+employee for claim {"employeeId":6,"employeeCode":"NVEMP-B2NV","fullNameTh":"ทดสอบ พนักงานเอ็นวี","nationalId":"1103700000001","baseSalary":20000,"ssoApplicable":true,"isActive":true,"ytdOpeningYear":null,"ytdOpeningIncome":0,"ytdOpeningPit":0,"ytdOpeningSso":0}
+employee options ["— เลือกพนักงาน —","NVEMP-B2NV — ทดสอบ พนักงานเอ็นวี"]
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-109-expense-claim-new-filled.png
+expense claim save disabled? false
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-110-expense-claim-draft.png
+expense claim created 3
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-111-expense-claim-submitted.png
+OK item8a: no raw status.Submitted key
+LOGOUT OK
+LOGIN OK nvchief01
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-112-expense-claim-approved.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-113-expense-claim-paid.png
+OK item8a: no raw status.Paid key
+FATAL locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /ออกจากระบบ|sign out/i })[22m
+[2m    - locator resolved to <button title="ออกจากระบบ" class="flex items-center gap-2 rounded-field px-3 py-2 text-[13px] font-medium text-status-danger hover:bg-status-danger-bg ">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div class="modal modal-open">…</div> from <div class="drawer-content flex min-w-0 flex-col overflow-hidden">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div class="modal modal-open">…</div> from <div class="drawer-content flex min-w-0 flex-col overflow-hidden">…</div> subtree intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    56 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is visible, enabled and stable[22m
+[2m       - scrolling into view if needed[22m
+[2m       - done scrolling[22m
+[2m       - <div class="modal modal-open">…</div> from <div class="drawer-content flex min-w-0 flex-col overflow-hidden">…</div> subtree intercepts pointer events[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+    at logout (Y:\ClaudePlayground\TEAS-Project\frontend\army-B2-nv-part2.mjs:48:68)
+    at switchUser (Y:\ClaudePlayground\TEAS-Project\frontend\army-B2-nv-part2.mjs:52:47)
+    at main (Y:\ClaudePlayground\TEAS-Project\frontend\army-B2-nv-part2.mjs:246:11)
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-114-FATAL-error-state.png
+run end 2026-07-25T11:18:02.510Z

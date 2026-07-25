@@ -1,0 +1,20 @@
+B2-nv PART3 run start 2026-07-25T11:20:08.757Z
+LOGIN OK nvchief01
+claim status before Approved
+bank options ["— บัญชีธนาคาร —","ธนาคารกสิกรไทย (NV) — 999-921501","ธนาคารกสิกรไทย (NV) — 999-B2NV"]
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-201-pay-modal-bank-selected.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-202-expense-claim-paid.png
+status text ok (no raw key)
+claim after pay: {"status":"Paid","vat":0,"journalEntryId":164}
+Expense claim JE lines: 1610 อุปกรณ์และเครื่องใช้สำนักงาน Dr=1500 Cr=0 | 1120 เงินฝากธนาคาร Dr=0 Cr=1500
+OK item5: expense claim JE has NO 1170 line — VAT folded into cost
+PDF-SAVED Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/pdfs/B2-nv-po-22.pdf 112883 bytes
+PDF-SAVED Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/pdfs/B2-nv-pv-21.pdf 120099 bytes
+PDF-FAIL invoices/23/pdf 404
+Trial balance totals: {}
+OK: TB ties Dr=Cr
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-203-trial-balance-final.png
+VI final: {"status":"Posted","settlementStatus":"PAID","vat":0,"nonRecVat":0}
+PV final: {"status":"Posted","vat":327.1,"wht":93.46,"total":4906.54}
+FINDINGS_JSON []
+run end 2026-07-25T11:20:24.421Z

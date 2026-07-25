@@ -1,0 +1,13 @@
+B2-nv PART5 run start 2026-07-25T11:25:12.871Z
+LOGIN OK nvadmin01
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-401-vi-standalone-nonzero-vat-filled.png
+standalone VI created: {"id":17,"subtotal":2000,"vat":0,"nonRecVat":140,"total":2140}
+OK: recoverable vatAmount is 0
+OK hand-calc: nonRecoverableVatAmount = 140 matches 2000 x 7% = 140.00
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-402-vi-standalone-before-post.png
+standalone VI after post: {"status":"Posted","total":2140}
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-403-vi-standalone-posted.png
+1170 rows after this post: []
+OK item4 (empirically proven with nonzero VAT): 1170 stayed at zero activity — VAT genuinely folded into cost, never claimable
+FINDINGS_JSON []
+run end 2026-07-25T11:25:27.517Z

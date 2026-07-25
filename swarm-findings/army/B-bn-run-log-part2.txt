@@ -1,0 +1,39 @@
+LOGIN OK as ar01
+TENANT LEAK CHECK [ar01-dashboard]: clean
+TI26 docNo=07-2026-TI-0016
+TI27 docNo=07-2026-TI-0017
+BN20 STATUS (full lifecycle check): ชำระครบแล้ว · Settled
+SHOT B-bn-06-bn20-final-status -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-06-bn20-final-status.png
+BN20 PDF GET status=200 content-type=application/pdf
+BN20 PDF SAVED to pdfs/B-bn-billing-note.pdf
+CUSTOMER PICKED: บริษัท ลูกค้าทดสอบ จำกัด 0105567000315
+BN2: TI 07-2026-TI-0017 not found in multi-TI listbox
+BN2 TIs picked: 1/2
+SHOT B-bn-07-bn2-ti-linked-no-manual-line -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-07-bn2-ti-linked-no-manual-line.png
+BN2: Issue with 0 manual lines did NOT navigate to detail (likely validation blocked it) — adding a fallback manual line to complete the flow.
+SHOT B-bn-08-bn2-issue-blocked-no-line -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-08-bn2-issue-blocked-no-line.png
+BN2 issue-blocked page snippet: แดชบอร์ด | ใบแจ้งหนี้ | สร้างใหม่ | สร้างใบแจ้งหนี้ | 2026-07-22 | ยกเลิก | บันทึกร่าง | ออกใบแจ้งหนี้ | 1 | ลูกค้า | เปลี่ยน | บล | บริษัท ลูกค้าทดสอบ จำกัด | 88/8 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110 | เลขผู้เสียภาษี 0-1055-67000-31-5 | 2 | ข้อมูลเอกสาร | วันที่ * | วันที่ครบกำหนด * | หน่วยธุรกิจ | — ไม่ระบุ — | BU01 — ข
+BN2 CREATED: id=21 docNo=07-2026-IV-0004 issuedWithoutManualLine=false
+SHOT B-bn-09-bn2-issued-detail -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-09-bn2-issued-detail.png
+HAND-CALC BN2: TI1(07-2026-TI-0016)=3210 + TI2(07-2026-TI-0017)=3210 = 6420
+BN2 detail text contains expected TI-sum total (6420): false
+BN2 TI BACK-LINK CHIPS ON DETAIL: 0 (expect 2)
+LOGIN OK as ap01
+TENANT LEAK CHECK [ap01-dashboard]: clean
+WHT CERTS BEFORE PV: rowCount=1 emptyShown=false
+SHOT B-bn-10-wht-certs-before -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-10-wht-certs-before.png
+VENDOR PICKED: บริษัท ผู้ขายทดสอบ จำกัด 0105566000770
+PV EXPENSE CATEGORY SELECTED: ค่าบริการวิชาชีพ (PROF)
+SHOT B-bn-11-pv-new-filled -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-11-pv-new-filled.png
+PV DRAFT CREATED: id=18 vendor=บริษัท ผู้ขายทดสอบ จำกัด 0105566000770 amount=1000 whtRate=0.03
+SHOT B-bn-12-pv-draft -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-12-pv-draft.png
+ap01 cannot approve directly — switching to appr01
+LOGIN OK as appr01
+PV APPROVED by appr01
+SHOT B-bn-13-pv-approved -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-13-pv-approved.png
+FATAL ERROR: locator.waitFor: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /บันทึกเอกสาร \(Post\)|^Post$/ }) to be visible[22m
+
+    at Y:\ClaudePlayground\TEAS-Project\frontend\army-B-bn.mjs:254:19
+SHOT B-bn-99-error-state -> Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B-bn-99-error-state.png

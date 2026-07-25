@@ -1,0 +1,81 @@
+B2-nv run start 2026-07-25T11:09:04.207Z
+LOGIN OK nvadmin01
+system/info {"version":"1.22.11","vat_mode":false,"vat_rate":0.07,"pnd30_submission_mode":"manual","document_number_format":"MM-YYYY-PREFIX-NNNN","timezone":"Asia/Bangkok"}
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-01-dashboard-nvadmin01.png
+REUSE customer already exists, skipping UI create
+REUSE vendor already exists, skipping UI create
+REUSE product GOOD already exists, skipping UI create
+REUSE product SERVICE already exists, skipping UI create
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-02-products-list-after-create.png
+REUSE bank account already exists, skipping UI create
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-03-expense-categories-list.png
+expense-categories count 19
+REUSE employee already exists, skipping UI create
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-04-employees-list-after-create.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-05-sweep-quotation.png
+SWEEP quotation vat-text-present= true
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-06-sweep-invoice(billing-note).png
+SWEEP invoice(billing-note) vat-text-present= true
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-07-sweep-tax-invoice(should-be-guarded).png
+SWEEP tax-invoice(should-be-guarded) vat-text-present= true
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-08-sweep-receipt.png
+SWEEP receipt vat-text-present= true
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-09-sweep-purchase-order.png
+SWEEP purchase-order vat-text-present= true
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-10-sweep-vendor-invoice.png
+SWEEP vendor-invoice vat-text-present= true
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-11-sweep-payment-voucher.png
+SWEEP payment-voucher vat-text-present= true
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-12-sweep-expense-claim.png
+SWEEP expense-claim vat-text-present= true
+PV per-line VAT readout (no vendor picked yet): 7%
+FINDING HIGH - payment-vouchers/new shows a nonzero per-line VAT rate ("7%") on a NON-VAT company even before any vendor is selected — the form only reads vendor.vatRegistered (defaults true when no vendor picked), never the company's own vatMode. Totals also always render a "ภาษีซื้อ" row (PostConfirmDialog-style dialogs elsewhere hard-code "VAT" too). Contrast with quotations/PO/TI/receipts/expense-claims, which all correctly hide VAT UI via companyVatRegistered/vatMode.
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-13-pv-new-vat-leak-check.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-14-quotation-new-filled.png
+quotation issued 31
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-15-so-draft.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-16-so-posted.png
+SO posted 17
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-17-do-delivered.png
+DO delivered 15
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-18-invoice-draft.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-19-invoice-issued.png
+invoice issued 23
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-20-receipt-new-prefilled.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-21-receipt-posted.png
+receipt posted null
+SALES HAND-CALC: 3 x 1000 = expected total 3000 (zero VAT expected)
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-22-po-new-filled.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-23-po-draft.png
+PO created 22
+LOGOUT OK
+LOGIN OK nvchief01
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-24-po-approved.png
+PO approved by chief (SoD)
+LOGOUT OK
+LOGIN OK nvadmin01
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-25-po-sent.png
+PO marked sent
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-26-vi-prefilled-from-po.png
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-27-vi-filled.png
+FATAL locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: 'บันทึกร่าง' })[22m
+[2m    - locator resolved to <button disabled type="button" class="btn btn-outline btn-sm border-ink-200 text-ink-700 hover:bg-ink-75">บันทึกร่าง</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not enabled[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not enabled[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    57 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is not enabled[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+    at main (Y:\ClaudePlayground\TEAS-Project\frontend\army-B2-nv.mjs:418:60)
+SHOT Y:/ClaudePlayground/TEAS-Project/swarm-findings/army/B2-nv-28-FATAL-error-state.png
+run end 2026-07-25T11:11:21.673Z
