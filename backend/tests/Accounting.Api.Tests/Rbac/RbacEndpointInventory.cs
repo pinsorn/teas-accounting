@@ -58,6 +58,13 @@ public static class RbacEndpointInventory
         "sales.credit_note.post", "sales.debit_note.post",
     ];
 
+    // WP-H (B2-pr F3) — RD/SSO filing PDFs: Payroll.RunManage OR tax.filing.preview.
+    // Mirrors Accounting.Api.Endpoints.PayrollEndpoints.CanFile.
+    private static readonly string[] PayrollFiling =
+    [
+        "payroll.run.manage", "tax.filing.preview",
+    ];
+
     public static readonly IReadOnlyDictionary<string, string[]> AssertionOverrides =
         new Dictionary<string, string[]>
         {
@@ -74,6 +81,11 @@ public static class RbacEndpointInventory
             ["GET /tax-adjustment-notes/{id:long}/pdf"] = CnDnRead,
             // cont.121 — canonical paper DTO, same assertion gate as its /pdf sibling.
             ["GET /tax-adjustment-notes/{id:long}/paper"] = CnDnRead,
+            ["GET /payroll/runs/{id:long}/pnd1/pdf"] = PayrollFiling,
+            ["GET /payroll/runs/{id:long}/sso/file"] = PayrollFiling,
+            ["GET /payroll/runs/{id:long}/sso/pdf"] = PayrollFiling,
+            ["GET /payroll/pnd1a/pdf"] = PayrollFiling,
+            ["GET /payroll/employees/{employeeId:long}/wht50tawi/pdf"] = PayrollFiling,
         };
 
     public static IReadOnlyList<EndpointAuth> Build(IServiceProvider services)

@@ -9,8 +9,8 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 291 |
-| Assertion | 7 |
+| Perm | 286 |
+| Assertion | 12 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
 | **TOTAL** | **347** |
@@ -198,8 +198,8 @@
 | POST | `/payment-vouchers/{id:long}/post` | Perm | purchase.payment_voucher.post |
 | POST | `/payment-vouchers/{id:long}/vendor-invoice` | Perm | purchase.vendor_invoice.create |
 | GET | `/payroll-runs/{id:long}/activity` | Perm | report.audit.read |
-| GET | `/payroll/employees/{employeeId:long}/wht50tawi/pdf` | Perm | payroll.run.manage |
-| GET | `/payroll/pnd1a/pdf` | Perm | payroll.run.manage |
+| GET | `/payroll/employees/{employeeId:long}/wht50tawi/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
+| GET | `/payroll/pnd1a/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
 | GET | `/payroll/runs/` | Perm | payroll.run.manage |
 | POST | `/payroll/runs/` | Perm | payroll.run.manage |
 | DELETE | `/payroll/runs/{id:long}` | Perm | payroll.run.manage |
@@ -208,10 +208,10 @@
 | POST | `/payroll/runs/{id:long}/pay` | Perm | payroll.run.pay |
 | GET | `/payroll/runs/{id:long}/payslips/pdf` | Perm | payroll.run.manage |
 | GET | `/payroll/runs/{id:long}/payslips/{employeeId:long}/pdf` | Perm | payroll.run.manage |
-| GET | `/payroll/runs/{id:long}/pnd1/pdf` | Perm | payroll.run.manage |
+| GET | `/payroll/runs/{id:long}/pnd1/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
 | POST | `/payroll/runs/{id:long}/post` | Perm | payroll.run.post |
-| GET | `/payroll/runs/{id:long}/sso/file` | Perm | payroll.run.manage |
-| GET | `/payroll/runs/{id:long}/sso/pdf` | Perm | payroll.run.manage |
+| GET | `/payroll/runs/{id:long}/sso/file` | Assertion | payroll.run.manage / tax.filing.preview |
+| GET | `/payroll/runs/{id:long}/sso/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
 | POST | `/periods/{year:int}/close-year` | Perm | gl.year.close |
 | POST | `/periods/{year:int}/reopen-year` | Perm | gl.year.close |
 | GET | `/periods/{year:int}/year-status` | AuthnOnly | — |
