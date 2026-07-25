@@ -1,0 +1,109 @@
+{
+  "step0_login": "ok",
+  "periodCloseBodyContainsJuly": true,
+  "julyStatus": {
+    "status": 200,
+    "body": "{\"open\":false}"
+  },
+  "probe_/api/proxy/periods/2026/7/reopen": 404,
+  "probe_/api/proxy/periods/2026/7/open": 404,
+  "probe_/api/proxy/periods/2026/7/reopen-month": 404,
+  "yearStatusBefore": {
+    "status": 200,
+    "body": {
+      "fiscalYear": 2026,
+      "fiscalYearStartMonth": 1,
+      "fiscalStartDate": "2026-01-01",
+      "fiscalEndDate": "2026-12-31",
+      "isClosed": true,
+      "closedAt": "2026-07-25T12:10:28.031+00:00",
+      "closedBy": 22,
+      "notes": null,
+      "closingJournalId": 171,
+      "netProfit": -202640,
+      "periods": [
+        {
+          "year": 2026,
+          "month": 1,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:14.62+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 2,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:14.941+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 3,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:15.257+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 4,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:15.569+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 5,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:15.884+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 6,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:16.197+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 7,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:00:22.243+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 8,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:16.513+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 9,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:16.826+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 10,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:17.141+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 11,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:17.461+00:00"
+        },
+        {
+          "year": 2026,
+          "month": 12,
+          "status": "Closed",
+          "closedAt": "2026-07-25T12:04:17.775+00:00"
+        }
+      ],
+      "allPeriodsClosed": true
+    }
+  },
+  "step0e_login": "ok",
+  "vendorsProbe": {
+    "status": 200,
+    "count": null
+  },
+  "anyVendorId": null,
+  "anyCategoryId": null,
+  "pvCreateProbe": "SKIPPED - no vendor/category id resolved"
+}

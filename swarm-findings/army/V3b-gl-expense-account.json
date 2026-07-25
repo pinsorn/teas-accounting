@@ -1,0 +1,25 @@
+{
+  "accountId": 124,
+  "accountCode": "5200",
+  "accountNameTh": "ค่าใช้จ่ายค่าบริการ",
+  "accountType": "EXPENSE",
+  "normalBalance": "DR",
+  "fromDate": "2026-07-25",
+  "toDate": "2026-07-25",
+  "openingBalance": 0,
+  "rows": [
+    {
+      "journalId": 173,
+      "docDate": "2026-07-25",
+      "docNo": "07-2026-JV-0001",
+      "description": "ค่าบริการทดสอบ V3b",
+      "reference": null,
+      "debit": 1070,
+      "credit": 0,
+      "runningBalance": 1070
+    }
+  ],
+  "totalDebit": 1070,
+  "totalCredit": 0,
+  "closingBalance": 1070
+}

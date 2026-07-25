@@ -1,0 +1,30 @@
+{
+  "request": {
+    "docDate": "2026-07-25",
+    "vendorId": 14,
+    "expenseCategoryId": 56,
+    "paymentMethod": "Cash",
+    "chequeNo": null,
+    "chequeDate": null,
+    "bankAccountId": null,
+    "currencyCode": "THB",
+    "exchangeRate": 1,
+    "description": "V3 money-invariant probe (expect period.closed)",
+    "notes": null,
+    "lines": [
+      {
+        "expenseAccountId": null,
+        "description": "V3 probe line - CAPEX 1000 net + 7% VAT",
+        "amount": 1000,
+        "taxCodeId": null,
+        "vatRate": 0.07,
+        "isRecoverableVat": true,
+        "whtTypeId": null,
+        "whtRate": 0,
+        "productType": "GOOD"
+      }
+    ]
+  },
+  "status": 422,
+  "response": "{\"type\":\"urn:teas:error:period.closed\",\"title\":\"period.closed\",\"status\":422,\"detail\":\"Period 2026-07 is CLOSED. Reopen the period or correct doc_date.\"}"
+}

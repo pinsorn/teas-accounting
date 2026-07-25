@@ -1,0 +1,158 @@
+[
+  {
+    "accountId": 108,
+    "accountCode": "1110",
+    "accountNameTh": "เงินสด",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 109,
+    "accountCode": "1120",
+    "accountNameTh": "เงินฝากธนาคาร",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 110,
+    "accountCode": "1130",
+    "accountNameTh": "ลูกหนี้การค้า",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 111,
+    "accountCode": "1170",
+    "accountNameTh": "ภาษีซื้อ",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 112,
+    "accountCode": "1180",
+    "accountNameTh": "ภาษีหัก ณ ที่จ่ายค้างรับ",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 129,
+    "accountCode": "1610",
+    "accountNameTh": "อุปกรณ์และเครื่องใช้สำนักงาน",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 130,
+    "accountCode": "1690",
+    "accountNameTh": "ค่าเสื่อมราคาสะสม",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 113,
+    "accountCode": "2110",
+    "accountNameTh": "เจ้าหนี้การค้า",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 114,
+    "accountCode": "2151",
+    "accountNameTh": "ภาษีขายค้างจ่าย",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 115,
+    "accountCode": "2152",
+    "accountNameTh": "ภาษีหัก ณ ที่จ่ายค้างจ่าย",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 116,
+    "accountCode": "2153",
+    "accountNameTh": "ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 117,
+    "accountCode": "2160",
+    "accountNameTh": "เงินสมทบประกันสังคมค้างนำส่ง",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 118,
+    "accountCode": "2170",
+    "accountNameTh": "เงินเดือนค้างจ่าย",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 119,
+    "accountCode": "3300",
+    "accountNameTh": "กำไรสะสม",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 120,
+    "accountCode": "4000",
+    "accountNameTh": "รายได้จากการขาย",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 121,
+    "accountCode": "4100",
+    "accountNameTh": "รับคืน / ส่วนลด",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 132,
+    "accountCode": "4200",
+    "accountNameTh": "กำไรจากการจำหน่ายสินทรัพย์",
+    "normalBalance": "CR"
+  },
+  {
+    "accountId": 122,
+    "accountCode": "5000",
+    "accountNameTh": "ต้นทุนขาย",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 123,
+    "accountCode": "5100",
+    "accountNameTh": "ค่าใช้จ่ายค่าเช่า",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 124,
+    "accountCode": "5200",
+    "accountNameTh": "ค่าใช้จ่ายค่าบริการ",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 125,
+    "accountCode": "5300",
+    "accountNameTh": "ค่าใช้จ่ายโฆษณา",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 126,
+    "accountCode": "5350",
+    "accountNameTh": "ภาษีซื้อขอคืนไม่ได้",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 127,
+    "accountCode": "5400",
+    "accountNameTh": "เงินเดือนและค่าจ้าง",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 128,
+    "accountCode": "5410",
+    "accountNameTh": "เงินสมทบประกันสังคม-นายจ้าง",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 131,
+    "accountCode": "5450",
+    "accountNameTh": "ค่าเสื่อมราคา",
+    "normalBalance": "DR"
+  },
+  {
+    "accountId": 133,
+    "accountCode": "5460",
+    "accountNameTh": "ขาดทุนจากการจำหน่ายสินทรัพย์",
+    "normalBalance": "DR"
+  }
+]

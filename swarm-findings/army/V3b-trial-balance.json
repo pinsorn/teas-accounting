@@ -1,0 +1,245 @@
+{
+  "asOfDate": "2026-07-25",
+  "companyId": 7,
+  "rows": [
+    {
+      "accountCode": "1110",
+      "accountNameTh": "เงินสด",
+      "accountType": "ASSET",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "1120",
+      "accountNameTh": "เงินฝากธนาคาร",
+      "accountType": "ASSET",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 1070,
+      "net": -1070
+    },
+    {
+      "accountCode": "1130",
+      "accountNameTh": "ลูกหนี้การค้า",
+      "accountType": "ASSET",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "1170",
+      "accountNameTh": "ภาษีซื้อ",
+      "accountType": "ASSET",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "1180",
+      "accountNameTh": "ภาษีหัก ณ ที่จ่ายค้างรับ",
+      "accountType": "ASSET",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "1610",
+      "accountNameTh": "อุปกรณ์และเครื่องใช้สำนักงาน",
+      "accountType": "ASSET",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "1690",
+      "accountNameTh": "ค่าเสื่อมราคาสะสม",
+      "accountType": "ASSET",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "2110",
+      "accountNameTh": "เจ้าหนี้การค้า",
+      "accountType": "LIABILITY",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "2151",
+      "accountNameTh": "ภาษีขายค้างจ่าย",
+      "accountType": "LIABILITY",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "2152",
+      "accountNameTh": "ภาษีหัก ณ ที่จ่ายค้างจ่าย",
+      "accountType": "LIABILITY",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "2153",
+      "accountNameTh": "ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง",
+      "accountType": "LIABILITY",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "2160",
+      "accountNameTh": "เงินสมทบประกันสังคมค้างนำส่ง",
+      "accountType": "LIABILITY",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "2170",
+      "accountNameTh": "เงินเดือนค้างจ่าย",
+      "accountType": "LIABILITY",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "3300",
+      "accountNameTh": "กำไรสะสม",
+      "accountType": "EQUITY",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "4000",
+      "accountNameTh": "รายได้จากการขาย",
+      "accountType": "REVENUE",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "4100",
+      "accountNameTh": "รับคืน / ส่วนลด",
+      "accountType": "REVENUE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "4200",
+      "accountNameTh": "กำไรจากการจำหน่ายสินทรัพย์",
+      "accountType": "REVENUE",
+      "normalBalance": "CR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5000",
+      "accountNameTh": "ต้นทุนขาย",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5100",
+      "accountNameTh": "ค่าใช้จ่ายค่าเช่า",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5200",
+      "accountNameTh": "ค่าใช้จ่ายค่าบริการ",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 1070,
+      "credit": 0,
+      "net": 1070
+    },
+    {
+      "accountCode": "5300",
+      "accountNameTh": "ค่าใช้จ่ายโฆษณา",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5350",
+      "accountNameTh": "ภาษีซื้อขอคืนไม่ได้",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5400",
+      "accountNameTh": "เงินเดือนและค่าจ้าง",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5410",
+      "accountNameTh": "เงินสมทบประกันสังคม-นายจ้าง",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5450",
+      "accountNameTh": "ค่าเสื่อมราคา",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    },
+    {
+      "accountCode": "5460",
+      "accountNameTh": "ขาดทุนจากการจำหน่ายสินทรัพย์",
+      "accountType": "EXPENSE",
+      "normalBalance": "DR",
+      "debit": 0,
+      "credit": 0,
+      "net": 0
+    }
+  ],
+  "totals": {
+    "debit": 1070,
+    "credit": 1070,
+    "balanced": true
+  }
+}

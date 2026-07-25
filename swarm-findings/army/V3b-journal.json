@@ -1,0 +1,37 @@
+{
+  "journalId": 173,
+  "docNo": "07-2026-JV-0001",
+  "docDate": "2026-07-25",
+  "postingDate": "2026-07-25",
+  "description": "PV 07-2026-PV-V3BC73380-0001",
+  "reference": "07-2026-PV-V3BC73380-0001",
+  "status": "Posted",
+  "postedAt": "2026-07-25T13:57:16.498+00:00",
+  "reversalOfId": null,
+  "lines": [
+    {
+      "lineNo": 1,
+      "accountId": 124,
+      "accountCode": "5200",
+      "accountNameTh": "ค่าใช้จ่ายค่าบริการ",
+      "description": "ค่าบริการทดสอบ V3b",
+      "reference": null,
+      "debit": 1070,
+      "credit": 0,
+      "businessUnitId": null
+    },
+    {
+      "lineNo": 2,
+      "accountId": 109,
+      "accountCode": "1120",
+      "accountNameTh": "เงินฝากธนาคาร",
+      "description": "Cash/Bank 07-2026-PV-V3BC73380-0001",
+      "reference": null,
+      "debit": 0,
+      "credit": 1070,
+      "businessUnitId": null
+    }
+  ],
+  "totalDebit": 1070,
+  "totalCredit": 1070
+}

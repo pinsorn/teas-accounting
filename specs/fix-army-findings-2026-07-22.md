@@ -777,11 +777,14 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
   → a non-VAT VI-linked PV now reaches `PAID` exactly; the FE (gross + rate 0) and REST/MCP from-VI
   (base + VI's own rate) shapes land the same settlement by different decompositions; the gate never
   executes for a VAT company so co5 is bit-identical. Two non-blocking nits carried forward:
-  - [ ] G4 (test hardening, do with a filtered run — no full suite needed): the standalone draft
+  - [~] G4 (test hardening, do with a filtered run — no full suite needed): the standalone draft
         assertion in `PaymentVoucherNonVatCompanyTests.cs` (~L101) should assert
         `!l.IsRecoverableVat` DIRECTLY rather than relying on the absent-1170-debit as a proxy — the
         flag IS the fix, and a future GL refactor could break it while the account assertion passes.
         (The VI-linked test already asserts it.)
+        EVIDENCE: Assertion added with comment on L99-101 — mirrors VI-linked test's pattern exactly
+        (draft.Lines.Should().OnlyContain(l => !l.IsRecoverableVat, ...)). Test run blocked on
+        database auth (TEAS_TEST_PG creds rejected); code-correct by inspection.
   - [ ] G5 (cosmetic, pre-existing, needs a migration to do properly — Ham's call): a non-VAT
         company's PV header carries `VatAmount = 70` with no recoverable/non-recoverable split, so PV
         detail/print label folded-into-cost VAT plainly as "VAT" where a VI shows it as

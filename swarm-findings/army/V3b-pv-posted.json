@@ -1,0 +1,60 @@
+{
+  "paymentVoucherId": 22,
+  "docNo": "07-2026-PV-V3BC73380-0001",
+  "status": "Posted",
+  "docDate": "2026-07-25",
+  "vendorId": 15,
+  "vendorName": "ผู้ขายจด VAT ทดสอบ V3b",
+  "vendorTaxId": "0105556123453",
+  "vendorBranchCode": null,
+  "vendorAddress": null,
+  "expenseCategoryId": 77,
+  "subPrefix": "V3BC73380",
+  "paymentMethod": "Transfer",
+  "chequeNo": null,
+  "chequeDate": null,
+  "bankAccountId": 4,
+  "currencyCode": "THB",
+  "exchangeRate": 1,
+  "subtotalAmount": 1000,
+  "vatAmount": 70,
+  "whtAmount": 0,
+  "totalPaid": 1070,
+  "totalAmountThb": 1070,
+  "description": "Army V3b standalone PV — non-VAT co7 fold-to-cost proof",
+  "notes": null,
+  "vendorInvoiceId": null,
+  "approvedBy": 25,
+  "approvedAt": "2026-07-25T13:57:14.575+00:00",
+  "postedAt": "2026-07-25T13:57:16.481+00:00",
+  "selfWithholdMode": false,
+  "requiresPnd36ReverseCharge": false,
+  "lines": [
+    {
+      "lineNo": 1,
+      "expenseAccountId": 124,
+      "description": "ค่าบริการทดสอบ V3b",
+      "amount": 1000,
+      "vatRate": 0.07,
+      "vatAmount": 70,
+      "isRecoverableVat": false,
+      "whtTypeId": null,
+      "whtRate": 0,
+      "whtAmount": 0,
+      "productType": "SERVICE"
+    }
+  ],
+  "whtCertificates": [],
+  "completeness": {
+    "isComplete": false,
+    "missing": [
+      "MISSING_VI",
+      "MISSING_RECEIPT_FILE"
+    ]
+  },
+  "businessUnitId": null,
+  "businessUnitCode": null,
+  "businessUnitName": null,
+  "whtPayerMode": "DEDUCT",
+  "createdViaApiKey": null
+}
