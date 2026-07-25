@@ -112,3 +112,19 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
   with the correct TEAS_TEST_PG in the SAME command. If it fails, that means the prod gate does not
   set the flag — escalate, do not weaken the assertion.
 - RESUME ORDER: V3b report → review + commit → verify G4 → final STATUS refresh → done.
+
+## Checkpoint 2026-07-25 ~21:2x (quota 92%) — army CLOSED, one bonus WP in flight
+- Army fully closed and tidy: both spec checklists have ZERO open engineering items (only O1-O15 +
+  G5 = Ham's scope calls remain); swarm-findings/army/ is 100% tracked incl. all run logs; no temp
+  scripts left; prod api-out.log grep across the whole army window = 0 internal_error.
+- V3b PASS 4/4 (JE #173 on co7: Dr 5200 1,070.00, no 1170, TotalPaid 1,070.00, Dr=Cr) and G4 verified
+  by Fable personally (filtered run 3/3 — the working TEAS_TEST_PG is
+  `Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password`).
+- IN FLIGHT (bonus, dispatched at 92% quota — may land after the reset): **WP-I** = O7 + O13, the two
+  O-items that are NOT really scope calls because the repo's own conventions decide them:
+  O7 filter the pending-agent-approvals widget rows by the viewer's per-doc-type read permission
+  (WP1/WP2 rule: never show a link that 403s); O13 keep `CreatePaymentVoucherRequest.DocDate` but 422
+  when it differs from Bangkok-today (additive — do NOT break the DTO/MCP schema; §10 pinning stays).
+- RESUME: read WP-I's report → Fable diff review → commit → (optional) fold into the next release.
+  Nothing else is pending. If WP-I's diff looks risky, it can simply be reverted — the army result
+  does not depend on it.
