@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.22.12](https://github.com/pinsorn/teas-accounting/compare/v1.22.11...v1.22.12) (2026-07-25)
+
+
+### Bug Fixes
+
+* **fe:** PV VI-prefill uses the dual-flag VAT predicate (V1-F1) ([479baae](https://github.com/pinsorn/teas-accounting/commit/479baaebc234382c45e017279b89d433bbe61a15))
+* **payroll:** RD/SSO filing PDFs gated on the filing permission, not payroll administration ([6b689be](https://github.com/pinsorn/teas-accounting/commit/6b689be0bd95b921d7bfa7cacf416971cae269e6))
+* **pv:** non-VAT company gate on the payment-voucher path (army B2-nv F1/F2) ([2b6fc28](https://github.com/pinsorn/teas-accounting/commit/2b6fc28dddfe33e619e44339b31c6c874ba802f3))
+
 ## [1.22.11](https://github.com/pinsorn/teas-accounting/compare/v1.22.10...v1.22.11) (2026-07-25)
 
 
