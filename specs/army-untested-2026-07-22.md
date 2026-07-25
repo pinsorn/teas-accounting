@@ -163,8 +163,25 @@ co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock 
       Full report + hand-calc tables + 11 screenshots + 3 PDFs + raw API JSON:
       `swarm-findings/army/B2-pr.md`. 3 employees + 1 run (both within cap). No tenant leak, no
       period close. Temp script deleted.
-- [ ] B2-ye: **year-end closing** LAST, co6 ONLY — closing entries, period locks, post-close deny.
-      NEVER co2/co3/co5.
+- [x] B2-ye: **year-end closing** LAST, co6 ONLY — DONE 2026-07-25. Predicted
+      `period.draft_present` refusal did NOT occur (close-check is scoped to Draft
+      TaxInvoice/PaymentVoucher/JournalEntry only — none existed on co6; confirmed live before
+      proceeding, not assumed) — closed all 12 FY2026 months cleanly, then year-end-closed via
+      the real UI: closing JE #169 hand-calc EXACT (Dr 4000 3,000 / Cr 5200 2,140 / Cr 5400
+      200,000 / Cr 5410 3,500 / Dr 3300 202,640, netProfit −202,640 = pre-state P&L exactly), TB
+      Dr=Cr held (621,161.24=621,161.24), P&L for the closed year UNCHANGED post-close (proves
+      the C1 anti-footgun fix live in prod) while BS/TB correctly show P&L accounts zeroed + 3300
+      carrying the deficit. Post-close deny: `POST /vendor-invoices` → clean 422 `period.closed`,
+      no 500. Reopen exercised live (reversing JE #170, exact Dr/Cr swap, 3300→0, 12 monthly
+      periods correctly stayed Closed per D4's scope boundary) then re-closed (fresh JE #171,
+      same netProfit re-derived, final TB 1,032,441.24=1,032,441.24) — co6 now permanently
+      period-locked as the intended terminal state. `specs/year-end-closing.md`'s one open item
+      (A5, EF migration checkbox) reclassified **BUILT + WORKING** (migration was live all along,
+      checkbox simply never flipped by the Fable-owned stage — this leg is its first full live
+      E2E confirmation) and flipped to `[x]`. No findings above LOW, no 500s, no tenant leak, 0
+      new documents (cap ≤4 respected — the 1 probe was denied before persisting). Full report:
+      `swarm-findings/army/B2-ye.md` + 15 screenshots. 5 temp scripts deleted. NEVER touched
+      co2/co3/co5.
 
 ## Wave C — vision (AGY primary, Claude-vision fallback), after B artifacts exist
 - [ ] C1: collect Wave B PDF/print artifacts (ภ.พ.30, ภ.พ.36, ภ.ง.ด.1/3/53/54, 50ทวิ, สปส.1-10) →

@@ -243,10 +243,18 @@ four facts that expand scope; none are optional:
       No FK navigation to JournalEntry required (store the id only — avoids a cascade path).
 - [x] **A4. DbSet** — add `public DbSet<FiscalYearClose> FiscalYearCloses => Set<FiscalYearClose>();` to
       `AccountingDbContext.cs` (gl area group).
-- [ ] **A5. EF migration** — FABLE-OWNED, not stage 1. Entity + config staged (A2/A3) and ready for
-      `dotnet ef migrations add YearEndClosing -p Accounting.Infrastructure -s Accounting.Api`. **Do not
-      hand-edit the snapshot.** Flag teas_test reset need at hand-off (troubles-wiki migration↔fixture) —
-      not yet checked since the migration hasn't been generated.
+- [x] **A5. EF migration** — FABLE-OWNED, not stage 1. Migration `20260708163202_YearEndClosing.cs`
+      generated + applied cleanly to teas_test (stage 2) and to PROD (stage 5 hotfix, v1.15.0 → v1.15.x,
+      RLS-scoped scripts 610/611 fixed). Final live confirmation: army leg B2-ye (2026-07-25, prod
+      v1.22.11) ran the FULL year-end-closing lifecycle against a real production company (co6) — 12
+      monthly closes, fiscal-year close, post-close report checks, post-close deny probe, reopen, re-close
+      — all against the actual deployed `gl.fiscal_year_closes` table / `is_closing_entry` column /
+      `3300` account. See `swarm-findings/army/B2-ye.md` for full evidence. Checkbox was never flipped by
+      the backend implementer (Fable-owned item, correctly out of that worker's scope) even though the
+      migration had been live and working since the stage-5 hotfix — this was an UNTESTED-by-checklist
+      item that in fact was BUILT AND WORKING, not an unbuilt gap. Classification per B2-ye: **BUILT +
+      WORKING**, now also live-verified end-to-end (was previously verified only by automated tests +
+      the stage-5 hotfix, never by a full manual year-end-closing walkthrough in prod).
 
 ### B. Retained-earnings account + closing/reopen service
 
