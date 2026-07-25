@@ -147,3 +147,25 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
   it yourself: `TEAS_TEST_PG="Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true" dotnet test backend/tests/Accounting.Api.Tests --nologo` (baseline 943 passed / 8 skipped + new tests; Pnd50/WhtFormPdfFill/ExpenseClaim-TaxId flakes = isolate-rerun). (2) commit WP-I. (3) tick O7/O13 in specs/fix-army-findings-2026-07-22.md AND move them out of "รอ Ham ตัดสิน" in DECISIONS-army-2026-07-25.md into the fixed ledger (note: decided by the repo's own conventions, not a scope call) — the doc header count drops 15 → 13. (4) refresh STATUS.md. (5) tell Ham the army is fully done.
 - If anything about WP-I looks risky at review: `git checkout -- .` and drop it. The army result does
   NOT depend on WP-I; everything else is already committed, shipped and verified.
+
+## 2026-07-25 ~22:2x — WP-I gate RED, sent back
+- Quota had RESET (the 98% reading was stale); Fable ran the full Api suite on WP-I's tree:
+  **35 failed / 911 passed / 8 skipped / 954 total** vs baseline 943/8/951. The worker's targeted
+  81-test filter was NOT representative — treat a filter as a smoke test, never as the gate.
+- Fable's own mistake in that run: piped it through `tail -6`, so the failure NAMES were lost. When
+  running a suite for diagnosis, redirect the WHOLE log to a file.
+- Diff review itself came out CLEAN (O7 exactly to spec, reusing useHasScope + the sidebar's per-doc-type
+  perms; O13 guard placed before the period check, §10 pinning untouched, Thai i18n + MCP description
+  updated; the 7 test edits changed only the DATE passed, never an assertion — one even improved
+  UTC-today → Bangkok-today). So the red is about BLAST RADIUS, not about those files.
+- Sent back to the same (warm) worker with the real question: **35 failures may mean the guard is the
+  wrong SHAPE, not that more tests are stale** — if any legitimate caller needs a non-today DocDate
+  (a test posting into a prior period, a fixture, a cross-date integration flow), the guard belongs at
+  the API/DTO boundary (FluentValidation, where REST+MCP enter) instead of inside CreateDraftAsync
+  which every internal caller and test also funnels through. Told it to grep EVERY
+  CreatePaymentVoucherRequest/CreatePvFromViRequest construction site, since a date-literal test can
+  pass today and fail tomorrow.
+- DECISIONS-army-2026-07-25.md was reverted back to 15 items (the 15 → 13 edit was premature — O7/O13
+  are not fixed until the gate is green). Re-apply it only after a green suite.
+- **The army result is unaffected**: everything else is committed, shipped and live-verified. WP-I is a
+  bonus; if it can't go green cleanly, `git checkout -- .` and drop it.
