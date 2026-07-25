@@ -13,13 +13,21 @@
   - **co6 = บริษัท ทดสอบ NON-VAT (DUMMY) จำกัด** now exists (id=6, non-VAT) with 3 scoped users
     (nvadmin01/nvchief01/nvtax01). Its FY2026 is **year-end CLOSED** (B2-ye's terminal state) —
     reopen exists if a future leg needs it. co5 stays the VAT playground.
-  - **Committed, awaiting the next release:** WP-F (PV prefill dual-flag, `479baae`), WP-G (non-VAT
-    PV gate — Tier-2 rejected round 1, correct shape is the single `IsRecoverableVat=false` flag;
-    the bad acceptance criterion was Fable's own spec error), WP-H (payroll ภ.ง.ด.1/1ก RBAC).
-  - **Ham's scope calls open (O1-O12 in specs/fix-army-findings-2026-07-22.md).** Top one:
+  - **v1.22.12 LIVE** (2026-07-25 ~20:0x) — WP-F (PV prefill dual-flag), WP-G (non-VAT company gate
+    on the PV path; Tier-2 rejected round 1 because zeroing the VAT under-paid the vendor and
+    stranded AP — the bad acceptance criterion was Fable's own spec error), WP-H (RD/SSO filing PDFs
+    on `Payroll.RunManage OR tax.filing.preview` — TAX_OFFICER was 403'd off its own ภ.ง.ด.1/1ก).
+    Leg V2 verified 3/4 live; leg **V3b closed the 4th on a fresh co7: JE #173 = Dr 5200 1,070.00,
+    no 1170 line, TotalPaid 1,070.00, Dr=Cr, TB balanced** — the vendor's VAT folds into cost and the
+    vendor is paid in full. Fix arc 8/8 work packages shipped; nothing engineering-side is open.
+  - **Ham-facing decision doc: `DECISIONS-army-2026-07-25.md`** (Thai, 15 items grouped: 5 unbuilt /
+    7 "do we want it" / 2 go-look-yourself, plus the shipped-bug ledger). Top one:
     **O8 — payroll has no day-based proration**; a mid-month hire and a mid-month leaver both got a
     full month of salary + PIT, in the GL and in the printed ภ.ง.ด.1/1ก. Also O11/O12: สปส.1-10
-    prints but is not submittable (ส่วนที่ 2 unbuilt, no employer account-number field).
+    prints but is not submittable (ส่วนที่ 2 unbuilt, no employer account-number field). And **O14: no
+    monthly period-reopen exists anywhere** (only reopen-year) — closing a month is irreversible, which
+    is why co6 can create no PaymentVoucher until 2027; **co7** (id=7, non-VAT, periods open) is the
+    replacement non-VAT playground, users nvadmin02/nvchief02.
 - **v1.22.10 LIVE (2026-07-22 ~02:5x) — non-VAT F-A..F-D shipped+deployed; NEXT SESSION = army
   on untested areas, see HANDOFF-untested-army.md.** ExpenseClaim non-VAT 1170 guard (money,
   Fable-reviewed) + PO paper vendor address + control heights + VI non-VAT wording. Suite 921/0/8.
