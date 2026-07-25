@@ -203,5 +203,11 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
   carries its own fix recipe). `VERDICT-army-2026-07-25.md` unchanged.
 - Retro folded 5 lessons total this session (3 earlier + 2 late: "a --filter run is never the gate",
   "a request-shape guard belongs at the DTO boundary, not a shared service seam").
-- NOT DEPLOYED yet: WP-F (479baae) and O7 (d6568ef) sit on main awaiting the next release. Everything
-  else is live on v1.22.12. Nothing is broken by waiting.
+- CORRECTION: WP-F (479baae) is ALREADY in v1.22.12 (tagged at 32fcb37, after it) — an earlier note
+  here wrongly listed it as pending. `git diff v1.22.12..HEAD` = ONLY `page.tsx` (O7) + the G4 test
+  assertion, and ZERO backend/src changes.
+- Therefore the last undeployed product change is **O7 alone, frontend-only** → release v1.22.13 is a
+  FE-ONLY deploy: no API publish, no SqlScripts, no DB backup implication. Steps: merge release PR #99
+  --admin → tag → `git archive v1.22.13 frontend` → scp → pnpm install → pnpm exec next build →
+  pm2 restart teas-web → public probes → verify the widget as appr01 on co5 (a row must appear only
+  for a doc type that account can actually open).
