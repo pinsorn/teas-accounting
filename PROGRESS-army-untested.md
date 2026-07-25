@@ -188,3 +188,20 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
 - Current tree = validator rule + O7 widget filter + spec text. Suite running, full log at
   Z:/temp/claude/wpi-suite.log (not tailed this time).
 - Expected: baseline 943 passed / 8 skipped, plus whatever validation-path tests need their date fixed.
+
+## FINAL 2026-07-25 ~23:0x — ARMY CLOSED
+- WP-I resolved: **O7 SHIPPED** (commit d6568ef — widget filtered by the viewer's per-doc-type read
+  permission, tsc + next build clean). **O13 DEFERRED** back to the O-list, not because it's hard but
+  because the expensive part (the design) is now ANSWERED and recorded: the rule goes in
+  `CreatePaymentVoucherValidator`, not `CreateDraftAsync` (MCP + REST both run FluentValidation;
+  the service seam is shared with every internal caller/fixture/test — a guard there broke 35 tests
+  that had no bug). Next attempt is ~10 minutes.
+- Final gate on HEAD: **944 passed / 0 failed / 8 skipped / 952 total** (13m12s), no flake this run.
+- Footgun hit + already in troubles-wiki: an orphaned `testhost` from an abandoned run held the build
+  DLLs (`MSB3021/MSB3027 ... locked by testhost`). Fix: kill stray testhost/dotnet, re-run.
+- Docs for Ham: `DECISIONS-army-2026-07-25.md` now **14 items** (O7 moved to the fixed ledger; O13
+  carries its own fix recipe). `VERDICT-army-2026-07-25.md` unchanged.
+- Retro folded 5 lessons total this session (3 earlier + 2 late: "a --filter run is never the gate",
+  "a request-shape guard belongs at the DTO boundary, not a shared service seam").
+- NOT DEPLOYED yet: WP-F (479baae) and O7 (d6568ef) sit on main awaiting the next release. Everything
+  else is live on v1.22.12. Nothing is broken by waiting.
