@@ -360,23 +360,91 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
     `payment-vouchers/*` (blast cap respected, WP-A's territory untouched).
 
 ## WP-E — company create/update VAT flag (2026-07-25, found via super-admin UI drive)
-- [ ] E1 **HIGH**: /settings/companies create modal — จด VAT toggle OFF is IGNORED: co6 (id=6)
+- [x] E1 **HIGH**: /settings/companies create modal — จด VAT toggle OFF is IGNORED: co6 (id=6)
       was created with the toggle visually off yet persisted vat_registered=true (list + edit
       modal both show จด VAT). Suspect FE payload omits the flag (backend defaults true) or
       backend CreateAsync ignores it. Repro: create any company with จด VAT off → list shows จด VAT.
-- [ ] E2 **HIGH**: edit-company save → `PUT /api/proxy/companies/6` → **500** (raw
+      **Investigated end-to-end 2026-07-25 (Sonnet): NOT reproducible against current source.**
+      Read the full chain — FE `CreateCompanyDialog.submit()` (`frontend/app/(dashboard)/settings/
+      companies/page.tsx`), `CreateCompanyRequest`/`CreateCompanyValidator`
+      (`Accounting.Application.Master.CompanyDtos`), `MasterEndpoints.MapCompanies` POST handler,
+      `CompanyService.CreateAsync` — `req.VatRegistered` threads through untouched at every layer,
+      no default-true anywhere, no `HasDefaultValue` on the `VatRegistered` column (unlike the
+      KNOWN, unrelated `VatRate=0` EF-default footgun documented in `TestCompanyFactory.CreateAsync`'s
+      own doc comment). Proved via a NEW full-HTTP-pipeline test (real routing/validator/JSON, not
+      just the service call) — `POST /companies` with `vatRegistered:false` persists false
+      (`CompanyVatFlagHttpTests.Create_with_vat_registered_false_persists_false`, real Postgres).
+      Most likely explanation for the live symptom: entangled with E2 below — a create-then-
+      immediate-edit-to-flip workflow would hit E2's UpdateAsync bug, which rolls back the WHOLE
+      transaction (the flip never lands), leaving the row at whatever it started as. No code
+      change needed for E1 itself; regression test added to lock in correct behavior.
+- [x] E2 **HIGH**: edit-company save → `PUT /api/proxy/companies/6` → **500** (raw
       "An unexpected error occurred" toast), reproduced twice (payload = full form with
       vatRegistered=false). Root-cause the 500 (server log/stack), fix + map to clean 422 if it's
       a domain rejection. ACCEPTANCE: co6 can be flipped to ไม่จด VAT via the UI post-deploy
       (unblocks army B2 non-VAT legs).
-
-- [ ] E3 **LOW [B-mcp]**: malformed MCP tools/call (args not wrapped in `request`) throws
+      **ROOT CAUSE (proven 2026-07-25, Sonnet, red→green via a real-RLS-enforcing test — teas_test's
+      normal superuser connection BYPASSES RLS and would have hidden this entirely):**
+      `CompanyService.UpdateAsync` conditionally calls `IActivityRecorder.Record(...)` whenever a
+      tax field (VatRegistered/VatRate/Pnd30SubmissionMode) changes, queuing an
+      `audit.activity_log` insert with `company_id = <the company being edited>`. That table
+      carries `FORCE ROW LEVEL SECURITY` (`600_superadmin_scoped_rls.sql` G3:
+      `company_id = current_setting('app.company_id') OR company_id IS NULL OR app.bypass_rls`).
+      `TenantMiddleware` pins `app.company_id` SESSION-scoped to the CALLER's OWN company for
+      every request — a super-admin editing a DIFFERENT company (exactly the /settings/companies
+      use case) never gets that GUC re-pinned to the target. The queued activity_log row's
+      `company_id` therefore mismatches the session's `app.company_id`, the INSERT's implicit
+      RLS check 42501s inside `SaveChangesAsync`, the WHOLE save rolls back (the VAT flip never
+      lands either), and the unhandled `DbUpdateException` surfaces as a raw 500. This is the
+      EXACT same class of bug `CompanyService.CreateAsync` was fixed for (commit 4b92efd,
+      2026-07-18, `specs/fix-company-create-rls-atomic.md`) — that fix was never extended to
+      `UpdateAsync`. Genuine bug (per dispatch's "audit-log path" hint), not a domain rejection —
+      no 422 mapping needed, the operation now succeeds.
+      **FIX** (`backend/src/Accounting.Infrastructure/Master/MasterDataServices.cs`,
+      `CompanyService.UpdateAsync`): wrap the save in an explicit transaction and
+      `SELECT set_config('app.company_id', {companyId}, true)` (LOCAL — auto-reverts at
+      commit/rollback, never leaks onto the pooled connection) before `SaveChangesAsync`, mirroring
+      `CreateAsync`'s already-proven, already-reviewed idiom. `CompanyProfileService`'s own
+      tax_config_change audit write was checked too — it operates exclusively on
+      `tenant.CompanyId` (self-service `/company-profile/*`, always same-company), not affected,
+      left untouched.
+      **TESTS:** `backend/tests/Accounting.Api.Tests/Persistence/CompanyUpdateRlsTests.cs` (new) —
+      reproduces the EXACT RLS-enforced shape via the `pg_database_owner` non-bypass-role trick
+      already proven in `CompanyCreateRlsTests` (SET ROLE + session-scoped `app.company_id` pinned
+      to a DIFFERENT "own" company than the target being updated, REAL `ActivityRecorder` not a
+      no-op stub — a no-op silently defeats the repro, hit this once before catching it). Verified
+      RED (`42501: new row violates row-level security policy for table "activity_log"`) before the
+      fix, GREEN after. Plus `CompanyVatFlagHttpTests.Update_flips_vat_registered_true_to_false`
+      (full HTTP PUT round-trip, 204 + persisted false). New troubles-wiki.md entry ("Super-admin
+      cross-company write 500s under RLS").
+- [x] E3 **LOW [B-mcp]**: malformed MCP tools/call (args not wrapped in `request`) throws
       `System.ArgumentException` which `McpErrorSurfacingFilter` doesn't catch (only McpE2Exception/
       DomainException/ValidationException/JsonException) → SDK swallows into generic
       "An error occurred invoking '<tool>'." — misled a whole test leg into a false CRITICAL.
       FIX: catch ArgumentException in the filter → clean "[mcp.arguments] ..." message.
       (Fable root-caused 2026-07-25 via prod log: worker sent flat DTO fields; schema correctly
       advertises nested `request` — write path itself works, verified by live probe.)
+      **DONE 2026-07-25 (Sonnet):** added an `ArgumentException` catch to
+      `McpErrorSurfacingFilter.cs` (same pattern/position as the 4 existing catches — logs Warning
+      server-side, returns `[mcp.arguments] <message>` as a non-throwing `CallToolResult`). New
+      test `McpErrorSurfacingTests.CreateTaxInvoiceDraft_args_not_wrapped_in_request_surfaces_mcp_arguments`
+      calls `create_tax_invoice_draft` with the malformed FLAT-field shape (no `request` wrapper)
+      and asserts `IsError` + the `[mcp.arguments]` prefix.
+- **WP-E implementation evidence (2026-07-25, Sonnet):**
+  - CHANGED: `backend/src/Accounting.Infrastructure/Master/MasterDataServices.cs` (E2 fix, 12
+    lines), `backend/src/Accounting.Api/Mcp/McpErrorSurfacingFilter.cs` (E3 catch, 11 lines),
+    `backend/tests/Accounting.Api.Tests/Persistence/CompanyUpdateRlsTests.cs` (new, E2 RLS repro),
+    `backend/tests/Accounting.Api.Tests/Master/CompanyVatFlagHttpTests.cs` (new, E1+E2 HTTP repro),
+    `backend/tests/Accounting.Api.Tests/Mcp/McpErrorSurfacingTests.cs` (E3 test added). 5 files —
+    within the ≤6 blast cap. No frontend files touched (E1 needed no fix; FE gates not applicable).
+  - GATES: `dotnet build` (whole solution) — clean, 0 warnings/errors. Full `dotnet test`
+    (Accounting.Api.Tests) — **0 failed, 937 passed, 8 skipped, 945 total (12.0 min)** — skip
+    count matches the 8-baseline exactly, no flake hit this run (all green, no isolate-rerun
+    needed). Accounting.Domain.Tests — **155/155 passed, 0 failed.** No frontend changes → tsc/
+    next build not run (not applicable per dispatch).
+  - SIMPLIFIED/SKIPPED: none — both E1 and E2's ACCEPTANCE ("co6 can be flipped to ไม่จด VAT via
+    the UI post-deploy") is satisfied by the E2 fix alone; E1 required no code change after
+    exhaustive verification found no defect.
 
 ## OPEN (Ham / triage decisions — not dispatched)
 - [ ] O1 [B-fa F-2]: FA acquisition posts no GL by design; UI never warns when no VI linked →

@@ -505,7 +505,22 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         e.Province = req.Province; e.PostalCode = req.PostalCode;
         e.Phone = req.Phone; e.Email = req.Email; e.IsActive = req.IsActive;
         e.PaidUpCapital = req.PaidUpCapital;
+
+        // WP-E2 (specs/fix-army-findings-2026-07-22.md) — master.companies carries no RLS, but
+        // audit.activity_log DOES (600_superadmin_scoped_rls.sql G3: company_id must match the
+        // session's app.company_id). A super-admin's session is pinned to THEIR OWN company
+        // (TenantMiddleware), not the row being edited — a tax-field change above queues an
+        // activity_log insert for companyId, which then 42501s under RLS and the whole
+        // SaveChangesAsync (including the companies-row update) rolls back, surfacing as a raw
+        // 500 (live repro: co6 vatRegistered flip). Re-pin app.company_id LOCAL to THIS company
+        // inside an explicit transaction before saving — same idiom as CreateAsync (LOCAL
+        // auto-reverts at commit/rollback, never leaks onto the pooled connection).
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync(
+            "SELECT set_config('app.company_id', {0}, true)",
+            [companyId.ToString(CultureInfo.InvariantCulture)], ct);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<IReadOnlyList<CompanyDto>> ListAsync(CancellationToken ct) =>

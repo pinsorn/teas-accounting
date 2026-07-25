@@ -315,6 +315,41 @@ public sealed class McpErrorSurfacingTests
         text.Should().Contain("uomId", "the JsonException.Message must embed the JSON path so the agent can self-correct");
     }
 
+    // WP-E3 (specs/fix-army-findings-2026-07-22.md) — args not wrapped in the schema's `request`
+    // object (a flat DTO instead of the nested shape every create_*/update_* tool advertises)
+    // throws a plain System.ArgumentException from the MCP SDK's own argument-binding layer,
+    // previously uncaught by this filter and swallowed into the SDK's generic
+    // "An error occurred invoking '<tool>'." — misled a whole army test leg into a false
+    // CRITICAL (root-caused via prod log 2026-07-25: the write path itself works fine, verified
+    // by a live probe with the correctly-nested payload).
+    [SkippableFact]
+    public async Task CreateTaxInvoiceDraft_args_not_wrapped_in_request_surfaces_mcp_arguments()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var customerId = await SeedCustomerAsync(co.CompanyId, co.BranchId);
+        var productId = await SeedProductAsync(co.CompanyId, co.BranchId);
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["sales.tax_invoice.create"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var today = new SystemClock().TodayInBangkok();
+        // Flat DTO fields at the TOP level (no "request" wrapper) — exactly the malformed shape
+        // an agent sent in the live army-test repro; the tool's schema requires a nested `request`.
+        var flatArgs = TaxInvoiceRequest(today, customerId, productId);
+        var flatDict = JsonSerializer.SerializeToElement(flatArgs).EnumerateObject()
+            .ToDictionary(p => p.Name, p => (object?)p.Value.Clone());
+
+        var result = await client.CallToolAsync("create_tax_invoice_draft", flatDict);
+
+        result.IsError.Should().BeTrue();
+        ErrorText(result).Should().StartWith("[mcp.arguments]",
+            "a malformed tools/call (missing the nested `request` object) must surface a clean, " +
+            "actionable message instead of the SDK's generic \"An error occurred invoking\" swallow");
+    }
+
     // ── extra scenarios (coordinator note 2026-07-12) — mirrors real prod exceptions ──
 
     // McpE2Exception [mcp.pdf_not_posted] — pdf-url tool called on a still-DRAFT document.

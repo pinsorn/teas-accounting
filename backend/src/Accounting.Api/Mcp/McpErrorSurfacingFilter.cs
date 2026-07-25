@@ -86,6 +86,20 @@ public static class McpErrorSurfacingFilterExtensions
                     logger.LogWarning(ex, "\"{ToolName}\" rejected: {SurfacedText}", toolName, text);
                     return ErrorResult(text);
                 }
+                catch (ArgumentException ex)
+                {
+                    // WP-E3 (specs/fix-army-findings-2026-07-22.md) — a malformed tools/call (args
+                    // not wrapped in the schema's `request` object, or any other MCP-SDK-level
+                    // argument-shape rejection) throws a plain ArgumentException BEFORE reaching
+                    // any handler code, previously uncaught here and swallowed by the SDK's own
+                    // outer catch-all into a generic "An error occurred invoking '<tool>'." —
+                    // misled a whole test leg into a false CRITICAL (root-caused via prod log
+                    // 2026-07-25: worker sent flat DTO fields; the schema correctly advertises a
+                    // nested `request` — the write path itself works, verified by live probe).
+                    var text = $"[mcp.arguments] {ex.Message}";
+                    logger.LogWarning(ex, "\"{ToolName}\" rejected: {SurfacedText}", toolName, text);
+                    return ErrorResult(text);
+                }
                 // Anything else: deliberately NOT caught here — see the class doc's ordering note.
                 // The SDK's own outer catch-all logs it (unaffected by this filter).
             });
