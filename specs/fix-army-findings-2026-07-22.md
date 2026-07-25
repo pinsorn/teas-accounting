@@ -786,3 +786,12 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
         company's PV header carries `VatAmount = 70` with no recoverable/non-recoverable split, so PV
         detail/print label folded-into-cost VAT plainly as "VAT" where a VI shows it as
         `NonRecoverableVatAmount`. The cash quantity is correct; only the label is imprecise.
+- [ ] O13 [V2, NOT a bug — API smell + a co6 state note]: `CreatePaymentVoucherRequest` still carries a
+      `DocDate` field (`PaymentVoucherDtos.cs:22`) that `CreateDraftAsync` deliberately ignores —
+      §10 pins DocDate/PostingDate to Asia/Bangkok today and the code says so explicitly ("never
+      trusted from the request"). Accepting a field and silently dropping it misleads every API/MCP
+      caller: either remove it from the DTO or 422 when it differs from today. Consequence found
+      live: because the period gate runs at DRAFT-create against that pinned date, and leg B2-ye
+      closed all 12 FY2026 months on co6, **no PaymentVoucher (not even a draft) can be created on
+      co6 until 2027** — reopen a period first if a future leg needs PV work there (B2-ye proved
+      reopen+reclose is clean).

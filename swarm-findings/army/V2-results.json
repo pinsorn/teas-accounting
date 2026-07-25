@@ -1,0 +1,49 @@
+{
+  "WP-F": {
+    "viId": 18,
+    "viDocNo": "07-2026-VI-0006",
+    "viOutstanding": 20000,
+    "prefilledAmount": 20000,
+    "grandTotalText": "20,000.00"
+  },
+  "WP-G": {
+    "vatMode": false,
+    "vatRateControlCount": 0,
+    "vatSummaryLineCount": 0,
+    "vendorUsed": "ผู้ขาย NON-VAT ทดสอบ B2NV\n0105569000011",
+    "categoryUsed": "สินทรัพย์ถาวร (capitalize) (CAPEX)",
+    "formPreview": {
+      "subtotal": "1,000.00",
+      "netPaid": "1,000.00"
+    },
+    "uiSaveAttempted": true,
+    "apiCreateStatus": 422,
+    "apiCreateBody": {
+      "type": "urn:teas:error:period.closed",
+      "title": "period.closed",
+      "status": 422,
+      "detail": "Period 2026-07 is CLOSED. Reopen the period or correct doc_date."
+    }
+  },
+  "WP-H": {
+    "runId": 9,
+    "employeeId": 6,
+    "probeStatus": {
+      "pnd1": 200,
+      "pnd1a": 200,
+      "ssoPdf": 200,
+      "ssoFile": 200,
+      "wht50tawi": 200,
+      "runsListAdmin": 403
+    },
+    "payrollNavLinkVisible": 0
+  },
+  "regression": {
+    "tbBadges": [
+      "Dr = Cr ✓"
+    ],
+    "versionFooter": "v1.22.12"
+  },
+  "_leaks": [],
+  "_errors5xx": []
+}
