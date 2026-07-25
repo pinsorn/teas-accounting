@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.22.11](https://github.com/pinsorn/teas-accounting/compare/v1.22.10...v1.22.11) (2026-07-25)
+
+
+### Bug Fixes
+
+* **bank:** K-Plus PDF real-statement parse — margin-watermark row-bridging + footer fake-row (army B-br F1) + parse-error 422 hardening ([b71e5cd](https://github.com/pinsorn/teas-accounting/commit/b71e5cdfa21d1362ba90244f3f9f7e85b305045f))
+* **company,mcp:** super-admin company update RLS re-pin (raw 500 on tax-field edit) + MCP ArgumentException surfacing ([a8d54b4](https://github.com/pinsorn/teas-accounting/commit/a8d54b49c330d570293c99a6724b6130b69c6d20))
+* **fe:** expense-claim status i18n (Submitted/Paid), depreciation already-posted toast, expense-claims 403 clean-deny ([aaf62c5](https://github.com/pinsorn/teas-accounting/commit/aaf62c59bc5046780bc38aa719a4d07493275165))
+* **gl,pv:** self-withhold gross-up debit on VI-linked PV posting + dual-flag VAT derivation on PV form ([e17d232](https://github.com/pinsorn/teas-accounting/commit/e17d232a2bbe159713d1d79065e50d127d2f64de))
+* **pv:** WHT income-type validated at draft-save/approve + Draft/Approved cancel escape hatch + live PV concurrency token ([3835e96](https://github.com/pinsorn/teas-accounting/commit/3835e96e36b98fcecc6193f38bb6e0d5bff3a4d8))
+
 ## [1.22.10](https://github.com/pinsorn/teas-accounting/compare/v1.22.9...v1.22.10) (2026-07-22)
 
 
