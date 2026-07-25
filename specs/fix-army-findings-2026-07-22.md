@@ -451,10 +451,22 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       disposal credits cost that was never debited. Options: warning badge on asset detail
       ("ต้นทุนยังไม่ลง GL — ยังไม่ได้ link ใบกำกับ/JE"), or block activate without VI/opening-JE ref.
       DECISION NEEDED (product call).
-- [ ] O2 [B-bn INCONCLUSIVE]: BN TI-aggregation — manual UI re-check (pick 2 TIs cleanly) before
-      filing: does the selection persist / roll up totals / show back-link chips?
-- [ ] O3 [B-bn note]: BN "ดาวน์โหลด PDF (สำเนา)" button fired no request under Playwright —
-      quick manual click-test to rule out a real user-facing break.
+- [x] O2 [B-bn INCONCLUSIVE → RESOLVED, real gap]: live re-check picked both TIs cleanly
+      (chips confirmed pre-issue) — see `swarm-findings/army/O2-O3-verify.md`. Selection
+      **persists** (join table + API both correct); total **does NOT** roll up (BN #24
+      totalAmount ฿107.00 = manual line only, TI sum was ฿6,955); back-link chips **do NOT**
+      render on the BN detail page (`bn-ti-chips` only exists in the create form; API already
+      returns `taxInvoices` with doc_no "for chips" per the BE's own comment — display half was
+      just never wired up). Product gap, not a false positive: add the chip list to the BN
+      detail page. DECISION NEEDED (build the missing detail-page display, or accept
+      picker-only visibility).
+- [x] O3 [B-bn note → RESOLVED, automation artifact]: re-verified with proper Playwright
+      `.click()` (tall viewport, no raw coordinates/force-click) — button fires
+      `mark-printed` + `pdf` network calls and produces a real download
+      (`billing-notes-24.pdf`), reproduced on a control page (TI) using the same shared
+      `PrintMenu` component; direct endpoint probe also 200/application-pdf. Not a real
+      user-facing break — no Ham confirmation needed, close as swarm-script artifact. See
+      `swarm-findings/army/O2-O3-verify.md`.
 - [ ] O4 [B-ec item 4]: expense-claim EDIT for Draft/Rejected = UNBUILT (backend PUT wired, zero
       FE). Build or drop? Ham's call.
 - [ ] O5 [B-rc]: ภ.พ.36 has no PDF export (pnd54-only route). Build parity or accept? Ham's call.
@@ -867,3 +879,26 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       `frontend/lib/i18n/problems.ts` — confirmed clean via `git status`). Re-attempting with the
       design conclusion above should be a ~10-minute job (one `RuleFor`, two validator tests, no
       full-suite surprises since the guard never touches `CreateDraftAsync`'s seam this time).
+
+## O2 SPLIT + O3 CLOSED (2026-07-25, leg O2-O3-verify — evidence swarm-findings/army/O2-O3-verify.md)
+- [x] **O3 CLOSED — automation artifact, NOT a product break.** With a tall viewport and a plain
+      Playwright click (no raw coordinates) the billing-note "ดาวน์โหลด PDF (สำเนา)" item fires the real
+      `mark-printed` + `pdf` calls and produces an actual download — reproduced on a control page using
+      the same shared `PrintMenu` component, and the endpoint probes 200 `application/pdf`. B-bn's
+      "no request fired" was its own click strategy. No code change, and Ham does NOT need to hand-test it.
+- [x] **O2 CONFIRMED as a real gap (B-bn's inconclusive reading was right about the symptom, wrong about
+      the cause — its script reopened the picker with `.click()` instead of `.fill('')`, so the second TI
+      never got picked).** With both TIs genuinely selected: the SELECTION persists correctly (join table
+      + API both return them), but two things are missing. Split accordingly:
+  - [ ] **O2a — back-link display (NO product decision needed, just wire up data that already exists):**
+        the BN detail page never renders the linked TIs even though the API returns them and the
+        backend's own comment says the payload is "for chips". `bn-ti-chips` exists only in the CREATE
+        form. Render them on the detail page (same chip pattern), linking each to its TI. → WAVE 5.
+  - [ ] **O2b — should linking TIs drive the BN TOTAL? (Ham's call — do NOT guess.)** Today the total is
+        manual-lines-only: ฿107.00 billed vs ฿6,955 of linked TIs (totals never read the join table).
+        A Thai ใบวางบิล normally bills the SUM of the invoices it lists, which argues the linked TIs
+        should either generate the lines or at least be reconciled against them — but that changes what
+        the document asserts commercially, so it needs Ham. Options to put to him: (1) linking TIs
+        auto-generates the BN lines (manual lines then become an override), (2) keep manual lines
+        authoritative but BLOCK issue when they don't reconcile with the linked TIs, (3) keep the field
+        as a pure reference tag and rename its label so nobody expects aggregation.
