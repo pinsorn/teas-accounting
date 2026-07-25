@@ -46,3 +46,17 @@
 - Payroll/SSO = money + กฎหมาย → Opus design + Opus review เสมอ, ห้าม Fable เขียนโค้ดเอง
 - co6 งวดปิดหมด (ใช้เทส O14 ได้ดี) · co7 งวดเปิด (ใช้เทส payroll/SSO) · co5 = สนาม VAT
 - ทุก wave: full suite เป็น gate (ไม่ใช่ --filter), Fable อ่าน diff ก่อน commit, deploy + verify สด
+
+## Night-shift log + quota pivot (2026-07-26 ~00:1x)
+- คืบคืนนี้: **WAVE 1 ปิด** (`3877df7`, suite 955/0/8) · **O6 ปิดไม่ต้องแก้โค้ด** (`c465583`) ·
+  **O3 ปิดเป็น automation artifact + O2 แยกเป็น O2a/O2b** (`0babb6f`) · **WAVE 2 design ผ่าน
+  Fable review** (`f0346e4`) และ implement กำลังวิ่ง
+- **Quota pivot: 7-day = 87%** (เกินเส้น 85% ของ CLAUDE.md → ห้าม dispatch Claude worker ใหม่)
+  - Wave 2 implement คือ Claude worker **ตัวสุดท้าย**ของคืนนี้
+  - Tier-2 review ของ O8 (money) จะ**ไม่**ใช้ opus-reviewer (Claude pool) → ใช้ **Codex** (pool แยก)
+    ตาม quota-arbitrage rule: footgun work ส่ง Codex ไม่ใช่ลดชั้นเป็น Claude ที่ถูกกว่า
+    + Fable อ่าน diff เองด้วย (ถูกกว่าการ spawn subagent มาก)
+  - **WAVE 3/4/5 ไม่เริ่มคืนนี้** — รอ 7-day ฟื้น (reset 1785229200) หรือ Ham สั่ง
+- ลำดับที่เหลือหลัง Wave 2: Fable diff review → Codex money review → commit → release **ครั้งเดียว**
+  (PR #99 สะสม O7 + Wave 1 + O8 ไว้แล้ว) → deploy (FE + API เพราะ O8/O13 แตะ backend) → verify สด
+  (proration บน co7 ที่งวดเปิด: จ้างกลางเดือน/ออกกลางเดือน เทียบ hand-calc 32,903.23 / 19,354.84)
