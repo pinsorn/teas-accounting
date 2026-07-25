@@ -78,3 +78,19 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
 - IN FLIGHT: B2-nv (non-VAT full drive on co6) + V1 (post-deploy re-verify of every shipped fix on co5).
 - NEXT: B2-pr (ภ.ง.ด.1/1ก edge cases on co6) -> B2-ye (year-end, co6 ONLY, LAST) -> Wave C2 vision on
   B2 PDFs -> final consolidation + STATUS.md + repo tidy (stray B-*.pdf at root, CLAUDE.md.bak).
+
+## v1.22.12 DEPLOYED 2026-07-25 ~20:0x (Fable)
+- Shipped: WP-F 479baae (PV prefill dual-flag), WP-G 2b6fc28 (non-VAT company gate on the PV path —
+  Tier-2 rejected round 1 for under-paying/AP-stranding, round 2 APPROVE), WP-H 6b689be (RD/SSO
+  filing PDFs on Payroll.RunManage OR tax.filing.preview — TAX_OFFICER was 403'd off ภ.ง.ด.1/1ก).
+- CI green on 6b689be (backend job ~20min); release PR #98 merged --admin -> tag v1.22.12;
+  published from the REAL path, MinVer 1.22.12+32fcb37; md5 verified server-side; api/unpacked
+  swapped (unpacked.old kept); FE overlay + pnpm install + next build; pm2 both online.
+- Pre-deploy DB backup /tmp/teas-pre-v12212-20260725-2002.dump. applied_sql_scripts 75 -> 75
+  (WP-H needed no new SQL — the OR-set gate reuses an existing granted permission).
+- Public probes: / 307, /login 200, /mcp 401; MCP get_company_info returns co5 data (auth+tools OK).
+- IN FLIGHT: leg V2 = live verify of WP-F/WP-G/WP-H on prod (co5 + co6).
+- REMAINING after V2: G4 nit (assert the IsRecoverableVat flag directly in the PV non-VAT test —
+  filtered run, no full suite needed), then the army is closed. Everything else is O1-O12 = Ham's
+  scope calls, listed in specs/fix-army-findings-2026-07-22.md and summarised in
+  swarm-findings/army/VERDICT-army-2026-07-25.md.
