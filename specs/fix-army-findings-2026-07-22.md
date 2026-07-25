@@ -177,6 +177,14 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       a domain rejection. ACCEPTANCE: co6 can be flipped to ไม่จด VAT via the UI post-deploy
       (unblocks army B2 non-VAT legs).
 
+- [ ] E3 **LOW [B-mcp]**: malformed MCP tools/call (args not wrapped in `request`) throws
+      `System.ArgumentException` which `McpErrorSurfacingFilter` doesn't catch (only McpE2Exception/
+      DomainException/ValidationException/JsonException) → SDK swallows into generic
+      "An error occurred invoking '<tool>'." — misled a whole test leg into a false CRITICAL.
+      FIX: catch ArgumentException in the filter → clean "[mcp.arguments] ..." message.
+      (Fable root-caused 2026-07-25 via prod log: worker sent flat DTO fields; schema correctly
+      advertises nested `request` — write path itself works, verified by live probe.)
+
 ## OPEN (Ham / triage decisions — not dispatched)
 - [ ] O1 [B-fa F-2]: FA acquisition posts no GL by design; UI never warns when no VI linked →
       disposal credits cost that was never debited. Options: warning badge on asset detail
@@ -208,3 +216,4 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
   (locked/read-only). 1 new backend test; existing tests cover both regressions. Full suite
   921/8/930 twice (1 pre-existing unrelated Pnd50 flake both times, documented in
   troubles-wiki.md); tsc clean. Not committed — left for Fable's diff review.
+- [ ] O7 [B-mcp F2]: pending-agent-approvals widget shows agent drafts to APPROVER, but APPROVER holds zero sales.quotation.* perms — its "ตรวจ" link lands on an empty /quotations (cannot view/act; sales01 had to act instead). Decide: grant APPROVER read on agent-draft doc types, or filter the widget rows by the viewer's per-doc-type permission. Product call — Ham.

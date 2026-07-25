@@ -108,8 +108,22 @@ co5 legs (B-x, parallel — browser-only, no test-DB conflict):
       uneditable once Approved (live repro left as PV #19, co5). TI-aggregation totals/back-links
       inconclusive (needs manual re-check). Full detail: `swarm-findings/army/B-bn.md`. 6 documents
       created (cap respected), no tenant leak, no forbidden actions.
-- [ ] B-mcp (needs B-2 key): **MCP agent surface** — create-draft tools via API key →
+- [x] B-mcp (needs B-2 key): **MCP agent surface** — create-draft tools via API key →
       pending-agent-approvals widget lights up for appr01 → approve → doc proceeds. End-to-end.
+      DONE 2026-07-25: handshake (86 tools) + deny-path (structural, no post/approve/issue/send/
+      void/cancel/reject tool exists) clean. `create_quotation_draft` (arguments nested under
+      `request` per the tool's own inputSchema — first-pass "every write tool broken" was tester
+      arg-shape error, root-caused by Fable via prod log + corrected) created QT-27 on co5;
+      appr01's dashboard widget lit up (screenshot); switched to sales01 (SALES_STAFF — appr01
+      holds zero sales.quotation.* perms, a real F2 finding) to Send it (204, Draft→Sent);
+      audit01's activity log confirmed actor `army-mcp-co5` on the Created row vs `sales01` on
+      Sent; widget cleared after. All gates pass, 1 document created (cap 3), no tenant leak.
+      2 findings: F1 LOW-MEDIUM (McpErrorSurfacingFilter doesn't catch ArgumentException →
+      malformed tools/call args surface a generic swallowed error instead of a clean one), F2
+      LOW-MEDIUM (pending-agent-approvals widget alerts APPROVER for doc types — quotation
+      confirmed, likely TI/receipt too — it holds no permission to act on; probably by-design SoD,
+      needs a product call). Full detail: `swarm-findings/army/B-mcp.md` + `B-mcp-02/07/08/09/10-
+      *.png`. Temp scripts deleted.
 co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock periods):
 - [ ] B2-nv: **non-VAT FULL drive** — master data → purchase/sales/expense cycle: NO VAT UI anywhere
       (F-B live check), VI VAT-to-cost posting, non-VAT PDF layouts (non-vat-mode-pdf.spec.ts ref),
