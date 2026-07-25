@@ -580,3 +580,39 @@ VI path has one at every seam. `PaymentVoucherService.CreateDraftAsync` L196-200
 - TESTS: non-VAT company + standalone PV on a recoverable-VAT category → posted JE has NO 1170 line
   and VAT totals are 0; non-VAT company + VI-linked PV → same; VAT company (co5 shape) unchanged
   (regression); FE tsc + build.
+
+## WP-H — payroll read/filing RBAC (2026-07-25, army B2-pr) — SQL seed = footgun, Opus review
+Root cause verified by Fable: `Permissions.Payroll` has only `RunManage`/`RunPost`/`RunPay` — there is
+**no read-level payroll permission at all**, and every GET in `PayrollEndpoints.cs` (list, detail,
+payslip PDFs, **`/pnd1/pdf`**, **`/pnd1a/pdf`**) is gated on `Payroll.RunManage`. So a TAX_OFFICER —
+whose whole job is filing ภ.ง.ด.1/1ก — gets 403 on the tax forms themselves (live: nvtax01 on co6),
+while anyone who CAN read payroll necessarily also holds manage. No seed grants payroll to TAX_OFFICER.
+- [ ] H1 **HIGH [B2-pr F3]**: give the two RD filing endpoints (`/payroll/runs/{id}/pnd1/pdf`,
+      `/payroll/pnd1a/pdf`) the SAME gate the other RD forms use — `tax.filing.read` (see
+      `627_seed_tax_officer_filing_grant.sql`) — either instead of, or OR-ed with, `Payroll.RunManage`.
+      Prefer the smallest correct change: these are tax filings, not payroll administration.
+      FE: the payroll/ภ.ง.ด.1 nav + pages must not 403-spam for a TAX_OFFICER; if the filing lives
+      under the payroll module in the sidebar, gate the LINK on the same permission the endpoint now
+      requires (don't show a link that 403s — the WP1/WP2 lesson).
+- [ ] H2 decide + implement read/manage split ONLY if H1 alone leaves a hole: adding a real
+      `payroll.run.read` code is the cleaner long-term shape (mirrors `629_seed_read_manage_split_grant.sql`)
+      but costs a new perm code + grants for ACCOUNTANT/CHIEF_ACCOUNTANT/AUDITOR/TAX_OFFICER.
+      **Seed-ordering footgun (memory `rbac-seed-ordering-footgun`): insert the perm CODE first, then
+      the grants, in the SAME or a LOWER-numbered script — a grant referencing a code inserted by a
+      later-numbered file silently no-ops.** New `SqlScripts/*.sql` ⇒ DB backup mandatory at deploy +
+      post-deploy assert of the script's effect (memory `teas-prod-deploy-plink`).
+- TESTS: `RbacAuthMapTests` + `RbacMatrixTests` must stay green (set `TEAS_REPO_ROOT` — memory
+  `teas-repo-root-rbac-tests`); add: TAX_OFFICER can GET pnd1/pnd1a PDFs; a role with no payroll or
+  filing grant still 403s; COMPANY_ADMIN/CHIEF_ACCOUNTANT unchanged.
+
+## OPEN — payroll feature gaps (Ham's scope call, NOT dispatched)
+- [ ] O8 [B2-pr F1] **no day-based salary proration** for a mid-month hire or a mid-month leaver —
+      both got a full month's salary + full PIT in the live run and in the printed ภ.ง.ด.1/1ก
+      (PRB01 hired 07-15, PRC01 terminated 07-10, identical to the full-month control). Code comment
+      says "regular salary only" ⇒ UNBUILT by design, not a crash. For a Thai payroll product this is
+      the biggest functional gap the army found. Build proration? (needs a rule decision: calendar
+      days vs working days, and how PIT/SSO follow.)
+- [ ] O9 [B2-pr F1b] **no termination/end-date field** anywhere in the employee UI (the leg had to
+      PUT it via the API). Pairs with O8 — proration is unimplementable from the UI without it.
+- [ ] O10 [B2-pr F2] **no negative adjustment / deduction mechanism** in payroll at all
+      (`OtherDeductions` is a dead schema stub) — an overpayment clawback has no path.

@@ -1,0 +1,633 @@
+{
+  "employees": {
+    "PRA01": {
+      "employeeId": 7
+    },
+    "PRB01": {
+      "employeeId": 8
+    },
+    "PRC01": {
+      "employeeId": 9,
+      "terminationDate": "2026-07-10"
+    }
+  },
+  "run": {
+    "payrollRunId": 9,
+    "preExisting": false,
+    "detailDraft": {
+      "payrollRunId": 9,
+      "periodYearMonth": "202607",
+      "payDate": "2026-07-31",
+      "status": "DRAFT",
+      "docNo": null,
+      "totalGrossTaxable": 200000,
+      "totalGrossNonTaxable": 0,
+      "totalPit": 1118.76,
+      "totalSsoEmployee": 3500,
+      "totalSsoEmployer": 3500,
+      "totalOtherDeductions": 0,
+      "totalNet": 195381.24,
+      "journalId": null,
+      "approvedAt": null,
+      "postedAt": null,
+      "paidAt": null,
+      "notes": null,
+      "payslips": [
+        {
+          "payslipId": 17,
+          "employeeId": 6,
+          "employeeCode": "NVEMP-B2NV",
+          "employeeName": "ทดสอบ พนักงานเอ็นวี",
+          "nationalId": "1103700000001",
+          "grossTaxable": 20000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 0,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 19125,
+          "ytdIncome": 20000,
+          "ytdPit": 0
+        },
+        {
+          "payslipId": 18,
+          "employeeId": 7,
+          "employeeCode": "PRA01",
+          "employeeName": "เอสอง ปกติ",
+          "nationalId": "1100000000011",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        },
+        {
+          "payslipId": 19,
+          "employeeId": 8,
+          "employeeCode": "PRB01",
+          "employeeName": "บีสอง เข้ากลางเดือน",
+          "nationalId": "1100000000029",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        },
+        {
+          "payslipId": 20,
+          "employeeId": 9,
+          "employeeCode": "PRC01",
+          "employeeName": "ซีสอง ออกกลางเดือน",
+          "nationalId": "1100000000037",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        }
+      ]
+    },
+    "journalId": 167,
+    "detailPosted": {
+      "payrollRunId": 9,
+      "periodYearMonth": "202607",
+      "payDate": "2026-07-31",
+      "status": "POSTED",
+      "docNo": "07-2026-PR-0001",
+      "totalGrossTaxable": 200000,
+      "totalGrossNonTaxable": 0,
+      "totalPit": 1118.76,
+      "totalSsoEmployee": 3500,
+      "totalSsoEmployer": 3500,
+      "totalOtherDeductions": 0,
+      "totalNet": 195381.24,
+      "journalId": 167,
+      "approvedAt": "2026-07-25T11:46:28.8+00:00",
+      "postedAt": "2026-07-25T11:46:30.455+00:00",
+      "paidAt": null,
+      "notes": null,
+      "payslips": [
+        {
+          "payslipId": 17,
+          "employeeId": 6,
+          "employeeCode": "NVEMP-B2NV",
+          "employeeName": "ทดสอบ พนักงานเอ็นวี",
+          "nationalId": "1103700000001",
+          "grossTaxable": 20000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 0,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 19125,
+          "ytdIncome": 20000,
+          "ytdPit": 0
+        },
+        {
+          "payslipId": 18,
+          "employeeId": 7,
+          "employeeCode": "PRA01",
+          "employeeName": "เอสอง ปกติ",
+          "nationalId": "1100000000011",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        },
+        {
+          "payslipId": 19,
+          "employeeId": 8,
+          "employeeCode": "PRB01",
+          "employeeName": "บีสอง เข้ากลางเดือน",
+          "nationalId": "1100000000029",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        },
+        {
+          "payslipId": 20,
+          "employeeId": 9,
+          "employeeCode": "PRC01",
+          "employeeName": "ซีสอง ออกกลางเดือน",
+          "nationalId": "1100000000037",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        }
+      ]
+    },
+    "detailPaid": {
+      "payrollRunId": 9,
+      "periodYearMonth": "202607",
+      "payDate": "2026-07-31",
+      "status": "POSTED",
+      "docNo": "07-2026-PR-0001",
+      "totalGrossTaxable": 200000,
+      "totalGrossNonTaxable": 0,
+      "totalPit": 1118.76,
+      "totalSsoEmployee": 3500,
+      "totalSsoEmployer": 3500,
+      "totalOtherDeductions": 0,
+      "totalNet": 195381.24,
+      "journalId": 167,
+      "approvedAt": "2026-07-25T11:46:28.8+00:00",
+      "postedAt": "2026-07-25T11:46:30.455+00:00",
+      "paidAt": "2026-07-25T11:46:33.212+00:00",
+      "notes": null,
+      "payslips": [
+        {
+          "payslipId": 17,
+          "employeeId": 6,
+          "employeeCode": "NVEMP-B2NV",
+          "employeeName": "ทดสอบ พนักงานเอ็นวี",
+          "nationalId": "1103700000001",
+          "grossTaxable": 20000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 0,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 19125,
+          "ytdIncome": 20000,
+          "ytdPit": 0
+        },
+        {
+          "payslipId": 18,
+          "employeeId": 7,
+          "employeeCode": "PRA01",
+          "employeeName": "เอสอง ปกติ",
+          "nationalId": "1100000000011",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        },
+        {
+          "payslipId": 19,
+          "employeeId": 8,
+          "employeeCode": "PRB01",
+          "employeeName": "บีสอง เข้ากลางเดือน",
+          "nationalId": "1100000000029",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        },
+        {
+          "payslipId": 20,
+          "employeeId": 9,
+          "employeeCode": "PRC01",
+          "employeeName": "ซีสอง ออกกลางเดือน",
+          "nationalId": "1100000000037",
+          "grossTaxable": 60000,
+          "grossNonTaxable": 0,
+          "pitWithheld": 372.92,
+          "ssoEmployee": 875,
+          "ssoEmployer": 875,
+          "otherDeductions": 0,
+          "netPay": 58752.08,
+          "ytdIncome": 60000,
+          "ytdPit": 372.92
+        }
+      ]
+    }
+  },
+  "journal": {
+    "status": 200,
+    "body": {
+      "journalId": 167,
+      "docNo": "07-2026-JV-0006",
+      "docDate": "2026-07-31",
+      "postingDate": "2026-07-31",
+      "description": "PR 07-2026-PR-0001",
+      "reference": "07-2026-PR-0001",
+      "status": "Posted",
+      "postedAt": "2026-07-25T11:46:30.481+00:00",
+      "reversalOfId": null,
+      "lines": [
+        {
+          "lineNo": 1,
+          "accountId": 101,
+          "accountCode": "5400",
+          "accountNameTh": "เงินเดือนและค่าจ้าง",
+          "description": "Salaries 07-2026-PR-0001",
+          "reference": null,
+          "debit": 200000,
+          "credit": 0,
+          "businessUnitId": null
+        },
+        {
+          "lineNo": 2,
+          "accountId": 102,
+          "accountCode": "5410",
+          "accountNameTh": "เงินสมทบประกันสังคม-นายจ้าง",
+          "description": "Employer SSO 07-2026-PR-0001",
+          "reference": null,
+          "debit": 3500,
+          "credit": 0,
+          "businessUnitId": null
+        },
+        {
+          "lineNo": 3,
+          "accountId": 90,
+          "accountCode": "2153",
+          "accountNameTh": "ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง",
+          "description": "PIT payable (ภ.ง.ด.1) 07-2026-PR-0001",
+          "reference": null,
+          "debit": 0,
+          "credit": 1118.76,
+          "businessUnitId": null
+        },
+        {
+          "lineNo": 4,
+          "accountId": 91,
+          "accountCode": "2160",
+          "accountNameTh": "เงินสมทบประกันสังคมค้างนำส่ง",
+          "description": "SSO payable 07-2026-PR-0001",
+          "reference": null,
+          "debit": 0,
+          "credit": 7000,
+          "businessUnitId": null
+        },
+        {
+          "lineNo": 5,
+          "accountId": 92,
+          "accountCode": "2170",
+          "accountNameTh": "เงินเดือนค้างจ่าย",
+          "description": "Net wages payable 07-2026-PR-0001",
+          "reference": null,
+          "debit": 0,
+          "credit": 195381.24,
+          "businessUnitId": null
+        }
+      ],
+      "totalDebit": 203500,
+      "totalCredit": 203500
+    }
+  },
+  "tb": {
+    "status": 200,
+    "body": {
+      "asOfDate": "2026-07-31",
+      "companyId": 6,
+      "rows": [
+        {
+          "accountCode": "1110",
+          "accountNameTh": "เงินสด",
+          "accountType": "ASSET",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "1120",
+          "accountNameTh": "เงินฝากธนาคาร",
+          "accountType": "ASSET",
+          "normalBalance": "DR",
+          "debit": 3000,
+          "credit": 201787.78,
+          "net": -198787.78
+        },
+        {
+          "accountCode": "1130",
+          "accountNameTh": "ลูกหนี้การค้า",
+          "accountType": "ASSET",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "1170",
+          "accountNameTh": "ภาษีซื้อ",
+          "accountType": "ASSET",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "1180",
+          "accountNameTh": "ภาษีหัก ณ ที่จ่ายค้างรับ",
+          "accountType": "ASSET",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "1610",
+          "accountNameTh": "อุปกรณ์และเครื่องใช้สำนักงาน",
+          "accountType": "ASSET",
+          "normalBalance": "DR",
+          "debit": 6500,
+          "credit": 0,
+          "net": 6500
+        },
+        {
+          "accountCode": "1690",
+          "accountNameTh": "ค่าเสื่อมราคาสะสม",
+          "accountType": "ASSET",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "2110",
+          "accountNameTh": "เจ้าหนี้การค้า",
+          "accountType": "LIABILITY",
+          "normalBalance": "CR",
+          "debit": 5000,
+          "credit": 7140,
+          "net": -2140
+        },
+        {
+          "accountCode": "2151",
+          "accountNameTh": "ภาษีขายค้างจ่าย",
+          "accountType": "LIABILITY",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "2152",
+          "accountNameTh": "ภาษีหัก ณ ที่จ่ายค้างจ่าย",
+          "accountType": "LIABILITY",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 93.46,
+          "net": -93.46
+        },
+        {
+          "accountCode": "2153",
+          "accountNameTh": "ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง",
+          "accountType": "LIABILITY",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 1118.76,
+          "net": -1118.76
+        },
+        {
+          "accountCode": "2160",
+          "accountNameTh": "เงินสมทบประกันสังคมค้างนำส่ง",
+          "accountType": "LIABILITY",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 7000,
+          "net": -7000
+        },
+        {
+          "accountCode": "2170",
+          "accountNameTh": "เงินเดือนค้างจ่าย",
+          "accountType": "LIABILITY",
+          "normalBalance": "CR",
+          "debit": 195381.24,
+          "credit": 195381.24,
+          "net": 0
+        },
+        {
+          "accountCode": "3300",
+          "accountNameTh": "กำไรสะสม",
+          "accountType": "EQUITY",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "4000",
+          "accountNameTh": "รายได้จากการขาย",
+          "accountType": "REVENUE",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 3000,
+          "net": -3000
+        },
+        {
+          "accountCode": "4100",
+          "accountNameTh": "รับคืน / ส่วนลด",
+          "accountType": "REVENUE",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "4200",
+          "accountNameTh": "กำไรจากการจำหน่ายสินทรัพย์",
+          "accountType": "REVENUE",
+          "normalBalance": "CR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "5000",
+          "accountNameTh": "ต้นทุนขาย",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "5100",
+          "accountNameTh": "ค่าใช้จ่ายค่าเช่า",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "5200",
+          "accountNameTh": "ค่าใช้จ่ายค่าบริการ",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 2140,
+          "credit": 0,
+          "net": 2140
+        },
+        {
+          "accountCode": "5300",
+          "accountNameTh": "ค่าใช้จ่ายโฆษณา",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "5350",
+          "accountNameTh": "ภาษีซื้อขอคืนไม่ได้",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "5400",
+          "accountNameTh": "เงินเดือนและค่าจ้าง",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 200000,
+          "credit": 0,
+          "net": 200000
+        },
+        {
+          "accountCode": "5410",
+          "accountNameTh": "เงินสมทบประกันสังคม-นายจ้าง",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 3500,
+          "credit": 0,
+          "net": 3500
+        },
+        {
+          "accountCode": "5450",
+          "accountNameTh": "ค่าเสื่อมราคา",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        },
+        {
+          "accountCode": "5460",
+          "accountNameTh": "ขาดทุนจากการจำหน่ายสินทรัพย์",
+          "accountType": "EXPENSE",
+          "normalBalance": "DR",
+          "debit": 0,
+          "credit": 0,
+          "net": 0
+        }
+      ],
+      "totals": {
+        "debit": 415521.24,
+        "credit": 415521.24,
+        "balanced": true
+      }
+    }
+  },
+  "pnd1": {
+    "chief": {
+      "status": 200,
+      "bytes": 307589
+    }
+  },
+  "pnd1a": {
+    "chief": {
+      "status": 200,
+      "bytes": 498645
+    }
+  },
+  "sso": {
+    "file": {
+      "status": 200,
+      "bytes": 685
+    },
+    "pdf": {
+      "status": 200,
+      "bytes": 253120
+    }
+  },
+  "taxOfficer": {
+    "listRuns": {
+      "status": 403,
+      "body": null
+    },
+    "runDetail": {
+      "status": 403,
+      "body": null
+    },
+    "pnd1": {
+      "status": 403
+    },
+    "pnd1a": {
+      "status": 403
+    }
+  }
+}

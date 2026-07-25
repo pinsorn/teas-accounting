@@ -146,8 +146,23 @@ co6 legs (B2-x, needs B-1; SEQUENTIAL on co6 in this order — later steps lock 
       script bugs against live prod w/ no fixture reset left orphaned Drafts, zero GL impact; clean
       completed chain = 10 docs). No tenant leak. Full report + hand-calc/JE tables:
       `swarm-findings/army/B2-nv.md` + 80+ screenshots + 4 PDFs. Temp scripts deleted.
-- [ ] B2-pr: **ภ.ง.ด.1/1ก edge cases** — employees on co6: mid-month hire, mid-month leave, negative
-      adjustment → ภ.ง.ด.1/1ก vs hand-calc. (co6 not co5 — co5 payroll stays READ-ONLY.)
+- [x] B2-pr: **ภ.ง.ด.1/1ก edge cases** DONE 2026-07-25 — 3 employees on co6 (normal/mid-month-hire/
+      mid-month-leave, ฿60,000 each). CRITICAL structural finding: **no day-based proration exists**
+      (v1 code comment: "regular salary only") — PRB01 (hired 07-15) and PRC01 (terminated 07-10)
+      both got the FULL ฿60,000 + identical ฿372.92 PIT as the full-month control employee, confirmed
+      in the API, the posted JE, AND the actual printed ภ.ง.ด.1/1ก PDFs (F1 HIGH; sub-finding F1b: no
+      termination-date field exists anywhere in the employee UI at all — worked around via a direct
+      authenticated PUT to the app's own endpoint). Negative-adjustment mission item (3) has NO
+      mechanism anywhere in Payroll to exercise (F2, UNBUILT — `OtherDeductions` is a dead schema
+      stub, zero endpoint/UI wiring). ภ.ง.ด.1/ภ.ง.ด.1ก/สปส.1-10 all built + working, hand-calc exact
+      (verified via `pdftotext` on the real PDFs, not just the API). GL JE #167 balances exactly
+      (Dr 5400+5410 203,500 = Cr 2153+2160+2170 203,500), Pay clears 2170 to 0, TB ties
+      415,521.24=415,521.24. HIGH RBAC finding F3: nvtax01 (TAX_OFFICER) gets 403 on the ENTIRE
+      payroll module (list/detail/pnd1/pnd1a) — same missing-grant shape as CRIT-2, never extended to
+      Payroll's own filings — blocks the exact role the B-1 SoD design assigned to file these forms.
+      Full report + hand-calc tables + 11 screenshots + 3 PDFs + raw API JSON:
+      `swarm-findings/army/B2-pr.md`. 3 employees + 1 run (both within cap). No tenant leak, no
+      period close. Temp script deleted.
 - [ ] B2-ye: **year-end closing** LAST, co6 ONLY — closing entries, period locks, post-close deny.
       NEVER co2/co3/co5.
 
