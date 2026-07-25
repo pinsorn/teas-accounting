@@ -94,3 +94,21 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
   filtered run, no full suite needed), then the army is closed. Everything else is O1-O12 = Ham's
   scope calls, listed in specs/fix-army-findings-2026-07-22.md and summarised in
   swarm-findings/army/VERDICT-army-2026-07-25.md.
+
+## Checkpoint 2026-07-25 ~21:0x (quota 85%)
+- ARMY CLOSED except one live proof. v1.22.11 + v1.22.12 both LIVE; V1 verified 10/11, V2 3/4.
+- Ham-facing decision doc written: **DECISIONS-army-2026-07-25.md** (14 items grouped: 5 unbuilt /
+  7 "do we want it" / 2 go-look-yourself, plus the shipped-bug ledger). Ham asked for exactly this.
+- V3 (live 1170 proof on co6) BLOCKED — no monthly period-reopen exists anywhere (only reopen-year,
+  which leaves monthly locks). My dispatch premise was wrong; B2-ye's report had said so. Filed O14.
+- Created **co7** "บริษัท ทดสอบ NON-VAT 2 (DUMMY) จำกัด" (id=7, non-VAT, no closed periods) +
+  nvadmin02/nvchief02 (UxSwarm-2026-NV4/NV5) as the replacement non-VAT playground. TaxId needed a
+  valid Thai checksum — 0105569000029 (weights 13..2, check = (11 - sum%11) % 10).
+- IN FLIGHT: V3b = the standalone-PV posted-JE proof on co7 (expense debit 1,070 / no input-VAT line
+  / TotalPaid 1,070 / Dr=Cr).
+- ALSO OPEN: G4 — the assertion IS added to PaymentVoucherNonVatCompanyTests.cs but UNVERIFIED (the
+  haiku worker's TEAS_TEST_PG auth failed). Do NOT commit that file until a filtered run passes:
+  `dotnet test backend/tests/Accounting.Api.Tests --filter "FullyQualifiedName~PaymentVoucherNonVatCompany"`
+  with the correct TEAS_TEST_PG in the SAME command. If it fails, that means the prod gate does not
+  set the flag — escalate, do not weaken the assertion.
+- RESUME ORDER: V3b report → review + commit → verify G4 → final STATUS refresh → done.
