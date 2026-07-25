@@ -11,8 +11,9 @@
     Leg V1 re-verified 10/11 items live on prod (PV #17 posts, JE balanced, ภ.ง.ด.54 = ฿3,529.41,
     PV #19 unstuck). Pre-deploy DB backup taken; applied_sql_scripts 75 → 75.
   - **co6 = บริษัท ทดสอบ NON-VAT (DUMMY) จำกัด** now exists (id=6, non-VAT) with 3 scoped users
-    (nvadmin01/nvchief01/nvtax01). Its FY2026 is **year-end CLOSED** (B2-ye's terminal state) —
-    reopen exists if a future leg needs it. co5 stays the VAT playground.
+    (nvadmin01/nvchief01/nvtax01). Its FY2026 is **year-end CLOSED** (B2-ye's terminal state) and the
+    12 monthly locks CANNOT be undone (O14 — only reopen-YEAR exists), so co6 accepts no new
+    PaymentVoucher until 2027; use **co7** for non-VAT work. co5 stays the VAT playground.
   - **v1.22.12 LIVE** (2026-07-25 ~20:0x) — WP-F (PV prefill dual-flag), WP-G (non-VAT company gate
     on the PV path; Tier-2 rejected round 1 because zeroing the VAT under-paid the vendor and
     stranded AP — the bad acceptance criterion was Fable's own spec error), WP-H (RD/SSO filing PDFs
