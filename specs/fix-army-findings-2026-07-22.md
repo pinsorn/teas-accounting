@@ -458,7 +458,20 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
 - [ ] O4 [B-ec item 4]: expense-claim EDIT for Draft/Rejected = UNBUILT (backend PUT wired, zero
       FE). Build or drop? Ham's call.
 - [ ] O5 [B-rc]: ภ.พ.36 has no PDF export (pnd54-only route). Build parity or accept? Ham's call.
-- [ ] O6 [C1 vision]: 50ทวิ field "ลำดับที่ ... ในแบบ ภ.ง.ด.53" always blank (cert issued at PV post,
+- [x] O6 **CLOSED 2026-07-25 — NO CODE CHANGE NEEDED.** Research (AGY + Fable review:
+      `swarm-findings/army/O6-research-50twi-pnd53-seq.md`) found the field is an administrative
+      cross-reference, **not legally mandatory at issuance**, and a cert with it blank **is valid for
+      the payee's tax credit** (ม.60; RD matches credits by TIN/amount/year). Verified citations:
+      rd.go.th ม.50 ทวิ + RD ruling กค 0702/3793 (3 พ.ค. 2556). The reasoning is also structurally
+      forced regardless of sources: ม.50 ทวิ requires issuing the cert AT PAYMENT, which is before the
+      monthly ภ.ง.ด.53 exists, and the cert is immutable — so it can only ever be blank unless we
+      break one of those two rules. DECISION: leave it blank permanently; never mutate or reprint an
+      issued cert; ภ.ง.ด.53 sequence numbers stay inside the month-end filing engine only. (Rejected
+      the report's alternative of printing our own voucher ID in that box — the box is LABELLED
+      "ลำดับที่ในแบบ ภ.ง.ด.53", so putting a non-ภ.ง.ด.53 identifier there would be actively
+      misleading.) Caveat recorded: the report's "how other Thai software handles it" table is
+      weakly sourced (domain roots only) — the legal sections are the verified part.
+      Original finding:  50ทวิ field "ลำดับที่ ... ในแบบ ภ.ง.ด.53" always blank (cert issued at PV post,
       before the monthly filing; immutable so never backfillable). Options: fill at filing-finalize
       time on a COPY, print "-", or accept blank (common practice). Compliance call — Ham.
 
