@@ -62,3 +62,19 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
 - A1 Tier-1 evidence review (Fable)
 - Wave B leg reports ×7-9, Wave C report
 - Post-army sanity: TB tie both cos, no cross-tenant, pm2 zero-500 window
+
+## v1.22.11 DEPLOYED 2026-07-25 ~17:3x (Fable, SSH key)
+- Fix arc COMPLETE + committed: WP-A e17d232, WP-D aaf62c5, WP-B 3835e96 (Opus REJECT->fix->APPROVE),
+  WP-C b71e5cd, WP-E a8d54b4. Release PR #97 merged -> tag v1.22.11 -> published self-contained
+  linux-x64 from the REAL path (MinVer 1.22.11+24ad992, 446 files/15 native libs), tar+scp md5-verified,
+  api/unpacked swapped (unpacked.old kept), FE overlay + pnpm install + next build, pm2 both online.
+- Pre-deploy DB backup /tmp/teas-pre-v12211-20260725-1730.dump. applied_sql_scripts 75 -> 75 (no new).
+- Probes: localhost api /health 200, web 307; PUBLIC https / 307, /login 200, /mcp 401 (auth gate);
+  footer shows v1.22.11. E3 verified LIVE: malformed MCP tools/call now returns "[mcp.arguments] ..."
+  instead of the generic swallow.
+- WP-E2 acceptance PASSED LIVE: co6 flipped to ไม่จด VAT via UI, toast บันทึกแล้ว, no 500.
+- co6 users created (prod, Chrome/super-admin): nvadmin01/nvchief01/nvtax01 (COMPANY_ADMIN/
+  CHIEF_ACCOUNTANT/TAX_OFFICER), pw UxSwarm-2026-NV1/NV2/NV3. 3 accounts = full B2 scope w/ SoD.
+- IN FLIGHT: B2-nv (non-VAT full drive on co6) + V1 (post-deploy re-verify of every shipped fix on co5).
+- NEXT: B2-pr (ภ.ง.ด.1/1ก edge cases on co6) -> B2-ye (year-end, co6 ONLY, LAST) -> Wave C2 vision on
+  B2 PDFs -> final consolidation + STATUS.md + repo tidy (stray B-*.pdf at root, CLAUDE.md.bak).

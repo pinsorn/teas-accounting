@@ -9,7 +9,13 @@ Accounts (reuse, pw `UxSwarm-2026-<suffix>`): sales01/A1 acct01/A2 appr01/A3 ap0
 audit01/A6 chief01/A7 admin01/A8 purch01/A9 tax01/B1 — all granted on co5 only (today).
 
 ## BLOCKERS (Ham, super-admin only — push sent)
-- [~] B-1: PARTIAL 2026-07-25 (Fable via Claude-in-Chrome, Ham's super-admin session):
+- [x] B-1: **DONE 2026-07-25** (after WP-E shipped in v1.22.11): co6 flipped to **ไม่จด VAT** via
+      the UI (toast บันทึกแล้ว, no 500 — WP-E2 acceptance PASSED live). co6 users created on prod
+      (Fable via Chrome, super-admin): **nvadmin01 / nvchief01 / nvtax01**, pw `UxSwarm-2026-NV1/NV2/NV3`,
+      roles COMPANY_ADMIN / CHIEF_ACCOUNTANT / TAX_OFFICER — 3 accounts instead of 10: minimal set
+      that still covers the FULL B2 scope with SoD intact (admin creates, chief approves/pays/posts/
+      closes, tax files). co6 has NO master data yet (B2-nv creates it).
+      Earlier partial (kept for history):
       co6 "บริษัท ทดสอบ NON-VAT (DUMMY) จำกัด" CREATED (id=6, TIN 0105569000011, address filled,
       toast สร้างบริษัทแล้ว) — BUT 2 NEW BUGS surfaced (→ fix spec WP-E):
       (1) create ignored the จด VAT=OFF toggle → co6 persisted as จด VAT;
