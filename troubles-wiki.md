@@ -534,6 +534,19 @@ Entry format — terse, greppable by symptom:
   subsequent full clean re-run (0 failures) confirmed it. Filed here so a future worker recognizes
   `WhtFormPdfFillTests.Pnd54_maps_ma70_amounts_through_to_the_form` as part of the same
   `TaxFilings`-shared-state flake pool as `Pnd50FilingServiceTests`, not a fresh regression.
+- **Seen again:** 2026-07-25, WP-C fix (K-Plus PDF import 500, `specs/fix-army-findings-2026-07-22.md`)
+  — TWO full-suite runs, each failing exactly 1 (DIFFERENT) test: run 1's failure detail was lost to
+  a `tail -80` truncation (only the 932/1/8/941 summary survived); run 2 failed
+  `Accounting.Api.Tests.Expense.ExpenseClaimServiceTests.Cancel_is_legal_from_Draft_and_Rejected` with
+  `DomainException: Company with Tax ID '0000311102657' already exists` from
+  `TestCompanyFactory.CreateAsync` — a random/shared Tax-ID collision, not a real domain bug (the
+  diff touched only `Bank/Pdf/KPlusPdfLineAssembler.cs` and `Bank/StatementImportService.cs`,
+  nowhere near Company/Expense creation). Passed clean on an isolated filtered re-run
+  (`ExpenseClaimServiceTests.Cancel_is_legal_from_Draft_and_Rejected` + the new Bank/PDF tests
+  together, 12/12). Confirms the "single, different test each run" signature holds even when the
+  specific failing test is OUTSIDE the previously-seen `TaxFilings`/`Pnd50` pool — any single
+  full-run failure needs the isolate-and-rerun check before it's treated as a regression, not just
+  ones matching the two named test classes above.
 
 ## Onboarded company has NO head-office branch (until v1.11.1) → MCP consent 400s
 - **Symptom:** OAuth/MCP consent `POST /oauth/authorize` (approve) returns `400 company_has_no_active_branch`; the connector shows "เกิดข้อผิดพลาด กรุณาลองใหม่". OpenIddict logs `access_denied` (ID2015) ONLY for a Deny — an Approve that 400s is OUR handler's `Results.BadRequest`, which bypasses OpenIddict logging (so grep the request body, not OpenIddict errors).

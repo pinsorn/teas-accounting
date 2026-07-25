@@ -49,6 +49,15 @@ public static class KPlusPdfLineAssembler
 
     private static readonly Regex RawRefPattern = new(@"รหัสอ้างอิง\s*(\S+)", RegexOptions.Compiled);
 
+    // WP-C (B-br F1) — the real export prints a per-page footer note ("ออกโดย K PLUS...", issued-by
+    // disclaimer) whose leading words happen to land in the Date column's X-range by coincidence,
+    // but are not date-SHAPED text. Without this check that footer band was treated as a new
+    // transaction row (hasDate = "any word landed in the Date bucket"), producing a row with no
+    // Amount/Balance and crashing FinalizeRow. A genuine Date cell (transaction row or the
+    // ยอดยกมา anchor) always matches DD-MM-YY (see ParseDdMmYyCe) — require that shape instead of
+    // mere bucket occupancy.
+    private static readonly Regex DateShapePattern = new(@"^\d{2}-\d{2}-\d{2}$", RegexOptions.Compiled);
+
     private sealed record ColumnAnchor(string Key, double CenterX, double MinTop);
 
     public static ParsedStatement Assemble(IReadOnlyList<PositionedWord> words)
@@ -61,6 +70,22 @@ public static class KPlusPdfLineAssembler
         var anchors = DeriveColumnAnchors(page1Words);
         var metadata = ParseMetadata(page1Words);
 
+        // WP-C (B-br F1) — the real K-Plus export prints a small vertical stamp/watermark of
+        // single-character words in the page's LEFT MARGIN, well left of the "Date" column. Row
+        // clustering (below) bands purely by Y-proximity and is X-blind, so this stamp's tightly-
+        // stacked characters can bridge the Y-gap between two otherwise well-separated transaction
+        // rows and fuse them into ONE row-band (two dates/amounts/balances joined by a space in
+        // each column → FinalizeRow's decimal.Parse throws, surfacing as an unhandled 500). Fix:
+        // derive an outer left/right bound for the table using the SAME symmetric-midpoint logic
+        // AssignColumns already uses for INNER column boundaries (D9 — data-driven, never
+        // hardcoded), and drop any word outside that span BEFORE clustering — filtering only at
+        // AssignColumns time would be too late, since clustering already ran.
+        var sortedAnchors = anchors.OrderBy(a => a.CenterX).ToList();
+        var halfFirstGap = (sortedAnchors[1].CenterX - sortedAnchors[0].CenterX) / 2.0;
+        var halfLastGap = (sortedAnchors[^1].CenterX - sortedAnchors[^2].CenterX) / 2.0;
+        var tableLeftBound = sortedAnchors[0].CenterX - halfFirstGap;
+        var tableRightBound = sortedAnchors[^1].CenterX + halfLastGap;
+
         decimal? openingBalance = null;
         decimal? runningBalance = null;
         var lines = new List<ParsedStatementLine>();
@@ -69,14 +94,16 @@ public static class KPlusPdfLineAssembler
         foreach (var page in pages)
         {
             var headerBottom = anchors.Min(a => a.MinTop);   // "(บาท)"/"วันที่มีผล" — lowest header sub-line
-            var txnWords = page.Where(w => w.Top < headerBottom - 2.0).ToList();
+            var txnWords = page.Where(w => w.Top < headerBottom - 2.0)
+                .Where(w => (w.Left + w.Right) / 2.0 is var cx && cx >= tableLeftBound && cx <= tableRightBound)
+                .ToList();
             var rows = ClusterRows(txnWords);
 
             CoreRow? current = null;
             foreach (var row in rows)
             {
                 var cols = AssignColumns(row, anchors);
-                var hasDate = cols["Date"].Length > 0;
+                var hasDate = DateShapePattern.IsMatch(cols["Date"].Trim());
 
                 if (hasDate)
                 {

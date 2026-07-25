@@ -240,7 +240,7 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
     these numbers could be trusted (see `troubles-wiki.md`).
 
 ## WP-C — K-Plus PDF import 500 (after WP-B; backend, dotnet, needs local sample)
-- [ ] C1 **HIGH [B-br F1]**: `POST /bank-accounts/{id}/imports` with REAL K-Plus PDF
+- [x] C1 **HIGH [B-br F1]**: `POST /bank-accounts/{id}/imports` with REAL K-Plus PDF
       `STM_SA5476_01FEB26_08JUL26.pdf` (repo root, gitignored, password 06121996) → 500
       internal_error. Password handling OK (wrong/absent password → clean 422 bank.pdf_password).
       Crash is in parse/assembly (`KPlusPdfLineAssembler` / integrity or account-mismatch check) —
@@ -252,6 +252,75 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       root cause turns out to be the account-mismatch check itself crashing (instead of returning
       its designed error), that's the bug; the DESIGNED mismatch error is fine and then the 500 must
       be reproduced another way before closing.
+      **C1 implementation evidence (2026-07-25, Sonnet, systematic-debugging discipline):**
+      - **Root cause (proven via a throwaway repro xunit test running the real PDF through
+        `KPlusPdfTextExtractor.Extract` + `KPlusPdfLineAssembler.Assemble` directly, no HTTP) —
+        TWO distinct bugs, both inside `Assemble`, BOTH firing entirely before the account-mismatch
+        check (`StatementImportService.cs` ~L63) ever runs — the mismatch NOTE above does not
+        apply; account no. parsed cleanly as `751-2-31547-6`, confirming the crash is upstream:**
+        1. The real export prints a small vertical stamp/watermark of single-CHARACTER
+           `PositionedWord`s in the page's FAR-LEFT MARGIN (X well left of the "Date" column's own
+           derived left edge). `ClusterRows`' Y-proximity row-banding is X-BLIND, so the stamp's
+           tightly-spaced characters (~3pt gaps, within `RowYTolerance`=3.5) bridged the Y-gap
+           between two otherwise well-separated (~23pt apart) real transaction rows, fusing BOTH
+           into one row-band. `AssignColumns` then joined both rows' Balance-column tokens with a
+           space ("911.08 862.08"), and `FinalizeRow`'s `decimal.Parse` threw an unhandled
+           `FormatException` — surfaced as a raw 500, never a `DomainException`.
+        2. After fixing (1), a SECOND bug surfaced (had been masked by the first crash firing
+           earlier in page 1): a per-page footer note ("ออกโดย K PLUS…") whose leading words land
+           inside the Date column's own X-range by X-coincidence, but aren't date-SHAPED text. The
+           old `hasDate = cols["Date"].Length > 0` check treated ANY word landing in the Date
+           bucket as a new transaction row, producing a row with no Amount/Balance that crashed
+           `FinalizeRow` with `DomainException: "Row dated ออกโดย K has no balance value."`
+           (a controlled exception, but for the WRONG reason — a real design gap, not a designed
+           rejection).
+      - **Fix ((1) `KPlusPdfLineAssembler.cs` `Assemble`):** derive an outer left/right horizontal
+        bound for the table using the SAME symmetric-midpoint logic `AssignColumns` already uses
+        for INNER column boundaries (D9 — data-driven from the header's own positions, never
+        hardcoded) and drop any word outside that span from `txnWords` BEFORE `ClusterRows` runs
+        (filtering only at `AssignColumns` time would be too late — clustering already fused the
+        rows by then).
+      - **Fix (2):** added `DateShapePattern` (`^\d{2}-\d{2}-\d{2}$`, matching `ParseDdMmYyCe`'s own
+        format) and require the Date bucket's content to be date-SHAPED, not merely non-empty, to
+        set `hasDate`. A non-date-shaped band now falls into the "wrapped continuation" branch
+        (harmless no-op — its Channel/Detail buckets are empty) instead of starting a fake row.
+      - **Validated against the FULL real PDF** (repro harness, then deleted per spec — throwaway):
+        `KPlusPdfTextExtractor.Extract` + `KPlusPdfLineAssembler.Assemble` +
+        `BankStatementIntegrity.Validate` (D10) all succeed end-to-end — 7,006 words / 17 pages →
+        436 lines, AccountNoRaw=`751-2-31547-6`, Opening=326.89, Closing=2,019.49, D10 balance
+        integrity holds. **Gate outcome: the real PDF now imports successfully at the parse layer**
+        (not the designed-422 branch — the account-mismatch check is a SEPARATE, later, still-
+        correct 422 against co5's dummy account, per the spec's own NOTE, and was never what
+        crashed).
+      - **Hardening (spec's "any un-mapped exception → clean 422"):** `StatementImportService.
+        ImportAsync` now wraps `adapter.Parse` + `BankStatementIntegrity.Validate` in try/catch —
+        any non-`DomainException` is logged server-side (`ILogger<StatementImportService>`, newly
+        injected via standard DI, no manual wiring needed) and rethrown as
+        `DomainException("bank.statement_parse_failed", ...)`, a generic client-safe message
+        (`DomainExceptionMiddleware`'s default-422 fallback, same "hardcoded message" policy
+        `KPlusPdfTextExtractor`'s password path already uses). Defense-in-depth for the NEXT parse
+        edge case (this or the KBiz CSV adapter, same choke point) — nothing persists before this
+        point, mirrors the pre-existing D10 comment.
+      - **Regression test** (`KPlusPdfLineAssemblerTests.cs`,
+        `Assemble_ignores_left_margin_watermark_and_non_date_footer_note`): a SANITIZED synthetic
+        `PositionedWord` fixture (placeholder account no./amounts, no real statement data)
+        reproducing BOTH failing shapes in one page — a 9-character vertical watermark strip at
+        Left=30 bridging two 30pt-apart real rows, plus a non-date-shaped footer note below the
+        last row. Asserts 2 correctly-separated lines + D10 integrity holds. **Verified test
+        validity by temporarily reverting both fixes and re-running** — failed with the EXACT
+        real-world shape (`FormatException: 'The input string '700.00 550.00' was not in a
+        correct format.'`), then restored the fix and confirmed green (red→green proof, not just
+        a passing assertion written against the fixed code).
+      - Gates: `dotnet build` (whole solution) clean, 0 warnings/errors. Full `dotnet test` ×2 runs:
+        both 932 passed / 1 failed / 8 skipped / 941 total (skip count = baseline) — run 1's
+        failure detail was lost to a `tail` truncation, run 2 failed
+        `ExpenseClaimServiceTests.Cancel_is_legal_from_Draft_and_Rejected` (`DomainException:
+        Company with Tax ID '...' already exists` from `TestCompanyFactory` — a shared-DB Tax-ID
+        collision, file untouched by this diff); isolated re-run of that test + all new/touched
+        Bank tests together passed 12/12, confirming pre-existing shared-`teas_test`-DB flakiness
+        per troubles-wiki's documented "single, different test fails each run" class (new instance
+        appended to that wiki entry — outside the previously-seen `TaxFilings`/`Pnd50` pool, so
+        worth recording). Not committed — left for Fable's diff review.
 
 ## WP-D — FE nits batch (parallel with WP-A; FE-only, tsc, files disjoint from WP-A)
 - [x] D1 **MEDIUM [B-ec F1]**: `StatusBadge.tsx` MAP + `messages/{th,en}.json` missing
@@ -356,4 +425,27 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
   Final full suite: 0 failed / 930 passed / 8 skipped / 938 total (Api.Tests) + 152/0/152
   (Domain.Tests), skip count matches baseline exactly. tsc + next build clean. Not committed —
   left for Fable's diff review + Opus Tier-2 (per dispatch).
+- 2026-07-25 WP-C (C1) implemented by Sonnet, systematic-debugging discipline (throwaway repro
+  xunit test running the real gitignored PDF through the extractor+assembler directly, no HTTP).
+  Root cause = TWO bugs in `KPlusPdfLineAssembler.Assemble`, both firing before the account-
+  mismatch check ever runs: (1) a vertical watermark/stamp of single-char words in the page's
+  far-left margin bridged two real transaction rows into one row-band via X-blind Y-proximity
+  clustering, joining Balance-column tokens with a space → unhandled `FormatException` (raw 500);
+  (2) once fixed, a per-page footer note whose words coincidentally land in the Date column's
+  X-range but aren't date-shaped was treated as a fake transaction row → controlled but wrong
+  `DomainException` ("no balance value"). Fixed both: data-driven outer table-bound word filter
+  (same symmetric-midpoint logic as the existing inner-column boundaries) before clustering, and
+  a date-SHAPE regex gate instead of mere Date-bucket occupancy. Validated against the FULL real
+  PDF (17 pages, 436 lines, D10 integrity holds) — imports cleanly at the parse layer; the
+  account-mismatch 422 is a separate, still-correct, later check (co5's dummy account ≠ the real
+  statement's, per the spec's own note — never what crashed). Hardened
+  `StatementImportService.ImportAsync` to map ANY un-mapped exception from `adapter.Parse`/
+  `BankStatementIntegrity.Validate` to a clean `bank.statement_parse_failed` 422 (logged
+  server-side via newly-injected `ILogger<StatementImportService>`), defense-in-depth for the
+  next such gap. New regression test with a SANITIZED synthetic fixture reproduces both shapes in
+  one page; validity proven red→green (temporarily reverted the fix, confirmed the test fails
+  with the exact real-world `FormatException` shape, then restored and confirmed green). Full
+  suite ×2: both 932/1/8/941, a DIFFERENT single pre-existing flake each run (unrelated files),
+  isolated re-run confirmed both non-regressions; new flake instance appended to troubles-wiki.
+  Not committed — left for Fable's diff review.
 - [ ] O7 [B-mcp F2]: pending-agent-approvals widget shows agent drafts to APPROVER, but APPROVER holds zero sales.quotation.* perms — its "ตรวจ" link lands on an empty /quotations (cannot view/act; sales01 had to act instead). Decide: grant APPROVER read on agent-draft doc types, or filter the widget rows by the viewer's per-doc-type permission. Product call — Ham.

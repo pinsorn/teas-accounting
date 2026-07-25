@@ -197,6 +197,111 @@ public sealed class KPlusPdfLineAssemblerTests
         act.Should().NotThrow();
     }
 
+    /// <summary>WP-C (B-br F1) regression — SANITIZED synthetic fixture reproducing the two
+    /// real K-Plus PDF page artifacts (no real account numbers/names/amounts — placeholder
+    /// values only) that crashed the assembler against the ACTUAL statement:
+    /// (1) a vertical stamp/watermark of single-CHARACTER words printed in the page's FAR-LEFT
+    ///     MARGIN (well left of the Date column's own left edge) whose tight Y-spacing (&lt;=3.5pt
+    ///     gaps — the same tolerance legitimate wrapped-continuation lines rely on) bridged the
+    ///     Y-gap between two otherwise well-separated (30pt apart) transaction rows, fusing them
+    ///     into ONE row-band; FinalizeRow then tried <c>decimal.Parse</c> on a two-token balance
+    ///     cell ("700.00 550.00") and threw an unhandled <see cref="FormatException"/> (a raw 500,
+    ///     not the intended 422);
+    /// (2) a per-page footer note whose leading words happen to fall inside the Date column's own
+    ///     X-range but are not date-SHAPED text — pre-fix, ANY word landing in the Date bucket was
+    ///     treated as a new transaction row, producing a row with no Amount/Balance that crashed
+    ///     FinalizeRow with "Row dated &lt;footer text&gt; has no balance value."</summary>
+    private static List<PositionedWord> BuildMarginNoiseFixture()
+    {
+        var words = new List<PositionedWord>();
+
+        void AddHeader()
+        {
+            words.Add(W(1, "วันที่", 70, 85, 670));
+            words.Add(W(1, "เวลา/", 95, 110, 670));
+            words.Add(W(1, "วันที่มีผล", 95, 120, 660));
+            words.Add(W(1, "รายการ", 150, 170, 670));
+            words.Add(W(1, "ถอนเงิน", 210, 230, 670));
+            words.Add(W(1, "ฝากเงิน", 240, 260, 670));
+            words.Add(W(1, "ยอดคงเหลือ", 280, 315, 670));
+            words.Add(W(1, "(บาท)", 290, 310, 660));
+            words.Add(W(1, "ช่องทาง", 350, 375, 670));
+            words.Add(W(1, "รายละเอียด", 450, 480, 670));
+        }
+
+        words.Add(W(1, "เลขที่บัญชีเงินฝาก", 345, 390, 758));
+        words.Add(W(1, "111-1-11111-1", 393, 440, 755));
+        words.Add(W(1, "รอบระหว่างวันที่", 345, 388, 745));
+        words.Add(W(1, "01/02/2026", 393, 422, 742));
+        words.Add(W(1, "-", 424, 427, 740));
+        words.Add(W(1, "08/02/2026", 430, 459, 742));
+        words.Add(W(1, "ยอดยกไป", 345, 369, 718));
+        words.Add(W(1, "550.00", 505, 533, 715));
+
+        AddHeader();
+
+        // ยอดยกมา anchor: opening balance 1,000.00
+        words.Add(W(1, "01-02-26", 68, 90, 645));
+        words.Add(W(1, "ยอดยกมา", 148, 172, 645));
+        words.Add(W(1, "1,000.00", 285, 310, 645));
+
+        // Row A: withdrawal 300.00, 1000 -> 700, Top=630
+        words.Add(W(1, "01-02-26", 68, 90, 630));
+        words.Add(W(1, "13:25", 100, 115, 630));
+        words.Add(W(1, "ถอนเงินสด", 148, 172, 630));
+        words.Add(W(1, "300.00", 225, 245, 630));
+        words.Add(W(1, "700.00", 285, 310, 630));
+        words.Add(W(1, "ATM", 352, 372, 630));
+
+        // Vertical watermark: 9 single-character words at Left=30 (centerX=32 — well left of the
+        // Date column's derived table-left bound, ~62.5 for this header layout), each 3.0pt below
+        // the last (Row A Top=630 -> 627 -> 624 -> ... -> 603 -> Row B Top=600): every consecutive
+        // gap is <=3.5, so pre-fix this chain alone bridges Row A and Row B into one row-band.
+        var stampTop = 627.0;
+        for (var i = 0; i < 9; i++)
+        {
+            words.Add(W(1, "#", 30, 34, stampTop));
+            stampTop -= 3.0;
+        }
+
+        // Row B: withdrawal 150.00, 700 -> 550, Top=600 (30pt below Row A — a normal real-row gap)
+        words.Add(W(1, "02-02-26", 68, 90, 600));
+        words.Add(W(1, "09:00", 100, 115, 600));
+        words.Add(W(1, "ถอนเงินสด", 148, 172, 600));
+        words.Add(W(1, "150.00", 225, 245, 600));
+        words.Add(W(1, "550.00", 285, 310, 600));
+        words.Add(W(1, "ATM", 352, 372, 600));
+
+        // Per-page footer note, well below the last real row (15pt gap — its own band): sanitized
+        // placeholder text (not the real statement's wording) whose words fall inside the Date/
+        // Time columns' X-range but aren't date-shaped.
+        words.Add(W(1, "NOTE", 68, 95, 585));
+        words.Add(W(1, "SYSTEM", 100, 130, 585));
+
+        return words;
+    }
+
+    [Fact]
+    public void Assemble_ignores_left_margin_watermark_and_non_date_footer_note()
+    {
+        var stmt = KPlusPdfLineAssembler.Assemble(BuildMarginNoiseFixture());
+
+        stmt.OpeningBalance.Should().Be(1000.00m);
+        stmt.ClosingBalance.Should().Be(550.00m);
+        stmt.Lines.Should().HaveCount(2);
+
+        stmt.Lines[0].Direction.Should().Be(StatementDirection.MoneyOut);
+        stmt.Lines[0].Amount.Should().Be(300.00m);
+        stmt.Lines[0].RunningBalance.Should().Be(700.00m);
+
+        stmt.Lines[1].Direction.Should().Be(StatementDirection.MoneyOut);
+        stmt.Lines[1].Amount.Should().Be(150.00m);
+        stmt.Lines[1].RunningBalance.Should().Be(550.00m);
+
+        var act = () => BankStatementIntegrity.Validate(stmt);
+        act.Should().NotThrow();
+    }
+
     [Fact]
     public void Assemble_throws_when_a_balance_delta_contradicts_the_printed_amount()
     {

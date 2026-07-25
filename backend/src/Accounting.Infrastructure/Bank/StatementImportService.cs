@@ -7,6 +7,7 @@ using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Bank;
@@ -15,7 +16,7 @@ namespace Accounting.Infrastructure.Bank;
 public sealed class StatementImportService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     IEnumerable<IBankStatementAdapter> adapters, IAttachmentService attachments,
-    IOptions<FileStorageOptions> fileStorageOptions)
+    IOptions<FileStorageOptions> fileStorageOptions, ILogger<StatementImportService> log)
     : IStatementImportService
 {
     private static string DigitsOnly(string s) => new(s.Where(char.IsDigit).ToArray());
@@ -52,9 +53,32 @@ public sealed class StatementImportService(
             bytes = ms.ToArray();
         }
 
-        var parsed = adapter.Parse(new MemoryStream(bytes), password);
-        // D10 — fails LOUD; nothing below has run yet, so a throw here persists nothing.
-        BankStatementIntegrity.Validate(parsed);
+        // WP-C (B-br F1) — a real-world statement can hit a parsing edge case the adapter's own
+        // DomainException checks don't anticipate (proven: an unhandled FormatException from the
+        // real K-Plus PDF, root-caused and fixed in KPlusPdfLineAssembler — this is defense-in-
+        // depth for the NEXT such gap, in this or the CSV adapter). Any exception that isn't
+        // already a clean DomainException is mapped to one here so the caller always gets a 422,
+        // never a raw 500; nothing has been persisted yet at this point (mirrors the D10 comment
+        // below), and the real exception is logged server-side (never leaked to the client — same
+        // "hardcoded generic message" policy as KPlusPdfTextExtractor's password-failure path).
+        ParsedStatement parsed;
+        try
+        {
+            parsed = adapter.Parse(new MemoryStream(bytes), password);
+            // D10 — fails LOUD; nothing below has run yet, so a throw here persists nothing.
+            BankStatementIntegrity.Validate(parsed);
+        }
+        catch (DomainException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Statement parse failed for bank account {BankAccountId}, file '{FileName}'.",
+                bankAccountId, fileName);
+            throw new DomainException("bank.statement_parse_failed",
+                "Could not parse the statement file — it may be corrupted or in an unexpected format.");
+        }
 
         // Codex review finding #3 (2026-07-10) — reject a statement parsed from the WRONG bank
         // account BEFORE any attachment/db write (mirrors the D10 placement above). Compared
