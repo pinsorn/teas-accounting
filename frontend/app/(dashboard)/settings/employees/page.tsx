@@ -255,6 +255,11 @@ export default function EmployeesSettingsPage() {
                 <input type="date" className="input input-bordered" value={edit.hireDate}
                   onChange={(e) => set({ hireDate: e.target.value })} />
               </label>
+              <label className="form-control">
+                <span className="label-text">{t('terminationDate')}</span>
+                <input type="date" className="input input-bordered" value={edit.terminationDate ?? ''}
+                  onChange={(e) => set({ terminationDate: e.target.value || null })} />
+              </label>
 
               {/* Allowance inputs (minimal v1) */}
               <label className="form-control">

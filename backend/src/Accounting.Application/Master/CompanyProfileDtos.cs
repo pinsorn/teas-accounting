@@ -119,6 +119,12 @@ public sealed class UpdateCompanyProfileSoftValidator
         RuleFor(x => x.BankName).MaximumLength(100).WithMessage("validation.maxLength");
         RuleFor(x => x.BankAccountNo).MaximumLength(50).WithMessage("validation.maxLength");
         RuleFor(x => x.BankAccountName).MaximumLength(200).WithMessage("validation.maxLength");
-        RuleFor(x => x.SsoEmployerAccountNo).MaximumLength(10).WithMessage("validation.maxLength");
+        // O12 (specs/fix-army-findings-2026-07-22.md) — optional, but when present must be exactly
+        // the 10-digit SSO employer registration number Sps110FormFiller/SpsBatchFormat expect
+        // (both already strip non-digits before use — validate at entry instead of silently
+        // truncating/mis-filling a สปส.1-10 filing).
+        RuleFor(x => x.SsoEmployerAccountNo)
+            .Matches(@"^\d{10}$").WithMessage("validation.sso10Digits")
+            .When(x => !string.IsNullOrWhiteSpace(x.SsoEmployerAccountNo));
     }
 }

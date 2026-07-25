@@ -168,7 +168,7 @@ public sealed class Sprint87ForeignVendorTests
             var viSvc = s.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
             viId = await viSvc.CreateDraftAsync(new CreateVendorInvoiceRequest(
                 new DateOnly(2026, 5, 16), v, "FVI-" + Sfx(),
-                new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), null, "THB", 1m, null,
+                new SystemClock().TodayInBangkok(), null, "THB", 1m, null,
                 [new VendorInvoiceLineInput(cat, exp, "AWS hosting", 20000m, 0m)]), default);
             var dbInner = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             dbInner.SeedViAttachment(viId); await dbInner.SaveChangesAsync();   // VI Post requires the vendor-TI file
@@ -306,6 +306,37 @@ public sealed class Sprint87ForeignVendorTests
         r.Errors.Should().Contain(e => e.ErrorMessage.Contains("contradicts"));
     }
 
+    // O13 (specs/fix-army-findings-2026-07-22.md) — DocDate must equal today (Asia/Bangkok); the
+    // service always recomputes its own docDate (§10 pin), so a lying request must now be
+    // rejected at this DTO boundary rather than silently ignored. Pure validator, no DB.
+    [Fact]
+    public void DocDate_other_than_bangkok_today_is_rejected_by_validator()
+    {
+        var v = new CreatePaymentVoucherValidator();
+        var notToday = new SystemClock().TodayInBangkok().AddDays(-1);
+        var req = new CreatePaymentVoucherRequest(
+            notToday, 1, 1, PaymentMethod.Transfer, null, null, null,
+            "THB", 1m, null, null,
+            [new PaymentVoucherLineInput(1, "x", 100m, null, 0m, true, null, 0m)]);
+        var r = v.Validate(req);
+        r.IsValid.Should().BeFalse();
+        r.Errors.Should().Contain(e => e.PropertyName == nameof(CreatePaymentVoucherRequest.DocDate)
+            && e.ErrorMessage == "validation.docDateNotToday");
+    }
+
+    [Fact]
+    public void DocDate_bangkok_today_passes_validator()
+    {
+        var v = new CreatePaymentVoucherValidator();
+        var today = new SystemClock().TodayInBangkok();
+        var req = new CreatePaymentVoucherRequest(
+            today, 1, 1, PaymentMethod.Transfer, null, null, null,
+            "THB", 1m, null, null,
+            [new PaymentVoucherLineInput(1, "x", 100m, null, 0m, true, null, 0m)]);
+        var r = v.Validate(req);
+        r.Errors.Should().NotContain(e => e.PropertyName == nameof(CreatePaymentVoucherRequest.DocDate));
+    }
+
     [SkippableFact]
     public async Task Self_withhold_with_vendor_invoice_is_rejected_by_validator()
     {
@@ -425,7 +456,7 @@ public sealed class Sprint87ForeignVendorTests
             viId = await svc.CreateDraftAsync(new CreateVendorInvoiceRequest(
                 new DateOnly(2026, 5, 16), v, "VT-" + Sfx(),
                 // ③ — vendor-TI date in the CURRENT open Bangkok month (a past month is now closed).
-                new Accounting.Application.Abstractions.SystemClock().TodayInBangkok(), null, "THB", 1m, null,
+                new SystemClock().TodayInBangkok(), null, "THB", 1m, null,
                 [new VendorInvoiceLineInput(cat, null, "x", 1000m, 0.07m)]), default);
             var dbInner = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             var vi = await dbInner.VendorInvoices.FirstAsync(x => x.VendorInvoiceId == viId);

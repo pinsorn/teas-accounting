@@ -447,10 +447,24 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
     exhaustive verification found no defect.
 
 ## OPEN (Ham / triage decisions — not dispatched)
-- [ ] O1 [B-fa F-2]: FA acquisition posts no GL by design; UI never warns when no VI linked →
+- [x] O1 [B-fa F-2]: FA acquisition posts no GL by design; UI never warns when no VI linked →
       disposal credits cost that was never debited. Options: warning badge on asset detail
       ("ต้นทุนยังไม่ลง GL — ยังไม่ได้ link ใบกำกับ/JE"), or block activate without VI/opening-JE ref.
       DECISION NEEDED (product call).
+      **DONE 2026-07-25 (Wave 1, Sonnet), warning-badge option, NO GL behaviour change:**
+      `frontend/app/(dashboard)/fixed-assets/[id]/page.tsx` — an `alert-warning` notice
+      (`data-testid="fa-no-gl-cost-warning"`) renders whenever `d.vendorInvoiceId == null`
+      (any status), quoting `FixedAssetService.cs`'s own FA-A comment back to the accountant:
+      link a Vendor Invoice or post a manual opening-balance JE before this asset is disposed
+      (otherwise disposal credits a cost that was never debited). i18n key
+      `fixedAssets.costNotOnGlWarning` added to both `en.json`/`th.json` (key-parity checked
+      programmatically, 0 mismatches across all namespaces). No backend/GL code touched.
+      TESTS: no jest/RTL or Playwright fixture exists for `/fixed-assets/[id]` (confirmed —
+      `frontend/**/*.test.tsx` and `frontend/e2e/**fixed-asset**` both empty), so per the
+      dispatch's fallback this is SKIPPED and noted rather than inventing a new test harness;
+      verified by code inspection (the condition mirrors the DTO field already asserted end-to-end
+      by `frontend/lib/types.ts`'s `FixedAssetDetail.vendorInvoiceId`) + `tsc --noEmit` (0 errors)
+      + `next build` (compiled, `/fixed-assets/[id]` route generated).
 - [x] O2 [B-bn INCONCLUSIVE → RESOLVED, real gap]: live re-check picked both TIs cleanly
       (chips confirmed pre-issue) — see `swarm-findings/army/O2-O3-verify.md`. Selection
       **persists** (join table + API both correct); total **does NOT** roll up (BN #24
@@ -791,8 +805,25 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       says "regular salary only" ⇒ UNBUILT by design, not a crash. For a Thai payroll product this is
       the biggest functional gap the army found. Build proration? (needs a rule decision: calendar
       days vs working days, and how PIT/SSO follow.)
-- [ ] O9 [B2-pr F1b] **no termination/end-date field** anywhere in the employee UI (the leg had to
+- [x] O9 [B2-pr F1b] **no termination/end-date field** anywhere in the employee UI (the leg had to
       PUT it via the API). Pairs with O8 — proration is unimplementable from the UI without it.
+      **DONE 2026-07-25 (Wave 1, Sonnet), FE-only — CHECKED FIRST, backend already fully wired:**
+      `Employee.TerminationDate`/`CreateEmployeeRequest.TerminationDate`/
+      `UpdateEmployeeRequest.TerminationDate`/`EmployeeDetail.TerminationDate` all already existed
+      (`EmployeeDtos.cs`, `EmployeeService.cs`) — confirmed by reading the service before touching
+      anything. The FE gap was narrower than it read: `settings/employees/page.tsx` already carried
+      `terminationDate` in its `Editing` state, the detail-fetch mapping, and the save payload —
+      only the `<input type="date">` itself was missing from the modal JSX (which doubles as both
+      create AND detail/edit — there is no separate employee detail page). Added the input right
+      after `hireDate`, same `set()`/nullable-clear pattern (`e.target.value || null`) as every
+      other optional date field in the file. i18n: `employee.terminationDate` added to both
+      `en.json`/`th.json`.
+      TESTS (O9 field round-trips): new `backend/tests/Accounting.Api.Tests/Master/
+      EmployeeTerminationDateTests.cs` — create with null → Get → null; Update sets a date → Get
+      → matches; Update clears back to null → Get → null. No prior Employee test file existed at
+      all (confirmed via glob) — this is net-new coverage, not a modification.
+      GATES: full backend suite 955/8/963 (+11 vs 944/8 baseline, 0 failed); `tsc --noEmit` 0
+      errors; `next build` clean, `/settings/employees` route generated.
 - [ ] O10 [B2-pr F2] **no negative adjustment / deduction mechanism** in payroll at all
       (`OtherDeductions` is a dead schema stub) — an overpayment clawback has no path.
 
@@ -804,10 +835,32 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       by-design v1 scope, NOT a defect. But the form as printed is **not submittable** (SSO requires
       the per-employee schedule), so ภ.ง.ด.1/1ก are filing-ready while สปส.1-10 is not. Build ส่วนที่ 2?
       Ham's scope call.
-- [ ] O12 [C2]: `เลขที่บัญชี` (10-digit SSO employer registration number) prints blank because there
+- [x] O12 [C2]: `เลขที่บัญชี` (10-digit SSO employer registration number) prints blank because there
       is nowhere to store it — the filler reads `m.EmployerAccountNo` and the comment says "blank
       stays blank (not submittable)". Needs a company-settings field before any สปส.1-10 can be filed,
       independent of O11. Small, and a prerequisite for O11.
+      **DONE 2026-07-25 (Wave 1, Sonnet) — CHECKED FIRST: NO SCHEMA CHANGE, NO MIGRATION.** The
+      spec's own premise ("nowhere to store it") was already stale by the time this was dispatched:
+      `CompanyProfile.SsoEmployerAccountNo` (column, EF config `HasMaxLength(10)`,
+      `CompanyProfileDto`/`UpdateCompanyProfileSoftRequest`), the `/settings/company` soft-field UI,
+      and `SsoFilingService`'s fallback-to-`PayrollOptions` wiring into `Sps110FormFiller`/
+      `SpsBatchFormat` all ALREADY existed and were already committed (git blame: `69f4003`,
+      predates this dispatch) — full round-trip already proven by the pre-existing
+      `Sps110FormFillerTests`/`SpsBatchFormatTests`. **Confirmed no migration/SqlScripts file is
+      needed for this item** — flagging prominently per the dispatch's instruction, in the negative:
+      there was nothing to flag because the column already exists in a committed migration.
+      The real remaining gap was validation: only `MaximumLength(10)` was enforced (so "12345"
+      or "abc1234567" both saved). FIX: `UpdateCompanyProfileSoftValidator` now requires
+      `^\d{10}$` when the field is non-blank (still optional — a company without SSO leaves it
+      blank), replacing the bare `MaximumLength` rule. FE: the generic `SoftField` input for this
+      one key was replaced with a digit-filtering (`replace(/\D/g, '')`), `maxLength=10` input plus
+      an inline "must be exactly 10 digits" hint (mirrors the employees page's `nationalId`
+      pattern) — `companyProfile.ssoEmployerAccountNoInvalid` in both message files.
+      TESTS: new `backend/tests/Accounting.Api.Tests/Master/CompanyProfileSoftValidatorTests.cs`
+      (pure validator, no DB) — null/empty valid, exactly-10-digits valid, 9/11 digits and
+      non-digit chars all rejected with `validation.sso10Digits`.
+      GATES: full backend suite 955/8/963 (0 failed); `tsc --noEmit` 0 errors; `next build` clean,
+      `/settings/company` route generated; en/th key-parity 0 mismatches.
 - Vision caveats to respect when acting on C2/C1: AGY's web-research step only reached the RD/SSO
   portal home pages, not the official form PDFs, so "matches official layout" leans on model
   knowledge; and two claims (missing name title-prefixes, blank ภ.ง.ด.1ก employee addresses) are
@@ -830,7 +883,7 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
         company's PV header carries `VatAmount = 70` with no recoverable/non-recoverable split, so PV
         detail/print label folded-into-cost VAT plainly as "VAT" where a VI shows it as
         `NonRecoverableVatAmount`. The cash quantity is correct; only the label is imprecise.
-- [ ] O13 [V2, NOT a bug — API smell + a co6 state note]: `CreatePaymentVoucherRequest` still carries a
+- [x] O13 [V2, NOT a bug — API smell + a co6 state note]: `CreatePaymentVoucherRequest` still carries a
       `DocDate` field (`PaymentVoucherDtos.cs:22`) that `CreateDraftAsync` deliberately ignores —
       §10 pins DocDate/PostingDate to Asia/Bangkok today and the code says so explicitly ("never
       trusted from the request"). Accepting a field and silently dropping it misleads every API/MCP
@@ -879,6 +932,36 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       `frontend/lib/i18n/problems.ts` — confirmed clean via `git status`). Re-attempting with the
       design conclusion above should be a ~10-minute job (one `RuleFor`, two validator tests, no
       full-suite surprises since the guard never touches `CreateDraftAsync`'s seam this time).
+      **DONE 2026-07-25 (Wave 1, Sonnet) — mirrored the design conclusion above exactly (no stash/
+      commit of the prior attempt survived, so re-written fresh from this same spec text).**
+      `CreatePaymentVoucherValidator.RuleFor(x => x.DocDate).Equal(_ => new
+      SystemClock().TodayInBangkok()).WithMessage("validation.docDateNotToday")` — DTO field kept
+      (MCP schema still marks it required, per dispatch). Before adding the rule, re-verified by
+      hand that the design conclusion's own risk analysis holds against the CURRENT test suite
+      (not just re-trusting the old note): `grep -rn "CreatePaymentVoucherRequest" backend/tests
+      backend/src` (source only, bin/obj excluded) shows every one of the ~15 test files
+      constructing this DTO calls `svc.CreateDraftAsync(...)` DIRECTLY (bypassing the validator
+      entirely — confirmed `CreateDraftAsync` never invokes `IValidator` internally, only the REST
+      endpoint and the MCP tool method do); zero existing HTTP-level tests POST to
+      `/payment-vouchers` at all; every existing MCP `create_payment_voucher_draft` smoke test
+      already sends `docDate = DateOnly.FromDateTime(DateTime.UtcNow)` ("today"), so none broke.
+      The two existing validator tests that DO call `new CreatePaymentVoucherValidator().Validate()`
+      directly with a hardcoded past DocDate (`Payer_mode_contradicting_selfwithhold_is_rejected`,
+      `Self_withhold_with_vendor_invoice_is_rejected_by_validator`) both assert `IsValid==false` +
+      `.Should().Contain(...)` on a specific error SUBSTRING — an added DocDate error alongside
+      their existing one doesn't break either assertion (`Contain`, not exact-match). Also fixed
+      the MCP tool description (`TeasMcpTools.cs`, `create_payment_voucher_draft`) to say the field
+      is now enforced, not just "pinned"/silently dropped. i18n: `validation.docDateNotToday` added
+      to `frontend/lib/i18n/validation.ts` (th + en — the dispatch asked for the Thai entry
+      explicitly, added the EN one too since the file's existing keys are always bilingual).
+      TESTS: `Sprint87ForeignVendorTests.DocDate_other_than_bangkok_today_is_rejected_by_validator`
+      / `..._bangkok_today_passes_validator` (pure, no DB) exactly as the design conclusion named
+      them, plus `McpServerSmokeTests.E3_create_payment_voucher_draft_rejects_non_today_docdate`
+      (real HTTP+MCP pipeline, asserts `IsError`).
+      GATES: full backend suite **955 passed / 0 failed / 8 skipped / 963 total** (+11 vs the
+      944/8 baseline across all four Wave-1 items combined — this is the FULL suite, not a
+      filter, so the "no full-suite surprises" prediction is proven, not just repeated);
+      `tsc --noEmit` 0 errors; `next build` clean.
 
 ## O2 SPLIT + O3 CLOSED (2026-07-25, leg O2-O3-verify — evidence swarm-findings/army/O2-O3-verify.md)
 - [x] **O3 CLOSED — automation artifact, NOT a product break.** With a tall viewport and a plain

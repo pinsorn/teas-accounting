@@ -354,6 +354,7 @@
     "lastNameTh": "Last name",
     "baseSalary": "Salary",
     "hireDate": "Hire date",
+    "terminationDate": "Termination date",
     "maritalStatus": "Marital status",
     "single": "Single",
     "married": "Married",
@@ -567,6 +568,7 @@
     "confirmCancelTitle": "Cancel this draft asset?",
     "confirmCancelDesc": "This cannot be undone.",
     "draftLabel": "Draft",
+    "costNotOnGlWarning": "This asset's cost has not been posted to the General Ledger — no Vendor Invoice is linked. Link one, or post a manual opening-balance journal entry, before this asset is disposed or written off (otherwise disposal will credit a cost that was never debited).",
     "loading": "Loading…"
   },
   "depreciation": {
@@ -1512,6 +1514,7 @@
     "bankAccountNo": "Account no.",
     "bankAccountName": "Account name",
     "ssoEmployerAccountNo": "SSO employer account no.",
+    "ssoEmployerAccountNoInvalid": "Must be exactly 10 digits",
     "saved": "Contact information saved",
     "loadError": "Failed to load company profile",
     "paidUpCapital": "Paid-up capital (THB)",

@@ -130,6 +130,16 @@ export default function FixedAssetDetailPage() {
         {d.category && <span className="badge badge-ghost">{d.category}</span>}
       </div>
 
+      {/* FA-A / O1 (specs/fix-army-findings-2026-07-22.md) — acquisition/activation deliberately
+          posts NO journal entry (FixedAssetService.cs: the linked Vendor Invoice, or a manual
+          opening-balance JE, is expected to book the cost). Without either, the cost never hits
+          the GL — yet Dispose/WriteOff unconditionally credit the full registered cost later. */}
+      {!d.vendorInvoiceId && (
+        <div role="alert" className="alert alert-warning mb-4 text-sm" data-testid="fa-no-gl-cost-warning">
+          <span>{t('costNotOnGlWarning')}</span>
+        </div>
+      )}
+
       <section className="rounded-card border border-ink-100 bg-base-100 p-5 shadow-warm-sm">
         <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
           <div><span className="text-base-content/60">{t('name')}:</span> {d.name}</div>

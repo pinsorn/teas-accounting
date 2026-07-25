@@ -177,7 +177,19 @@ export default function CompanyProfilePage() {
                 <SoftField k="bankName" label={t('bankName')} />
                 <SoftField k="bankAccountNo" label={t('bankAccountNo')} />
                 <SoftField k="bankAccountName" label={t('bankAccountName')} />
-                <SoftField k="ssoEmployerAccountNo" label={t('ssoEmployerAccountNo')} />
+                <label className="form-control">
+                  <span className="label-text">{t('ssoEmployerAccountNo')}</span>
+                  <input
+                    className="input input-bordered font-mono"
+                    value={form.ssoEmployerAccountNo ?? ''}
+                    maxLength={10}
+                    onChange={(e) => setForm({ ...form, ssoEmployerAccountNo: e.target.value.replace(/\D/g, '') })}
+                    data-testid="cp-soft-ssoEmployerAccountNo"
+                  />
+                  {!!form.ssoEmployerAccountNo && form.ssoEmployerAccountNo.length !== 10 && (
+                    <span className="label-text-alt text-error">{t('ssoEmployerAccountNoInvalid')}</span>
+                  )}
+                </label>
               </div>
 
               {/* Sprint 13h P10 — logo upload (multipart). 1 MB max, png/jpeg/svg/webp.

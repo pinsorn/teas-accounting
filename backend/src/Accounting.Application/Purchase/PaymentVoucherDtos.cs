@@ -92,6 +92,16 @@ public sealed class CreatePaymentVoucherValidator : AbstractValidator<CreatePaym
 {
     public CreatePaymentVoucherValidator()
     {
+        // O13 (specs/fix-army-findings-2026-07-22.md) — CreateDraftAsync's §10 pin always
+        // recomputes DocDate itself (never trusted from the request), so silently accepting a
+        // different value here misled every REST/MCP caller. Reject at the boundary instead —
+        // NOT inside CreateDraftAsync, which every internal caller/test funnels through directly
+        // (bypassing this validator entirely; see the design-conclusion note in the spec for why
+        // the CreateDraftAsync-level attempt broke 35 unrelated tests). No validator in this
+        // codebase takes a DI dependency, so read the clock directly like the rest of this file.
+        RuleFor(x => x.DocDate)
+            .Equal(_ => new SystemClock().TodayInBangkok())
+            .WithMessage("validation.docDateNotToday");
         RuleFor(x => x.VendorId).GreaterThan(0);
         RuleFor(x => x.ExpenseCategoryId).GreaterThan(0);
         this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)

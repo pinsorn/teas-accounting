@@ -1070,6 +1070,42 @@ public sealed class McpServerSmokeTests
         url.Should().Be($"http://localhost:3000/payment-vouchers/{id}?action=approve");
     }
 
+    // O13 (specs/fix-army-findings-2026-07-22.md) — create_payment_voucher_draft must now REJECT
+    // a docDate other than today (Asia/Bangkok) at the validator boundary, instead of silently
+    // accepting-then-ignoring it (the service always pins its own docDate at §10 regardless).
+    [SkippableFact]
+    public async Task E3_create_payment_voucher_draft_rejects_non_today_docdate()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var key = await MintMcpKeyAsync();
+        var vendorId = await SeedVendorAsync();
+        var (catId, expAcct) = await SeedExpenseCategoryAsync();
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var notToday = new SystemClock().TodayInBangkok().AddDays(-1);
+        var request = new
+        {
+            docDate = notToday, vendorId, expenseCategoryId = catId,
+            paymentMethod = "Transfer", chequeNo = (string?)null, chequeDate = (DateOnly?)null,
+            bankAccountId = (long?)null, currencyCode = "THB", exchangeRate = 1m,
+            description = "x", notes = (string?)null,
+            lines = new[] { new { expenseAccountId = (long?)expAcct, description = "l", amount = 1000m,
+                                  taxCodeId = (int?)null, vatRate = 0.07m, isRecoverableVat = false,
+                                  whtTypeId = (int?)null, whtRate = 0m, productType = (string?)null } },
+            vendorInvoiceId = (long?)null, selfWithholdMode = (bool?)null,
+            businessUnitId = (int?)null, whtPayerMode = (string?)null,
+        };
+
+        var result = await client.CallToolAsync(
+            "create_payment_voucher_draft",
+            new Dictionary<string, object?> { ["request"] = request });
+
+        result.IsError.Should().BeTrue("docDate must equal today (Asia/Bangkok) — a stale/lying caller must be rejected");
+    }
+
     // (v) E3 COMPLIANCE — a PV draft via MCP for a NON-VAT vendor still runs the ม.82/5 input-VAT
     // guard inside PaymentVoucherService: VatRate=0 is the only legal value → stored line VAT = 0.
     [SkippableFact]
