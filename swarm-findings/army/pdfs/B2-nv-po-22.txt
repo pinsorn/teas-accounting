@@ -1,0 +1,24 @@
+   NON-VAT (DUMMY)                                       
+
+-    10110                                          PURCHASE ORDER
+  : 0105569000011 ·  00000
+                                                07-2026-PO-0001
+
+ / Vendor                             / Date 25/07/2569
+                                       25/07/2569
+  NON-VAT  B2NV
+
+  : 0-1055-69000-01-1
+
+#  / Description                                /                  
+1 e2e non-vat purchase line                1       5,000.00         5,000.00
+
+        5,000.00
+                                                                   Grand Total
+                                                                                   (  )
+
+                                                
+(    NON-VAT (DUMMY)  )              (   NON-VAT  B2NV )
+
+               ____ / ____ / ______          ____ / ____ / ______
+

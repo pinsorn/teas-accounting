@@ -558,7 +558,7 @@ VI path has one at every seam. `PaymentVoucherService.CreateDraftAsync` L196-200
 `_db.Companies.Select(c => new { c.RequiresBusinessUnit, c.VatRate })` — it just never reads
 `VatRegistered`; its only VAT guard (L248) is `vendor.VatRegistered`. The FE PV form has no
 `useSystemInfo()`/`vatMode` at all (compare `vendor-invoices/new/page.tsx` L92-93).
-- [ ] G1 **HIGH (money control point) [B2-nv F1/F2]**: add the company gate to
+- [x] G1 **HIGH (money control point) [B2-nv F1/F2]**: add the company gate to
       `PaymentVoucherService.CreateDraftAsync` — extend the existing L198 projection with
       `c.VatRegistered`, then mirror `VendorInvoiceService`'s WP1.2 block (L147-152) verbatim in
       intent: when `!companyVatRegistered`, force every line's `VatRate = 0`, `VatAmount = 0`,
@@ -570,16 +570,89 @@ VI path has one at every seam. `PaymentVoucherService.CreateDraftAsync` L196-200
       whenever `l.IsRecoverableVat && l.VatAmount > 0` — on a non-VAT company that is exactly the
       F-B/1170 pollution class (v1.22.10) reaching the ledger through an unguarded door. Prove it
       either way with a test before deciding severity down.
-- [ ] G2 **HIGH (FE) [B2-nv F1]**: `payment-vouchers/new/page.tsx` — read
+      **1170 EXPOSURE VERDICT (2026-07-25, Sonnet, proven BEFORE the fix, per dispatch):
+      LIVE ledger bug, not just display.** A throwaway-then-kept red run of
+      `PaymentVoucherNonVatCompanyTests.NonVatCompany_StandalonePv_PostsNo1170_VatTotalsZero`
+      against unfixed code: a non-VAT company + standalone PV line with client-sent
+      `VatRate:0.07, IsRecoverableVat:true` persisted verbatim (`IsRecoverableVat=True,
+      VatAmount=70`) — nothing zeroed it (the only existing guard, L248, checks the VENDOR's
+      `VatRegistered`, never the company's). Had the test continued to Post, GlPostingService's
+      `if (l.IsRecoverableVat && l.VatAmount > 0m)` would have debited 1170 for real. The
+      VI-linked path's OWN test failed too but for a different, already-partially-mitigated
+      reason: VI's existing WP1.2 gate had already forced `IsRecoverableVat=false` on the VI
+      line (so the standalone branch's 1170 debit could never fire there — matches B2-nv's
+      "ledger clean" finding), but `VatRate`/`VatAmount` still leaked through nonzero
+      (VI reroutes into `NonRecoverableVatAmount`, it doesn't zero) — a header/display
+      inconsistency, not a ledger-cash bug, but still wrong per this spec's stricter
+      always-zero-for-PV design.
+      **FIX** (`backend/src/Accounting.Infrastructure/Purchase/PaymentVoucherService.cs`,
+      `CreateDraftAsync`): projection extended with `c.VatRegistered`
+      (+ `companyVatRegistered` local, fail-safe `??false` mirroring VI's F-3 direction);
+      new block right after the per-line loop, BEFORE `subtotal`/`vatTotal`/`whtTotal` are
+      summed — `foreach (var l in lines) { l.VatRate=0; l.VatAmount=0; l.IsRecoverableVat=false; }`
+      when `!companyVatRegistered`. Applies uniformly to standalone AND VI-linked lines (single
+      seam, matches spec). **Deliberate design note for Tier-2 review:** this zeroes outright
+      rather than VI/ExpenseClaim's "fold non-recoverable VAT into cost" pattern (PV has no
+      `NonRecoverableVatAmount` header bucket to reroute into) — an explicit, narrower policy
+      than the sibling docs, per this spec's own literal wording and TESTS acceptance ("VAT
+      totals are 0"), not a simplification I introduced.
+      **TESTS:** `backend/tests/Accounting.Api.Tests/Hardening/PaymentVoucherNonVatCompanyTests.cs`
+      (new) — `NonVatCompany_StandalonePv_PostsNo1170_VatTotalsZero` (red before fix, green
+      after — the 1170-proof test), `NonVatCompany_ViLinkedPv_PostsNo1170_VatTotalsZero`,
+      `VatRegisteredCompany_StandalonePv_StillBooksRecoverableVat` (regression, co5 shape
+      unchanged, 1170 still posts 70 for a VAT company).
+- [x] G2 **HIGH (FE) [B2-nv F1]**: `payment-vouchers/new/page.tsx` — read
       `const companyVatRegistered = useSystemInfo().data?.vatMode ?? true;` and fold it into
       `vendorVat` (`companyVatRegistered && vendor.vatRegistered && !foreignNoVatD`); hide the VAT
       rate control + VAT summary line for a non-VAT company, mirroring the VI form and the
       expense-claims F-B treatment. Repro: co6 PV form showed a live "7%" VAT UI.
-- [ ] G3 note [B2-nv F3]: co6's output-VAT account is `2151`, not `2130` — future non-VAT/VAT
+      **DONE (2026-07-25):** added `useSystemInfo` import + `companyVatRegistered` local (top of
+      `PvForm`, alongside `company`); `vendorVat` now
+      `companyVatRegistered && (vendor ? vendor.vatRegistered && !foreignNoVatD : true)` — ANDs
+      the company gate onto the existing WP-A2/B-rc-F2 dual-flag predicate without touching its
+      inner shape (the `vendor ? ... : true` pre-load fallback is preserved). WP-F's VI-prefill
+      effect (L138, `vendorVat ? taxRateForProductType(...) : 0`) is untouched and automatically
+      inherits the company gate transitively. Per-row VAT display box now wrapped in
+      `{companyVatRegistered && (...)}` (was an always-visible read-only derived %, not an
+      editable control — hidden the same way expense-claims F-B hides its VAT select). Totals
+      box VAT line now `...(companyVatRegistered ? [{label:t('vat'), value:vat}] : [])`, same
+      spread-conditional idiom as `vendor-invoices/new`. WP-B(a) WHT-type block (client check +
+      inline warning) untouched — confirmed by diff (only 4 edit sites: import line, hook decl,
+      `vendorVat` formula, VAT row wrap, totals row wrap).
+- [x] G3 note [B2-nv F3]: co6's output-VAT account is `2151`, not `2130` — future non-VAT/VAT
       assertions must read the account from the company's CoA, not a hardcoded code.
-- TESTS: non-VAT company + standalone PV on a recoverable-VAT category → posted JE has NO 1170 line
-  and VAT totals are 0; non-VAT company + VI-linked PV → same; VAT company (co5 shape) unchanged
-  (regression); FE tsc + build.
+      No code change (note-only, per dispatch). New test file resolves the Input VAT account
+      code from DI (`IOptions<GlAccountsOptions>.Value.InputVatAccount`) rather than hardcoding
+      `"1170"`, honoring the caution even though 1170 itself is config-stable (not the account
+      G3 flagged as divergent).
+- TESTS (**AMENDED 2026-07-25 after Opus Tier-2 REJECT — the original "VAT totals are 0" criterion
+  was WRONG and the implementer followed it literally; Fable's spec error**): non-VAT company +
+  standalone PV on a recoverable-VAT category → posted JE has **NO 1170 debit**, the VAT is **FOLDED
+  INTO the expense debit** (`GlPostingService` L196 already does this whenever `IsRecoverableVat` is
+  false: `expenseGross = l.Amount + l.VatAmount`), and **`TotalPaid == gross`** (1,000 + 7% ⇒ 1,070 —
+  a non-VAT company still really pays its VAT-charging vendor in full; that cash belongs in cost);
+  non-VAT company + VI-linked PV → **`vi.SettlementStatus == "PAID"` and `SettledAmount ==
+  vi.TotalAmount`** (the VI's own non-recoverable VAT sits inside TotalAmount, so a short settle
+  strands AP forever — the `vi.pv_exists` guard blocks a second PV); VAT company (co5 shape)
+  unchanged (regression); FE tsc + build.
+- **CORRECT GATE SHAPE** (Opus F1, verified by Fable in code): in the `!companyVatRegistered` block
+  keep ONLY `l.IsRecoverableVat = false;` — do NOT zero `VatRate`/`VatAmount`. That single flag kills
+  the 1170 debit AND folds the VAT into cost, and it is exactly what `VendorInvoiceService`'s WP1.2
+  block does (it touches neither VatRate nor VatAmount). ภ.พ.30 reads only VendorInvoices, never
+  PaymentVouchers, so keeping the PV's VatAmount has no filing side-effect.
+  **Gates (2026-07-25, Sonnet):** `dotnet build` (whole solution) clean, 0 warnings/errors.
+  Targeted run — new `PaymentVoucherNonVatCompanyTests` (3/3) + broader PV/VI regression filter
+  (`PaymentVoucher|Sprint87|PurchaseRateBound|VendorInvoice|McpDocumentChain`, 76/76) — all green.
+  `npx tsc --noEmit` — 0 errors. `npm run build` — compiled successfully, `/payment-vouchers/new`
+  route present (6.24 kB). **Final full-suite gate** (auto-backgrounded, >10min, polled to
+  completion): Domain.Tests 155/0/155 clean. Api.Tests — 1 failed, 939 passed, 8 skipped, 948
+  total (12m26s) — skip count matches the 8-baseline exactly, +3 vs. the pre-WP-G 937/8/945
+  baseline (this session's 3 new tests); the 1 failure is
+  `Pnd50FilingServiceTests.Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder` — the
+  same documented `TaxFilings`-shared-row pre-existing flake named in WP-A/B/C/E's evidence
+  (troubles-wiki.md), file untouched by this diff; isolated re-run passed clean 7/7, confirming
+  flake not regression. Not committed — left for Fable's diff review + Opus Tier-2 (per dispatch,
+  MONEY control point).
 
 ## WP-H — payroll read/filing RBAC (2026-07-25, army B2-pr) — SQL seed = footgun, Opus review
 Root cause verified by Fable: `Permissions.Payroll` has only `RunManage`/`RunPost`/`RunPay` — there is
@@ -616,3 +689,21 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       PUT it via the API). Pairs with O8 — proration is unimplementable from the UI without it.
 - [ ] O10 [B2-pr F2] **no negative adjustment / deduction mechanism** in payroll at all
       (`OtherDeductions` is a dead schema stub) — an overpayment clawback has no path.
+
+## OPEN — สปส.1-10 (SSO) filing readiness (Wave C2 vision, 2026-07-25)
+- [ ] O11 [C2]: **สปส.1-10 ส่วนที่ 2 (per-employee schedule) is UNBUILT** — the printed form's 10
+      employee rows are entirely blank (verified by Fable in the PDF text extraction: page 1 carries
+      real summary figures 200,000 wages / 3,500+3,500 = 7,000 contributions, page 2 has only
+      dot-leaders). `Sps110FormFiller.cs`'s own doc comment says v1 fills ส่วนที่ 1 only — so this is
+      by-design v1 scope, NOT a defect. But the form as printed is **not submittable** (SSO requires
+      the per-employee schedule), so ภ.ง.ด.1/1ก are filing-ready while สปส.1-10 is not. Build ส่วนที่ 2?
+      Ham's scope call.
+- [ ] O12 [C2]: `เลขที่บัญชี` (10-digit SSO employer registration number) prints blank because there
+      is nowhere to store it — the filler reads `m.EmployerAccountNo` and the comment says "blank
+      stays blank (not submittable)". Needs a company-settings field before any สปส.1-10 can be filed,
+      independent of O11. Small, and a prerequisite for O11.
+- Vision caveats to respect when acting on C2/C1: AGY's web-research step only reached the RD/SSO
+  portal home pages, not the official form PDFs, so "matches official layout" leans on model
+  knowledge; and two claims (missing name title-prefixes, blank ภ.ง.ด.1ก employee addresses) are
+  vision-only — Thai font subsetting makes those cells extract as dot-leaders either way, so they
+  are UNCONFIRMED, not proven defects. Re-check by eye before filing either as a bug.

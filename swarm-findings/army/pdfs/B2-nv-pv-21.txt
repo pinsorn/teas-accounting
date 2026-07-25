@@ -1,0 +1,35 @@
+   NON-VAT (DUMMY)                                                                          
+
+-    10110                                                                                     PAYMENT VOUCHER
+  : 0105569000011 ·  00000
+                                                                                07-2026-PV-CAPEX-0001
+
+ / Vendor                                                           / Date 25/07/2569
+
+  NON-VAT  B2NV
+
+ : 0-1055-69000-01-1
+
+#  / Description                                                                /               
+1  07-2026-VI-0001                                                      ----                --   4,672.90
+
+       /Notes                                                                                          5,000.00
+                                                                                                          -93.46
+   07-2026-VI-0001                                                 Grand Total
+   / Method: Transfer                                                                            4,906.54
+                                                                     
+
+                                                                   WHT
+
+                                                                      
+
+                                                                   Net Payable
+
+                                                                   (      )
+
+                                                                                             
+(    NON-VAT (DUMMY)            ( ............................. )               (   NON-VAT  B2NV )
+                                 ____ / ____ / ______
+                   )                                                                    ____ / ____ / ______
+          ____ / ____ / ______
+

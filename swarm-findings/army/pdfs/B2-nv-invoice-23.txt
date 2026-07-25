@@ -1,0 +1,25 @@
+   NON-VAT (DUMMY)                                    
+
+-    10110                                                         INVOICE
+ : 0105569000011 ·  00000
+                                                07-2026-IV-0001
+
+ / Customer                           / Date 25/07/2569
+
+  NON-VAT  B2NV                       24/08/2569
+                                     
+ : 0-1055-69000-01-1
+: 00000
+
+#  / Description                                /                  
+1 e2e non-vat goods line                   3       1,000.00         3,000.00
+
+        3,000.00
+                                                                          Grand Total
+                                                                                        ( )
+
+                                              
+(    NON-VAT (DUMMY)  )              (   NON-VAT  B2NV )
+
+               ____ / ____ / ______          ____ / ____ / ______
+
