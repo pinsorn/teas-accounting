@@ -1,0 +1,18 @@
+{
+  "pv19": {
+    "closed": true,
+    "note": "PV#19: before=Approved, cancel button WAS visible (prior FALSE NEGATIVE was a script race — screenshot fired before page data loaded), after cancel=Voided."
+  },
+  "dep": {
+    "closed": true,
+    "note": "Re-run for already-posted month (2026-07, default selection): \"already posted\" info message shown correctly. False-success wording: false."
+  },
+  "pnd54": {
+    "closed": true,
+    "note": "ภ.ง.ด.54 preview for 2026-07: shows ฿3,529.41."
+  },
+  "je": {
+    "closed": true,
+    "note": "JE #161 (JV 07-2026-JV-0056): Dr=23529.41 Cr=23529.41 balanced=true. AP line: 20000. Gross-up debit line: 3529.41. WHT payable credit: 3529.41. Hand-calc match (3,529.41 both sides): true. Full JSON: V1-je-lines.json."
+  }
+}

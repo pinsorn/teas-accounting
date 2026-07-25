@@ -517,3 +517,18 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
   isolated re-run confirmed both non-regressions; new flake instance appended to troubles-wiki.
   Not committed — left for Fable's diff review.
 - [ ] O7 [B-mcp F2]: pending-agent-approvals widget shows agent drafts to APPROVER, but APPROVER holds zero sales.quotation.* perms — its "ตรวจ" link lands on an empty /quotations (cannot view/act; sales01 had to act instead). Decide: grant APPROVER read on agent-draft doc types, or filter the widget rows by the viewer's per-doc-type permission. Product call — Ham.
+
+## WP-F — V1 post-deploy residual (2026-07-25, found by the v1.22.11 verify leg)
+- [ ] F1 **MEDIUM (money-adjacent, FE prefill) [V1-F1]**: `payment-vouchers/new/page.tsx` L135
+      (VI-prefill effect) still derives the VAT rate with the SINGLE-flag
+      `vendor.vatRegistered ? taxRateForProductType(productType) : 0` — the exact predicate WP-A2
+      replaced at L159. For a foreign no-Thai-VAT-D vendor the prefilled line `amount` lands
+      ~6.8% short of the VI's outstanding (18,691.59 vs 20,000 live on co5, v1.22.11 —
+      `derivePvPrefillBase` divides by a rate the form will never apply). Form is editable so
+      nothing is locked, but the number is silently wrong unless hand-corrected.
+      FIX: use the same dual-flag predicate — inside the effect, reference the component's own
+      `vendorVat` (declared below the effect; initialized by the time an effect runs) or recompute
+      `vendor.vatRegistered && !(vendor.isForeign && !vendor.hasThaiVatDReg)`. Verify the prefill
+      grand total lands EXACTLY on `outstanding` for all 4 combos (domestic VAT / domestic non-VAT /
+      foreign with VAT-D / foreign without VAT-D) — that invariant is the Ham decision documented
+      at L130-133. ACCEPTANCE: re-drive VI→PV on ARMYAWS859829 → prefilled amount = 20,000.00.

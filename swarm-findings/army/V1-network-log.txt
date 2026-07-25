@@ -1,0 +1,7 @@
+[admin01] POST https://teas.kazaki-rio.com/api/proxy/payment-vouchers/17/post -> 200
+[ap01] POST https://teas.kazaki-rio.com/api/proxy/vendor-invoices -> 201
+[ap01] POST https://teas.kazaki-rio.com/api/proxy/vendor-invoices/15/post -> 200
+[ap01] POST https://teas.kazaki-rio.com/api/proxy/payment-vouchers -> 201
+[admin01] POST https://teas.kazaki-rio.com/api/proxy/payment-vouchers/20/approve -> 200
+[admin01] POST https://teas.kazaki-rio.com/api/proxy/payment-vouchers/20/post -> 200
+[acct01] POST https://teas.kazaki-rio.com/api/proxy/bank-accounts/1/imports -> 422

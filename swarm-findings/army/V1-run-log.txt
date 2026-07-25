@@ -1,0 +1,67 @@
+[2026-07-25T10:57:37.093Z] === ITEM 1(a): PV #17 re-post attempt ===
+[2026-07-25T10:57:42.299Z] logged in as admin01
+[2026-07-25T10:57:42.738Z] PV#17 status before: "Approved"
+[2026-07-25T10:57:44.869Z] shot: V1-01a-pv17-before.png
+[2026-07-25T10:57:47.733Z] shot: V1-01a-pv17-after.png
+[2026-07-25T10:57:48.041Z] PV#17 status after: "Posted"
+[2026-07-25T10:57:48.049Z] === ITEM 1(b): fresh VI->PV self-withhold chain ===
+[2026-07-25T10:57:52.044Z] logged in as ap01
+[2026-07-25T10:57:55.029Z] VI vendor picked (query ARMYAWS859829)
+[2026-07-25T10:57:55.685Z] shot: V1-02-vi-form-filled.png
+[2026-07-25T10:57:57.591Z] VI created + posted: id=15
+[2026-07-25T10:57:57.638Z] shot: V1-03-vi-posted.png
+[2026-07-25T10:58:02.060Z] logged in as ap01
+[2026-07-25T10:58:02.366Z] FOR-SVC wht type: {"whtTypeId":44,"code":"FOR-SVC","nameTh":"ค่าบริการ ต่างประเทศ","nameEn":"Foreign service","rate":0.15,"formType":"PND54","incomeTypeCode":"8","effectiveFrom":"2020-01-01","effectiveTo":null,"isActive":true}
+[2026-07-25T10:58:06.404Z] PV prefill amount=18691.59, VAT cell=0%
+· ผู้ขายไม่จด VAT
+[2026-07-25T10:58:06.448Z] shot: V1-04-pv-prefilled-from-vi.png
+[2026-07-25T10:58:06.457Z] Manually corrected PV line amount to 20000 to continue the chain.
+[2026-07-25T10:58:06.837Z] shot: V1-05-pv-wht-type-selected.png
+[2026-07-25T10:58:06.842Z] PV canSave after WHT-type pick: true
+[2026-07-25T10:58:07.992Z] PV draft created: id=20
+[2026-07-25T10:58:08.039Z] shot: V1-06-pv-draft.png
+[2026-07-25T10:58:12.078Z] logged in as admin01
+[2026-07-25T10:58:18.016Z] shot: V1-07-pv-approved.png
+[2026-07-25T10:58:20.865Z] shot: V1-08-pv-posted.png
+[2026-07-25T10:58:21.181Z] PV#20 status after post attempt: Posted
+[2026-07-25T10:58:26.957Z] logged in as admin01
+[2026-07-25T10:58:27.574Z] WHT payable account: {"accountId":59,"accountCode":"2152","accountNameTh":"ภาษีหัก ณ ที่จ่ายค้างจ่าย","normalBalance":"CR"}
+[2026-07-25T10:58:27.918Z] GL row for 07-2026-PV-CAPEX-0001: undefined
+[2026-07-25T10:58:32.144Z] logged in as tax01
+[2026-07-25T10:59:34.224Z] pnd54 check ERROR: locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /preview|ดูตัวอย่าง/i })[22m
+
+[2026-07-25T10:59:34.227Z] === ITEM 2: WP-B(a) client-side WHT-type-required validation ===
+[2026-07-25T10:59:38.397Z] logged in as ap01
+[2026-07-25T11:00:13.178Z] shot: V1-10-pv-wht-no-type.png
+[2026-07-25T11:00:13.187Z] Inline error visible: true, Save disabled: true
+[2026-07-25T11:00:13.190Z] === ITEM 3: WP-B(b) PV #19 cancel escape hatch ===
+[2026-07-25T11:00:19.279Z] logged in as admin01
+[2026-07-25T11:00:19.592Z] PV#19 status before: Approved
+[2026-07-25T11:00:21.716Z] shot: V1-11-pv19-before.png
+[2026-07-25T11:00:21.719Z] PV#19 cancel button visible: false
+[2026-07-25T11:00:21.722Z] === ITEM 4: WP-D D1 expense-claim status badges ===
+[2026-07-25T11:00:29.194Z] logged in as admin01
+[2026-07-25T11:00:32.385Z] shot: V1-13-expense-claims-list.png
+[2026-07-25T11:00:37.460Z] shot: V1-14-expense-claim-2-detail.png
+[2026-07-25T11:00:37.468Z] === ITEM 5: WP-D D2 depreciation re-run already-posted ===
+[2026-07-25T11:00:43.590Z] logged in as admin01
+[2026-07-25T11:00:46.204Z] shot: V1-15-depreciation-before.png
+[2026-07-25T11:00:56.265Z] ITEM 5 ERROR: locator.waitFor: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('dialog') to be visible[22m
+
+[2026-07-25T11:00:56.268Z] === ITEM 6: WP-D D3 purch01 clean deny on expense-claims ===
+[2026-07-25T11:01:03.277Z] logged in as purch01
+[2026-07-25T11:01:05.282Z] shot: V1-17-purch01-expense-claims-list.png
+[2026-07-25T11:01:07.199Z] shot: V1-18-purch01-expense-claim-2.png
+[2026-07-25T11:01:07.207Z] === ITEM 7: WP-C corrupt PDF import -> clean 422 ===
+[2026-07-25T11:01:17.422Z] logged in as acct01
+[2026-07-25T11:01:22.330Z] shot: V1-19-corrupt-pdf-modal-filled.png
+[2026-07-25T11:01:23.225Z] corrupt PDF import response: 422 {"type":"urn:teas:error:bank.pdf_password","title":"bank.pdf_password","status":422,"detail":"Could not open the statement PDF — check the password."}
+[2026-07-25T11:01:24.774Z] shot: V1-20-corrupt-pdf-result.png
+[2026-07-25T11:01:24.777Z] === ITEM 8: regression sanity — TB Dr=Cr ===
+[2026-07-25T11:01:36.866Z] logged in as admin01
+[2026-07-25T11:01:41.236Z] shot: V1-21-trial-balance.png
+[2026-07-25T11:01:41.238Z] TB badge: "Dr = Cr ✓" class="badge badge-success" balanced=true

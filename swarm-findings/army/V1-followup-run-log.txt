@@ -1,0 +1,20 @@
+[2026-07-25T11:05:39.128Z] === RECHECK: PV#19 cancel (proper wait) ===
+[2026-07-25T11:05:45.222Z] logged in as admin01
+[2026-07-25T11:05:48.969Z] shot: V1-11b-pv19-loaded.png
+[2026-07-25T11:05:49.603Z] PV#19 status=Approved, cancel button visible=true
+[2026-07-25T11:05:51.946Z] shot: V1-12b-pv19-after-cancel.png
+[2026-07-25T11:05:52.793Z] PV#19 status after cancel: Voided
+[2026-07-25T11:05:52.798Z] === RECHECK: depreciation already-posted toast (alertdialog testid) ===
+[2026-07-25T11:05:56.653Z] logged in as admin01
+[2026-07-25T11:06:01.503Z] shot: V1-16b-depreciation-after.png
+[2026-07-25T11:06:01.506Z] already-posted: true, false-success: false
+[2026-07-25T11:06:01.509Z] === RECHECK: pnd54 preview shows 3,529.41 ===
+[2026-07-25T11:06:06.757Z] logged in as tax01
+[2026-07-25T11:06:10.256Z] shot: V1-09b-pnd54-after.png
+[2026-07-25T11:06:10.260Z] pnd54 contains 3,529.41: true
+[2026-07-25T11:06:10.263Z] === RECHECK: JE lookup for PV#20 via GL (match by line description) ===
+[2026-07-25T11:06:16.129Z] logged in as admin01
+[2026-07-25T11:06:16.472Z] PV#20 docNo=07-2026-PV-CAPEX-0001
+[2026-07-25T11:06:17.062Z] GL rows for account 2152 in period: 3
+[2026-07-25T11:06:17.062Z] Matched row: {"journalId":161,"docDate":"2026-07-25","docNo":"07-2026-JV-0056","description":"WHT payable 07-2026-PV-CAPEX-0001","reference":null,"debit":0,"credit":3529.41,"runningBalance":6857.93}
+[2026-07-25T11:06:17.411Z] JE #161: lines=[{"lineNo":1,"accountId":57,"accountCode":"2110","accountNameTh":"เจ้าหนี้การค้า","description":"AP settle VI via 07-2026-PV-CAPEX-0001","reference":null,"debit":20000,"credit":0,"businessUnitId":null},{"lineNo":2,"accountId":72,"accountCode":"1610","accountNameTh":"อุปกรณ์และเครื่องใช้สำนักงาน","description":"Self-withhold gross-up 07-2026-PV-CAPEX-0001","reference":null,"debit":3529.41,"credit":0,"businessUnitId":null},{"lineNo":3,"accountId":59,"accountCode":"2152","accountNameTh":"ภาษีหัก ณ ที่จ่ายค้างจ่าย","description":"WHT payable 07-2026-PV-CAPEX-0001","reference":null,"debit":0,"credit":3529.41,"businessUnitId":null},{"lineNo":4,"accountId":53,"accountCode":"1120","accountNameTh":"เงินฝากธนาคาร","description":"Cash/Bank 07-2026-PV-CAPEX-0001","reference":null,"debit":0,"credit":20000,"businessUnitId":null}]

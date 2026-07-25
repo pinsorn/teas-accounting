@@ -1,0 +1,59 @@
+{
+  "journalId": 161,
+  "docNo": "07-2026-JV-0056",
+  "docDate": "2026-07-25",
+  "postingDate": "2026-07-25",
+  "description": "PV 07-2026-PV-CAPEX-0001",
+  "reference": "07-2026-PV-CAPEX-0001",
+  "status": "Posted",
+  "postedAt": "2026-07-25T10:58:16.708+00:00",
+  "reversalOfId": null,
+  "lines": [
+    {
+      "lineNo": 1,
+      "accountId": 57,
+      "accountCode": "2110",
+      "accountNameTh": "เจ้าหนี้การค้า",
+      "description": "AP settle VI via 07-2026-PV-CAPEX-0001",
+      "reference": null,
+      "debit": 20000,
+      "credit": 0,
+      "businessUnitId": null
+    },
+    {
+      "lineNo": 2,
+      "accountId": 72,
+      "accountCode": "1610",
+      "accountNameTh": "อุปกรณ์และเครื่องใช้สำนักงาน",
+      "description": "Self-withhold gross-up 07-2026-PV-CAPEX-0001",
+      "reference": null,
+      "debit": 3529.41,
+      "credit": 0,
+      "businessUnitId": null
+    },
+    {
+      "lineNo": 3,
+      "accountId": 59,
+      "accountCode": "2152",
+      "accountNameTh": "ภาษีหัก ณ ที่จ่ายค้างจ่าย",
+      "description": "WHT payable 07-2026-PV-CAPEX-0001",
+      "reference": null,
+      "debit": 0,
+      "credit": 3529.41,
+      "businessUnitId": null
+    },
+    {
+      "lineNo": 4,
+      "accountId": 53,
+      "accountCode": "1120",
+      "accountNameTh": "เงินฝากธนาคาร",
+      "description": "Cash/Bank 07-2026-PV-CAPEX-0001",
+      "reference": null,
+      "debit": 0,
+      "credit": 20000,
+      "businessUnitId": null
+    }
+  ],
+  "totalDebit": 23529.41,
+  "totalCredit": 23529.41
+}
