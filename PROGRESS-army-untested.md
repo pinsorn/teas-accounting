@@ -169,3 +169,22 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
   are not fixed until the gate is green). Re-apply it only after a green suite.
 - **The army result is unaffected**: everything else is committed, shipped and live-verified. WP-I is a
   bonus; if it can't go green cleanly, `git checkout -- .` and drop it.
+
+## 2026-07-25 ~22:4x — WP-I round 3 (Fable took over the design)
+- Fable answered the design question personally from the code: `TeasMcpTools.CreatePaymentVoucherDraftAsync`
+  already takes `IValidator<CreatePaymentVoucherRequest>`, and REST validates too — so **both external
+  entry points are already behind the DTO validator**, which is the only place the "accepts a field it
+  ignores" lie needs catching. `CreateDraftAsync` is ALSO every internal caller's/fixture's/test's seam,
+  which is why a guard there broke 35 unrelated tests. Decision: rule goes in
+  `CreatePaymentVoucherValidator`, service guard removed, test date-churn reverted.
+- Worker had already applied exactly that before I stood it down; its validator rule is clean
+  (`RuleFor(x => x.DocDate).Equal(_ => new SystemClock().TodayInBangkok())` — lambda, so it re-evaluates
+  per validation instead of capturing a stale date; comment records that no validator in this repo takes
+  a DI dependency, hence the direct clock read).
+- Fable's own over-correction to watch: I told it to revert ALL 7 test date edits, but tests that go
+  through the HTTP endpoint or the MCP tool DO run FluentValidation, so those legitimately must send
+  today's date (McpServerSmokeTests is the likely one). The running suite will name them; re-apply the
+  date edit ONLY for validation-path tests, never for direct-service tests.
+- Current tree = validator rule + O7 widget filter + spec text. Suite running, full log at
+  Z:/temp/claude/wpi-suite.log (not tailed this time).
+- Expected: baseline 943 passed / 8 skipped, plus whatever validation-path tests need their date fixed.
