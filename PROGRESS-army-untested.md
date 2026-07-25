@@ -45,6 +45,19 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
    WP-B (incl. N1 comment fix) → WP-C → deploy → live re-verify per spec plan.
    C1 vision done+committed 36fe28c (1 AGY false positive killed, O6 added).
 
+## Session 2026-07-25 (goal: ลุยเต็ม, Ham away, Chrome connected w/ super-admin login)
+- [x] B-1 partial: co6 created id=6 via Chrome (TIN 0105569000011) — 2 NEW BUGS → WP-E in fix spec
+      (create ignores จด VAT=off; PUT /companies/6 → 500). co6 stuck VAT-flagged until WP-E deploys.
+- [x] B-2 DONE: MCP key army-mcp-co5 on co5 → ~/.claude/teas-secrets/co5-mcp-key.txt (never commit).
+- [~] WP-B RESUME dispatched (prev worker died at session limit mid-en.json; tree has partial impl).
+- [~] B-mcp leg dispatched (uses the new key; prod-only, safe parallel with WP-B).
+- NEXT (order): WP-B done → Fable diff review → Opus Tier-2 → commit → WP-C dispatch → WP-E
+  dispatch → release v1.22.11 + deploy (plink per memory; DB backup first — new SqlScripts rule) →
+  Chrome: flip co6 ไม่จด VAT + grant 10 UxSwarm users on co6 (Chrome-driving worker OK, no secrets)
+  → B2-nv → B2-pr → B2-ye SEQUENTIAL on co6 → live re-verify probes per fix-spec Verification plan
+  (B-rc chain ฿3,529.41, PV #19 unstick, K-Plus import, dep toast, EC badges) → Wave C2 vision on
+  B2 artifacts → consolidate + STATUS + final tidy (stray B-*.pdf at repo root → move/delete).
+
 ## Pending gates
 - A1 Tier-1 evidence review (Fable)
 - Wave B leg reports ×7-9, Wave C report

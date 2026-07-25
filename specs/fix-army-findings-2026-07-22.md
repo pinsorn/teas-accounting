@@ -72,8 +72,45 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       (live: PV #19 co5). FIX (two halves):
       (a) validate early: client-side block + server-side 422 at draft-save (or at minimum approve)
           when any line has rate>0 && WhtTypeId==null — same error code, surfaced in Thai;
-      (b) escape hatch: allow cancel/reopen-to-draft for Approved-but-unposted PVs (state-machine
-          change — Opus review mandatory; check SoD: who may cancel).
+      (b) ESCAPE HATCH — DESIGN (Opus-reviewed; NO migration — code only). Transition chosen:
+          **Approved→Voided (cancel, terminal)**, NOT reopen-to-draft — PV has no UpdateDraftAsync so
+          reopen strands the doc; `DocumentStatus.Voided` is already the in-repo "dead PV" value
+          (`CreateFromVendorInvoiceAsync` active-PV guard keys on `Status != Voided`). Reuse that enum
+          value; no new columns (reason → activity note, exactly like `ExpenseClaim.Cancel()`); no new
+          permission. DocNo is allocated at Post, so a cancelled Approved PV wastes no number.
+          - Entity `PaymentVoucher.Cancel()` (`…/Entities/Purchase/PaymentVoucher.cs`): guard
+            `Status==Approved` else `throw new DomainException("pv.cannot_cancel", …)` (→422); set
+            `Status=Voided`. Draft & Posted throw → immutable-after-Post stays absolute. (Mirror the
+            `ExpenseClaim.Cancel()` guard shape.)
+          - Service `CancelAsync(long id, CancellationToken ct)` (`…/Infrastructure/Purchase/PaymentVoucherService.cs`
+            + add to `IPaymentVoucherService`): auth guard; load TRACKED pv; `pv.Cancel()`;
+            `_activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId, "Voided",
+            fromStatus:"Approved", toStatus:"Voided", module:"purchase")`; `SaveChangesAsync` wrapped in
+            try/catch `DbUpdateConcurrencyException` → `throw new DomainException("pv.locked_mismatch")`
+            (→409; `Version` is a live concurrency token, config L68 — protects a cancel-vs-post race).
+          - VI release is AUTOMATIC + atomic: settlement (`SettledAmount`/`SettlementStatus`/
+            `PaymentVoucherApplication`) is POST-only, so an Approved PV never touched the VI. The single
+            PV status flip to Voided IS the release — `CreateFromVendorInvoiceAsync`'s `Status != Voided`
+            guard then lets a fresh PV settle the same VI. Zero VI mutation, zero extra rows.
+          - Endpoint `POST /payment-vouchers/{id}/cancel` (`PaymentVoucherEndpoints.cs`) → `CancelAsync`;
+            `Results.NoContent()`; **`.RequireAuthorization(… + Permissions.Purchase.PaymentVoucherApprove)`**.
+            Permission = reuse **approve** (undo-of-approval = approver authority; avoids a seed migration +
+            RBAC-matrix churn). Creator-only (`create`) is intentionally NOT sufficient; the approver may
+            cancel; an SME single-operator holds all three anyway (cont.77).
+          - FE (`payment-vouchers/[id]/page.tsx`): Cancel btn inside the `d.status==='Approved'` block,
+            `<PermissionGate scope="purchase.payment_voucher.approve">`, opens `ConfirmActionDialog`
+            (`confirmAction.pvCancel.title/warning`), calls a new `useCancelPaymentVoucher` hook
+            (`lib/queries.ts`, invalidate the PV query). i18n: add `pv.cancel` + `confirmAction.pvCancel.*`
+            AND a `Voided` entry to `StatusBadge` MAP + `status.Voided` in messages/{th,en}.json (else a
+            voided PV shows a raw key).
+          - TESTS: domain (Approved→Voided ok; Draft & Posted throw `pv.cannot_cancel`); integration
+            (approve→cancel ⇒ Voided; VI-linked approve→cancel ⇒ a NEW PV is creatable from the same VI;
+            cancel a Posted PV ⇒ 422 `pv.cannot_cancel`; caller lacking `approve` ⇒ 403).
+      (a) SEAM (keep error code `pv.wht_type_missing`): enforce in `CreateDraftAsync`'s per-line loop
+          (`PaymentVoucherService.cs` ~L281 — the one seam BOTH REST + from-VI callers funnel through):
+          after `WhtTypeId = input.WhtTypeId ?? category.DefaultWhtTypeId`, if `input.WhtRate>0m &&
+          resolved is null` throw `DomainException("pv.wht_type_missing", …)` (blocks draft-save). Add the
+          same check at the top of `ApproveAsync` so an already-persisted bad draft can't advance either.
       ACCEPTANCE: PV #19 on co5 can be unstuck via the new path after deploy.
 - [ ] B2 **LOW [B-bn]**: `frontend/e2e/payment-voucher-with-wht.spec.ts` fills WHT% `'0.03'`
       commented "3%" — field takes plain percent (3). Fix value + add an assertion on the WHT amount.
@@ -128,6 +165,17 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
     smoke test requested).
   - `git status --porcelain -- frontend/` confirms exactly 6 files touched, none under
     `payment-vouchers/*` (blast cap respected, WP-A's territory untouched).
+
+## WP-E — company create/update VAT flag (2026-07-25, found via super-admin UI drive)
+- [ ] E1 **HIGH**: /settings/companies create modal — จด VAT toggle OFF is IGNORED: co6 (id=6)
+      was created with the toggle visually off yet persisted vat_registered=true (list + edit
+      modal both show จด VAT). Suspect FE payload omits the flag (backend defaults true) or
+      backend CreateAsync ignores it. Repro: create any company with จด VAT off → list shows จด VAT.
+- [ ] E2 **HIGH**: edit-company save → `PUT /api/proxy/companies/6` → **500** (raw
+      "An unexpected error occurred" toast), reproduced twice (payload = full form with
+      vatRegistered=false). Root-cause the 500 (server log/stack), fix + map to clean 422 if it's
+      a domain rejection. ACCEPTANCE: co6 can be flipped to ไม่จด VAT via the UI post-deploy
+      (unblocks army B2 non-VAT legs).
 
 ## OPEN (Ham / triage decisions — not dispatched)
 - [ ] O1 [B-fa F-2]: FA acquisition posts no GL by design; UI never warns when no VI linked →

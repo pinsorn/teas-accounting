@@ -9,12 +9,15 @@ Accounts (reuse, pw `UxSwarm-2026-<suffix>`): sales01/A1 acct01/A2 appr01/A3 ap0
 audit01/A6 chief01/A7 admin01/A8 purch01/A9 tax01/B1 — all granted on co5 only (today).
 
 ## BLOCKERS (Ham, super-admin only — push sent)
-- [ ] B-1: create non-VAT dummy co: ชื่อ "บริษัท ทดสอบ NON-VAT (DUMMY) จำกัด", **vatRegistered=false**,
-      via /settings/companies UI (CreateAsync path — NEVER raw SQL, tax-codes footgun). Fill address
-      (ภ.พ.30-txt lesson). Then grant the 10 UxSwarm users same roles on it (or tell us to drive if
-      Chrome connected).
-- [ ] B-2: create 1 API key on co5 (/settings/api-keys is super-admin-gated) for the MCP-surface leg.
-      Scope: agent/create-draft tools. Drop the key in a local untracked file, tell us the path.
+- [~] B-1: PARTIAL 2026-07-25 (Fable via Claude-in-Chrome, Ham's super-admin session):
+      co6 "บริษัท ทดสอบ NON-VAT (DUMMY) จำกัด" CREATED (id=6, TIN 0105569000011, address filled,
+      toast สร้างบริษัทแล้ว) — BUT 2 NEW BUGS surfaced (→ fix spec WP-E):
+      (1) create ignored the จด VAT=OFF toggle → co6 persisted as จด VAT;
+      (2) edit-company PUT /api/proxy/companies/6 (toggling จด VAT off) → 500, twice.
+      co6 stays VAT-flagged until WP-E ships. User grants on co6: still TODO (after WP-E).
+- [x] B-2: DONE 2026-07-25 — MCP API key "army-mcp-co5" created on co5 (MCP/AI-Agent type,
+      auto scope set = create+read, no post — draft-only by design). Key in
+      ~/.claude/teas-secrets/co5-mcp-key.txt (LOCAL ONLY, never commit). B-mcp UNBLOCKED.
 
 ## Wave A — data prep + recon, co5 (no super-admin needed) — CAN RUN NOW
 - [x] A1 (sonnet, browser): login purch01 (fallback admin01) on prod co5.
