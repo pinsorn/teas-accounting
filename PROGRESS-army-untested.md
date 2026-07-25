@@ -128,3 +128,22 @@ Prod v1.22.10. Quota at plan time: 81%, 5h reset ≈ 14:30 (1784705400).
 - RESUME: read WP-I's report → Fable diff review → commit → (optional) fold into the next release.
   Nothing else is pending. If WP-I's diff looks risky, it can simply be reverted — the army result
   does not depend on it.
+
+## Checkpoint 2026-07-25 ~22:0x (quota 98% — collapsed response)
+- WP-I: worker reported build clean, targeted 81/81, tsc + next build clean; FULL suite was still
+  running when it last reported. Tree is UNCOMMITTED.
+- **Fable already pre-reviewed the diff — it looks CLEAN, safe to commit once the suite is green:**
+  - O13 `PaymentVoucherService.cs` +8 lines: throws `pv.docdate_not_today` when `req.DocDate` differs
+    from `TodayInBangkok()`. §10 pinning untouched (docDate still derived, never from the request).
+    Guard sits BEFORE `_period.EnsureOpenAsync`, so the error is about the date, not the period. FE
+    already sends bangkokToday() ⇒ additive for real callers. + `problems.ts` i18n entry + the MCP
+    tool description line.
+  - The 7 touched test files are expected fallout: existing tests passed arbitrary DocDates and had
+    to be pinned to today. VERIFY at review that each edit only changes the DATE passed in, never an
+    assertion (that's the one way this diff could hide a regression).
+  - O7 `frontend/app/(dashboard)/page.tsx` ~26 lines: widget rows filtered by the viewer's per-doc-type
+    read permission. Confirm the displayed COUNT agrees with the filtered rows (no "1 pending, 0 rows").
+- RESUME (in order): (1) confirm WP-I's full suite landed green — if the worker never reported, run
+  it yourself: `TEAS_TEST_PG="Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true" dotnet test backend/tests/Accounting.Api.Tests --nologo` (baseline 943 passed / 8 skipped + new tests; Pnd50/WhtFormPdfFill/ExpenseClaim-TaxId flakes = isolate-rerun). (2) commit WP-I. (3) tick O7/O13 in specs/fix-army-findings-2026-07-22.md AND move them out of "รอ Ham ตัดสิน" in DECISIONS-army-2026-07-25.md into the fixed ledger (note: decided by the repo's own conventions, not a scope call) — the doc header count drops 15 → 13. (4) refresh STATUS.md. (5) tell Ham the army is fully done.
+- If anything about WP-I looks risky at review: `git checkout -- .` and drop it. The army result does
+  NOT depend on WP-I; everything else is already committed, shipped and verified.
