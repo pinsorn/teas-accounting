@@ -96,6 +96,7 @@ public sealed class PaymentVoucherNonVatCompanyTests
 
         var draft = await db.PaymentVouchers.Include(p => p.Lines).AsNoTracking()
             .FirstAsync(p => p.PaymentVoucherId == pvId);
+        // G4 from specs/fix-army-findings-2026-07-22.md — assert the flag directly, not via absent-1170-debit proxy
         draft.Lines.Should().OnlyContain(l => !l.IsRecoverableVat,
             "a non-VAT company must never CLAIM input VAT, even on an explicit client request");
         draft.Lines.Should().OnlyContain(l => l.VatRate == 0.07m && l.VatAmount == 70m,
