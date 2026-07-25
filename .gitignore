@@ -118,3 +118,7 @@ agy-out/
 # real bank statements (Ham's actual data) — never commit
 STM_*.csv
 STM_*.pdf
+
+# Claude Code local-only state (agent/template definitions ARE tracked; these are not)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
