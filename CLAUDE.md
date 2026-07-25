@@ -66,6 +66,10 @@ risky one.
    Fable still reviews the returned spec before dispatching from it — and that
    review NEVER skips a money formula/invariant section, whatever the context
    pressure (the one skipped section held a sign-flipped tie-out, 2026-07-09).
+   A money spec states the INVARIANT (cash paid unchanged, AP clears exactly,
+   Dr=Cr), never just the observable field values: "VAT totals are 0" shipped a
+   voucher that under-paid the vendor and stranded AP — the worker followed the
+   spec exactly and Tier-2 caught what the spec had authorized (2026-07-25).
 5. Stuck ×2 → tiebreaker: depth/architecture failure → Opus; repeated
    same-error / blind spot → Codex (always with handoff bundle: base
    commit, diff, failed attempts, design decisions, style-pattern file)
@@ -95,6 +99,11 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
   The Tier-3 gate runner COUNTS as a test-running worker: never overlap it
   with any dispatch that runs tests (a concurrent run crashed the test host
   mid-gate, 2026-07-08 — reviewers that only read code are safe to parallel).
+  "Different area" does NOT make two dispatches parallel-safe — the test DB is
+  shared, so the SECOND one gets an explicit hold-your-test-run message and an
+  all-clear when the first finishes (2026-07-25). Any dispatch that will run a
+  long suite also carries: poll the run IN-TURN, never end your turn to wait
+  for a notification (workers stalled on their own monitors 4× this session).
   Two workers on genuinely different build systems (e.g. one `dotnet build`
   + DB, one FE `tsc` with no DB) are safe to parallel as-is.
 - Warm worker over cold re-spawn: a fresh subagent starts COLD and re-derives
