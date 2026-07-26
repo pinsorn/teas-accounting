@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.23.0](https://github.com/pinsorn/teas-accounting/compare/v1.22.12...v1.23.0) (2026-07-26)
+
+
+### Features
+
+* employee termination date, SSO account-no validation, PV DocDate boundary rule, fixed-asset no-GL-cost warning (Wave 1: O9/O12/O13/O1) ([3877df7](https://github.com/pinsorn/teas-accounting/commit/3877df7c12224320f5b220176d7a67bbd55c0216))
+* **payroll:** calendar-day salary proration for mid-month joiners and leavers (O8) ([af51a6d](https://github.com/pinsorn/teas-accounting/commit/af51a6d688df9f991f8919c0f76a1212c14c745d))
+
+
+### Bug Fixes
+
+* **fe:** filter the pending-agent-approvals widget by the viewer's read permission (O7) ([d6568ef](https://github.com/pinsorn/teas-accounting/commit/d6568ef017488e92fb3dfbe9dceb0c5c0bf19e86))
+
 ## [1.22.12](https://github.com/pinsorn/teas-accounting/compare/v1.22.11...v1.22.12) (2026-07-25)
 
 
