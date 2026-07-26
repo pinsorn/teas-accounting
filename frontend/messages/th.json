@@ -1782,6 +1782,7 @@
     "notes": "หมายเหตุ",
     "taxInvoices": "ใบกำกับภาษีที่รวม",
     "pickCustomerFirst": "เลือกลูกค้าก่อน",
+    "generateLinesHint": "ระบบจะสร้างรายการจากใบกำกับภาษีที่เลือกเมื่อบันทึก",
     "editTitle": "แก้ไขใบแจ้งหนี้"
   },
   "attachment": {

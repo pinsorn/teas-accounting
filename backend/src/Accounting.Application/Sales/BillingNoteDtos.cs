@@ -86,7 +86,8 @@ public sealed class CreateBillingNoteValidator : AbstractValidator<CreateBilling
     {
         RuleFor(x => x.CustomerId).GreaterThan(0);
         this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
-        RuleFor(x => x.Lines).NotEmpty();
+        RuleFor(x => x.Lines).NotEmpty()
+            .When(x => x.TaxInvoiceIds is not { Length: > 0 });
         RuleFor(x => x.DueDate).GreaterThanOrEqualTo(x => x.DocDate);
     }
 }

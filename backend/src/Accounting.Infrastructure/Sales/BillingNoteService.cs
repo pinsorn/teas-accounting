@@ -66,9 +66,15 @@ public sealed class BillingNoteService(
             CurrencyCode = req.CurrencyCode, ExchangeRate = req.ExchangeRate,
             Notes = req.Notes, InternalNotes = req.InternalNotes,
         };
-        await ApplyLinesAsync(bn, req.Lines, ct);
-        foreach (var link in await BuildTaxInvoiceLinksAsync(req.TaxInvoiceIds, ct))
+        var taxInvoiceLinks = await BuildTaxInvoiceLinksAsync(req.TaxInvoiceIds, ct);
+        foreach (var link in taxInvoiceLinks)
             bn.TaxInvoiceLinks.Add(link);
+        // Linked TIs generate document-granularity lines only when the caller supplied no
+        // manual lines; once manual lines exist they are an intentional, untouched override.
+        if (req.TaxInvoiceIds is { Length: > 0 } && req.Lines.Count == 0)
+            await ApplyTaxInvoiceLinesAsync(bn, taxInvoiceLinks, ct);
+        else
+            await ApplyLinesAsync(bn, req.Lines, ct);
         db.BillingNotes.Add(bn);
         await db.SaveChangesAsync(ct);    // assigns BillingNoteId — activity.Record needs it
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Created", toStatus: "Draft");
@@ -258,12 +264,17 @@ public sealed class BillingNoteService(
         db.RemoveRange(bn.Lines);
         bn.Lines.Clear();
         bn.SubtotalAmount = bn.VatAmount = bn.TotalAmount = 0m;
-        await ApplyLinesAsync(bn, req.Lines, ct);
-
         db.BillingNoteTaxInvoices.RemoveRange(bn.TaxInvoiceLinks);
         bn.TaxInvoiceLinks.Clear();
-        foreach (var link in await BuildTaxInvoiceLinksAsync(req.TaxInvoiceIds, ct))
+        var taxInvoiceLinks = await BuildTaxInvoiceLinksAsync(req.TaxInvoiceIds, ct);
+        foreach (var link in taxInvoiceLinks)
             bn.TaxInvoiceLinks.Add(link);
+        // Linked TIs generate document-granularity lines only when the caller supplied no
+        // manual lines; once manual lines exist they are an intentional, untouched override.
+        if (req.TaxInvoiceIds is { Length: > 0 } && req.Lines.Count == 0)
+            await ApplyTaxInvoiceLinesAsync(bn, taxInvoiceLinks, ct);
+        else
+            await ApplyLinesAsync(bn, req.Lines, ct);
 
         await db.SaveChangesAsync(ct);
     }
@@ -447,6 +458,46 @@ public sealed class BillingNoteService(
         }
     }
 
+    private async Task ApplyTaxInvoiceLinesAsync(
+        BillingNote bn, IReadOnlyList<BillingNoteTaxInvoice> links, CancellationToken ct)
+    {
+        var linkedIds = links.Select(l => l.TaxInvoiceId).ToArray();
+        var invoices = await db.TaxInvoices.AsNoTracking()
+            .Include(t => t.Lines)
+            .Where(t => t.CompanyId == tenant.CompanyId && linkedIds.Contains(t.TaxInvoiceId))
+            .ToDictionaryAsync(t => t.TaxInvoiceId, ct);
+
+        int n = 1;
+        foreach (var link in links)
+        {
+            var ti = invoices[link.TaxInvoiceId];
+            var orderedSourceLines = ti.Lines.OrderBy(l => l.LineNo).ToArray();
+            var sourceLine = orderedSourceLines.Select(l => l.TaxCodeId).Distinct().Count() == 1
+                ? orderedSourceLines[0]
+                : orderedSourceLines.OrderByDescending(l => l.LineAmount).First();
+            var reference = ti.DocNo ?? "(ยังไม่ออกเลขที่)";
+            var line = new BillingNoteLine
+            {
+                LineNo = n++,
+                ProductType = "SERVICE",
+                TaxInvoiceId = ti.TaxInvoiceId,
+                DescriptionTh = $"ใบกำกับภาษี {reference} ลงวันที่ {ti.DocDate:dd/MM/yyyy}",
+                Quantity = 1m,
+                UomText = "ฉบับ",
+                UnitPrice = ti.SubtotalAmount,
+                LineAmount = ti.SubtotalAmount,
+                TaxCodeId = sourceLine.TaxCodeId,
+                TaxCode = sourceLine.TaxCode,
+                TaxRate = sourceLine.TaxRate,
+                TaxAmount = ti.TaxAmount,
+                TotalAmount = ti.TotalAmount,
+            };
+            bn.Lines.Add(line);
+            bn.SubtotalAmount += line.LineAmount;
+            bn.VatAmount += line.TaxAmount;
+            bn.TotalAmount += line.TotalAmount;
+        }
+    }
     private async Task<DocumentNumber> SubPrefixNumberAsync(
         string prefix, int? buId, DateOnly docDate, CancellationToken ct)
     {

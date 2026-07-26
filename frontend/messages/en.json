@@ -1782,6 +1782,7 @@
     "notes": "Notes",
     "taxInvoices": "Grouped Tax Invoices",
     "pickCustomerFirst": "Select a customer first",
+    "generateLinesHint": "Lines will be generated from the selected tax invoices when you save.",
     "editTitle": "Edit Invoice"
   },
   "attachment": {

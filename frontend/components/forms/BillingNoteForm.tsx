@@ -54,7 +54,7 @@ const lineSchema = z.object({
 });
 const schema = z.object({
   customerId: z.number().int().positive(),
-  lines: z.array(lineSchema).min(1),
+  lines: z.array(lineSchema),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -92,6 +92,7 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
   const [dueDate, setDueDate] = useState(edit?.dueDate ?? plusDays(today, 30));
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(edit?.businessUnitId ?? null);
   const [buError, setBuError] = useState(false);
+  const [linesError, setLinesError] = useState(false);
   const [notes, setNotes] = useState(edit?.notes ?? '');
   const [customerLabel, setCustomerLabel] = useState(edit?.customerName ?? '');
   // Sprint 13i C7 — TaxInvoices grouped into this BN (multi-select via the picker).
@@ -164,6 +165,13 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
   );
 
   async function createBillingNote(v: FormValues): Promise<number | null> {
+    if (v.lines.length === 0 && selectedTis.length === 0) {
+      setLinesError(true);
+      toast.error(tt('lineRequired'));
+      requestAnimationFrame(scrollToFirstError);
+      return null;
+    }
+    setLinesError(false);
     if (buRequired && businessUnitId === null) {
       setBuError(true);
       toast.error(tt('validationFailed'));
@@ -407,6 +415,9 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
                   ))}
                 </div>
               )}
+              {selectedTis.length > 0 && lines.length === 0 && (
+                <p className="mt-2 text-sm text-ink-500">{t('generateLinesHint')}</p>
+              )}
             </div>
           </div>
         </SectionCard>
@@ -420,13 +431,13 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
               <div className="space-y-4">
                 <LineItemsTable
                   value={field.value as LineItem[]}
-                  onChange={field.onChange}
+                  onChange={(value) => { field.onChange(value); if (value.length > 0) setLinesError(false); }}
                   enableProduct
                   hideHeading
                   purpose="sale"
                   businessUnitId={businessUnitId}
                 />
-                {fieldState.error && (
+                {(fieldState.error || linesError) && (
                   <span className="block text-sm text-error" data-field-error="true">
                     {tt('lineRequired')}
                   </span>
