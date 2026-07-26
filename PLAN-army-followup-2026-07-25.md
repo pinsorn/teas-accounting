@@ -73,3 +73,18 @@
   ภ.ง.ด.54/สปส.1-10 หรือเปล่า → ถ้ามีก็เป็นงานต่อสาย ถ้าไม่มีต้องทำ template + box mapping (งานใหญ่กว่ามาก)
   ค่อยตัดสินจากคำตอบ
 - Gate ของรอบนี้: tsc + next build (Codex รันเอง) · **dotnet suite ผมรันเอง** ตามกฎใหม่ที่ fold ไว้
+
+## 2026-07-26 ~06:0x — สเปกครบทุก wave ที่เหลือ (Fable เขียนเอง ไม่กิน worker quota)
+- `specs/period-monthly-reopen-o14.md` (**O14**) — key decision D3: ห้าม reopen เดือนที่อยู่ในปีที่ปิดแล้ว
+  (P&L ถูกโยนเข้ากำไรสะสมไปแล้ว → post ใหม่จะทำให้ closing entry กับงบดุลขัดกันเงียบ ๆ) · ใช้ permission
+  เดิม `gl.period.close` · ไม่แตะ schema (audit ลง activity log) · concurrency ลอก
+  `YearCloseService.ReopenAsync` ที่ claim ด้วย affected-rows
+- `specs/sps110-part2-o11.md` (**O11**) — ค้นพบว่า template มี 4 หน้าและหน้า 2 คือส่วนที่ 2 อยู่แล้ว,
+  `RdField.Page` รองรับอยู่แล้ว, มี `TaxFormFillDiagnostic` (TEAS_DIAG=1) เป็นเครื่องมือวัดพิกัดอยู่แล้ว
+  → งานเหลือคือพิกัดหน้า 2 + overflow >10 คนเป็นหลายแผ่น · ห้ามอ่าน `Employee.BaseSalary` (จะพัง O8)
+- `specs/payroll-deductions-o10.md` (**O10**) — จุดตายคือ **GL**: comment ในโค้ดบอกเองว่า ΣOther ที่ไม่เป็น
+  ศูนย์ทำให้ JE ไม่ balance และถูก reject → ต้องมีบัญชีคู่ใน `GlAccountsOptions` ก่อน · deduction ลดแค่
+  **net** ห้ามแตะฐานภาษี/สปส. · **OPEN QUESTION ถึง Ham**: การคืนเงินจ่ายเกินของเดือนก่อนควรไปแก้ ภ.ง.ด.1
+  ของเดือนนั้น ไม่ใช่ netting เงียบ ๆ ในเดือนนี้ (ผมแนะนำแบบนี้ แต่ไม่ตัดสินแทน)
+- สถานะ: **ทุก wave ที่เหลือมีสเปกพร้อม implement แล้ว** รอ pool ว่าง (7-day 88%) หรือ Ham สั่ง ·
+  Codex ยังทำ Wave 5 อยู่
