@@ -745,3 +745,22 @@ Root cause: `TenantMiddleware` pins `app.company_id` SESSION-scoped to the CALLE
 Fix pattern: any service method that (a) can be invoked by a super-admin for a company OTHER than their pinned tenant AND (b) writes to a G1/G2/G3 (RLS-forced) table for that OTHER company's id must wrap the write in `BeginTransactionAsync` + `SELECT set_config('app.company_id', {targetCompanyId}, true)` (LOCAL — auto-reverts at commit/rollback, never leaks onto the pooled connection) before `SaveChangesAsync`. Grep every `ICompanyService`/other super-admin-scoped service for a bare `SaveChangesAsync` with no such pin before assuming it's safe.
 Test technique to actually catch this (teas_test's default connection bypasses RLS): reproduce with the `pg_database_owner` trick already proven in `CompanyCreateRlsTests` — `SET ROLE pg_database_owner` + `set_config('app.company_id', <CALLER's own company>, false)` SESSION-scoped, then call the service directly for a DIFFERENT target company id. Must use the REAL `ActivityRecorder` (not a `NoopActivityRecorder` stub) — a no-op recorder never queues the write and silently defeats the whole repro (cost one wasted test iteration this session).
 Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro co6 (company id=6), PUT vatRegistered flip 500'd twice on prod.
+
+## เทสเทียบ `DateTime.UtcNow` กับ validator ที่ pin Bangkok → เขียวก่อนเที่ยงคืน แดง 00:00–07:00 ICT
+- **Symptom:** เทสที่สร้างเอกสารผ่าน API/MCP ผ่านตอนเย็น แล้ว **fail เองตอนกลางคืน** โดยไม่มีใครแก้โค้ด ·
+  error คือ validation ปฏิเสธ `DocDate` (เช่น `pv.docdate_not_today` / `validation.docDateNotToday`)
+  ทั้งที่เทสส่ง "วันนี้" มาแล้ว
+- **Root cause:** เทสคำนวณวันด้วย `DateOnly.FromDateTime(DateTime.UtcNow)` = **UTC today** แต่ validator
+  (และ §10 ทั้งระบบ) เทียบกับ `SystemClock().TodayInBangkok()` = **UTC+7** · ระหว่าง 00:00–07:00 ICT
+  UTC ยังเป็นวันก่อนหน้า → ตัวเลขวันไม่ตรงกัน 7 ชั่วโมงต่อวัน · ก่อนเที่ยงคืน ICT ทั้งสองค่าเท่ากัน
+  จึงเขียวสนิทและมองไม่เห็นบั๊ก
+- **Fix:** ในเทสใช้ `new Accounting.Application.Abstractions.SystemClock().TodayInBangkok()` เสมอเมื่อค่านั้น
+  จะถูกเทียบกับกฎฝั่ง server · **ห้ามใช้ `DateTime.UtcNow`/`DateTime.Today` สำหรับวันที่เอกสาร**
+- **Seen:** 2026-07-26 ~01:3x — เทส `McpServerSmokeTests` 4 ตัว (`E3_payment_voucher_*` +
+  `E3_create_payment_voucher_draft_returns_id_and_approval_url`) พังหลังข้ามเที่ยงคืนหลังจาก O13
+  เพิ่ม validator บังคับ DocDate=วันนี้ · worker วินิจฉัยผิดว่าเป็น regression ของ commit เก่า (`e17d232`)
+  — Fable ไล่เองจึงเจอว่าเป็น timezone · **ไฟล์เดียวกันยังมี `UtcNow` เหลืออีก ~22 จุด**สำหรับเอกสาร
+  ประเภทที่ service ยังไม่มี validator บังคับวันที่ (จึงยังไม่พัง) — ถ้าเพิ่ม validator ให้เอกสารประเภทใด
+  ต้องกวาด `UtcNow` ของเทสประเภทนั้นด้วย ไม่งั้นจะระเบิดตอนกลางคืนแบบเดียวกัน
+- **บทเรียนซ้อน:** ต้นเหตุที่มันกลับมาเป็น `UtcNow` คือคำสั่ง revert แบบเหวี่ยง ("revert ทั้ง 7 ไฟล์")
+  ที่ทับของที่เคยแก้ถูกไว้แล้ว → revert แบบกวาดต้องดูก่อนว่าไฟล์นั้นมีของดีที่จะหายไปด้วยหรือเปล่า
