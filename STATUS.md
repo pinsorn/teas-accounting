@@ -1,6 +1,10 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **HANDOFF: อ่าน `HANDOFF-next-session.md` ก่อน** (เขียน 2026-07-26 ~11:5x ตอน context เต็ม) —
+  13/14 ข้อจาก army ปิดแล้ว · prod = **v1.23.0** · เหลือ O10 + O11 ที่มีสเปกพร้อม implement
+  (`specs/payroll-deductions-o10.md`, `specs/sps110-part2-o11.md`) + O2b ที่ Ham ตอบแล้วแต่ยังไม่มีสเปก
+  · O14 (reopen งวดรายเดือน) สเปกพร้อมแต่ยังไม่จัดลำดับ
 - **ARMY COMPLETE — all 11 never-tested areas driven live, VAT + non-VAT + vision.
   Verdict: `swarm-findings/army/VERDICT-army-2026-07-25.md`** (read that first; per-leg reports +
   screenshots in the same folder). 10 legs + 2 vision waves + a post-deploy verify leg.
