@@ -1,6 +1,16 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **⛔ O11 BLOCKED — needs a file from Ham (2026-07-26, commit `4d71841`).** `sps110_main.pdf` does not
+  contain ส่วนที่ 2 at all. Measured page titles: p1 = `สปส.1-10 ส่วนที่ 1` (summary only, no employee
+  rows), p2 = คำชี้แจง, **p3/p4 = `สปส.1-10/1`, a different form** (branch-consolidated return + its
+  continuation) whose rows are per-BRANCH. **Ham: drop the official ส่วนที่ 2 PDF into
+  `backend/src/Accounting.Infrastructure/Pdf/Templates/`** and O11 resumes as specced.
+  Salvaged: coordinate mapping solved (`yTop_json = 595.3 − Top_dump`, `x_json = Left_dump`, A4
+  landscape, verified against `wageMonth`), and `TaxFormFillDiagnostic.Dump_sps110_positioned_words`
+  (`TEAS_DIAG=1`) dumps any template's word positions — point it at the new file.
+  Note: "page 2 of the PDF" ≠ "ส่วนที่ 2 of the form", and the army leg's "10 blank rows" was the
+  branch table, not an employee schedule.
 - **DONE (2026-07-26 ~12:5x): O10-A payroll deductions BACKEND — gate green 968/0/8, committed.**
   Codex implemented, AGY cross-family reviewed (independently re-derived the Dr=Cr identity and found
   2 real guard defects), Fable read every line and ran both full suites.
