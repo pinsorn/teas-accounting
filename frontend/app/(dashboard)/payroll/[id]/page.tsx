@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -13,11 +13,13 @@ import {
   usePayrollRun, useApprovePayrollRun, usePostPayrollRun, usePayPayrollRun, useDeletePayrollRun,
   useBankAccounts,
 } from '@/lib/queries';
-import { openPdf, downloadFile } from '@/lib/api';
+import { apiPut, openPdf, downloadFile } from '@/lib/api';
 import type { PayslipDto } from '@/lib/types';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB } from '@/lib/utils';
 import { PayrollStatusBadge, formatPeriod } from '../_status';
+
+type DeductionEdit = { amount: string; reason: string };
 
 export default function PayrollRunDetailPage() {
   const params = useParams();
@@ -35,9 +37,48 @@ export default function PayrollRunDetailPage() {
   const del = useDeletePayrollRun();
   const run = q.data;
   const [selected, setSelected] = useState<PayslipDto | null>(null);
+  const [deductionEdits, setDeductionEdits] = useState<Record<number, DeductionEdit>>({});
+  const [savingDeductions, setSavingDeductions] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [payBankAccountId, setPayBankAccountId] = useState<number | null>(null);
   const activeBanks = (bankAccounts.data ?? []).filter((b) => b.isActive);
+
+  useEffect(() => {
+    if (!run) return;
+    setDeductionEdits(Object.fromEntries(run.payslips.map((p) => {
+      const reason = p.otherDeductionsReason ?? '';
+      return [p.employeeId, {
+        amount: p.otherDeductions === 0 ? '' : String(p.otherDeductions),
+        reason,
+      }];
+    })));
+  }, [run]);
+
+  function setDeduction(employeeId: number, field: keyof DeductionEdit, value: string) {
+    setDeductionEdits((current) => ({
+      ...current,
+      [employeeId]: { ...(current[employeeId] ?? { amount: '', reason: '' }), [field]: value },
+    }));
+  }
+
+  async function saveDeductions() {
+    if (!run || run.status !== 'DRAFT') return;
+    const deductions = run.payslips.flatMap((p) => {
+      const edit = deductionEdits[p.employeeId] ?? { amount: '', reason: '' };
+      if (edit.amount.trim() === '' || Number(edit.amount) === 0) return [];
+      return [{ employeeId: p.employeeId, amount: Number(edit.amount), reason: edit.reason }];
+    });
+    setSavingDeductions(true);
+    try {
+      await apiPut<void>(`payroll/runs/${id}/deductions`, { deductions });
+      await q.refetch();
+      toast.success(t('deductionsSaved'));
+    } catch (e) {
+      toast.error(errorToToast(e));
+    } finally {
+      setSavingDeductions(false);
+    }
+  }
 
   async function act(fn: () => Promise<unknown>, ok: string, confirmMsg?: string, destructive = false) {
     if (confirmMsg && !(await confirm({ description: confirmMsg, variant: destructive ? 'destructive' : 'default' }))) return;
@@ -65,7 +106,7 @@ export default function PayrollRunDetailPage() {
   if (q.isLoading) return <div className="p-6 text-ink-500">{tc('loading')}</div>;
   if (!run) return <div className="p-6 text-ink-500">{tc('notFound')}</div>;
 
-  const busy = approve.isPending || post.isPending || pay.isPending || del.isPending;
+  const busy = approve.isPending || post.isPending || pay.isPending || del.isPending || savingDeductions;
 
   return (
     <>
@@ -118,6 +159,14 @@ export default function PayrollRunDetailPage() {
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold">{t('payslips')} ({run.payslips.length})</h2>
+        {run.status === 'DRAFT' && (
+          <PermissionGate scope="payroll.run.manage">
+            <button className="btn btn-primary btn-sm" disabled={savingDeductions}
+              onClick={saveDeductions}>
+              {savingDeductions ? t('savingDeductions') : t('saveDeductions')}
+            </button>
+          </PermissionGate>
+        )}
         {run.status === 'POSTED' && (
           <div className="flex items-center gap-2">
             <button className="btn btn-outline btn-sm gap-1"
@@ -150,6 +199,8 @@ export default function PayrollRunDetailPage() {
               <th className="text-right">{t('gross')}</th>
               <th className="text-right">{t('pit')}</th>
               <th className="text-right">{t('sso')}</th>
+              <th className="text-right">{t('deduction')}</th>
+              <th>{t('deductionReason')}</th>
               <th className="text-right">{t('net')}</th>
               <th />
             </tr>
@@ -157,6 +208,10 @@ export default function PayrollRunDetailPage() {
           <tbody>
             {run.payslips.map((p) => {
               const gross = p.grossTaxable + p.grossNonTaxable;
+              const edit = deductionEdits[p.employeeId] ?? {
+                amount: p.otherDeductions === 0 ? '' : String(p.otherDeductions),
+                reason: p.otherDeductionsReason ?? '',
+              };
               return (
                 <tr key={p.payslipId} className="cursor-pointer hover:bg-base-200"
                   onClick={() => setSelected(p)}>
@@ -173,6 +228,34 @@ export default function PayrollRunDetailPage() {
                   <td className="text-right tabular-nums">{formatTHB(gross)}</td>
                   <td className="text-right tabular-nums">{formatTHB(p.pitWithheld)}</td>
                   <td className="text-right tabular-nums">{formatTHB(p.ssoEmployee)}</td>
+                  <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                    {run.status === 'DRAFT' ? (
+                      <PermissionGate scope="payroll.run.manage"
+                        fallback={<span className="tabular-nums">{formatTHB(p.otherDeductions)}</span>}>
+                        <input type="number" inputMode="decimal" min="0" step="0.01"
+                          className="input input-bordered input-sm w-28 text-right tabular-nums"
+                          aria-label={t('deductionFor', { name: p.employeeName })}
+                          value={edit.amount}
+                          onChange={(e) => setDeduction(p.employeeId, 'amount', e.target.value)} />
+                      </PermissionGate>
+                    ) : (
+                      <span className="tabular-nums">{formatTHB(p.otherDeductions)}</span>
+                    )}
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {run.status === 'DRAFT' ? (
+                      <PermissionGate scope="payroll.run.manage"
+                        fallback={<span>{p.otherDeductionsReason || '—'}</span>}>
+                        <input type="text" maxLength={500}
+                          className="input input-bordered input-sm min-w-48"
+                          aria-label={t('deductionReasonFor', { name: p.employeeName })}
+                          value={edit.reason}
+                          onChange={(e) => setDeduction(p.employeeId, 'reason', e.target.value)} />
+                      </PermissionGate>
+                    ) : (
+                      <span>{p.otherDeductionsReason || '—'}</span>
+                    )}
+                  </td>
                   <td className="text-right font-medium tabular-nums">{formatTHB(p.netPay)}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-xs gap-1"

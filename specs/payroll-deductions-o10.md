@@ -112,8 +112,57 @@ No EF migration / no schema change — but there IS a new **seed** script (D1b) 
 so the prod DB backup step is mandatory for the release that ships this.
 
 ## Split (Fable, 2026-07-26)
-- **O10-A — backend**: D1 + D1b + D2 + D3 (API/service/validation) + all the tests below. ← do this first.
-- **O10-B — UI**: D3's FE column + D4 payslip PDF line. Separate dispatch, after A is green and committed.
+- **O10-A — backend**: D1 + D1b + D2 + D3 (API/service/validation) + all the tests below.
+  **DONE — commit `e62102f`, gate 968/0/8.**
+- **O10-B — reason column + UI**: below. ← next.
+
+## O10-B — scope, pinned by Fable after reading the code (2026-07-26)
+Two facts that shrink this a lot, established before dispatching — do not re-litigate them:
+- **The payslip PDF already prints the deduction line.** `backend/src/Accounting.Infrastructure/Pdf/PayslipPdf.cs:98`
+  already does `if (m.OtherDeductions != 0m) Row(t, "หัก  รายการหักอื่น ๆ", -m.OtherDeductions);`.
+  D4 is therefore NOT a form-layout change — the only thing missing is the reason text. No new row, no
+  template surgery: extend that one label when a reason exists.
+- **The reason has nowhere to live.** See D3b. Everything else in O10-B depends on the column landing first.
+
+### B1 — persist the reason (schema change; smallest possible)
+Add `Payslip.OtherDeductionsReason` — `string?`, `HasMaxLength(500)`, configured in
+`backend/src/Accounting.Infrastructure/Persistence/Configurations/Payroll/PayslipConfiguration.cs`
+next to the other `HasMaxLength` string properties (it is NOT one of the money props that get
+`HasPrecision(18,4)`). Then `dotnet ef migrations add` a migration whose `Up` contains **exactly one
+`AddColumn`** and nothing else. If the generated migration or the model snapshot contains ANY other
+change, that is pre-existing model drift — **stop and report it, do not ship it inside this migration**.
+Nullable + no default = additive and safe on a populated table.
+
+### B2 — write and clear it with the amount
+In `PayrollRunService.UpdateDeductionsAsync`, set `slip.OtherDeductionsReason = line.Reason` where the
+amount is set, and null it in the same loop that zeroes `OtherDeductions` — the two fields must never
+disagree. Keep the existing activity-log record as well; it is the audit trail, the column is the data.
+Test: a run whose deductions are replaced with an empty list has both the amount and the reason cleared.
+
+### B3 — surface it
+Add the reason to the payslip DTO the run-detail endpoint returns, so the FE can display and re-edit
+what is stored. No new endpoint — `PUT /payroll/runs/{id}/deductions` from O10-A already carries it.
+
+### B4 — the PDF label
+`PayslipPdf.cs:98` becomes the reason-aware version: with a reason, the label reads
+`หัก  รายการหักอื่น ๆ (<reason>)`; with none, it stays exactly as today. The Thai label text must not
+otherwise change. Test by extracted page text, not by bytes — this project's PDF render is not
+byte-deterministic (troubles-wiki).
+
+### B5 — FE: editable deduction on a DRAFT run
+`frontend/app/(dashboard)/payroll/[id]/page.tsx` is the run detail. On a **Draft** run only, each
+employee row gets an editable deduction amount + reason, saved through the O10-A endpoint, behind the
+same `payroll.run.manage` permission the run's other edits already use (the generated RBAC map confirms
+the endpoint is `Perm / payroll.run.manage`). On Approved/Posted, render the values read-only — the run
+is an immutable snapshot. Surface the API's Thai rejection messages as-is; do not re-implement the cap
+in TypeScript, the server owns it. Match the page's existing table/DaisyUI idiom; no new dependency.
+
+### O10-B gates
+`dotnet build`; targeted payroll tests; `tsc` + `next build` for the FE. **Fable runs the full Api
+suite** — do not babysit it. Cap: the entity + its EF config + one migration + `PayrollRunService` +
+the payslip DTO + `PayslipPdf.cs` + the one FE page + tests. A second migration, a template change, or
+any edit to a tax-filing path means stop and re-spec.
+**Deploy note: this release already needs a prod DB backup for seed 630; B1's migration reinforces that.**
 
 ## O10-A implementation checklist (Codex, 2026-07-26)
 - [x] **D1 GL counterpart:** `GlAccountsOptions` pins 2180 and payroll posting emits conditional Cr 2180; stale v1 comment removed. Evidence: `Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180` verifies Cr 500 and exact 2dp Dr=Cr; `Full_run_computes_pit_sso_and_posts_a_balanced_gl` verifies the zero-deduction invariant and no empty 2180 line.

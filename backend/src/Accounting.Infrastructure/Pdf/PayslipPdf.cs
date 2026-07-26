@@ -14,7 +14,7 @@ public sealed record PayslipPdfModel(
     string PeriodThai, string PayDateThai, string? DocNo,
     string EmployeeCode, string EmployeeName, string NationalId, string? EmployeeAddress,
     decimal GrossTaxable, decimal GrossNonTaxable, decimal Pit, decimal SsoEmployee,
-    decimal SsoEmployer, decimal OtherDeductions, decimal NetPay,
+    decimal SsoEmployer, decimal OtherDeductions, string? OtherDeductionsReason, decimal NetPay,
     decimal YtdIncome, decimal YtdPit,
     string? BankName, string? BankAccountNo, string? BankAccountName, string NetInWords);
 
@@ -95,7 +95,11 @@ public static class PayslipPdf
                     Total(t, "รวมเงินได้", m.GrossTaxable + m.GrossNonTaxable);
                     Row(t, "หัก  ภาษีเงินได้ หัก ณ ที่จ่าย (ภ.ง.ด.1)", -m.Pit);
                     Row(t, "หัก  เงินสมทบประกันสังคม (ลูกจ้าง)", -m.SsoEmployee);
-                    if (m.OtherDeductions != 0m) Row(t, "หัก  รายการหักอื่น ๆ", -m.OtherDeductions);
+                    if (m.OtherDeductions != 0m) Row(t,
+                        string.IsNullOrWhiteSpace(m.OtherDeductionsReason)
+                            ? "หัก  รายการหักอื่น ๆ"
+                            : $"หัก  รายการหักอื่น ๆ ({m.OtherDeductionsReason})",
+                        -m.OtherDeductions);
                     Total(t, "เงินได้สุทธิ (รับจริง)", m.NetPay);
                 });
 

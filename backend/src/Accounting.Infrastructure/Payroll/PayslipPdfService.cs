@@ -78,7 +78,7 @@ public sealed class PayslipPdfService(AccountingDbContext db) : IPayslipPdfServi
             periodThai, payDateThai, run.DocNo,
             slip.EmployeeCode, slip.EmployeeName, slip.NationalId, slip.AddressText,
             slip.GrossTaxable, slip.GrossNonTaxable, slip.PitWithheld, slip.SsoEmployee,
-            slip.SsoEmployer, slip.OtherDeductions, slip.NetPay,
+            slip.SsoEmployer, slip.OtherDeductions, slip.OtherDeductionsReason, slip.NetPay,
             slip.YtdIncome, slip.YtdPit,
             slip.BankName, slip.BankAccountNo, slip.BankAccountName,
             BahtText.Of(slip.NetPay));

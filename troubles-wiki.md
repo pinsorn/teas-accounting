@@ -782,3 +782,15 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
 - **Root cause:** `CitExpenseByAccountTests.FreshJeYearAsync` considered only journal entries when choosing a random year. It could reuse a year carrying a leftover or in-flight `CitYearSummary.OverrideNetProfit` or `CitAdjustment` written by another CIT test.
 - **Fix:** a fresh CIT test year must have no journal entries, `CitYearSummary`, or `CitAdjustment` for the same fiscal year. Keep the checks in `FreshJeYearAsync` so every caller benefits; do not delete shared fixture rows as a workaround.
 - **Seen:** 2026-07-26, O10-A full-suite follow-up (964 passed / 2 failed / 8 skipped; both failures were this race).
+
+## PDF text extraction drops Thai combining marks — assertions on Thai labels fail spuriously
+- **Symptom:** a test asserts a Thai string appears in a generated PDF and fails, while the printed PDF is visibly correct. The extracted text shows the same words with tone marks/vowels missing: `รายการหักอื่น ๆ` comes out `รายการหักอื น ๆ`, `ที่จ่าย` as `ที จ่าย`, `ตั้งแต่ต้นปี` as `ตั งแต่ต้นป`.
+- **Root cause:** the `PdfText` extraction helper loses Thai combining characters (MAI EK and friends). The renderer is fine — only the extraction is lossy. This is separate from, and additional to, the "PDF bytes are not deterministic" entry above.
+- **Fix:** never assert on Thai text containing tone marks. Assert on a substring that has none — for a labelled amount, the user-supplied value or reason is usually mark-free — or assert on the numeric amount.
+- **Seen:** 2026-07-26, O10-B payslip deduction-reason label (`Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180`).
+
+## Random-id test isolation collides as teas_test grows
+- **Symptom:** a test fails with `23505: duplicate key value violates unique constraint "pk_companies"` (or a similar random-key clash) and passes on a standalone re-run. Seen on `SalesUxFixesWpATests.Quotation_send_called_twice_second_call_rejected_no_duplicate_number` with `company_id=731031`.
+- **Root cause:** tests that mint an id from a random draw collide more and more often as `teas_test` accumulates rows (it already carries hundreds of companies). Same family as the `FreshJeYearAsync` race documented above — a random pick with an insufficient uniqueness check.
+- **Fix:** before blaming a diff, re-run the single test; a standalone pass means collision, not regression. The durable fix is to reserve the id atomically (insert-and-retry, or a sequence) instead of drawing a random one and hoping.
+- **Seen:** 2026-07-26, O10-B full-suite run (966 passed / 2 failed / 8 skipped; neither failure was caused by the diff).

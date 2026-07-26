@@ -27,7 +27,8 @@ public sealed record UpdatePayrollDeductionsRequest(IReadOnlyList<PayrollDeducti
 public sealed record PayslipDto(
     long PayslipId, long EmployeeId, string EmployeeCode, string EmployeeName, string NationalId,
     decimal GrossTaxable, decimal GrossNonTaxable, decimal PitWithheld,
-    decimal SsoEmployee, decimal SsoEmployer, decimal OtherDeductions, decimal NetPay,
+    decimal SsoEmployee, decimal SsoEmployer, decimal OtherDeductions,
+    string? OtherDeductionsReason, decimal NetPay,
     decimal YtdIncome, decimal YtdPit);
 
 public sealed record PayrollRunListItem(

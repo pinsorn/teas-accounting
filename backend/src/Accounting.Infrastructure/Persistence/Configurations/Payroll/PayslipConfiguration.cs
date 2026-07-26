@@ -18,6 +18,7 @@ internal sealed class PayslipConfiguration : IEntityTypeConfiguration<Payslip>
         b.Property(p => p.BankName).HasMaxLength(120);
         b.Property(p => p.BankAccountNo).HasMaxLength(50);
         b.Property(p => p.BankAccountName).HasMaxLength(255);
+        b.Property(p => p.OtherDeductionsReason).HasMaxLength(500);
 
         foreach (var p in new[]
                  {

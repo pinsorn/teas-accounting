@@ -170,6 +170,7 @@ public sealed class PayrollRunService(
         foreach (var slip in run.Payslips)
         {
             slip.OtherDeductions = 0m;
+            slip.OtherDeductionsReason = null;
             slip.ComputeNet();
         }
         foreach (var line in req.Deductions)
@@ -178,6 +179,7 @@ public sealed class PayrollRunService(
                 ?? throw new DomainException("payroll.deduction_employee_not_found",
                     $"ไม่พบพนักงานรหัส {line.EmployeeId} ในรายการเงินเดือนนี้");
             slip.OtherDeductions = line.Amount;
+            slip.OtherDeductionsReason = line.Reason;
             slip.ComputeNet();
             activity.Record(EntityType, run.PayrollRunId, run.DocNo, run.CompanyId,
                 "DeductionUpdated", fromStatus: "Draft", toStatus: "Draft",
@@ -300,7 +302,7 @@ public sealed class PayrollRunService(
                 r.Payslips.OrderBy(p => p.EmployeeCode).Select(p => new PayslipDto(
                     p.PayslipId, p.EmployeeId, p.EmployeeCode, p.EmployeeName, p.NationalId,
                     p.GrossTaxable, p.GrossNonTaxable, p.PitWithheld,
-                    p.SsoEmployee, p.SsoEmployer, p.OtherDeductions, p.NetPay,
+                    p.SsoEmployee, p.SsoEmployer, p.OtherDeductions, p.OtherDeductionsReason, p.NetPay,
                     p.YtdIncome, p.YtdPit)).ToList()))
             .FirstOrDefaultAsync(ct);
 

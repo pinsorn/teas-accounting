@@ -930,7 +930,7 @@ export type UpdateEmployeeRequest = Omit<CreateEmployeeRequest, 'employeeCode'> 
 export interface PayslipDto {
   payslipId: number; employeeId: number; employeeCode: string; employeeName: string; nationalId: string;
   grossTaxable: number; grossNonTaxable: number; pitWithheld: number;
-  ssoEmployee: number; ssoEmployer: number; otherDeductions: number; netPay: number;
+  ssoEmployee: number; ssoEmployer: number; otherDeductions: number; otherDeductionsReason: string | null; netPay: number;
   ytdIncome: number; ytdPit: number;
 }
 export interface PayrollRunListItem {

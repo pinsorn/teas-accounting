@@ -209,6 +209,7 @@ public sealed class PayrollRunServiceTests
 
         slipAfter.NetPay.Should().Be(slipBefore.NetPay - 500m);
         slipAfter.OtherDeductions.Should().Be(500m);
+        slipAfter.OtherDeductionsReason.Should().Be("เรียกคืนเงินจ่ายเกิน");
         slipAfter.GrossTaxable.Should().Be(slipBefore.GrossTaxable);
         slipAfter.PitWithheld.Should().Be(slipBefore.PitWithheld);
         slipAfter.SsoEmployee.Should().Be(slipBefore.SsoEmployee);
@@ -219,6 +220,14 @@ public sealed class PayrollRunServiceTests
             "deductions must not change any rendered ภ.ง.ด.1 filing value");
         (await sso.BuildMonthlyFileAsync(runId, default)).Content.Should().Equal(ssoBefore,
             "deductions must not change สปส.1-10 output");
+
+        await payroll.UpdateDeductionsAsync(runId, new UpdatePayrollDeductionsRequest([]), default);
+        var cleared = (await payroll.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId);
+        cleared.OtherDeductions.Should().Be(0m);
+        cleared.OtherDeductionsReason.Should().BeNull();
+        await payroll.UpdateDeductionsAsync(runId,
+            new UpdatePayrollDeductionsRequest(
+                [new PayrollDeductionLine(employeeId, 500m, "เรียกคืนเงินจ่ายเกิน")]), default);
 
         await payroll.ApproveAsync(runId, default);
         await payroll.PostAsync(runId, default);
@@ -233,6 +242,12 @@ public sealed class PayrollRunServiceTests
         var credits = Math.Round(je.Lines.Sum(l => l.CreditAmount), 2);
         debits.Should().Be(credits,
             "gross + employer SSO debits must exactly equal PIT + both SSO legs + net + deductions credits");
+
+        var payslipPdf = s.ServiceProvider.GetRequiredService<IPayslipPdfService>();
+        // PdfText drops Thai combining marks ("อื่น" extracts as "อื น"), so assert on the reason —
+        // which has none — rather than on the label. See troubles-wiki.md.
+        PdfText(await payslipPdf.BuildAsync(runId, employeeId, default)).Should()
+            .Contain("(เรียกคืนเงินจ่ายเกิน)");
 
         var pnd1aBefore = await pnd1.BuildPnd1aAnnualAsync(year, default);
         var storedSlip = await db.Payslips.SingleAsync(p => p.PayrollRunId == runId && p.EmployeeId == employeeId);

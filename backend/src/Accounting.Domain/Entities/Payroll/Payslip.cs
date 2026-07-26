@@ -32,6 +32,7 @@ public class Payslip : ITenantOwned
     public decimal SsoEmployee     { get; set; }
     public decimal SsoEmployer     { get; set; }
     public decimal OtherDeductions { get; set; }
+    public string? OtherDeductionsReason { get; set; }
     public decimal NetPay          { get; set; }
 
     // ---- YTD (cumulative through this run, calendar year) ----

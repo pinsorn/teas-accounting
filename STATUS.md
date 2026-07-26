@@ -11,9 +11,23 @@
     year "fresh" using journal entries alone, so a `CitYearSummary.OverrideNetProfit` or `CitAdjustment`
     from another CIT test leaked in and failed 2 Pnd50 tests that pass in isolation. Now all three are
     checked. See `troubles-wiki.md`.
-  - **Still open:** the deduction REASON is not persisted (no column) — `specs/payroll-deductions-o10.md`
-    §D3b. **O10-B** must add `Payslip.OtherDeductionsReason` + an EF migration before the FE column and
-    the payslip-PDF line can show it.
+  - ~~Still open: the deduction REASON is not persisted~~ → **closed by O10-B.**
+- **DONE (2026-07-26 ~15:5x): O10-B — reason column + FE + payslip PDF. O10 IS NOW COMPLETE.**
+  `Payslip.OtherDeductionsReason` (nullable, 500) + migration `20260726060403_PayslipOtherDeductionsReason`
+  (one `AddColumn`, no drift — Fable read it), written/cleared atomically with the amount, carried on the
+  payslip DTO, printed on the payslip PDF as `หัก  รายการหักอื่น ๆ (<reason>)`, and editable per employee
+  on a DRAFT run at `payroll/[id]` behind `payroll.run.manage` (read-only once Approved/Posted).
+  - Gates: full Api suite **968/0/8**, backend build 0/0, `tsc` 0, `next build` ok.
+  - Fable caught two FE defects at diff review and had them fixed: the change was casting around
+    `PayslipDto` instead of adding the field to it, and it hardcoded Thai in a page that uses next-intl
+    (would have broken the EN locale — same class of miss as G5 last round).
+  - Two suite failures on the way were proven NOT to be this diff: a Thai assertion that fails because
+    `PdfText` drops combining marks (`อื่น` → `อื น`), and a random-id `pk_companies` collision that
+    passes standalone. Both now in `troubles-wiki.md`.
+  - **Codex runtime was unreliable all afternoon** — 3 jobs died mid-run and 2 more never launched
+    because a dead job stayed flagged `running` in the plugin's state file (a stale PID entry that
+    `codex cancel` does not clear; repaired by hand). Poll loops must check log mtime AND the PID, not
+    just the tracker's status.
   - **Release note: this ships a new SqlScripts seed (630) → prod DB backup is mandatory.**
   - Next: **O10-B** (FE column + payslip PDF + reason column), then **O11** — whose spec now carries a
     new blocking **D0**: the สปส.1-10 template is a FLAT pdf with no AcroForm widgets, so page-2 box
