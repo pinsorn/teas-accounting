@@ -300,26 +300,37 @@ one-liner to the `PayrollRunService` class comment. No behaviour change.
 
 ## Requirements (checklist)
 
-- [ ] **R1** `SalaryProration` added to `PayrollMath.cs` exactly as §"Exact code shape" (2 methods,
-      pure, no I/O, no new file, no new dependency). Done: compiles; R6 goldens pass.
-- [ ] **R2** `PayrollRunService.CreateDraftAsync` uses it — `daysInMonth` local, per-employee
+- [x] **R1** `SalaryProration` added to `PayrollMath.cs` exactly as §"Exact code shape" (2 methods,
+      pure, no I/O, no new file, no new dependency). Done: compiles; R6 goldens pass (53/53 Payroll-
+      filtered Domain tests, incl. 2 boundary cases added per Codex Tier-2 review nit — termination on
+      period's first day, hire+term same day — both pass, money pinned on the latter).
+- [x] **R2** `PayrollRunService.CreateDraftAsync` uses it — `daysInMonth` local, per-employee
       `daysEmployed`/`monthlyGross`, `<= 0 → continue`, and BOTH `e.BaseSalary` reads (SSO base +
-      `thisMonthTaxable`) replaced. Done: R7 integration tests pass.
-- [ ] **R3** Eligibility filter, `Payslip`, `PayrollRun`, `ComputeNet`, `RecalculateTotals`,
+      `thisMonthTaxable`) replaced. Done: R7 integration tests pass (36/36 Payroll-filtered Api tests).
+- [x] **R3** Eligibility filter, `Payslip`, `PayrollRun`, `ComputeNet`, `RecalculateTotals`,
       `ThaiPitCalculator`, `SsoContribution` unchanged. Done: `git diff` shows no edit to them.
-- [ ] **R4** `Pnd1FilingService.cs`, `SsoFilingService.cs`, `PayslipPdfService.cs`,
+- [x] **R4** `Pnd1FilingService.cs`, `SsoFilingService.cs`, `PayslipPdfService.cs`,
       `GlPostingService.cs`, all `Pdf/*FormFiller.cs`, every FE file, every migration/SQL script:
-      **0-diff**. Done: `git diff --stat` shows none of them.
-- [ ] **R5** Stale "regular salary only" doc comment updated (`PayrollDtos.cs:7`).
-- [ ] **R6** Domain goldens added to `backend/tests/Accounting.Domain.Tests/Payroll/PayrollMathTests.cs`
-      — all of §Test list A, hardcoded expected values, fixed dates (no random years, no DB).
-- [ ] **R7** Integration tests added to `backend/tests/Accounting.Api.Tests/Payroll/PayrollRunServiceTests.cs`
-      — all of §Test list B, using `FreshYearAsync`/`Period(year, m)` and `[SkippableFact]` like its
-      siblings. `AddEmployee` gains `DateOnly? hireDate = null, DateOnly? terminationDate = null`
-      (default hire stays `2020-01-01`) so **no existing call site changes**.
-- [ ] **R8** **No existing test is edited or deleted.** If an existing assertion fails, a full-month
-      employee's pay changed → STOP and report; do not adjust the test.
-- [ ] **R9** No `git commit` (Fable commits). No new NuGet package. No DTO/endpoint/permission change.
+      **0-diff**. Done: `git diff --stat` shows exactly 5 files, none of them forbidden.
+- [x] **R5** Stale "regular salary only" doc comment updated (`PayrollDtos.cs:7`).
+- [x] **R6** Domain goldens added to `backend/tests/Accounting.Domain.Tests/Payroll/PayrollMathTests.cs`
+      — all of §Test list A (A1-A29) + 2 Codex-nit boundary cases, hardcoded expected values, fixed
+      dates (no random years, no DB). 53/53 pass.
+- [x] **R7** Integration tests added to `backend/tests/Accounting.Api.Tests/Payroll/PayrollRunServiceTests.cs`
+      — all of §Test list B (B1-B8), using `FreshYearAsync`/`Period(year, m)` and `[SkippableFact]` like
+      its siblings. `AddEmployee` gained `DateOnly? hireDate = null, DateOnly? terminationDate = null`
+      (default hire stays `2020-01-01`) — no existing call site changed. All 8 pass. Note: B8's spec
+      golden (61,234×17/31 = "33,580.58") was arithmetically wrong — correct value 33,579.94 (verified
+      3 ways); test uses the correct figure. B8 also scopes its PDF tie-out assertions to the test's own
+      employee (via unique NationalId, dashes+whitespace stripped to match `Pnd1FormFiller.FormatTaxId`)
+      instead of a whole-document substring check, because the run pools EVERY active company-1
+      employee in the shared teas_test DB — a global "does not contain X" check is unsound there.
+- [x] **R8** **No existing test is edited or deleted.** Zero existing assertions changed — confirmed via
+      full Api.Tests run (960 passed / 3 failed / 8 skipped / 971 total): the 3 failures are all
+      `McpServerSmokeTests.E3_payment_voucher_*`, unrelated to payroll (zero references to Payroll in
+      that file), reproduce even in full isolation, and match the separately-committed PV/VAT-MA825
+      work (`e17d232`) — pre-existing, not caused by this diff, out of this task's blast radius.
+- [x] **R9** No `git commit` (Fable commits). No new NuGet package. No DTO/endpoint/permission change.
 
 ---
 
@@ -488,3 +499,11 @@ package · `git commit`.
 ## Attempt log
 <!-- - <date> <worker>: <result / failure summary> -->
 - 2026-07-26 opus-designer: spec written (design only, no code, no tests run).
+- 2026-07-26 sonnet-implementer: implemented exactly per spec (5 files). Domain goldens 53/53 (incl. 2
+  Codex-nit boundary cases). Payroll-filtered Api suite 36/36. Adjacent regression (Employee/Sps110/
+  Pnd1 filter) 16/16. Full clean Api suite: 960 passed / 3 failed / 8 skipped / 971 total — the 3
+  failures are pre-existing McpServerSmokeTests payment-voucher failures unrelated to this diff (see
+  R8). Build clean, 0 warnings. Found + fixed one spec arithmetic error (B8 golden). Footgun hit and
+  logged to troubles-wiki: killed own in-flight background full-suite run mid-execution, mistaking its
+  testhost/dotnet PIDs for stray leftovers, causing a second concurrent run to MSB3027-lock and
+  contaminating one log; recovered by confirming via tasklist + re-running clean once, alone.

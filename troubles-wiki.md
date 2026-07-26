@@ -79,6 +79,19 @@ Entry format — terse, greppable by symptom:
   an `ExpenseClaimPermissionTests` failure, neither reproducing on a clean single run (which came
   back with only the 2 real/expected failures: the documented Pnd50 flake + one genuine
   regression from the diff).
+- **Addendum (2026-07-26, O8 payroll-proration):** a `dotnet test` started with `run_in_background:
+  true` and an explicit `timeout` param is NOT killed when that timeout elapses — the timeout only
+  bounds the tool's own wait/watch (and a `Monitor` polling that log hits "timed out — re-arm if
+  needed" at the SAME deadline for the same reason). The underlying `dotnet test`/`testhost.exe`
+  process keeps running past both. Wrongly reading "Monitor timed out" as "the process died," I
+  `taskkill`'d the `testhost.exe`/`dotnet.exe` PIDs I found in `tasklist`, believing them stray —
+  they were my OWN still-legitimately-running suite (it was 11+ minutes in, not dead). That kill,
+  plus a second `dotnet test` I'd already launched believing the first was gone, produced the exact
+  MSB3027-lock + concurrent-DB-collision failure mode this entry describes, self-inflicted. **Fix:**
+  a "timed out" Monitor/background report is not evidence of death — before killing ANY testhost/
+  dotnet PID, confirm via the log's own last timestamp that it has been stuck (not merely slow) and
+  that a full suite genuinely exceeds ~10-12 min on this box before assuming staleness; when in doubt,
+  wait longer rather than kill-and-rerun.
 
 ## TI/RC/VI/PV post returns raw `500 internal_error` deterministically (`23505` on `ix_journal_entries_company_id_doc_no`) while PO approve / QT send are fine
 - **Symptom:** a document POST that auto-posts a GL journal entry (Tax Invoice / Receipt / Vendor Invoice / Payment Voucher / expense / adjustment) 500s every time (`{"type":"urn:teas:error:internal_error",...,"status":500}`), human-paced, not under load; PO approve and QT send (no JE) succeed. Server log shows a raw `Npgsql.PostgresException 23505: duplicate key ... ix_journal_entries_company_id_doc_no` escaping `NumberedDocumentWriter.AllocateAndSaveAsync`, NOT the clean `doc.number_alloc_exhausted`.

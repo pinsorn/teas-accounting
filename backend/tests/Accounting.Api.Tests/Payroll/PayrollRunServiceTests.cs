@@ -12,6 +12,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UglyToad.PdfPig;
 using Xunit;
 
 namespace Accounting.Api.Tests.Payroll;
@@ -92,7 +93,8 @@ public sealed class PayrollRunServiceTests
         ServiceProvider sp, decimal salary, MaritalStatus marital = MaritalStatus.Single,
         bool spouseHasIncome = false, int children = 0, bool sso = true, bool isActive = true,
         int? ytdOpeningYear = null, decimal ytdOpeningIncome = 0m,
-        decimal ytdOpeningPit = 0m, decimal ytdOpeningSso = 0m)
+        decimal ytdOpeningPit = 0m, decimal ytdOpeningSso = 0m,
+        DateOnly? hireDate = null, DateOnly? terminationDate = null)
     {
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
@@ -100,7 +102,8 @@ public sealed class PayrollRunServiceTests
         {
             CompanyId = 1, EmployeeCode = "EMP-" + Sfx(),
             FirstNameTh = "ทดสอบ", LastNameTh = Sfx(), NationalId = Nid(),
-            HireDate = new DateOnly(2020, 1, 1), BaseSalary = salary,
+            HireDate = hireDate ?? new DateOnly(2020, 1, 1), TerminationDate = terminationDate,
+            BaseSalary = salary,
             SsoApplicable = sso, MaritalStatus = marital,
             SpouseHasIncome = spouseHasIncome, ChildrenCount = children,
             YtdOpeningYear = ytdOpeningYear, YtdOpeningIncome = ytdOpeningIncome,
@@ -535,5 +538,234 @@ public sealed class PayrollRunServiceTests
             foreach (var bank in activeBanks) bank.IsActive = true;
             await setupDb.SaveChangesAsync();
         }
+    }
+
+    // ---- O8 — calendar-day salary proration (specs/payroll-proration-o8.md, §Test list B) ----
+
+    [SkippableFact]
+    public async Task B1_full_month_control_gross_taxable_is_unrounded_base_salary()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = await FreshPeriodAsync(sp, 7);   // July — always 31 days
+        var empId = await AddEmployee(sp, 45_678.9012m);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(int.Parse(period[..4]), 7, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
+
+        slip.GrossTaxable.Should().Be(45_678.9012m);   // exact, un-rounded — full-month short-circuit
+        slip.NetPay.Should().Be(slip.GrossTaxable - slip.PitWithheld - slip.SsoEmployee);
+    }
+
+    [SkippableFact]
+    public async Task B2_mid_month_hire_prorates_gross_and_derives_pit_and_sso_from_it()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 7);
+        var empId = await AddEmployee(sp, 60_000m, hireDate: new DateOnly(year, 7, 15));
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(year, 7, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
+
+        slip.GrossTaxable.Should().Be(32_903.23m);
+        slip.YtdIncome.Should().Be(32_903.23m);
+        slip.SsoEmployee.Should().Be(750m);   // ceiling (test config 15,000) still binds
+        slip.SsoEmployer.Should().Be(750m);
+
+        const int monthsRemaining = 6;
+        var allowances = PayrollAllowanceRates.Default().Annual(
+            MaritalStatus.Single, false, 0, Math.Min(750m * monthsRemaining, 9_000m));
+        var expectedPit = ThaiPitCalculator.MonthlyWithholding(
+            32_903.23m * monthsRemaining, allowances, 0m, monthsRemaining, PitSchedule.Current());
+        slip.PitWithheld.Should().Be(expectedPit);
+    }
+
+    [SkippableFact]
+    public async Task B3_mid_month_leave_prorates_the_final_month()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 7);
+        var empId = await AddEmployee(sp, 60_000m, terminationDate: new DateOnly(year, 7, 10));
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(year, 7, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
+
+        slip.GrossTaxable.Should().Be(19_354.84m);
+        slip.NetPay.Should().Be(19_354.84m - slip.PitWithheld - slip.SsoEmployee);
+    }
+
+    [SkippableFact]
+    public async Task B4_hire_and_leave_in_the_same_month()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 7);
+        var empId = await AddEmployee(sp, 60_000m,
+            hireDate: new DateOnly(year, 7, 10), terminationDate: new DateOnly(year, 7, 20));
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(year, 7, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
+
+        slip.GrossTaxable.Should().Be(21_290.32m);
+    }
+
+    [SkippableFact]
+    public async Task B5_past_month_termination_is_excluded_not_a_zero_payslip()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 7);
+        var control = await AddEmployee(sp, 30_000m);
+        var pastLeaver = await AddEmployee(sp, 30_000m, terminationDate: new DateOnly(year, 6, 30));
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(year, 7, 28), null), default);
+        var run = (await svc.GetAsync(runId, default))!;
+
+        run.Payslips.Should().Contain(p => p.EmployeeId == control);
+        run.Payslips.Should().NotContain(p => p.EmployeeId == pastLeaver);   // no bogus ฿0 row
+    }
+
+    [SkippableFact]
+    public async Task B6_sso_recomputed_on_the_prorated_wage_ties_out_on_sps110()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 7);
+        var empId = await AddEmployee(sp, 20_000m, hireDate: new DateOnly(year, 7, 15));
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(year, 7, 28), null), default);
+        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
+
+        slip.GrossTaxable.Should().Be(10_967.74m);
+        slip.SsoEmployee.Should().Be(548.39m);    // un-prorated would be 750 — this IS the §3 proof
+        slip.SsoEmployer.Should().Be(548.39m);
+
+        var model = await s.ServiceProvider.GetRequiredService<ISsoFilingService>().BuildMonthlyAsync(runId, default);
+        var line = model.Lines.Single(l => l.NationalId == slip.NationalId);
+        line.Wage.Should().Be(10_967.74m);
+        line.EmployeeContribution.Should().Be(548.39m);
+    }
+
+    [SkippableFact]
+    public async Task B7_prorates_using_the_real_month_length_28_29_and_30_days()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+
+        // February — the random year's Feb may be 28 or 29 days; derive both the day count and the
+        // expected amount from the REAL month length (a leap February gives 15 days, not 14).
+        var febEmp = await AddEmployee(sp, 28_000m, hireDate: new DateOnly(year, 2, 15));
+        await using (var sFeb = sp.CreateAsyncScope())
+        {
+            var svc = sFeb.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(
+                new CreatePayrollRunRequest(Period(year, 2), new DateOnly(year, 2, 28), null), default);
+            var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == febEmp);
+
+            var dim = DateTime.DaysInMonth(year, 2);
+            var days = dim - 15 + 1;
+            var expected = decimal.Round(28_000m * days / dim, 2, MidpointRounding.AwayFromZero);
+            slip.GrossTaxable.Should().Be(expected);
+        }
+
+        // April is always 30 days → hired the 16th = 15 days = an exact hardcoded golden.
+        var aprEmp = await AddEmployee(sp, 30_000m, hireDate: new DateOnly(year, 4, 16));
+        await using (var sApr = sp.CreateAsyncScope())
+        {
+            var svc = sApr.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(
+                new CreatePayrollRunRequest(Period(year, 4), new DateOnly(year, 4, 28), null), default);
+            var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == aprEmp);
+
+            slip.GrossTaxable.Should().Be(15_000.00m);
+        }
+    }
+
+    [SkippableFact]
+    public async Task B8_tie_out_printed_pnd1_matches_the_prorated_gl_and_payslip()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 7);
+        // Terminated at the period's own last day (harmless — still clips to periodEnd, so the day
+        // count/gross are unaffected) so this employee does NOT stay "active forever" and bleed a
+        // full, un-prorated ฿61,234 into some LATER test's run that happens to draw a bigger random
+        // year — teas_test is shared and never reset (troubles-wiki).
+        var empId = await AddEmployee(sp, 61_234m,
+            hireDate: new DateOnly(year, 7, 15), terminationDate: new DateOnly(year, 7, 31));
+
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var run = (await svc.GetAsync(runId, default))!;
+        var slip = run.Payslips.Single(p => p.EmployeeId == empId);
+        // 61,234 × 17 / 31 = 33,579.935483... → 33,579.94 half-up (verified independently; the
+        // spec's stated 33,580.58 golden for this "distinctive number" was an arithmetic slip —
+        // every OTHER spec golden, including A15-A19/B2-B7 on the same formula, checks out exactly).
+        slip.GrossTaxable.Should().Be(33_579.94m);                        // 1. payslip
+
+        // 2. GL — account 5400 debit == run's total prorated gross, and the JE balances.
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .SingleAsync(j => j.JournalId == run.JournalId);
+        var accountIds = je.Lines.Select(l => l.AccountId).ToArray();
+        var codes = await db.ChartOfAccounts.AsNoTracking()
+            .Where(a => accountIds.Contains(a.AccountId))
+            .ToDictionaryAsync(a => a.AccountId, a => a.AccountCode);
+        je.Lines.Single(l => codes[l.AccountId] == "5400").DebitAmount.Should().Be(run.TotalGrossTaxable);
+        je.TotalDebit.Should().Be(je.TotalCredit);
+
+        // 3. Printed ภ.ง.ด.1 — extract text and assert the PRORATED figure appears, the un-prorated
+        // figure does NOT — the exact defect the army leg found in the real PDF.
+        var pnd1Svc = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var pdfBytes = await pnd1Svc.BuildPnd1MonthlyAsync(runId, default);
+        using var doc = PdfDocument.Open(pdfBytes);
+        var text = string.Concat(doc.GetPages().Select(p => p.Text));
+        // Strip whitespace AND the dashes the form inserts into the National ID (Pnd1FormFiller.
+        // FormatTaxId: X-XXXX-XXXXX-XX-X) so a plain-digit NationalId still matches as a substring.
+        var normalized = new string(text.Where(c => !char.IsWhiteSpace(c) && c != '-').ToArray());
+        // The run pools EVERY active company-1 employee in the shared teas_test DB (documented class
+        // invariant), so a whole-document substring check is unsound — some unrelated employee's own
+        // (unprorated, coincidental) full-month gross can share digits with ours. Scope the check to
+        // OUR employee's own printed line by anchoring on its unique NationalId.
+        var idx = normalized.IndexOf(slip.NationalId, StringComparison.Ordinal);
+        idx.Should().BeGreaterThanOrEqualTo(0, "our employee's ใบแนบ line must be on the form");
+        var ourLine = normalized.Substring(idx, Math.Min(120, normalized.Length - idx));
+        ourLine.Should().Contain("33,579.94");
+        ourLine.Should().Contain(slip.PitWithheld.ToString("#,##0.00"));
+        ourLine.Should().NotContain("61,234.00");   // the un-prorated figure — the army leg's defect
+
+        // 4. Payslip PDF still renders.
+        var pdfSvc = s.ServiceProvider.GetRequiredService<IPayslipPdfService>();
+        var payslipPdf = await pdfSvc.BuildAsync(runId, empId, default);
+        System.Text.Encoding.ASCII.GetString(payslipPdf, 0, 5).Should().Be("%PDF-");
     }
 }

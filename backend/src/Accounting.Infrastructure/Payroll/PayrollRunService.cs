@@ -52,6 +52,7 @@ public sealed class PayrollRunService(
         var monthsRemaining = 13 - month;               // Jan→12 … Dec→1 (ม.50(1) spread)
         var periodStart = new DateOnly(year, month, 1);
         var periodEnd   = periodStart.AddMonths(1).AddDays(-1);
+        var daysInMonth = DateTime.DaysInMonth(year, month);   // 28/29/30/31 (== periodEnd.Day)
 
         // Paid this period = ACTIVE master record AND employment overlaps the period (hired on/before
         // period end AND not terminated before it starts). IsActive is required because soft-deactivate
@@ -84,6 +85,11 @@ public sealed class PayrollRunService(
 
         foreach (var e in employees)
         {
+            // O8 — calendar-day proration: a mid-month joiner/leaver is paid for the days employed.
+            var daysEmployed = SalaryProration.DaysEmployed(periodStart, periodEnd, e.HireDate, e.TerminationDate);
+            if (daysEmployed <= 0) continue;      // defensive: the eligibility filter above makes this unreachable
+            var monthlyGross = SalaryProration.MonthlyGross(e.BaseSalary, daysEmployed, daysInMonth);
+
             var (priorIncome, priorPit, priorInSystemSso) = ytd.GetValueOrDefault(e.EmployeeId);
             var hasOpening = e.YtdOpeningYear == year;
             if (hasOpening)
@@ -93,7 +99,7 @@ public sealed class PayrollRunService(
             }
 
             var ssoEmp = e.SsoApplicable
-                ? SsoContribution.Monthly(e.BaseSalary, _sso.Rate, _sso.WageFloor, _sso.WageCeiling)
+                ? SsoContribution.Monthly(monthlyGross, _sso.Rate, _sso.WageFloor, _sso.WageCeiling)
                 : 0m;
             var openingSso = hasOpening ? e.YtdOpeningSso : 0m;
             var ssoAllowance = Math.Min(
@@ -103,7 +109,7 @@ public sealed class PayrollRunService(
             var annualAllowances = _allowances.Annual(
                 e.MaritalStatus, e.SpouseHasIncome, e.ChildrenCount, ssoAllowance);
 
-            var thisMonthTaxable = e.BaseSalary;
+            var thisMonthTaxable = monthlyGross;
             var projected = ThaiPitCalculator.ProjectAnnualIncome(priorIncome, thisMonthTaxable, monthsRemaining);
             var pit = ThaiPitCalculator.MonthlyWithholding(
                 projected, annualAllowances, priorPit, monthsRemaining, schedule);

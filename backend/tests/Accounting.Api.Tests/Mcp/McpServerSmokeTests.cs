@@ -1043,7 +1043,8 @@ public sealed class McpServerSmokeTests
         http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
         await using var client = await ConnectAsync(http);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // O13 — validator compares DocDate against BANGKOK today (UTC-today differs 00:00-07:00 ICT).
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
         var request = new
         {
             docDate = today, vendorId, expenseCategoryId = catId,
@@ -1120,7 +1121,9 @@ public sealed class McpServerSmokeTests
         http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
         await using var client = await ConnectAsync(http);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // O13 — the CreatePaymentVoucherValidator compares DocDate against BANGKOK today;
+        // UTC-today disagrees 00:00-07:00 ICT, which failed this test after midnight (2026-07-26).
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
         var request = new
         {
             docDate = today, vendorId, expenseCategoryId = catId,
@@ -1170,7 +1173,9 @@ public sealed class McpServerSmokeTests
         http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
         await using var client = await ConnectAsync(http);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // O13 — the CreatePaymentVoucherValidator compares DocDate against BANGKOK today;
+        // UTC-today disagrees 00:00-07:00 ICT, which failed this test after midnight (2026-07-26).
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
         var request = new
         {
             docDate = today, vendorId, expenseCategoryId = catId,
@@ -1208,7 +1213,9 @@ public sealed class McpServerSmokeTests
         http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
         await using var client = await ConnectAsync(http);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // O13 — the CreatePaymentVoucherValidator compares DocDate against BANGKOK today;
+        // UTC-today disagrees 00:00-07:00 ICT, which failed this test after midnight (2026-07-26).
+        var today = new Accounting.Application.Abstractions.SystemClock().TodayInBangkok();
         const decimal lineAmount = 1000m;
         var request = new
         {

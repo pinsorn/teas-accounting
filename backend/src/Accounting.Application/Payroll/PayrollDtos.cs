@@ -4,8 +4,10 @@ using FluentValidation;
 namespace Accounting.Application.Payroll;
 
 // Payroll P-C — PayrollRun → Payslip contract. The run auto-builds a payslip for every employee
-// active in the period; v1 takes no per-employee input (regular salary only). PIT = ม.50(1)
-// projected-annual via ThaiPitCalculator; SSO/allowances from config.
+// active in the period; salary is prorated by calendar days employed within the period
+// (SalaryProration, O8) — a mid-month hire/termination pays only for days worked, full months are
+// untouched. PIT = ม.50(1) projected-annual via ThaiPitCalculator; SSO/allowances from config — both
+// computed from the prorated gross.
 
 public sealed record CreatePayrollRunRequest(
     string PeriodYearMonth,   // yyyymm (CE year)
