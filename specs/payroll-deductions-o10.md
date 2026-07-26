@@ -173,4 +173,7 @@ any edit to a tax-filing path means stop and re-spec.
 - [x] **D3 cap and lifecycle tests:** excessive and zero amounts reject without persisting negative net; exact-cap succeeds with zero net and a balanced JE; the prorated mid-month joiner uses O8 gross; PIT-zero/SSO-zero conditional-credit branches and mixed multi-employee roll-ups balance; Approved and Posted runs reject validation and writes.
 - [x] **Tier-1 build:** `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` — succeeded, 0 warnings / 0 errors.
 - [x] **Tier-1 targeted tests:** `PayrollRunServiceTests` — 28 passed / 0 failed / 0 skipped; `Pnd50FilingServiceTests` — 7 passed / 0 failed / 0 skipped, with `TEAS_TEST_PG` and `TEAS_REPO_ROOT` set in each test command.
-- [ ] **O10-B / D4:** deliberately not implemented in O10-A; frontend column and payslip-PDF reason line remain a separate dispatch.
+- [x] **O10-B / D4:** DONE, commit `93d5ee4` — `Payslip.OtherDeductionsReason` + migration
+  `20260726060403`, written/cleared with the amount, on the payslip DTO, printed as
+  `หัก  รายการหักอื่น ๆ (<reason>)`, editable per employee on a DRAFT run behind `payroll.run.manage`.
+  Gates: Api suite 968/0/8, build 0/0, tsc clean, next build ok.
