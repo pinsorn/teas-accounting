@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+using Accounting.Infrastructure.Bank.Pdf;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.TaxFilings;
 using Xunit;
@@ -17,6 +20,31 @@ public sealed class TaxFormFillDiagnostic
 
     private static void Save(string name, byte[] pdf) =>
         System.IO.File.WriteAllBytes(System.IO.Path.Combine(Out, name), pdf);
+
+    [SkippableFact]
+    public void Dump_sps110_positioned_words()
+    {
+        Skip.If(Environment.GetEnvironmentVariable("TEAS_DIAG") != "1", "diagnostic only");
+        var repoRoot = Environment.GetEnvironmentVariable("TEAS_REPO_ROOT")
+            ?? @"Y:\ClaudePlayground\TEAS-Project";
+        var template = System.IO.Path.Combine(
+            repoRoot, "backend", "src", "Accounting.Infrastructure", "Pdf", "Templates", "sps110_main.pdf");
+        using var content = System.IO.File.OpenRead(template);
+        var words = KPlusPdfTextExtractor.Extract(content, password: null);
+
+        foreach (var pageNo in new[] { 1, 2, 3, 4 })
+        {
+            var lines = words
+                .Where(w => w.PageNo == pageNo)
+                .OrderBy(w => w.Top)
+                .ThenBy(w => w.Left)
+                .Select(w => string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Top={0:F1}  Bottom={1:F1}  Left={2:F1}  Right={3:F1}  Text={4}",
+                    w.Top, w.Bottom, w.Left, w.Right, w.Text));
+            Save($"_sps110_p{pageNo}_words.txt", Encoding.UTF8.GetBytes(string.Join(Environment.NewLine, lines)));
+        }
+    }
 
     [SkippableFact]
     public void Fill_every_box_pnd30()

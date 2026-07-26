@@ -1,5 +1,36 @@
 # O11 — สปส.1-10 ส่วนที่ 2 (per-employee schedule) design (Fable, 2026-07-26)
 
+> ## ⛔ BLOCKED — the template does not contain ส่วนที่ 2. Needs Ham. (Fable, 2026-07-26)
+> Measured, not assumed — every page of `sps110_main.pdf` was extracted and its printed title read:
+>
+> | page | printed title | what it actually is |
+> |---|---|---|
+> | 1 | `สปส.1-10` · `ส่วนที่ 1` | the employer summary — header, the 5 numbered summary rows (`1. เงินค่าจ้างทั้งสิ้น`, `2. เงินสมทบผู้ประกันตน`, `เงินสมทบนายจ้าง`), signature block, official-use block. The existing 20-key box map already covers it. **No per-employee rows anywhere on this page.** |
+> | 2 | — | คำชี้แจง: instructions + the criminal-penalty notice |
+> | 3 | `สปส.1-10/1` | **a different form** — ใบสรุปรายการแสดงการส่งเงินสมทบกรณียื่นรวม, used only when an employer files one combined return across branches. Its rows are per-BRANCH. |
+> | 4 | `สปส.1-10/1` · `แผ่นต่อ` | the continuation sheet of that same branch-consolidation form (`แผ่นที่ __ ในจำนวน __`) |
+>
+> **The per-employee schedule is simply not in this file.** Nothing in the repo can be coordinated
+> against it, so D1–D4 cannot start. **Action needed from Ham: supply the official ส่วนที่ 2 PDF**
+> (the employee-list sheet) into `backend/src/Accounting.Infrastructure/Pdf/Templates/`. Once it lands,
+> re-run the D0' dump against it and the rest of this spec applies as written.
+>
+> Two traps this cost us — do not repeat them:
+> - "Page 2 of the PDF" ≠ "ส่วนที่ 2 of the form". The section numbering is the form's, not the file's.
+> - The army leg's "10 blank rows on page 2" was almost certainly p3/p4's **branch** table, not an
+>   employee schedule. A vision read that names a row count is not evidence of which form it is.
+>
+> **Salvaged and reusable when the right template arrives:**
+> - The coordinate mapping is SOLVED and verified against a real value field (not a label):
+>   `sps110_boxes.json`'s `wageMonth` sits at `yTop 202.6`; the extractor puts that same text at
+>   `Top 392.4`; `595.3 − 392.4 = 202.9`. So **`yTop_json = 595.3 − Top_dump`** and `x_json = Left_dump`,
+>   on A4 landscape (842 × 595.3). Confirm on one field of any new template before trusting it.
+> - `TaxFormFillDiagnostic.Dump_sps110_positioned_words` (`TEAS_DIAG=1`) dumps every page's
+>   `PositionedWord` to `docs/RD-Forms/_fills/_sps110_p<n>_words.txt` — point it at the new file.
+> - An independent-model pass over these dumps produced confident row/column geometry for p3 that does
+>   not exist in the data (p3 has zero pre-printed cells to anchor on). Numbers from that route must be
+>   re-derived against the dump before use.
+
 Ham approved building this. Why it matters: the form prints today and page 1's summary figures are
 correct, but **page 2 — the per-employee schedule the Social Security Office actually matches
 contributions against — comes out with all 10 rows blank**, so the filing is not submittable.
@@ -7,10 +38,30 @@ Evidence: `swarm-findings/army/C2-vision-forms.md` (vision) confirmed by Fable r
 extraction directly, and `Sps110FormFiller`'s own doc comment says v1 fills ส่วนที่ 1 only.
 
 ## Facts established in code (Fable, 2026-07-26) — read these before designing further
-1. **The template already contains the page.** `backend/src/Accounting.Infrastructure/Pdf/Templates/sps110_main.pdf`
-   is **4 pages**, and page 2 (0-indexed 1) IS ส่วนที่ 2: a 10-row table with 5 columns —
-   ลำดับที่ / เลขบัตรประชาชน / ชื่อ-สกุล / ค่าจ้าง / เงินสมทบ — plus a per-sheet total line and the
-   `1,650 … 15,000` wage-bound note printed on the form itself.
+1. ~~**The template already contains the page.** … page 2 (0-indexed 1) IS ส่วนที่ 2: a 10-row table…~~
+   **WRONG on every specific — corrected 2026-07-26 from the D0' extraction (see Fact 6).** The
+   template does contain the page, but not where or how this said.
+
+6. **The real page map, measured — not assumed** (`docs/RD-Forms/_fills/_sps110_p{1..4}_words.txt`,
+   produced by `TaxFormFillDiagnostic.Dump_sps110_positioned_words` with `TEAS_DIAG=1`):
+   - **p1 = ส่วนที่ 1** — the employer summary the existing 20-key box map already fills.
+   - **p2 = คำชี้แจง** — instructions and the criminal-penalty notice
+     (*ระวางโทษจำคุกไม่เกิน 6 เดือน หรือปรับไม่เกิน 20,000 บาท*). **Not the schedule.** Anyone who
+     assumed "page 2 = ส่วนที่ 2" from the section name was reading the form's numbering, not the PDF's.
+   - **p3 = ส่วนที่ 2, FIRST sheet** — carries both `ยอดรวมเฉพาะแผ่นนี้` (this sheet's subtotal) and
+     `ยอดรวมทั้งสิ้น` (the grand total), plus the employer signature / bank-receipt block.
+   - **p4 = ส่วนที่ 2, CONTINUATION sheet (ใบต่อ)** — `ยอดรวมเฉพาะแผ่นนี้` only, no grand total.
+   - All four pages are **A4 LANDSCAPE** (extracted `Left` reaches ~810, `Top` ~583).
+   - p4's money grid is pre-printed with `00` satang cells: three money columns at
+     `Left ≈ 440.9 / 562.4 / 683.9`, rows starting `Top ≈ 107.6` with a **constant pitch of 18.6**,
+     running to `Top ≈ 386.8` — i.e. **~15 body rows per sheet, not 10.**
+   - Coordinate caution: the extractor reports `Top` **greater** than `Bottom` (e.g. `Top=21.8
+     Bottom=17.4`), so its field names do not line up with the box JSON's top-down `yTop`. Derive the
+     mapping from p1, whose rects the JSON already pins, before converting any p3/p4 number.
+
+7. **This kills the hardest part of D2.** The template already ships a continuation sheet, so
+   multi-sheet overflow does NOT need invented page composition: sheet 1 renders from p3, sheets 2..n
+   from p4. Re-read D2 with that in mind before implementing it — most of its worry no longer applies.
 2. **The box map has nothing for it.** `sps110_boxes.json` holds exactly 20 keys, all page-1
    (employer header + `accountNoCells`/`branchSeqCells` combs + the 5 summary rows + `amountWords`).
 3. **The renderer already supports other pages.** `RdField` carries `int Page = 0`
@@ -30,13 +81,34 @@ extraction directly, and `Sps110FormFiller`'s own doc comment says v1 fills ส�
    a calibration render, not a box fill.
 
 ### D0 — measure page 2 first (blocking prerequisite, own dispatch)
-Render page 2 of `sps110_main.pdf` with a labelled coordinate grid overlaid (a ruled 10pt/50pt mesh in
-the same `yTop`-from-top convention the JSON uses), export it as an image, and have a vision-capable
-worker read off: the 5 column x-positions + widths, `row0`'s yTop, the row pitch, the page-2 header
-fields (employer name, `accountNoCells`, wage month/year, แผ่นที่ __ ของ __) and the subtotal line.
-Route: AGY (vision, separate quota pool) or Fable personally viewing the render — NOT a text-only
-implementer guessing. Output is a candidate rect table that D1 then encodes and the fact-4 recon fill
-verifies. Do not dispatch D1–D4 until D0's numbers exist.
+**Superseded by D0' below — do NOT run a vision pass. Kept for the reasoning only.**
+~~Render page 2 with a labelled coordinate grid, export as an image, and have a vision-capable worker
+(AGY, or Fable personally) read off the rects.~~
+
+### D0' — the coordinates are EXTRACTABLE; no eyeballing needed (Fable, 2026-07-26)
+Fact 5 says the rects cannot be read from AcroForm widgets, and that is still true — but it does not
+follow that they must be measured by eye. This repo already has a positional text extractor built for
+bank statements: `KPlusPdfTextExtractor.Extract(Stream, string? password)` in
+`backend/src/Accounting.Infrastructure/Bank/Pdf/KPlusPdfTextExtractor.cs`, returning
+`PositionedWord(int PageNo, string Text, double Left, double Right, double Top, double Bottom)`.
+The สปส.1-10 template's page 2 carries its own printed text — the five column headings, the row
+numbers, the `1,650 … 15,000` wage-bound note, `แผ่นที่ __ ของ __`. Running the extractor over the
+template therefore yields **real numeric coordinates for the printed furniture**, from which the cell
+rects follow by arithmetic (a column's x from its heading's `Left`/`Right`, `row0.yTop` and the pitch
+from consecutive row numbers' `Top`).
+
+**Step 1 (do this first, alone):** add a `TEAS_DIAG=1`-gated `[SkippableFact]` to
+`backend/tests/Accounting.Api.Tests/Hardening/TaxFormFillDiagnostic.cs` that extracts
+`sps110_main.pdf` and dumps every page-2 `PositionedWord` (text + all four edges, ordered by Top then
+Left) to `docs/RD-Forms/_fills/_sps110_p2_words.txt`. Nothing else. That file is the measurement.
+Watch the units: `PositionedWord`'s `Top` may not use the same origin as the box JSON's `yTop`
+(measured from the page top) — calibrate by extracting a **page 1** word whose rect the JSON already
+pins (e.g. `employerName` at `yTop 94.6`) and derive the offset/scale from the known-good value before
+trusting any page-2 number.
+
+**Only if that dump comes back empty or garbled** (page 2 turns out to be a flattened raster with no
+text layer) does the vision route in D0 apply. Decide from the dump, not in advance.
+Do not start D1–D4 until the numbers exist and the page-1 calibration checks out.
 
 ## Design
 ### D1 — box map: add page-2 rects as a ROW TEMPLATE, not 50 hardcoded keys
