@@ -143,6 +143,23 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
       {/* S10 — BU wasn't visible anywhere on the Invoice detail page though the API carries it. */}
       <div className="mb-4"><BusinessUnitBadge businessUnitId={d.businessUnitId} /></div>
 
+      {d.taxInvoices.length > 0 && (
+        <div className="mb-4">
+          <div className="mb-2 text-sm font-semibold">{t('taxInvoices')}</div>
+          <div className="flex flex-wrap gap-2" data-testid="bn-ti-chips">
+            {d.taxInvoices.map((ti) => (
+              <Link
+                key={ti.taxInvoiceId}
+                href={`/tax-invoices/${ti.taxInvoiceId}`}
+                className="badge badge-outline gap-1 hover:border-primary hover:text-primary"
+              >
+                {ti.docNo ?? `#${ti.taxInvoiceId}`}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showCancel && d.status === 'Issued' && (
         <div className="mb-4 flex items-center gap-2">
           <input

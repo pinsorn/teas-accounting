@@ -20,7 +20,7 @@ import { ActivityLog } from '@/components/doc/ActivityLog';
 import { CreateViFromPvDialog } from '@/components/forms/CreateViFromPvDialog';
 import {
   usePaymentVoucher, useApprovePaymentVoucher, usePostPaymentVoucher, useCancelPaymentVoucher,
-  useCompanyProfile, useVendor, usePaperDoc,
+  useCompanyProfile, useVendor, usePaperDoc, useSystemInfo,
 } from '@/lib/queries';
 import { formatDate } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
@@ -40,6 +40,7 @@ export default function PaymentVoucherDetailPage() {
   // stays ONLY as the logo source (not in the DTO).
   const { data: company } = useCompanyProfile();
   const paper = usePaperDoc('payment-vouchers', id);
+  const vatMode = useSystemInfo().data?.vatMode ?? true;
   const approve = useApprovePaymentVoucher();
   const post = usePostPaymentVoucher();
   const cancel = useCancelPaymentVoucher();
@@ -83,6 +84,15 @@ export default function PaymentVoucherDetailPage() {
   // §4.2; posted PV is immutable).
   // D1 — offer guided VI create when vendor is VAT-registered & no VI linked yet.
   const canCreateVi = !!vendor?.vatRegistered && d.vendorInvoiceId === null;
+  const paperProps = paperDtoToProps(paper.data, { logo: company?.logoUrl });
+  const vatLabel = vatMode ? t('vat') : t('vatNonCredit');
+  // G5 — the PAPER is bilingual by design, so its override carries both languages rather than
+  // the viewer's locale. Thai uses the paper's own wording ("ภาษีมูลค่าเพิ่ม", not the latin
+  // "VAT") so the row reads like its neighbours.
+  const paperVatLabel = {
+    th: 'ภาษีมูลค่าเพิ่ม (เครดิตไม่ได้ — รวมเป็นต้นทุน)',
+    en: 'VAT (non-creditable — included in cost)',
+  };
 
   return (
     <>
@@ -203,7 +213,8 @@ export default function PaymentVoucherDetailPage() {
       <div className="detail-grid">
         <div className="paper-wrap">
           <PaperDocument
-            {...paperDtoToProps(paper.data, { logo: company?.logoUrl })}
+            {...paperProps}
+            summary={vatMode ? paperProps.summary : { ...paperProps.summary, vatLabel: paperVatLabel }}
             extraMetaBlock={
               <div className="text-[12px] leading-relaxed text-ink-700">
                 <div><b>{t('method')}:</b> {d.paymentMethod}
@@ -252,7 +263,7 @@ export default function PaymentVoucherDetailPage() {
         warning={tca('pvApprove.warning')}
         party={d.vendorName}
         rows={[
-          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: vatLabel, value: d.vatAmount, muted: true },
           { label: t('wht'), value: d.whtAmount, muted: true },
           { label: t('netPaid'), value: d.totalPaid },
         ]}
@@ -266,7 +277,7 @@ export default function PaymentVoucherDetailPage() {
         warning={tca('pvPost.warning')}
         party={d.vendorName}
         rows={[
-          { label: t('vat'), value: d.vatAmount, muted: true },
+          { label: vatLabel, value: d.vatAmount, muted: true },
           { label: t('wht'), value: d.whtAmount, muted: true },
           { label: t('netPaid'), value: d.totalPaid },
         ]}

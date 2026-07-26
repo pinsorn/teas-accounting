@@ -479,6 +479,7 @@
   "expenseClaims": {
     "title": "Expense Claims",
     "create": "New expense claim",
+    "editTitle": "Edit Expense Claim",
     "docNo": "No.",
     "employee": "Employee",
     "selectEmployee": "Select an employee",
@@ -601,6 +602,7 @@
     "method": "Method",
     "subtotal": "Subtotal",
     "vat": "Input VAT",
+    "vatNonCredit": "VAT (non-creditable — included in cost)",
     "wht": "WHT",
     "whtType": "Income type (50ทวิ)",
     "whtTypeNone": "— none —",

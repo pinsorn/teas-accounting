@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { ShieldAlert } from 'lucide-react';
+import { Pencil, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -93,6 +94,13 @@ export default function ExpenseClaimDetailPage() {
         subtitle={d.docNo ?? undefined}
         actions={
           <div className="flex gap-2">
+            {(d.status === 'Draft' || d.status === 'Rejected') && (
+              <PermissionGate scope="expense.claim.create">
+                <Link data-testid="ec-edit" href={`/expense-claims/${id}/edit`} className="btn btn-secondary btn-sm gap-1">
+                  <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
+                </Link>
+              </PermissionGate>
+            )}
             {(d.status === 'Draft' || d.status === 'Rejected') && (
               <PermissionGate scope="expense.claim.create">
                 <button data-testid="ec-submit" className="btn btn-secondary btn-sm" disabled={submit.isPending} onClick={doSubmit}>

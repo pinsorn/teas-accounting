@@ -39,6 +39,11 @@ export interface PaperSummary {
   vat: number;
   total: number;
   vatRate?: number | null; // percent, e.g. 7
+  // Optional document-specific VAT label. Payment Vouchers use this to explain
+  // that VAT is non-creditable and folded into cost for a non-VAT company.
+  // Bilingual, because every other row on the printed paper renders through Bi({th,en}) —
+  // a single-locale override would print one language where its neighbours print both.
+  vatLabel?: { th: string; en: string };
   // Non-VAT companies (ม.86): when false the foot collapses to a single Total
   // row (no Subtotal/Before-VAT/VAT). Mirrors C# PaperSummary.ShowVat. Defaults
   // true; PaperDocument fills it from /system/info.vatMode.

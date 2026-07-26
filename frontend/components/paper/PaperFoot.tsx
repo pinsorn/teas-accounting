@@ -71,7 +71,9 @@ export function PaperFoot({
               </div>
             )}
             <div className="row">
-              <Bi th={`ภาษีมูลค่าเพิ่ม ${vatRate}%`} en="VAT" />
+              {summary.vatLabel
+                ? <Bi th={summary.vatLabel.th} en={summary.vatLabel.en} />
+                : <Bi th={`ภาษีมูลค่าเพิ่ม ${vatRate}%`} en="VAT" />}
               <span className="v">{fmtPaperNum(summary.vat)}</span>
             </div>
           </>
