@@ -1,35 +1,22 @@
 # HANDOFF → session ถัดไป (เขียน 2026-07-26 เย็น)
 
 ## สถานะสั้น ๆ
-- **main = `d6cce40`** (push แล้ว) · prod ยังเป็น **v1.23.0**
-- **O10 + O14 เสร็จปิดสนิท** · **O2b เขียนเสร็จแต่ยังไม่ commit** · **O11 ตันรอไฟล์จาก Ham** · **O11-alt ยังไม่เริ่ม (สเปกพร้อม)**
-- 7-day quota แตะ 94% ตอนหยุด → เลยพัก รอ reset (~2026-07-28 16:00 GMT+7)
+- **main = `1706d72`** (push แล้ว, tree สะอาด) · prod ยังเป็น **v1.23.0**
+- **O10 · O14 · O2b เสร็จปิดสนิททั้งหมด** · **O11 ตันรอไฟล์จาก Ham** · **O11-alt ยังไม่เริ่ม (สเปกพร้อม)**
+- 7-day quota แตะ 94% ตอนหยุด → พัก รอ reset (~2026-07-28 16:00 GMT+7)
+- **ไม่มีงานค้างกลางทาง** — เปิด session ใหม่แล้วเริ่มที่ "เหลือทำ" ด้านล่างได้เลย
 
-## ⚠️ ทำต่อทันทีเมื่อเปิด session ใหม่ — O2b ค้างอยู่กลางทาง
-โค้ด O2b **อยู่บน disk ยังไม่ commit**. ไฟล์ที่แก้:
+## คำสั่งรัน gate (จำกับดักไว้)
 ```
-M backend/src/Accounting.Application/Sales/BillingNoteDtos.cs
-M backend/src/Accounting.Infrastructure/Sales/BillingNoteService.cs
-M frontend/components/forms/BillingNoteForm.tsx
-M frontend/messages/en.json
-M frontend/messages/th.json
-?? backend/tests/Accounting.Api.Tests/Sales/BillingNoteGenerateLinesO2bTests.cs   ← ไฟล์ใหม่ ต้อง git add ชื่อตรง ๆ
+export TEAS_TEST_PG="Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true"
+export TEAS_REPO_ROOT="Y:/ClaudePlayground/TEAS-Project"
+dotnet test "Y:/ClaudePlayground/TEAS-Project/backend/tests/Accounting.Api.Tests" --nologo
 ```
-**Gate ที่ผ่านแล้ว:** `dotnet build` 0 error · billing-note tests **9/9** · Fable รีวิว diff ครบแล้ว
-**Gate ที่ยังค้าง:** full Api suite (รันค้างตอนปิด ผลไม่ทันออก) · `tsc` · `next build`
+- **ใช้ absolute path เสมอ** — Bash tool จำ cwd ข้ามคำสั่ง วันนี้เสียเวลา 1 รอบเพราะ cwd ค้างที่ `frontend/`
+- **`tsc` / `next build` รันทีละตัว ห้ามพร้อม `dotnet test`** — ชนกันทำ next build ตายด้วย `STATUS_DLL_INIT_FAILED` / worker EPERM มาแล้ว 2 ครั้ง
+- baseline ปัจจุบัน (`1706d72`): **979 passed / 0 failed / 9 skipped**
 
-ขั้นตอนกลับมาทำ:
-1. รัน full suite — **ต้อง `cd` ให้ถูกก่อน** (Bash tool จำ cwd ข้ามคำสั่ง; รอบนี้เคยพังเพราะ cwd ค้างที่ `frontend/`) ใช้ absolute path:
-   ```
-   export TEAS_TEST_PG="Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true"
-   export TEAS_REPO_ROOT="Y:/ClaudePlayground/TEAS-Project"
-   dotnet test "Y:/ClaudePlayground/TEAS-Project/backend/tests/Accounting.Api.Tests" --nologo
-   ```
-   baseline ที่ต้องเทียบ: **973 passed / 0 failed / 9 skipped** (จาก `d6cce40`) + เทส O2b ที่เพิ่มมา
-2. `tsc` แล้ว `next build` — **รันทีละตัว ห้ามพร้อม dotnet test** (รันชนกันทำ next build ตายด้วย `STATUS_DLL_INIT_FAILED` / worker EPERM มาแล้ว 2 ครั้ง)
-3. เขียว → commit + push
-
-## O2b ทำอะไรไปแล้ว (ไม่ต้องออกแบบใหม่)
+## O2b ทำอะไรไป (commit `1706d72`)
 สเปก `specs/billing-note-generate-lines-o2b.md` — Ham เลือก option (1): ผูกใบกำกับแล้ว generate บรรทัดให้ manual ทับได้
 - กฎ generate: `TaxInvoiceIds` ไม่ว่าง **และ** `Lines` ว่าง → สร้าง 1 บรรทัด/ใบกำกับ (document granularity)
 - **ยอดก๊อป verbatim จาก header ใบกำกับ** (`SubtotalAmount`/`TaxAmount`/`TotalAmount`) ห้ามส่งผ่าน path คำนวณ tax code — ยอดใบกำกับรวม VAT แล้ว คำนวณซ้ำ = VAT ซ้อน VAT
@@ -47,14 +34,14 @@ M frontend/messages/th.json
 | `93d5ee4` | **O10-B** reason column + migration + FE + สลิป → **O10 ปิดครบ** |
 | `4d71841` | **O11-D0** dump พิกัด template + พบว่า ส่วนที่ 2 ไม่มีในไฟล์ |
 | `d6cce40` | **O14** reopen งวดรายเดือน (backend+FE) → co6 ที่แช่แข็งถึง 2027 แก้ได้แล้ว |
+| `1706d72` | **O2b** ผูกใบกำกับแล้ว generate บรรทัดใบวางบิล (backend+FE) |
 
-## ยังไม่ได้ deploy — 4 commit ค้างหลัง tag `v1.23.0`
-`d877286` (O4/O2a/G5) · `e62102f` · `93d5ee4` · `d6cce40`
+## ยังไม่ได้ deploy — 5 commit ค้างหลัง tag `v1.23.0`
+`d877286` (O4/O2a/G5) · `e62102f` (O10-A) · `93d5ee4` (O10-B) · `d6cce40` (O14) · `1706d72` (O2b)
 **release นี้มีทั้ง SqlScripts seed 630 และ EF migration `20260726060403` → backup prod DB บังคับ**
 
 ## เหลือทำ
-1. **O2b** — จบ gate + commit (ดูข้างบน)
-2. **O11-alt** — สเปกพร้อม `specs/sso-schedule-onscreen-o11alt.md` ยังไม่เริ่ม
+1. **O11-alt** — สเปกพร้อม `specs/sso-schedule-onscreen-o11alt.md` ยังไม่เริ่ม
    Ham สั่ง: O11 ไม่ต้องกรอก PDF แล้ว ให้**แสดงข้อมูลบนจอให้ user ไปกรอกเอง**
    ของดี: `SsoMonthlyModel.Lines` มีข้อมูลครบและถูกอยู่แล้ว (กรองเฉพาะผู้ประกันตน, ค่าจ้าง = ยอดจ่ายจริง prorated ตาม O8) → **ไม่ต้องคำนวณอะไรใหม่** แค่ project + endpoint + ตาราง + print CSS
    และมี `BuildMonthlyFileAsync` = ไฟล์ upload e-service อยู่แล้ว ให้โผล่เป็นปุ่มด้วย
