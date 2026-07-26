@@ -5,9 +5,10 @@ import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
 import { ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { ConfirmActionDialog } from '@/components/ui/ConfirmActionDialog';
 import { PermissionGate } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
-import { useYearStatus, useClosePeriod, useCloseYear, useReopenYear, useMePermissions } from '@/lib/queries';
+import { useYearStatus, useClosePeriod, useReopenPeriod, useCloseYear, useReopenYear, useMePermissions } from '@/lib/queries';
 import { errorToToast } from '@/lib/api/errors';
 import { formatTHB } from '@/lib/utils';
 
@@ -35,10 +36,12 @@ export default function PeriodClosePage() {
   // fan-out (GET /periods/{y}/{m}/status had no closedAt at all).
   const status = useYearStatus(year);
   const closePeriod = useClosePeriod();
+  const reopenPeriod = useReopenPeriod();
   const closeYear = useCloseYear();
   const reopenYear = useReopenYear();
 
   const [busyMonth, setBusyMonth] = useState<number | null>(null);
+  const [reopenMonth, setReopenMonth] = useState<{ year: number; month: number } | null>(null);
   const [yearNotes, setYearNotes] = useState('');
   const [yearActionBusy, setYearActionBusy] = useState(false);
 
@@ -63,6 +66,21 @@ export default function PeriodClosePage() {
     }
   }
 
+  async function handleReopenMonth() {
+    if (!reopenMonth) return;
+    const target = reopenMonth;
+    const label = monthFull(locale, target.month);
+    setBusyMonth(target.month);
+    try {
+      await reopenPeriod.mutateAsync(target);
+      toast.success(t('reopenSuccess', { month: label }));
+      setReopenMonth(null);
+    } catch (e) {
+      toast.error(errorToToast(e));
+    } finally {
+      setBusyMonth(null);
+    }
+  }
   async function handleCloseYear() {
     const ok = await confirm({
       title: t('closeYearConfirmTitle', { year }),
@@ -232,6 +250,18 @@ export default function PeriodClosePage() {
                         </button>
                       </PermissionGate>
                     )}
+                    {!open && (
+                      <PermissionGate scope={MONTH_PERM}>
+                        <button
+                          className="btn btn-outline btn-warning btn-xs"
+                          disabled={busyMonth === p.month}
+                          onClick={() => setReopenMonth({ year: p.year, month: p.month })}
+                        >
+                          {busyMonth === p.month && <span className="loading loading-spinner loading-xs" />}
+                          {t('reopen')}
+                        </button>
+                      </PermissionGate>
+                    )}
                   </td>
                 </tr>
               );
@@ -239,6 +269,19 @@ export default function PeriodClosePage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmActionDialog
+        open={reopenMonth !== null}
+        busy={reopenPeriod.isPending}
+        title={t('reopenConfirmTitle', {
+          month: reopenMonth ? monthFull(locale, reopenMonth.month) : '',
+          year: reopenMonth?.year ?? '',
+        })}
+        warning={t('reopenConfirmWarning')}
+        confirmLabel={t('reopen')}
+        onClose={() => setReopenMonth(null)}
+        onConfirm={handleReopenMonth}
+      />
     </>
   );
 }

@@ -1,4 +1,5 @@
 using Accounting.Application.Abstractions;
+using Accounting.Application.Audit;
 using Accounting.Application.Ledger;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Ledger;
@@ -13,10 +14,12 @@ public sealed class PeriodCloseService : IPeriodCloseService
     private readonly AccountingDbContext _db;
     private readonly ITenantContext      _tenant;
     private readonly IClock              _clock;
+    private readonly IActivityRecorder   _activity;
 
-    public PeriodCloseService(AccountingDbContext db, ITenantContext tenant, IClock clock)
+    public PeriodCloseService(
+        AccountingDbContext db, ITenantContext tenant, IClock clock, IActivityRecorder activity)
     {
-        _db = db; _tenant = tenant; _clock = clock;
+        _db = db; _tenant = tenant; _clock = clock; _activity = activity;
     }
 
     public async Task<bool> IsOpenAsync(int year, int month, CancellationToken ct)
@@ -115,5 +118,47 @@ public sealed class PeriodCloseService : IPeriodCloseService
         await tx.CommitAsync(ct);
 
         return new PeriodCloseResult(year, month, now);
+    }
+
+    public async Task ReopenAsync(int year, int month, string? reason, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var periodStart = new DateOnly(year, month, 1);
+        var periodEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+        var fiscalYearClosed = await _db.FiscalYearCloses.AsNoTracking()
+            .AnyAsync(x => x.ReversedAt == null
+                           && x.FiscalStartDate <= periodStart
+                           && x.FiscalEndDate >= periodEnd, ct);
+        if (fiscalYearClosed)
+            throw new DomainException("period.year_closed",
+                $"Period {year}-{month:D2} is inside a closed fiscal year. Reopen the fiscal year first.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        var periodId = await _db.AccountingPeriods.AsNoTracking()
+            .Where(p => p.Year == year && p.Month == (short)month && p.Status == PeriodStatus.Closed)
+            .Select(p => (long?)p.PeriodId)
+            .FirstOrDefaultAsync(ct);
+
+        var claimed = await _db.AccountingPeriods
+            .Where(p => p.Year == year && p.Month == (short)month && p.Status == PeriodStatus.Closed)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.Status, PeriodStatus.Open)
+                .SetProperty(p => p.ClosedAt, (DateTimeOffset?)null)
+                .SetProperty(p => p.ClosedBy, (long?)null)
+                .SetProperty(p => p.CloseNotes, (string?)null), ct);
+        if (claimed == 0 || periodId is null)
+            throw new DomainException("period.not_closed",
+                $"Period {year}-{month:D2} is not closed.");
+
+        // Monthly close posts no journal entry, so monthly reopen has nothing to reverse.
+        _activity.Record(
+            "AccountingPeriod", periodId.Value, $"{year}-{month:D2}", _tenant.CompanyId,
+            "Reopened", "Closed", "Open", reason, "gl");
+
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 }

@@ -12,4 +12,7 @@ public interface IPeriodCloseService
 
     /// <summary>Close the period. Throws if any draft fiscal documents still exist in this month.</summary>
     Task<PeriodCloseResult> CloseAsync(int year, int month, string? notes, CancellationToken ct);
+
+    /// <summary>Reopen a closed period. Throws if its fiscal year is still closed.</summary>
+    Task ReopenAsync(int year, int month, string? reason, CancellationToken ct);
 }

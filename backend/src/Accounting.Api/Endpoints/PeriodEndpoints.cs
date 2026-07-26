@@ -17,6 +17,16 @@ public static class PeriodEndpoints
                 Results.Ok(await svc.CloseAsync(year, month, body?.Notes, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Gl.PeriodClose);
 
+        group.MapPost("/{year:int}/{month:int}/reopen", async (
+            int year, int month,
+            [FromBody] ReopenPeriodRequest? body,
+            IPeriodCloseService svc, CancellationToken ct) =>
+            {
+                await svc.ReopenAsync(year, month, body?.Reason, ct);
+                return Results.NoContent();
+            })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Gl.PeriodClose);
+
         // Sprint 13k Plan 2 (RBAC Cartesian audit) — was reachable WITHOUT auth, so an
         // unauthenticated caller hit IsOpenAsync with no tenant context (company_id) →
         // cross-tenant period-status leak. Period status is a benign read needed by
@@ -55,3 +65,4 @@ public static class PeriodEndpoints
 }
 
 public sealed record ClosePeriodRequest(string? Notes);
+public sealed record ReopenPeriodRequest(string? Reason);

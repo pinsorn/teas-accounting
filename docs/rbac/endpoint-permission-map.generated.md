@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 287 |
+| Perm | 288 |
 | Assertion | 12 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **348** |
+| **TOTAL** | **349** |
 
 ## Routes
 
@@ -217,6 +217,7 @@
 | POST | `/periods/{year:int}/reopen-year` | Perm | gl.year.close |
 | GET | `/periods/{year:int}/year-status` | AuthnOnly | — |
 | POST | `/periods/{year:int}/{month:int}/close` | Perm | gl.period.close |
+| POST | `/periods/{year:int}/{month:int}/reopen` | Perm | gl.period.close |
 | GET | `/periods/{year:int}/{month:int}/status` | AuthnOnly | — |
 | GET | `/products/` | Perm | master.product.read |
 | POST | `/products/` | Perm | master.product.manage |

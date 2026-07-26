@@ -12,6 +12,9 @@
 import { currentLocale } from './validation';
 
 const TH: Record<string, string> = {
+  // period.*
+  'period.year_closed': 'ปีบัญชีนี้ปิดแล้ว กรุณาเปิดปีบัญชีก่อน แล้วจึงเปิดงวดนี้ใหม่',
+  'period.not_closed': 'งวดบัญชีนี้ไม่ได้อยู่ในสถานะปิด',
   // WP5 (specs/fix-swarm-findings-all.md, appr01 LOW) — DomainExceptionMiddleware's generic
   // catch-all (unexpected exceptions, e.g. the PO-approve 500 appr01 hit) always emits CODE
   // "internal_error" with an English `detail` ("An unexpected error occurred."); without an

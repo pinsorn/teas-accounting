@@ -1368,6 +1368,14 @@ export function useClosePeriod() {
   });
 }
 // Cycle A #7 follow-up — year-end closing (#5) mutations, both gl.year.close.
+export function useReopenPeriod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ year, month }: { year: number; month: number }) =>
+      apiPost<void>(`periods/${year}/${month}/reopen`),
+    onSuccess: (_r, { year }) => qc.invalidateQueries({ queryKey: ['year-status', year] }),
+  });
+}
 export function useCloseYear() {
   const qc = useQueryClient();
   return useMutation({

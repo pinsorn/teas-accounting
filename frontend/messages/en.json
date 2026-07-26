@@ -974,7 +974,11 @@
     "reopenYear": "Reopen fiscal year",
     "reopenYearConfirmTitle": "Reopen fiscal year {year}?",
     "reopenYearConfirmDesc": "This posts a REVERSING journal entry undoing the year-end close for fiscal year {year}. Only do this to correct a mistake. Continue?",
-    "reopenYearSuccess": "Fiscal year {year} reopened"
+    "reopenYearSuccess": "Fiscal year {year} reopened",
+    "reopen": "Reopen period",
+    "reopenConfirmTitle": "Reopen {month} {year}?",
+    "reopenConfirmWarning": "Once this period is reopened, documents can be posted into it again. Only continue when correcting a period that was closed by mistake.",
+    "reopenSuccess": "{month} reopened"
   },
   "je": {
     "title": "Journal Entry Detail",
