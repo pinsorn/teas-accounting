@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 286 |
+| Perm | 287 |
 | Assertion | 12 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **347** |
+| **TOTAL** | **348** |
 
 ## Routes
 
@@ -205,6 +205,7 @@
 | DELETE | `/payroll/runs/{id:long}` | Perm | payroll.run.manage |
 | GET | `/payroll/runs/{id:long}` | Perm | payroll.run.manage |
 | POST | `/payroll/runs/{id:long}/approve` | Perm | payroll.run.post |
+| PUT | `/payroll/runs/{id:long}/deductions` | Perm | payroll.run.manage |
 | POST | `/payroll/runs/{id:long}/pay` | Perm | payroll.run.pay |
 | GET | `/payroll/runs/{id:long}/payslips/pdf` | Perm | payroll.run.manage |
 | GET | `/payroll/runs/{id:long}/payslips/{employeeId:long}/pdf` | Perm | payroll.run.manage |

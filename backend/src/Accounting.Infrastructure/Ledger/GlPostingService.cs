@@ -418,13 +418,10 @@ public sealed class GlPostingService : IGlPostingService
         var pitPay    = await ResolveAccountIdAsync(run.CompanyId, _accounts.PitPayableAccount, ct);
         var ssoPay    = await ResolveAccountIdAsync(run.CompanyId, _accounts.SsoPayableAccount, ct);
         var netPay    = await ResolveAccountIdAsync(run.CompanyId, _accounts.NetWagesPayableAccount, ct);
+        var otherPay  = await ResolveAccountIdAsync(run.CompanyId, _accounts.OtherDeductionsPayableAccount, ct);
 
         var gross = run.TotalGrossTaxable + run.TotalGrossNonTaxable;
 
-        // Dr salary expense (gross) + employer-SSO expense ; Cr PIT-payable (ภ.ง.ด.1) +
-        // SSO-payable (both halves) + net-wages-payable. Balances because
-        // net = gross − pit − ssoEmp (v1 has no other deductions; a nonzero ΣOther would
-        // unbalance here and BuildAndPostAsync rejects it until an other-deductions account is wired).
         var lines = new List<JournalLine>
         {
             new() { LineNo = 1, AccountId = salaryExp, DebitAmount = gross,                CreditAmount = 0m, Description = $"Salaries {run.DocNo}" },
@@ -436,7 +433,9 @@ public sealed class GlPostingService : IGlPostingService
             lines.Add(new JournalLine { LineNo = ln++, AccountId = pitPay, DebitAmount = 0m, CreditAmount = run.TotalPit, Description = $"PIT payable (ภ.ง.ด.1) {run.DocNo}" });
         if (run.TotalSsoEmployee + run.TotalSsoEmployer > 0m)
             lines.Add(new JournalLine { LineNo = ln++, AccountId = ssoPay, DebitAmount = 0m, CreditAmount = run.TotalSsoEmployee + run.TotalSsoEmployer, Description = $"SSO payable {run.DocNo}" });
-        lines.Add(new JournalLine { LineNo = ln, AccountId = netPay, DebitAmount = 0m, CreditAmount = run.TotalNet, Description = $"Net wages payable {run.DocNo}" });
+        lines.Add(new JournalLine { LineNo = ln++, AccountId = netPay, DebitAmount = 0m, CreditAmount = run.TotalNet, Description = $"Net wages payable {run.DocNo}" });
+        if (run.TotalOtherDeductions > 0m)
+            lines.Add(new JournalLine { LineNo = ln, AccountId = otherPay, DebitAmount = 0m, CreditAmount = run.TotalOtherDeductions, Description = $"Other deductions payable {run.DocNo}" });
 
         return await BuildAndPostAsync(
             run.CompanyId, run.BranchId, run.PayDate, $"PR {run.DocNo}", run.DocNo, lines, ct);

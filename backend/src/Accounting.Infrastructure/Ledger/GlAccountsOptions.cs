@@ -30,6 +30,7 @@ public sealed class GlAccountsOptions
     public string PitPayableAccount         { get; init; } = "2153"; // ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง (CR)
     public string SsoPayableAccount         { get; init; } = "2160"; // เงินสมทบประกันสังคมค้างนำส่ง (CR)
     public string NetWagesPayableAccount    { get; init; } = "2170"; // เงินเดือนค้างจ่าย (CR)
+    public string OtherDeductionsPayableAccount { get; init; } = "2180"; // เงินหักจากพนักงานค้างนำส่ง (CR)
 
     // ---- Fixed Assets (Cycle D, specs/fixed-assets.md §2). Disposal output VAT reuses the
     // existing OutputVatAccount (2151) above — no separate prop for that. ----

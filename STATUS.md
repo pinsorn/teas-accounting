@@ -1,6 +1,34 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **DONE (2026-07-26 ~12:5x): O10-A payroll deductions BACKEND — gate green 968/0/8, committed.**
+  Codex implemented, AGY cross-family reviewed (independently re-derived the Dr=Cr identity and found
+  2 real guard defects), Fable read every line and ran both full suites.
+  - Shipped: account **2180** wired + `Cr 2180` conditional journal line, draft-only deduction API
+    (`PUT /payroll/runs/{id}/deductions`), cap + unknown-employee guards at BOTH the DTO validator and
+    the service, 2180 seeded on both CoA paths, +5 tests.
+  - Also fixed a **pre-existing suite flake** (not caused by this work): `FreshJeYearAsync` called a
+    year "fresh" using journal entries alone, so a `CitYearSummary.OverrideNetProfit` or `CitAdjustment`
+    from another CIT test leaked in and failed 2 Pnd50 tests that pass in isolation. Now all three are
+    checked. See `troubles-wiki.md`.
+  - **Still open:** the deduction REASON is not persisted (no column) — `specs/payroll-deductions-o10.md`
+    §D3b. **O10-B** must add `Payslip.OtherDeductionsReason` + an EF migration before the FE column and
+    the payslip-PDF line can show it.
+  - **Release note: this ships a new SqlScripts seed (630) → prod DB backup is mandatory.**
+  - Next: **O10-B** (FE column + payslip PDF + reason column), then **O11** — whose spec now carries a
+    new blocking **D0**: the สปส.1-10 template is a FLAT pdf with no AcroForm widgets, so page-2 box
+    coordinates cannot be read programmatically and must be measured from a render by a vision worker
+    (AGY or Fable) before any implementer starts. Then O2b (needs a spec), then O14.
+- ~~IN FLIGHT (2026-07-26 ~11:45): O10-A payroll deductions backend → Codex.~~
+  Spec `specs/payroll-deductions-o10.md` corrected by Fable first: counterpart account pinned to
+  **2180** (`เงินหักจากพนักงานค้างนำส่ง`, LIABILITY/CR), **both** CoA seeding paths required
+  (new `630_seed_payroll_other_deductions_account.sql` + `MasterDataServices.DefaultChartOfAccounts`
+  — missing the 2nd = every newly-created company 500s on payroll post), Dr=Cr invariant written as an
+  invariant not as field values, Ham's tax answer recorded (deduction hits NET only; fix an overstated
+  prior month by amending THAT month's ภ.ง.ด.1). O10-B (FE column + payslip PDF line) is a later dispatch.
+  Routed to Codex because the Claude 7-day quota is at 90% (≥85% = no new Claude workers).
+  **This release ships a new SqlScripts seed → prod DB backup is mandatory.**
+  Next after O10: **O11** (`specs/sps110-part2-o11.md`), then O2b (needs a spec), then O14.
 - **HANDOFF: อ่าน `HANDOFF-next-session.md` ก่อน** (เขียน 2026-07-26 ~11:5x ตอน context เต็ม) —
   13/14 ข้อจาก army ปิดแล้ว · prod = **v1.23.0** · เหลือ O10 + O11 ที่มีสเปกพร้อม implement
   (`specs/payroll-deductions-o10.md`, `specs/sps110-part2-o11.md`) + O2b ที่ Ham ตอบแล้วแต่ยังไม่มีสเปก

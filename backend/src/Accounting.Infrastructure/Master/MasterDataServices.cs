@@ -390,6 +390,7 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("2153", "ภ.ง.ด.1 หัก ณ ที่จ่ายค้างนำส่ง",  "PIT Payable (PND1)",        AccountType.Liability, NormalBalance.Credit),
         ("2160", "เงินสมทบประกันสังคมค้างนำส่ง",    "SSO Payable",               AccountType.Liability, NormalBalance.Credit),
         ("2170", "เงินเดือนค้างจ่าย",              "Net Wages Payable",         AccountType.Liability, NormalBalance.Credit),
+        ("2180", "เงินหักจากพนักงานค้างนำส่ง",      "Employee Deductions Payable", AccountType.Liability, NormalBalance.Credit),
         // Year-end closing (specs/year-end-closing.md D2) — retained earnings; zero-balance
         // until a year is closed, dropped by the balance sheet's zero-row filter until then.
         ("3300", "กำไรสะสม",                       "Retained Earnings",         AccountType.Equity,    NormalBalance.Credit),

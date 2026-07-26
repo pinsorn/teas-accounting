@@ -39,6 +39,17 @@ public static class PayrollEndpoints
             return Results.Created($"/payroll/runs/{await svc.CreateDraftAsync(req, ct)}", null);
         }).RequireAuthorization(p + Permissions.Payroll.RunManage);
 
+        g.MapPut("/{id:long}/deductions", async (long id,
+            [FromBody] UpdatePayrollDeductionsRequest req,
+            IValidator<UpdatePayrollDeductionsRequest> v, IPayrollRunService svc, CancellationToken ct) =>
+        {
+            req = req with { PayrollRunId = id };
+            var val = await v.ValidateAsync(req, ct);
+            if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
+            await svc.UpdateDeductionsAsync(id, req, ct);
+            return Results.NoContent();
+        }).RequireAuthorization(p + Permissions.Payroll.RunManage);
+
         g.MapPost("/{id:long}/approve", async (long id, IPayrollRunService svc, CancellationToken ct) =>
         {
             await svc.ApproveAsync(id, ct);

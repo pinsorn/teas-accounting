@@ -20,6 +20,23 @@ extraction directly, and `Sps110FormFiller`'s own doc comment says v1 fills ส�
    fills EVERY box of a form and writes the PDF to `docs\RD-Forms\_fills`, gated behind
    `TEAS_DIAG=1` (`[SkippableFact]`). Use that same harness to eyeball page-2 rects instead of
    inventing a measurement method — add a `Fill_every_box_sps110_part2` case to it.
+5. **The สปส.1-10 template is FLAT — there are no AcroForm widgets to read rects from**
+   (`RdAcroFormFiller.RenderFlat`'s own doc comment names this form as the flat case; every rect in
+   `sps110_boxes.json` is a hand-measured `x`/`yTop`/`w`/`h`). So page-2 coordinates **cannot be
+   extracted programmatically** — they have to be measured by looking at a render. That makes the
+   measurement step a VISION task, not something a text-only implementer can do, and it must happen
+   FIRST because everything else in this spec consumes those numbers. Note the ordering trap: fact 4's
+   "fill every box" recon only works once candidate rects exist, and page 2 has none — so step zero is
+   a calibration render, not a box fill.
+
+### D0 — measure page 2 first (blocking prerequisite, own dispatch)
+Render page 2 of `sps110_main.pdf` with a labelled coordinate grid overlaid (a ruled 10pt/50pt mesh in
+the same `yTop`-from-top convention the JSON uses), export it as an image, and have a vision-capable
+worker read off: the 5 column x-positions + widths, `row0`'s yTop, the row pitch, the page-2 header
+fields (employer name, `accountNoCells`, wage month/year, แผ่นที่ __ ของ __) and the subtotal line.
+Route: AGY (vision, separate quota pool) or Fable personally viewing the render — NOT a text-only
+implementer guessing. Output is a candidate rect table that D1 then encodes and the fact-4 recon fill
+verifies. Do not dispatch D1–D4 until D0's numbers exist.
 
 ## Design
 ### D1 — box map: add page-2 rects as a ROW TEMPLATE, not 50 hardcoded keys

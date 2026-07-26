@@ -112,8 +112,13 @@ public sealed class CitExpenseByAccountTests
             var y = 2500 + Random.Shared.Next(5000);
             var from = new DateOnly(y, 1, 1);
             var to = new DateOnly(y + 1, 1, 1);
-            if (!await db.JournalEntries.AsNoTracking()
-                    .AnyAsync(j => j.DocDate >= from && j.DocDate < to))
+            var hasJournalEntries = await db.JournalEntries.AsNoTracking()
+                .AnyAsync(j => j.DocDate >= from && j.DocDate < to);
+            var hasCitSummary = await db.CitYearSummaries.AsNoTracking()
+                .AnyAsync(s => s.FiscalYear == y);
+            var hasCitAdjustments = await db.CitAdjustments.AsNoTracking()
+                .AnyAsync(a => a.FiscalYear == y);
+            if (!hasJournalEntries && !hasCitSummary && !hasCitAdjustments)
                 return y;
         }
     }

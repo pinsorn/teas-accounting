@@ -9,6 +9,7 @@ using Accounting.Domain.Payroll;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +30,7 @@ public sealed class PayrollRunServiceTests
     private readonly PostgresFixture _fx;
     public PayrollRunServiceTests(PostgresFixture fx) => _fx = fx;
 
-    private ServiceProvider Provider()
+    private ServiceProvider Provider(int companyId = 1, int branchId = 1)
     {
         var cfg = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -48,7 +49,7 @@ public sealed class PayrollRunServiceTests
         s.AddSingleton<IConfiguration>(cfg);
         return s.AddInfrastructure(cfg)
             .AddSingleton<ITenantContext>(new StubTenant
-            { CompanyId = 1, BranchId = 1, UserId = 1, IsSuperAdmin = false })
+            { CompanyId = companyId, BranchId = branchId, UserId = 1, IsSuperAdmin = false })
             .BuildServiceProvider();
     }
 
@@ -57,6 +58,12 @@ public sealed class PayrollRunServiceTests
     // Distinct far-future YEAR per test — the shared fixture persists runs (unique per company+period).
     private static int RandYear() => 3000 + Random.Shared.Next(0, 6000);
     private static string Period(int year, int month) => $"{year:0000}{month:00}";
+
+    private static string PdfText(byte[] pdf)
+    {
+        using var document = PdfDocument.Open(pdf);
+        return string.Join("\f", document.GetPages().Select(p => p.Text));
+    }
 
     // §8 isolation: the shared teas_test DB accumulates posted runs across historical sessions, so a
     // bare RandYear() can collide with a prior run of the same (company, period) — duplicate create OR
@@ -98,9 +105,10 @@ public sealed class PayrollRunServiceTests
     {
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var companyId = s.ServiceProvider.GetRequiredService<ITenantContext>().CompanyId;
         var e = new Employee
         {
-            CompanyId = 1, EmployeeCode = "EMP-" + Sfx(),
+            CompanyId = companyId, EmployeeCode = "EMP-" + Sfx(),
             FirstNameTh = "ทดสอบ", LastNameTh = Sfx(), NationalId = Nid(),
             HireDate = hireDate ?? new DateOnly(2020, 1, 1), TerminationDate = terminationDate,
             BaseSalary = salary,
@@ -163,9 +171,247 @@ public sealed class PayrollRunServiceTests
 
         // GL JV balances (whatever the full employee set is).
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
-        var je = await db.JournalEntries.FirstAsync(j => j.JournalId == run.JournalId);
-        je.TotalDebit.Should().Be(je.TotalCredit);
+        var je = await db.JournalEntries.Include(j => j.Lines).FirstAsync(j => j.JournalId == run.JournalId);
+        Math.Round(je.Lines.Sum(l => l.DebitAmount), 2).Should()
+            .Be(Math.Round(je.Lines.Sum(l => l.CreditAmount), 2));
         je.TotalDebit.Should().BeGreaterThan(0m);
+        var otherAccount = await db.ChartOfAccounts.SingleAsync(a => a.AccountCode == "2180");
+        je.Lines.Should().NotContain(l => l.AccountId == otherAccount.AccountId,
+            "a zero deduction must not emit an empty credit line");
+    }
+
+    [SkippableFact]
+    public async Task Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 4);
+        var employeeId = await AddEmployee(sp, 50_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(year, 4, 28), null), default);
+        var before = (await payroll.GetAsync(runId, default))!;
+        var slipBefore = before.Payslips.Single(p => p.EmployeeId == employeeId);
+
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+        var pnd1Before = await pnd1.BuildPnd1MonthlyAsync(runId, default);
+        var ssoBefore = (await sso.BuildMonthlyFileAsync(runId, default)).Content;
+
+        await payroll.UpdateDeductionsAsync(runId,
+            new UpdatePayrollDeductionsRequest(
+                [new PayrollDeductionLine(employeeId, 500m, "เรียกคืนเงินจ่ายเกิน")]), default);
+        var after = (await payroll.GetAsync(runId, default))!;
+        var slipAfter = after.Payslips.Single(p => p.EmployeeId == employeeId);
+
+        slipAfter.NetPay.Should().Be(slipBefore.NetPay - 500m);
+        slipAfter.OtherDeductions.Should().Be(500m);
+        slipAfter.GrossTaxable.Should().Be(slipBefore.GrossTaxable);
+        slipAfter.PitWithheld.Should().Be(slipBefore.PitWithheld);
+        slipAfter.SsoEmployee.Should().Be(slipBefore.SsoEmployee);
+        after.TotalOtherDeductions.Should().Be(before.TotalOtherDeductions + 500m);
+        after.TotalNet.Should().Be(before.TotalNet - 500m);
+
+        PdfText(await pnd1.BuildPnd1MonthlyAsync(runId, default)).Should().Be(PdfText(pnd1Before),
+            "deductions must not change any rendered ภ.ง.ด.1 filing value");
+        (await sso.BuildMonthlyFileAsync(runId, default)).Content.Should().Equal(ssoBefore,
+            "deductions must not change สปส.1-10 output");
+
+        await payroll.ApproveAsync(runId, default);
+        await payroll.PostAsync(runId, default);
+        var posted = (await payroll.GetAsync(runId, default))!;
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .SingleAsync(j => j.JournalId == posted.JournalId);
+        var account2180 = await db.ChartOfAccounts.AsNoTracking().SingleAsync(a => a.AccountCode == "2180");
+        je.Lines.Should().ContainSingle(l => l.AccountId == account2180.AccountId)
+            .Which.CreditAmount.Should().Be(500m);
+        var debits = Math.Round(je.Lines.Sum(l => l.DebitAmount), 2);
+        var credits = Math.Round(je.Lines.Sum(l => l.CreditAmount), 2);
+        debits.Should().Be(credits,
+            "gross + employer SSO debits must exactly equal PIT + both SSO legs + net + deductions credits");
+
+        var pnd1aBefore = await pnd1.BuildPnd1aAnnualAsync(year, default);
+        var storedSlip = await db.Payslips.SingleAsync(p => p.PayrollRunId == runId && p.EmployeeId == employeeId);
+        var storedRun = await db.PayrollRuns.SingleAsync(r => r.PayrollRunId == runId);
+        storedSlip.OtherDeductions = 0m;
+        storedSlip.ComputeNet();
+        storedRun.RecalculateTotals();
+        await db.SaveChangesAsync();
+        PdfText(await pnd1.BuildPnd1aAnnualAsync(year, default)).Should().Be(PdfText(pnd1aBefore),
+            "deductions must not change any rendered ภ.ง.ด.1ก filing value");
+        storedSlip.OtherDeductions = 500m;
+        storedSlip.ComputeNet();
+        storedRun.RecalculateTotals();
+        await db.SaveChangesAsync();
+    }
+
+    [SkippableFact]
+    public async Task Deduction_validator_enforces_positive_prorated_cap_and_draft_only()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var hireDate = new DateOnly(year, 3, 16);
+        var employeeId = await AddEmployee(sp, 31_000m, hireDate: hireDate);
+
+        await using var s = sp.CreateAsyncScope();
+        var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 3), new DateOnly(year, 3, 28), null), default);
+        var slip = (await payroll.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId);
+        slip.GrossTaxable.Should().Be(16_000m, "the March cap must use 16/31 prorated gross");
+        var maximum = slip.GrossTaxable + slip.GrossNonTaxable - slip.PitWithheld - slip.SsoEmployee;
+        IValidator<UpdatePayrollDeductionsRequest> validator = new UpdatePayrollDeductionsValidator(payroll);
+
+        var zero = new UpdatePayrollDeductionsRequest(
+            [new PayrollDeductionLine(employeeId, 0m, "ทดสอบ")]) { PayrollRunId = runId };
+        (await validator.ValidateAsync(zero)).IsValid.Should().BeFalse();
+        var excessive = new UpdatePayrollDeductionsRequest(
+            [new PayrollDeductionLine(employeeId, maximum + 0.01m, "ทดสอบ")]) { PayrollRunId = runId };
+        var excessiveResult = await validator.ValidateAsync(excessive);
+        excessiveResult.IsValid.Should().BeFalse();
+        excessiveResult.Errors.Should().Contain(e => e.ErrorMessage.Contains("ต้องไม่เกินเงินได้สุทธิ"));
+        (await payroll.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId)
+            .NetPay.Should().Be(maximum, "boundary rejection must not persist a negative net pay");
+
+        var serviceExcessive = () => payroll.UpdateDeductionsAsync(runId, excessive, default);
+        (await serviceExcessive.Should().ThrowAsync<DomainException>()).Which.Code
+            .Should().Be("payroll.deduction_exceeds_net");
+        var unknown = new UpdatePayrollDeductionsRequest(
+            [new PayrollDeductionLine(long.MaxValue, 1m, "ทดสอบ")]) { PayrollRunId = runId };
+        var unknownWrite = () => payroll.UpdateDeductionsAsync(runId, unknown, default);
+        (await unknownWrite.Should().ThrowAsync<DomainException>()).Which.Code
+            .Should().Be("payroll.deduction_employee_not_found");
+
+        var exactMaximum = new UpdatePayrollDeductionsRequest(
+            [new PayrollDeductionLine(employeeId, maximum, "หักเต็มจำนวนสุทธิ")]) { PayrollRunId = runId };
+        (await validator.ValidateAsync(exactMaximum)).IsValid.Should().BeTrue();
+        await payroll.UpdateDeductionsAsync(runId, exactMaximum, default);
+        (await payroll.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId)
+            .NetPay.Should().Be(0m, "a deduction equal to the cap is legal");
+
+        await payroll.ApproveAsync(runId, default);
+        var approved = new UpdatePayrollDeductionsRequest(
+            [new PayrollDeductionLine(employeeId, 1m, "ทดสอบ")]) { PayrollRunId = runId };
+        (await validator.ValidateAsync(approved)).IsValid.Should().BeFalse();
+        var approvedWrite = () => payroll.UpdateDeductionsAsync(runId, approved, default);
+        (await approvedWrite.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("payroll.not_draft");
+        await payroll.PostAsync(runId, default);
+        var posted = (await payroll.GetAsync(runId, default))!;
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .SingleAsync(j => j.JournalId == posted.JournalId);
+        Math.Round(je.Lines.Sum(l => l.DebitAmount), 2).Should()
+            .Be(Math.Round(je.Lines.Sum(l => l.CreditAmount), 2));
+        (await validator.ValidateAsync(approved)).IsValid.Should().BeFalse();
+        var postedWrite = () => payroll.UpdateDeductionsAsync(runId, approved, default);
+        (await postedWrite.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("payroll.not_draft");
+    }
+
+    [SkippableFact]
+    public async Task Deduction_journal_balances_when_pit_or_sso_credit_line_is_omitted()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        async Task ExerciseAsync(decimal salary, bool ssoApplicable, string omittedAccountCode)
+        {
+            var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+            await using var sp = Provider(company.CompanyId, company.BranchId);
+            var employeeId = await AddEmployee(sp, salary, sso: ssoApplicable);
+            var year = await FreshYearAsync(sp);
+
+            await using var scope = sp.CreateAsyncScope();
+            var payroll = scope.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await payroll.CreateDraftAsync(
+                new CreatePayrollRunRequest(Period(year, 1), new DateOnly(year, 1, 28), null), default);
+            await payroll.UpdateDeductionsAsync(runId,
+                new UpdatePayrollDeductionsRequest(
+                    [new PayrollDeductionLine(employeeId, 100m, "ทดสอบสาขาเครดิตแบบมีเงื่อนไข")]), default);
+            await payroll.ApproveAsync(runId, default);
+            await payroll.PostAsync(runId, default);
+
+            var run = (await payroll.GetAsync(runId, default))!;
+            if (omittedAccountCode == "2153") run.TotalPit.Should().Be(0m);
+            if (omittedAccountCode == "2160")
+                (run.TotalSsoEmployee + run.TotalSsoEmployer).Should().Be(0m);
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var omittedAccountId = await db.ChartOfAccounts.AsNoTracking()
+                .Where(a => a.AccountCode == omittedAccountCode).Select(a => a.AccountId).SingleAsync();
+            var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+                .SingleAsync(j => j.JournalId == run.JournalId);
+            je.Lines.Should().NotContain(l => l.AccountId == omittedAccountId);
+            Math.Round(je.Lines.Sum(l => l.DebitAmount), 2).Should()
+                .Be(Math.Round(je.Lines.Sum(l => l.CreditAmount), 2));
+        }
+
+        await ExerciseAsync(10_000m, ssoApplicable: true, omittedAccountCode: "2153");
+        await ExerciseAsync(80_000m, ssoApplicable: false, omittedAccountCode: "2160");
+    }
+
+    [SkippableFact]
+    public async Task Multi_employee_deductions_roll_up_with_untouched_employees_and_balance()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        var employee1 = await AddEmployee(sp, 30_000m);
+        var employee2 = await AddEmployee(sp, 20_000m);
+        var employee3 = await AddEmployee(sp, 40_000m);
+        var year = await FreshYearAsync(sp);
+
+        await using var scope = sp.CreateAsyncScope();
+        var payroll = scope.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 2), new DateOnly(year, 2, 28), null), default);
+        var before = (await payroll.GetAsync(runId, default))!;
+        await payroll.UpdateDeductionsAsync(runId,
+            new UpdatePayrollDeductionsRequest(
+            [
+                new PayrollDeductionLine(employee1, 100m, "หักรายการหนึ่ง"),
+                new PayrollDeductionLine(employee3, 250m, "หักรายการสอง"),
+            ]), default);
+        var draft = (await payroll.GetAsync(runId, default))!;
+        draft.TotalOtherDeductions.Should().Be(350m);
+        draft.TotalNet.Should().Be(before.TotalNet - 350m);
+        draft.Payslips.Single(p => p.EmployeeId == employee1).OtherDeductions.Should().Be(100m);
+        draft.Payslips.Single(p => p.EmployeeId == employee2).OtherDeductions.Should().Be(0m);
+        draft.Payslips.Single(p => p.EmployeeId == employee3).OtherDeductions.Should().Be(250m);
+
+        await payroll.ApproveAsync(runId, default);
+        await payroll.PostAsync(runId, default);
+        var posted = (await payroll.GetAsync(runId, default))!;
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .SingleAsync(j => j.JournalId == posted.JournalId);
+        Math.Round(je.Lines.Sum(l => l.DebitAmount), 2).Should()
+            .Be(Math.Round(je.Lines.Sum(l => l.CreditAmount), 2));
+    }
+
+    [SkippableFact]
+    public async Task Account_2180_exists_for_seeded_and_freshly_created_companies()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using (var seeded = Provider())
+        await using (var s = seeded.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            (await db.ChartOfAccounts.AsNoTracking().SingleAsync(a => a.AccountCode == "2180"))
+                .AccountNameTh.Should().Be("เงินหักจากพนักงานค้างนำส่ง");
+        }
+
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var fresh = TestCompanyFactory.BuildProvider(
+            _fx.ConnectionString, company.CompanyId, company.BranchId);
+        await using var freshScope = fresh.CreateAsyncScope();
+        var freshDb = freshScope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var account = await freshDb.ChartOfAccounts.AsNoTracking().SingleAsync(a => a.AccountCode == "2180");
+        account.AccountNameEn.Should().Be("Employee Deductions Payable");
+        account.AccountType.Should().Be(AccountType.Liability);
+        account.NormalBalance.Should().Be(NormalBalance.Credit);
     }
 
     [SkippableFact]

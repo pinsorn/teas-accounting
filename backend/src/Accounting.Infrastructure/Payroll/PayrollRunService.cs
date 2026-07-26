@@ -149,6 +149,45 @@ public sealed class PayrollRunService(
         return run.PayrollRunId;
     }
 
+    public async Task UpdateDeductionsAsync(
+        long id, UpdatePayrollDeductionsRequest req, CancellationToken ct)
+    {
+        var run = await LoadAsync(id, ct);
+        if (run.Status != DocumentStatus.Draft)
+            throw new DomainException("payroll.not_draft", "Only a draft run can be edited.");
+
+        foreach (var line in req.Deductions)
+        {
+            var slip = run.Payslips.SingleOrDefault(p => p.EmployeeId == line.EmployeeId)
+                ?? throw new DomainException("payroll.deduction_employee_not_found",
+                    $"ไม่พบพนักงานรหัส {line.EmployeeId} ในรายการเงินเดือนนี้");
+            var maximum = slip.GrossTaxable + slip.GrossNonTaxable - slip.PitWithheld - slip.SsoEmployee;
+            if (line.Amount > maximum)
+                throw new DomainException("payroll.deduction_exceeds_net",
+                    $"จำนวนเงินหักของพนักงาน {slip.EmployeeCode} ต้องไม่เกินเงินได้สุทธิหลังภาษีและประกันสังคม {maximum:N2} บาท");
+        }
+
+        foreach (var slip in run.Payslips)
+        {
+            slip.OtherDeductions = 0m;
+            slip.ComputeNet();
+        }
+        foreach (var line in req.Deductions)
+        {
+            var slip = run.Payslips.SingleOrDefault(p => p.EmployeeId == line.EmployeeId)
+                ?? throw new DomainException("payroll.deduction_employee_not_found",
+                    $"ไม่พบพนักงานรหัส {line.EmployeeId} ในรายการเงินเดือนนี้");
+            slip.OtherDeductions = line.Amount;
+            slip.ComputeNet();
+            activity.Record(EntityType, run.PayrollRunId, run.DocNo, run.CompanyId,
+                "DeductionUpdated", fromStatus: "Draft", toStatus: "Draft",
+                note: $"employee:{line.EmployeeId};reason:{line.Reason}", module: Module);
+        }
+
+        run.RecalculateTotals();
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task ApproveAsync(long id, CancellationToken ct)
     {
         var run = await LoadAsync(id, ct);

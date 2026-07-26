@@ -764,3 +764,21 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
   ต้องกวาด `UtcNow` ของเทสประเภทนั้นด้วย ไม่งั้นจะระเบิดตอนกลางคืนแบบเดียวกัน
 - **บทเรียนซ้อน:** ต้นเหตุที่มันกลับมาเป็น `UtcNow` คือคำสั่ง revert แบบเหวี่ยง ("revert ทั้ง 7 ไฟล์")
   ที่ทับของที่เคยแก้ถูกไว้แล้ว → revert แบบกวาดต้องดูก่อนว่าไฟล์นั้นมีของดีที่จะหายไปด้วยหรือเปล่า
+
+## `dotnet build` fails silently with 0 warnings and 0 errors in the Windows sandbox
+- **Symptom:** solution or project build exits 1 after a few seconds and prints only `Build FAILED. 0 Warning(s), 0 Error(s)`; diagnostic output stops in an MSBuild child graph task.
+- **Root cause:** parallel MSBuild project/restore graph execution cannot start reliably in the restricted Windows worker, so the parent task reports failure without a compiler diagnostic.
+- **Fix:** serialize the existing restored graph: `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false`. This builds every backend and test project and surfaces real compiler errors normally.
+- **Seen:** 2026-07-26, O10-A payroll deductions; the serialized build completed with 0 warnings and 0 errors.
+
+## Re-rendering the same official RD PDF is not byte-deterministic
+- **Symptom:** two ภ.ง.ด.1/1ก PDFs built from unchanged filing values differ at binary offsets, even after normalizing creation timestamps and trailer document IDs.
+- **Root cause:** the existing PDFsharp-based official-form render/flatten pipeline rewrites compressed PDF objects nondeterministically; this is renderer noise, not a filing-data difference.
+- **Fix:** for regression tests unrelated to PDF serialization, compare extracted page text exactly (page-for-page) and keep literal byte equality for deterministic formats such as the สปส.1-10 fixed-width upload file. Making PDF bytes reproducible requires a separately-scoped form-renderer change.
+- **Seen:** 2026-07-26, O10-A D2 filing-isolation regression.
+
+## PND50 tests intermittently fail from stale CIT data but pass in isolation
+- **Symptom:** PND50 tests fail with `pnd50.override_breaks_ladder`, or the C/D schedule test expects entertainment disallowance 2,500 but reads an accumulated 10,000; isolated runs usually pass.
+- **Root cause:** `CitExpenseByAccountTests.FreshJeYearAsync` considered only journal entries when choosing a random year. It could reuse a year carrying a leftover or in-flight `CitYearSummary.OverrideNetProfit` or `CitAdjustment` written by another CIT test.
+- **Fix:** a fresh CIT test year must have no journal entries, `CitYearSummary`, or `CitAdjustment` for the same fiscal year. Keep the checks in `FreshJeYearAsync` so every caller benefits; do not delete shared fixture rows as a workaround.
+- **Seen:** 2026-07-26, O10-A full-suite follow-up (964 passed / 2 failed / 8 skipped; both failures were this race).
