@@ -60,3 +60,16 @@
 - ลำดับที่เหลือหลัง Wave 2: Fable diff review → Codex money review → commit → release **ครั้งเดียว**
   (PR #99 สะสม O7 + Wave 1 + O8 ไว้แล้ว) → deploy (FE + API เพราะ O8/O13 แตะ backend) → verify สด
   (proration บน co7 ที่งวดเปิด: จ้างกลางเดือน/ออกกลางเดือน เทียบ hand-calc 32,903.23 / 19,354.84)
+
+## 2026-07-26 ~05:0x — WAVE 5 ปล่อยผ่าน Codex (quota arbitrage)
+- 5h reset แล้ว (6%) แต่ **7-day ยัง 88%** → เกินเส้น 85% ที่ห้าม dispatch Claude worker ใหม่
+  → ตามกฎ quota-arbitrage ของ CLAUDE.md: **implementation ไป Codex (pool แยก) ไม่ใช่หยุดงาน**
+  (ผมหยุดผิดไปหนึ่งรอบก่อนจะนึกถึงข้อนี้ — จดไว้)
+- Codex ทำ 3 ข้อ FE ล้วน ไม่มี money invariant ไม่ต้องตัดสินใจเชิง product: **O2a** (โชว์ chip
+  ใบกำกับที่ผูกบนหน้า detail ของใบวางบิล — ข้อมูลมีอยู่แล้ว API ส่งมาแล้ว) · **G5** (ป้าย VAT บนหัว PV
+  ของบริษัท non-VAT เติมคำว่าเครดิตไม่ได้/รวมเป็นต้นทุน — ป้ายเท่านั้น ตัวเลขไม่แตะ) · **O4** (หน้าแก้
+  ใบเบิกค่าใช้จ่ายที่ยัง Draft/Rejected — hook `useUpdateExpenseClaim` มีอยู่แล้วแต่ไม่มีใครเรียก)
+- **O5 ให้ Codex สืบก่อนอย่างเดียว ห้ามสร้าง**: ภ.พ.36 มี template asset ฝังในโปรเจกต์เหมือน
+  ภ.ง.ด.54/สปส.1-10 หรือเปล่า → ถ้ามีก็เป็นงานต่อสาย ถ้าไม่มีต้องทำ template + box mapping (งานใหญ่กว่ามาก)
+  ค่อยตัดสินจากคำตอบ
+- Gate ของรอบนี้: tsc + next build (Codex รันเอง) · **dotnet suite ผมรันเอง** ตามกฎใหม่ที่ fold ไว้
