@@ -45,10 +45,10 @@ dotnet test "Y:/ClaudePlayground/TEAS-Project/backend/tests/Accounting.Api.Tests
    Ham สั่ง: O11 ไม่ต้องกรอก PDF แล้ว ให้**แสดงข้อมูลบนจอให้ user ไปกรอกเอง**
    ของดี: `SsoMonthlyModel.Lines` มีข้อมูลครบและถูกอยู่แล้ว (กรองเฉพาะผู้ประกันตน, ค่าจ้าง = ยอดจ่ายจริง prorated ตาม O8) → **ไม่ต้องคำนวณอะไรใหม่** แค่ project + endpoint + ตาราง + print CSS
    และมี `BuildMonthlyFileAsync` = ไฟล์ upload e-service อยู่แล้ว ให้โผล่เป็นปุ่มด้วย
-3. **O11 ตัวจริง** — ⛔ รอ Ham เอาไฟล์ ส่วนที่ 2 PDF มาวางที่ `backend/src/Accounting.Infrastructure/Pdf/Templates/`
+2. **O11 ตัวจริง** — ⛔ รอ Ham เอาไฟล์ ส่วนที่ 2 PDF มาวางที่ `backend/src/Accounting.Infrastructure/Pdf/Templates/`
    `sps110_main.pdf` 4 หน้าไม่มี ส่วนที่ 2 เลย: p1 = `สปส.1-10 ส่วนที่ 1` · p2 = คำชี้แจง · **p3/p4 = `สปส.1-10/1` คนละแบบฟอร์ม** (ยื่นรวมสาขา แถวเป็นรายสาขา)
    ของที่กู้ไว้ใช้ได้ตอนได้ไฟล์: สูตรแปลงพิกัด **`yTop_json = 595.3 − Top_dump`, `x_json = Left_dump`** (A4 แนวนอน, verify กับ `wageMonth` ที่ JSON pin ไว้ 202.6 ↔ dump 392.4) และ `TaxFormFillDiagnostic.Dump_sps110_positioned_words` (`TEAS_DIAG=1`) ชี้ไปที่ไฟล์ใหม่ได้เลย
-4. **deploy** 4 commit ที่ค้าง (+ O2b ถ้า commit ทัน)
+3. **deploy** 5 commit ที่ค้าง
 
 ## บทเรียนรอบนี้ที่ยังไม่ได้ fold ที่ไหน
 - **Codex runtime ป่วยหนักทั้งวัน** — job ตายกลางทาง 5+ ครั้ง, และ 2 ครั้งไม่ได้เริ่มเลยเพราะ **job ที่ตายแล้วยังค้าง `status: running` + `pid` ที่ตายไปแล้วใน `~/.claude/plugins/data/codex-openai-codex/state/<proj>/jobs/<id>.json`** — `codex cancel` ล้างไม่ได้ (lookup คนละ index) ต้อง patch ไฟล์เอง แล้วค่อยยิงใหม่

@@ -1,6 +1,14 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **SESSION END 2026-07-26 — main `505743e`, tree clean, nothing mid-flight.
+  Read `HANDOFF-next-session.md` first.** Shipped today: **O10** (`e62102f` + `93d5ee4`),
+  **O14** monthly period reopen (`d6cce40`), **O2b** billing-note line generation (`1706d72`),
+  plus the O11 template finding (`4d71841`). Last gate: **979 passed / 0 failed / 9 skipped**.
+  Left: **O11-alt** (spec ready, not started), **O11** (blocked below), and a **deploy of the 5
+  commits sitting after tag `v1.23.0`** — that release carries SqlScripts seed 630 AND EF migration
+  `20260726060403`, so **a prod DB backup is mandatory**.
+  Paused at 7-day quota 94%; resets ~2026-07-28 16:00 GMT+7.
 - **⛔ O11 BLOCKED — needs a file from Ham (2026-07-26, commit `4d71841`).** `sps110_main.pdf` does not
   contain ส่วนที่ 2 at all. Measured page titles: p1 = `สปส.1-10 ส่วนที่ 1` (summary only, no employee
   rows), p2 = คำชี้แจง, **p3/p4 = `สปส.1-10/1`, a different form** (branch-consolidated return + its
@@ -54,7 +62,7 @@
   **This release ships a new SqlScripts seed → prod DB backup is mandatory.**
   Next after O10: **O11** (`specs/sps110-part2-o11.md`), then O2b (needs a spec), then O14.
 - **HANDOFF: อ่าน `HANDOFF-next-session.md` ก่อน** (เขียน 2026-07-26 ~11:5x ตอน context เต็ม) —
-  13/14 ข้อจาก army ปิดแล้ว · prod = **v1.23.0** · เหลือ O10 + O11 ที่มีสเปกพร้อม implement
+  (เก่า) 13/14 ข้อจาก army ปิดแล้ว · prod = **v1.23.0** · เหลือ O10 + O11 ที่มีสเปกพร้อม implement
   (`specs/payroll-deductions-o10.md`, `specs/sps110-part2-o11.md`) + O2b ที่ Ham ตอบแล้วแต่ยังไม่มีสเปก
   · O14 (reopen งวดรายเดือน) สเปกพร้อมแต่ยังไม่จัดลำดับ
 - **ARMY COMPLETE — all 11 never-tested areas driven live, VAT + non-VAT + vision.
