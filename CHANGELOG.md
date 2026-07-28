@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.24.0](https://github.com/pinsorn/teas-accounting/compare/v1.23.0...v1.24.0) (2026-07-28)
+
+
+### Features
+
+* **fe:** expense-claim edit for Draft/Rejected, billing-note back-link chips, non-VAT PV VAT label (Wave 5: O4 / O2a / G5) ([d877286](https://github.com/pinsorn/teas-accounting/commit/d877286dbd4a2d32680296cc4396cd5ecf9e54e2))
+* **gl:** reopen a closed monthly accounting period (O14) ([d6cce40](https://github.com/pinsorn/teas-accounting/commit/d6cce405a8779b341084064d96e7b43f6ad1b90f))
+* **payroll:** net-pay deductions with a GL counterpart account (O10-A, backend) ([e62102f](https://github.com/pinsorn/teas-accounting/commit/e62102f11dec186026288f33497817dfe85528d3))
+* **payroll:** persist and surface the deduction reason (O10-B) — O10 complete ([93d5ee4](https://github.com/pinsorn/teas-accounting/commit/93d5ee47855e6eeb4bf367c00d0ebd711dc28bdf))
+* **payroll:** show the สปส.1-10 ส่วนที่ 2 schedule on screen (O11-alt) ([bf87333](https://github.com/pinsorn/teas-accounting/commit/bf87333e61240bcce0a1b990dc9aad7c637648e7))
+* **sales:** linking tax invoices generates the billing-note lines (O2b) ([1706d72](https://github.com/pinsorn/teas-accounting/commit/1706d728f5a6d2cec01283b50b785ad649037b2b))
+
 ## [1.23.0](https://github.com/pinsorn/teas-accounting/compare/v1.22.12...v1.23.0) (2026-07-26)
 
 
