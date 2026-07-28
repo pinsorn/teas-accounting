@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.1](https://github.com/pinsorn/teas-accounting/compare/v1.24.0...v1.24.1) (2026-07-28)
+
+
+### Bug Fixes
+
+* **payroll:** seed 2180 per company so it survives RLS on prod ([48a220d](https://github.com/pinsorn/teas-accounting/commit/48a220dc9c736d0c4fd58de1c3df7560a309a9a5))
+
 ## [1.24.0](https://github.com/pinsorn/teas-accounting/compare/v1.23.0...v1.24.0) (2026-07-28)
 
 
