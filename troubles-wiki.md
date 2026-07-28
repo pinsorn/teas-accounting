@@ -794,3 +794,9 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
 - **Root cause:** tests that mint an id from a random draw collide more and more often as `teas_test` accumulates rows (it already carries hundreds of companies). Same family as the `FreshJeYearAsync` race documented above — a random pick with an insufficient uniqueness check.
 - **Fix:** before blaming a diff, re-run the single test; a standalone pass means collision, not regression. The durable fix is to reserve the id atomically (insert-and-retry, or a sequence) instead of drawing a random one and hoping.
 - **Seen:** 2026-07-26, O10-B full-suite run (966 passed / 2 failed / 8 skipped; neither failure was caused by the diff).
+
+## Thai text written through the API from PowerShell silently becomes `?`
+- **Symptom:** Thai fields created by a script land in the database as literal question marks (`???? ?????`). The API returned 200, nothing errored, and the damage only shows up later — e.g. an employee's name printing as `????` on ภ.ง.ด.1 and สปส.1-10.
+- **Root cause:** PowerShell's default output encoding degrades non-ASCII to `?` before the request leaves the client. The API stores exactly what it received; the application itself round-trips Thai correctly (co6's UI-created employees are intact at 3 bytes per character, co7's PowerShell-created ones are 1 byte per character).
+- **Fix:** create Thai data through the UI, or force UTF-8 on the client before calling the API. Verify immediately with `octet_length(col)` — a Thai string measuring one byte per character is corrupt. Appearance alone will not tell you: `?` looks like a deliberate placeholder.
+- **Seen:** 2026-07-26 (co7's three O8 test employees, discovered 2026-07-29 during v1.24.1 live verification). A subagent inspecting the same rows through the UI concluded "placeholder text, not a bug" — the byte length is what settles it.
