@@ -1,6 +1,25 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **v1.24.1 IS LIVE ON PROD (2026-07-28 ~20:1x).** Everything from the 2026-07-26 backlog shipped:
+  O10 payroll deductions, O14 monthly period reopen, O2b billing-note line generation, O11-alt
+  on-screen สปส.1-10 ส่วนที่ 2, plus O4/O2a/G5 which had been sitting undeployed since v1.23.0.
+  Gate before release: **983 passed / 0 failed / 9 skipped**; tsc + next build clean.
+  - Verified through the PUBLIC topology, not just localhost: `https://teas.kazaki-rio.com/login` 200,
+    `/payroll` and `/period-close` 307 (routes exist), and a **POST to the login API through the public
+    host returns 401** — so https → nginx-proxy-manager → Next → API round-trips on the new build.
+    Running binary reports `1.24.1.0`. Post-deploy probes: EF migration applied, the
+    `payroll.payslips.other_deductions_reason` column exists, SqlScripts 630 recorded, and account
+    **2180 seeded for 5 of 5 companies**; the three new routes answer 401, not 404.
+  - **v1.24.0 failed first and auto-rolled back cleanly** (no stuck downtime): SqlScripts/630 seeded
+    2180 with a bare cross-company `INSERT … FROM master.companies CROSS JOIN …`, which dies
+    `42501: new row violates row-level security policy` under prod's NOBYPASSRLS `teas` role. The
+    test suite cannot catch it — teas_test connects as a superuser and bypasses RLS. Fixed in
+    `48a220d` by mirroring `621_seed_fixed_asset_accounts.sql` (DO block pinning `app.company_id`
+    per company). **The spec caused this**: it told the implementer to copy `482`, which predates the
+    RLS lockdown. 482 is no longer a valid template for a G1 tenant table — 621 is.
+  - Backups taken before both attempts (`~/backups/teas-pre-v1.24.*` and
+    `backups/teas-20260728-192313.dump`). The failed binary is kept as `api/unpacked.broken-v1240`.
 - **SESSION END 2026-07-26 — main `505743e`, tree clean, nothing mid-flight.
   Read `HANDOFF-next-session.md` first.** Shipped today: **O10** (`e62102f` + `93d5ee4`),
   **O14** monthly period reopen (`d6cce40`), **O2b** billing-note line generation (`1706d72`),
