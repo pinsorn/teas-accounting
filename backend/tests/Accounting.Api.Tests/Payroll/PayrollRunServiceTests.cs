@@ -932,6 +932,83 @@ public sealed class PayrollRunServiceTests
         line.EmployeeContribution.Should().Be(548.39m);
     }
 
+    // ---- O11-alt — สปส.1-10 ส่วนที่ 2 on-screen schedule (specs/sso-schedule-onscreen-o11alt.md) ----
+    // SsoScheduleDto.FromModel is a pure PROJECTION of BuildMonthlyAsync's own model, so these tests
+    // pin the projection to the SAME model the ส่วนที่ 1 PDF/file already use — they can never disagree.
+
+    [SkippableFact]
+    public async Task Sso_schedule_dto_projects_the_same_lines_totals_and_count_as_the_run_summary()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = await FreshPeriodAsync(sp, 11);
+        var e50k   = await AddEmployee(sp, 50_000m);
+        var e10k   = await AddEmployee(sp, 10_000m);
+        var eNoSso = await AddEmployee(sp, 30_000m, sso: false);   // not insured — must be absent
+        var runId  = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var model = await s.ServiceProvider.GetRequiredService<ISsoFilingService>().BuildMonthlyAsync(runId, default);
+        var dto = SsoScheduleDto.FromModel(model);
+        var run = (await s.ServiceProvider.GetRequiredService<IPayrollRunService>().GetAsync(runId, default))!;
+
+        // §8 isolation: the shared teas_test DB pools EVERY active company-1 employee into this run
+        // (documented class invariant, see B8 above), so assert on THESE employees + run-level
+        // invariants, never on a fixed row count.
+        dto.EmployeeCount.Should().Be(model.EmployeeCount);
+        dto.TotalWage.Should().Be(model.TotalWage);
+        dto.TotalEmployeeContribution.Should().Be(model.TotalEmployeeContribution);
+        dto.TotalEmployerContribution.Should().Be(model.TotalEmployerContribution);
+
+        // A1 invariant — totals/count tie out EXACTLY to what ส่วนที่ 1 (the run summary) reports.
+        dto.TotalEmployeeContribution.Should().Be(run.TotalSsoEmployee);
+        dto.TotalEmployerContribution.Should().Be(run.TotalSsoEmployer);
+        dto.EmployeeCount.Should().Be(run.Payslips.Count(p => p.SsoEmployee > 0m));
+
+        foreach (var line in dto.Lines)
+        {
+            var slip = run.Payslips.Single(p => p.NationalId == line.NationalId);
+            line.Wage.Should().Be(slip.GrossTaxable);
+            line.EmployeeContribution.Should().Be(slip.SsoEmployee);
+            line.EmployerContribution.Should().Be(slip.SsoEmployer);
+        }
+        dto.Lines.Select(l => l.No).Should().BeEquivalentTo(Enumerable.Range(1, dto.Lines.Count));
+
+        var nid50k = run.Payslips.Single(p => p.EmployeeId == e50k).NationalId;
+        var nid10k = run.Payslips.Single(p => p.EmployeeId == e10k).NationalId;
+        var excludedNid = run.Payslips.Single(p => p.EmployeeId == eNoSso).NationalId;
+        dto.Lines.Should().ContainSingle(l => l.NationalId == nid50k)
+            .Which.EmployeeContribution.Should().Be(750m);
+        dto.Lines.Should().ContainSingle(l => l.NationalId == nid10k)
+            .Which.EmployeeContribution.Should().Be(500m);
+        dto.Lines.Should().NotContain(l => l.NationalId == excludedNid,
+            "SsoApplicable=false ⇒ zero contribution ⇒ absent from the schedule, same as ส่วนที่ 1");
+    }
+
+    [SkippableFact]
+    public async Task Sso_schedule_dto_shows_the_prorated_wage_for_a_mid_month_joiner_not_the_base_salary()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 7);
+        // Same fixture as B6 (20,000 base salary, hired the 15th of a 31-day month) — reused per the
+        // spec's instruction to tie this to O8 rather than invent a new proration golden.
+        var empId = await AddEmployee(sp, 20_000m, hireDate: new DateOnly(year, 7, 15));
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var model = await s.ServiceProvider.GetRequiredService<ISsoFilingService>().BuildMonthlyAsync(runId, default);
+        var dto = SsoScheduleDto.FromModel(model);
+        var slip = (await s.ServiceProvider.GetRequiredService<IPayrollRunService>().GetAsync(runId, default))!
+            .Payslips.Single(p => p.EmployeeId == empId);
+        var line = dto.Lines.Single(l => l.NationalId == slip.NationalId);
+
+        line.Wage.Should().Be(10_967.74m);     // B6's own prorated golden — NOT the 20,000 base salary
+        line.Wage.Should().NotBe(20_000m);
+        line.EmployeeContribution.Should().Be(548.39m);
+    }
+
     [SkippableFact]
     public async Task B7_prorates_using_the_real_month_length_28_29_and_30_days()
     {

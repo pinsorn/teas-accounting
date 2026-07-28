@@ -44,6 +44,31 @@ public sealed record PayrollRunDetail(
     string? Notes,
     IReadOnlyList<PayslipDto> Payslips);
 
+// O11-alt (specs/sso-schedule-onscreen-o11alt.md) — the official สปส.1-10 PDF template has no
+// ส่วนที่ 2 page, so this schedule is shown ON SCREEN for the user to transcribe onto the paper
+// form themselves. One row per SsoLine, 1-based for the paper form's ลำดับที่ column.
+public sealed record SsoScheduleLineDto(
+    int No, string SsoNumber, string NationalId, string Title, string FirstName, string LastName,
+    decimal Wage, decimal EmployeeContribution, decimal EmployerContribution);
+
+/// <summary>A pure PROJECTION of <see cref="SsoMonthlyModel"/> — no recomputation, so its totals/row
+/// count can never disagree with ส่วนที่ 1 (the PDF) or the batch upload file, all three built from the
+/// same <c>ISsoFilingService.BuildMonthlyAsync</c> model.</summary>
+public sealed record SsoScheduleDto(
+    string EmployerName, string? EmployerAccountNo, string BranchCode,
+    int PeriodMonth, int PeriodYearBE,
+    IReadOnlyList<SsoScheduleLineDto> Lines,
+    decimal TotalWage, decimal TotalEmployeeContribution, decimal TotalEmployerContribution,
+    int EmployeeCount)
+{
+    public static SsoScheduleDto FromModel(SsoMonthlyModel m) => new(
+        m.EmployerName, m.EmployerAccountNo, m.BranchCode, m.PeriodMonth, m.PeriodYearBE,
+        m.Lines.Select((l, i) => new SsoScheduleLineDto(
+            i + 1, l.SsoNumber, l.NationalId, l.Title, l.FirstName, l.LastName,
+            l.Wage, l.EmployeeContribution, l.EmployerContribution)).ToList(),
+        m.TotalWage, m.TotalEmployeeContribution, m.TotalEmployerContribution, m.EmployeeCount);
+}
+
 public interface IPayrollRunService
 {
     /// <summary>Build a DRAFT run + a payslip per employee active in the period. No doc number yet.</summary>

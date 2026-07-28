@@ -123,6 +123,16 @@ public static class PayrollEndpoints
                 Results.File(await svc.BuildMonthlyPdfAsync(id, ct), "application/pdf", $"sps1-10-{id}.pdf"))
             .RequireAuthorization(ctx => ctx.RequireAuthenticatedUser().RequireAssertion(CanFile));
 
+        // O11-alt (specs/sso-schedule-onscreen-o11alt.md) — สปส.1-10 ส่วนที่ 2 shown ON SCREEN: the
+        // official PDF template has no ส่วนที่ 2 page, so the user reads this off the screen and
+        // transcribes it onto the paper form (or, better, uses the batch file/e-Service above).
+        // Pure projection of BuildMonthlyAsync's own model — no second query, no recomputation.
+        // WP-H: same filing gate as pnd1/pdf and sso/pdf above.
+        g.MapGet("/{id:long}/sso-schedule",
+            async (long id, ISsoFilingService svc, CancellationToken ct) =>
+                Results.Ok(SsoScheduleDto.FromModel(await svc.BuildMonthlyAsync(id, ct))))
+            .RequireAuthorization(ctx => ctx.RequireAuthenticatedUser().RequireAssertion(CanFile));
+
         // P-D #3 — ภ.ง.ด.1ก (annual, ม.58(1)) — aggregates all posted runs in the CE tax year.
         // WP-H (B2-pr F3): same filing gate as pnd1/pdf above.
         app.MapGet("/payroll/pnd1a/pdf",

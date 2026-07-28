@@ -98,6 +98,47 @@ public sealed class PayrollFilingRbacTests
             $"role {outsider!.RoleCode} holds neither payroll.run.manage nor tax.filing.preview");
     }
 
+    // O11-alt (specs/sso-schedule-onscreen-o11alt.md) — the new sso-schedule endpoint reuses CanFile
+    // verbatim (no new permission code), so it must pass/fail exactly like sso/pdf and sso/file above.
+
+    [SkippableFact]
+    public async Task TaxOfficer_gets_past_the_gate_on_sso_schedule()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        await using var sp = _fx.BuildServiceProvider();
+        var (roles, _) = await RbacMatrixData.LoadAsync(sp);
+        var taxOfficer = roles.Should().ContainSingle(r => r.RoleCode == "TAX_OFFICER").Which;
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+
+        using var resp = await SendAsAsync(factory, taxOfficer, HttpMethod.Get,
+            "/payroll/runs/999999/sso-schedule");
+        ((int)resp.StatusCode).Should().NotBe(401).And.NotBe(403,
+            "O11-alt reuses the same CanFile gate as pnd1/pdf and sso/pdf");
+    }
+
+    [SkippableFact]
+    public async Task Role_with_neither_payroll_nor_filing_grant_gets_403_on_sso_schedule()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        await using var sp = _fx.BuildServiceProvider();
+        var (roles, _) = await RbacMatrixData.LoadAsync(sp);
+        var outsider = roles.FirstOrDefault(r => !r.IsSuperAdmin
+            && !r.Permissions.Contains(Permissions.Payroll.RunManage)
+            && !r.Permissions.Contains(Permissions.Tax.FilingPreview));
+        outsider.Should().NotBeNull(
+            "at least one non-super role must hold neither grant, else this test proves nothing");
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+
+        using var resp = await SendAsAsync(factory, outsider!, HttpMethod.Get,
+            "/payroll/runs/999999/sso-schedule");
+        resp.StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden,
+            $"role {outsider!.RoleCode} holds neither payroll.run.manage nor tax.filing.preview");
+    }
+
     [SkippableTheory]
     [InlineData("COMPANY_ADMIN")]
     [InlineData("CHIEF_ACCOUNTANT")]

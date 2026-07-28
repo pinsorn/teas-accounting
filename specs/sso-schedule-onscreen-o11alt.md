@@ -80,3 +80,45 @@ NOT a form filler, and adding one here would recreate the blocked O11 badly.
 `dotnet build`; targeted payroll/SSO tests; `tsc` + `next build`. **Fable runs the full Api suite.**
 No schema change, no migration, no new permission, no new dependency, and **no PDF work of any kind**.
 Cap: `PayrollEndpoints` + a DTO + the payroll run detail page + i18n + tests.
+
+## Status — 2026-07-28, implemented
+
+- [x] A1 — `GET /payroll/runs/{id}/sso-schedule` added in `PayrollEndpoints.cs`, gated on the
+      existing `CanFile` assertion (same as `pnd1/pdf`, `sso/pdf`, `sso/file` — no new permission).
+      Returns `SsoScheduleDto.FromModel(await svc.BuildMonthlyAsync(id, ct))` — a pure projection,
+      zero new queries/computation. DTO lives in `PayrollDtos.cs`.
+- [x] A2 — screen added as a section on `frontend/app/(dashboard)/payroll/[id]/page.tsx`
+      (`sso-schedule-print` div, shown when `run.status === 'POSTED'`), paper-form column order,
+      money via `formatTHB` (right-aligned, `tabular-nums`, no client rounding), SSO no./national ID
+      in `font-mono`, employer header fields (name/account no./branch/period) above the table.
+- [x] A3 — `sso/file` and `sso/pdf` buttons duplicated beside the new table (existing endpoints,
+      no backend change), plus a `Print` button (`window.print()`).
+- [x] A4 — `.sso-schedule-print` print rule added to `globals.css` (reuses the existing
+      reveal-only-this-section trick `.paper-wrap` already uses for the `body * {visibility:hidden}`
+      site-wide print rule, WITHOUT any of `.paper`'s A4/watermark styling) + `thead { display:
+      table-header-group }`.
+- [x] i18n — `payroll.ssoSchedule.*` added to both `th.json` and `en.json`; component uses
+      `useTranslations` only, no hardcoded Thai.
+- [x] Tests — `PayrollRunServiceTests.cs`: `Sso_schedule_dto_projects_the_same_lines_totals_and_count_as_the_run_summary`
+      (3+ insured rows incl. exclusion of `SsoApplicable=false`, A1 totals/count invariant tied to
+      the run summary) + `Sso_schedule_dto_shows_the_prorated_wage_for_a_mid_month_joiner_not_the_base_salary`
+      (reuses B6's O8 fixture). `PayrollFilingRbacTests.cs`: `TaxOfficer_gets_past_the_gate_on_sso_schedule`
+      + `Role_with_neither_payroll_nor_filing_grant_gets_403_on_sso_schedule`.
+- [x] Gates — `dotnet build` (serialized, `-m:1 -p:BuildInParallel=false`) clean; targeted payroll/
+      SSO/RBAC tests 45 passed, 0 failed, 1 skipped (pre-existing visual-emit skip, unrelated); `tsc
+      --noEmit` clean; `next build` succeeded. Live smoke test (desktop, `admin`/Demo Company run
+      #3 posted through the UI): schedule renders correctly in both Thai and English, totals tie out
+      to the run summary (฿875.00/฿875.00 = ฿1,750.00 SSO stat), no console errors. Mobile-viewport
+      (390×844) smoke test could NOT be performed — `resize_window` was non-functional this session
+      (browser window stuck at its current size regardless of requested dimensions); the new markup
+      reuses the same responsive primitives (`overflow-x-auto`, `flex flex-wrap`) already proven on
+      this page's payslips table, but this was not visually confirmed at a narrow viewport.
+- [x] Fix (post full-suite review) — the new route was missing from
+      `RbacEndpointInventory.AssertionOverrides` (hand-curated map, since an assertion-based policy
+      can't be reverse-engineered from the compiled lambda), so the cartesian RBAC test read its
+      OR-set as empty and expected DENY for every role. Added
+      `["GET /payroll/runs/{id:long}/sso-schedule"] = PayrollFiling` beside its `sso/file`/`sso/pdf`
+      siblings (reusing the existing array, no new permission). Re-ran `RbacAuthMapTests` to
+      regenerate `docs/rbac/endpoint-permission-map.generated.md` (now reads `payroll.run.manage /
+      tax.filing.preview`, matching its neighbours) and `RbacCartesianTests`: **3 passed, 0 failed,
+      0 skipped**.

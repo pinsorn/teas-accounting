@@ -10,10 +10,10 @@
 | Anonymous | 8 |
 | AuthnOnly | 15 |
 | Perm | 288 |
-| Assertion | 12 |
+| Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **349** |
+| **TOTAL** | **350** |
 
 ## Routes
 
@@ -211,6 +211,7 @@
 | GET | `/payroll/runs/{id:long}/payslips/{employeeId:long}/pdf` | Perm | payroll.run.manage |
 | GET | `/payroll/runs/{id:long}/pnd1/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
 | POST | `/payroll/runs/{id:long}/post` | Perm | payroll.run.post |
+| GET | `/payroll/runs/{id:long}/sso-schedule` | Assertion | payroll.run.manage / tax.filing.preview |
 | GET | `/payroll/runs/{id:long}/sso/file` | Assertion | payroll.run.manage / tax.filing.preview |
 | GET | `/payroll/runs/{id:long}/sso/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
 | POST | `/periods/{year:int}/close-year` | Perm | gl.year.close |

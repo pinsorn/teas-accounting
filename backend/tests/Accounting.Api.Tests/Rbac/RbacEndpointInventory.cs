@@ -84,6 +84,9 @@ public static class RbacEndpointInventory
             ["GET /payroll/runs/{id:long}/pnd1/pdf"] = PayrollFiling,
             ["GET /payroll/runs/{id:long}/sso/file"] = PayrollFiling,
             ["GET /payroll/runs/{id:long}/sso/pdf"] = PayrollFiling,
+            // O11-alt (specs/sso-schedule-onscreen-o11alt.md) — same CanFile gate as its two
+            // siblings above (sso/file, sso/pdf); a pure projection of the same filing model.
+            ["GET /payroll/runs/{id:long}/sso-schedule"] = PayrollFiling,
             ["GET /payroll/pnd1a/pdf"] = PayrollFiling,
             ["GET /payroll/employees/{employeeId:long}/wht50tawi/pdf"] = PayrollFiling,
         };

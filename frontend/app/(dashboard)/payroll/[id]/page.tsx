@@ -11,7 +11,7 @@ import { PermissionGate } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
 import {
   usePayrollRun, useApprovePayrollRun, usePostPayrollRun, usePayPayrollRun, useDeletePayrollRun,
-  useBankAccounts,
+  useBankAccounts, useSsoSchedule,
 } from '@/lib/queries';
 import { apiPut, openPdf, downloadFile } from '@/lib/api';
 import type { PayslipDto } from '@/lib/types';
@@ -36,6 +36,9 @@ export default function PayrollRunDetailPage() {
   const pay = usePayPayrollRun();
   const del = useDeletePayrollRun();
   const run = q.data;
+  // O11-alt — schedule only makes sense once the run is posted (same gate as the sso/pdf + sso/file
+  // buttons below); avoids a needless fetch/error on a DRAFT/APPROVED run.
+  const ssoSchedule = useSsoSchedule(id, run?.status === 'POSTED');
   const [selected, setSelected] = useState<PayslipDto | null>(null);
   const [deductionEdits, setDeductionEdits] = useState<Record<number, DeductionEdit>>({});
   const [savingDeductions, setSavingDeductions] = useState(false);
@@ -282,6 +285,80 @@ export default function PayrollRunDetailPage() {
         </table>
       </div>
 
+      {run.status === 'POSTED' && (
+        <div className="sso-schedule-print mt-6">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold">{t('ssoSchedule.title')}</h2>
+            <div className="no-print flex items-center gap-2">
+              <button className="btn btn-outline btn-sm gap-1" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" aria-hidden /> {tc('print')}
+              </button>
+              <button className="btn btn-outline btn-sm gap-1"
+                onClick={() => dl(`payroll/runs/${id}/sso/file`, `sps1-10_${run.periodYearMonth}.txt`)}>
+                <FileText className="h-4 w-4" aria-hidden /> {t('ssoFile')}
+              </button>
+              <button className="btn btn-outline btn-sm gap-1"
+                onClick={() => pr(`payroll/runs/${id}/sso/pdf`)}>
+                <Printer className="h-4 w-4" aria-hidden /> {t('ssoPdf')}
+              </button>
+            </div>
+          </div>
+          <p className="no-print mb-3 text-sm text-ink-500">{t('ssoSchedule.hint')}</p>
+
+          {ssoSchedule.data && (
+            <>
+              <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <HeaderField label={t('ssoSchedule.employerName')} value={ssoSchedule.data.employerName} />
+                <HeaderField label={t('ssoSchedule.employerAccountNo')}
+                  value={ssoSchedule.data.employerAccountNo ?? '—'} mono />
+                <HeaderField label={t('ssoSchedule.branchCode')} value={ssoSchedule.data.branchCode} mono />
+                <HeaderField label={t('ssoSchedule.period')}
+                  value={`${ssoSchedule.data.periodMonth}/${ssoSchedule.data.periodYearBE}`} />
+              </div>
+
+              <div className="overflow-x-auto rounded-box bg-base-100">
+                <table className="table table-zebra">
+                  <thead>
+                    <tr>
+                      <th>{t('ssoSchedule.no')}</th>
+                      <th>{t('ssoSchedule.ssoNumber')}</th>
+                      <th>{t('ssoSchedule.nationalId')}</th>
+                      <th>{t('ssoSchedule.name')}</th>
+                      <th className="text-right">{t('ssoSchedule.wage')}</th>
+                      <th className="text-right">{t('ssoSchedule.employeeContribution')}</th>
+                      <th className="text-right">{t('ssoSchedule.employerContribution')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ssoSchedule.data.lines.map((line) => (
+                      <tr key={line.nationalId}>
+                        <td>{line.no}</td>
+                        <td className="font-mono">{line.ssoNumber}</td>
+                        <td className="font-mono">{line.nationalId}</td>
+                        <td>{[line.title, line.firstName, line.lastName].filter(Boolean).join(' ')}</td>
+                        <td className="text-right tabular-nums">{formatTHB(line.wage)}</td>
+                        <td className="text-right tabular-nums">{formatTHB(line.employeeContribution)}</td>
+                        <td className="text-right tabular-nums">{formatTHB(line.employerContribution)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-semibold">
+                      <td colSpan={4}>
+                        {t('ssoSchedule.total')} ({ssoSchedule.data.employeeCount} {t('ssoSchedule.employeeCount')})
+                      </td>
+                      <td className="text-right tabular-nums">{formatTHB(ssoSchedule.data.totalWage)}</td>
+                      <td className="text-right tabular-nums">{formatTHB(ssoSchedule.data.totalEmployeeContribution)}</td>
+                      <td className="text-right tabular-nums">{formatTHB(ssoSchedule.data.totalEmployerContribution)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {payOpen && (
         <div className="modal modal-open" role="dialog" aria-modal="true">
           <div className="modal-box">
@@ -346,6 +423,15 @@ function Stat({ label, value, strong }: { label: string; value: string; strong?:
     <div className="rounded-box border border-ink-100 bg-base-100 p-3">
       <div className="text-xs text-ink-500">{label}</div>
       <div className={`tabular-nums ${strong ? 'text-lg font-bold' : 'font-medium'}`}>{value}</div>
+    </div>
+  );
+}
+
+function HeaderField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-ink-500">{label}:</span>
+      <span className={mono ? 'font-mono' : 'font-medium'}>{value}</span>
     </div>
   );
 }

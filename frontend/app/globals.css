@@ -190,6 +190,14 @@
     pointer-events: none;
     z-index: 0;
   }
+
+  /* O11-alt (specs/sso-schedule-onscreen-o11alt.md) — สปส.1-10 ส่วนที่ 2 on-screen schedule: a
+     PLAIN table print, not the .paper A4 mockup above (this is deliberately not a rendered legal
+     document). Reuses the same reveal-only-this-section trick as .paper-wrap so it survives the
+     `body * { visibility: hidden }` rule above, without any of .paper's A4/watermark styling. */
+  .sso-schedule-print, .sso-schedule-print * { visibility: visible; }
+  .sso-schedule-print { position: absolute; left: 0; top: 0; width: 100%; }
+  .sso-schedule-print thead { display: table-header-group; }
 }
 
 /* ====================================================================

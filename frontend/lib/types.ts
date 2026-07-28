@@ -948,6 +948,19 @@ export interface PayrollRunDetail {
 }
 export interface CreatePayrollRunRequest { periodYearMonth: string; payDate: string; notes: string | null; }
 
+// O11-alt — สปส.1-10 ส่วนที่ 2 on-screen schedule (read-only projection; no PDF/form filling here).
+export interface SsoScheduleLineDto {
+  no: number; ssoNumber: string; nationalId: string; title: string; firstName: string; lastName: string;
+  wage: number; employeeContribution: number; employerContribution: number;
+}
+export interface SsoScheduleDto {
+  employerName: string; employerAccountNo: string | null; branchCode: string;
+  periodMonth: number; periodYearBE: number;
+  lines: SsoScheduleLineDto[];
+  totalWage: number; totalEmployeeContribution: number; totalEmployerContribution: number;
+  employeeCount: number;
+}
+
 export interface PayPayrollRunRequest { bankAccountId: number | null; }
 export interface WhtCertificateListItem {
   whtCertificateId: number; docNo: string; certDate: string; paymentVoucherId: number | null;

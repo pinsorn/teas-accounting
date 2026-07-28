@@ -71,6 +71,7 @@ import type {
   UpdateEmployeeRequest,
   PayrollRunListItem,
   PayrollRunDetail,
+  SsoScheduleDto,
   CreatePayrollRunRequest,
   CompanyProfile,
   UpdateCompanyProfileSoftRequest,
@@ -848,6 +849,15 @@ export function usePayrollRun(id: number) {
     queryKey: ['payroll-run', id],
     queryFn: () => apiGet<PayrollRunDetail>(`payroll/runs/${id}`),
     enabled: id > 0,
+  });
+}
+// O11-alt — สปส.1-10 ส่วนที่ 2 on-screen schedule; `enabled` lets the caller gate on run status
+// (the filing artifacts only make sense once posted, same as the sso/pdf + sso/file buttons).
+export function useSsoSchedule(id: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['sso-schedule', id],
+    queryFn: () => apiGet<SsoScheduleDto>(`payroll/runs/${id}/sso-schedule`),
+    enabled: enabled && id > 0,
   });
 }
 export function useCreatePayrollRun() {
