@@ -52,9 +52,37 @@ const lineSchema = z.object({
   uomText: z.string().optional(),
   discountPercent: z.number().optional(),
 });
+
+// O2b hardening (2026-07-29) — LineItemsTable always keeps >= 1 row and disables
+// delete on the last one, so an untouched grid is never length 0 — it's length 1
+// containing EMPTY_LINE. "Blank" is defined narrowly (no product, no description,
+// no meaningful qty/price) so a row the user is actually typing into still fails
+// lineSchema loudly instead of being silently dropped. Exported shape kept loose
+// (structural) so it works both pre-parse (raw form values) and on LineItem.
+function isBlankLine(l: {
+  productId?: number | null;
+  descriptionTh?: string;
+  quantity?: number;
+  unitPrice?: number;
+}): boolean {
+  const hasProduct = l.productId != null;
+  const hasDescription = (l.descriptionTh ?? '').trim().length > 0;
+  const hasQty = (l.quantity ?? 0) > 1; // > EMPTY_LINE's default of 1
+  const hasPrice = (l.unitPrice ?? 0) > 0;
+  return !hasProduct && !hasDescription && !hasQty && !hasPrice;
+}
+
+function stripBlankLines(lines: unknown): unknown {
+  return Array.isArray(lines) ? lines.filter((l) => !isBlankLine(l as Parameters<typeof isBlankLine>[0])) : lines;
+}
+
 const schema = z.object({
   customerId: z.number().int().positive(),
-  lines: z.array(lineSchema),
+  // Blank rows are stripped BEFORE array/element validation runs — see
+  // isBlankLine above. This makes "a grid containing only blank rows" behave
+  // as "no lines" (lines: []), which is what unlocks the tax-invoice-driven
+  // server-side line generation (O2b) without relaxing lineSchema itself.
+  lines: z.preprocess(stripBlankLines, z.array(lineSchema)),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -149,6 +177,9 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
 
   const customerId = watch('customerId');
   const lines = watch('lines') as LineItem[];
+  // Live-grid mirror of isBlankLine/stripBlankLines — used only to decide whether
+  // to show the "lines will be generated" hint before the user ever submits.
+  const linesEffectivelyEmpty = lines.every((l) => isBlankLine(l));
   const totals = lines.reduce(
     (acc, l) => {
       const gross = l.quantity * l.unitPrice;
@@ -415,7 +446,7 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
                   ))}
                 </div>
               )}
-              {selectedTis.length > 0 && lines.length === 0 && (
+              {selectedTis.length > 0 && linesEffectivelyEmpty && (
                 <p className="mt-2 text-sm text-ink-500">{t('generateLinesHint')}</p>
               )}
             </div>
