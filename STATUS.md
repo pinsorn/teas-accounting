@@ -1,6 +1,28 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **⚠️ FOR HAM ON WAKING (2026-07-29): prod v1.24.1 was verified live on all three test companies.
+  Two features pass outright; ONE is broken on prod and the fix is committed but NOT deployed.**
+  Full evidence in `swarm-findings/v1241/`, state in `PROGRESS-v1241-live-verify.md`.
+  - ✅ **O14 (co6)** — the ledger-safety invariant HOLDS: reopening a month inside a closed fiscal
+    year is refused `422 period.year_closed`. **co6, frozen until 2027, is usable again** — PV
+    `07-2026-PV-MISC-0001` posted, Trial Balance Dr = Cr ฿17,640.00.
+  - ✅ **O10 + O11-alt (co7)** — JE `08-2026-JV-0001` Dr 121,750.00 = Cr 121,750.00 with `Cr 2180`
+    = ฿500.00 exactly; the cap refuses an over-large deduction; **ภ.ง.ด.1 still shows the
+    pre-deduction figures**, so a net-pay deduction never reaches a tax filing. SSO schedule totals
+    tie to ส่วนที่ 1 on two runs; the prorated joiner shows ฿32,903.23, not ฿60,000.
+  - 🔴 **O2b (co5) — was unreachable on prod.** With the grid empty and invoices linked, the form
+    refused client-side and no request reached the backend. Cause: the shared `LineItemsTable` always
+    keeps one undeletable blank row, so the `lines.length === 0` relaxation could never fire and zod
+    rejected the blank row before the submit handler ran. **Fixed in `c9e7f8a`** (blank rows stripped
+    by `z.preprocess`, contained to `BillingNoteForm`), verified by driving the app locally through
+    all three cases. **NOT DEPLOYED — prod still carries the broken form.** Deploying needs a new
+    release tag; it is FE-only, no schema, so no DB backup is required for it.
+  - 🟡 co7's employee names are corrupted Thai (`????`, one byte per character) from an old
+    PowerShell-driven API write — not an app defect, but co7 cannot verify name rendering on RD/SSO
+    forms. Left unrepaired (prod data write). Use co6, which holds correct Thai.
+  - Not verified: the SSO schedule's print preview (a native print dialog freezes browser automation)
+    and narrow-viewport rendering. Both want a human eyeball.
 - **v1.24.1 IS LIVE ON PROD (2026-07-28 ~20:1x).** Everything from the 2026-07-26 backlog shipped:
   O10 payroll deductions, O14 monthly period reopen, O2b billing-note line generation, O11-alt
   on-screen สปส.1-10 ส่วนที่ 2, plus O4/O2a/G5 which had been sitting undeployed since v1.23.0.
