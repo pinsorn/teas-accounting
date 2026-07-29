@@ -75,4 +75,28 @@ test('payment voucher with WHT: SoD create→approve→post + 50 tawi', async ({
   const certId = cert.whtCertificateId;
   const pdf = await page.request.get(`/api/proxy/wht-certificates/${certId}/pdf`);
   expect(pdf.status()).toBe(200);
+
+  // F-A (specs/fix-e2e-v1260-findings.md) — the on-screen paper foot must not double-subtract
+  // WHT: Grand Total = backend Total + Wht, Net Payable = backend Total (PaperFootPlan.cs's
+  // canonical semantics — summary.total IS the net when wht is set). Compare the LIVE DOM
+  // against the SAME canonical /paper DTO the screen renders from (never a hardcoded expected
+  // number — VAT on this line isn't asserted anywhere in this test) so this assertion would have
+  // caught the shipped bug (screen showed Net = Grand − 2×WHT: e.g. Grand 850/Net 700 for a doc
+  // whose PDF correctly showed 1,000/-150/850).
+  const pvIdMatch = pvUrl.match(/\/payment-vouchers\/(\d+)$/);
+  const pvId = pvIdMatch![1];
+  const paperRes = await page.request.get(`/api/proxy/payment-vouchers/${pvId}/paper`);
+  expect(paperRes.ok()).toBeTruthy();
+  const { summary } = await paperRes.json();
+  expect(summary.wht).toBe(cert.whtAmount);   // sanity: same 30 the cert carries
+
+  const grandText = await page.locator('.paper-totals .row', { hasText: 'จำนวนเงินรวมทั้งสิ้น' })
+    .locator('.v').innerText();
+  const netText = await page.locator('.paper-totals .row.total', { hasText: 'ยอดเงินรับสุทธิ' })
+    .locator('.v').innerText();
+  const grand = parseFloat(grandText.replace(/,/g, ''));
+  const net = parseFloat(netText.replace(/[^0-9.]/g, ''));   // strip ฿ + nbsp
+
+  expect(grand).toBeCloseTo(summary.total + summary.wht, 2);   // Grand = Total + WHT
+  expect(net).toBeCloseTo(summary.total, 2);                    // Net = Total, not re-subtracted
 });

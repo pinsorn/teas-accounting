@@ -481,7 +481,10 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("INSU",  "ค่าประกันภัย",                "Insurance",             "5200", true,  false, false),
         ("TRAIN", "ค่าอบรม",                     "Training",              "5200", true,  false, false),
         ("LEGAL", "ค่าทนาย/บัญชี",               "Legal / accounting",    "5200", true,  false, false),
-        ("INTR",  "ดอกเบี้ยจ่าย",                "Interest expense",      "5200", false, false, false),
+        // F-B (specs/fix-e2e-v1260-findings.md) — was "5200" (Service Expense), misclassifying
+        // interest paid in the P&L. Account 5500 ดอกเบี้ยจ่าย (Interest Expense) exists since
+        // v1.25.0 (manual-jv-and-coa-management.md §C1, seed 631/this file's DefaultChartOfAccounts).
+        ("INTR",  "ดอกเบี้ยจ่าย",                "Interest expense",      "5500", false, false, false),
         ("COGS",  "ต้นทุนสินค้าขาย",             "Cost of goods sold",    "5000", true,  false, true),
         ("CAPEX", "สินทรัพย์ถาวร (capitalize)",  "Fixed asset (capex)",   "1610", true,  true,  false),
         ("MISC",  "อื่น ๆ",                      "Miscellaneous",         "5200", true,  false, false),

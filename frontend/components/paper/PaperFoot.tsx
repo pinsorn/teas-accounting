@@ -28,10 +28,18 @@ export function PaperFoot({
   const vatRate = Math.round((summary.vatRate ?? 7) * 100) / 100;
   const beforeVat = summary.beforeVat ?? summary.subtotal - (summary.discount ?? 0);
   // Footer sequence (Ham 2026-07-01) — mirrors the QuestPDF PaperDocumentPdf.Foot / PaperFootPlan so
-  // the print matches this screen: Subtotal·VAT (only if VAT) → Grand Total (ALWAYS, = summary.total)
-  // → หัก WHT → Net (only if WHT). Here summary.total is the Grand Total; Net = total − wht.
+  // the print matches this screen: Subtotal·VAT (only if VAT) → Grand Total (ALWAYS) → หัก WHT →
+  // Net (only if WHT).
+  // F-A (specs/fix-e2e-v1260-findings.md) — money semantics, canonical source
+  // Infrastructure/Pdf/PaperFootPlan.cs:17-18,29: summary.total is the NET when summary.wht is
+  // set ("จ่ายสุทธิ"), NOT the Grand Total — Grand = total + wht, Net = total. This comment
+  // previously claimed the opposite (summary.total = Grand; Net = total − wht), which made the
+  // Net row double-subtract WHT on screen (e.g. Grand 850/Net 700 for a doc whose PDF correctly
+  // showed 1,000/-150/850). Never re-derive this locally — PaperFootPlan.cs is the single source
+  // of truth; mirror it exactly.
   const hasWht = summary.wht != null;
-  const netTotal = hasWht ? summary.total - (summary.wht ?? 0) : summary.total;
+  const grandTotal = hasWht ? summary.total + (summary.wht ?? 0) : summary.total;
+  const netTotal = summary.total;
   const words = amountWords ?? bathText(netTotal);
   // Non-VAT (ม.86): hide the Subtotal/Before-VAT/VAT breakdown, leaving only Total.
   const showVat = summary.showVat ?? true;
@@ -82,7 +90,7 @@ export function PaperFoot({
           <>
             <div className="row">
               <Bi th="จำนวนเงินรวมทั้งสิ้น" en="Grand Total" />
-              <span className="v">{fmtPaperNum(summary.total)}</span>
+              <span className="v">{fmtPaperNum(grandTotal)}</span>
             </div>
             <div className="row">
               <Bi th="หัก ณ ที่จ่าย" en="WHT" />

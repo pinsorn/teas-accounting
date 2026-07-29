@@ -1,6 +1,31 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- Warm workers (2026-07-30 ~03:00): sonnet-signature (WP-1/2 done + §16 remediation + WP-3
+  renderer IN FLIGHT) · sonnet-WHT (pnd2 + fix-e2e-v1260 DONE, free; knows seeds/PV/paper-mirror)
+  · opus-reviewer-signature (WP-1/2 round 1 done) · opus-reviewer-pnd2 (3 rounds) · sonnet-E2E
+  (co7 browser context, free).
+- fix-e2e-v1260-findings: DONE + Fable diff-read PASS (uncommitted; ships with the next release
+  batch after consolidated Tier-2). Note for Ham (morning): co7 JE 07-2026-JV-0006 booked ฿1,000
+  to 5200 (immutable) — reclassify to 5500 needs a correcting JV on prod, his call.
+- **🚀 IN RELEASE (2026-07-29 evening): ภ.ง.ด.2 filing — commit `d3c540b` pushed, awaiting
+  release-please → tag → build → deploy (DB backup MANDATORY: EF migration AddPnd2IncomeCode +
+  seed 632 run at startup).**
+  Fixes a live compliance defect: director interest via PV was certified ภ.ง.ด.3 @1% instead of
+  ภ.ง.ด.2 @15% (ม.50(2)). Zero damaged certs on prod (income_type_code='4' count = 0, verified).
+  Ships: Pnd2 enum + pnd2_income_code snapshot columns, individual-only routing, positive-FormType
+  partition (kills a real double-count), INT-IND 15% seed (RLS-safe), /tax-filings/pnd2 + RD
+  Format กลาง batch file, Tax Summary ภ.ง.ด.2 column, forced-manual finalize (auto mode would have
+  faked "Submitted" — no SubmitPnd2Async exists). 2 opus REJECT→fix rounds then APPROVE; full
+  suite 1028/0/9. Deploy steps + probes: PROGRESS-pnd2-filing.md.
+  - Post-deploy E2E pending on Chrome: pay real director interest on co7 → 50ทวิ shows ภ.ง.ด.2
+    15% → download batch file; probe seed 632 row counts as superuser.
+- **📐 SPEC READY (awaiting Fable review + Ham-approved mockup locked): doc signature stamping +
+  foot layout** — `specs/doc-signature-and-foot-layout.md` (opus, 5 requirements: bottom-anchored
+  notes+totals+sign group, page-2 spill w/ repeated header + หน้า x/y, per-user signature image +
+  ตำแหน่ง + company stamp via attachments pipeline, per-doctype layout audit, per-doctype default
+  notes jsonb in company_profile). NOT parallel-safe with pnd2 files (i18n/queries.ts). Implement
+  AFTER pnd2 deploy closes.
 - **✅ v1.25.0 LIVE (2026-07-29) — manual journal vouchers + chart-of-accounts management.**
   Ham asked how to record a director/shareholder loan and non-sales income; the system could do
   neither. Rather than a bespoke director-loan feature, this shipped the general capability.

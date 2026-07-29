@@ -456,6 +456,22 @@ function PvForm() {
                     {t('whtTypeRequired')}
                   </span>
                 )}
+                {/* F-C (specs/fix-e2e-v1260-findings.md) — INTR's default WHT type (seed 450) is
+                    INT (1%/PND53), correct for the common corporate-vendor case but a residual
+                    compliance trap for an individual vendor: routing falls to the payee-kind
+                    default (ภ.ง.ด.3 @1%) instead of ภ.ง.ด.2 @15%. A category-level default can't
+                    know the payee kind, so this is a non-blocking hint at the PV form level —
+                    special-cased to the one concrete pair (INT/INT-IND) the E2E exposed, not a
+                    generic formType/rate-vs-payee-kind mismatch checker (that mechanism would
+                    generalize this same `vendor.vendorType` + `selectedWhtType.code` check across
+                    every WHT type, which is future work, not required here). No auto-switch —
+                    the user stays in control; seed 450's INT default is untouched. */}
+                {vendor?.vendorType === 'Individual' &&
+                  whtTypes.find((w) => w.whtTypeId === r.whtTypeId)?.code === 'INT' && (
+                  <span className="label-text-alt text-warning" data-testid="pv-line-wht-intind-hint">
+                    {t('intIndHint')}
+                  </span>
+                )}
               </label>
               <label className="form-control">
                 <span className="label-text">{t('wht')} %</span>

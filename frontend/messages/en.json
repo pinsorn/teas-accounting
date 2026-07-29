@@ -658,6 +658,7 @@
     "whtType": "Income type (50ทวิ)",
     "whtTypeNone": "— none —",
     "whtTypeRequired": "A WHT rate is set — select an Income Type (50ทวิ) or the draft cannot be saved",
+    "intIndHint": "Payee is an individual — interest must be withheld at 15% (ภ.ง.ด.2) — select 'Interest paid (individual)'",
     "vendorNoVat": "Vendor is not VAT-registered — no input VAT",
     "vendorNoVatShort": "no VAT",
     "item": "Item (product/service)",
