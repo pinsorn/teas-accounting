@@ -152,9 +152,18 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
   code-complete (+ build/tsc/filtered evidence) and FABLE runs the suite. Workers
   babysitting a 13-min run burned 4 stall cycles and ~220k tokens on ONE run
   (2026-07-26); Fable runs it in a single backgrounded Bash call and reads the log.
-- Tier 2 (risky diffs): fresh cross-family reviewer with named risk lenses
-  (spec compliance / regression / security / tests). Security/money/auth →
-  Opus review is a valid alternative. Reviewer never touched related code.
+- Tier 2 (risky diffs) has TWO modes; Fable picks per stakes (Ham 2026-07-30):
+  (a) DEFAULT — fresh single reviewer with named risk lenses (spec compliance /
+  regression / security / tests); security/money/auth → Opus. Reviewer never
+  touched related code.
+  (b) ESCALATED — multi-agent review via the Workflow tool
+  (`.claude/workflows/tier2-review.js`, invoke by scriptPath; args: specPath,
+  diffScope, optional lenses/context): parallel per-lens sonnet finders →
+  dedup → opus adversarial verify per finding (refute-by-default). Costs
+  several × mode (a). Reserve for: money/compliance diffs spanning multiple
+  WPs · a release that already ate 2+ REJECT rounds · final pre-release review
+  at extreme blast radius. Either mode: Fable still personally verifies every
+  confirmed finding in code before ordering fixes.
 - Tier 3: Haiku runs the consolidated gate; run-and-report only, any
   failure auto-escalates to Fable.
 - **Final gate never delegated: Fable personally reads the full diff before
