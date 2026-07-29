@@ -1,6 +1,29 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ v1.25.0 LIVE (2026-07-29) — manual journal vouchers + chart-of-accounts management.**
+  Ham asked how to record a director/shareholder loan and non-sales income; the system could do
+  neither. Rather than a bespoke director-loan feature, this shipped the general capability.
+  New: `/journals`, `/journals/new`, `/settings/chart-of-accounts`, and accounts **2190
+  เงินกู้ยืมจากกรรมการ/ผู้ถือหุ้น · 5500 ดอกเบี้ยจ่าย · 4300 รายได้อื่น** seeded into every company.
+  - **Proven live on prod (co7), the numbers that matter:** posting
+    `Dr 1120 100,000.00 / Cr 2190 100,000.00` left the trial balance footing (฿215,953.07), moved bank
+    by exactly +100,000.00 and 2190 by exactly +100,000.00 credit, and **left net profit unchanged at
+    -฿115,953.07** — a loan is a liability, never income. The contrast case was posted deliberately:
+    non-sales income of ฿5,000 moved net profit by exactly +5,000.00, which is what proves the
+    "unchanged" result was real and not a stale report. 2190 shows on the Balance Sheet as a liability.
+  - Also verified live: the float split entry (33.33/33.33/33.34 vs 100.00) balances with Save enabled,
+    unbalanced is refused, the account picker excludes header and inactive accounts (checked by
+    deactivating one and watching it vanish), future dates are refused, and a posted JV has no edit or
+    delete affordance. Evidence: `swarm-findings/v1241/legF-jv-prod.md`.
+  - Gates before release: Api suite **1012/0/9**, Tier-2 opus review APPROVE after 4 findings fixed,
+    local click-through, deploy probes confirmed 2190/5500/4300 seeded for **5 of 5 companies**.
+  - **Deferred deliberately** (phase 2): a dedicated director-loan screen, **ภ.ง.ด.2** filing (needed
+    before interest can be paid to a director — 15% WHT under ม.50(2); the 50ทวิ side already supports
+    it, the monthly return does not exist), share capital, and reversing-entry automation. The
+    correction path for a posted journal is a manually entered reversing JV.
+  - Tax note for whoever uses this: a director loan needs a written agreement and a market-rate
+    interest charge — an interest-free loan lets the Revenue Department impute interest (ม.65 ทวิ (4)).
 - **✅ CLOSED OUT (2026-07-29): prod = v1.24.2, all four features verified live, nothing outstanding.**
   O2b's fix is deployed and the blocked case now works: on co5, two tax invoices linked with the grid
   left empty generated two Thai lines and tied out exactly — **subtotal 6,500.00 · VAT 455.00 · total
