@@ -1,8 +1,24 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- **⚠️ FOR HAM ON WAKING (2026-07-29): prod v1.24.1 was verified live on all three test companies.
-  Two features pass outright; ONE is broken on prod and the fix is committed but NOT deployed.**
+- **✅ CLOSED OUT (2026-07-29): prod = v1.24.2, all four features verified live, nothing outstanding.**
+  O2b's fix is deployed and the blocked case now works: on co5, two tax invoices linked with the grid
+  left empty generated two Thai lines and tied out exactly — **subtotal 6,500.00 · VAT 455.00 · total
+  6,955.00**, which is the very figure the original bug reported as unbillable. All three regressions
+  hold (override keeps the manual line; an empty grid with no invoice is still refused; a half-filled
+  row is still caught, not silently dropped). Doc `07-2026-IV-0007`.
+  co7's employee names were repaired through the UI and now render correctly in the SSO schedule and
+  on the ใบแนบ ภ.ง.ด.1. Evidence: `swarm-findings/v1241/legD-o2b-reverify-and-co7-names.md`.
+  - **Known and correct, worth remembering:** a payslip snapshots the employee name at posting time,
+    so runs posted BEFORE the repair still print the old `???????` in the payslip summary. The SSO
+    schedule reads the live employee master and shows the corrected names. Not a bug — but it means
+    historical payroll runs cannot be retro-fixed by editing the employee.
+  - **Small leftover:** co7's คำนำหน้า (title) field is still corrupted the same way; only ชื่อ/สกุล
+    were repaired, since that is what the dispatch authorised. It shows on สปส.1-10.
+  - Still unverified by a human: the SSO schedule's print preview (native print dialogs freeze browser
+    automation) and narrow-viewport rendering.
+- ~~⚠️ FOR HAM ON WAKING (2026-07-29): prod v1.24.1 was verified live on all three test companies.
+  Two features pass outright; ONE is broken on prod and the fix is committed but NOT deployed.~~
   Full evidence in `swarm-findings/v1241/`, state in `PROGRESS-v1241-live-verify.md`.
   - ✅ **O14 (co6)** — the ledger-safety invariant HOLDS: reopening a month inside a closed fiscal
     year is refused `422 period.year_closed`. **co6, frozen until 2027, is usable again** — PV
