@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0](https://github.com/pinsorn/teas-accounting/compare/v1.24.2...v1.25.0) (2026-07-29)
+
+
+### Features
+
+* **gl:** manual journal vouchers and chart-of-accounts management ([b00d639](https://github.com/pinsorn/teas-accounting/commit/b00d63934570f5efa594f65dad8697689525b999))
+
 ## [1.24.2](https://github.com/pinsorn/teas-accounting/compare/v1.24.1...v1.24.2) (2026-07-28)
 
 
