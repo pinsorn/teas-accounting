@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.0](https://github.com/pinsorn/teas-accounting/compare/v1.25.0...v1.26.0) (2026-07-29)
+
+
+### Features
+
+* **tax:** ภ.ง.ด.2 filing for interest/dividends paid to individuals (ม.50(2)) ([d3c540b](https://github.com/pinsorn/teas-accounting/commit/d3c540b036a4aa2e9b2ba34320b8cdb973d08b3c))
+
 ## [1.25.0](https://github.com/pinsorn/teas-accounting/compare/v1.24.2...v1.25.0) (2026-07-29)
 
 
