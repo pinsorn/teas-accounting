@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.2](https://github.com/pinsorn/teas-accounting/compare/v1.24.1...v1.24.2) (2026-07-28)
+
+
+### Bug Fixes
+
+* **sales:** let a billing note save with an empty grid when tax invoices are linked ([c9e7f8a](https://github.com/pinsorn/teas-accounting/commit/c9e7f8a9444386ce16e4220199c66da2017f8867))
+
 ## [1.24.1](https://github.com/pinsorn/teas-accounting/compare/v1.24.0...v1.24.1) (2026-07-28)
 
 
