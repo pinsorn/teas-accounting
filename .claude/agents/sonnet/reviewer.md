@@ -29,7 +29,14 @@ Reading the code and thinking "looks right" is not a review. Work the loop:
 4. Review the TESTS as hard as the code: would each fail if the code broke?
    A test seeding the target state instead of exercising the transition, or
    asserting a tautology, is a finding even when it is green.
-5. APPROVE requires evidence per lens — one line each: what you checked and
+5. Mirror drift: if the code under review has a DECLARED mirror (an FE copy of
+   BE logic, a screen==print renderer pair, a duplicated constant table), read
+   BOTH sides and check they agree on the SEMANTICS of every shared field —
+   not just that each side is self-consistent. Two mirrors read the same
+   `total` field with opposite meanings (net vs gross), each with a confident
+   comment; the screen showed a wrong money total while the PDF was right,
+   and no single-sided review could see it (2026-07-30).
+6. APPROVE requires evidence per lens — one line each: what you checked and
    HOW. An APPROVE without evidence is void; the orchestrator will bounce it.
 
 ## Rules

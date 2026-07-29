@@ -111,6 +111,16 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
   its test-hardening, then an adjacent fix), continue the SAME worker via
   SendMessage — its context stays warm. Spawn fresh only when the next task is
   a DIFFERENT area (carrying irrelevant context forward is its own tax).
+- A worker doing IRREVERSIBLE external writes (prod data on immutable documents,
+  payments, published artifacts) carries a resume protocol in its dispatch: if it
+  dies mid-run (quota cliff, crash), the resumed worker FIRST re-establishes what
+  was already written before writing anything — a duplicate prod write cannot be
+  undone (an E2E leg died mid-PV at the quota cliff, 2026-07-30; the state-check
+  resume prevented a duplicate posting).
+- Commissioning post-review remediation = a scope change: update the spec's
+  blast-cap NUMBER (the header line, not an appended note) in the same edit that
+  adds the findings. A stale "Max 22" header survived two remediation rounds of
+  real cap ~40 and had to be flagged by the round-3 reviewer (2026-07-29).
 - Lessons that apply to every future dispatch of a role get folded into the
   agent/template file, not repeated in prompts.
 - Codex artifact output: Codex's sandbox is `read-only` unless the dispatch
