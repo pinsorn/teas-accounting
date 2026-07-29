@@ -817,3 +817,54 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
 - **Root cause:** `frontend/` has no ESLint config file at all (no `.eslintrc*`, no `eslint.config.*`) and never has — `git log --all` on those paths returns nothing. `next lint` only auto-detects an existing config; with none present it always falls back to the first-run interactive wizard, in every shell, regardless of the diff being verified.
 - **Fix:** this is a pre-existing repo gap, not something a feature diff introduces or can fix within its own blast radius (adding a config is a separate, deliberate change — it may also pull in the `eslint-config-next` dependency, which is out of scope for a feature dispatch). Do not spend time debugging your own diff over this. Report gate 9 as blocked-by-environment with this entry cited, run `tsc --noEmit` (gate 8) and `next build` as the load-bearing FE build-health checks instead, and flag to the orchestrator that someone should either commit a real ESLint config or drop `pnpm lint` from the gate list.
 - **Seen:** 2026-07-29, WP-FE (specs/manual-jv-and-coa-management.md) — first time gate 9 was actually executed rather than assumed green.
+
+## WHT-type FormType validator/UI still rejects PND54 (FOR-SVC/FOR-ROYAL uneditable)
+- **Symptom:** the `CreateWhtType`/`UpdateWhtType` validators (`Application/Tax/WhtTypeDtos.cs`) and
+  the settings `FORMS` array (`frontend/app/(dashboard)/settings/wht-types/page.tsx`) accept
+  PND1/PND2/PND3/PND53 but not PND54 — the seeded `FOR-SVC`/`FOR-ROYAL` (foreign ม.70) rows 400 on
+  save through the WHT-types UI, same failure mode F3 fixed for PND2/INT-IND.
+- **Root cause:** pre-existing gap, not introduced by the ภ.ง.ด.2 work — PND54 was never added when
+  Sprint 9 C1 introduced the foreign-payee form type. Tier-2 review (specs/pnd2-filing.md §10, F3)
+  explicitly scoped fixing PND2 only and flagged PND54 as a separate, deliberately-deferred finding.
+- **Fix:** not fixed here. A future worker: add `"PND54"` to both validators' `Must(...)` predicates
+  and to the FE `FORMS` array, mirroring the PND2 fix exactly.
+- **Seen:** 2026-07-29, ภ.ง.ด.2 filing Tier-2 remediation (specs/pnd2-filing.md §10 F3).
+
+## FinalizeAsync never checks res.Submitted/res.Error before recording a filing as "Submitted" (real RD client)
+- **Symptom:** none observed yet on prod (pre-existing debt, not a live incident) — flagged during
+  Tier-2 review of the ภ.ง.ด.2 work (specs/pnd2-filing.md §10, N1). `TaxFilingStore.FinalizeAsync`
+  (`Infrastructure/TaxFilings/TaxFilingStore.cs:50-66`) calls `SubmitAsync` when a real
+  `IRdEfilingClient` is wired and an auto-mode company finalizes ภ.พ.30 / ภ.ง.ด.3/53/54/36, but
+  never inspects `res.Submitted` or `res.Error` before writing `Status = FinalStatus(submissionMode)`
+  (`"Submitted"` for auto) / `SubmittedAt = now`. If a genuine RD transport failure returns
+  `Submitted:false` with a populated `Error`, the filing still gets recorded as `"Submitted"` with
+  whatever ack/submission id came back (possibly blank) — a real network/API failure would be
+  silently recorded as a success, and the row is then immutable (`already_finalized` guard blocks
+  any retry).
+- **Root cause:** the same class of bug N1 found for ภ.ง.ด.2 (an unrecognised form silently faking
+  a submitted result), but here the RD *client itself* fails honestly (correctly sets
+  `Submitted:false`) and `FinalizeAsync` still doesn't act on it — the gap is in the caller, not
+  the client.
+- **Fix sketch (NOT applied this release — shipped behaviour, needs its own decision):** after
+  `var res = await SubmitAsync(...)`, branch on `res.Submitted`: if false, either (a) throw a
+  `DomainException("tax_filing.rd_submission_failed", res.Error)` before the `db.TaxFilings.Add`
+  so nothing is persisted and the caller can retry, or (b) persist a distinct status (e.g.
+  `"SubmitFailed"`) instead of silently mapping to `"Submitted"`. Needs a decision on whether a
+  failed auto-submit should block finalize entirely or land in a retryable non-terminal state —
+  out of scope for this dispatch (money/compliance semantics change, needs its own spec).
+- **Seen:** 2026-07-29, ภ.ง.ด.2 filing Tier-2 round 2 review (specs/pnd2-filing.md §10, N1
+  follow-up finding, Fable-verified in code, deliberately not fixed this release).
+
+## FirstRunBootstrapTests.DropDbAsync races Postgres autovacuum on a full-suite run — `42501: permission denied to terminate autovacuum worker`
+- **Symptom:** a full-suite run occasionally fails `FirstRunBootstrapTests` (its scratch-DB
+  `DropDbAsync` teardown) with a raw `Npgsql.PostgresException 42501: permission denied to
+  terminate autovacuum worker process`. A standalone rerun of just that test passes.
+- **Root cause:** `DROP DATABASE` needs to terminate any backend connected to the target DB first;
+  if Postgres' autovacuum worker happens to be attached to that scratch DB at the exact moment of
+  the drop, the drop's connection-termination step tries to kill the autovacuum worker and is
+  denied (autovacuum workers aren't killable by an ordinary role) — a timing race, not a logic bug
+  in the test or the drop helper.
+- **Fix:** treat as a known flake — rerun the single test once before escalating; do not chase it
+  as a regression from an unrelated diff. Confirmed one such flake (1 failure) alongside 1026
+  passing in the 2026-07-29 post-pnd2-filing full-suite run.
+- **Seen:** 2026-07-29, full-suite run after WP-A/WP-B/Tier-2 remediation (specs/pnd2-filing.md).

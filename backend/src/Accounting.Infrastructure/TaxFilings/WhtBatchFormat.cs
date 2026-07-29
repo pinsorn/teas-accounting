@@ -73,10 +73,16 @@ public static class WhtBatchFormat
         new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(Build(h, payees));
 
     /// <summary>RD filename: TAX_TYPE_NID_BRANCH_TAXYEAR(พ.ศ.)_TAXMONTH_FORMTYPE_seq.txt.</summary>
-    public static string FileName(Header h, string formType = "00", string submission = "00")
+    public static string FileName(Header h, string formType = "00", string submission = "00") =>
+        FileName(h.TaxType, h.PayerTaxId, h.PayerBranch, h.Period, formType, submission);
+
+    /// <summary>Parameterised form of the RD filename rule (C1, specs/pnd2-filing.md) — shared by
+    /// every WHT batch format (PND3/PND53/PND2) so filename construction stays single-sourced.</summary>
+    internal static string FileName(string taxType, string payerTaxId, string payerBranch,
+        int period, string formType = "00", string submission = "00")
     {
-        var (month, beYear) = MonthBeYear(h.Period);
-        return $"{h.TaxType}_{h.PayerTaxId}_{Pad6(h.PayerBranch)}_{beYear:0000}_{month:00}_{formType}_{submission}.txt";
+        var (month, beYear) = MonthBeYear(period);
+        return $"{taxType}_{payerTaxId}_{Pad6(payerBranch)}_{beYear:0000}_{month:00}_{formType}_{submission}.txt";
     }
 
     private static string HeaderRow(Header h, int recordCount, decimal totalIncome, decimal totalTax)
@@ -175,7 +181,9 @@ public static class WhtBatchFormat
     public static string Date(DateOnly d) =>
         $"{d.Day:00}{d.Month:00}{d.Year + 543:0000}";
 
-    private static string Pad6(string? branch)
+    // internal (not private): C1 (specs/pnd2-filing.md) — Pnd2BatchFormat reuses these primitives
+    // rather than duplicating the digit-cleanup/padding rules.
+    internal static string Pad6(string? branch)
     {
         var s = new string((branch ?? "").Where(char.IsDigit).ToArray());
         if (s.Length == 0) return "000000";
@@ -184,7 +192,7 @@ public static class WhtBatchFormat
 
     /// <summary>Keep only digits, then take the trailing <paramref name="len"/> (a tax id may
     /// arrive with separators); blank stays blank for the M/O guard upstream to catch.</summary>
-    private static string Digits(string? raw, int len)
+    internal static string Digits(string? raw, int len)
     {
         var s = new string((raw ?? "").Where(char.IsDigit).ToArray());
         return s.Length > len ? s[..len] : s;

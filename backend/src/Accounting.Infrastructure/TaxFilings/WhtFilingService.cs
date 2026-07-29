@@ -38,15 +38,22 @@ public sealed class WhtFilingService(
             throw new DomainException("auth.required", "User must be authenticated.");
     }
 
+    // B1 (specs/pnd2-filing.md) — ภ.ง.ด.2 (ม.50(2), interest/dividends/royalties to an individual).
+    // Mirrors the other three generators exactly; the shared WhtAsync base filter + row
+    // projection + totals + finalize path are reused unchanged.
+    public Task<WhtFiling> GeneratePnd2Async(int period, TaxFilingMode mode, CancellationToken ct)
+        => WhtAsync("PND2", period, mode, q => q.Where(w => w.FormType == WhtFormType.Pnd2), ct);
+
+    // A4 (specs/pnd2-filing.md) — filters made POSITIVE on FormType so the four returns are a
+    // provably disjoint, exhaustive partition (I2): a Pnd2 cert is PayeeType==Individual but must
+    // NOT also land on ภ.ง.ด.3, which the old PayeeType-based filter would have double-counted.
     public Task<WhtFiling> GeneratePnd3Async(int period, TaxFilingMode mode, CancellationToken ct)
         => WhtAsync("PND3", period, mode,
-            q => q.Where(w => w.PayeeType == CustomerType.Individual
-                           && w.FormType != WhtFormType.Pnd54), ct);
+            q => q.Where(w => w.FormType == WhtFormType.Pnd3), ct);
 
     public Task<WhtFiling> GeneratePnd53Async(int period, TaxFilingMode mode, CancellationToken ct)
         => WhtAsync("PND53", period, mode,
-            q => q.Where(w => w.PayeeType == CustomerType.Corporate
-                           && w.FormType != WhtFormType.Pnd54), ct);
+            q => q.Where(w => w.FormType == WhtFormType.Pnd53), ct);
 
     public Task<WhtFiling> GeneratePnd54Async(int period, TaxFilingMode mode, CancellationToken ct)
         => WhtAsync("PND54", period, mode,
@@ -78,6 +85,12 @@ public sealed class WhtFilingService(
         var totals = new WhtFilingTotals(
             rows.Sum(r => r.IncomeAmount), rows.Sum(r => r.WhtAmount));
         var sub = await SubmissionModeAsync(ct);
+        // N1 (Tier-2 round 2, specs/pnd2-filing.md §10) — IRdEfilingClient has no
+        // SubmitPnd2Async arm. Under the company's "auto" mode this would otherwise reach
+        // TaxFilingStore.SubmitAsync's unknown-form default and fake a "Submitted" filing.
+        // Force manual for ภ.ง.ด.2 regardless of Pnd30SubmissionMode; re-enable auto-submit
+        // only once IRdEfilingClient gains a real SubmitPnd2Async.
+        if (formType == "PND2") sub = "manual";
         var due = TaxFilingPeriod.DueDate(period, 7);
         var status = mode == TaxFilingMode.Finalize
             ? TaxFilingStore.FinalStatus(sub) : "Preview";

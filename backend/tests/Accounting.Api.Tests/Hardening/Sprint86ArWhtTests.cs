@@ -3,6 +3,7 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Sales;
 using Accounting.Application.Tax;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
@@ -201,6 +202,44 @@ public sealed class Sprint86ArWhtTests
         rows.Should().HaveCount(2);
         rows[0].EffectiveTo.Should().Be(new DateOnly(2026, 5, 31));
         rows[1].EffectiveTo.Should().BeNull();
+    }
+
+    // F1 (Tier-2 round 1, specs/pnd2-filing.md §10) — ChangeRateAsync's clone must carry
+    // Pnd2IncomeCode forward; dropping it would open a new in-force INT-IND row with
+    // pnd2_income_code=NULL, and every subsequent PV-post snapshot + the batch export's
+    // missing_income_code guard would then silently break the period. Precondition row
+    // is a direct DB insert (fixture setup, not the transition under test); the transition
+    // itself — close old / open new — is exercised through the REAL ChangeRateAsync.
+    [SkippableFact]
+    public async Task WhtType_change_rate_preserves_pnd2_income_code()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var code = "P2T" + Sfx();
+
+        int id;
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var w = new WhtType
+            {
+                CompanyId = 1, Code = code, NameTh = "ดอกเบี้ยจ่ายทดสอบ",
+                IncomeTypeCode = "4", FormType = WhtFormType.Pnd2, Rate = 0.15m,
+                Pnd2IncomeCode = "2",
+            };
+            db.WhtTypes.Add(w);
+            await db.SaveChangesAsync();
+            id = w.WhtTypeId;
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtTypeService>();
+        await svc.ChangeRateAsync(id, new ChangeWhtRateRequest(0.15m, new DateOnly(2026, 9, 1)), default);
+
+        var db2 = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var newRow = await db2.WhtTypes.Where(w => w.Code == code && w.EffectiveTo == null).FirstAsync();
+        newRow.Pnd2IncomeCode.Should().Be("2",
+            "ChangeRateAsync's clone must preserve Pnd2IncomeCode (F1)");
     }
 
     [SkippableFact]

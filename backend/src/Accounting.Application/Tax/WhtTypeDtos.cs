@@ -50,8 +50,11 @@ public sealed class CreateWhtTypeValidator : AbstractValidator<CreateWhtTypeRequ
         RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
         RuleFor(x => x.NameEn).MaximumLength(255);
         RuleFor(x => x.IncomeTypeCode).NotEmpty().MaximumLength(20);
-        RuleFor(x => x.FormType).NotEmpty().Must(f => f is "PND1" or "PND3" or "PND53")
-            .WithMessage("FormType must be PND1 / PND3 / PND53.");
+        // F3 (Tier-2 round 1, specs/pnd2-filing.md §10) — PND2 added so the 632-seeded INT-IND
+        // row is editable (was 400 on save). PND54 has the same pre-existing hole
+        // (FOR-SVC/FOR-ROYAL) — not fixed here, logged in troubles-wiki.md instead.
+        RuleFor(x => x.FormType).NotEmpty().Must(f => f is "PND1" or "PND2" or "PND3" or "PND53")
+            .WithMessage("FormType must be PND1 / PND2 / PND3 / PND53.");
         RuleFor(x => x.Rate).InclusiveBetween(0m, 1m);
     }
 }
@@ -63,7 +66,7 @@ public sealed class UpdateWhtTypeValidator : AbstractValidator<UpdateWhtTypeRequ
         RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
         RuleFor(x => x.NameEn).MaximumLength(255);
         RuleFor(x => x.IncomeTypeCode).NotEmpty().MaximumLength(20);
-        RuleFor(x => x.FormType).NotEmpty().Must(f => f is "PND1" or "PND3" or "PND53");
+        RuleFor(x => x.FormType).NotEmpty().Must(f => f is "PND1" or "PND2" or "PND3" or "PND53");
     }
 }
 

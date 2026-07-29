@@ -12,4 +12,7 @@ public enum WhtFormType
     /// <summary>Sprint 9 C1 — ภ.ง.ด.54: WHT on payments to a FOREIGN payee
     /// (FOR-SVC / FOR-ROYAL, 15%). Deferred from Sprint 8.7; required by C4.</summary>
     Pnd54,
+    /// <summary>ภ.ง.ด.2 — ม.50(2) WHT on ม.40(3)/(4) income (interest, dividends, royalties)
+    /// paid to an INDIVIDUAL. Corporate-payee interest is ม.69ทวิ → ภ.ง.ด.53.</summary>
+    Pnd2,
 }

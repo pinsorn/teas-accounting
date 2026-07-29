@@ -109,6 +109,10 @@ public sealed class WhtTypeService(AccountingDbContext db, ITenantContext tenant
             CompanyId = current.CompanyId,
             Code = current.Code, NameTh = current.NameTh, NameEn = current.NameEn,
             IncomeTypeCode = current.IncomeTypeCode, FormType = current.FormType,
+            // F1 (Tier-2 round 1, specs/pnd2-filing.md §10) — carry the ภ.ง.ด.2 income code
+            // forward too, or a rate change on a Pnd2-typed row opens a new in-force row with
+            // pnd2_income_code=NULL and silently breaks every subsequent PV-post snapshot.
+            Pnd2IncomeCode = current.Pnd2IncomeCode,
             Rate = req.NewRate, EffectiveFrom = req.EffectiveFrom, EffectiveTo = null,
             IsActive = current.IsActive,
         });

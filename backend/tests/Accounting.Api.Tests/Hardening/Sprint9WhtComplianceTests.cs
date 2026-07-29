@@ -51,6 +51,14 @@ public sealed class Sprint9WhtComplianceTests
     private static DateOnly PeriodDate(int period) =>
         new(period / 100, period % 100, 10);
 
+    // N3 (Tier-2 round 2) — mirrors the internal TaxFilingPeriod.MonthRange (not accessible
+    // cross-project) so T6's baseline query can match the generators' own month-wide scope.
+    private static (DateOnly from, DateOnly to) MonthRange(int period)
+    {
+        var (y, m) = (period / 100, period % 100);
+        return (new DateOnly(y, m, 1), new DateOnly(y, m, DateTime.DaysInMonth(y, m)));
+    }
+
     private static async Task AddCert(
         ServiceProvider sp, DateOnly date, CustomerType payee, WhtFormType form,
         decimal income, decimal rate)
@@ -97,6 +105,102 @@ public sealed class Sprint9WhtComplianceTests
         p53.Rows.Should().NotContain(r => r.WhtAmount == 4500m);
         p54.Rows.Should().Contain(r => r.WhtAmount == 4500m);
         p3.FilingDueDate.Day.Should().Be(7);
+    }
+
+    // T5/T6/T7 (specs/pnd2-filing.md, I2/I3) — B1's GeneratePnd2Async, added alongside the three
+    // existing generators, must keep the four-way partition exact: no omission, no double count,
+    // and totals tie to the underlying certs. Uses RandPeriod() (§1.6.6) to dodge shared-teas_test
+    // residue from other tests' Pnd3/Pnd53/Pnd54 fixtures at the same fixed period.
+    [SkippableFact]
+    public async Task Pnd2_generator_partitions_exactly_with_no_double_count_or_omission()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = RandPeriod();
+        var d = PeriodDate(period);
+        await AddCert(sp, d, CustomerType.Individual, WhtFormType.Pnd2,  1000m, 0.15m);  // 150
+        await AddCert(sp, d, CustomerType.Individual, WhtFormType.Pnd3, 10000m, 0.03m);  // 300
+        await AddCert(sp, d, CustomerType.Corporate,  WhtFormType.Pnd53, 20000m, 0.03m); // 600
+        await AddCert(sp, d, CustomerType.Corporate,  WhtFormType.Pnd54, 30000m, 0.15m); // 4500
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        var p2  = await svc.GeneratePnd2Async(period, TaxFilingMode.Preview, default);
+        var p3  = await svc.GeneratePnd3Async(period, TaxFilingMode.Preview, default);
+        var p53 = await svc.GeneratePnd53Async(period, TaxFilingMode.Preview, default);
+        var p54 = await svc.GeneratePnd54Async(period, TaxFilingMode.Preview, default);
+
+        // T5 — no double count: the Pnd2 cert appears ONLY on ภ.ง.ด.2.
+        p2.Rows.Should().ContainSingle(r => r.WhtAmount == 150m);
+        p3.Rows.Should().NotContain(r => r.WhtAmount == 150m);
+        p53.Rows.Should().NotContain(r => r.WhtAmount == 150m);
+        p54.Rows.Should().NotContain(r => r.WhtAmount == 150m);
+
+        // T6 — no omission: the four generators' counts sum to the total posted count in the
+        // period (same tenant scope as the generators — no IgnoreQueryFilters). N3 (Tier-2
+        // round 2) — baseline scoped to the full MonthRange, matching what the generators
+        // themselves query (was a single day, `d`), so same-month residue from other tests
+        // can never silently understate the baseline relative to what the generators return.
+        var (monthFrom, monthTo) = MonthRange(period);
+        var totalPosted = await db.WhtCertificates.CountAsync(w =>
+            w.Direction == "P" && w.Status == DocumentStatus.Posted
+            && w.CertDate >= monthFrom && w.CertDate <= monthTo);
+        (p2.Rows.Count + p3.Rows.Count + p53.Rows.Count + p54.Rows.Count)
+            .Should().Be(totalPosted);
+
+        // T7 — totals tie to the underlying certificates exactly.
+        p2.Totals.Income.Should().Be(1000m);
+        p2.Totals.Wht.Should().Be(150m);
+    }
+
+    // N1 (Tier-2 round 2, specs/pnd2-filing.md §10) — IRdEfilingClient has no SubmitPnd2Async
+    // arm. Before the fix, finalizing ภ.ง.ด.2 under a company with Pnd30SubmissionMode="auto"
+    // silently faked a submitted filing: TaxFilingStore.SubmitAsync's unknown-form default
+    // returned Submitted:false, but FinalizeAsync never checked res.Submitted before recording
+    // Status="Submitted"/SubmittedAt=now/RdAckRef="" — immutable forever. ภ.ง.ด.2 must ALWAYS
+    // take the manual finalize path regardless of the company's submission mode. Uses a FRESH
+    // company (TestCompanyFactory) — company 1's row must never be flipped (shared teas_test).
+    [SkippableFact]
+    public async Task Pnd2_finalize_always_manual_even_under_company_auto_mode()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(
+            _fx.ConnectionString, vatRegistered: true, pnd30SubmissionMode: "auto");
+        await using var sp = TestCompanyFactory.BuildProvider(
+            _fx.ConnectionString, company.CompanyId, company.BranchId);
+        var period = RandPeriod();
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            db.WhtCertificates.Add(new WhtCertificate
+            {
+                CompanyId = company.CompanyId, BranchId = company.BranchId,
+                DocNo = "WT-" + Sfx(), CertDate = PeriodDate(period),
+                Direction = "P", PayerTaxId = "0105500000001", PayerBranchCode = "00000",
+                PayerName = "TEAS Co", PayerAddress = "BKK",
+                PayeeTaxId = "1234567890123", PayeeName = "กรรมการทดสอบ",
+                PayeeAddress = "BKK", PayeeType = CustomerType.Individual, FormType = WhtFormType.Pnd2,
+                IncomeTypeCode = "4", Pnd2IncomeCode = "2",
+                IncomeAmount = 1000m, WhtRate = 0.15m, WhtAmount = 150m,
+                Status = DocumentStatus.Posted, IssuedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        await svc.GeneratePnd2Async(period, TaxFilingMode.Finalize, default);
+
+        var db2 = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var row = await db2.TaxFilings.SingleAsync(f => f.FormType == "PND2" && f.Period == period);
+        row.Status.Should().Be("Finalized",
+            "ภ.ง.ด.2 has no RD auto-submit client yet — must always take the manual finalize " +
+            "path regardless of the company's Pnd30SubmissionMode");
+        row.SubmittedAt.Should().BeNull();
+        row.RdAckRef.Should().BeNull();
     }
 
     [SkippableFact]

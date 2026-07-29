@@ -93,6 +93,7 @@ public sealed class TaxSummaryService(
             decimal Paid(WhtFormType f) => whtRows
                 .Where(r => r.Month == m && r.Direction == "P" && r.FormType == f)
                 .Sum(r => r.Wht);
+            var pnd2  = Paid(WhtFormType.Pnd2);
             var pnd3  = Paid(WhtFormType.Pnd3);
             var pnd53 = Paid(WhtFormType.Pnd53);
             var pnd54 = Paid(WhtFormType.Pnd54);
@@ -103,8 +104,8 @@ public sealed class TaxSummaryService(
                 Month: m, Revenue: rev, Expense: exp, NetProfit: rev - exp,
                 OutputVat: pnd30.OutputVat, InputVat: pnd30.InputVat,
                 VatPayable: pnd30.NetVatPayable, VatRefundable: pnd30.NetVatRefundable,
-                WhtPaidPnd3: pnd3, WhtPaidPnd53: pnd53, WhtPaidPnd54: pnd54, WhtPaidPnd1: pnd1,
-                WhtPaidTotal: pnd3 + pnd53 + pnd54 + pnd1, WhtReceived: received));
+                WhtPaidPnd2: pnd2, WhtPaidPnd3: pnd3, WhtPaidPnd53: pnd53, WhtPaidPnd54: pnd54, WhtPaidPnd1: pnd1,
+                WhtPaidTotal: pnd2 + pnd3 + pnd53 + pnd54 + pnd1, WhtReceived: received));
         }
 
         var totals = new TaxSummaryMonth(
@@ -113,6 +114,7 @@ public sealed class TaxSummaryService(
             NetProfit: months.Sum(x => x.NetProfit),
             OutputVat: months.Sum(x => x.OutputVat), InputVat: months.Sum(x => x.InputVat),
             VatPayable: months.Sum(x => x.VatPayable), VatRefundable: months.Sum(x => x.VatRefundable),
+            WhtPaidPnd2: months.Sum(x => x.WhtPaidPnd2),
             WhtPaidPnd3: months.Sum(x => x.WhtPaidPnd3), WhtPaidPnd53: months.Sum(x => x.WhtPaidPnd53),
             WhtPaidPnd54: months.Sum(x => x.WhtPaidPnd54), WhtPaidPnd1: months.Sum(x => x.WhtPaidPnd1),
             WhtPaidTotal: months.Sum(x => x.WhtPaidTotal), WhtReceived: months.Sum(x => x.WhtReceived));

@@ -9,6 +9,7 @@ import { useTaxFilings, useSystemInfo } from '@/lib/queries';
 // and ภ.พ.36 (reverse charge on imported services, ม.83/6) apply to non-VAT too.
 const FORMS = [
   { href: '/reports/pnd30', code: 'PND30', vatOnly: true },
+  { href: '/tax-filings/pnd2', code: 'PND2' },
   { href: '/tax-filings/pnd3', code: 'PND3' },
   { href: '/tax-filings/pnd53', code: 'PND53' },
   { href: '/tax-filings/pnd54', code: 'PND54' },

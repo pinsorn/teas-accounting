@@ -78,14 +78,15 @@ public sealed class WhtFormRoutingTests
         return (cat.CategoryId, expAcct);
     }
 
-    private static async Task<int> NewWhtType(ServiceProvider sp, WhtFormType form, decimal rate, string incomeCode)
+    private static async Task<int> NewWhtType(
+        ServiceProvider sp, WhtFormType form, decimal rate, string incomeCode, string? pnd2IncomeCode = null)
     {
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var w = new WhtType
         {
             CompanyId = 1, Code = TestIds.WhtTypeCode(), NameTh = "ประเภทเงินได้ทดสอบ",
-            IncomeTypeCode = incomeCode, FormType = form, Rate = rate,
+            IncomeTypeCode = incomeCode, FormType = form, Rate = rate, Pnd2IncomeCode = pnd2IncomeCode,
         };
         db.WhtTypes.Add(w);
         await db.SaveChangesAsync();
@@ -103,11 +104,12 @@ public sealed class WhtFormRoutingTests
             WhtPayerMode: payerMode);
 
     private async Task<WhtCertificate> PostAndGetCert(
-        long vendorId, WhtFormType whtTypeForm, decimal rate, string incomeCode, string payerMode)
+        long vendorId, WhtFormType whtTypeForm, decimal rate, string incomeCode, string payerMode,
+        string? pnd2IncomeCode = null)
     {
         await using var creator = Provider(userId: 1);
         var (catId, expAcct) = await NewExpenseCategory(creator);
-        var whtTypeId = await NewWhtType(creator, whtTypeForm, rate, incomeCode);
+        var whtTypeId = await NewWhtType(creator, whtTypeForm, rate, incomeCode, pnd2IncomeCode);
 
         long pvId;
         await using (var s = creator.CreateAsyncScope())
@@ -161,5 +163,32 @@ public sealed class WhtFormRoutingTests
         var cert = await PostAndGetCert(vid, WhtFormType.Pnd54, (decimal)rate, "8", "DEDUCT");
         cert.FormType.Should().Be(WhtFormType.Pnd54);
         cert.WhtRate.Should().Be((decimal)rate);   // DEDUCT → effective rate == chosen rate
+    }
+
+    // T4 (specs/pnd2-filing.md §A3/§4) — an INT-IND-shaped (Pnd2) WHT type routes to ภ.ง.ด.2
+    // ONLY for an individual payee; the same type applied to a corporate vendor must fall back
+    // to the payee-kind default (ภ.ง.ด.53), never silently file a company on an individuals'
+    // return. Pnd2IncomeCode is snapshotted onto the certificate either way.
+    [SkippableFact]
+    public async Task Individual_payee_with_pnd2_type_routes_to_pnd2()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var vid = await NewVendor(sp, CustomerType.Individual, isForeign: false);
+        var cert = await PostAndGetCert(vid, WhtFormType.Pnd2, 0.15m, "4", "DEDUCT", pnd2IncomeCode: "2");
+        cert.FormType.Should().Be(WhtFormType.Pnd2);
+        cert.WhtRate.Should().Be(0.15m);
+        cert.Pnd2IncomeCode.Should().Be("2");
+    }
+
+    [SkippableFact]
+    public async Task Corporate_payee_with_pnd2_type_falls_back_to_pnd53()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var vid = await NewVendor(sp, CustomerType.Corporate, isForeign: false);
+        var cert = await PostAndGetCert(vid, WhtFormType.Pnd2, 0.15m, "4", "DEDUCT", pnd2IncomeCode: "2");
+        cert.FormType.Should().Be(WhtFormType.Pnd53);
+        cert.Pnd2IncomeCode.Should().Be("2");   // snapshot happens regardless of routing outcome
     }
 }

@@ -108,6 +108,7 @@ export default function TaxSummaryPage() {
               <th className="text-right">{t('outputVat')}</th>
               <th className="text-right">{t('inputVat')}</th>
               <th className="text-right">{t('vatNet')}</th>
+              <th className="text-right">{t('pnd2')}</th>
               <th className="text-right">ภ.ง.ด.3</th>
               <th className="text-right">ภ.ง.ด.53</th>
               <th className="text-right">ภ.ง.ด.54</th>
@@ -128,6 +129,7 @@ export default function TaxSummaryPage() {
                 <td className="text-right tabular-nums">
                   <Link className="hover:underline" href="/reports/pnd30">{vatNetCell(m, t)}</Link>
                 </td>
+                <td className="text-right tabular-nums">{cell(m.whtPaidPnd2)}</td>
                 <td className="text-right tabular-nums">{cell(m.whtPaidPnd3)}</td>
                 <td className="text-right tabular-nums">{cell(m.whtPaidPnd53)}</td>
                 <td className="text-right tabular-nums">{cell(m.whtPaidPnd54)}</td>
@@ -151,6 +153,7 @@ export default function TaxSummaryPage() {
                 <td className="text-right tabular-nums">{cell(totals.outputVat)}</td>
                 <td className="text-right tabular-nums">{cell(totals.inputVat)}</td>
                 <td className="text-right tabular-nums">{vatNetCell(totals, t)}</td>
+                <td className="text-right tabular-nums">{cell(totals.whtPaidPnd2)}</td>
                 <td className="text-right tabular-nums">{cell(totals.whtPaidPnd3)}</td>
                 <td className="text-right tabular-nums">{cell(totals.whtPaidPnd53)}</td>
                 <td className="text-right tabular-nums">{cell(totals.whtPaidPnd54)}</td>

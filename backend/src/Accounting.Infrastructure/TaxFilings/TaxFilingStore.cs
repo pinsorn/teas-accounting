@@ -92,7 +92,13 @@ internal static class TaxFilingStore
         "PND53" => rd.SubmitPnd53Async(companyId, period, payload, ct),
         "PND54" => rd.SubmitPnd54Async(companyId, period, payload, ct),
         "PND36" => rd.SubmitPnd36Async(companyId, period, payload, ct),
-        _       => Task.FromResult(new RdSubmissionResult(
-                       false, "", null, $"Unknown form {formType}", 0)),
+        // N1 (Tier-2 round 2, specs/pnd2-filing.md §10) — defense-in-depth: an unrecognised
+        // form (e.g. "PND2", which has no SubmitPnd2Async arm) must never silently fake a
+        // failed-but-recorded submission. The real guard against this for PND2 today is
+        // WhtFilingService forcing submissionMode="manual" (this branch is never reached in
+        // that path); this throw only protects a future/other caller that reaches auto mode
+        // with an unwired form.
+        _       => throw new DomainException("tax_filing.unknown_form",
+                       $"No RD e-Filing submit method wired for form '{formType}' — cannot auto-submit."),
     };
 }

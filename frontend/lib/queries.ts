@@ -1510,7 +1510,7 @@ export function useOutputVatRegister(period: number) {
 }
 
 // ───────────────────────── Sprint 9 Part C — WHT filings ───────────────────
-function whtFilingMutation(form: 'pnd3' | 'pnd53' | 'pnd54') {
+function whtFilingMutation(form: 'pnd2' | 'pnd3' | 'pnd53' | 'pnd54') {
   return function () {
     const qc = useQueryClient();
     return useMutation({
@@ -1520,6 +1520,7 @@ function whtFilingMutation(form: 'pnd3' | 'pnd53' | 'pnd54') {
     });
   };
 }
+export const usePnd2 = whtFilingMutation('pnd2');
 export const usePnd3 = whtFilingMutation('pnd3');
 export const usePnd53 = whtFilingMutation('pnd53');
 export const usePnd54 = whtFilingMutation('pnd54');

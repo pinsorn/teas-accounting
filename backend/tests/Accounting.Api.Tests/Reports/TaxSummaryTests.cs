@@ -159,6 +159,45 @@ public sealed class TaxSummaryTests
         }
     }
 
+    // F2 (Tier-2 round 1, specs/pnd2-filing.md §10) — a Pnd2 (ภ.ง.ด.2, INT-IND director-loan
+    // interest) cert must appear in WhtPaidPnd2 AND count toward WhtPaidTotal; before the fix it
+    // vanished from both (TaxSummaryService.Paid() only enumerated Pnd3/Pnd53/Pnd54/Pnd1).
+    [SkippableFact]
+    public async Task Wht_paid_includes_pnd2_in_its_own_column_and_the_total()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var svc = s.ServiceProvider.GetRequiredService<ITaxSummaryService>();
+
+        var year = await FreshYearAsync(db);
+        // July: Pnd2 (interest to director, 150) alongside a Pnd3 (300) — both must be counted.
+        var certs = new[]
+        {
+            MakeCert(year, 7, "P", WhtFormType.Pnd2, income: 1_000m, wht: 150m),
+            MakeCert(year, 7, "P", WhtFormType.Pnd3, income: 10_000m, wht: 300m),
+        };
+        db.WhtCertificates.AddRange(certs);
+        await db.SaveChangesAsync();
+        try
+        {
+            var rep = await svc.GetAsync(year, default);
+
+            var jul = rep.Months[6];
+            jul.WhtPaidPnd2.Should().Be(150m);
+            jul.WhtPaidPnd3.Should().Be(300m);
+            jul.WhtPaidTotal.Should().Be(450m, "displayed columns must sum to the displayed total (I3-style invariant)");
+            rep.Totals.WhtPaidPnd2.Should().Be(150m);
+            rep.Totals.WhtPaidTotal.Should().Be(450m);
+        }
+        finally
+        {
+            db.WhtCertificates.RemoveRange(certs);
+            await db.SaveChangesAsync();
+        }
+    }
+
     [SkippableFact]
     public async Task Business_unit_filter_isolates_revenue_and_expense()
     {

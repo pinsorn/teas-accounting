@@ -57,6 +57,7 @@ public sealed class RbacCartesianTests
         "POST /tax-filings/cit/adjustments",
         "PUT /tax-filings/cit/years/{year:int}",
         "POST /tax-filings/cit/years/{year:int}/compute",
+        "POST /tax-filings/pnd2",
         "POST /tax-filings/pnd3",
         "POST /tax-filings/pnd30",
         "POST /tax-filings/pnd36",

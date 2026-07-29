@@ -567,8 +567,17 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                     // classified by the chosen income type, not the vendor flag: a foreign co. WITH a Thai PE
                     // files on ภ.ง.ด.53, one WITHOUT on ภ.ง.ด.54, and only the WHT/income type captures that.
                     // So honour the WhtType's form (e.g. FOR-SVC / FOR-ROYAL = Pnd54); otherwise fall back to
-                    // the payee-kind default (Individual → Pnd3, Corporate → Pnd53).
-                    FormType         = whtType.FormType == WhtFormType.Pnd54 ? WhtFormType.Pnd54 : formType,
+                    // the payee-kind default (Individual → Pnd3, Corporate → Pnd53). ภ.ง.ด.2 (ม.50(2), ม.40(3)/(4)
+                    // interest/dividends/royalties) applies ONLY to an INDIVIDUAL payee — a corporate payee's
+                    // interest is ม.69ทวิ → ภ.ง.ด.53, so a Pnd2-typed WHT applied to a corporate vendor must fall
+                    // back to the payee-kind default, never silently file a company on an individuals' return.
+                    FormType = whtType.FormType switch
+                    {
+                        WhtFormType.Pnd54 => WhtFormType.Pnd54,
+                        WhtFormType.Pnd2 when pv.VendorType == CustomerType.Individual => WhtFormType.Pnd2,
+                        _ => formType,
+                    },
+                    Pnd2IncomeCode    = whtType.Pnd2IncomeCode,
                     IncomeTypeCode    = whtType.IncomeTypeCode,
                     IncomeDescription = whtType.NameTh,
                     IncomeAmount      = groupIncome,

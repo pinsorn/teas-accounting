@@ -7,6 +7,7 @@ using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.TaxFilings;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -128,6 +129,91 @@ public sealed class WhtBatchExportServiceTests
         (await act.Should().ThrowAsync<DomainException>())
             .Which.Code.Should().Be("wht_batch.missing_tax_id");
     }
+
+    // C2/T9 (specs/pnd2-filing.md, I5) — INC_TYPE_PND is Mandatory; a Pnd2 cert with a null/blank
+    // Pnd2IncomeCode must fail the BATCH EXPORT loudly, never emit a blank mandatory field — but
+    // the ON-SCREEN filing (B1's GeneratePnd2Async) must still show the row so the user can file
+    // by hand (I5's other half, N2 Tier-2 round 2 strengthening).
+    [SkippableFact]
+    public async Task Pnd2_cert_without_income_code_fails_the_export()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = RandPeriod();
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            db.WhtCertificates.Add(new WhtCertificate
+            {
+                CompanyId = 1, BranchId = 1, DocNo = "WT-" + Sfx(), CertDate = PeriodDate(period),
+                Direction = "P", PayerTaxId = "0105500001234", PayerBranchCode = "00000",
+                PayerName = "TEAS Co", PayerAddress = "BKK",
+                PayeeTaxId = PayeeId(), PayeeName = "นายทดสอบ " + Sfx(),
+                PayeeAddress = "BKK", PayeeType = CustomerType.Individual, FormType = WhtFormType.Pnd2,
+                IncomeTypeCode = "4", Pnd2IncomeCode = null,   // missing — the guard's target
+                IncomeAmount = 1000m, WhtRate = 0.15m, WhtAmount = 150m,
+                Status = DocumentStatus.Posted, IssuedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var batchSvc = s.ServiceProvider.GetRequiredService<IWhtBatchExportService>();
+        var act = () => batchSvc.BuildAsync("PND2", period, default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("wht_batch.missing_income_code");
+
+        // I5's other half — the on-screen preview still shows the row despite the missing code.
+        var filingSvc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var filing = await filingSvc.GeneratePnd2Async(period, TaxFilingMode.Preview, default);
+        filing.Rows.Should().ContainSingle(r => r.WhtAmount == 150m);
+    }
+
+    // T8 (specs/pnd2-filing.md, I4) — the ภ.ง.ด.2 batch file's header totals must equal the
+    // on-screen filing's row count/totals for the same period (both read the same certs).
+    [SkippableFact]
+    public async Task Pnd2_batch_file_totals_agree_with_the_on_screen_filing()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = RandPeriod();
+        var d = PeriodDate(period);
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            db.WhtCertificates.AddRange(
+                MakePnd2Cert(d, PayeeId(), 1000m, 150m),
+                MakePnd2Cert(d, PayeeId(), 2000m, 300m));
+            await db.SaveChangesAsync();
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var filingSvc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var batchSvc = s.ServiceProvider.GetRequiredService<IWhtBatchExportService>();
+
+        var filing = await filingSvc.GeneratePnd2Async(period, TaxFilingMode.Preview, default);
+        var file = await batchSvc.BuildAsync("PND2", period, default);
+
+        var text = Encoding.UTF8.GetString(file.Content);
+        var header = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries)[0].Split('|');
+        header[14].Should().Be(filing.Rows.Count.ToString());              // TOT_NUM
+        header[15].Should().Be(WhtBatchFormat.N(filing.Totals.Income));    // TOT_AMT
+        header[16].Should().Be(WhtBatchFormat.N(filing.Totals.Wht));       // TOT_TAX
+        file.RecordCount.Should().Be(filing.Rows.Count);
+    }
+
+    private static WhtCertificate MakePnd2Cert(
+        DateOnly date, string payeeTaxId, decimal income, decimal wht) => new()
+    {
+        CompanyId = 1, BranchId = 1, DocNo = "WT-" + Sfx(), CertDate = date,
+        Direction = "P", PayerTaxId = "0105500001234", PayerBranchCode = "00000",
+        PayerName = "TEAS Co", PayerAddress = "BKK",
+        PayeeTaxId = payeeTaxId, PayeeName = "นายทดสอบ " + Sfx(),
+        PayeeAddress = "BKK", PayeeType = CustomerType.Individual, FormType = WhtFormType.Pnd2,
+        IncomeTypeCode = "4", Pnd2IncomeCode = "2",
+        IncomeAmount = income, WhtRate = wht / income, WhtAmount = wht,
+        Status = DocumentStatus.Posted, IssuedAt = DateTimeOffset.UtcNow,
+    };
 
     [SkippableFact]
     public async Task Empty_period_throws_no_data()

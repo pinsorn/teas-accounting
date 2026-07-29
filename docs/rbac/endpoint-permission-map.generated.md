@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 290 |
+| Perm | 292 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **352** |
+| **TOTAL** | **354** |
 
 ## Routes
 
@@ -321,6 +321,8 @@
 | GET | `/tax-filings/cit/years` | Perm | tax.filing.preview |
 | PUT | `/tax-filings/cit/years/{year:int}` | Perm | tax.filing.finalize |
 | POST | `/tax-filings/cit/years/{year:int}/compute` | Perm | tax.filing.finalize |
+| POST | `/tax-filings/pnd2` | Perm | tax.filing.preview |
+| GET | `/tax-filings/pnd2/batch-file` | Perm | tax.filing.preview |
 | POST | `/tax-filings/pnd3` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd3/batch-file` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pnd3/pdf` | Perm | tax.filing.preview |

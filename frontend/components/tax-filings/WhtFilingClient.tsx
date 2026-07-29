@@ -5,16 +5,18 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
-import { usePnd3, usePnd53, usePnd54 } from '@/lib/queries';
+import { usePnd2, usePnd3, usePnd53, usePnd54 } from '@/lib/queries';
 import { downloadFile, openPdf } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 import type { WhtFiling } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
 import { RdPrepSteps } from './RdPrepSteps';
 
-const HOOKS = { pnd3: usePnd3, pnd53: usePnd53, pnd54: usePnd54 } as const;
+const HOOKS = { pnd2: usePnd2, pnd3: usePnd3, pnd53: usePnd53, pnd54: usePnd54 } as const;
 
-const FORM_LABEL = { pnd3: 'ภ.ง.ด.3', pnd53: 'ภ.ง.ด.53', pnd54: 'ภ.ง.ด.54' } as const;
+const FORM_LABEL = {
+  pnd2: 'ภ.ง.ด.2', pnd3: 'ภ.ง.ด.3', pnd53: 'ภ.ง.ด.53', pnd54: 'ภ.ง.ด.54',
+} as const;
 
 function thisMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -24,7 +26,7 @@ export function WhtFilingClient({
   form,
   titleKey,
 }: {
-  form: 'pnd3' | 'pnd53' | 'pnd54';
+  form: 'pnd2' | 'pnd3' | 'pnd53' | 'pnd54';
   titleKey: string;
 }) {
   const t = useTranslations('tf');
@@ -34,9 +36,11 @@ export function WhtFilingClient({
   const confirm = useConfirm();
   const [downloading, setDownloading] = useState(false);
 
-  // cont.82.1 P2 — RD batch-upload file (FORMAT กลาง). Only ภ.ง.ด.3 / 53 have a central
+  // cont.82.1 P2 — RD batch-upload file (FORMAT กลาง). ภ.ง.ด.2 / 3 / 53 have a central
   // text format; ภ.ง.ด.54 (จ่ายต่างประเทศ ม.70) is not in scope.
-  const canBatch = form === 'pnd3' || form === 'pnd53';
+  const canBatch = form === 'pnd2' || form === 'pnd3' || form === 'pnd53';
+  // No ภ.ง.ด.2 PDF filler exists yet (template undecoded) — gate the button so it doesn't 404.
+  const canPdf = form !== 'pnd2';
 
   async function downloadBatch() {
     setDownloading(true);
@@ -88,11 +92,13 @@ export function WhtFilingClient({
             {t('finalize')}
           </button>
         </PermissionGate>
-        <button className="btn btn-sm btn-outline" data-testid="tf-download-pdf"
-          onClick={() => openPdf(`tax-filings/${form}/pdf?period=${ym.replace('-', '')}`)
-            .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
-          {t('downloadPdf')}
-        </button>
+        {canPdf && (
+          <button className="btn btn-sm btn-outline" data-testid="tf-download-pdf"
+            onClick={() => openPdf(`tax-filings/${form}/pdf?period=${ym.replace('-', '')}`)
+              .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
+            {t('downloadPdf')}
+          </button>
+        )}
         {canBatch && (
           <button className="btn btn-sm btn-outline" data-testid="tf-batch-file"
             disabled={downloading} onClick={downloadBatch} title={t('batchFileHint')}>

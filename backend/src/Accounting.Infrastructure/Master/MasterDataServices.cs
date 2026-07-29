@@ -323,11 +323,11 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         // CoA/branch onboarding bootstrap (out of scope; demo company is seeded
         // by SQL scripts). Mirrors seed 220/230.
         var from = new DateOnly(2020, 1, 1);
-        foreach (var (code, th, en, inc, form, rate) in DefaultWhtTypes)
+        foreach (var (code, th, en, inc, form, rate, pnd2Inc) in DefaultWhtTypes)
             db.WhtTypes.Add(new WhtType
             {
                 CompanyId = e.CompanyId, Code = code, NameTh = th, NameEn = en,
-                IncomeTypeCode = inc, FormType = form, Rate = rate,
+                IncomeTypeCode = inc, FormType = form, Rate = rate, Pnd2IncomeCode = pnd2Inc,
                 EffectiveFrom = from, EffectiveTo = null, IsActive = true,
             });
         // §ledger — seed the FULL default chart of accounts the GL posting engine resolves
@@ -506,26 +506,33 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         }).ToList();
     }
 
-    // Canonical 13 domestic WHT types (kept in sync with seed 220).
+    // Canonical 13 domestic WHT types (kept in sync with seed 220) + the ภ.ง.ด.2
+    // interest-to-individual type (kept in sync with seed 632, specs/pnd2-filing.md A5).
+    // Pnd2Inc = RD ภ.ง.ด.2 Format กลาง INC_TYPE_PND code; null except for Pnd2-form rows.
     private static readonly (string Code, string Th, string? En, string Inc,
-        WhtFormType Form, decimal Rate)[] DefaultWhtTypes =
+        WhtFormType Form, decimal Rate, string? Pnd2Inc)[] DefaultWhtTypes =
     [
-        ("RENT",      "ค่าเช่า",                       "Rental",               "5", WhtFormType.Pnd3,  0.05m),
-        ("SVC",       "ค่าบริการ (นิติบุคคล)",          "Service (corporate)",  "8", WhtFormType.Pnd53, 0.03m),
-        ("ADS",       "ค่าโฆษณา",                      "Advertising",          "8", WhtFormType.Pnd53, 0.02m),
-        ("SVC-IND",   "ค่าบริการ (บุคคลธรรมดา)",        "Service (individual)", "8", WhtFormType.Pnd3,  0.03m),
-        ("PROF",      "ค่าวิชาชีพอิสระ",                "Professional fee",     "6", WhtFormType.Pnd53, 0.03m),
-        ("TRANS",     "ค่าขนส่ง",                      "Transport",            "8", WhtFormType.Pnd53, 0.01m),
-        ("COMM",      "ค่านายหน้า / คอมมิชชั่น",         "Commission",           "2", WhtFormType.Pnd53, 0.03m),
-        ("ROYAL",     "ค่าสิทธิ",                      "Royalty",              "3", WhtFormType.Pnd53, 0.03m),
-        ("INT",       "ดอกเบี้ย",                      "Interest",             "4", WhtFormType.Pnd53, 0.01m),
-        ("PRIZE",     "รางวัล / ส่วนลดส่งเสริมการขาย",   "Prize / incentive",    "8", WhtFormType.Pnd53, 0.05m),
-        ("AGRI",      "ค่าซื้อพืชผลเกษตร",              "Agricultural produce", "8", WhtFormType.Pnd53, 0.0075m),
-        ("ENTERTAIN", "ค่าจ้างนักแสดง / บันเทิง",        "Entertainer fee",      "8", WhtFormType.Pnd53, 0.05m),
-        ("CONTRACT",  "ค่าจ้างทำของ / รับเหมา",          "Contract work",        "7", WhtFormType.Pnd53, 0.03m),
+        ("RENT",      "ค่าเช่า",                       "Rental",               "5", WhtFormType.Pnd3,  0.05m,   null),
+        ("SVC",       "ค่าบริการ (นิติบุคคล)",          "Service (corporate)",  "8", WhtFormType.Pnd53, 0.03m,   null),
+        ("ADS",       "ค่าโฆษณา",                      "Advertising",          "8", WhtFormType.Pnd53, 0.02m,   null),
+        ("SVC-IND",   "ค่าบริการ (บุคคลธรรมดา)",        "Service (individual)", "8", WhtFormType.Pnd3,  0.03m,   null),
+        ("PROF",      "ค่าวิชาชีพอิสระ",                "Professional fee",     "6", WhtFormType.Pnd53, 0.03m,   null),
+        ("TRANS",     "ค่าขนส่ง",                      "Transport",            "8", WhtFormType.Pnd53, 0.01m,   null),
+        ("COMM",      "ค่านายหน้า / คอมมิชชั่น",         "Commission",           "2", WhtFormType.Pnd53, 0.03m,   null),
+        ("ROYAL",     "ค่าสิทธิ",                      "Royalty",              "3", WhtFormType.Pnd53, 0.03m,   null),
+        ("INT",       "ดอกเบี้ย",                      "Interest",             "4", WhtFormType.Pnd53, 0.01m,   null),
+        ("PRIZE",     "รางวัล / ส่วนลดส่งเสริมการขาย",   "Prize / incentive",    "8", WhtFormType.Pnd53, 0.05m,   null),
+        ("AGRI",      "ค่าซื้อพืชผลเกษตร",              "Agricultural produce", "8", WhtFormType.Pnd53, 0.0075m, null),
+        ("ENTERTAIN", "ค่าจ้างนักแสดง / บันเทิง",        "Entertainer fee",      "8", WhtFormType.Pnd53, 0.05m,   null),
+        ("CONTRACT",  "ค่าจ้างทำของ / รับเหมา",          "Contract work",        "7", WhtFormType.Pnd53, 0.03m,   null),
         // Sprint 9 C1 — foreign payee (ภ.ง.ด.54, 15%); kept in sync with seed 250.
-        ("FOR-SVC",   "ค่าบริการ ต่างประเทศ",            "Foreign service",      "8", WhtFormType.Pnd54, 0.15m),
-        ("FOR-ROYAL", "ค่าสิทธิ ต่างประเทศ",             "Foreign royalty",      "3", WhtFormType.Pnd54, 0.15m),
+        ("FOR-SVC",   "ค่าบริการ ต่างประเทศ",            "Foreign service",      "8", WhtFormType.Pnd54, 0.15m,   null),
+        ("FOR-ROYAL", "ค่าสิทธิ ต่างประเทศ",             "Foreign royalty",      "3", WhtFormType.Pnd54, 0.15m,   null),
+        // specs/pnd2-filing.md A5 — ภ.ง.ด.2, ม.50(2): 15% on ม.40(4) interest paid to an
+        // individual (director/shareholder loan interest). INC_TYPE_PND "2" =
+        // ม.40(4)(ก) ดอกเบี้ย. The existing INT type (1%, PND53) stays untouched — it is the
+        // correct ม.69ทวิ rate for interest paid to a juristic person.
+        ("INT-IND",   "ดอกเบี้ยจ่าย (บุคคลธรรมดา)",      "Interest paid (individual)", "4", WhtFormType.Pnd2, 0.15m, "2"),
     ];
 
     public async Task UpdateAsync(int companyId, UpdateCompanyRequest req, CancellationToken ct)

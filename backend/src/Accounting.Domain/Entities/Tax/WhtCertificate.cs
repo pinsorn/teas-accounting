@@ -47,6 +47,10 @@ public class WhtCertificate : ITenantOwned
 
     public WhtFormType FormType { get; set; }
     public required string IncomeTypeCode { get; set; }
+
+    /// <summary>RD ภ.ง.ด.2 Format กลาง INC_TYPE_PND code (1 char), snapshotted from
+    /// WhtType.Pnd2IncomeCode at PV-post. Meaningful only when FormType == Pnd2.</summary>
+    public string? Pnd2IncomeCode { get; set; }
     public string?  IncomeDescription { get; set; }
     public decimal  IncomeAmount    { get; set; }
     public decimal  WhtRate         { get; set; }

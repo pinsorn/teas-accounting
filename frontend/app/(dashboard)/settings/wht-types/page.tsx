@@ -18,7 +18,10 @@ import { PermissionGate } from '@/components/PermissionGate';
 
 const SCOPE = 'tax.wht_type.manage';
 
-const FORMS = ['PND3', 'PND53', 'PND1'] as const;
+// F3 (Tier-2 round 1, specs/pnd2-filing.md §10) — PND2 added so the 632-seeded INT-IND row is
+// editable (was 400 on save / blank-dropdown re-point to PND53@15%). PND54 has the same
+// pre-existing hole (FOR-SVC/FOR-ROYAL) — not fixed here, logged in troubles-wiki.md.
+const FORMS = ['PND2', 'PND3', 'PND53', 'PND1'] as const;
 
 interface Editing {
   whtTypeId: number | null;

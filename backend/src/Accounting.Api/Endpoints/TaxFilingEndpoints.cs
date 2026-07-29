@@ -54,6 +54,18 @@ public static class TaxFilingEndpoints
         .WithTags("TaxFilings")
         .RequireAuthorization(preview);
 
+        // ── B2 (specs/pnd2-filing.md) ภ.ง.ด.2 — copied verbatim from the pnd3 handler below,
+        // service call swapped. Reuses tax.filing.preview / tax.filing.finalize (invent nothing).
+        app.MapPost("/tax-filings/pnd2", async (
+            [FromQuery] int period, [FromQuery] string? mode,
+            IWhtFilingService svc, ITenantContext tenant, IPermissionLookup perms,
+            CancellationToken ct) =>
+        {
+            var m = ParseMode(mode);
+            var deny = await GuardFinalizeAsync(m, tenant, perms, ct);
+            return deny ?? Results.Ok(await svc.GeneratePnd2Async(period, m, ct));
+        }).RequireAuthorization(preview);
+
         // ── C2/C3/C4 ภ.ง.ด.3 / ภ.ง.ด.53 / ภ.ง.ด.54
         app.MapPost("/tax-filings/pnd3", async (
             [FromQuery] int period, [FromQuery] string? mode,
@@ -119,6 +131,13 @@ public static class TaxFilingEndpoints
         app.MapGet("/tax-filings/pnd3/batch-file", (
             [FromQuery] int period, IWhtBatchExportService svc, CancellationToken ct) =>
                 BatchFileAsync("PND3", period, svc, ct))
+        .RequireAuthorization(preview);
+
+        // ── C3 (specs/pnd2-filing.md) — ภ.ง.ด.2 batch file. GET, read-only export → no
+        // SkipAllowMutation entry needed (unlike the POST /tax-filings/pnd2 above).
+        app.MapGet("/tax-filings/pnd2/batch-file", (
+            [FromQuery] int period, IWhtBatchExportService svc, CancellationToken ct) =>
+                BatchFileAsync("PND2", period, svc, ct))
         .RequireAuthorization(preview);
 
         // ภ.พ.30 (VAT return) RD-Prep "Format กลาง" batch file — per-branch summary, detail rows only.

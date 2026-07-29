@@ -13,6 +13,9 @@ public sealed record TaxSummaryMonth(
     decimal InputVat,         // ภาษีซื้อ
     decimal VatPayable,       // > 0 = ชำระเพิ่ม
     decimal VatRefundable,    // > 0 = ขอคืน / ยกไป
+    // F2 (Tier-2 round 1, specs/pnd2-filing.md §10) — ภ.ง.ด.2 (ม.50(2), interest/dividends to
+    // an individual, e.g. director-loan interest). Must be counted in WhtPaidTotal below.
+    decimal WhtPaidPnd2,      // ภ.ง.ด.2 (ดอกเบี้ย/เงินปันผล บุคคลธรรมดา)
     decimal WhtPaidPnd3,      // ภ.ง.ด.3 (บุคคลธรรมดา)
     decimal WhtPaidPnd53,     // ภ.ง.ด.53 (นิติบุคคล)
     decimal WhtPaidPnd54,     // ภ.ง.ด.54 (ต่างประเทศ)

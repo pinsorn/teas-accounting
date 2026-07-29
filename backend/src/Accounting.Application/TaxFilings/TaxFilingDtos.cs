@@ -122,6 +122,8 @@ public sealed record Pnd36Filing(
 
 public interface IWhtFilingService
 {
+    // B1 (specs/pnd2-filing.md) — ภ.ง.ด.2 (ม.50(2), interest/dividends/royalties to an individual).
+    Task<WhtFiling>   GeneratePnd2Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<WhtFiling>   GeneratePnd3Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<WhtFiling>   GeneratePnd53Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<WhtFiling>   GeneratePnd54Async(int period, TaxFilingMode mode, CancellationToken ct);
@@ -143,7 +145,7 @@ public sealed record WhtBatchFile(string FileName, byte[] Content, int RecordCou
 
 public interface IWhtBatchExportService
 {
-    /// <param name="formType">"PND53" (MVP) or "PND3".</param>
+    /// <param name="formType">"PND53" (MVP), "PND3", or "PND2" (C2, specs/pnd2-filing.md).</param>
     /// <param name="period">yyyymm.</param>
     Task<WhtBatchFile> BuildAsync(string formType, int period, CancellationToken ct);
 }

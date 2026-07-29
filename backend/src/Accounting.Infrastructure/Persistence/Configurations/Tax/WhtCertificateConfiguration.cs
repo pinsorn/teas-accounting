@@ -32,6 +32,11 @@ internal sealed class WhtCertificateConfiguration : IEntityTypeConfiguration<Wht
                            v => Enum.Parse<WhtFormType>(v, ignoreCase: true))
             .HasMaxLength(10);
         b.Property(w => w.IncomeTypeCode).HasMaxLength(20).IsRequired();
+        // ภ.ง.ด.2 filing (specs/pnd2-filing.md A2) — snapshot of WhtType.Pnd2IncomeCode at
+        // PV-post; certs have no WhtTypeId to join back on, so every reportable value must
+        // be captured here. Additive + nullable, no backfill. Explicit HasColumnName: see
+        // WhtTypeConfiguration.cs for why the naming-convention default isn't used here.
+        b.Property(w => w.Pnd2IncomeCode).HasColumnName("pnd2_income_code").HasMaxLength(1);
         b.Property(w => w.IncomeDescription).HasMaxLength(500);
         b.Property(w => w.PdfStoragePath).HasMaxLength(500);
         b.Property(w => w.IncomeAmount).HasPrecision(19, 4);

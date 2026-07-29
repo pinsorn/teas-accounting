@@ -549,6 +549,7 @@ export interface TaxSummaryMonth {
   month: number;            // 1..12; 0 = year total
   revenue: number; expense: number; netProfit: number;
   outputVat: number; inputVat: number; vatPayable: number; vatRefundable: number;
+  whtPaidPnd2: number;   // F2 (specs/pnd2-filing.md §10) — ภ.ง.ด.2 (interest/dividends, individual)
   whtPaidPnd3: number; whtPaidPnd53: number; whtPaidPnd54: number; whtPaidPnd1: number;
   whtPaidTotal: number; whtReceived: number;
 }

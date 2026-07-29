@@ -113,6 +113,36 @@ public sealed class PurchasePdfTests
         return w.WhtTypeId;
     }
 
+    // T12 (specs/pnd2-filing.md) — an INT-IND-shaped (Pnd2) WHT type + individual vendor.
+    private async Task<int> NewPnd2WhtType(ServiceProvider sp)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var w = new WhtType
+        {
+            CompanyId = 1, Code = TestIds.WhtTypeCode(), NameTh = "ดอกเบี้ยจ่ายทดสอบ PDF",
+            IncomeTypeCode = "4", FormType = WhtFormType.Pnd2, Rate = 0.15m, Pnd2IncomeCode = "2",
+        };
+        db.WhtTypes.Add(w);
+        await db.SaveChangesAsync();
+        return w.WhtTypeId;
+    }
+
+    private async Task<long> NewIndividualVendor(ServiceProvider sp)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var v = new Vendor
+        {
+            CompanyId = 1, VendorCode = TestIds.VendorCode(), NameTh = "ผู้รับเงินทดสอบ PDF",
+            TaxId = TestIds.TaxId(), BranchCode = "00000",
+            VendorType = CustomerType.Individual, IsForeign = false, VatRegistered = true,
+        };
+        db.Vendors.Add(v);
+        await db.SaveChangesAsync();
+        return v.VendorId;
+    }
+
     private static CreatePurchaseOrderRequest PoReq(long vendorId, bool multiLine)
     {
         var lines = new List<PurchaseOrderLineInput>
@@ -268,5 +298,47 @@ public sealed class PurchasePdfTests
 
         AssertPdf(first);
         Assert.Equal(first, second);                 // frozen copy is byte-identical
+    }
+
+    // T12 (specs/pnd2-filing.md §0/§4) — a Pnd2 certificate (director-loan interest, individual
+    // payee) renders through Wht50TawiFormFiller with the ภ.ง.ด.2 checkbox (chk3). Before A1
+    // (WhtFormType.Pnd2 didn't exist) this branch was DEAD CODE — WhtCertificateService.cs:103's
+    // `formType is "Pnd1" or "Pnd2" or "Pnd3" or "Pnd53"` could never see "Pnd2" in practice. This
+    // is the first test that actually posts a PV producing a Pnd2 cert and renders its 50ทวิ PDF.
+    [SkippableFact]
+    public async Task Pnd2_certificate_renders_through_the_official_50tawi_form_filler()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var creator = Provider(userId: 1);
+        var vid = await NewIndividualVendor(creator);
+        var (catId, expAcct) = await NewExpenseCategory(creator);
+        var whtTypeId = await NewPnd2WhtType(creator);
+
+        long pvId;
+        await using (var s = creator.CreateAsyncScope())
+            pvId = await s.ServiceProvider.GetRequiredService<IPaymentVoucherService>()
+                .CreateDraftAsync(PvReq(vid, catId, expAcct, false, whtTypeId, 0.15m), default);
+
+        await using var approver = Provider(userId: 2);
+        await using (var s = approver.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
+            await svc.ApproveAsync(pvId, default);
+            await svc.PostAsync(pvId, default);       // auto-issues the Pnd2 WHT certificate
+        }
+
+        long certId;
+        await using (var s = creator.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var cert = await db.WhtCertificates.AsNoTracking()
+                .FirstAsync(c => c.PaymentVoucherId == pvId);
+            cert.FormType.Should().Be(WhtFormType.Pnd2);
+            certId = cert.WhtCertificateId;
+        }
+
+        await using (var s = creator.CreateAsyncScope())
+            AssertPdf(await s.ServiceProvider.GetRequiredService<IWhtCertificateService>()
+                .BuildPdfAsync(certId, default));
     }
 }
