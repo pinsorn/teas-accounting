@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 288 |
+| Perm | 290 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **350** |
+| **TOTAL** | **352** |
 
 ## Routes
 
@@ -177,7 +177,9 @@
 | POST | `/fixed-assets/{id:long}/dispose` | Perm | fixedasset.dispose |
 | POST | `/fixed-assets/{id:long}/write-off` | Perm | fixedasset.dispose |
 | ANY | `/health` | Anonymous | — |
+| GET | `/journals/` | Perm | gl.journal.read |
 | POST | `/journals/` | Perm | gl.journal.create |
+| POST | `/journals/manual` | Perm | gl.journal.post |
 | GET | `/journals/{id:long}` | Perm | gl.journal.read |
 | POST | `/journals/{id:long}/post` | Perm | gl.journal.post |
 | POST | `/mcp/` | ApiKeyOnly | — |

@@ -1626,3 +1626,40 @@ export interface AccumulatedDepreciationReportItem {
   fixedAssetId: number; docNo: string | null; name: string;
   months: AccumulatedDepreciationMonth[]; yearTotal: number;
 }
+
+// ───────────── Manual JV + Chart of Accounts management (specs/manual-jv-and-coa-management.md) ─────────────
+export type AccountTypeStr = 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
+export type NormalBalanceStr = 'Debit' | 'Credit';
+
+// §0.4/§A3 — GET/POST/PUT /accounts (ChartOfAccountDtos.cs AccountDto/CreateAccountRequest/
+// UpdateAccountRequest). accountCode/accountType/normalBalance/parentId are immutable after
+// create (UpdateAccountRequest carries only the 4 fields below — INV-6).
+export interface AccountListItem {
+  accountId: number; accountCode: string; accountNameTh: string; accountNameEn: string | null;
+  accountType: AccountTypeStr; isHeader: boolean; normalBalance: NormalBalanceStr; isActive: boolean;
+}
+export interface CreateAccountRequest {
+  accountCode: string; accountNameTh: string; accountNameEn: string | null;
+  accountType: AccountTypeStr; parentId: number | null; isHeader: boolean; normalBalance: NormalBalanceStr;
+}
+export interface UpdateAccountRequest {
+  accountNameTh: string; accountNameEn: string | null; isHeader: boolean; isActive: boolean;
+}
+
+// §B3/§B5/§B8 — manual journal voucher (create-and-post in one call, no draft state).
+export interface JournalListItem {
+  journalId: number; docNo: string | null; docDate: string; description: string;
+  reference: string | null; status: string; totalDebit: number; totalCredit: number;
+  isClosingEntry: boolean;
+}
+export interface ManualJournalLineInput {
+  accountId: number; debitAmount: number; creditAmount: number;
+  description: string | null; businessUnitId: number | null;
+}
+export interface CreateManualJournalRequest {
+  docDate: string; description: string; reference: string | null;
+  lines: ManualJournalLineInput[];
+}
+// POST /journals/manual response (JournalDtos.cs JournalPostedResult — shared with the
+// existing draft POST /journals/{id}/post, unchanged).
+export interface JournalPostedResult { journalId: number; docNo: string; postedAt: string; }

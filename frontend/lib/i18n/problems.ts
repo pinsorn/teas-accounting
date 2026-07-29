@@ -15,11 +15,23 @@ const TH: Record<string, string> = {
   // period.*
   'period.year_closed': 'ปีบัญชีนี้ปิดแล้ว กรุณาเปิดปีบัญชีก่อน แล้วจึงเปิดงวดนี้ใหม่',
   'period.not_closed': 'งวดบัญชีนี้ไม่ได้อยู่ในสถานะปิด',
+  // specs/manual-jv-and-coa-management.md §B8.7 — the single most likely JV rejection
+  // (posting into a closed month) had no entry here; it surfaced as raw English.
+  'period.closed': 'งวดบัญชีนี้ปิดแล้ว ไม่สามารถบันทึกรายการได้ กรุณาเปิดงวดบัญชีนี้ก่อน',
   // WP5 (specs/fix-swarm-findings-all.md, appr01 LOW) — DomainExceptionMiddleware's generic
   // catch-all (unexpected exceptions, e.g. the PO-approve 500 appr01 hit) always emits CODE
   // "internal_error" with an English `detail` ("An unexpected error occurred."); without an
   // entry here that English sentence surfaced verbatim on an otherwise all-Thai UI.
   'internal_error': 'เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง หากยังพบปัญหากรุณาติดต่อผู้ดูแลระบบ',
+
+  // je.* / gl.* (specs/manual-jv-and-coa-management.md §B8.7 — manual journal voucher)
+  'je.unbalanced': 'ยอดเดบิตและเครดิตไม่เท่ากัน ไม่สามารถบันทึกบัญชีได้',
+  'gl.unbalanced': 'ยอดเดบิตและเครดิตไม่เท่ากัน ไม่สามารถบันทึกบัญชีได้',
+  'je.future_date': 'ไม่สามารถบันทึกรายการที่ลงวันที่ในอนาคตได้',
+  'je.year_closed': 'วันที่นี้อยู่ในปีบัญชีที่ปิดแล้ว กรุณาเปิดปีบัญชีนี้ก่อน',
+  'je.account_not_found': 'ไม่พบบัญชีที่เลือก',
+  'je.account_inactive': 'บัญชีที่เลือกถูกปิดใช้งานแล้ว ไม่สามารถบันทึกรายการได้',
+  'je.account_is_header': 'บัญชีที่เลือกเป็นบัญชีหลัก (header) ไม่สามารถบันทึกรายการได้ กรุณาเลือกบัญชีย่อย',
 
   // auth.*
   'auth.required': 'ต้องเข้าสู่ระบบก่อนทำรายการนี้',
@@ -133,6 +145,11 @@ const TH: Record<string, string> = {
   'branch.duplicate': 'รหัสสาขานี้มีอยู่แล้ว',
   'coa.not_found': 'ไม่พบผังบัญชีนี้',
   'coa.duplicate': 'รหัสบัญชีนี้มีอยู่แล้ว',
+  // specs/manual-jv-and-coa-management.md §A1b/§A1c/§A1d
+  'coa.parent_not_found': 'ไม่พบบัญชีแม่ที่เลือก',
+  'coa.parent_not_header': 'บัญชีแม่ต้องเป็นบัญชีหลัก (header) เท่านั้น',
+  'coa.has_postings': 'บัญชีนี้มีการบันทึกบัญชีแล้ว ไม่สามารถเปลี่ยนเป็นบัญชีหลัก (header) ได้',
+  'coa.system_account': 'บัญชีนี้เป็นบัญชีระบบที่ใช้บันทึกบัญชีอัตโนมัติ ไม่สามารถปิดใช้งานหรือเปลี่ยนเป็นบัญชีหลักได้',
   'prefix.duplicate': 'รหัสเลขที่เอกสารนี้มีอยู่แล้ว',
   'expense_category.duplicate': 'รหัสหมวดหมู่ค่าใช้จ่ายนี้มีอยู่แล้ว',
   'product.bad_type': 'ประเภทสินค้า/บริการไม่ถูกต้อง',

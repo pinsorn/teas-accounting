@@ -22,7 +22,18 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## ภ.พ.36 reverse-charge JV lands on today, not on the filing period date — `CreateDraftAsync` silently discards its own `docDate` argument
+- **Symptom:** a reverse-charge JV created for a specific filing period (via `WhtFilingService.cs:311-319` → `IJournalService.CreateDraftAsync`) posts/appears dated at `_clock.TodayInBangkok()` regardless of the `docDate` the caller passed in.
+- **Root cause:** `JournalService.CreateDraftAsync` (`Accounting.Infrastructure/Ledger/JournalService.cs`) never reads `req.DocDate` — it unconditionally pins `DocDate`/`PostingDate` to `_clock.TodayInBangkok()` per the `§10` "manual JE dates are always today" rule. That rule was written for a UI-driven manual JV form (no legitimate reason to backdate) and is correct there, but `WhtFilingService` is a second, non-UI caller of the SAME draft path that DOES pass a real filing-period `docDate` — which is silently thrown away.
+- **Fix:** NOT fixed here (specs/manual-jv-and-coa-management.md §B0 explicitly puts this out of scope — changing `CreateDraftAsync`'s date-pinning would silently move every existing ภ.พ.36 reverse-charge JV's date, a behavior change with no spec of its own). The NEW manual-JV path added by that spec (`CreateAndPostManualAsync` / `POST /journals/manual`) is a separate method that DOES honor the caller's `docDate` (bounded by the period/fiscal-year/future-date gates, §B1) — it does not touch or fix `CreateDraftAsync`. If ภ.พ.36's date needs to be correct, that is its own future fix to `CreateDraftAsync` or a switch of `WhtFilingService` onto a date-honoring path.
+- **Seen:** 2026-07-29, manual-jv-and-coa-management (§0.1/§B0 design note, confirmed by reading `JournalService.cs:41-51` and `WhtFilingService.cs:311-319`).
+
 ## `period.closed` 422 on every new draft, and no button/route can undo it — company looks permanently bricked
+**SUPERSEDED 2026-07-29 by O14**: `POST /periods/{y}/{m}/reopen` now exists
+(`PeriodEndpoints.cs:20-28`, shipped as O14) and the "no fix" advice below is stale — a
+closed month with no other blocker CAN now be reopened via that route, then re-closed
+after posting. The rest of this entry (why a company looked bricked before O14) is kept
+for historical context only.
 - **Symptom:** a company whose CURRENT real-world month has been closed (`POST /periods/{y}/{m}/close`)
   can never draft another TaxInvoice/PaymentVoucher/JournalEntry again — `docDate` on every one of
   these is server-pinned to `_clock.TodayInBangkok()` (never client-controlled, "§10" anti-backdating
@@ -800,3 +811,9 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
 - **Root cause:** PowerShell's default output encoding degrades non-ASCII to `?` before the request leaves the client. The API stores exactly what it received; the application itself round-trips Thai correctly (co6's UI-created employees are intact at 3 bytes per character, co7's PowerShell-created ones are 1 byte per character).
 - **Fix:** create Thai data through the UI, or force UTF-8 on the client before calling the API. Verify immediately with `octet_length(col)` — a Thai string measuring one byte per character is corrupt. Appearance alone will not tell you: `?` looks like a deliberate placeholder.
 - **Seen:** 2026-07-26 (co7's three O8 test employees, discovered 2026-07-29 during v1.24.1 live verification). A subagent inspecting the same rows through the UI concluded "placeholder text, not a bug" — the byte length is what settles it.
+
+## `corepack pnpm lint` (gate 9) hangs on an interactive ESLint setup wizard — no config was ever committed
+- **Symptom:** `corepack pnpm lint` (→ `next lint`) prints `? How would you like to configure ESLint? … Strict (recommended) / Base / Cancel` and blocks forever (non-interactive shells see it exit 1 with `ELIFECYCLE Command failed with exit code 1` immediately since stdin is closed).
+- **Root cause:** `frontend/` has no ESLint config file at all (no `.eslintrc*`, no `eslint.config.*`) and never has — `git log --all` on those paths returns nothing. `next lint` only auto-detects an existing config; with none present it always falls back to the first-run interactive wizard, in every shell, regardless of the diff being verified.
+- **Fix:** this is a pre-existing repo gap, not something a feature diff introduces or can fix within its own blast radius (adding a config is a separate, deliberate change — it may also pull in the `eslint-config-next` dependency, which is out of scope for a feature dispatch). Do not spend time debugging your own diff over this. Report gate 9 as blocked-by-environment with this entry cited, run `tsc --noEmit` (gate 8) and `next build` as the load-bearing FE build-health checks instead, and flag to the orchestrator that someone should either commit a real ESLint config or drop `pnpm lint` from the gate list.
+- **Seen:** 2026-07-29, WP-FE (specs/manual-jv-and-coa-management.md) — first time gate 9 was actually executed rather than assumed green.

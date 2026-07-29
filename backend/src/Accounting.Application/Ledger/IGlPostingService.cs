@@ -1,5 +1,11 @@
 namespace Accounting.Application.Ledger;
 
+/// <summary>A manual-JV line (specs/manual-jv-and-coa-management.md §B2). Richer than the
+/// 3-tuple overload (per-line description + BU), which bank reconciliation keeps using
+/// unchanged.</summary>
+public sealed record ManualJvLine(
+    long AccountId, decimal Debit, decimal Credit, string? Description, int? BusinessUnitId);
+
 /// <summary>
 /// Posts a GL JournalEntry derived from a fiscal document. Invoked by the originating
 /// fiscal service inside its existing transaction — never standalone — so atomic rollback
@@ -49,4 +55,16 @@ public interface IGlPostingService
         int companyId, int branchId, DateOnly docDate, string description, string? reference,
         IReadOnlyList<(long AccountId, decimal Debit, decimal Credit)> lines,
         CancellationToken ct);
+
+    /// <summary>
+    /// Manual JV overload (specs/manual-jv-and-coa-management.md §B2) — same private
+    /// BuildAndPostAsync engine as every other poster (balance check, JV numbering,
+    /// MarkPosted). NOT a second posting path: the only difference from the 3-tuple overload
+    /// above is that the caller may set a per-line description and BU. The CALLER (JournalService)
+    /// is responsible for the period gate and postable-account validation, exactly like the
+    /// 3-tuple overload's caller.
+    /// </summary>
+    Task<long> PostManualEntryAsync(
+        int companyId, int branchId, DateOnly docDate, string description, string? reference,
+        IReadOnlyList<ManualJvLine> lines, CancellationToken ct);
 }

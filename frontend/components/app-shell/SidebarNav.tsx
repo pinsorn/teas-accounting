@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart, ShieldCheck, UsersRound, BookOpen, FileBarChart2, Lock, Banknote, Boxes, TrendingDown } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, ReceiptText, FileMinus, FilePlus, ListChecks, LogOut, Languages, Building2, Wallet, FileSignature, FileInput, Layers, Percent, Coins, Scale, TrendingUp, BarChart3, FileSpreadsheet, Landmark, Package, KeyRound, PanelLeftClose, PanelLeft, Users, FolderTree, Files, PieChart, ShieldCheck, UsersRound, BookOpen, BookOpenCheck, FileBarChart2, Lock, Banknote, Boxes, TrendingDown } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { resolveLogoUrl } from '@/lib/company-logo';
 import { useCompanyProfile, useMePermissions, useSystemInfo } from '@/lib/queries';
@@ -94,6 +94,9 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       { href: '/reports/trial-balance', key: 'trialBalance', Icon: Scale, perm: 'report.trial_balance.read' },
       { href: '/reports/balance-sheet', key: 'balanceSheet', Icon: FileBarChart2, perm: 'report.trial_balance.read' },
       { href: '/reports/profit-loss', key: 'profitLoss', Icon: TrendingUp, perm: 'report.profit_loss.read' },
+      // specs/manual-jv-and-coa-management.md §B8.5 — manual JV list, right before the GL
+      // report it drills into (precedent: /period-close already lives here as a non-report item).
+      { href: '/journals', key: 'journals', Icon: BookOpenCheck, perm: 'gl.journal.read' },
       { href: '/reports/general-ledger', key: 'generalLedger', Icon: BookOpen, perm: 'report.general_ledger.read' },
       // Bank reconciliation (specs/bank-reconciliation.md B5.3) — tie-out report.
       { href: '/reports/bank-reconciliation', key: 'bankReconciliation', Icon: Landmark, perm: 'bank.report.read' },
@@ -130,6 +133,8 @@ const SECTIONS: { key: string; items: NavItem[] }[] = [
       // This is the highest-value item: kills the BU-picker 403 spam for every read-heavy
       // role (629 grants master.business_unit.read broadly), not just AUDITOR.
       { href: '/settings/business-units', key: 'businessUnits', Icon: Layers, perm: 'master.business_unit.read' },
+      // specs/manual-jv-and-coa-management.md §A4 — chart-of-accounts management.
+      { href: '/settings/chart-of-accounts', key: 'chartOfAccounts', Icon: BookOpen, perm: 'master.coa.manage' },
       { href: '/settings/employees', key: 'employees', Icon: Users, perm: 'master.employee.manage' },
       { href: '/settings/wht-types', key: 'whtTypes', Icon: Percent, perm: 'tax.wht_type.manage' },
       { href: '/settings/expense-categories', key: 'expenseCategories', Icon: FolderTree, perm: 'sys.expense_category.manage' },

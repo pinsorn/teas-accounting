@@ -39,4 +39,17 @@ public sealed class GlAccountsOptions
     public string DepreciationExpenseAccount   { get; init; } = "5450"; // ค่าเสื่อมราคา (DR)
     public string GainOnAssetDisposalAccount   { get; init; } = "4200"; // กำไรจากการจำหน่ายสินทรัพย์ (CR)
     public string LossOnAssetDisposalAccount   { get; init; } = "5460"; // ขาดทุนจากการจำหน่ายสินทรัพย์ (DR)
+
+    /// <summary>Every account code this options object maps. Master-data admin refuses to
+    /// deactivate or header-flip these — GlPostingService resolves them on every post, for
+    /// every document type. Kept explicit (no reflection) and pinned by GlAccountsOptionsTests.</summary>
+    public IEnumerable<string> AllCodes() =>
+    [
+        ArAccount, ApAccount, CashAccount, BankAccount, SalesAccount, OutputVatAccount,
+        InputVatAccount, WhtPayableAccount, WhtReceivableAccount, SalesReturnAccount,
+        IrrecoverableVatExpenseAccount, SalaryExpenseAccount, EmployerSsoExpenseAccount,
+        PitPayableAccount, SsoPayableAccount, NetWagesPayableAccount, OtherDeductionsPayableAccount,
+        FixedAssetCostAccount, AccumulatedDepreciationAccount, DepreciationExpenseAccount,
+        GainOnAssetDisposalAccount, LossOnAssetDisposalAccount,
+    ];
 }

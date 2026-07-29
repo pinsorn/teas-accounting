@@ -15,4 +15,15 @@ public interface IJournalService
     /// code "je.not_found" (→ 404) when not found OR the journal belongs to another tenant
     /// (global query filter + RLS make these identical — never distinguished).</summary>
     Task<JournalDetail> GetDetailAsync(long journalId, CancellationToken ct);
+
+    /// <summary>Manual JV (specs/manual-jv-and-coa-management.md §B0/B4) — create AND post in
+    /// one call. No draft state. Validates the date bounds (future/period/fiscal-year) and every
+    /// line's AccountId (postable, active, own-tenant — journal_lines has no company_id/FK, so
+    /// RLS cannot enforce this) before posting through the shared GlPostingService seam.</summary>
+    Task<JournalPostedResult> CreateAndPostManualAsync(CreateManualJournalRequest req, CancellationToken ct);
+
+    /// <summary>Posted-and-draft, newest first. Plain list, no paging envelope (mirrors
+    /// IVendorService.ListAsync's shape) — scoped to the tenant by the ITenantOwned query filter.</summary>
+    Task<IReadOnlyList<JournalListItem>> ListAsync(
+        DateOnly? from, DateOnly? to, string? search, int page, int pageSize, CancellationToken ct);
 }

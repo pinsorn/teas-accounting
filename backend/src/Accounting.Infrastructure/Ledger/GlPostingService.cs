@@ -507,6 +507,22 @@ public sealed class GlPostingService : IGlPostingService
         return await BuildAndPostAsync(companyId, branchId, docDate, description, reference, journalLines, ct);
     }
 
+    /// <summary>Manual JV overload — same private BuildAndPostAsync engine as every other poster
+    /// (balance check, JV numbering, MarkPosted). NOT a second posting path: the only difference
+    /// from the 3-tuple overload above is that the caller may set a per-line description and BU.</summary>
+    public async Task<long> PostManualEntryAsync(
+        int companyId, int branchId, DateOnly docDate, string description, string? reference,
+        IReadOnlyList<ManualJvLine> lines, CancellationToken ct)
+    {
+        var journalLines = lines.Select((l, i) => new JournalLine
+        {
+            LineNo = i + 1, AccountId = l.AccountId,
+            DebitAmount = l.Debit, CreditAmount = l.Credit,
+            Description = l.Description, BusinessUnitId = l.BusinessUnitId,
+        }).ToList();
+        return await BuildAndPostAsync(companyId, branchId, docDate, description, reference, journalLines, ct);
+    }
+
     private async Task<long> BuildAndPostAsync(
         int companyId, int branchId, DateOnly docDate,
         string description, string? reference, List<JournalLine> lines, CancellationToken ct,

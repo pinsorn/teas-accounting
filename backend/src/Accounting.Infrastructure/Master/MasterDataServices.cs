@@ -7,8 +7,10 @@ using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
+using Accounting.Infrastructure.Ledger;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Master;
 
@@ -141,12 +143,26 @@ public sealed class VendorService(AccountingDbContext db, ITenantContext tenant)
             .FirstOrDefaultAsync(ct);
 }
 
-public sealed class ChartOfAccountService(AccountingDbContext db, ITenantContext tenant) : IChartOfAccountService
+public sealed class ChartOfAccountService(
+    AccountingDbContext db, ITenantContext tenant, IOptions<GlAccountsOptions> glAccounts)
+    : IChartOfAccountService
 {
     public async Task<long> CreateAsync(CreateAccountRequest req, CancellationToken ct)
     {
         if (await db.ChartOfAccounts.AnyAsync(a => a.AccountCode == req.AccountCode, ct))
             throw new DomainException("coa.duplicate", $"Account code '{req.AccountCode}' already exists.");
+
+        // specs/manual-jv-and-coa-management.md A1b — no DB FK enforcement can be trusted across
+        // tenants (a Postgres FK check runs as the table owner and bypasses RLS). The tenant query
+        // filter (AccountingDbContext.ApplyTenantFilter) scopes this read to the caller's company,
+        // so a foreign parent id resolves to null → "not found", never a cross-tenant link.
+        if (req.ParentId is { } pid)
+        {
+            var parent = await db.ChartOfAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.AccountId == pid, ct)
+                ?? throw new DomainException("coa.parent_not_found", $"Parent account {pid} not found.");
+            if (!parent.IsHeader)
+                throw new DomainException("coa.parent_not_header", "Parent account must be a header account.");
+        }
 
         var e = new ChartOfAccount
         {
@@ -155,6 +171,7 @@ public sealed class ChartOfAccountService(AccountingDbContext db, ITenantContext
             AccountNameTh = req.AccountNameTh, AccountNameEn = req.AccountNameEn,
             AccountType = req.AccountType, ParentId = req.ParentId,
             IsHeader = req.IsHeader, NormalBalance = req.NormalBalance,
+            IsActive = true, CreatedAt = DateTimeOffset.UtcNow,   // A1a — was missing: every UI-created row stamped 0001-01-01
         };
         db.ChartOfAccounts.Add(e);
         await db.SaveChangesAsync(ct);
@@ -165,6 +182,27 @@ public sealed class ChartOfAccountService(AccountingDbContext db, ITenantContext
     {
         var e = await db.ChartOfAccounts.FirstOrDefaultAsync(a => a.AccountId == accountId, ct)
             ?? throw new DomainException("coa.not_found", $"Account {accountId} not found.");
+
+        // A1c — header accounts are excluded from every postable-account picker
+        // (FinancialReportService.cs GeneralLedgerAccountsAsync) and must not carry postings.
+        // Flipping an account that ALREADY has posted lines into a header retroactively
+        // invalidates those lines and hides the account from the GL drill-down.
+        if (req.IsHeader && !e.IsHeader)
+        {
+            var hasPostings = await db.JournalLines
+                .Join(db.JournalEntries, l => l.JournalId, j => j.JournalId, (l, j) => new { l, j })
+                .AnyAsync(x => x.l.AccountId == accountId && x.j.Status == DocumentStatus.Posted, ct);
+            if (hasPostings)
+                throw new DomainException("coa.has_postings",
+                    "Account already carries posted journal lines — it cannot become a header account.");
+        }
+
+        // A1d — every code in GlAccountsOptions is resolved by GlPostingService on every
+        // document post for every tenant. Losing one to a UI edit breaks posting company-wide.
+        if ((!req.IsActive || req.IsHeader) && glAccounts.Value.AllCodes().Contains(e.AccountCode))
+            throw new DomainException("coa.system_account",
+                $"Account {e.AccountCode} is a system account used by GL posting — it cannot be deactivated or made a header.");
+
         e.AccountNameTh = req.AccountNameTh; e.AccountNameEn = req.AccountNameEn;
         e.IsHeader = req.IsHeader; e.IsActive = req.IsActive;
         await db.SaveChangesAsync(ct);
@@ -410,6 +448,13 @@ public sealed class CompanyService(AccountingDbContext db, IActivityRecorder act
         ("5450", "ค่าเสื่อมราคา",                   "Depreciation Expense",      AccountType.Expense,   NormalBalance.Debit),
         ("4200", "กำไรจากการจำหน่ายสินทรัพย์",       "Gain on Disposal of Assets", AccountType.Revenue,  NormalBalance.Credit),
         ("5460", "ขาดทุนจากการจำหน่ายสินทรัพย์",     "Loss on Disposal of Assets", AccountType.Expense,  NormalBalance.Debit),
+        // specs/manual-jv-and-coa-management.md §C1/C2a — director/shareholder loan + interest
+        // expense + other income. NOT in GlAccountsOptions (nothing auto-posts to them); ordinary
+        // deactivatable user accounts, seeded here for every FUTURE company. Existing companies
+        // get them via SqlScripts/631_seed_director_loan_and_other_income_accounts.sql.
+        ("2190", "เงินกู้ยืมจากกรรมการ/ผู้ถือหุ้น",   "Director & Shareholder Loan", AccountType.Liability, NormalBalance.Credit),
+        ("5500", "ดอกเบี้ยจ่าย",                     "Interest Expense",           AccountType.Expense,   NormalBalance.Debit),
+        ("4300", "รายได้อื่น",                       "Other Income",               AccountType.Revenue,   NormalBalance.Credit),
     ];
 
     // WP1.5a (F20, D7) — the 19 recommended expense categories (§17.3 / mirrors

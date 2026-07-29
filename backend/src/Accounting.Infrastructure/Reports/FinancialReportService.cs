@@ -39,11 +39,15 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
                           Credit = g.Sum(x => x.CreditAmount) })
             .ToDictionaryAsync(x => x.AccountId, x => x, ct);
 
+        // A2 (specs/manual-jv-and-coa-management.md) — read EVERY account regardless of
+        // IsActive; the includeInactive filter moves into the loop below. Filtering in SQL
+        // dropped an inactive account that still carries movement, summing td/tc over only the
+        // surviving rows and making the report declare itself unbalanced — same rule
+        // BalanceSheetAsync already states (:91-92).
         var accounts = await db.ChartOfAccounts.AsNoTracking()
-            .Where(a => includeInactive || a.IsActive)
             .OrderBy(a => a.AccountCode)
             .Select(a => new { a.AccountId, a.AccountCode, a.AccountNameTh,
-                               a.AccountType, a.NormalBalance })
+                               a.AccountType, a.NormalBalance, a.IsActive })
             .ToListAsync(ct);
 
         var rows = new List<TrialBalanceReportRow>();
@@ -51,6 +55,9 @@ public sealed class FinancialReportService(AccountingDbContext db, ITenantContex
         foreach (var a in accounts)
         {
             var s = sums.GetValueOrDefault(a.AccountId);
+            // An INACTIVE account that still carries movement must appear, or td/tc are summed
+            // over a subset and the report declares itself unbalanced.
+            if (!includeInactive && !a.IsActive && s is null) continue;
             var dr = s?.Debit ?? 0m;
             var cr = s?.Credit ?? 0m;
             td += dr; tc += cr;

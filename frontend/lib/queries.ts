@@ -1358,6 +1358,71 @@ export function useJournal(id: number) {
   });
 }
 
+// specs/manual-jv-and-coa-management.md §B8.4 — manual JV list + create-and-post.
+// CreateDraftAsync/PostAsync (draft path, ภ.พ.36) are untouched; this hits the new
+// POST /journals/manual (gl.journal.post) + GET /journals (gl.journal.read).
+import type {
+  JournalListItem,
+  CreateManualJournalRequest,
+  JournalPostedResult,
+  AccountListItem,
+  CreateAccountRequest,
+  UpdateAccountRequest,
+} from './types';
+
+export function useJournals(filters: { from?: string; to?: string; search?: string } = {}) {
+  return useQuery({
+    queryKey: ['journals', filters],
+    queryFn: () => apiGet<JournalListItem[]>(`journals${qs(filters)}`),
+  });
+}
+export function useCreateManualJournal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateManualJournalRequest) =>
+      apiPost<JournalPostedResult>('journals/manual', req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['journals'] });
+      qc.invalidateQueries({ queryKey: ['gl-accounts'] });
+      qc.invalidateQueries({ queryKey: ['trial-balance'] });
+    },
+  });
+}
+
+// §A3 — chart-of-accounts management (settings/chart-of-accounts). `activeOnly` is a
+// REQUIRED non-nullable bool on the BE (MasterEndpoints.cs:108 — no `?`), so it must
+// always be sent explicitly (runtime-gotchas §2: an omitted required query param 400s
+// before the handler body runs). The management page always passes false (shows both).
+export function useAccounts(activeOnly: boolean) {
+  return useQuery({
+    queryKey: ['accounts', activeOnly],
+    queryFn: () => apiGet<AccountListItem[]>(`accounts?activeOnly=${activeOnly}`),
+  });
+}
+export function useCreateAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    // POST /accounts returns Results.Created(location, null) — no body — so the create
+    // response carries nothing useful; callers never read it (mirrors useCreateProduct).
+    mutationFn: (req: CreateAccountRequest) => apiPost<void>('accounts', req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['gl-accounts'] });
+    },
+  });
+}
+export function useUpdateAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: UpdateAccountRequest }) =>
+      apiPut<void>(`accounts/${v.id}`, v.req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['gl-accounts'] });
+    },
+  });
+}
+
 // Cycle A #7 — Period Close UI. Backed by GET /periods/{year}/year-status
 // (year-end closing #5 — one call for all 12 fiscal-month statuses + real
 // closedAt, replacing the earlier per-month useQueries fan-out).
