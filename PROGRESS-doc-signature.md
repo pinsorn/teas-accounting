@@ -21,11 +21,12 @@ prod = v1.26.0 (ภ.ง.ด.2, E2E-verified 10/10). main = 6c2a870 + checkpoint 
    approved two-mode Tier-2. Minions template upgrades all pushed (loops, seam sweep, spec
    skeleton, status warm-workers, 4 retro lessons).
 
-## IN FLIGHT
-- **WP-4 + WP-5 (FE)** — sonnet (the WHT/paper-mirror-warm worker): paper components +
-  settings pages + default-note prefill + F6/F7 carry-forwards. Gates: tsc, next build,
-  i18n line parity (manual). If session dies: re-dispatch from spec §13 WP-4/WP-5 + §16
-  F6/F7; its file list is §F2/§14 frontend 21 files.
+## IN FLIGHT → PAUSED AT QUOTA (03:45)
+- **WP-4 + WP-5 (FE)** — worker hit ≥95% during discovery, ZERO edits made; its own detailed
+  checkpoint (spec read complete, exact diffs for 3 paper files, F6 flagged highest-risk,
+  F7 needs fresh read of settings/users gating vars, line-number-shift warning) is at
+  `PROGRESS-doc-signature-wp4-wp5.md`. Resume after reset: SendMessage the SAME worker
+  ("quota reset — resume from your checkpoint file") — warm resume, not fresh spawn.
 
 ## NEXT (on resume / after reset ~06:30)
 1. WP-4/5 report → hold to loop standard.

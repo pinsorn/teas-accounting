@@ -148,6 +148,8 @@ export function paperDtoToProps(
       right: dto.signRoles.right,
     },
     watermark: dto.watermark ?? undefined,
+    // doc-signature-and-foot-layout §F2.3
+    signatures: dto.signatures ?? undefined,
   };
 }
 

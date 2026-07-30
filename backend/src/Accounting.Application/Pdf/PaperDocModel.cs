@@ -91,6 +91,28 @@ public sealed record PaperWatermark(
 // (ผู้จัดทำ / ผู้อนุมัติ / ผู้รับเงิน); null → the renderer keeps the two-box layout.
 public sealed record PaperSignRoles(string Left, string Right, string? Middle = null);
 
+/// <summary>doc-signature spec (§D3) — resolved signature imagery + signer positions for the
+/// signature strip. URLs and positions are SERIALIZED (the FE loads images through the BFF
+/// proxy, exactly like the company logo); the BYTES are [JsonIgnore]d so megabyte blobs never
+/// enter the /paper JSON — the same split as PaperSeller.Logo. A null record = the document is
+/// not signed yet (Draft) → the renderer draws today's empty box. StampOnMiddle is true only for
+/// the Payment Voucher (§A2). LeftName/MiddleName are the SIGNER'S PERSON NAME (User.FullName)
+/// and ARE rendered on the ( name ) line of our own boxes, replacing the company name / the
+/// 30-dot blank once a signer exists (§A4). Null → today's fallback. The counterparty box never
+/// uses them.</summary>
+public sealed record PaperSignatures(
+    string? LeftUrl = null,
+    string? MiddleUrl = null,
+    string? StampUrl = null,
+    string? LeftPosition = null,
+    string? MiddlePosition = null,
+    string? LeftName = null,
+    string? MiddleName = null,
+    bool StampOnMiddle = false,
+    [property: JsonIgnore] byte[]? LeftBytes = null,
+    [property: JsonIgnore] byte[]? MiddleBytes = null,
+    [property: JsonIgnore] byte[]? StampBytes = null);
+
 public sealed record PaperDocModel(
     string DocType,        // "ใบกำกับภาษี"
     string DocTypeEn,      // "TAX INVOICE"
@@ -106,4 +128,7 @@ public sealed record PaperDocModel(
     string? AmountWords = null,
     string? Notes = null,
     PaperWatermark? Watermark = null,
-    PaperPartyLabel? PartyLabel = null);
+    PaperPartyLabel? PartyLabel = null,
+    // doc-signature spec (§D3) — appended LAST positional; all ten call sites pass every
+    // param from Watermark/PartyLabel onward BY NAME (verified §1.2), so this is additive-safe.
+    PaperSignatures? Signatures = null);

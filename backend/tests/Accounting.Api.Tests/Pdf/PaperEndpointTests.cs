@@ -206,6 +206,49 @@ public sealed class PaperEndpointTests
         summary.GetProperty("total").GetDecimal().Should().Be(10700m);
     }
 
+    // ═══════════════════════ T10 (I3, I10) — signatures carry no image bytes ══════════
+    // doc-signature-and-foot-layout spec §9 T10. A posted document has a signer (I2), so the
+    // /paper JSON's "signatures" object is present; its byte fields must never reach the wire
+    // (mirrors :168-170's seller.logo/logoSvg JsonIgnore pattern) and the pre-existing summary/
+    // notes values this file already pins (ม.86/4, I10) must stay unchanged by the addition.
+
+    [SkippableFact]
+    public async Task Posted_TI_paper_carries_a_signatures_object_without_leaking_image_bytes()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var cust = await CustomerId(sp);
+        var ti = await PostTi(sp, cust);
+
+        TaxInvoiceDetail detail;
+        await using (var s = sp.CreateAsyncScope())
+            detail = (await s.ServiceProvider.GetRequiredService<ITaxInvoiceService>()
+                .GetDetailAsync(ti, default))!;
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var client = factory.CreateClient();
+        using var json = await GetPaperAsync(client, $"/tax-invoices/{ti}/paper");
+        var root = json.RootElement;
+
+        // I10 — this dispatch adds signatures; it must not move a money figure or the notes text.
+        var summary = root.GetProperty("summary");
+        summary.GetProperty("subtotal").GetDecimal().Should().Be(10000m);
+        summary.GetProperty("vat").GetDecimal().Should().Be(700m);
+        summary.GetProperty("total").GetDecimal().Should().Be(10700m);
+
+        // I3 — a posted document resolves a signer (PostedBy = the default provider's user),
+        // so "signatures" is present, not absent/null.
+        root.TryGetProperty("signatures", out var signatures).Should().BeTrue(
+            "a posted Tax Invoice has a signer (I2) — the field must be present");
+        signatures.ValueKind.Should().NotBe(JsonValueKind.Null);
+
+        // [JsonIgnore] — the raw image bytes must never reach the /paper JSON, exactly like
+        // seller.logo/logoSvg above.
+        signatures.TryGetProperty("leftBytes", out _).Should().BeFalse();
+        signatures.TryGetProperty("middleBytes", out _).Should().BeFalse();
+        signatures.TryGetProperty("stampBytes", out _).Should().BeFalse();
+    }
+
     // ═══════════════ Purchase Order — discount row + partyLabel + watermark ════════
 
     [SkippableFact]

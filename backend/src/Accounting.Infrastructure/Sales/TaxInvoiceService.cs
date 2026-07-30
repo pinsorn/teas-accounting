@@ -42,6 +42,10 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     private readonly ICompanyTaxConfigService _taxCfg;
     private readonly ILogger<TaxInvoiceService> _log;
     private readonly IActivityRecorder       _activity;
+    // doc-signature spec (§D5) — TI's seller is a POSTED SNAPSHOT (not PaperSellerSource), so
+    // unlike every sibling mapper this service had no file-storage dependency until the
+    // signature/stamp resolver needed one (PaperSignatureSource.ResolveAsync).
+    private readonly IFileStorageService     _storage;
 
     public TaxInvoiceService(
         AccountingDbContext db,
@@ -55,13 +59,14 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         IOptions<ETaxBehaviorOptions> etaxOpts,
         ICompanyTaxConfigService taxCfg,
         ILogger<TaxInvoiceService> log,
-        IActivityRecorder activity)
+        IActivityRecorder activity,
+        IFileStorageService storage)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period;
         _etaxXml = etaxXml; _etaxPipeline = etaxPipeline;
         _etaxOpts = etaxOpts.Value; _taxCfg = taxCfg; _log = log;
-        _activity = activity;
+        _activity = activity; _storage = storage;
     }
 
     // Non-VAT companies (ม.86/4) cannot issue Tax Invoices. This is the single

@@ -38,7 +38,7 @@ export function PaperDocument({
   signRoles,
   watermark,
   extraMetaBlock,
-  signatureImg,
+  signatures,
 }: PaperDocumentProps) {
   // Non-VAT companies (ม.86): drive the foot's VAT visibility from /system/info.
   // An explicit summary.showVat (e.g. a fixture) still wins.
@@ -58,8 +58,14 @@ export function PaperDocument({
         extraMetaBlock={extraMetaBlock}
       />
       <PaperItems items={items} />
-      <PaperFoot summary={effectiveSummary} notes={notes} amountWords={amountWords} />
-      <PaperSign signRoles={signRoles} sellerName={seller.name} counterpartyName={customer.name} signatureImg={signatureImg} />
+      {/* doc-signature-and-foot-layout §F2.5/§C1 — หมายเหตุ + price summary + signature strip
+          are one bottom-anchored group on screen too (mirrors the PDF's bottom-group atomicity;
+          screen never paginates, so this is purely a wrapper, no layout behaviour change beyond
+          the CSS in paper.css). */}
+      <div className="paper-bottom">
+        <PaperFoot summary={effectiveSummary} notes={notes} amountWords={amountWords} />
+        <PaperSign signRoles={signRoles} sellerName={seller.name} counterpartyName={customer.name} signatures={signatures} />
+      </div>
     </div>
   );
 }

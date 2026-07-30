@@ -1,9 +1,12 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Attachments;
 using Accounting.Application.Audit;
 using Accounting.Application.Master;
+using Accounting.Application.Pdf;
 using Accounting.Domain.Common;
+using Accounting.Domain.Enums;
 using Accounting.Domain.ValueObjects;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -19,22 +22,46 @@ public sealed class CompanyProfileService(
     IActivityRecorder activity)
     : ICompanyProfileService
 {
-    public async Task<CompanyProfileDto?> GetAsync(CancellationToken ct) =>
-        await db.CompanyProfiles.AsNoTracking()
-            .Where(p => p.CompanyId == tenant.CompanyId)
-            .Select(p => new CompanyProfileDto(
-                p.CompanyId,
-                p.LegalName, p.TaxId, p.RegistrationNumber,
-                p.RegisteredAddressLine1, p.RegisteredAddressLine2,
-                p.RegBuilding, p.RegRoomNo, p.RegFloor, p.RegVillage,
-                p.RegHouseNo, p.RegMoo, p.RegSoi, p.RegStreet,
-                p.RegisteredSubdistrict, p.RegisteredDistrict,
-                p.RegisteredProvince, p.RegisteredPostalCode,
-                p.VatRegistrationDate, p.BranchCode,
-                p.TradeName, p.LogoUrl, p.Phone, p.Email, p.Website,
-                p.ContactName, p.BankName, p.BankAccountNo, p.BankAccountName,
-                p.SsoEmployerAccountNo))
+    // doc-signature spec (§G1) — the FE reads/writes camelCase; both directions must agree.
+    private static readonly JsonSerializerOptions DocNotesJson =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private static string? Norm(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    public async Task<CompanyProfileDto?> GetAsync(CancellationToken ct)
+    {
+        var p = await db.CompanyProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+        if (p is null) return null;
+
+        // doc-signature spec (§E5) — no CompanyProfile.StampUrl column; resolve the latest-wins
+        // COMPANY_STAMP attachment the same way PaperSignatureSource will (one query, decorative).
+        var stampAttachmentId = await db.Attachments.AsNoTracking()
+            .Where(a => a.ParentType == AttachmentParentType.CompanyStamp
+                && a.ParentId == p.CompanyId && a.DeletedAt == null)
+            .OrderByDescending(a => a.UploadedAt)
+            .ThenByDescending(a => a.AttachmentId)   // §16 F5 — deterministic same-timestamp tiebreak
+            .Select(a => (long?)a.AttachmentId)
             .FirstOrDefaultAsync(ct);
+        var stampUrl = stampAttachmentId is { } sid ? $"/attachments/{sid}/download" : null;
+
+        var defaultNotes = string.IsNullOrWhiteSpace(p.DefaultDocNotesJson)
+            ? null
+            : JsonSerializer.Deserialize<DefaultDocNotes>(p.DefaultDocNotesJson, DocNotesJson);
+
+        return new CompanyProfileDto(
+            p.CompanyId,
+            p.LegalName, p.TaxId, p.RegistrationNumber,
+            p.RegisteredAddressLine1, p.RegisteredAddressLine2,
+            p.RegBuilding, p.RegRoomNo, p.RegFloor, p.RegVillage,
+            p.RegHouseNo, p.RegMoo, p.RegSoi, p.RegStreet,
+            p.RegisteredSubdistrict, p.RegisteredDistrict,
+            p.RegisteredProvince, p.RegisteredPostalCode,
+            p.VatRegistrationDate, p.BranchCode,
+            p.TradeName, p.LogoUrl, p.Phone, p.Email, p.Website,
+            p.ContactName, p.BankName, p.BankAccountNo, p.BankAccountName,
+            p.SsoEmployerAccountNo, stampUrl, defaultNotes);
+    }
 
     public async Task UpdateSoftAsync(UpdateCompanyProfileSoftRequest req, CancellationToken ct)
     {
@@ -58,6 +85,17 @@ public sealed class CompanyProfileService(
         e.BankAccountNo = req.BankAccountNo;
         e.BankAccountName = req.BankAccountName;
         e.SsoEmployerAccountNo = req.SsoEmployerAccountNo;
+        // doc-signature spec (§G1) — blank/whitespace normalises to null; whole-field overwrite,
+        // same convention as every other soft field above.
+        e.DefaultDocNotesJson = req.DefaultDocNotes is null
+            ? null
+            : JsonSerializer.Serialize(new DefaultDocNotes(
+                Norm(req.DefaultDocNotes.Quotation), Norm(req.DefaultDocNotes.SalesOrder),
+                Norm(req.DefaultDocNotes.DeliveryOrder), Norm(req.DefaultDocNotes.TaxInvoice),
+                Norm(req.DefaultDocNotes.Receipt), Norm(req.DefaultDocNotes.BillingNote),
+                Norm(req.DefaultDocNotes.CreditNote), Norm(req.DefaultDocNotes.DebitNote),
+                Norm(req.DefaultDocNotes.PurchaseOrder), Norm(req.DefaultDocNotes.PaymentVoucher)),
+                DocNotesJson);
         e.UpdatedAt = DateTimeOffset.UtcNow;
         e.UpdatedByUserId = tenant.UserId;
 
@@ -208,5 +246,46 @@ public sealed class CompanyProfileService(
         profile.UpdatedByUserId = tenant.UserId;
         await db.SaveChangesAsync(ct);
         return url;
+    }
+
+    public async Task<string> UpdateStampAsync(
+        string fileName, string mimeType, long sizeBytes, Stream content,
+        CancellationToken ct)
+    {
+        if (!tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        // doc-signature spec (§E4) — PNG/JPEG/WebP only, 1 MB (stricter than the logo's own
+        // allowlist, which still permits svg — a pre-existing, out-of-scope latent bug, §11.1).
+        SignatureImage.Validate(mimeType, sizeBytes, "company_profile.stamp");
+        // Tier-2 finding (2026-07-30, MED) — the MIME string alone can lie; verify the real magic
+        // number before persisting, so a spoofed Content-Type is rejected with the existing
+        // *.bad_mime error at upload time (better UX than a silently-blank box later).
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, ct);
+        var bytes = buffer.ToArray();
+        if (!SignatureImage.HasValidImageMagic(bytes))
+            throw new DomainException("company_profile.stamp_bad_mime",
+                "File content does not match an allowed image format (png/jpeg/webp).");
+
+        var profile = await db.CompanyProfiles
+            .FirstOrDefaultAsync(p => p.CompanyId == tenant.CompanyId, ct)
+            ?? throw new DomainException("company_profile.not_found",
+                "Company profile not found for the current tenant.");
+
+        // No CompanyProfile.StampUrl column (§E5) — the attachment row is the source of truth;
+        // GetAsync resolves it latest-wins. Only the return value tells the caller the new URL.
+        var uploaded = await attachments.UploadAsync(
+            parentType: "COMPANY_STAMP",
+            parentId: profile.CompanyId,
+            category: "OTHER",
+            description: "Company stamp",
+            fileName: fileName,
+            mimeType: mimeType,
+            sizeBytes: bytes.Length,
+            content: new MemoryStream(bytes),
+            ct: ct);
+
+        return $"/attachments/{uploaded.AttachmentId}/download";
     }
 }

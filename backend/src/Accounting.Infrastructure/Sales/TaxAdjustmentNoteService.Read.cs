@@ -83,6 +83,12 @@ public sealed partial class TaxAdjustmentNoteService
     {
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("note.not_found", $"Note {id} not found.");
+
+        // doc-signature spec (§D5) — AdjustmentNoteDetail carries no PostedBy; a one-column
+        // scalar read avoids widening the read DTO for a single signature-resolution need.
+        // CN and DN share one entity/table (branch on noteType), so one query covers both.
+        var postedBy = await _db.TaxAdjustmentNotes.AsNoTracking()
+            .Where(x => x.NoteId == id).Select(x => x.PostedBy).FirstOrDefaultAsync(ct);
         // Sprint 8.5 — legal basis: ม.86/10 (CN) / ม.86/9 (DN) under VAT mode;
         // ม.82/9 (price adjustment) for non-VAT companies.
         var noteType = d.NoteType.Equals("Credit", StringComparison.OrdinalIgnoreCase)
@@ -110,7 +116,10 @@ public sealed partial class TaxAdjustmentNoteService
             Notes: d.DisplayNotes,
             Watermark: copy
                 ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
-                : Pdf.PaperDoc.Watermark(kind, d.Status));
+                : Pdf.PaperDoc.Watermark(kind, d.Status),
+            Signatures: await Pdf.PaperSignatureSource.ResolveAsync(
+                _db, _storage, postedBy, null, stampOnMiddle: false,
+                isSigned: d.Status != "Draft" && postedBy is not null, ct));
         return model;
     }
 }

@@ -14,11 +14,12 @@ export const meta = {
 //   lenses:    ['spec-compliance', ...]   (optional; defaults below)
 //   context:   'orchestrator evidence'    (optional: worker gate evidence, known accepted deviations)
 // }
-const spec = args?.specPath
+const a = typeof args === 'string' ? JSON.parse(args) : (args ?? {})
+const spec = a.specPath
 if (!spec) throw new Error('args.specPath is required')
-const diffScope = args?.diffScope ?? 'the uncommitted working-tree diff (git diff + git status untracked source files)'
-const context = args?.context ?? ''
-const LENSES = args?.lenses ?? [
+const diffScope = a.diffScope ?? 'the uncommitted working-tree diff (git diff + git status untracked source files)'
+const context = a.context ?? ''
+const LENSES = a.lenses ?? [
   'spec-compliance: walk the spec checklist item by item, map each to its diff hunk; item without hunk or hunk without item is a finding',
   'regression: what did this change break for EXISTING callers/consumers? sweep every consumer of any widened seam; check declared mirrors (FE/BE pairs, screen==print) agree on shared-field semantics',
   'security: authz on new routes, tenant scoping, RLS context of any seed/migration, input validation at trust boundaries, forgery/abuse paths',

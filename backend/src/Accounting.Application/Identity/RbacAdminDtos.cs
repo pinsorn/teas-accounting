@@ -31,8 +31,11 @@ public sealed record UpdateRoleRequest(string NameTh, string? Description);
 
 public sealed record RoleRef(int RoleId, string RoleCode, string NameTh);
 
+/// <summary>Position/SignatureUrl — doc-signature spec (§F2.10): ตำแหน่ง + the latest-wins
+/// signature attachment URL, resolved with NO N+1 (one grouped query, not one per user).</summary>
 public sealed record UserListItem(
-    long UserId, string Username, string FullName, bool IsActive, bool IsSuperAdmin, RoleRef[] Roles);
+    long UserId, string Username, string FullName, bool IsActive, bool IsSuperAdmin, RoleRef[] Roles,
+    string? Position = null, string? SignatureUrl = null);
 
 /// <summary>Whole-set role assignment for a user. <c>CompanyId</c> selects the company
 /// whose role-set is being edited: super-admins may target any company; company-admins
@@ -53,6 +56,10 @@ public sealed record SetUserActiveRequest(bool IsActive);
 /// <summary>Admin-set a new password for a user (clears lockout/failed-count). The password is
 /// never logged or echoed back.</summary>
 public sealed record ResetUserPasswordRequest(string Password);
+
+/// <summary>doc-signature spec (§E5/§F1) — set the target user's ตำแหน่ง. Blank/whitespace
+/// clears the field.</summary>
+public sealed record SetUserProfileRequest(string? Position);
 
 /// <summary>
 /// Per-company RBAC admin service. Every method resolves a target company through
@@ -80,4 +87,13 @@ public interface IRbacAdminService
     Task<long> CreateUserAsync(CreateUserRequest req, CancellationToken ct);
     Task SetUserActiveAsync(long userId, bool isActive, CancellationToken ct);
     Task ResetUserPasswordAsync(long userId, string newPassword, CancellationToken ct);
+
+    /// <summary>doc-signature spec (§E5) — upload the target user's signature image via the
+    /// polymorphic attachment table (parent_type=USER_SIGNATURE). Returns the download URL.</summary>
+    Task<string> SetUserSignatureAsync(
+        long userId, string fileName, string mimeType, long sizeBytes, Stream content,
+        CancellationToken ct);
+
+    /// <summary>doc-signature spec (§E5/§F1) — set the target user's ตำแหน่ง.</summary>
+    Task SetUserProfileAsync(long userId, string? position, CancellationToken ct);
 }

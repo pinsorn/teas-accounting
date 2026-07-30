@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,7 +11,7 @@ import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { TaxInvoicePicker, type TaxInvoiceLite } from '@/components/forms/TaxInvoicePicker';
-import { useCreateBillingNote, useUpdateBillingNote, useBillingNoteAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useCreateBillingNote, useUpdateBillingNote, useBillingNoteAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo, useDefaultDocNote } from '@/lib/queries';
 import type { BillingNoteDetail } from '@/lib/types';
 import { bangkokToday } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
@@ -123,6 +123,17 @@ export function BillingNoteForm({ edit }: { edit?: BillingNoteDetail } = {}) {
   const [linesError, setLinesError] = useState(false);
   const [notes, setNotes] = useState(edit?.notes ?? '');
   const [customerLabel, setCustomerLabel] = useState(edit?.customerName ?? '');
+
+  // WP-5 (specs/doc-signature-and-foot-layout.md §G3) — create-time default หมายเหตุ prefill.
+  // Guarded: create-mode only, only while the field is still untouched, and only once
+  // useCompanyProfile() has resolved.
+  const defaultNote = useDefaultDocNote('billingNote');
+  const notesSeeded = useRef(false);
+  useEffect(() => {
+    if (isEdit || notesSeeded.current || defaultNote === undefined) return;
+    notesSeeded.current = true;
+    if (!notes.trim()) setNotes(defaultNote);
+  }, [isEdit, defaultNote, notes]);
   // Sprint 13i C7 — TaxInvoices grouped into this BN (multi-select via the picker).
   // Edit-mode chips are seeded from the (narrower) BillingNoteTaxInvoiceRef shape —
   // only docNo is actually rendered/used from a chip, so the unused TaxInvoiceLite

@@ -126,6 +126,12 @@ public sealed partial class TaxInvoiceService
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("ti.not_found", $"Tax Invoice {id} not found.");
 
+        // doc-signature spec (§D5) — TaxInvoiceDetail carries no PostedBy; a one-column scalar
+        // read (not a second full entity load) avoids widening the read DTO for a single
+        // signature-resolution need.
+        var postedBy = await _db.TaxInvoices.AsNoTracking()
+            .Where(x => x.TaxInvoiceId == id).Select(x => x.PostedBy).FirstOrDefaultAsync(ct);
+
         // Sprint 8.5 — non-VAT companies must NOT head the doc "ใบกำกับภาษี" (ม.86).
         var tax = await _taxCfg.GetAsync(ct);
         var (hdrTh, hdrEn) = DocumentLabels.TaxInvoiceHeader(
@@ -158,7 +164,10 @@ public sealed partial class TaxInvoiceService
             Notes: d.Notes,
             Watermark: copy
                 ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
-                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.TaxInvoice, d.Status));
+                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.TaxInvoice, d.Status),
+            Signatures: await Pdf.PaperSignatureSource.ResolveAsync(
+                _db, _storage, postedBy, null, stampOnMiddle: false,
+                isSigned: d.Status != "Draft" && postedBy is not null, ct));
         return model;
     }
 

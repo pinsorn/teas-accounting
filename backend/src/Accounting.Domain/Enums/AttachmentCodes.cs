@@ -24,6 +24,8 @@ public static class AttachmentCodes
             [AttachmentParentType.CompanyProfile]    = "COMPANY_PROFILE",
             [AttachmentParentType.BankStatement]     = "BANK_STATEMENT",
             [AttachmentParentType.ExpenseClaim]      = "EXPENSE_CLAIM",
+            [AttachmentParentType.UserSignature]     = "USER_SIGNATURE",
+            [AttachmentParentType.CompanyStamp]      = "COMPANY_STAMP",
         };
 
     public static readonly IReadOnlyDictionary<AttachmentCategory, string> CategoryDb =

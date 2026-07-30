@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -12,6 +12,7 @@ import {
   useDeliveryOrderAction,
   useCompanyBuSetting,
   useCompanyProfile,
+  useDefaultDocNote,
 } from '@/lib/queries';
 import { bangkokToday } from '@/lib/utils';
 import { scrollToFirstError } from '@/lib/forms';
@@ -55,6 +56,17 @@ export function DeliveryOrderForm() {
   const [recipient, setRecipient] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<DoLine[]>([{ ...EMPTY }]);
+
+  // WP-5 (specs/doc-signature-and-foot-layout.md §G3) — create-time default หมายเหตุ prefill.
+  // DeliveryOrderForm has no edit mode (always create, §16 verified), so no isEdit guard is
+  // needed; still guarded on untouched-only + seed-once-after-resolve.
+  const defaultNote = useDefaultDocNote('deliveryOrder');
+  const notesSeeded = useRef(false);
+  useEffect(() => {
+    if (notesSeeded.current || defaultNote === undefined) return;
+    notesSeeded.current = true;
+    if (!notes.trim()) setNotes(defaultNote);
+  }, [defaultNote, notes]);
   // Sprint 13i B4 — explicit field-error flags (this form is not RHF-driven).
   const [custError, setCustError] = useState(false);
   const [buError, setBuError] = useState(false);

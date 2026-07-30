@@ -323,7 +323,10 @@ public sealed class PurchaseOrderService(
             PartyLabel: new PaperPartyLabel("ผู้ขาย", "Vendor"),
             Watermark: new PaperWatermark(
                 copy ? "สำเนา" : "ต้นฉบับ",
-                copy ? PaperWatermarkVariant.Warning : PaperWatermarkVariant.Success));
+                copy ? PaperWatermarkVariant.Warning : PaperWatermarkVariant.Success),
+            Signatures: await Pdf.PaperSignatureSource.ResolveAsync(
+                db, storage, po.ApprovedBy, null, stampOnMiddle: false,
+                isSigned: po.Status != PurchaseOrderStatus.Draft && po.ApprovedBy is not null, ct));
         return model;
     }
 

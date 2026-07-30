@@ -310,7 +310,7 @@ public sealed class BillingNoteService(
         await NumberedDocumentWriter.AllocateAndSaveAsync(
             db,
             c => SubPrefixNumberAsync("IV", bn.BusinessUnitId, bn.DocDate, c),
-            (v, _) => { bn.DocNo = v.Value; bn.Status = BillingNoteStatus.Issued; bn.IssuedAt = issuedAt; },
+            (v, _) => { bn.DocNo = v.Value; bn.Status = BillingNoteStatus.Issued; bn.IssuedAt = issuedAt; bn.IssuedBy = tenant.UserId; },
             ct);
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Issued", "Draft", "Issued");
         await db.SaveChangesAsync(ct);
@@ -355,6 +355,12 @@ public sealed class BillingNoteService(
         Auth();
         var d = await GetAsync(id, ct)
             ?? throw new DomainException("billing_note.not_found", $"Billing note {id} not found.");
+
+        // doc-signature spec (§D5) — BillingNoteDetail carries no IssuedBy; a one-column
+        // scalar read avoids widening the read DTO for a single signature-resolution need.
+        var issuedBy = await db.BillingNotes.AsNoTracking()
+            .Where(x => x.BillingNoteId == id).Select(x => x.IssuedBy).FirstOrDefaultAsync(ct);
+
         var cust = await db.Customers.AsNoTracking()
             .FirstOrDefaultAsync(c => c.CustomerId == d.CustomerId && c.CompanyId == tenant.CompanyId, ct);
         // Non-VAT companies (ม.86): suppress VAT total rows on the billing-note PDF.
@@ -377,7 +383,10 @@ public sealed class BillingNoteService(
             // cont.69 Phase 4 (D8) — copy=true → สำเนา watermark (universal print).
             Watermark: copy
                 ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
-                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.BillingNote, d.Status));
+                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.BillingNote, d.Status),
+            Signatures: await Pdf.PaperSignatureSource.ResolveAsync(
+                db, storage, issuedBy, null, stampOnMiddle: false,
+                isSigned: d.Status != "Draft" && issuedBy is not null, ct));
         return model;
     }
 

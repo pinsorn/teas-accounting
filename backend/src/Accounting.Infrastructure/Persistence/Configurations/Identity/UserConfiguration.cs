@@ -17,6 +17,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.FullName).HasMaxLength(255).IsRequired();
         b.Property(u => u.EmployeeCode).HasMaxLength(50);
         b.Property(u => u.CpdNumber).HasMaxLength(50);
+        b.Property(u => u.Position).HasMaxLength(100);
 
         b.Property(u => u.MfaSecretEnc).HasColumnType("bytea");
 

@@ -51,6 +51,9 @@ public class BillingNote : ITenantOwned, IAuditable, IConcurrencyVersioned
     public string? CancelledReason { get; set; }
 
     public DateTimeOffset? IssuedAt { get; set; }
+    // doc-signature spec — the user who Issued the billing note; resolves the ผู้ออกใบแจ้งหนี้
+    // signature box on the printed paper. Null until Issued.
+    public long? IssuedBy { get; set; }
     public DateTimeOffset? SettledAt { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

@@ -91,6 +91,30 @@ public static class RbacAdminEndpoints
             return Results.NoContent();
         });
 
+        // doc-signature spec (§E5) — signature upload, multipart, copied from
+        // CompanyProfileEndpoints.cs's /logo route. Inherits sys.user.manage from the group.
+        users.MapPost("/users/{id:long}/signature", async (long id, HttpRequest http,
+            IRbacAdminService svc, CancellationToken ct) =>
+        {
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { detail = "Expected multipart/form-data." });
+            var form = await http.ReadFormAsync(ct);
+            var file = form.Files["file"] ?? (form.Files.Count > 0 ? form.Files[0] : null);
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { detail = "Missing 'file' part." });
+            await using var s = file.OpenReadStream();
+            var url = await svc.SetUserSignatureAsync(id, file.FileName, file.ContentType, file.Length, s, ct);
+            return Results.Ok(new { signatureUrl = url });
+        }).DisableAntiforgery();
+
+        // doc-signature spec (§E5/§F1) — ตำแหน่ง (job position).
+        users.MapPut("/users/{id:long}/profile", async (long id, [FromBody] SetUserProfileRequest req,
+            IRbacAdminService svc, CancellationToken ct) =>
+        {
+            await svc.SetUserProfileAsync(id, req.Position, ct);
+            return Results.NoContent();
+        });
+
         return app;
     }
 }

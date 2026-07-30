@@ -48,6 +48,9 @@ public class Quotation : ITenantOwned, IAuditable, IConcurrencyVersioned
     public string? CancelledReason { get; set; }
 
     public DateTimeOffset? SentAt { get; set; }
+    // doc-signature spec — the user who Sent the quotation (the binding act); resolves the
+    // ผู้เสนอราคา signature box on the printed paper. Null until Sent.
+    public long? SentBy { get; set; }
     public DateTimeOffset? AcceptedAt { get; set; }
     public DateTimeOffset? ExpiredAt { get; set; }
 

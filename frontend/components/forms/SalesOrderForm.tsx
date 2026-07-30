@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +9,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
-import { useCreateSalesOrder, useUpdateSalesOrder, usePostSalesOrder, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useCreateSalesOrder, useUpdateSalesOrder, usePostSalesOrder, useCompanyBuSetting, useCompanyProfile, useSystemInfo, useDefaultDocNote } from '@/lib/queries';
 import type { SalesOrderDetail } from '@/lib/types';
 import { bangkokToday } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
@@ -82,6 +82,17 @@ export function SalesOrderForm({ edit }: { edit?: SalesOrderDetail } = {}) {
   const [buError, setBuError] = useState(false);
   const [notes, setNotes] = useState('');
   const [customerLabel, setCustomerLabel] = useState(edit?.customerName ?? '');
+
+  // WP-5 (specs/doc-signature-and-foot-layout.md §G3) — create-time default หมายเหตุ prefill.
+  // Guarded: create-mode only, only while the field is still untouched, and only once
+  // useCompanyProfile() has resolved.
+  const defaultNote = useDefaultDocNote('salesOrder');
+  const notesSeeded = useRef(false);
+  useEffect(() => {
+    if (isEdit || notesSeeded.current || defaultNote === undefined) return;
+    notesSeeded.current = true;
+    if (!notes.trim()) setNotes(defaultNote);
+  }, [isEdit, defaultNote, notes]);
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 

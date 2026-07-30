@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Pencil, ShieldAlert, UserPlus, KeyRound, Power } from 'lucide-react';
+import { Pencil, ShieldAlert, UserPlus, KeyRound, Power, IdCard } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { QueryState } from '@/components/states/QueryState';
 import { apiGet, problemToast } from '@/lib/api';
@@ -12,7 +12,9 @@ import {
   useCompanies, useMePermissions,
   useRbacUsers, useRbacRoles, useSetUserRoles,
   useCreateUser, useSetUserActive, useResetUserPassword,
+  useUploadUserSignature, useSetUserProfile,
 } from '@/lib/queries';
+import { resolveAttachmentUrl } from '@/lib/company-logo';
 import type { RbacUserListItem } from '@/lib/types';
 
 // WP5 (specs/fix-swarm-findings-all.md, admin01 LOW) — no shared hook exposes the CURRENT
@@ -37,6 +39,17 @@ function isGuardedRow(
   if (myUserId != null && myUserId === u.userId) return true;
   if (viewerIsSuperAdmin) return false;
   return u.roles.some((r) => r.roleCode === 'COMPANY_ADMIN');
+}
+
+// F7 (specs/doc-signature-and-foot-layout.md §16 carry-forward) — the ตำแหน่ง/signature controls
+// have their OWN gate, DELIBERATELY SEPARATE from isGuardedRow above. isGuardedRow hides the
+// role/password/active-toggle controls on the viewer's OWN row and (for a non-super viewer) on
+// any peer Company Admin row — that guard must NOT apply here (§F2.8): maintaining your own
+// ตำแหน่ง/signature, or a normal colleague's, grants no privilege. The one real constraint is the
+// backend's GuardManageUserAsync, which 403s a non-super-admin viewer acting on a super-admin
+// TARGET row — disable client-side to match, rather than let the click round-trip into a 403.
+function superAdminLockedForViewer(u: RbacUserListItem, viewerIsSuperAdmin: boolean): boolean {
+  return u.isSuperAdmin && !viewerIsSuperAdmin;
 }
 
 export default function UsersSettingsPage() {
@@ -110,6 +123,7 @@ function UsersBody({
   const rows = enabled ? (q.data ?? []) : [];
   const [editingId, setEditingId] = useState<number | null>(null);
   const [resetId, setResetId] = useState<number | null>(null);
+  const [profileEditId, setProfileEditId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const setActive = useSetUserActive();
   const me = useMe();
@@ -176,33 +190,44 @@ function UsersBody({
                     </div>
                   </td>
                   <td>
-                    {guarded ? (
-                      <span className="text-xs text-base-content/40" data-testid={`user-guarded-${u.userId}`}>
-                        {t('selfPeerAdminGuardNote')}
-                      </span>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button className="btn btn-ghost btn-xs gap-1"
-                          onClick={() => setEditingId(u.userId)}
-                          data-testid={`user-edit-${u.userId}`}>
-                          <Pencil className="h-3 w-3" aria-hidden /> {t('editRoles')}
-                        </button>
-                        <button className="btn btn-ghost btn-xs gap-1"
-                          onClick={() => setResetId(u.userId)}
-                          data-testid={`user-reset-${u.userId}`}>
-                          <KeyRound className="h-3 w-3" aria-hidden /> {t('resetPassword')}
-                        </button>
-                        {!u.isSuperAdmin && (
-                          <button className={`btn btn-ghost btn-xs gap-1 ${u.isActive ? 'text-error' : 'text-success'}`}
-                            disabled={setActive.isPending}
-                            onClick={() => toggleActive(u)}
-                            data-testid={`user-active-${u.userId}`}>
-                            <Power className="h-3 w-3" aria-hidden />
-                            {u.isActive ? t('deactivate') : t('activate')}
+                    <div className="flex flex-wrap items-center gap-1">
+                      {guarded ? (
+                        <span className="text-xs text-base-content/40" data-testid={`user-guarded-${u.userId}`}>
+                          {t('selfPeerAdminGuardNote')}
+                        </span>
+                      ) : (
+                        <>
+                          <button className="btn btn-ghost btn-xs gap-1"
+                            onClick={() => setEditingId(u.userId)}
+                            data-testid={`user-edit-${u.userId}`}>
+                            <Pencil className="h-3 w-3" aria-hidden /> {t('editRoles')}
                           </button>
-                        )}
-                      </div>
-                    )}
+                          <button className="btn btn-ghost btn-xs gap-1"
+                            onClick={() => setResetId(u.userId)}
+                            data-testid={`user-reset-${u.userId}`}>
+                            <KeyRound className="h-3 w-3" aria-hidden /> {t('resetPassword')}
+                          </button>
+                          {!u.isSuperAdmin && (
+                            <button className={`btn btn-ghost btn-xs gap-1 ${u.isActive ? 'text-error' : 'text-success'}`}
+                              disabled={setActive.isPending}
+                              onClick={() => toggleActive(u)}
+                              data-testid={`user-active-${u.userId}`}>
+                              <Power className="h-3 w-3" aria-hidden />
+                              {u.isActive ? t('deactivate') : t('activate')}
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {/* F7 — deliberately OUTSIDE the `guarded` branch above: a self/peer-admin
+                          row still gets this button (§F2.8). Disabled only when the target is a
+                          super-admin and the viewer is not (superAdminLockedForViewer). */}
+                      <button className="btn btn-ghost btn-xs gap-1"
+                        disabled={superAdminLockedForViewer(u, isSuperAdmin)}
+                        onClick={() => setProfileEditId(u.userId)}
+                        data-testid={`user-edit-profile-${u.userId}`}>
+                        <IdCard className="h-3 w-3" aria-hidden /> {t('editProfile')}
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 );
@@ -226,6 +251,15 @@ function UsersBody({
         <ResetPasswordDialog
           user={rows.find((u) => u.userId === resetId)!}
           onClose={() => setResetId(null)}
+        />
+      )}
+      {profileEditId != null && (
+        <EditUserProfileDialog
+          user={rows.find((u) => u.userId === profileEditId)!}
+          disabled={superAdminLockedForViewer(
+            rows.find((u) => u.userId === profileEditId)!, isSuperAdmin,
+          )}
+          onClose={() => setProfileEditId(null)}
         />
       )}
     </>
@@ -380,6 +414,93 @@ function ResetPasswordDialog({
           <button className="btn btn-primary" disabled={password.length < MIN_PASSWORD || reset.isPending}
             onClick={submit} data-testid="rp-save">
             {reset.isPending && <span className="loading loading-spinner loading-sm" />}
+            {tc('save')}
+          </button>
+        </div>
+      </div>
+      <button className="modal-backdrop" aria-label={tc('close')} onClick={onClose} />
+    </div>
+  );
+}
+
+// doc-signature-and-foot-layout §F2.8 — ตำแหน่ง + signature upload, in their own dialog (the
+// page has no existing general "edit user" modal to extend — EditUserRolesDialog is roles-only).
+// `disabled` is F7's gate (superAdminLockedForViewer), NOT isGuardedRow.
+function EditUserProfileDialog({
+  user, disabled, onClose,
+}: { user: RbacUserListItem; disabled: boolean; onClose: () => void }) {
+  const t = useTranslations('users');
+  const tc = useTranslations('common');
+  const setProfile = useSetUserProfile(user.userId);
+  const uploadSig = useUploadUserSignature(user.userId);
+  const [position, setPosition] = useState(user.position ?? '');
+
+  async function saveProfile() {
+    try {
+      await setProfile.mutateAsync({ position: position.trim() || null });
+      toast.success(tc('save'));
+    } catch (e) {
+      problemToast(e, tc('error'));
+    }
+  }
+
+  async function onUploadSignature(file: File) {
+    try {
+      await uploadSig.mutateAsync(file);
+      toast.success(tc('save'));
+    } catch (e) {
+      problemToast(e, tc('error'));
+    }
+  }
+
+  return (
+    <div className="modal modal-open" role="dialog" aria-modal="true">
+      <div className="modal-box max-w-md">
+        <h3 className="text-lg font-bold">{t('editProfileTitle')} — {user.fullName}</h3>
+        {disabled && (
+          <p className="mt-1 text-xs text-warning">{t('editProfileSuperAdminLocked')}</p>
+        )}
+        <div className="mt-4 space-y-3">
+          <label className="form-control">
+            <span className="label-text">{t('position')}</span>
+            <input className="input input-bordered input-sm" value={position}
+              disabled={disabled}
+              onChange={(e) => setPosition(e.target.value)}
+              data-testid="up-position" />
+          </label>
+          <label className="form-control">
+            <span className="label-text">{t('signatureUpload')}</span>
+            <input
+              type="file"
+              className="file-input file-input-bordered file-input-sm"
+              accept="image/png,image/jpeg,image/webp"
+              disabled={disabled || uploadSig.isPending}
+              data-testid="up-signature"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onUploadSignature(f);
+                e.target.value = '';
+              }}
+            />
+            <span className="mt-1 text-xs text-base-content/50">{t('signatureHint')}</span>
+          </label>
+          {user.signatureUrl && (
+            <div>
+              <span className="label-text">{t('signaturePreview')}</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={resolveAttachmentUrl(user.signatureUrl) ?? ''}
+                alt={t('signaturePreview')}
+                className="mt-1 h-16 rounded border border-base-300 bg-base-200 object-contain p-1"
+              />
+            </div>
+          )}
+        </div>
+        <div className="modal-action">
+          <button className="btn btn-ghost" onClick={onClose}>{tc('cancel')}</button>
+          <button className="btn btn-primary" disabled={disabled || setProfile.isPending}
+            onClick={saveProfile} data-testid="up-save">
+            {setProfile.isPending && <span className="loading loading-spinner loading-sm" />}
             {tc('save')}
           </button>
         </div>

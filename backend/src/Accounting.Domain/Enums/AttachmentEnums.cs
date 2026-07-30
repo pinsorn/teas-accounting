@@ -18,6 +18,8 @@ public enum AttachmentParentType
     CompanyProfile,      // Sprint 13h P10 — company logo upload
     BankStatement,       // Bank reconciliation B2 — statement_imports.attachment_id (D11)
     ExpenseClaim,        // Cycle C — receipts parent to the header (stable id), not the line
+    UserSignature,       // doc-signature spec — per-(company,user) signature image
+    CompanyStamp,        // doc-signature spec — ตราประทับ, one per company
 }
 
 /// <summary>Sprint 11 — attachment purpose. OTHER requires a description.</summary>

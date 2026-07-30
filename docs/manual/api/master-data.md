@@ -33,7 +33,8 @@ Per-company profile (invoice header, branding, banking). Soft fields are admin-e
 
 ### `PUT /company-profile/soft`
 - **Auth:** `master.company_profile.manage`.
-- **Request body:** `tradeName?`, `logoUrl?`, `phone?`, `email?`, `website?`, `contactName?`, `bankName?`, `bankAccountNo?`, `bankAccountName?`, `ssoEmployerAccountNo?`. Schema: `UpdateCompanyProfileSoftRequest`.
+- **Request body:** `tradeName?`, `logoUrl?`, `phone?`, `email?`, `website?`, `contactName?`, `bankName?`, `bankAccountNo?`, `bankAccountName?`, `ssoEmployerAccountNo?`, `defaultDocNotes?` (object, one key per trade-paper doc kind — `quotation`/`salesOrder`/`deliveryOrder`/`taxInvoice`/`receipt`/`billingNote`/`creditNote`/`debitNote`/`purchaseOrder`/`paymentVoucher`, each `string?` ≤1000 chars — a create-time Notes-field form prefill only, never linked back to any document). Schema: `UpdateCompanyProfileSoftRequest`.
+- **⚠️ `defaultDocNotes` is a WHOLE-OVERWRITE, not a partial patch:** omitting it (or sending an incomplete object) clears/blanks the stored per-doctype defaults. When updating any other soft field, resend the complete current `defaultDocNotes` (from `GET /company-profile`) if you want to keep it.
 - **Response:** `204`.
 
 ### `PUT /company-profile/registered-address`

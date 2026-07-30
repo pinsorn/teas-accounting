@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,7 +12,7 @@ import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import {
   useCreatePurchaseOrder, useUpdatePurchaseOrder, useSystemInfo, useVendor,
-  useCompanyBuSetting, useCompanyProfile,
+  useCompanyBuSetting, useCompanyProfile, useDefaultDocNote,
 } from '@/lib/queries';
 import type { PoLineDto, PurchaseOrderDetail } from '@/lib/types';
 import { bangkokToday, formatDateBE, formatTaxId } from '@/lib/utils';
@@ -104,6 +104,17 @@ export function PurchaseOrderForm({ edit }: { edit?: PurchaseOrderDetail } = {})
   const [expected, setExpected] = useState(edit?.expectedDeliveryDate ?? today);
   const [notes, setNotes] = useState(edit?.notes ?? '');
   const [vendorLabel, setVendorLabel] = useState(edit?.vendorName ?? '');
+
+  // WP-5 (specs/doc-signature-and-foot-layout.md §G3) — create-time default หมายเหตุ prefill.
+  // Guarded: create-mode only, only while the field is still untouched, and only once
+  // useCompanyProfile() has resolved.
+  const defaultNote = useDefaultDocNote('purchaseOrder');
+  const notesSeeded = useRef(false);
+  useEffect(() => {
+    if (isEdit || notesSeeded.current || defaultNote === undefined) return;
+    notesSeeded.current = true;
+    if (!notes.trim()) setNotes(defaultNote);
+  }, [isEdit, defaultNote, notes]);
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 

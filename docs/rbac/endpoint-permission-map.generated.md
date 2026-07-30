@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 15 |
-| Perm | 292 |
+| Perm | 295 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **354** |
+| **TOTAL** | **357** |
 
 ## Routes
 
@@ -34,7 +34,9 @@
 | POST | `/admin/rbac/users` | Perm | sys.user.manage |
 | PUT | `/admin/rbac/users/{id:long}/active` | Perm | sys.user.manage |
 | PUT | `/admin/rbac/users/{id:long}/password` | Perm | sys.user.manage |
+| PUT | `/admin/rbac/users/{id:long}/profile` | Perm | sys.user.manage |
 | PUT | `/admin/rbac/users/{id:long}/roles` | Perm | sys.user.manage |
+| POST | `/admin/rbac/users/{id:long}/signature` | Perm | sys.user.manage |
 | GET | `/api-keys/` | Perm | sys.api_key.manage |
 | POST | `/api-keys/` | Perm | sys.api_key.manage |
 | DELETE | `/api-keys/{id:long}` | Perm | sys.api_key.manage |
@@ -120,6 +122,7 @@
 | POST | `/company-profile/logo` | Perm | master.company_profile.manage |
 | PUT | `/company-profile/registered-address` | Perm | master.company_profile.manage |
 | PUT | `/company-profile/soft` | Perm | master.company_profile.manage |
+| POST | `/company-profile/stamp` | Perm | master.company_profile.manage |
 | GET | `/credit-notes/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/credit-notes/{id:long}/mark-printed` | Perm | sales.credit_note.read |
 | GET | `/customers/` | Perm | master.customer.read |

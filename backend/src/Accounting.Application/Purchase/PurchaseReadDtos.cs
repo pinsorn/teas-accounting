@@ -48,7 +48,11 @@ public sealed record PaymentVoucherDetail(
     // 2026-06-12 (wht-grossup spec) — DEDUCT | GROSS_UP_FOREVER | GROSS_UP_ONCE.
     string WhtPayerMode = "DEDUCT",
     // M4a — non-null when draft was created by an MCP/API-key agent.
-    string? CreatedViaApiKey = null);
+    string? CreatedViaApiKey = null,
+    // doc-signature spec (§D5) — appended LAST/additive. The entity already carries PostedBy
+    // (PaymentVoucher.cs) but the read DTO never surfaced it; PaperSignatureSource needs it for
+    // the left (ผู้จัดทำ) sign box, since ApprovedBy (already above) is the middle (ผู้อนุมัติ) box.
+    long? PostedBy = null);
 
 public sealed record WhtCertificateListItem(
     long WhtCertificateId, string DocNo, DateOnly CertDate, long? PaymentVoucherId,

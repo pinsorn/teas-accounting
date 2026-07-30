@@ -799,6 +799,19 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
 - **Root cause:** the `PdfText` extraction helper loses Thai combining characters (MAI EK and friends). The renderer is fine — only the extraction is lossy. This is separate from, and additional to, the "PDF bytes are not deterministic" entry above.
 - **Fix:** never assert on Thai text containing tone marks. Assert on a substring that has none — for a labelled amount, the user-supplied value or reason is usually mark-free — or assert on the numeric amount.
 - **Seen:** 2026-07-26, O10-B payslip deduction-reason label (`Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180`).
+- **Escalation (2026-07-30, doc-signature spec WP-3 T9):** the dropped-mark ARTIFACT itself is
+  not even stable run-to-run for the IDENTICAL renderer + IDENTICAL input. Rendering the exact
+  same Draft Tax Invoice 3× and diffing the (PdfPig-)extracted text byte-for-byte found one run
+  emit a plain space (U+0020) where a dropped tone/vowel mark left a gap, and another emit a
+  literal NUL (U+0000) at the SAME character position. A test that pins an exact-equality
+  baseline string containing Thai tone marks (even one captured from a real, correct render) WILL
+  flake later for a reason that has nothing to do with a real regression. Fix used: before any
+  equality comparison, strip every Unicode nonspacing-mark (category Mn) character AND every
+  control character (`char.IsControl`), then collapse whitespace runs
+  (`Regex.Replace(s, @"\s+", " ")`) — confirmed stable across 3 consecutive runs after this
+  normalization. If you need an exact-text styling-freeze test on a Thai-laden PDF page (not just
+  "assert a mark-free substring", but a genuine page-for-page equality pin), THIS normalization
+  is the fix, not merely avoiding Thai substrings.
 
 ## Random-id test isolation collides as teas_test grows
 - **Symptom:** a test fails with `23505: duplicate key value violates unique constraint "pk_companies"` (or a similar random-key clash) and passes on a standalone re-run. Seen on `SalesUxFixesWpATests.Quotation_send_called_twice_second_call_rejected_no_duplicate_number` with `company_id=731031`.
@@ -868,3 +881,85 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
   as a regression from an unrelated diff. Confirmed one such flake (1 failure) alongside 1026
   passing in the 2026-07-29 post-pnd2-filing full-suite run.
 - **Seen:** 2026-07-29, full-suite run after WP-A/WP-B/Tier-2 remediation (specs/pnd2-filing.md).
+
+## Two DIFFERENT permission checks in this repo: JWT-claims-only vs a fresh DB lookup — an HTTP RBAC test that mints a synthetic token can accidentally test the wrong one
+- **Symptom:** writing an HTTP-level test for a permission-gated route, it's tempting to assume
+  "mint a JWT with `Permissions: [...]`" is always enough to prove ALLOW/DENY. For most routes
+  that's true — but for a route whose gate is decided at runtime from `parent_type`/similar (the
+  generic `POST /attachments`'s `ParentGuard`, `AttachmentEndpoints.cs`), a synthetic JWT claim is
+  NOT enough and a test that only checks JWT claims proves nothing about that gate.
+- **Root cause:** `PermissionHandler` (`Api/Authorization/PermissionRequirement.cs`) — the
+  mechanism behind every static `.RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + X)`
+  — checks ONLY the JWT's own `TenantClaims.Permission` claims (or super-admin/API-key-scope), a
+  fast in-memory check with **zero DB reads**. But `ParentGuard`'s permission requirement is
+  resolved dynamically per-request (`svc.ParentReadPermission(parentType)`) and can't be a static
+  policy, so it instead calls `IPermissionLookup.LoadAsync(tenant.UserId, tenant.CompanyId, ct)` —
+  a **fresh, real DB query** against `sys.user_roles`/`sys.role_permissions`, completely ignoring
+  whatever the JWT's `Permissions` claims say. A test minting a JWT with a fake `UserId` and a
+  synthetic `sys.user.manage` claim will pass any STATIC policy gate but will always be DENIED by
+  `ParentGuard` (the fake UserId has zero real `user_roles` rows) — and conversely, a synthetic
+  claim alone can never produce an ALLOW through `ParentGuard`, no matter what the JWT says.
+- **Fix:** for a STATIC-policy route (the vast majority — profile/signature/stamp admin routes in
+  the doc-signature spec, etc.), a synthetic JWT with the right `Permissions` claim is sufficient —
+  no real DB role/grant needed. For a route gated by a DYNAMIC per-parent-type lookup (only
+  `POST`/`GET /attachments` today), the test needs a REAL `sys.users` + `sys.user_roles` row (e.g.
+  via `TestCompanyFactory.CreateAsync` + a direct `UserRole` insert) for the ALLOW case; the DENY
+  case can still use a synthetic/nonexistent UserId (empty permissions is the natural "no grants"
+  result of a lookup that finds no rows).
+
+## An application-level "only resolve cross-company data when target==session company" guard can't be RED-proven via the DI test harness — EF's own global query filter already narrows it
+- **Symptom:** adding a defensive guard like `target == tenant.CompanyId ? <resolve> : null` around
+  a read of an `ITenantOwned` entity (e.g. `sys.attachments`), then trying to RED-check it by
+  temporarily bypassing the guard — the test stays GREEN even with the guard removed, as if the
+  fix did nothing.
+- **Root cause:** `AccountingDbContext` attaches a GLOBAL EF Core query filter to every
+  `ITenantOwned` entity (`HasQueryFilter(e => _tenant == null || e.CompanyId == _tenant.CompanyId)`,
+  §1.4 of `specs/doc-signature-and-foot-layout.md`). This filter is pure C#/LINQ, translated to a
+  SQL `WHERE`, and is COMPLETELY INDEPENDENT of Postgres RLS — it always narrows to the CURRENT
+  `ITenantContext.CompanyId` (the session's own company), regardless of any `companyId` query
+  parameter or `target` variable computed elsewhere in the method. So when a super-admin session
+  (own company A) lists a DIFFERENT company B's data via an explicit `companyId=B` param, ANY plain
+  `db.SomeTenantOwnedSet.Where(...)` read is ALREADY silently scoped back to company A by this
+  filter alone — an explicit `target == tenant.CompanyId` guard around that same read is REAL,
+  correct, self-documenting defense-in-depth, but is NOT independently observable through the normal
+  DI/EF path: removing the guard doesn't change the query's result, because the EF filter was
+  already doing the equivalent narrowing underneath it. Don't mistake "the RED-check didn't fire"
+  for "the fix does nothing" — it means the fix is layered on top of an already-present control,
+  not that it's dead code. (The ONLY way to see the guard's own value in isolation is
+  `IgnoreQueryFilters()`, which the real code path never calls — so there's no honest way to
+  functionally RED-test this class of guard through the standard test harness.)
+- **Fix:** don't burn a cycle trying to force a RED here. Verify by reading the code (the guard is
+  simple enough to eyeball) and keep a GREEN pinning test that confirms the CORRECT final
+  behaviour (null/absent for the cross-company case) — that's still a real regression net even
+  though it can't distinguish "guard present" from "guard absent" in this harness.
+- **Seen:** 2026-07-30, doc-signature-and-foot-layout spec §16 F4 remediation
+  (`RbacAdminService.ListUsersAsync`'s `SignatureUrl` cross-company guard).
+- **Seen:** 2026-07-29/30, doc-signature-and-foot-layout spec WP-2 (T11/T12 — `ParentGuard` 403 vs
+  the new `/admin/rbac/users/{id}/signature` + `/profile` + `/company-profile/stamp` routes, which
+  are static-policy and needed no real DB grant at all).
+
+## `PUT /company-profile/soft`'s docs claim "omitted fields are unchanged" for EVERY field, but the handler whole-overwrites ALL of them (not just the newer jsonb one)
+- **Symptom:** while documenting `defaultDocNotes`'s whole-overwrite-on-omission behaviour
+  (Tier-2 finding, doc-signature spec), re-reading `CompanyProfileService.UpdateSoftAsync`
+  showed it does NOT implement partial-patch semantics for ANY of the 9 pre-existing soft
+  fields either (`e.TradeName = req.TradeName; e.LogoUrl = req.LogoUrl; …` — every field is
+  assigned unconditionally from the request DTO, with no "if null, keep existing" branch
+  anywhere). `docs/api/openapi.yaml`'s `CompanyProfileSoftUpdate` description ("All optional —
+  omitted fields are unchanged") and `docs/manual/api/master-data.md`'s phrasing both describe
+  the INTENDED contract, not the actual implementation — a client that PUTs only `{tradeName:
+  "..."}` will silently null out `logoUrl`, `phone`, `email`, etc. if its own state doesn't
+  already carry them (whatever `UpdateCompanyProfileSoftRequest` deserializes to when a JSON
+  property is omitted — likely `null` for these `string?` positional-record parameters with no
+  default value).
+- **Root cause:** the service method was written as a full-replace (mirrors the wide-flat-table
+  soft-field pattern elsewhere in this repo) while the two docs describe a PATCH contract. This
+  predates the doc-signature spec — `defaultDocNotes` just inherited the SAME (undocumented)
+  behaviour, which is why the Tier-2 finding caught it only for the new field.
+- **Fix:** NOT applied this round — out of the Tier-2 finding's scope (which asked only to
+  document `defaultDocNotes`'s whole-overwrite semantics, explicitly keeping the existing
+  convention). Flagging so a future worker doesn't assume the OTHER 9 fields are safe to omit
+  in a partial update — they are not, today. Needs its own decision: either (a) fix the docs to
+  describe the ACTUAL whole-overwrite contract for every field (cheapest, no behavior change),
+  or (b) change `UpdateSoftAsync` to a real partial patch (bigger, a genuine behavior change,
+  needs its own spec/review).
+- **Seen:** 2026-07-30, doc-signature-and-foot-layout spec Tier-2 finding #4 remediation.

@@ -49,6 +49,9 @@ internal sealed class CompanyProfileConfiguration : IEntityTypeConfiguration<Com
         b.Property(x => x.BankAccountNo).HasMaxLength(50);
         b.Property(x => x.BankAccountName).HasMaxLength(200);
         b.Property(x => x.SsoEmployerAccountNo).HasMaxLength(10);
+        // doc-signature spec (§G1/§F1) — snake_case convention would derive
+        // "default_doc_notes_json"; pin the intended column name explicitly.
+        b.Property(x => x.DefaultDocNotesJson).HasColumnType("jsonb").HasColumnName("default_doc_notes");
 
         // ---- Audit ----
         b.Property(x => x.CreatedAt).HasColumnType("timestamptz(3)");

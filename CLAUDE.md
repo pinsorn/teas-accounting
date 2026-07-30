@@ -166,6 +166,12 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
   confirmed finding in code before ordering fixes.
 - Tier 3: Haiku runs the consolidated gate; run-and-report only, any
   failure auto-escalates to Fable.
+- Tier 4 — live acceptance (MANDATORY for money/compliance releases): after
+  deploy, a scripted E2E leg on prod/staging with REAL data walks the money
+  path end-to-end and verifies the numbers ON SCREEN and on the artifacts,
+  through the public domain. It is the best bug-catcher per token in the
+  system: one leg caught 3 defects that 1,051 green tests + 3 review rounds
+  missed (2026-07-30). A release is not "done" until this leg reports.
 - **Final gate never delegated: Fable personally reads the full diff before
   every commit.**
 - Deploy verification must include at least one end-to-end probe through the

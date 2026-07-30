@@ -9,19 +9,29 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import {
   useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo, useUpdateCompanyInfo,
+  useUploadCompanyStamp,
 } from '@/lib/queries';
 import { apiGet, apiPut } from '@/lib/api';
+import { resolveAttachmentUrl } from '@/lib/company-logo';
 import type {
-  CompanyDto, CompanyProfile, LegalEntityType, UpdateCompanyProfileSoftRequest,
+  CompanyDto, CompanyProfile, DefaultDocNotes, LegalEntityType, UpdateCompanyProfileSoftRequest,
   UpdateCompanyRequest, UpdateCompanyInfoRequest,
 } from '@/lib/types';
 
 type SoftForm = UpdateCompanyProfileSoftRequest;
 
+// doc-signature-and-foot-layout §G1/§G4 — one textarea per §1.2 doctype kind, in that table's
+// order. Kept as plain '' in form state (never null) so every textarea is a controlled input;
+// blank → null normalisation happens once, at save time (onSave below).
+const EMPTY_NOTES: Record<keyof DefaultDocNotes, string> = {
+  quotation: '', salesOrder: '', deliveryOrder: '', taxInvoice: '', receipt: '',
+  billingNote: '', creditNote: '', debitNote: '', purchaseOrder: '', paymentVoucher: '',
+};
+
 const EMPTY_SOFT: SoftForm = {
   tradeName: '', logoUrl: '', phone: '', email: '', website: '',
   contactName: '', bankName: '', bankAccountNo: '', bankAccountName: '',
-  ssoEmployerAccountNo: '',
+  ssoEmployerAccountNo: '', defaultDocNotes: EMPTY_NOTES,
 };
 
 const LEGAL_TYPES: LegalEntityType[] = [
@@ -35,6 +45,7 @@ export default function CompanyProfilePage() {
   const q = useCompanyProfile();
   const save = useUpdateCompanyProfileSoft();
   const upload = useUploadCompanyLogo();
+  const stamp = useUploadCompanyStamp();
   const [form, setForm] = useState<SoftForm>(EMPTY_SOFT);
 
   const p = q.data;
@@ -47,6 +58,18 @@ export default function CompanyProfilePage() {
       contactName: p.contactName ?? '', bankName: p.bankName ?? '',
       bankAccountNo: p.bankAccountNo ?? '', bankAccountName: p.bankAccountName ?? '',
       ssoEmployerAccountNo: p.ssoEmployerAccountNo ?? '',
+      defaultDocNotes: {
+        quotation: p.defaultDocNotes?.quotation ?? '',
+        salesOrder: p.defaultDocNotes?.salesOrder ?? '',
+        deliveryOrder: p.defaultDocNotes?.deliveryOrder ?? '',
+        taxInvoice: p.defaultDocNotes?.taxInvoice ?? '',
+        receipt: p.defaultDocNotes?.receipt ?? '',
+        billingNote: p.defaultDocNotes?.billingNote ?? '',
+        creditNote: p.defaultDocNotes?.creditNote ?? '',
+        debitNote: p.defaultDocNotes?.debitNote ?? '',
+        purchaseOrder: p.defaultDocNotes?.purchaseOrder ?? '',
+        paymentVoucher: p.defaultDocNotes?.paymentVoucher ?? '',
+      },
     });
   }, [p]);
 
@@ -60,13 +83,53 @@ export default function CompanyProfilePage() {
     }
   }
 
+  // doc-signature-and-foot-layout §E5/§F2.9 — the stamp has NO form field (no StampUrl column;
+  // the attachment row is the source of truth, §E5). The upload hook invalidates ['company-profile'],
+  // so the preview below (driven straight off `p.stampUrl`) picks up the new value on refetch.
+  async function onUploadStamp(file: File) {
+    try {
+      await stamp.mutateAsync(file);
+      toast.success(t('saved'));
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
+  }
+
+  function setNote(k: keyof DefaultDocNotes, v: string) {
+    setForm((f) => ({ ...f, defaultDocNotes: { ...f.defaultDocNotes, [k]: v } }));
+  }
+
+  const trimOrNull = (v: string | null | undefined) => (v?.trim() ? v.trim() : null);
+
   async function onSave() {
     try {
       // normalise empty strings → null (the API treats both as "unset"). logoUrl is kept as-is
       // (managed by the upload button) so saving the soft section never wipes an uploaded logo.
-      const payload = Object.fromEntries(
-        Object.entries(form).map(([k, v]) => [k, v?.trim() ? v.trim() : null]),
-      ) as unknown as SoftForm;
+      // F6 (specs/doc-signature-and-foot-layout.md §16 carry-forward) — defaultDocNotes is an
+      // OBJECT, not a string, so it cannot go through the generic string-trim map below (that
+      // map previously covered every field because every field WAS a string; adding the object
+      // field there would throw at v.trim()). Pulled out and rebuilt explicitly, per-key
+      // blank→null, and ALWAYS included in the payload — omitting it on a save that only
+      // touched, say, the phone field would silently wipe all ten notes server-side (the
+      // backend replaces the whole jsonb object on write, per §G1).
+      const { defaultDocNotes, ...stringFields } = form;
+      const payload: SoftForm = {
+        ...(Object.fromEntries(
+          Object.entries(stringFields).map(([k, v]) => [k, trimOrNull(v as string)]),
+        ) as Omit<SoftForm, 'defaultDocNotes'>),
+        defaultDocNotes: {
+          quotation: trimOrNull(defaultDocNotes?.quotation),
+          salesOrder: trimOrNull(defaultDocNotes?.salesOrder),
+          deliveryOrder: trimOrNull(defaultDocNotes?.deliveryOrder),
+          taxInvoice: trimOrNull(defaultDocNotes?.taxInvoice),
+          receipt: trimOrNull(defaultDocNotes?.receipt),
+          billingNote: trimOrNull(defaultDocNotes?.billingNote),
+          creditNote: trimOrNull(defaultDocNotes?.creditNote),
+          debitNote: trimOrNull(defaultDocNotes?.debitNote),
+          purchaseOrder: trimOrNull(defaultDocNotes?.purchaseOrder),
+          paymentVoucher: trimOrNull(defaultDocNotes?.paymentVoucher),
+        },
+      };
       await save.mutateAsync(payload);
       toast.success(t('saved'));
     } catch (e) {
@@ -93,9 +156,11 @@ export default function CompanyProfilePage() {
     );
   }
 
+  // F6 — `k` excludes 'defaultDocNotes' (an object, not a string): this component only ever
+  // renders the plain-string soft fields; the notes textareas are NoteField below.
   function SoftField({
     k, label, type = 'text',
-  }: { k: keyof SoftForm; label: string; type?: string }) {
+  }: { k: Exclude<keyof SoftForm, 'defaultDocNotes'>; label: string; type?: string }) {
     return (
       <label className="form-control">
         <span className="label-text">{label}</span>
@@ -105,6 +170,22 @@ export default function CompanyProfilePage() {
           value={form[k] ?? ''}
           onChange={(e) => setForm({ ...form, [k]: e.target.value })}
           data-testid={`cp-soft-${k}`}
+        />
+      </label>
+    );
+  }
+
+  // doc-signature-and-foot-layout §G4 — one textarea per §1.2 doctype kind.
+  function NoteField({ k, label }: { k: keyof DefaultDocNotes; label: string }) {
+    return (
+      <label className="form-control">
+        <span className="label-text">{label}</span>
+        <textarea
+          className="textarea textarea-bordered"
+          rows={2}
+          value={form.defaultDocNotes?.[k] ?? ''}
+          onChange={(e) => setNote(k, e.target.value)}
+          data-testid={`cp-note-${k}`}
         />
       </label>
     );
@@ -233,6 +314,45 @@ export default function CompanyProfilePage() {
                 </div>
               )}
 
+              {/* doc-signature-and-foot-layout §F2.9/§E5 — stamp upload, immediately after the
+                  logo block, inside the SAME permission gate. No StampUrl form field (§E5): the
+                  attachment row is the source of truth, so the preview reads straight off the
+                  query's p.stampUrl, refreshed by the upload hook's invalidation. */}
+              <PermissionGate scope="master.company_profile.manage">
+                <div className="mt-4 flex items-end gap-3">
+                  <label className="form-control">
+                    <span className="label-text">{t('stampUpload')}</span>
+                    <input
+                      type="file"
+                      className="file-input file-input-bordered file-input-sm"
+                      accept="image/png,image/jpeg,image/webp"
+                      data-testid="cp-stamp-upload"
+                      disabled={stamp.isPending}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void onUploadStamp(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {stamp.isPending && (
+                    <span className="loading loading-spinner loading-sm" />
+                  )}
+                </div>
+              </PermissionGate>
+
+              {p.stampUrl && (
+                <div className="mt-2">
+                  <span className="label-text">{t('stampPreview')}</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={resolveAttachmentUrl(p.stampUrl) ?? ''}
+                    alt={t('stampPreview')}
+                    className="mt-1 h-16 rounded border border-base-300 bg-base-200 object-contain p-1"
+                  />
+                </div>
+              )}
+
               <PermissionGate scope="master.company_profile.manage">
                 <div className="card-actions mt-4 justify-end">
                   <button
@@ -250,6 +370,33 @@ export default function CompanyProfilePage() {
               </PermissionGate>
             </div>
           </section>
+
+          {/* ── doc-signature-and-foot-layout §G4 — per-doctype default หมายเหตุ. A NEW card,
+              but with NO save button of its own — "saved through the existing soft-profile save
+              button, not a separate save action" (§F2.9/§G4). These textareas write into the
+              SAME `form.defaultDocNotes` state the SOFT card's save button already persists
+              (see onSave's F6 guard above), so the user saves both sections in one click from
+              the SOFT card. ── */}
+          <PermissionGate scope="master.company_profile.manage">
+            <section className="card bg-base-100 shadow-sm">
+              <div className="card-body">
+                <h2 className="card-title text-base">{t('defaultNotesSection')}</h2>
+                <p className="text-xs text-base-content/60">{t('defaultNotesHint')}</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <NoteField k="quotation" label={t('note.quotation')} />
+                  <NoteField k="salesOrder" label={t('note.salesOrder')} />
+                  <NoteField k="deliveryOrder" label={t('note.deliveryOrder')} />
+                  <NoteField k="taxInvoice" label={t('note.taxInvoice')} />
+                  <NoteField k="receipt" label={t('note.receipt')} />
+                  <NoteField k="billingNote" label={t('note.billingNote')} />
+                  <NoteField k="creditNote" label={t('note.creditNote')} />
+                  <NoteField k="debitNote" label={t('note.debitNote')} />
+                  <NoteField k="purchaseOrder" label={t('note.purchaseOrder')} />
+                  <NoteField k="paymentVoucher" label={t('note.paymentVoucher')} />
+                </div>
+              </div>
+            </section>
+          </PermissionGate>
 
           {/* ── Phase C-C: paid-up capital (CIT SME classification, super-admin) ── */}
           <PermissionGate scope="master.company.manage">

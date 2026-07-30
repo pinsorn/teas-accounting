@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { CustomerSelector } from '@/components/ui/CustomerSelector';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
-import { useCreateQuotation, useUpdateQuotation, useQuotationAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo } from '@/lib/queries';
+import { useCreateQuotation, useUpdateQuotation, useQuotationAction, useCompanyBuSetting, useCompanyProfile, useSystemInfo, useDefaultDocNote } from '@/lib/queries';
 import type { QuotationDetail } from '@/lib/types';
 import { bangkokToday, formatDateBE } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
@@ -79,6 +79,18 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
   const [buError, setBuError] = useState(false);
   const [notes, setNotes] = useState(edit?.notes ?? '');
   const [customerLabel, setCustomerLabel] = useState(edit?.customerName ?? '');
+
+  // WP-5 (specs/doc-signature-and-foot-layout.md §G3) — create-time default หมายเหตุ prefill.
+  // Guarded: create-mode only, only while the field is still untouched, and only once
+  // useCompanyProfile() has resolved (a useState(initial) would run before the query settles and
+  // prefill nothing — must be a useEffect + a one-shot ref).
+  const defaultNote = useDefaultDocNote('quotation');
+  const notesSeeded = useRef(false);
+  useEffect(() => {
+    if (isEdit || notesSeeded.current || defaultNote === undefined) return;
+    notesSeeded.current = true;
+    if (!notes.trim()) setNotes(defaultNote);
+  }, [isEdit, defaultNote, notes]);
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 

@@ -98,7 +98,10 @@ public sealed class SalesChainPdfService(
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             ValidUntil: q.ValidUntilDate, ValidUntilLabel: cfg.ValidUntilLabel,
             Notes: notes,
-            Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.Quotation, q.Status.ToString())));
+            Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.Quotation, q.Status.ToString())),
+            Signatures: await PaperSignatureSource.ResolveAsync(
+                db, storage, q.SentBy, null, stampOnMiddle: false,
+                isSigned: q.Status != QuotationStatus.Draft && q.SentBy is not null, ct));
         return model;
     }
 
@@ -121,7 +124,10 @@ public sealed class SalesChainPdfService(
             Summary(so.SubtotalAmount, so.VatAmount, so.TotalAmount, await ShowVatAsync(ct)),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: so.Notes,
-            Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.SalesOrder, so.Status.ToString())));
+            Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.SalesOrder, so.Status.ToString())),
+            Signatures: await PaperSignatureSource.ResolveAsync(
+                db, storage, so.PostedBy, null, stampOnMiddle: false,
+                isSigned: so.Status != SalesOrderStatus.Draft && so.PostedBy is not null, ct));
         return model;
     }
 
@@ -146,7 +152,10 @@ public sealed class SalesChainPdfService(
             Summary(dord.SubtotalAmount, dord.VatAmount, dord.TotalAmount, await ShowVatAsync(ct)),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
             Notes: dord.Notes,
-            Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.DeliveryOrder, dord.Status.ToString())));
+            Watermark: CopyOrStatus(copy, PaperDoc.Watermark(PaperDocKind.DeliveryOrder, dord.Status.ToString())),
+            Signatures: await PaperSignatureSource.ResolveAsync(
+                db, storage, dord.PostedBy, null, stampOnMiddle: false,
+                isSigned: dord.Status != DeliveryOrderStatus.Draft && dord.PostedBy is not null, ct));
         return model;
     }
 }

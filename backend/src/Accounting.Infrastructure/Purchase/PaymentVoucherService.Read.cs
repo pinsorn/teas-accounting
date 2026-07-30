@@ -138,7 +138,8 @@ public sealed partial class PaymentVoucherService
             whtCerts, completeness,
             p.BusinessUnitId, bu?.Code, bu?.NameTh,   // cont.79 — BU id + display
             p.WhtPayerMode,                           // 2026-06-12 wht-grossup spec
-            p.CreatedViaApiKeyName);                  // M4a — agent-drafted badge
+            p.CreatedViaApiKeyName,                   // M4a — agent-drafted badge
+            p.PostedBy);                              // doc-signature spec §D5 — left sign box
     }
 
     /// <summary>
@@ -236,7 +237,12 @@ public sealed partial class PaymentVoucherService
             PartyLabel: new PaperPartyLabel("ผู้ขาย", "Vendor"),
             Watermark: new PaperWatermark(
                 copy ? "สำเนา" : "ต้นฉบับ",
-                copy ? PaperWatermarkVariant.Warning : PaperWatermarkVariant.Success));
+                copy ? PaperWatermarkVariant.Warning : PaperWatermarkVariant.Success),
+            // §A2 — PV is the one three-box case: left = ผู้จัดทำ (PostedBy), middle = ผู้อนุมัติ
+            // (ApprovedBy) + the company stamp (stampOnMiddle: true).
+            Signatures: await Pdf.PaperSignatureSource.ResolveAsync(
+                _db, _storage, d.PostedBy, d.ApprovedBy, stampOnMiddle: true,
+                isSigned: d.Status != "Draft" && (d.PostedBy is not null || d.ApprovedBy is not null), ct));
         return model;
     }
 }

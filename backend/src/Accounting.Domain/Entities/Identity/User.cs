@@ -16,6 +16,10 @@ public class User : IAuditable, IConcurrencyVersioned
     public required string FullName { get; set; }
     public string? EmployeeCode { get; set; }
 
+    /// <summary>ตำแหน่ง (job position/title) — doc-signature spec. Printed on the trade-paper
+    /// signature box beneath the signer's name once the document is signed (§A3).</summary>
+    public string? Position { get; set; }
+
     /// <summary>เลขผู้ทำบัญชี (Certified Public Accountant / CPD number).</summary>
     public string? CpdNumber { get; set; }
 

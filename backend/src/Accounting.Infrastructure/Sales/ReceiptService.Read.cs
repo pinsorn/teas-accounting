@@ -233,6 +233,11 @@ public sealed partial class ReceiptService
         var d = await GetDetailAsync(id, ct)
             ?? throw new DomainException("rc.not_found", $"Receipt {id} not found.");
 
+        // doc-signature spec (§D5) — ReceiptDetail carries no PostedBy; a one-column scalar
+        // read avoids widening the read DTO for a single signature-resolution need.
+        var postedBy = await _db.Receipts.AsNoTracking()
+            .Where(x => x.ReceiptId == id).Select(x => x.PostedBy).FirstOrDefaultAsync(ct);
+
         // Sprint (receipt itemize, 2026-05-22) — list the goods/service line items the
         // customer paid for (derived from the applied immutable Tax Invoices). The applied
         // TI number(s) go in the notes. cont.119 (Ham 2026-07-01): the receipt footer now
@@ -270,7 +275,10 @@ public sealed partial class ReceiptService
             Notes: d.DisplayNotes,
             Watermark: copy
                 ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
-                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.Receipt, d.Status));
+                : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.Receipt, d.Status),
+            Signatures: await Pdf.PaperSignatureSource.ResolveAsync(
+                _db, _storage, postedBy, null, stampOnMiddle: false,
+                isSigned: d.Status != "Draft" && postedBy is not null, ct));
         return model;
     }
 

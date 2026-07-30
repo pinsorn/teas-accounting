@@ -90,7 +90,23 @@ export interface PaperDocumentProps {
   signRoles: { left: string; middle?: string; right: string };
   watermark?: { text: string; variant: WatermarkVariant };
   extraMetaBlock?: ReactNode;
-  signatureImg?: string;
+  // doc-signature-and-foot-layout §F2.1 — replaces the dead `signatureImg` text-hack prop
+  // (no callers existed outside the three declaration sites). Mirrors C# PaperSignatures.
+  signatures?: PaperSignaturesDto | null;
+}
+
+// doc-signature-and-foot-layout §D3/§F2.1 — mirrors C# PaperSignatures. URLs/positions/names are
+// serialized; the FE loads images through the BFF proxy exactly like the company logo (no byte
+// fields on the wire — those are [JsonIgnore]'d server-side, same split as PaperSeller.Logo).
+export interface PaperSignaturesDto {
+  leftUrl?: string | null;
+  middleUrl?: string | null;
+  stampUrl?: string | null;
+  leftPosition?: string | null;
+  middlePosition?: string | null;
+  leftName?: string | null;
+  middleName?: string | null;
+  stampOnMiddle: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +191,7 @@ export interface PaperDocDto {
   notes?: string | null;
   watermark?: PaperWatermarkDto | null;
   partyLabel?: PaperPartyLabelDto | null;
+  signatures?: PaperSignaturesDto | null;
 }
 
 // Plain numeric formatter (2 dp, th-TH) for paper line/total columns.

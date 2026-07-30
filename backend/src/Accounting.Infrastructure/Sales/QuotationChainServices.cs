@@ -215,7 +215,7 @@ public sealed class QuotationService(
         await NumberedDocumentWriter.AllocateAndSaveAsync(
             db,
             c => SubPrefixNumberAsync("QT", q.BusinessUnitId, q.DocDate, c),
-            (v, _) => { q.DocNo = v.Value; q.Status = QuotationStatus.Sent; q.SentAt = now; },
+            (v, _) => { q.DocNo = v.Value; q.Status = QuotationStatus.Sent; q.SentAt = now; q.SentBy = tenant.UserId; },
             ct);
         activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Sent", "Draft", "Sent");
         await db.SaveChangesAsync(ct);

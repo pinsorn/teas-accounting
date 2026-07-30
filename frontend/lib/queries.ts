@@ -75,6 +75,7 @@ import type {
   CreatePayrollRunRequest,
   CompanyProfile,
   UpdateCompanyProfileSoftRequest,
+  DefaultDocNotes,
   UpdateRegisteredAddressRequest,
   UpdateCompanyInfoRequest,
   CompanyListItem,
@@ -957,6 +958,26 @@ export function useUploadCompanyLogo() {
       apiUploadFile<{ logoUrl: string }>('company-profile/logo', file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
   });
+}
+
+// doc-signature-and-foot-layout §F2.9/§E5 — company stamp upload (multipart), cloned from
+// useUploadCompanyLogo. No StampUrl form field exists (§E5 — the attachment row is the source of
+// truth); invalidating the profile query is enough for the settings preview to pick it up.
+export function useUploadCompanyStamp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) =>
+      apiUploadFile<{ stampUrl: string }>('company-profile/stamp', file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+  });
+}
+
+// WP-5 (§G3) — create-time default-note prefill. Built on the EXISTING useCompanyProfile() query
+// (already used by quotations/[id]/page.tsx and the settings page) — no new endpoint, no new
+// query key. Returns undefined when unset (blank field, today's behaviour, §G2).
+export function useDefaultDocNote(kind: keyof DefaultDocNotes): string | undefined {
+  const { data } = useCompanyProfile();
+  return data?.defaultDocNotes?.[kind] ?? undefined;
 }
 
 export function useCompanyBuSetting() {
@@ -2127,5 +2148,26 @@ export function useResetUserPassword() {
   return useMutation({
     mutationFn: (v: { id: number; password: string }) =>
       apiPut<void>(`admin/rbac/users/${v.id}/password`, { password: v.password }),
+  });
+}
+
+// doc-signature-and-foot-layout §F2.7/§E5 — cloned from useUploadCompanyLogo. Both new
+// per-user mutations invalidate ['rbac-users'] so the list (and any open profile dialog reading
+// from it) picks up the new position/signatureUrl without a page reload.
+export function useUploadUserSignature(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) =>
+      apiUploadFile<{ signatureUrl: string }>(`admin/rbac/users/${userId}/signature`, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-users'] }),
+  });
+}
+
+export function useSetUserProfile(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { position: string | null }) =>
+      apiPut<void>(`admin/rbac/users/${userId}/profile`, req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-users'] }),
   });
 }

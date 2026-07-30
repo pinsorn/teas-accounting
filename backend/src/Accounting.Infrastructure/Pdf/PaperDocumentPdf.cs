@@ -44,35 +44,61 @@ public static class PaperDocumentPdf
             page.DefaultTextStyle(s => s
                 .FontFamily(Font).FontSize(Px(15)).FontColor(PaperColors.Ink900).LineHeight(1.15f));
 
-            page.Content().Layers(layers =>
-            {
-                if (m.Watermark is { } wm)
-                    layers.Layer().AlignCenter().AlignMiddle().Rotate(-22).Text(wm.Text)
-                        .FontSize(Px(140)).Bold().LetterSpacing(0.06f)
-                        .FontColor("#1A" + PaperColors.WatermarkHex(wm.Variant)[1..]);
+            // doc-signature spec §C2 — watermark spans the WHOLE page (header band included)
+            // and repeats on every page via page.Background() (was page.Content().Layers(...),
+            // which only covered the content band — MUST-VERIFY per §C5, confirmed available on
+            // the pinned QuestPDF 2024.10.0).
+            if (m.Watermark is { } wm)
+                page.Background().AlignCenter().AlignMiddle().Rotate(-22).Text(wm.Text)
+                    .FontSize(Px(140)).Bold().LetterSpacing(0.06f)
+                    .FontColor("#1A" + PaperColors.WatermarkHex(wm.Variant)[1..]);
 
-                layers.PrimaryLayer().Column(root =>
+            // Ham 2026-07-29 — "ส่วนหัวเหมือนหน้าแรก": page 2 repeats the brand bar + the
+            // company/title block (Head), but NOT Meta (§C2 — Meta is the customer/date card;
+            // repeating it mid-document would read as a second document).
+            page.Header().Column(h =>
+            {
+                // Top bar (paper.css ::before) — full-bleed 6px, ink 0-35% / peach 35-100%.
+                h.Item().Height(Px(6)).Row(r =>
                 {
-                    // Top bar (paper.css ::before) — full-bleed 6px, ink 0-35% / peach 35-100%.
-                    root.Item().Height(Px(6)).Row(r =>
-                    {
-                        r.RelativeItem(35).Background(PaperColors.Ink900);
-                        r.RelativeItem(65).Background(PaperColors.Peach400);
-                    });
-                    // The body Extends to fill the page and the signature strip rides in an
-                    // Extend+AlignBottom slot, so it sits at the BOTTOM of the paper like a
-                    // real footer (Ham 2026-07-02) — mirrors FE .paper flex + .paper-sign
-                    // margin-top:auto. (A greedy spacer item would push the strip to a second
-                    // page; AlignBottom inside the extended slot keeps it on this one.)
-                    root.Item().Extend().PaddingVertical(Px(28)).PaddingHorizontal(Px(52)).Column(body =>
-                    {
-                        Head(body, m);
-                        Meta(body, m);
-                        Items(body, m);
-                        Foot(body, m);
-                        body.Item().Extend().AlignBottom().Column(signSlot => Sign(signSlot, m));
-                    });
+                    r.RelativeItem(35).Background(PaperColors.Ink900);
+                    r.RelativeItem(65).Background(PaperColors.Peach400);
                 });
+                h.Item().PaddingTop(Px(28)).PaddingHorizontal(Px(52)).Column(hh => Head(hh, m));
+            });
+
+            page.Content().PaddingHorizontal(Px(52)).Column(body =>
+            {
+                Meta(body, m);
+                Items(body, m);
+                // Ham 2026-07-29 — หมายเหตุ + price summary belong WITH the signature block at
+                // the foot of the paper, not orphaned under the line items. ShowEntire() keeps
+                // the three atomic: the group either fits on this page whole, or moves whole to
+                // the next one (I4) — the foot row set is doctype/data-dependent (§1.2), so its
+                // height is never assumed. Extend()+AlignBottom() is the existing, PROVEN
+                // single-page mechanism (a greedy spacer would push the strip to page 2 — the
+                // original bug this comment used to warn about).
+                body.Item().Extend().AlignBottom().Column(bottom =>
+                    bottom.Item().ShowEntire().Column(group =>
+                    {
+                        Foot(group, m);
+                        Sign(group, m);
+                    }));
+            });
+
+            // §C3 — always print หน้า x/y, including 1/1 (decided: a two-pass render just to
+            // suppress it on a one-page document would double the cost of the hot GET /pdf path
+            // for a cosmetic; in-repo precedent already does this on GeneralLedgerPdf/
+            // FinancialStatementPdf). Supplies the bottom margin the body used to own
+            // (PaddingVertical(28) → PaddingTop only in the header), so the vertical budget is
+            // unchanged: before 6+28+content+28, after 6+28+content+28 (I6).
+            page.Footer().Height(Px(28)).PaddingHorizontal(Px(52)).AlignCenter().AlignMiddle().Text(t =>
+            {
+                t.DefaultTextStyle(s => s.FontSize(Px(11)).FontColor(PaperColors.Ink400));
+                t.Span("หน้า ");
+                t.CurrentPageNumber();
+                t.Span(" / ");
+                t.TotalPages();
             });
         })).GeneratePdf();
 
@@ -369,32 +395,68 @@ public static class PaperDocumentPdf
 
     private static void Sign(ColumnDescriptor col, PaperDocModel m)
     {
-        // Design review 2026-07-02 — every box carries the SAME three lines (role,
-        // parenthesised name, date) in the standard Thai sign-off shape, so the
+        // Design review 2026-07-02 — every box carries the SAME lines (image slot, role,
+        // parenthesised name, [ตำแหน่ง], date) in the standard Thai sign-off shape, so the
         // columns stay symmetric. Left = issuer/seller; right = the counterparty
         // (cont.80, Ham); PV's optional Middle box (ผู้อนุมัติ) has no pre-known name.
+        var s = m.Signatures;
+        var left = s?.LeftBytes;
+        var mid2 = s?.MiddleBytes;
+        var stampLeft = s is { StampOnMiddle: false } ? s.StampBytes : null;
+        var stampMiddle = s is { StampOnMiddle: true } ? s.StampBytes : null;
+        // §D1 (doc-signature spec) — ONE height for every box, else the ลงชื่อ rules
+        // misalign. 26pt = today's blank slot, kept EXACTLY when nothing renders (I1/I6);
+        // 46pt only when an image is actually rendered somewhere in the strip.
+        var slotH = (left ?? mid2 ?? s?.StampBytes) is null ? Px(26) : Px(46);
+
         col.Item().PaddingTop(Px(14)).Row(row =>
         {
-            SignBox(row, m.SignRoles.Left, m.Seller.Name);
+            // §A4 (doc-signature spec, Ham 2026-07-29) — on OUR boxes the ( name ) line
+            // carries the SIGNER'S PERSON NAME once a signer exists, replacing the company
+            // name (left) / the 30-dot blank (middle, via SignBox's existing null-to-dots
+            // fallback). No signer (Draft, or an actor with no user record) -> today's
+            // fallback, unchanged. Content change on one line; style/parens/alignment
+            // untouched (I1).
+            SignBox(row, m.SignRoles.Left, s?.LeftName ?? m.Seller.Name, s?.LeftPosition, slotH, left, stampLeft);
             row.ConstantItem(Px(36));
-            if (m.SignRoles.Middle is { } mid)
+            if (m.SignRoles.Middle is { } midRole)
             {
-                SignBox(row, mid, null);
+                SignBox(row, midRole, s?.MiddleName, s?.MiddlePosition, slotH, mid2, stampMiddle);
                 row.ConstantItem(Px(36));
             }
-            SignBox(row, m.SignRoles.Right, m.Customer.Name);
+            // Right = the counterparty. NEVER signed, stamped, or positioned, and its name
+            // line stays m.Customer.Name -- explicitly UNCHANGED by §A4 (I5).
+            SignBox(row, m.SignRoles.Right, m.Customer.Name, null, slotH, null, null);
         });
     }
 
-    private static void SignBox(RowDescriptor row, string role, string? name) =>
+    private static void SignBox(RowDescriptor row, string role, string? name, string? position,
+                                 float slotH, byte[]? signature, byte[]? stamp) =>
         row.RelativeItem().Column(box =>
         {
-            box.Item().Height(Px(26));
+            // §D1 — the image slot. Today's behaviour (a bare Height(slotH) blank) is
+            // byte-identical when nothing renders.
+            if (signature is null && stamp is null)
+                box.Item().Height(slotH);
+            else
+                box.Item().Height(slotH).Row(slot =>
+                {
+                    // §D2 — stamp BESIDE the signature, never over it.
+                    if (stamp is { Length: > 0 })
+                        slot.ConstantItem(slotH).AlignMiddle().Image(stamp).FitArea();
+                    if (signature is { Length: > 0 })
+                        slot.RelativeItem().AlignMiddle().AlignCenter().Image(signature).FitArea();
+                    else
+                        slot.RelativeItem();
+                });
+
             box.Item().BorderTop(Px(1)).BorderColor(PaperColors.Ink900).PaddingTop(Px(8))
                 .AlignCenter().Text($"ลงชื่อ {role}").Bold().FontSize(Px(14)).FontColor(PaperColors.Ink900);
             box.Item().AlignCenter()
                 .Text($"( {(string.IsNullOrEmpty(name) ? " ".PadRight(30, '.') : name)} )")
                 .FontSize(Px(13)).FontColor(PaperColors.Ink500);
+            if (!string.IsNullOrWhiteSpace(position))
+                box.Item().AlignCenter().Text(position!).FontSize(Px(13)).FontColor(PaperColors.Ink500);
             box.Item().AlignCenter().Text("วันที่ ____ / ____ / ______").FontSize(Px(13)).FontColor(PaperColors.Ink500);
         });
 }

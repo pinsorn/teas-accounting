@@ -38,7 +38,10 @@ public sealed record CompanyProfileDto(
     string? BankName,
     string? BankAccountNo,
     string? BankAccountName,
-    string? SsoEmployerAccountNo);
+    string? SsoEmployerAccountNo,
+    // doc-signature spec (§E5/§G1) — appended last, additive.
+    string? StampUrl = null,
+    DefaultDocNotes? DefaultDocNotes = null);
 
 // Only soft fields are accepted. Hard fields are never in this request —
 // editing them is rejected by the /hard endpoint (501, Phase 2).
@@ -52,7 +55,22 @@ public sealed record UpdateCompanyProfileSoftRequest(
     string? BankName,
     string? BankAccountNo,
     string? BankAccountName,
-    string? SsoEmployerAccountNo);
+    string? SsoEmployerAccountNo,
+    // doc-signature spec (§G1) — appended LAST so every existing positional/named caller is
+    // unaffected. Per-doctype default หมายเหตุ, a create-time form prefill only (§G2/§G3) — no
+    // document ever links back to this setting.
+    DefaultDocNotes? DefaultDocNotes = null);
+
+/// <summary>doc-signature spec (§G1) — per-document-kind default หมายเหตุ. Keys align 1:1 with
+/// the ten trade-paper kinds. Stored as jsonb on company_profile.default_doc_notes (via
+/// CompanyProfile.DefaultDocNotesJson); a null/absent key means "no default" and the create
+/// form's Notes field simply opens blank (today's behaviour). CREATE-TIME PREFILL ONLY — no
+/// document ever links back to this setting (§G2).</summary>
+public sealed record DefaultDocNotes(
+    string? Quotation = null, string? SalesOrder = null, string? DeliveryOrder = null,
+    string? TaxInvoice = null, string? Receipt = null, string? BillingNote = null,
+    string? CreditNote = null, string? DebitNote = null,
+    string? PurchaseOrder = null, string? PaymentVoucher = null);
 
 // Registered address (HARD) edit — allowed only after the user confirms (FE modal) that the
 // change has been filed with DBD (บอจ.1 + บอจ.4) and, for a VAT registrant, สรรพากร (ภ.พ.09).
@@ -100,6 +118,14 @@ public interface ICompanyProfileService
     Task<string> UpdateLogoAsync(
         string fileName, string mimeType, long sizeBytes, Stream content,
         CancellationToken ct);
+
+    /// <summary>doc-signature spec (§E5) — upload the company stamp (ตราประทับ). Same shape as
+    /// <see cref="UpdateLogoAsync"/>, parent_type=COMPANY_STAMP. No CompanyProfile.StampUrl column
+    /// (§E5) — the attachment row is the single source of truth; GetAsync resolves it latest-wins.
+    /// Returns the new URL.</summary>
+    Task<string> UpdateStampAsync(
+        string fileName, string mimeType, long sizeBytes, Stream content,
+        CancellationToken ct);
 }
 
 public sealed class UpdateCompanyProfileSoftValidator
@@ -126,5 +152,21 @@ public sealed class UpdateCompanyProfileSoftValidator
         RuleFor(x => x.SsoEmployerAccountNo)
             .Matches(@"^\d{10}$").WithMessage("validation.sso10Digits")
             .When(x => !string.IsNullOrWhiteSpace(x.SsoEmployerAccountNo));
+
+        // doc-signature spec (§G1) — 1000 chars per doctype note; only checked when the
+        // caller actually sends a DefaultDocNotes object.
+        When(x => x.DefaultDocNotes is not null, () =>
+        {
+            RuleFor(x => x.DefaultDocNotes!.Quotation).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.SalesOrder).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.DeliveryOrder).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.TaxInvoice).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.Receipt).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.BillingNote).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.CreditNote).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.DebitNote).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.PurchaseOrder).MaximumLength(1000).WithMessage("validation.maxLength");
+            RuleFor(x => x.DefaultDocNotes!.PaymentVoucher).MaximumLength(1000).WithMessage("validation.maxLength");
+        });
     }
 }

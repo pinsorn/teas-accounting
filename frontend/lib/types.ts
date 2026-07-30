@@ -57,6 +57,27 @@ export interface CompanyProfile {
   bankAccountNo: string | null;
   bankAccountName: string | null;
   ssoEmployerAccountNo: string | null;
+  // doc-signature-and-foot-layout §E5/§G1 — the stamp attachment is the source of truth (no
+  // StampUrl column), resolved latest-wins onto GET /company-profile; defaultDocNotes is the
+  // jsonb per-doctype create-time prefill (§G1-G4).
+  stampUrl: string | null;
+  defaultDocNotes: DefaultDocNotes | null;
+}
+
+// doc-signature-and-foot-layout §G1 — keys mirror the C# DefaultDocNotes record (camelCase on the
+// wire); one per §1.2 doctype kind. A null/absent value means "no default" (create form opens
+// blank, today's behaviour). Create-time prefill ONLY (§G2) — never a live linkage.
+export interface DefaultDocNotes {
+  quotation?: string | null;
+  salesOrder?: string | null;
+  deliveryOrder?: string | null;
+  taxInvoice?: string | null;
+  receipt?: string | null;
+  billingNote?: string | null;
+  creditNote?: string | null;
+  debitNote?: string | null;
+  purchaseOrder?: string | null;
+  paymentVoucher?: string | null;
 }
 
 export interface UpdateRegisteredAddressRequest {
@@ -150,6 +171,10 @@ export interface RbacUserListItem {
   isActive: boolean;
   isSuperAdmin: boolean;
   roles: RoleRef[];
+  // doc-signature-and-foot-layout §F2.10 — resolved latest-wins on the backend (no N+1); null
+  // means "not set" (ตำแหน่ง) / "no signature uploaded yet".
+  position?: string | null;
+  signatureUrl?: string | null;
 }
 
 export interface SetUserRolesRequest {
@@ -178,6 +203,10 @@ export interface UpdateCompanyProfileSoftRequest {
   bankAccountNo: string | null;
   bankAccountName: string | null;
   ssoEmployerAccountNo: string | null;
+  // §F6 (doc-signature-and-foot-layout §16 carry-forward) — appended LAST, mirroring the backend
+  // record's append-last contract. MUST be included on every save (the write replaces the whole
+  // jsonb object) — see settings/company/page.tsx's onSave for the payload-construction guard.
+  defaultDocNotes: DefaultDocNotes | null;
 }
 
 // Legal form of the company — mirrors BE Accounting.Domain.Enums.LegalEntityType

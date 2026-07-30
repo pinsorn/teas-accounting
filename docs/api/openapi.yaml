@@ -3570,9 +3570,37 @@ components:
         updatedAt: { type: string, format: date-time }
         updatedByUserId: { type: integer, nullable: true }
 
+    DefaultDocNotes:
+      type: object
+      description: |
+        Per-document-kind default หมายเหตุ (doc-signature-and-foot-layout spec §G1). A
+        CREATE-TIME FORM PREFILL ONLY — no document ever links back to this setting; changing
+        it never edits any existing document's already-stored notes. A null/absent key means
+        "no default" (the create form's Notes field opens blank, today's behaviour). Max 1000
+        characters per value; a blank/whitespace value normalises to null.
+      properties:
+        quotation: { type: string, nullable: true, maxLength: 1000 }
+        salesOrder: { type: string, nullable: true, maxLength: 1000 }
+        deliveryOrder: { type: string, nullable: true, maxLength: 1000 }
+        taxInvoice: { type: string, nullable: true, maxLength: 1000 }
+        receipt: { type: string, nullable: true, maxLength: 1000 }
+        billingNote: { type: string, nullable: true, maxLength: 1000 }
+        creditNote: { type: string, nullable: true, maxLength: 1000 }
+        debitNote: { type: string, nullable: true, maxLength: 1000 }
+        purchaseOrder: { type: string, nullable: true, maxLength: 1000 }
+        paymentVoucher: { type: string, nullable: true, maxLength: 1000 }
+
     CompanyProfileSoftUpdate:
       type: object
-      description: 'Editable fields only. All optional — omitted fields are unchanged.'
+      description: |
+        Editable fields only. All optional — omitted fields are unchanged.
+
+        WARNING (defaultDocNotes only): this field is a WHOLE-JSONB-OVERWRITE, not a partial
+        patch — omitting it (or sending fewer than all ten keys) CLEARS/blanks the stored
+        per-doctype default notes. If the caller is only changing another soft field (e.g.
+        tradeName) and wants to KEEP the existing defaultDocNotes, it must resend the complete
+        current defaultDocNotes object in the same request (fetch it from GET /company-profile
+        first). This mirrors the repo's existing whole-overwrite convention for this endpoint.
       properties:
         tradeName: { type: string, nullable: true }
         logoUrl: { type: string, nullable: true }
@@ -3583,6 +3611,9 @@ components:
         bankName: { type: string, nullable: true }
         bankAccountNo: { type: string, nullable: true }
         bankAccountName: { type: string, nullable: true }
+        defaultDocNotes:
+          allOf: [{ $ref: '#/components/schemas/DefaultDocNotes' }]
+          nullable: true
 
     CompanyProfileHardUpdate:
       type: object

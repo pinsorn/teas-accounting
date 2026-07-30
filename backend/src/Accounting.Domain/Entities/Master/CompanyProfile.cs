@@ -51,6 +51,9 @@ public class CompanyProfile
     public string? BankAccountName { get; set; }
     // เลขที่บัญชีนายจ้าง — 10-digit SSO employer registration number (สปส.1-10 file header).
     public string? SsoEmployerAccountNo { get; set; }
+    // doc-signature spec (§G1) — per-doctype default หมายเหตุ, a create-time form prefill only
+    // (no linkage to any document). jsonb; typed record is DefaultDocNotes (Application/Master).
+    public string? DefaultDocNotesJson { get; set; }
 
     // ---- Audit ----
     public DateTimeOffset CreatedAt { get; set; }

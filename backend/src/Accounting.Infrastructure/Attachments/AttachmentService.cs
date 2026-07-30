@@ -47,6 +47,10 @@ public sealed class AttachmentService(
             AttachmentParentType.ExpenseClaim   => "expense.claim.read",
             // Receipt / CN-DN have no dedicated .read perm — rely on
             // sys.attachment.read + tenant isolation (documented).
+            // doc-signature spec §E3 — the ONE real security item here: admin-managed
+            // signatures/stamp, gated on the same perm the dedicated upload routes use.
+            AttachmentParentType.UserSignature  => "sys.user.manage",
+            AttachmentParentType.CompanyStamp   => "master.company_profile.manage",
             _ => null,
         } : null;
 
@@ -70,6 +74,22 @@ public sealed class AttachmentService(
         // Cycle C — Expense Claims (specs/expense-claims.md §5). Attachments parent to the
         // stable HEADER id (FOOTGUN 7 — line ids churn on every draft edit).
         AttachmentParentType.ExpenseClaim      => await db.ExpenseClaims.AnyAsync(x => x.ExpenseClaimId == id, ct),
+        // doc-signature spec §E3 — a signature may only be attached to a user who is a MEMBER
+        // OF THE CALLER'S COMPANY (UserRole.CompanyId). sys.users is cross-tenant, so without
+        // this a caller could stamp a signature onto ANY user id in the instance. Paired with
+        // ParentReadPermission above (sys.user.manage), this is what stops one employee forging
+        // a colleague's signature onto a legal document.
+        // §16 F1 (Tier-2 remediation, Fable-decided) — a NARROW super-admin SELF arm:
+        // CompanySwitchService.SwitchAsync performs no membership check, so a super-admin
+        // operating as a company they hold no sys.user_roles row in is the one legitimate case
+        // of a non-member being a document actor there. Bounded to id == tenant.UserId ONLY —
+        // a super-admin still cannot stamp anyone ELSE who isn't a member (the forgery bound
+        // must not widen further than "may sign for themselves").
+        AttachmentParentType.UserSignature     => id > 0 && (
+            (tenant.IsSuperAdmin && id == (tenant.UserId ?? 0))
+            || await db.UserRoles.AnyAsync(r => r.UserId == id && r.CompanyId == tenant.CompanyId, ct)),
+        AttachmentParentType.CompanyStamp      => id == tenant.CompanyId
+            && await db.CompanyProfiles.AnyAsync(x => x.CompanyId == tenant.CompanyId, ct),
         _ => false,
     };
 

@@ -1,9 +1,12 @@
 using System.Text.RegularExpressions;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Attachments;
 using Accounting.Application.Audit;
 using Accounting.Application.Identity;
+using Accounting.Application.Pdf;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Identity;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +20,8 @@ namespace Accounting.Infrastructure.Identity;
 /// §4.8 audit trail.
 /// </summary>
 public sealed class RbacAdminService(
-    AccountingDbContext db, ITenantContext tenant, IActivityRecorder activity, IPasswordHasher hasher)
+    AccountingDbContext db, ITenantContext tenant, IActivityRecorder activity, IPasswordHasher hasher,
+    IAttachmentService attachments)
     : IRbacAdminService
 {
     private const string SuperAdmin = Role.SystemRoles.SuperAdmin;
@@ -276,8 +280,29 @@ public sealed class RbacAdminService(
             var users = await db.Users.AsNoTracking()
                 .Where(u => userIds.Contains(u.UserId))
                 .OrderBy(u => u.Username)
-                .Select(u => new { u.UserId, u.Username, u.FullName, u.IsActive, u.IsSuperAdmin })
+                .Select(u => new { u.UserId, u.Username, u.FullName, u.IsActive, u.IsSuperAdmin, u.Position })
                 .ToListAsync(ct);
+
+            // doc-signature spec (§F2.10) — latest-wins signature attachment per user, in ONE
+            // grouped query (no N+1). Mirrors AttachmentService.ListAsync's join style.
+            // §16 F4 (Tier-2 remediation) — sys.attachments is a G1 FORCE-RLS table with NO
+            // bypass arm (§1.4): inside RunWithBypassAsync's app.bypass_rls transaction, a read
+            // here still filters by the SESSION's own app.company_id, not `target` — so when a
+            // super-admin lists a DIFFERENT company than the one pinned on this session
+            // (target != tenant.CompanyId), this query would silently resolve against the WRONG
+            // company's attachments (never reliably right). Only resolve when listing the
+            // session's own company; otherwise the column is simply not shown.
+            var sigByUser = target == tenant.CompanyId
+                ? (await db.Attachments.AsNoTracking()
+                        .Where(a => a.ParentType == AttachmentParentType.UserSignature
+                            && userIds.Contains(a.ParentId) && a.DeletedAt == null)
+                        .OrderByDescending(a => a.UploadedAt)
+                        .ThenByDescending(a => a.AttachmentId)   // §16 F5 — deterministic tiebreak
+                        .Select(a => new { a.ParentId, a.AttachmentId })
+                        .ToListAsync(ct))
+                    .GroupBy(a => a.ParentId)
+                    .ToDictionary(g => g.Key, g => g.First().AttachmentId)
+                : new Dictionary<long, long>();
 
             // Roles per user, scoped to the target company. Join through user_roles so we
             // only surface the company-scoped roles (a user may have roles in other companies).
@@ -297,7 +322,9 @@ public sealed class RbacAdminService(
 
             return (IReadOnlyList<UserListItem>)users
                 .Select(u => new UserListItem(u.UserId, u.Username, u.FullName, u.IsActive, u.IsSuperAdmin,
-                    rolesByUser.TryGetValue(u.UserId, out var rr) ? rr : []))
+                    rolesByUser.TryGetValue(u.UserId, out var rr) ? rr : [],
+                    u.Position,
+                    sigByUser.TryGetValue(u.UserId, out var attId) ? $"/attachments/{attId}/download" : null))
                 .ToList();
         }, ct);
     }
@@ -468,6 +495,68 @@ public sealed class RbacAdminService(
             user.LockedUntil = null;
             // NEVER log the password — only that a reset happened.
             activity.Record("user", userId, user.Username, tenant.CompanyId, "user_password_reset", module: "sys");
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    // doc-signature spec (§E5) — admin-managed signature + ตำแหน่ง. Same GuardManageUserAsync as
+    // SetUserActiveAsync/ResetUserPasswordAsync: a company-admin may act on a peer of their own
+    // company but never on a super-admin (AttachmentService.ParentExistsAsync's UserRole.CompanyId
+    // check alone would not stop that — a super-admin can carry a company-scoped UserRole row too).
+    // §16 F2 (Tier-2 remediation) — RunWithBypassAsync + activity.Record, matching the
+    // SetUserActiveAsync/ResetUserPasswordAsync sibling shape: a signature/position change prints
+    // on legal documents, so it needs the same audit trail (and the same RLS-bypass rationale —
+    // audit.activity_log carries RLS (G3), needed whenever a super-admin acts cross-company).
+    public Task<string> SetUserSignatureAsync(
+        long userId, string fileName, string mimeType, long sizeBytes, Stream content,
+        CancellationToken ct) =>
+        RunWithBypassAsync(async () =>
+        {
+            var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
+                ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
+            await GuardManageUserAsync(user, ct);
+
+            SignatureImage.Validate(mimeType, sizeBytes, "user.signature");
+            // Tier-2 finding (2026-07-30, MED) — the MIME string alone can lie; verify the real
+            // magic number before persisting, so a spoofed Content-Type is rejected with the
+            // existing *.bad_mime error at upload time (better UX than a silently-blank box later).
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, ct);
+            var bytes = buffer.ToArray();
+            if (!SignatureImage.HasValidImageMagic(bytes))
+                throw new DomainException("user.signature.bad_mime",
+                    "File content does not match an allowed image format (png/jpeg/webp).");
+
+            var uploaded = await attachments.UploadAsync(
+                "USER_SIGNATURE", userId, "OTHER", "User signature",
+                fileName, mimeType, bytes.Length, new MemoryStream(bytes), ct);
+
+            activity.Record("user", userId, user.Username, tenant.CompanyId, "user_signature_uploaded",
+                note: $"attachment_id={uploaded.AttachmentId}", module: "sys");
+            await db.SaveChangesAsync(ct);   // persists the audit row (UploadAsync already saved the attachment)
+            return $"/attachments/{uploaded.AttachmentId}/download";
+        }, ct);
+
+    public Task SetUserProfileAsync(long userId, string? position, CancellationToken ct) =>
+        RunWithBypassAsync(async () =>
+        {
+            var user = await db.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct)
+                ?? throw new DomainException("rbac.user.not_found", $"User {userId} not found.");
+            await GuardManageUserAsync(user, ct);
+
+            var trimmed = string.IsNullOrWhiteSpace(position) ? null : position.Trim();
+            // §16 F3 (Tier-2 remediation) — a >100-char position is a shape error, not a 500;
+            // mirrors the user.username_invalid DomainException style (Attempt log records the
+            // actual resolved HTTP status — DomainExceptionMiddleware's code→status map has no
+            // dedicated 400 pattern, so this resolves via the same 422 default as
+            // user.username_invalid, not literal 400; flagged for Fable to confirm/adjust).
+            if (trimmed is { Length: > 100 })
+                throw new DomainException("user.position_too_long",
+                    "Position must be at most 100 characters.");
+
+            var before = user.Position;
+            user.Position = trimmed;
+            activity.Record("user", userId, user.Username, tenant.CompanyId, "user_profile_changed",
+                note: $"position '{before}' -> '{trimmed}'", module: "sys");
             await db.SaveChangesAsync(ct);
         }, ct);
 

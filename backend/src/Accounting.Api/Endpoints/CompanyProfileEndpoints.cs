@@ -103,6 +103,24 @@ public static class CompanyProfileEndpoints
             PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyProfileManage)
           .DisableAntiforgery();
 
+        // doc-signature spec (§E5) — company stamp upload, byte-for-byte the same shape as /logo.
+        g.MapPost("/stamp", async (HttpRequest http,
+            ICompanyProfileService svc, CancellationToken ct) =>
+        {
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { detail = "Expected multipart/form-data." });
+            var form = await http.ReadFormAsync(ct);
+            var file = form.Files["file"] ?? (form.Files.Count > 0 ? form.Files[0] : null);
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { detail = "Missing 'file' part." });
+            await using var s = file.OpenReadStream();
+            var url = await svc.UpdateStampAsync(
+                file.FileName, file.ContentType, file.Length, s, ct);
+            return Results.Ok(new { stampUrl = url });
+        }).RequireAuthorization(
+            PermissionPolicyProvider.PolicyPrefix + Permissions.Master.CompanyProfileManage)
+          .DisableAntiforgery();
+
         return app;
     }
 }

@@ -228,13 +228,29 @@
 }
 .paper-notes .lbl { font-weight: 700; color: var(--ink-900); margin-bottom: 4px; }
 
+/* doc-signature-and-foot-layout §F2.5/§C1 — the bottom-anchored wrapper around PaperFoot +
+   PaperSign (mirrors the PDF bottom-group). margin-top:auto now lives HERE; .paper-sign below
+   no longer self-anchors (it is the second child of this wrapper, not the last flow child). */
+.paper-bottom { margin-top: auto; }
+
 .paper-sign {
-  /* cont.119 (Ham) — auto margin pushes the strip to the paper's bottom edge
-     (real footer), min 14px clearance from the content above (= PDF). */
-  margin-top: auto;
+  /* cont.119 (Ham) — was margin-top:auto (self-anchoring); the wrapper above now owns that job
+     (§F2.6). padding-top:14px (clearance from PaperFoot above) is unchanged. */
+  margin-top: 0;
   padding-top: 14px;
+  /* §1.6/§3 — grid-template-columns was hardcoded to 2 columns (`1fr 1fr`), but the Payment
+     Voucher renders THREE boxes (PaperSign.tsx: signRoles.middle). Verified by CSS-logic
+     reasoning (no live dev server was running to visually confirm — reported honestly in the
+     attempt log): with only 2 explicit column tracks and 3 grid items, CSS Grid auto-placement
+     does NOT wrap the 3rd item to a new row — it creates an IMPLICIT 3rd column sized by
+     grid-auto-columns (default `auto`, i.e. sized to content), so the PV strip's three boxes are
+     NOT evenly split (asymmetric 3rd column) while every 2-box document is unaffected (1fr 1fr
+     already covers exactly 2 explicit columns for those). This is a defect repair, not a
+     restyle — still inside the §I1 styling freeze allowance list. Every 2-box caller renders
+     byte-identical (repeat(auto-fit, minmax(0,1fr)) with exactly 2 items == `1fr 1fr`).
+  */
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 36px;
 }
 .paper-sign .box {
@@ -246,12 +262,10 @@
 }
 .paper-sign .box .role { font-weight: 700; color: var(--ink-900); }
 .paper-sign .box .sub { color: var(--ink-500); font-size: 13px; margin-top: 2px; }
-.paper-sign .box .sig {
-  font-family: cursive;
-  font-size: 22px;
-  color: var(--ink-700);
-  transform: rotate(-6deg);
-}
+/* doc-signature-and-foot-layout §F2.1/§F2.6 — the dead `.sig` cursive-text hack is replaced by
+   real signature/stamp <img> slots. */
+.paper-sign .box .sig-img { max-height: 44px; max-width: 100%; object-fit: contain; }
+.sig-slot { display: flex; gap: 8px; align-items: center; justify-content: center; }
 
 /* === Detail layout (paper + side rail) === */
 .detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; min-width: 0; align-items: start; }
