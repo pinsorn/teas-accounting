@@ -237,6 +237,27 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
     `gl.journal.post` authenticates at `/mcp`. The split holds only because no MCP tool consumes
     `.post` — behavioural, not structural. Fix = pin `/mcp` to `kind == mcp`.
 
+- **C4 (JV validation co5) — 1 CRIT (upgraded by Fable from C4's HIGH).**
+  - **F22 (C4) — CRIT money integrity. Fable-VERIFIED in code, upgraded from HIGH.** The DRAFT path
+    (`POST /journals` → `/journals/{id}/post`) and **MCP `create_manual_journal_draft`** accept
+    **>2-decimal amounts** that `/journals/manual` rejects — they reach the IMMUTABLE GL. Proven live:
+    acct01 drafted Dr/Cr 100.005 and a 33.3333/33.3333/33.3334 split; chief01 posted both
+    (JV-0141, JV-0142). **co5's live trial-balance total is now `822801.785`** — an impossible THB value.
+    Side-by-side proof in one file: `CreateManualJournalValidator` (JournalDtos.cs:73-77) HAS the
+    2-decimal rule, with a comment naming this exact failure mode ("numeric(19,4) so a 3rd/4th decimal
+    would be STORED and would make ΣDr==ΣCr pass on invisible satang. Reject at the edge.");
+    `CreateJournalValidator` (JournalDtos.cs:94-102) — the draft path, the one MCP uses — has NO such
+    rule. The class was known, documented, fixed on ONE path, and left open on the path v1.27.0 then
+    exposed to autonomous agents. `PostAsync`/`MarkPosted` only check header-total balance, never
+    per-line precision. Irreversible (JEs immutable, no void). Fix = port the rule + a post-time guard.
+  - **F23 (C4) — MED (F1 500-class).** Draft path throws raw **500 (Postgres 22001)** on an over-length
+    Reference (>255) or line Description (>500); the manual path caps both — the cap was never ported.
+  - **F24 (C4) — LOW.** Draft path has no 200-line cap (manual path caps at 200); a 250-line JV posted.
+  - C4 INFO: SQLi/XSS payloads stored literally (EF parameterized) — flag only for an FE-escaping audit.
+  - C4 PASS: manual-path balance battery; account 3-check (header/inactive/foreign/nonexistent/mixed)
+    fires on the human-post path too; period/future/closed-boundary gates; permission-less sales01
+    refused server-side 403; immutability (re-post → `je.not_draft`, PUT/DELETE → 405).
+
 ## WAVE B COMPLETE (3/3).
 ## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
 Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
