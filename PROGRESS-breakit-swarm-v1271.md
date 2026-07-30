@@ -111,6 +111,11 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
   Follow-up A5 flagged: same generic `IConcurrencyVersioned` post path → one-shot double-post race
   on `/tax-invoices/{id}/post` and `/payment-vouchers/{id}/post|approve` likely repro too.
   A5 PASS otherwise: JV seq bulletproof 20-wide (0062..0086, contiguous), mixed-type no 23505/40P01.
+  **B1 CONFIRMED live: raw 500 reproduces on `/tax-invoices/{id}/post` + `/receipts/{id}/post` +
+  `/journals/{id}/post`. PV is IMMUNE** (only `PaymentVoucherService.PostAsync` wraps
+  DbUpdateConcurrencyException→409, WP-B fix `pv.locked_mismatch`). **Fix = mirror PV's one-line
+  try/catch into the TI/RC/JV post services.** Integrity held in all repros (posts once, contiguous,
+  no leak). This is now the definitive scope of F1.
 
 - **F2 (A3) — CRIT compliance, money. Fable-VERIFIED in code.** ภ.พ.36 double-counts ม.83/6
   reverse-charge VAT. `WhtFilingService.GeneratePnd36Async` (WhtFilingService.cs:257-266) does
@@ -161,6 +166,18 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
   - A1 LOW: per-line VAT rounding +0.01; zero-total TI accepted; zero-value billing note accepted.
   - A1 PASS: happy path ties (2,500/175/2,675); over-receipt→422; posted-TI edit/delete→405;
     receive-draft→422; VAT7+rate0 injection normalized; mixed 0%/7% correct; concurrent TI posts unique.
+
+- **B1 (approval/SoD co5) — no new CRIT; approval state-machine SOLID.** missing-scope approve/post
+  → 9/9 **403**; out-of-order transitions → clean 422 (posted immutable); JV closed-period →
+  `period.closed`, future → `je.future_date`; double-approve → 422; pending-approvals widget accurate
+  + tenant-scoped. Self-approval is permission-only BY DESIGN (Ham ruling, `ck_pv_sod` dropped).
+  - **F11 (B1) LOW** — stale comments falsely claim SoD is DB-enforced (`PaymentVoucherService.cs:408`
+    "DB CHECK ck_pv_sod", `IPaymentVoucherService.cs:12` "Approver must differ from creator") — the
+    check no longer exists; misleads auditors, delete them.
+  - **F12 (B1) LOW** — `PaymentVoucherService.ApproveAsync` lacks the concurrency try/catch its
+    Post/Cancel siblings have (latent 500 seam, not live-reproducible).
+  - **F13 (B1) LOW** — PV `CreatedBy` never stamped (`createdBy:null` while approvedBy/postedBy set);
+    activity-log audit covers it, so LOW.
 
 ## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
 Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
