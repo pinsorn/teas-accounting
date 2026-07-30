@@ -112,6 +112,22 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
   on `/tax-invoices/{id}/post` and `/payment-vouchers/{id}/post|approve` likely repro too.
   A5 PASS otherwise: JV seq bulletproof 20-wide (0062..0086, contiguous), mixed-type no 23505/40P01.
 
+- **F2 (A3) — CRIT compliance, money. Fable-VERIFIED in code.** ภ.พ.36 double-counts ม.83/6
+  reverse-charge VAT. `WhtFilingService.GeneratePnd36Async` (WhtFilingService.cs:257-266) does
+  `viRows.Concat(pvRows)` with **no dedup**; a foreign-service VI AND its settling self-withhold PV
+  both carry `RequiresPnd36ReverseCharge` with the same `SubtotalAmount`, so one ฿20,000 service is
+  counted twice → service 40,000 / VAT 2,800 instead of 20,000 / 1,400. On `mode=finalize` this
+  posts an **immutable JV over-remitting output VAT to the RD** (PostReverseChargeJvAsync, line 282-283).
+  Proven live: VI-0007 + PV-IT-0003 both in July's ภ.พ.36; co5's pre-existing VI-0004/0005 + PVs
+  already double-counted. Fix-arc design Q: flag belongs on VI-only OR PV-only, query picks one.
+  A3 used PREVIEW only on prod — no bad JV posted.
+- **F3 (A3) — MED.** ภ.พ.36 has NO printable form: `/tax-filings/pnd36/pdf` → 404, no
+  `BuildPnd36PdfAsync`/`Pnd36FormFiller`, FE page has no print control — yet every sibling filing
+  (ภ.พ.30, ภ.ง.ด.2/3/53/54, 50/51) has a PDF. The mandatory reverse-charge return can't be filed.
+- A3 INFO: foreign vendor accepts a Thai Tax ID (semantically wrong, routing OK).
+- A3 PASS: v1.22.11 VI-linked-PV guard HOLDS (JE 229 balanced, WHT 3,529.41 ref); ภ.ง.ด.54 does
+  NOT double-count (1 cert/PV); empty period clean; posted VI/PV immutable; non-THB clean 400.
+
 ## Next (resume here)
 1. [x] Quota window reset (0%).
 2. [ ] Pull the 10 co5 creds + co7 creds (nvadmin02/nvchief02) into the dispatch prompts.
