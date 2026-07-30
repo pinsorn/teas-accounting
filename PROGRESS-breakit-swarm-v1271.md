@@ -200,6 +200,24 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
     (a ฿1.07-trillion claim approved with no escalation); no SoD (chief self-create→approve→pay,
     permission-only per Ham ruling — cash-control weakness worth a note).
 
+- **B4 (payroll co5) — 1 CRIT integrity; money math PASS to the satang.**
+  - **F18 (B4) — CRIT integrity/compliance. Fable-VERIFIED in code.** Payroll `POST /payroll/runs/{id}/post`
+    AND `/pay` are the ONLY posting paths with NO period-close guard. `PayrollRunService.cs` PostAsync
+    (line 202) + PayAsync (229) never call `EnsureOpenAsync` and don't even inject `IPeriodCloseService`,
+    while every other poster does (JournalService.cs:265, ExpenseClaimService.cs:252, FixedAsset 238/300,
+    BankRec 236). B4 posted run 202606 into **explicitly-closed June 2026** → immutable JE 270 (docDate
+    2026-06-29) + settlement JE 271 in the closed month, no `period.closed`. Defeats the ledger-close lock.
+  - **F19 (B4) — HIGH (same gap).** No future-date guard on payroll either — posted Oct/Nov/Dec 2026 freely.
+  - **O8 proration is FIXED — my briefing was STALE.** Mid-month hire (Nov-16) + leaver (Nov-15) both
+    correctly prorate to gross 15,000 (not full 30,000); GL prorated (salary 155,000 not 185,000). No
+    over-statement. (Correct the STATUS.md army-decision note.)
+  - **Payroll double-post is ROBUST (positive divergence from F1):** N=5/N=8 concurrent `/post` → 1 winner
+    + clean 422 losers, ZERO 500. Payroll post handles the race that JV/TI/RC don't.
+  - PASS: R1 tie-out to the satang (PIT 7,008.33, SSO cap ฿875, net 115,491.67); post JE balances
+    (Dr 5400+5410 = Cr 2153+2160+2170); pay clears 2170; ภ.ง.ด.1 PIT = 2153 movement; สปส.1-10 + 50ทวิ tie;
+    all guards hold (deduction>net/negative/zero/dup/ghost → 400; posted immutable → 422; dup-period 422).
+
+## WAVE B COMPLETE (3/3).
 ## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
 Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
 
