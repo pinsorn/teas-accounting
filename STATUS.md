@@ -1,6 +1,20 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ v1.27.0 LIVE + smoked 6/6 (2026-07-30 ~21:00) — agents-draft/humans-post journal loop.**
+  MCP `create_manual_journal_draft` (draft-only; `.post` scopes still structurally
+  ungrantable, pinned by test) + the missing human half: Post CTA + ?action=approve banner on
+  /journals/[id]. PostAsync now runs the full manual-path gates (accounts 3-check +
+  period/fiscal — was posting ANYTHING balanced). Scope `gl.journal.create` = opt-in checkbox
+  (verified unchecked-by-default on prod). Test-hardening Phase 1 landed: skip 9→8 (real RLS
+  test revived), SeedConsistencyTests, FE↔BE scope-parity pin, PaperFoot mirror-fixture test.
+  Suite 1073/0/8. Tier-2: opus REJECT→R1-R4 fixed→green.
+  - **🎁 WAITING FOR HAM: draft JV #186 (฿123.45, co5) left UNPOSTED on purpose** —
+    https://teas.kazaki-rio.com/journals/186?action=approve — click อนุมัติ & Post to complete
+    the first agent-draft→human-post round-trip yourself. (Banner "no permission" flash during
+    load was found+fixed on main d1264d7, ships next release.)
+  - Correcting JV ฿1,000 5200→5500 posted on co7 (07-2026-JV-0008, net profit unchanged) —
+    all three "ลุยให้หมด" items closed.
 - **✅ v1.26.1 LIVE + Tier-4 VERIFIED 10/10 (2026-07-30 ~14:30) — doc signatures, bottom-anchored
   foot, pagination, default notes + the E2E fix set.** Proven live on co7: signature+stamp+ตำแหน่ง
   render on issued docs; Drafts stay empty; 30-line doc paginates (repeated header, atomic bottom
