@@ -1,3 +1,29 @@
+# PROGRESS — overnight queue "ลุยให้หมด" — 2026-07-30 ~17:20 (88%, insurance paid)
+
+## DONE since v1.26.1 shipped
+- Correcting JV on co7: 07-2026-JV-0008 posted (5200: 2,170->1,170; 5500: 0->1,000; net profit
+  unchanged -112,053.07; Dr=Cr). Item closed.
+- acceptance-tester role + routing rule: committed both repos (minions d4d7f9c, TEAS 5ef7e6e).
+- MCP create_manual_journal_draft: implemented per REVISED spec (draft-only; McpScopes
+  no-.post invariant untouched — Fable verified the McpScopes diff line personally; new test
+  pins gl.journal.post not-in-All). Gates: 5/5 new + 170/170 Mcp+Ledger regression.
+  CHECKPOINT-COMMITTED (see git log). Tier-2 opus review still PENDING before release/deploy.
+
+## NEXT on wakeup (after ~17:50 reset)
+1. Opus review (mode a) of the MCP-tool diff: lenses = scope catalog change safety /
+   draft-only invariant / tenant account gate in tool layer / spec compliance. Fable already
+   read McpScopes; reviewer covers the rest.
+2. Dispatch C2-C4 (test-hardening Phase 1 remainder, PLAN-test-hardening.md:120-122):
+   investigate the 9 PermissionLookupRlsTests skips · SeedConsistencyTests v1 (categories +
+   WHT types) · mirror fixture test for the foot math. One sonnet worker, sequential (test DB).
+3. After review PASS + C2-C4 green: full suite -> release (CHECK PR TITLE VERSION before
+   merging — wiki lesson) -> deploy (no migration/seed this time) -> quick MCP smoke on co5
+   (list tools shows create_manual_journal_draft; create one draft; verify it appears as
+   Draft in /journals UI and does NOT move GL) -> final wrap report + STATUS update.
+4. Known follow-up gap (from worker, honest): frontend MCP_DEFAULT_SCOPES mirror not updated —
+   fold into C2-C4 dispatch or note in STATUS.
+
+## (older checkpoints below)
 # PROGRESS — doc-signature — 2026-07-30 ~11:10 (86% quota, insurance paid)
 
 ## CURRENT: v1.26.1 DEPLOY IN PROGRESS

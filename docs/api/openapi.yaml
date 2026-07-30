@@ -3138,6 +3138,7 @@ paths:
         | list_payment_vouchers / get_payment_voucher | purchase.payment_voucher.read |
         | create_payment_voucher_draft | purchase.payment_voucher.create |
         | list_vendors / get_vendor / create_vendor | master.vendor.manage |
+        | create_manual_journal_draft | gl.journal.create |
         | get_tax_invoice_pdf_url | sales.tax_invoice.read |
         | get_receipt_pdf_url | sales.receipt.read |
         | get_quotation_pdf_url | sales.quotation.read |

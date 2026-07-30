@@ -25,6 +25,10 @@ public static class McpScopes
         // see spec mcp-expansion.md §C correction).
         "report.trial_balance.read", "report.profit_loss.read", "report.general_ledger.read",
         "gl.journal.read",
+        // specs/mcp-manual-journal.md — create_manual_journal_draft (draft-only; matches
+        // POST /journals/'s permission exactly). gl.journal.post is NOT here and never will be —
+        // ForbiddenSuffixes excludes it structurally (an agent drafts; a human posts).
+        "gl.journal.create",
         // C2 — document-gap tools (list_invoices/get_invoice, list_delivery_orders/get_delivery_order)
         // reuse these pre-existing scopes (already used by get_invoice_pdf_url/get_delivery_order_pdf_url),
         // but the scopes were never added to the catalog here — so they were never actually grantable

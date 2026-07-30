@@ -11,6 +11,7 @@ using Accounting.Application.Purchase;
 using Accounting.Application.Reports;
 using Accounting.Application.Sales;
 using Accounting.Application.Tax;
+using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using FluentValidation;
@@ -189,6 +190,32 @@ public sealed record McpCreatePurchaseOrderRequest(
     string? InternalNotes,
     IReadOnlyList<McpPurchaseOrderLineInput> Lines);
 
+// ── GL manual journal (specs/mcp-manual-journal.md) — MCP-path-only input shapes ───────────
+// Draft-only wrapper over the EXISTING POST /journals/ seam (JournalService.CreateDraftAsync,
+// gl.journal.create). The tool NEVER posts — gl.journal.post is structurally excluded from
+// every MCP credential (McpScopes.ForbiddenSuffixes / ApiKeyService.EnforceMcpNoPostGuard); a
+// human posts the draft under their own session in the UI. Lines carry an accountId (NOT a
+// code, despite the spec's original draft text) — mirrors every other create_*_draft tool's
+// require-list convention in this file (list_gl_accounts resolves it; every sibling tool's
+// customerId/productId/vendorId works the same way) — see attempt log for the correction.
+public sealed record McpManualJournalLineInput(
+    [property: Description("Id of an existing GL account in the caller's company — resolve via list_gl_accounts (NOT the account code).")]
+    long AccountId,
+    decimal DebitAmount,
+    decimal CreditAmount,
+    [property: Description("Optional line memo.")]
+    string? Memo = null);
+
+/// <summary>MCP-only create request for a manual journal DRAFT. DocDate is accepted for
+/// interface parity with the wrapped seam but is IGNORED server-side — JournalService.
+/// CreateDraftAsync always pins DocDate/PostingDate to today (Asia/Bangkok), never the
+/// caller's value (verified by reading the seam; see attempt log).</summary>
+public sealed record McpCreateManualJournalDraftRequest(
+    [property: Description("Ignored by the server — a manual journal voucher's date is always today (Asia/Bangkok), whatever you pass here.")]
+    DateOnly DocDate,
+    string Description,
+    IReadOnlyList<McpManualJournalLineInput> Lines);
+
 /// <summary>
 /// M2 (MCP) — the agent-facing tool surface, hosted in-process by the MCP server
 /// (see Program.cs <c>AddMcpServer().WithTools&lt;TeasMcpTools&gt;()</c>). Every tool
@@ -261,6 +288,10 @@ public sealed class TeasMcpTools
     private const string ReportProfitLoss      = Pfx + "report.profit_loss.read";
     private const string ReportGeneralLedger   = Pfx + "report.general_ledger.read";
     private const string JournalRead           = Pfx + "gl.journal.read";
+    // specs/mcp-manual-journal.md — create_manual_journal_draft. Matches the REST DRAFT route's
+    // permission exactly (POST /journals/ is gated gl.journal.create — NOT gl.journal.post, which
+    // is structurally excluded from every MCP credential; see McpScopes.ForbiddenSuffixes).
+    private const string JournalCreate          = Pfx + "gl.journal.create";
     // C2 — get_company_info: any authenticated MCP principal (public read, no RBAC perm required).
     private const string SystemInfoRead        = Pfx + "sys.system_info.read";
     // mcp-expansion-v2 — bank reconciliation (read-only). Scopes ARE the exact RBAC permission
@@ -304,6 +335,18 @@ public sealed class TeasMcpTools
         [property: Description("The id of the newly created record.")] long Id,
         [property: Description("The unique code of the record.")] string Code,
         [property: Description("The Thai name of the record.")] string NameTh);
+
+    /// <summary>specs/mcp-manual-journal.md — result of create_manual_journal_draft. Status is
+    /// always "Draft" and DocNoPreview is always null — the tool NEVER posts, so no document
+    /// number exists yet; a human posts the draft separately in the UI (ApprovalUrl).</summary>
+    public sealed record ManualJournalDraftCreated(
+        [property: Description("The id of the newly created DRAFT journal entry (not yet posted).")] long DraftId,
+        [property: Description("Always null — no document number is assigned until a human posts the draft.")] string? DocNoPreview,
+        [property: Description("Sum of all line debit amounts.")] decimal TotalDebit,
+        [property: Description("Sum of all line credit amounts.")] decimal TotalCredit,
+        [property: Description("Always \"Draft\" — this tool never posts.")] string Status,
+        [property: Description("Deep-link the user opens to review and post the draft (the agent cannot post).")] string ApprovalUrl,
+        [property: Description("Ready-made Thai-labeled markdown link — paste this verbatim so the human can click through and post.")] string ApprovalLinkMarkdown);
 
     /// <summary>E4/§A — agent-facing result of a get_*_pdf_url tool: a PUBLIC, browser-openable
     /// URL (spec mcp-expansion.md §A) — no X-Api-Key or login needed to open it.</summary>
@@ -1056,6 +1099,52 @@ public sealed class TeasMcpTools
         IFinancialReportService svc,
         CancellationToken ct) =>
         svc.GeneralLedgerAccountsAsync(ct);
+
+    // specs/mcp-manual-journal.md — draft-only manual journal voucher. Wraps the EXISTING
+    // POST /journals/ seam (JournalService.CreateDraftAsync) — the human posts separately.
+    [McpServerTool(Name = "create_manual_journal_draft"), Authorize(Policy = JournalCreate)]
+    [Description("Create a DRAFT manual journal voucher (no document number yet — GL balances stay UNMOVED until a human posts it). This tool NEVER posts (mcp-kind credentials structurally cannot hold gl.journal.post) — a human must review and post the draft in the UI afterward. Total debit must equal total credit across all lines. Once posted, the entry becomes IMMUTABLE — corrections require a reversing journal, not an edit. Every line must carry an accountId resolving to an existing GL account in the caller's company — resolve via list_gl_accounts first (NOT the account code).")]
+    public async Task<ManualJournalDraftCreated> CreateManualJournalDraftAsync(
+        McpCreateManualJournalDraftRequest request,
+        IJournalService svc,
+        AccountingDbContext db,
+        ITenantContext tenant,
+        IValidator<CreateJournalRequest> validator,
+        IOptions<AppOptions> app,
+        CancellationToken ct)
+    {
+        // Account existence/tenant gate — journal_lines has no company_id and no FK to
+        // chart_of_accounts (same reasoning JournalService.CreateAndPostManualAsync documents at
+        // its own account gate), so a forged/foreign account id would otherwise sail straight
+        // through CreateDraftAsync, which performs NO account validation of its own (verified by
+        // reading the seam — the spec's original §1 wrongly attributed CreateAndPostManualAsync's
+        // gate to this seam; see attempt log). ONE tenant-scoped batched read covers every line.
+        var ids = request.Lines.Select(l => l.AccountId).Distinct().ToList();
+        var known = await db.ChartOfAccounts.AsNoTracking()
+            .Where(a => ids.Contains(a.AccountId) && a.CompanyId == tenant.CompanyId)
+            .Select(a => a.AccountId)
+            .ToListAsync(ct);
+        var missing = ids.Except(known).ToList();
+        if (missing.Count > 0)
+            throw new DomainException("je.account_not_found", $"Account {missing[0]} not found in your company.");
+
+        var appRequest = new CreateJournalRequest(
+            request.DocDate, request.DocDate, request.Description, Reference: null,
+            CurrencyCode: "THB", ExchangeRate: 1m,
+            request.Lines.Select(l => new JournalLineInput(
+                l.AccountId, l.DebitAmount, l.CreditAmount, l.Memo, Reference: null, DimensionsJson: null)).ToList());
+
+        await validator.ValidateAndThrowAsync(appRequest, ct);
+        var draftId = await svc.CreateDraftAsync(appRequest, ct);
+
+        return new ManualJournalDraftCreated(
+            draftId, DocNoPreview: null,
+            TotalDebit: request.Lines.Sum(l => l.DebitAmount),
+            TotalCredit: request.Lines.Sum(l => l.CreditAmount),
+            Status: "Draft",
+            ApprovalUrl: ApprovalUrl(app.Value, "journals", draftId),
+            ApprovalLinkMarkdown: ApprovalLinkMarkdown(app.Value, "journals", draftId));
+    }
 
     // ── specs/mcp-error-surfacing.md §2 — master-data resolver tools ───────────
     // Pattern: thin wrappers over an existing (or, for tax codes, new minimal) read
@@ -1943,6 +2032,8 @@ public sealed class TeasMcpTools
             // Was missing, so both fell back to the raw English route name instead of a Thai
             // label (§A6 requires a Thai-labeled markdown link per doc type).
             ["invoices"]         = ("ใบแจ้งหนี้", "IV"),
+            // specs/mcp-manual-journal.md — create_manual_journal_draft's approval link.
+            ["journals"]         = ("ใบสำคัญทั่วไป", "JV"),
         };
 
     private static string ApprovalLinkMarkdown(AppOptions app, string route, long id)
