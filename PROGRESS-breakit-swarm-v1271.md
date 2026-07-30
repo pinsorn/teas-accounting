@@ -89,8 +89,18 @@ Waves run **sequentially**, agents inside a wave in parallel. Wave B's docs feed
 Each agent returns `swarm-findings/breakit-v1271/<agent>.md`: repro steps, exact request/response,
 expected vs actual, severity. **No fixes, no commits** — evidence only.
 
+## DISPATCHED (2026-07-31 ~00:05, fresh 5h window 0%)
+- **Wave A running (4 agents, co5 VAT, API-driven):** A1 sales · A2 purchase · A3 foreign-vendor
+  (ภ.พ.36/ภ.ง.ด.54) · A5 doc-number concurrency. Findings → `swarm-findings/breakit-v1271/`.
+  Held Wave B until A reports so A5's concurrency chaos doesn't pollute B's happy-path baselines.
+- **⛔ co7 BLOCKER — need password.** nvadmin02/nvchief02 (userId 24/25, co7 non-VAT) exist but
+  their passwords are NOT recorded anywhere (the army Playwright script that logged in was deleted
+  per its own hard-rules). Blocks A4, B3, B5 (the 3 non-VAT agents). co5 agents unaffected.
+  **ASK HAM** for co7 creds, or reset via super-admin. Everything else (approval both-via-co5,
+  expense co5, payroll co5, period/JV/MCP, PDF co5) runs without it.
+
 ## Next (resume here)
-1. [ ] Confirm quota window reset.
+1. [x] Quota window reset (0%).
 2. [ ] Pull the 10 co5 creds + co7 creds (nvadmin02/nvchief02) into the dispatch prompts.
 3. [ ] Dispatch **Wave A** (5 agents, one message — distinct companies/doc-types, all API-driven).
 4. [ ] **Wave B** (5) after A reports.
