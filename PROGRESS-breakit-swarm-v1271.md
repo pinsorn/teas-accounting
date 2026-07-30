@@ -167,7 +167,10 @@ Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1
 
 ## Next (resume here)
 1. [x] Quota window reset (0%). Wave A done.
-2. [ ] Launch Wave B co5-runnable: B1 approval/SoD · B2 expense-claims · B4 payroll. (B3/B5 need co7 pw.)
+2. [x] Wave B RUNNING (co5): B1 approval/SoD · B2 expense-claims · B4 payroll. (B3/B5 blocked on co7 pw.)
+3. [ ] Wave C after B: C1 period/immutability · C2 cross-tenant/RBAC · C3 MCP scope (needs API key) · C4 JV.
+4. [ ] Wave D last (PDF/exports on the docs A/B produced) + AGY vision. co7 waves whenever pw arrives.
+5. [ ] Consolidate → VERDICT-breakit-v1271.md → Ham decides fix arc.
 2. [ ] Pull the 10 co5 creds + co7 creds (nvadmin02/nvchief02) into the dispatch prompts.
 3. [ ] Dispatch **Wave A** (5 agents, one message — distinct companies/doc-types, all API-driven).
 4. [ ] **Wave B** (5) after A reports.
