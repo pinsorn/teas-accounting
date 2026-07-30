@@ -345,6 +345,7 @@ public sealed class TeasMcpTools
         [property: Description("Sum of all line debit amounts.")] decimal TotalDebit,
         [property: Description("Sum of all line credit amounts.")] decimal TotalCredit,
         [property: Description("Always \"Draft\" — this tool never posts.")] string Status,
+        [property: Description("R4 — the ACTUAL date the draft was saved with (Asia/Bangkok today). The draft seam always pins to today and ignores the request's docDate; this reports what was really used.")] DateOnly EffectiveDocDate,
         [property: Description("Deep-link the user opens to review and post the draft (the agent cannot post).")] string ApprovalUrl,
         [property: Description("Ready-made Thai-labeled markdown link — paste this verbatim so the human can click through and post.")] string ApprovalLinkMarkdown);
 
@@ -1103,7 +1104,7 @@ public sealed class TeasMcpTools
     // specs/mcp-manual-journal.md — draft-only manual journal voucher. Wraps the EXISTING
     // POST /journals/ seam (JournalService.CreateDraftAsync) — the human posts separately.
     [McpServerTool(Name = "create_manual_journal_draft"), Authorize(Policy = JournalCreate)]
-    [Description("Create a DRAFT manual journal voucher (no document number yet — GL balances stay UNMOVED until a human posts it). This tool NEVER posts (mcp-kind credentials structurally cannot hold gl.journal.post) — a human must review and post the draft in the UI afterward. Total debit must equal total credit across all lines. Once posted, the entry becomes IMMUTABLE — corrections require a reversing journal, not an edit. Every line must carry an accountId resolving to an existing GL account in the caller's company — resolve via list_gl_accounts first (NOT the account code).")]
+    [Description("Create a DRAFT manual journal voucher (no document number yet — GL balances stay UNMOVED until a human posts it). This tool NEVER posts (mcp-kind credentials structurally cannot hold gl.journal.post) — a human must review and post the draft in the UI afterward. Total debit must equal total credit across all lines. Once posted, the entry becomes IMMUTABLE — corrections require a reversing journal, not an edit. Every line must carry an accountId resolving to an existing, active, non-header GL account in the caller's company — resolve via list_gl_accounts first (NOT the account code). The draft seam always pins the entry's actual date to today (Asia/Bangkok) — docDate is accepted but ignored; the response's effectiveDocDate reports what was actually used.")]
     public async Task<ManualJournalDraftCreated> CreateManualJournalDraftAsync(
         McpCreateManualJournalDraftRequest request,
         IJournalService svc,
@@ -1111,22 +1112,31 @@ public sealed class TeasMcpTools
         ITenantContext tenant,
         IValidator<CreateJournalRequest> validator,
         IOptions<AppOptions> app,
+        IClock clock,
         CancellationToken ct)
     {
-        // Account existence/tenant gate — journal_lines has no company_id and no FK to
-        // chart_of_accounts (same reasoning JournalService.CreateAndPostManualAsync documents at
-        // its own account gate), so a forged/foreign account id would otherwise sail straight
-        // through CreateDraftAsync, which performs NO account validation of its own (verified by
-        // reading the seam — the spec's original §1 wrongly attributed CreateAndPostManualAsync's
-        // gate to this seam; see attempt log). ONE tenant-scoped batched read covers every line.
+        // Account existence/tenant/inactive/header gate (Tier-2 R2a) — journal_lines has no
+        // company_id and no FK to chart_of_accounts (same reasoning JournalService's own
+        // ValidatePostableAccountsAsync documents), so a forged/foreign/inactive/header account
+        // id would otherwise sail straight through CreateDraftAsync, which performs NO account
+        // validation of its own (verified by reading the seam — the spec's original §1 wrongly
+        // attributed CreateAndPostManualAsync's gate to this seam; see attempt log). Mirrors
+        // JournalService.cs's postable-account gate exactly (same 3 checks, same dictionary
+        // read) so a draft can never contain what PostAsync would reject later.
         var ids = request.Lines.Select(l => l.AccountId).Distinct().ToList();
-        var known = await db.ChartOfAccounts.AsNoTracking()
+        var accounts = await db.ChartOfAccounts.AsNoTracking()
             .Where(a => ids.Contains(a.AccountId) && a.CompanyId == tenant.CompanyId)
-            .Select(a => a.AccountId)
-            .ToListAsync(ct);
-        var missing = ids.Except(known).ToList();
-        if (missing.Count > 0)
-            throw new DomainException("je.account_not_found", $"Account {missing[0]} not found in your company.");
+            .ToDictionaryAsync(a => a.AccountId, ct);
+        foreach (var id in ids)
+        {
+            if (!accounts.TryGetValue(id, out var a))
+                throw new DomainException("je.account_not_found", $"Account {id} not found in your company.");
+            if (!a.IsActive)
+                throw new DomainException("je.account_inactive", $"Account {a.AccountCode} is not active.");
+            if (a.IsHeader)
+                throw new DomainException("je.account_is_header",
+                    $"Account {a.AccountCode} is a header account — pick a postable (non-header) account.");
+        }
 
         var appRequest = new CreateJournalRequest(
             request.DocDate, request.DocDate, request.Description, Reference: null,
@@ -1142,6 +1152,9 @@ public sealed class TeasMcpTools
             TotalDebit: request.Lines.Sum(l => l.DebitAmount),
             TotalCredit: request.Lines.Sum(l => l.CreditAmount),
             Status: "Draft",
+            // R4 — CreateDraftAsync ignores request.DocDate and always pins to today (Asia/
+            // Bangkok); report that EFFECTIVE value rather than echoing back the ignored input.
+            EffectiveDocDate: clock.TodayInBangkok(),
             ApprovalUrl: ApprovalUrl(app.Value, "journals", draftId),
             ApprovalLinkMarkdown: ApprovalLinkMarkdown(app.Value, "journals", draftId));
     }

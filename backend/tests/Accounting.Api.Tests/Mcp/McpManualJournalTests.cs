@@ -3,8 +3,10 @@ using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Identity;
 using Accounting.Application.Ledger;
+using Accounting.Application.Master;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Identity;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Accounting.TestKit;
 using FluentAssertions;
@@ -105,6 +107,8 @@ public sealed class McpManualJournalTests
         root.GetProperty("status").GetString().Should().Be("Draft");
         root.GetProperty("totalDebit").GetDecimal().Should().Be(100m);
         root.GetProperty("totalCredit").GetDecimal().Should().Be(100m);
+        // R4 — the response reports the EFFECTIVE (server-pinned) date, not just via a DB query.
+        root.GetProperty("effectiveDocDate").GetString().Should().Be(today.ToString("yyyy-MM-dd"));
         var draftId = root.GetProperty("draftId").GetInt64();
 
         // Draft-create time: no document number, no PostedAt — GL balances untouched.
@@ -251,6 +255,103 @@ public sealed class McpManualJournalTests
         var db = verifyScope.ServiceProvider.GetRequiredService<AccountingDbContext>();
         (await db.JournalEntries.AsNoTracking().AnyAsync(j => j.Description == marker))
             .Should().BeFalse("a foreign account id must persist nothing");
+    }
+
+    // T4b/T4c — Tier-2 R2a: the tool's OWN account gate must ALSO reject a header account and an
+    // inactive account at DRAFT-CREATE time (not just missing/foreign, T4 above) — mirrors
+    // JournalService.cs's own postable-account gate (je.account_is_header / je.account_inactive).
+    [SkippableFact]
+    public async Task T4b_header_account_is_rejected_at_draft_create_and_persists_nothing()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var (_, cashAcctId) = await SeedAccountsAsync(co.CompanyId, co.BranchId);
+        long headerId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var coa = scope.ServiceProvider.GetRequiredService<IChartOfAccountService>();
+            headerId = await coa.CreateAsync(new CreateAccountRequest(
+                "9820", "หัวข้อทดสอบ MCP", "Test Header (MCP)", AccountType.Asset, null, true, NormalBalance.Debit), default);
+        }
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["gl.journal.create"]);
+
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var today = new SystemClock().TodayInBangkok();
+        const string marker = "MCP JV T4b header account";
+        var result = await client.CallToolAsync("create_manual_journal_draft", new Dictionary<string, object?>
+        {
+            ["request"] = new
+            {
+                docDate = today, description = marker,
+                lines = new[]
+                {
+                    new { accountId = headerId, debitAmount = 100m, creditAmount = 0m, memo = (string?)null },
+                    new { accountId = cashAcctId, debitAmount = 0m, creditAmount = 100m, memo = (string?)null },
+                },
+            },
+        });
+
+        result.IsError.Should().BeTrue("the first line's accountId is a header account — not postable");
+        ErrorText(result).Should().Contain("[mcp.domain_rule]").And.Contain("header");
+
+        await using var verifySp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        await using var verifyScope = verifySp.CreateAsyncScope();
+        var db = verifyScope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.JournalEntries.AsNoTracking().AnyAsync(j => j.Description == marker))
+            .Should().BeFalse("a header account must persist nothing");
+    }
+
+    [SkippableFact]
+    public async Task T4c_inactive_account_is_rejected_at_draft_create_and_persists_nothing()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var (_, cashAcctId) = await SeedAccountsAsync(co.CompanyId, co.BranchId);
+        long inactiveId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var coa = scope.ServiceProvider.GetRequiredService<IChartOfAccountService>();
+            inactiveId = await coa.CreateAsync(new CreateAccountRequest(
+                "9821", "บัญชีปิดใช้งาน MCP", "Inactive (MCP)", AccountType.Asset, null, false, NormalBalance.Debit), default);
+            await coa.UpdateAsync(inactiveId,
+                new UpdateAccountRequest("บัญชีปิดใช้งาน MCP", "Inactive (MCP)", false, false), default);
+        }
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["gl.journal.create"]);
+
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var today = new SystemClock().TodayInBangkok();
+        const string marker = "MCP JV T4c inactive account";
+        var result = await client.CallToolAsync("create_manual_journal_draft", new Dictionary<string, object?>
+        {
+            ["request"] = new
+            {
+                docDate = today, description = marker,
+                lines = new[]
+                {
+                    new { accountId = inactiveId, debitAmount = 100m, creditAmount = 0m, memo = (string?)null },
+                    new { accountId = cashAcctId, debitAmount = 0m, creditAmount = 100m, memo = (string?)null },
+                },
+            },
+        });
+
+        result.IsError.Should().BeTrue("the first line's accountId is inactive — not postable");
+        ErrorText(result).Should().Contain("[mcp.domain_rule]").And.Contain("active");
+
+        await using var verifySp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        await using var verifyScope = verifySp.CreateAsyncScope();
+        var db = verifyScope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.JournalEntries.AsNoTracking().AnyAsync(j => j.Description == marker))
+            .Should().BeFalse("an inactive account must persist nothing");
     }
 
     // T5 — a caller without gl.journal.create cannot see or call the tool. ALSO pins the core

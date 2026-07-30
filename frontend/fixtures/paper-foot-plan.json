@@ -1,0 +1,72 @@
+{
+  "cases": [
+    {
+      "name": "nonVat_noWht",
+      "summary": {
+        "subtotal": 0,
+        "discount": null,
+        "beforeVat": null,
+        "vat": 0,
+        "total": 1000,
+        "vatRate": 7,
+        "showVat": false,
+        "wht": null,
+        "nonTaxable": null
+      },
+      "grandTotal": 1000,
+      "netTotal": 1000,
+      "hasWht": false
+    },
+    {
+      "name": "vat_noWht",
+      "summary": {
+        "subtotal": 1000,
+        "discount": null,
+        "beforeVat": null,
+        "vat": 70,
+        "total": 1070,
+        "vatRate": 7,
+        "showVat": true,
+        "wht": null,
+        "nonTaxable": null
+      },
+      "grandTotal": 1070,
+      "netTotal": 1070,
+      "hasWht": false
+    },
+    {
+      "name": "nonVat_withWht_850net_150wht",
+      "summary": {
+        "subtotal": 0,
+        "discount": null,
+        "beforeVat": null,
+        "vat": 0,
+        "total": 850,
+        "vatRate": 7,
+        "showVat": false,
+        "wht": 150,
+        "nonTaxable": null
+      },
+      "grandTotal": 1000,
+      "netTotal": 850,
+      "hasWht": true
+    },
+    {
+      "name": "vat_withWht",
+      "summary": {
+        "subtotal": 1000,
+        "discount": null,
+        "beforeVat": null,
+        "vat": 70,
+        "total": 1040,
+        "vatRate": 7,
+        "showVat": true,
+        "wht": 30,
+        "nonTaxable": null
+      },
+      "grandTotal": 1070,
+      "netTotal": 1040,
+      "hasWht": true
+    }
+  ]
+}

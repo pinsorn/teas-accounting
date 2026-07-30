@@ -510,4 +510,172 @@ public sealed class ManualJournalTests
             (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("bu.required");
         }
     }
+
+    // ── PostAsync gate (Tier-2 R2b, mcp-manual-journal.md §10) ──────────────────────────────
+    // The draft-then-post lifecycle (CreateDraftAsync + PostAsync) previously had ZERO
+    // account/period/fiscal-year validation anywhere: CreateDraftAsync doesn't check (§1),
+    // and PostAsync used to just allocate a doc number and mark posted. These gates are
+    // EXTRACTED from CreateAndPostManualAsync's own checks (above) so both paths share one
+    // implementation, not a duplicate. Drafts are created directly via CreateDraftAsync
+    // (bypassing the MCP tool's own gate) so PostAsync's OWN defense-in-depth is what's
+    // actually under test — matching how a REST /journals/ POST caller (no account
+    // validation there either) could otherwise persist a bad draft.
+
+    [SkippableFact]
+    public async Task Post_of_draft_with_header_account_is_refused()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await NewCompanyAsync();
+        await using (sp)
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var coa = scope.ServiceProvider.GetRequiredService<IChartOfAccountService>();
+            var headerId = await coa.CreateAsync(new CreateAccountRequest(
+                "9810", "หัวข้อทดสอบ post", "Test Header (post)", AccountType.Asset, null, true, NormalBalance.Debit), default);
+
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bank = await AccountId(db, "1120");
+            var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+
+            var draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                Today, Today, "Header account (post gate)", null, "THB", 1m,
+                [
+                    new JournalLineInput(headerId, 1m, 0m, null, null, null),
+                    new JournalLineInput(bank, 0m, 1m, null, null, null),
+                ]), default);
+
+            var act = () => svc.PostAsync(draftId, default);
+            (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("je.account_is_header");
+        }
+    }
+
+    [SkippableFact]
+    public async Task Post_of_draft_with_inactive_account_is_refused()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await NewCompanyAsync();
+        await using (sp)
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var coa = scope.ServiceProvider.GetRequiredService<IChartOfAccountService>();
+            var accountId = await coa.CreateAsync(new CreateAccountRequest(
+                "9811", "บัญชีปิดใช้งาน post", "Inactive (post)", AccountType.Asset, null, false, NormalBalance.Debit), default);
+            await coa.UpdateAsync(accountId,
+                new UpdateAccountRequest("บัญชีปิดใช้งาน post", "Inactive (post)", false, false), default);
+
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bank = await AccountId(db, "1120");
+            var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+
+            var draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                Today, Today, "Inactive account (post gate)", null, "THB", 1m,
+                [
+                    new JournalLineInput(accountId, 1m, 0m, null, null, null),
+                    new JournalLineInput(bank, 0m, 1m, null, null, null),
+                ]), default);
+
+            var act = () => svc.PostAsync(draftId, default);
+            (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("je.account_inactive");
+        }
+    }
+
+    [SkippableFact]
+    public async Task Post_of_draft_with_foreign_account_is_refused()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, spA) = await NewCompanyAsync();
+        var coB = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var spB = TestCompanyFactory.BuildProvider(_fx.ConnectionString, coB.CompanyId, coB.BranchId);
+
+        long foreignAccountId;
+        await using (var scopeB = spB.CreateAsyncScope())
+        {
+            var dbB = scopeB.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            foreignAccountId = await AccountId(dbB, "1130");
+        }
+
+        await using (spA)
+        await using (var scopeA = spA.CreateAsyncScope())
+        {
+            var dbA = scopeA.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ownBank = await AccountId(dbA, "1120");
+            var svc = scopeA.ServiceProvider.GetRequiredService<IJournalService>();
+
+            // CreateDraftAsync performs NO account validation (§1) — a foreign id sails
+            // straight into a persisted draft; PostAsync must be the one to catch it.
+            var draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                Today, Today, "Foreign account (post gate)", null, "THB", 1m,
+                [
+                    new JournalLineInput(foreignAccountId, 1m, 0m, null, null, null),
+                    new JournalLineInput(ownBank, 0m, 1m, null, null, null),
+                ]), default);
+
+            var act = () => svc.PostAsync(draftId, default);
+            (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("je.account_not_found");
+        }
+    }
+
+    [SkippableFact]
+    public async Task Post_of_draft_into_closed_period_is_refused()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await NewCompanyAsync();
+        await using (sp)
+        {
+            // Close the period FIRST — PeriodCloseService.CloseAsync itself refuses to close a
+            // period with outstanding DRAFT documents in it, so the only way to get a draft
+            // sitting inside an already-closed period is to close first, then draft (CreateDraftAsync
+            // performs no period check at all, so it succeeds regardless — §1).
+            await using (var scope = sp.CreateAsyncScope())
+                await scope.ServiceProvider.GetRequiredService<IPeriodCloseService>()
+                    .CloseAsync(Today.Year, Today.Month, "close for post-gate test", default);
+
+            long draftId;
+            await using (var scope = sp.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+                var bank = await AccountId(db, "1120");
+                var loan = await AccountId(db, "2190");
+                var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+                draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                    Today, Today, "Closed period (post gate)", null, "THB", 1m,
+                    [
+                        new JournalLineInput(bank, 1m, 0m, null, null, null),
+                        new JournalLineInput(loan, 0m, 1m, null, null, null),
+                    ]), default);
+            }
+
+            await using (var scope = sp.CreateAsyncScope())
+            {
+                var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+                var act = () => svc.PostAsync(draftId, default);
+                (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("period.closed");
+            }
+        }
+    }
+
+    [SkippableFact]
+    public async Task Post_of_valid_draft_still_succeeds_unchanged_happy_path()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await NewCompanyAsync();
+        await using (sp)
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bank = await AccountId(db, "1120");
+            var loan = await AccountId(db, "2190");
+            var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+
+            var draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                Today, Today, "Happy path (post gate)", null, "THB", 1m,
+                [
+                    new JournalLineInput(bank, 1m, 0m, null, null, null),
+                    new JournalLineInput(loan, 0m, 1m, null, null, null),
+                ]), default);
+
+            var posted = await svc.PostAsync(draftId, default);
+            posted.DocNo.Should().NotBeNullOrWhiteSpace("a valid draft must still post cleanly after R2b's new gates");
+        }
+    }
 }

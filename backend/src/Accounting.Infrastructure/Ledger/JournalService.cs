@@ -2,6 +2,7 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Ledger;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Ledger;
+using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
@@ -90,6 +91,15 @@ public sealed class JournalService : IJournalService
             .FirstOrDefaultAsync(j => j.JournalId == journalId, ct)
             ?? throw new DomainException("je.not_found", $"Journal {journalId} not found.");
 
+        // Tier-2 R2b (mcp-manual-journal.md §10) — CreateDraftAsync/the REST /journals/ POST
+        // route perform NO account or period validation at all (§1), so a bad draft (forged/
+        // foreign/header/inactive account, or a date that later fell inside a closed period)
+        // could otherwise sail straight to Posted. These are the SAME gates
+        // CreateAndPostManualAsync already runs, extracted so both paths share one
+        // implementation instead of duplicating it.
+        await ValidatePostableAccountsAsync(entry.Lines.Select(l => l.AccountId), ct);
+        await EnsurePostableDateAsync(entry.DocDate, ct);
+
         var now = _clock.UtcNow;
 
         // CRIT-1 (specs/fix-swarm-crit-numbering-rbac.md) — bounded retry on a doc_no collision
@@ -147,31 +157,11 @@ public sealed class JournalService : IJournalService
         // --- date bounds (spec §B1) ---------------------------------------------------------
         if (req.DocDate > _clock.TodayInBangkok())
             throw new DomainException("je.future_date", "A journal cannot be dated in the future.");
-        await _period.EnsureOpenAsync(req.DocDate, ct);            // throws period.closed
-        var fyClosed = await _db.FiscalYearCloses.AsNoTracking()
-            .AnyAsync(x => x.ReversedAt == null
-                        && x.FiscalStartDate <= req.DocDate && x.FiscalEndDate >= req.DocDate, ct);
-        if (fyClosed)
-            throw new DomainException("je.year_closed",
-                "This date is inside a closed fiscal year. Reopen the fiscal year first.");
+        await EnsurePostableDateAsync(req.DocDate, ct);
 
         // --- postable-account gate (spec §0.3; mirrors BankReconciliationService.cs:224-233) ---
-        // journal_lines has no company_id and no FK to chart_of_accounts, so RLS cannot stop a
-        // forged/foreign/header/inactive account id. ONE tenant-scoped read covers all lines.
-        var ids = req.Lines.Select(l => l.AccountId).Distinct().ToList();
-        var accounts = await _db.ChartOfAccounts.AsNoTracking()
-            .Where(a => ids.Contains(a.AccountId) && a.CompanyId == _tenant.CompanyId)
-            .ToDictionaryAsync(a => a.AccountId, ct);
-        foreach (var id in ids)
-        {
-            if (!accounts.TryGetValue(id, out var a))          // missing OR another tenant's — same 404-ish answer
-                throw new DomainException("je.account_not_found", $"Account {id} not found.");
-            if (!a.IsActive)
-                throw new DomainException("je.account_inactive", $"Account {a.AccountCode} is not active.");
-            if (a.IsHeader)
-                throw new DomainException("je.account_is_header",
-                    $"Account {a.AccountCode} is a header account — pick a postable (non-header) account.");
-        }
+        var ids = req.Lines.Select(l => l.AccountId);
+        var accounts = await ValidatePostableAccountsAsync(ids, ct);
 
         // --- business-unit gate (Tier-2 F1/F1b) -----------------------------------------------
         // gl.journal_lines.business_unit_id carries a real FK to master.business_units, but a
@@ -240,5 +230,44 @@ public sealed class JournalService : IJournalService
             .Select(j => new JournalListItem(j.JournalId, j.DocNo, j.DocDate, j.Description, j.Reference,
                 j.Status.ToString(), j.TotalDebit, j.TotalCredit, j.IsClosingEntry))
             .ToListAsync(ct);
+    }
+
+    /// <summary>Postable-account gate (spec §0.3; Tier-2 R2b) — shared by
+    /// <see cref="CreateAndPostManualAsync"/> and <see cref="PostAsync"/>. journal_lines has no
+    /// company_id and no FK to chart_of_accounts, so RLS cannot stop a forged/foreign/header/
+    /// inactive account id. ONE tenant-scoped read covers all lines. Returns the account
+    /// dictionary so callers needing account metadata (e.g. the BU-required check) don't
+    /// re-query.</summary>
+    private async Task<Dictionary<long, ChartOfAccount>> ValidatePostableAccountsAsync(
+        IEnumerable<long> accountIds, CancellationToken ct)
+    {
+        var ids = accountIds.Distinct().ToList();
+        var accounts = await _db.ChartOfAccounts.AsNoTracking()
+            .Where(a => ids.Contains(a.AccountId) && a.CompanyId == _tenant.CompanyId)
+            .ToDictionaryAsync(a => a.AccountId, ct);
+        foreach (var id in ids)
+        {
+            if (!accounts.TryGetValue(id, out var a))          // missing OR another tenant's — same 404-ish answer
+                throw new DomainException("je.account_not_found", $"Account {id} not found.");
+            if (!a.IsActive)
+                throw new DomainException("je.account_inactive", $"Account {a.AccountCode} is not active.");
+            if (a.IsHeader)
+                throw new DomainException("je.account_is_header",
+                    $"Account {a.AccountCode} is a header account — pick a postable (non-header) account.");
+        }
+        return accounts;
+    }
+
+    /// <summary>Period/fiscal-year gate for posting (Tier-2 R2b) — shared by
+    /// <see cref="CreateAndPostManualAsync"/> and <see cref="PostAsync"/>.</summary>
+    private async Task EnsurePostableDateAsync(DateOnly docDate, CancellationToken ct)
+    {
+        await _period.EnsureOpenAsync(docDate, ct);            // throws period.closed
+        var fyClosed = await _db.FiscalYearCloses.AsNoTracking()
+            .AnyAsync(x => x.ReversedAt == null
+                        && x.FiscalStartDate <= docDate && x.FiscalEndDate >= docDate, ct);
+        if (fyClosed)
+            throw new DomainException("je.year_closed",
+                "This date is inside a closed fiscal year. Reopen the fiscal year first.");
     }
 }

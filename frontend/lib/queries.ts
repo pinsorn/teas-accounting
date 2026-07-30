@@ -1379,6 +1379,21 @@ export function useJournal(id: number) {
   });
 }
 
+// Tier-2 R1 (specs/mcp-manual-journal.md §10) — the human-post half of the MCP tool's
+// create_manual_journal_draft: POST /journals/{id}/post (gl.journal.post), no body.
+export function useJournalPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiPost<JournalPostedResult>(`journals/${id}/post`, {}),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['journals'] });
+      qc.invalidateQueries({ queryKey: ['journal', id] });
+      qc.invalidateQueries({ queryKey: ['gl-accounts'] });
+      qc.invalidateQueries({ queryKey: ['trial-balance'] });
+    },
+  });
+}
+
 // specs/manual-jv-and-coa-management.md §B8.4 — manual JV list + create-and-post.
 // CreateDraftAsync/PostAsync (draft path, ภ.พ.36) are untouched; this hits the new
 // POST /journals/manual (gl.journal.post) + GET /journals (gl.journal.read).

@@ -22,6 +22,22 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## Mandatory glyph grep (`ม`/`ד`) fails with `grep: -P supports only unibyte and UTF-8 locales` in Git Bash
+- **Symptom:** running the required pre-commit glyph check (`grep -nP "ม|ד" <file>`) in this
+  environment's Git Bash errors out with `grep: -P supports only unibyte and UTF-8 locales`
+  instead of searching — every file "passes" only because grep never actually ran, not because
+  it's clean.
+- **Root cause:** this MSYS/Git-Bash `grep` build's `-P` (PCRE) mode refuses to run unless the
+  shell's locale is explicitly a unibyte or UTF-8 one; the default shell locale here doesn't
+  satisfy that check even though the terminal/files themselves are UTF-8.
+- **Fix:** either drop `-P` (plain `grep -n "ม"` / `grep -n "ד"` works fine as a literal
+  byte-sequence match, no regex features needed for a literal glyph) or export
+  `LC_ALL=C.UTF-8` before the `-P` invocation. Confirm the check actually ran by expecting a
+  clean, silent (or `grep exit ok`-style) result — a locale error message is NOT a passing grep.
+- **Seen:** 2026-07-30, PLAN-test-hardening.md Phase-1 (C2/C3/C4) — first attempt used `grep -nP`
+  and every file "passed" via the locale error; caught before reporting, re-ran with `LC_ALL=C.UTF-8`
+  and plain `grep -n` (both clean, genuinely).
+
 ## ภ.พ.36 reverse-charge JV lands on today, not on the filing period date — `CreateDraftAsync` silently discards its own `docDate` argument
 - **Symptom:** a reverse-charge JV created for a specific filing period (via `WhtFilingService.cs:311-319` → `IJournalService.CreateDraftAsync`) posts/appears dated at `_clock.TodayInBangkok()` regardless of the `docDate` the caller passed in.
 - **Root cause:** `JournalService.CreateDraftAsync` (`Accounting.Infrastructure/Ledger/JournalService.cs`) never reads `req.DocDate` — it unconditionally pins `DocDate`/`PostingDate` to `_clock.TodayInBangkok()` per the `§10` "manual JE dates are always today" rule. That rule was written for a UI-driven manual JV form (no legitimate reason to backdate) and is correct there, but `WhtFilingService` is a second, non-UI caller of the SAME draft path that DOES pass a real filing-period `docDate` — which is silently thrown away.

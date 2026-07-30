@@ -107,6 +107,53 @@ CoA write tools · reversing-entry automation · ANY agent-side posting (needs H
 Max 6 files (TeasMcpTools.cs, TeasServerInstructions.cs?, 1-2 test files, docs). Stop-triggers:
 any new permission code, any service-layer edit, any schema change.
 
+## 10. Tier-2 round 1 (opus, 2026-07-30) — REJECT. Remediation (Fable-verified)
+
+Draft-only invariant HOLDS end-to-end (real pin = McpScopesTests plain [Fact], DB-independent).
+Fable re-verified F1/F2 in code: queries.ts has no journals post mutation; PostAsync validates
+NOTHING (auth -> load -> doc-no -> MarkPosted); backend route POST /journals/{id}/post EXISTS.
+
+- [x] **R1 (F1, BLOCKING)** DONE. `useJournalPost()` added to `frontend/lib/queries.ts` (POST
+      `journals/{id}/post`, no body; invalidates journals/journal/gl-accounts/trial-balance).
+      `journals/[id]/page.tsx` gained: (1) a `?action=approve` banner (mirrors
+      `purchase-orders/[id]/page.tsx:54,79` exactly — useEffect reading the URL param, warning-
+      styled banner, `hasScope('gl.journal.post')` gate, "already posted" fallback for a
+      non-Draft doc); (2) a normal-context Post button (`PermissionGate scope="gl.journal.post"`)
+      shown when `status === 'Draft' && !isApproveAction`. Both call a `window.confirm` guard
+      (new `je.confirmPost` i18n key) before posting — an immutable, GL-moving action. New i18n:
+      `je.post`/`je.confirmPost` (en+th). The MCP tool's ApprovalUrl (`/journals/{id}?action=
+      approve`) now resolves to a real, working review+post flow.
+- [x] **R2 (F2, BLOCKING)** DONE, both layers.
+      (a) Tool's account gate (TeasMcpTools.cs) now runs the SAME 3 checks as the service
+      (existence/tenant, `je.account_inactive`, `je.account_is_header`) via a full dictionary
+      read (`ToDictionaryAsync`), replacing the earlier ids-only existence check. Tests T4b/T4c
+      (new) prove header/inactive accounts are rejected at DRAFT-CREATE time.
+      (b) `JournalService.PostAsync` now calls two NEW extracted private helpers —
+      `ValidatePostableAccountsAsync` (3-check account gate) and `EnsurePostableDateAsync`
+      (period + fiscal-year-closed) — run right after loading the entry, before the doc-number
+      allocation. `CreateAndPostManualAsync` was refactored to call the SAME two helpers (no
+      duplicated logic; behavior unchanged — confirmed by the full pre-existing
+      `ManualJournalTests.cs` suite staying green). 5 new tests in `ManualJournalTests.cs`:
+      header/inactive/foreign account → je.* on POST; closed period → `period.closed` on POST
+      (closing must happen BEFORE the draft exists — `PeriodCloseService.CloseAsync` itself
+      refuses to close a period with an outstanding draft in it, a real discovery, not a test
+      artifact); a valid draft still posts cleanly (happy path unchanged).
+- [x] **R3 (F3, MED)** DONE. `ALL_SCOPES` in `settings/api-keys/page.tsx` gained
+      `sales.sales_order.manage` (fixes the pre-existing drift — it was pre-selected by
+      `MCP_DEFAULT_SCOPES` but unpickable once deselected) and `gl.journal.create` (OPT-IN only,
+      per Fable's decision — deliberately NOT added to `MCP_DEFAULT_SCOPES`). New backend test
+      `backend/tests/Accounting.Api.Tests/Rbac/McpScopeFrontendParityTests.cs` reads the FE file
+      via `RbacTestPaths.RepoRoot()` (TEAS_REPO_ROOT pattern) and regex-extracts both arrays,
+      asserting `MCP_DEFAULT_SCOPES ⊆ ALL_SCOPES` and that every `MCP_DEFAULT_SCOPES` entry
+      normalizes cleanly through `McpScopes.Normalize` (would have caught the drift AND would
+      have caught `gl.journal.create` missing from `McpScopes.All` had it not already been added
+      in the prior round).
+- [x] **R4 (F4, MED)** DONE. `ManualJournalDraftCreated` gained `EffectiveDocDate` (DateOnly) —
+      always `IClock.TodayInBangkok()`, since the draft seam ignores the request's date. Tool
+      Description now states this explicitly ("The draft seam always pins the entry's actual
+      date to today... docDate is accepted but ignored; the response's effectiveDocDate reports
+      what was actually used"). T1 asserts the response field directly (not just via a DB query).
+
 ## Attempt log
 
 ### 2026-07-30 — implemented (Option C: draft-only wrapper)
@@ -156,3 +203,57 @@ Gates: `dotnet build` serialized — green (0 errors). Targeted:
 170/170 passed, 0 skipped (no skip-spike, ~4m26s — not a fake-fast run). Glyph grep on every
 changed file: clean (no Bengali/stray glyphs). No full solution suite run (per gates — Fable
 reruns it). No git commit.
+
+### 2026-07-30 — Tier-2 round 1 REJECT remediation (R1-R4)
+Draft-only invariant HOLDS (Fable-verified); reviewer found the surrounding product gaps in §10.
+Addressed all 4, engineering-loop RED-first for R2 (both layers) and R3 (the FE-drift assertion).
+
+Order worked: R2 first (backend, most novel — service edit AUTHORIZED by Fable), then R2a (tool
+gate), then R3 (backend parity test + FE scope-list fix), then R1 (FE post flow), then R4
+(folded into the same TeasMcpTools.cs edit as R2a since both touch the tool's response/gate).
+
+Key findings surfaced while implementing:
+- `PeriodCloseService.CloseAsync` refuses to close a period that has an outstanding DRAFT
+  document in it ("Cannot close period — draft fiscal documents still exist"). This flipped the
+  R2b closed-period test's setup order: close the period FIRST (while nothing drafted yet), THEN
+  create the draft (CreateDraftAsync ignores period status entirely, so it still succeeds) —
+  only then does the draft sit inside an already-closed period for PostAsync to reject. Creating
+  the draft first and closing after would have failed the SETUP step, not the assertion under
+  test — a systematic-debugging catch, not a design change.
+- No existing MCP tool in `TeasMcpTools.cs` demonstrated the R1 "AgentPendingBadge" (normal-nav,
+  non-banner agent-draft indicator) pattern for journals specifically, because `JournalDetail`
+  (FE type) has no `createdViaApiKey` field (unlike PurchaseOrderDetail). R1's dispatch text
+  cited PO page lines 54 and 79 specifically — the `?action=approve` useEffect + banner block,
+  NOT the separate AgentPendingBadge block at lines 74-77 — so only the banner + Post CTA were
+  built, matching the literal ask; the AgentPendingBadge parity (would need a backend DTO +
+  FE type change) was NOT attempted (out of the cited scope, flagged here rather than silently
+  added or silently skipped).
+
+Files touched (11, within the 12-file cap):
+`backend/src/Accounting.Infrastructure/Ledger/JournalService.cs` (R2b — extracted
+`ValidatePostableAccountsAsync`/`EnsurePostableDateAsync`, wired into `PostAsync`, refactored
+`CreateAndPostManualAsync` to reuse them),
+`backend/src/Accounting.Api/Mcp/TeasMcpTools.cs` (R2a — tool gate gains inactive/header checks;
+R4 — `ManualJournalDraftCreated.EffectiveDocDate` + Description update),
+`backend/tests/Accounting.Api.Tests/Ledger/ManualJournalTests.cs` (5 new PostAsync-gate tests),
+`backend/tests/Accounting.Api.Tests/Mcp/McpManualJournalTests.cs` (T4b/T4c new; T1 gained an
+`effectiveDocDate` assertion),
+`backend/tests/Accounting.Api.Tests/Rbac/McpScopeFrontendParityTests.cs` (new — R3 parity pin),
+`frontend/lib/queries.ts` (R1 — `useJournalPost`),
+`frontend/app/(dashboard)/journals/[id]/page.tsx` (R1 — banner + Post CTA),
+`frontend/app/(dashboard)/settings/api-keys/page.tsx` (R3 — `ALL_SCOPES` gains
+`sales.sales_order.manage` + `gl.journal.create`),
+`frontend/messages/en.json` + `frontend/messages/th.json` (R1 — `je.post`/`je.confirmPost`),
+`specs/mcp-manual-journal.md`.
+
+Gates: `dotnet build` serialized — green (0 errors), run 3× across the session (after R2b, after
+R2a/R4, final). Targeted: `Post_of_draft_*`/`Post_of_valid_draft_*` 5/5 (RED confirmed first —
+3 "no exception thrown", 1 wrong-reason RED caught and fixed — then GREEN); `McpManualJournalTests`
+7/7 (RED confirmed for T4b/T4c first, then GREEN); `McpScopeFrontendParityTests` 2/2 (RED
+confirmed first — the real `sales.sales_order.manage` drift — then GREEN after the FE fix);
+`RbacAuthMapTests` 1/1 unaffected. Full regression sweep `Ledger`+`Mcp`+`Rbac` folders: 200/200
+passed, 0 skipped (~9m, backgrounded per the >10min-suite protocol and polled via Monitor in-turn,
+never ending the turn to wait). Frontend: `tsc --noEmit` clean (no output); `npm run build` exit
+0, all routes compiled including `/journals/[id]` and `/settings/api-keys`. Glyph grep
+(`LC_ALL=C.UTF-8`) on every touched file (backend + frontend + both message files): clean. No
+full backend solution suite run (per gates — Fable reruns it). No git commit.

@@ -1,5 +1,5 @@
 import { bathText } from '@/lib/bath-text';
-import { fmtPaperNum, type PaperSummary } from './types';
+import { computeFootTotals, fmtPaperNum, type PaperSummary } from './types';
 
 // Bilingual total label — Thai on top, English on the line below (Ham 2026-07-01),
 // mirrored by the PDF (PaperDocumentPdf.Foot). Keeps the two languages from colliding
@@ -36,10 +36,9 @@ export function PaperFoot({
   // previously claimed the opposite (summary.total = Grand; Net = total − wht), which made the
   // Net row double-subtract WHT on screen (e.g. Grand 850/Net 700 for a doc whose PDF correctly
   // showed 1,000/-150/850). Never re-derive this locally — PaperFootPlan.cs is the single source
-  // of truth; mirror it exactly.
-  const hasWht = summary.wht != null;
-  const grandTotal = hasWht ? summary.total + (summary.wht ?? 0) : summary.total;
-  const netTotal = summary.total;
+  // of truth; computeFootTotals mirrors it exactly and is pinned against a shared BE fixture
+  // (PaperFoot.test.ts / PLAN-test-hardening.md C4) so this can't silently drift again.
+  const { grandTotal, netTotal, hasWht } = computeFootTotals(summary);
   const words = amountWords ?? bathText(netTotal);
   // Non-VAT (ม.86): hide the Subtotal/Before-VAT/VAT breakdown, leaving only Total.
   const showVat = summary.showVat ?? true;

@@ -1,18 +1,38 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { useJournal } from '@/lib/queries';
+import { PermissionGate, useHasScope } from '@/components/PermissionGate';
+import { useJournal, useJournalPost } from '@/lib/queries';
 import { formatTHB, formatDate } from '@/lib/utils';
+import { problemToast } from '@/lib/api';
 
 export default function JournalDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
   const t = useTranslations('je');
   const tc = useTranslations('common');
+  const ta = useTranslations('approve');
   const { data: d, isLoading } = useJournal(id);
+  const post = useJournalPost();
+  const hasScope = useHasScope();
+  // B3 — ?action=approve deep-link (mirrors purchase-orders/[id]/page.tsx:54,79): the MCP
+  // tool's ApprovalUrl points here so a human reviewing an agent-drafted JV sees a prominent
+  // banner instead of the plain read-only view.
+  const [isApproveAction, setIsApproveAction] = useState(false);
+  useEffect(() => {
+    const action = new URLSearchParams(window.location.search).get('action');
+    if (action === 'approve') setIsApproveAction(true);
+  }, []);
+
+  async function doPost() {
+    if (!window.confirm(t('confirmPost'))) return;
+    try { await post.mutateAsync(id); toast.success(tc('save')); }
+    catch (e) { problemToast(e, tc('error')); }
+  }
 
   if (isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
   // 404 (not found OR other-tenant, identical per BE) — same handling as other doc detail pages.
@@ -21,6 +41,45 @@ export default function JournalDetailPage() {
   return (
     <>
       <PageHeader title={t('title')} subtitle={d.docNo ?? undefined} />
+
+      {/* ?action=approve — prominent post banner for agent-created drafts (B3) */}
+      {isApproveAction && d.status === 'Draft' && (
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-warning bg-warning/10 p-4">
+          <div>
+            <p className="font-semibold text-warning-content">{ta('bannerTitle')}</p>
+            <p className="mt-1 text-sm text-base-content/80">{ta('bannerDesc')}</p>
+          </div>
+          <div className="shrink-0">
+            {hasScope('gl.journal.post') ? (
+              <button
+                data-testid="je-post-cta"
+                className="btn btn-warning btn-sm"
+                disabled={post.isPending}
+                onClick={doPost}
+              >
+                {t('post')}
+              </button>
+            ) : (
+              <p className="text-sm font-medium text-error">{ta('noPermission')}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {isApproveAction && d.status !== 'Draft' && (
+        <div className="mb-4 rounded-lg border border-base-300 bg-base-200 p-3 text-sm text-base-content/60">
+          {ta('alreadyPosted')}
+        </div>
+      )}
+
+      {/* Hidden while the ?action=approve banner is up — one post CTA at a time. */}
+      {d.status === 'Draft' && !isApproveAction && (
+        <div className="mb-4">
+          <PermissionGate scope="gl.journal.post">
+            <button data-testid="je-post" className="btn btn-success btn-sm"
+              disabled={post.isPending} onClick={doPost}>{t('post')}</button>
+          </PermissionGate>
+        </div>
+      )}
 
       <div className="card mb-4 bg-base-100 shadow-sm">
         <div className="card-body grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

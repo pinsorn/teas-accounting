@@ -194,6 +194,23 @@ export interface PaperDocDto {
   signatures?: PaperSignaturesDto | null;
 }
 
+// F-A (specs/fix-e2e-v1260-findings.md) — money semantics, canonical source
+// Infrastructure/Pdf/PaperFootPlan.cs:17-18,29: summary.total is the NET when summary.wht is
+// set ("จ่ายสุทธิ"), NOT the Grand Total — Grand = total + wht, Net = total. Extracted to a pure,
+// exported function (PLAN-test-hardening.md C4 mirror-contract test — was two inline lines in
+// PaperFoot, each side testing only itself) so a shared BE/FE fixture can assert the two
+// implementations agree instead of drifting silently (the 700/850 bug this guards against).
+export function computeFootTotals(summary: PaperSummary): {
+  grandTotal: number;
+  netTotal: number;
+  hasWht: boolean;
+} {
+  const hasWht = summary.wht != null;
+  const grandTotal = hasWht ? summary.total + (summary.wht ?? 0) : summary.total;
+  const netTotal = summary.total;
+  return { grandTotal, netTotal, hasWht };
+}
+
 // Plain numeric formatter (2 dp, th-TH) for paper line/total columns.
 export function fmtPaperNum(n: number | null | undefined, dp = 2): string {
   const v = typeof n === 'number' && Number.isFinite(n) ? n : 0;

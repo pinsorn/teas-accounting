@@ -42,6 +42,13 @@ const ALL_SCOPES = [
   'expense.claim.read', 'expense.claim.create',
   'master.employee.manage',
   'fixedasset.read', 'fixedasset.manage',
+  // mcp-document-chain (D7) — Tier-2 R3 fix: was pre-selected by MCP_DEFAULT_SCOPES below but
+  // missing here, so a user who deselected it could never re-pick it. Mirrors McpScopes.All.
+  'sales.sales_order.manage',
+  // specs/mcp-manual-journal.md — create_manual_journal_draft. Fable decision: OPT-IN only
+  // (deliberately NOT in MCP_DEFAULT_SCOPES below) — a GL write scope must be a conscious
+  // checkbox, not a silent default. Mirrors McpScopes.All.
+  'gl.journal.create',
 ] as const;
 
 // MCP keys cannot hold .post scopes (M1 backend guard). Mirror that constraint

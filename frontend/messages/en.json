@@ -1038,7 +1038,9 @@
     "account": "Account",
     "debit": "Debit",
     "credit": "Credit",
-    "totalRow": "Total"
+    "totalRow": "Total",
+    "post": "Post",
+    "confirmPost": "Post this journal entry? It becomes immutable once posted."
   },
   "jv": {
     "listTitle": "Journal Vouchers",

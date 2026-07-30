@@ -118,10 +118,120 @@ together. Countermeasures are about anchoring to EXTERNAL truth:
 ## Sequencing
 
 - **Phase 1 (next working session, ~1 dispatch each)**: acceptance-tester role file + routing rule
-  (+ minions sync) · investigate the 9 PermissionLookupRlsTests skips · SeedConsistencyTests v1
-  (categories + WHT types) · mirror fixture test for the foot math.
+  (+ minions sync) `[x]` · investigate the 9 PermissionLookupRlsTests skips `[x]` · SeedConsistencyTests v1
+  (categories + WHT types) `[x]` · mirror fixture test for the foot math `[x]`.
 - **Phase 2**: NOBYPASSRLS lane + seed-runner gate · @critical e2e subset recipe for Tier 3.
 - **Phase 3**: golden-corpus expansion + AGY truth-sweep cadence · MIRRORS.md complete · first
   earn-your-tax retro after 3 releases.
 - Each item runs through the normal pipeline: spec → dispatch → review → gate. Phase 1 items are
   small enough to ride along after the current signature release ships.
+
+## Phase-1 attempt log — C2/C3/C4 (2026-07-30, sonnet-implementer)
+
+### C2 — the 9 standing skips, investigated
+
+Ran the full 1063-test suite's known `[SkippableFact]` population filtered down to every test
+file with a `Skip.If` condition beyond the plain "Postgres unavailable" (`_fx.SkipReason`) guard
+(`PermissionLookupRlsTests`, `ApiKeyResolverRlsTests`, `TaxFormFillDiagnostic`,
+`Sps110VisualEmit`, `Pnd50VisualEmit`, `VatRegVisualEmit`, `FirstRunBootstrapTests`,
+`McpReadExpansionTests`, `RbacCartesianTests` — 31 tests) against local Postgres
+(`TEAS_TEST_PG=...Username=accounting...`). Result: **31 total, 22 passed, 9 skipped** — the skip
+count exactly matches the full-suite baseline (1054 passed / 9 skipped), confirming these 9 ARE
+the whole standing-skip population, not a subset:
+
+| # | Test | Skip condition | Verdict |
+|---|------|-----------------|---------|
+| 1–5 | `TaxFormFillDiagnostic.{Dump_sps110_positioned_words, Fill_every_box_pnd30/53/3/54}` | `TEAS_DIAG != "1"` | **By design** — explicit diagnostic dumper, header comment: "Gated behind TEAS_DIAG=1 so it never runs in CI." Not a coverage gap. |
+| 6 | `Sps110VisualEmit.Emit_worked_case_for_raster_review` | `SPS110_EMIT_DIR` unset | **By design** — visual-gate PDF emitter for human raster review, not an assertion test. |
+| 7 | `Pnd50VisualEmit.Emit_worked_cases_for_raster_review` | `PND50_EMIT_DIR` unset | **By design** — same class. |
+| 8 | `VatRegVisualEmit.Emit_worked_cases_for_raster_review` | `VATREG_EMIT_DIR` unset | **By design** — same class. |
+| 9 | `PermissionLookupRlsTests.LoadAsync_resolves_grants_under_NOBYPASSRLS_role_with_company_unset` | `_fx.RlsRoleSkip` (CREATE ROLE `teas_rls_test` fails: `42501 permission denied to create role` — local `accounting` user has no CREATEROLE) | **Real gap, FIXED here** (see below). |
+
+So of the "9 standing skips," 8 are intentional opt-in-only dev tooling (never meant to run in the
+green gate) and only 1 is a genuine RLS-lane coverage gap. `troubles-wiki.md` already documented
+this exact root cause on 2026-07-04 ("New RLS test SKIPs with teas_rls_test unavailable...") with
+a prescribed fix: migrate off the CREATEROLE-dependent `teas_rls_test` role onto the same
+`SET ROLE pg_database_owner` + explicit `GRANT SELECT` technique `ApiKeyResolverRlsTests` (the
+sibling H5 test) already uses successfully — no CREATEROLE needed, `pg_database_owner` membership
+is implicit for whoever owns the current DB. Applied that fix to
+`backend/tests/Accounting.Api.Tests/Identity/PermissionLookupRlsTests.cs` (granted
+`sys.user_roles`/`sys.roles`/`sys.role_permissions`/`sys.permissions` — the exact tables
+`PermissionLookup.LoadAsync` touches — to `pg_database_owner`, `SET ROLE pg_database_owner`
+instead of `teas_rls_test`, dropped the `_fx.RlsRoleSkip` skip condition). Verified:
+- **RUNNING, not skipped, GREEN**: `Total tests: 1 / Passed: 1` (was `Skipped: 1`).
+- **Mutation-lite (RED confirmed)**: temporarily commented out `PermissionLookup`'s
+  `set_config('app.company_id', ...)` pin (the actual fix this test guards) → re-ran →
+  `Expected roles {empty} to contain "ACCOUNTANT"` (the exact cont.112 bug this test exists to
+  catch) → reverted → green again. Not vacuous.
+
+`PostgresFixture`'s best-effort `teas_rls_test` provisioning (and `RlsRoleSkip`/`RlsTestRole`)
+were left untouched — harmless dead weight now (no remaining consumer), out of scope for this
+surgical fix; a future cleanup could remove them if no new test ever adopts the CREATEROLE-role
+approach. The 8 by-design skips need no action — Phase 2/3 don't call for enabling them either.
+
+### C3 — SeedConsistencyTests v1
+
+New file: `backend/tests/Accounting.Api.Tests/Hardening/SeedConsistencyTests.cs`, 3 pure-C#
+tests (zero DB connection — reflects into `CompanyService`'s private
+`DefaultChartOfAccounts`/`DefaultExpenseCategorySpecs`/`DefaultWhtTypes` arrays, reads
+`SqlScripts/450_seed_category_wht_defaults.sql` as plain text):
+1. Every `DefaultExpenseCategorySpecs.PreferredAcct` exists as a code in `DefaultChartOfAccounts`.
+2. Every `DefaultWhtTypes` row: `Pnd2IncomeCode` is non-null **iff** `FormType == Pnd2`; `Rate` in
+   `[0,1]`.
+3. Every (category → wht code) pair in seed 450's mapping VALUES clause resolves to a code that
+   exists in `DefaultWhtTypes`.
+
+**Result: all 3 invariants hold today — no seed bug found.** (Scope note: seed 450's follow-up,
+`460_seed_wage_wht_type.sql`, maps WAGE → a `wht_types` row it inserts directly via raw SQL — that
+code is intentionally NOT in the `DefaultWhtTypes` C# array, since WAGE's WHT default is
+demo-company-1-only tooling, never wired through `CompanyService.CreateAsync` for new tenants.
+Out of scope for invariant 3 as specified ("seed 450 pairs"); flagging as an observation, not a
+finding — it's a deliberate asymmetry per the 460 script's own header, not a drift.)
+
+**Mutation-lite (RED confirmed, not vacuous):** temporarily repointed `INTR`'s `PreferredAcct`
+from `"5500"` to a nonexistent `"9999"` → re-ran → failed with `Expected coaCodes {...} to contain
+"9999"` → reverted → green again. Directly exercises the INTR→5200 mis-seed class the plan calls
+out.
+
+### C4 — mirror fixture test for the foot math
+
+Checked FE tooling first per the dispatch: `frontend/vitest.config.ts` exists, `package.json`'s
+`"test": "vitest"`; no jsdom needed since the math under test is pure (no DOM). `PaperFoot.tsx`'s
+grand/net computation (`hasWht`/`grandTotal`/`netTotal`, 3 lines) was NOT already an exported pure
+function, so per the dispatch extracted it: new exported `computeFootTotals(summary)` in
+`frontend/components/paper/types.ts`, wired into `PaperFoot.tsx` in place of the inline lines
+(same values, zero visual change — `tsc --noEmit` clean, `next build` clean, full existing
+component untouched otherwise).
+
+New backend test `backend/tests/Accounting.Api.Tests/Pdf/PaperFootMirrorFixtureTests.cs` (pure
+C#, no DB) runs 4 representative `PaperSummary` cases through the REAL `PaperFootPlan.Build(...)`
+— including the dispatch's own regression case (`total=850`, `wht=150` → `grand=1000`, `net=850`,
+the exact 700/850-drift numbers) — pins each case's Grand/Net against `Build()`'s own output, and
+emits them to a COMMITTED fixture: `frontend/fixtures/paper-foot-plan.json`.
+
+New FE test `frontend/components/paper/PaperFoot.test.ts` (vitest, plain Node — no DOM) imports
+the fixture + `computeFootTotals` and asserts, per case, `grandTotal`/`netTotal`/`hasWht` match.
+
+**TDD discipline followed both sides:**
+- FE test written BEFORE `computeFootTotals` existed → ran RED (`computeFootTotals is not a
+  function`, 4/4 failing) → implemented the extraction → GREEN (4/4 passing).
+- **Mutation-lite (RED confirmed, not vacuous):** temporarily reintroduced the historical
+  double-subtract bug (`netTotal = hasWht ? summary.total - summary.wht : summary.total`) →
+  re-ran → failed exactly reproducing the 700/850 drift (`expected 850, received 700` and
+  `expected 1040, received 1010`) → reverted → green again. This is the literal bug class the
+  mirror-contract test exists to catch, caught.
+
+**Evidence (final, all green together):**
+- Backend: `dotnet test --filter "PermissionLookupRlsTests|SeedConsistencyTests"` → `Total: 4,
+  Passed: 4`. `PaperFootMirrorFixtureTests` → `Total: 1, Passed: 1` (run separately, pure/no-DB).
+- Frontend: `npx vitest run` → `Test Files 14 passed (14), Tests 65 passed (65)` (was 13/61 before
+  this work; +1 file / +4 tests). `npx tsc --noEmit` → clean (no output). `npx next build` →
+  compiled successfully, all routes, no errors.
+- Glyph grep (`ม`/`ד`) on all 9 touched files → clean (see troubles-wiki.md's new entry — the
+  `grep -nP` invocation from the dispatch instructions fails with a locale error in this
+  environment's Git Bash and must NOT be read as "clean"; `LC_ALL=C.UTF-8` + plain `grep -n` is
+  the working form).
+
+Backend full suite (1063 tests, ~5+ min) was NOT re-run in full here per the role file's
+foreground-suite-ownership split (Fable runs the consolidated full suite); the filtered runs above
+cover every file touched.

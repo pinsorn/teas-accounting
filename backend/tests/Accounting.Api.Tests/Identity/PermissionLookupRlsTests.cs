@@ -16,8 +16,17 @@ namespace Accounting.Api.Tests.Identity;
 /// role the RLS on sys.roles / sys.role_permissions (script 510) hides the company's roles+grants,
 /// so the JWT is minted with NO roles/permissions for every non-super user. The rest of the suite
 /// connects as a SUPERUSER (RLS bypassed) and CANNOT see this class of bug — so this test SET ROLEs
-/// to a provisioned NOBYPASSRLS role and asserts the lookup still resolves the grants (the fix pins
+/// to a non-bypass role and asserts the lookup still resolves the grants (the fix pins
 /// app.company_id for its own transaction). Without the fix this returns 0 → the test fails.
+///
+/// PLAN-test-hardening.md C2 (2026-07-30): originally `SET ROLE`'d to <see cref="PostgresFixture.RlsTestRole"/>
+/// (`teas_rls_test`), which `PostgresFixture` can only provision when `TEAS_TEST_PG`'s login has
+/// CREATEROLE — this repo's local `accounting` dev user does NOT, so the test stood permanently
+/// SKIPPED (see troubles-wiki.md "New RLS test SKIPs with teas_rls_test unavailable ..."). Switched
+/// to the SAME `pg_database_owner` + explicit `GRANT SELECT` technique
+/// <see cref="ApiKeyResolverRlsTests"/> already uses (a Postgres built-in predefined role — NOBYPASSRLS,
+/// membership implicit for whoever owns the current DB, needs no CREATEROLE at all) so this
+/// regression guard actually RUNS locally instead of silently reporting green-by-skip.
 /// </summary>
 [Collection(nameof(PostgresCollection))]
 public sealed class PermissionLookupRlsTests
@@ -29,7 +38,6 @@ public sealed class PermissionLookupRlsTests
     public async Task LoadAsync_resolves_grants_under_NOBYPASSRLS_role_with_company_unset()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        Skip.If(_fx.RlsRoleSkip is not null, _fx.RlsRoleSkip);
 
         var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
 
@@ -65,9 +73,16 @@ public sealed class PermissionLookupRlsTests
         await db.Database.OpenConnectionAsync();
         try
         {
+            // Grant the non-bypass role read on the tables PermissionLookup.LoadAsync queries
+            // (accounting owns them). Idempotent, run while still the bypass role (accounting).
+            await db.Database.ExecuteSqlRawAsync(
+                "GRANT USAGE ON SCHEMA sys TO pg_database_owner; " +
+                "GRANT SELECT ON sys.user_roles, sys.roles, sys.role_permissions, sys.permissions " +
+                "TO pg_database_owner;");
+
             // Reproduce the exact login condition: RLS ENFORCED (NOBYPASSRLS role) + app.company_id UNSET.
             await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.company_id', '', false)");
-            await db.Database.ExecuteSqlRawAsync($"SET ROLE {PostgresFixture.RlsTestRole}");
+            await db.Database.ExecuteSqlRawAsync("SET ROLE pg_database_owner");
 
             var (roles, perms) = await new PermissionLookup(db).LoadAsync(userId, co.CompanyId, default);
 
