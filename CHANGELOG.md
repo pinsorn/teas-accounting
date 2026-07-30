@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.1](https://github.com/pinsorn/teas-accounting/compare/v1.27.0...v1.27.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **journals:** approve banner no longer flashes 'no permission' while permissions load ([d1264d7](https://github.com/pinsorn/teas-accounting/commit/d1264d738d82e914f49682f1f413513aa81763e6))
+
 ## [1.27.0](https://github.com/pinsorn/teas-accounting/compare/v1.26.1...v1.27.0) (2026-07-30)
 
 
