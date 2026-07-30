@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.1](https://github.com/pinsorn/teas-accounting/compare/v1.26.0...v1.26.1) (2026-07-29)
+
+
+### Bug Fixes
+
+* **paper:** screen WHT totals mirror PaperFootPlan; INTR books to 5500; PV form ภ.ง.ด.2 hint ([4b7769b](https://github.com/pinsorn/teas-accounting/commit/4b7769b357f9bbf7eddf1af5ef754b5db5171f4e))
+
 ## [1.26.0](https://github.com/pinsorn/teas-accounting/compare/v1.25.0...v1.26.0) (2026-07-29)
 
 
