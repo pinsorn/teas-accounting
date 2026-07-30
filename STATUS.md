@@ -1,16 +1,18 @@
 # STATUS.md — orchestrator live board
 
 ## Now
-- Warm workers (2026-07-30 ~03:00): sonnet-signature (WP-1/2 done + §16 remediation + WP-3
-  renderer IN FLIGHT) · sonnet-WHT (pnd2 + fix-e2e-v1260 DONE, free; knows seeds/PV/paper-mirror)
-  · opus-reviewer-signature (WP-1/2 round 1 done) · opus-reviewer-pnd2 (3 rounds) · sonnet-E2E
-  (co7 browser context, free).
-- fix-e2e-v1260-findings: DONE + Fable diff-read PASS (uncommitted; ships with the next release
-  batch after consolidated Tier-2). Note for Ham (morning): co7 JE 07-2026-JV-0006 booked ฿1,000
-  to 5200 (immutable) — reclassify to 5500 needs a correcting JV on prod, his call.
-- **🚀 IN RELEASE (2026-07-29 evening): ภ.ง.ด.2 filing — commit `d3c540b` pushed, awaiting
-  release-please → tag → build → deploy (DB backup MANDATORY: EF migration AddPnd2IncomeCode +
-  seed 632 run at startup).**
+- **✅ v1.26.1 LIVE + Tier-4 VERIFIED 10/10 (2026-07-30 ~14:30) — doc signatures, bottom-anchored
+  foot, pagination, default notes + the E2E fix set.** Proven live on co7: signature+stamp+ตำแหน่ง
+  render on issued docs; Drafts stay empty; 30-line doc paginates (repeated header, atomic bottom
+  group, หน้า x/x); viewer-swap holds (doc's actor signs, never the viewer — verified via new
+  viewer01/Auditor); PV 3-box w/ stamp on ผู้อนุมัติ; regressions clean (PV-INTR screen now
+  1,000/850; pnd2 pages fine). Review: 2 opus rounds + first tier2-review workflow run (4 confirmed
+  findings incl. image-magic validation, all fixed). Suite 1054/0/9.
+- Warm workers (2026-07-30 ~14:30): sonnet-signature (full feature context) · sonnet-E2E-tier4
+  (co7 browser + PDF-download technique) · others expired/free.
+- **PENDING HAM**: correcting JV on co7 (฿1,000 from 5200→5500, JE 07-2026-JV-0006 immutable) ·
+  MCP write-side JV tools · PLAN-test-hardening.md Phase 1 go-ahead (acceptance-tester role ฯลฯ).
+- **✅ SHIPPED EARLIER (2026-07-29): ภ.ง.ด.2 filing — v1.26.0 live, E2E 10/10.**
   Fixes a live compliance defect: director interest via PV was certified ภ.ง.ด.3 @1% instead of
   ภ.ง.ด.2 @15% (ม.50(2)). Zero damaged certs on prod (income_type_code='4' count = 0, verified).
   Ships: Pnd2 enum + pnd2_income_code snapshot columns, individual-only routing, positive-FormType

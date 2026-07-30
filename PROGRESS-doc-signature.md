@@ -1,3 +1,22 @@
+# PROGRESS — doc-signature — 2026-07-30 ~11:10 (86% quota, insurance paid)
+
+## CURRENT: v1.26.1 DEPLOY IN PROGRESS
+- Tag v1.26.1 (= full signature feature + E2E fixes; release-please labeled it 1.26.1 because
+  Fable merged the stale release PR before the feat-commit run updated it — content complete,
+  version label cosmetic. LESSON: check the PR title version matches expectation before merging).
+- Suite 1054/0/9 green. Feature committed 6fe1b76; tag merge 94e1174; working tree ON TAG.
+- API deploy attempt 1: DEPLOY_FAILED **only** on Fable's own mis-shaped probe
+  (INTR5500==COMPANIES, but co3 has NO INTR category at all — seed 633 worked perfectly:
+  co2/5/6/7 all on 5500, residue 0). Auto-rollback worked; prod safely on v1.26.0;
+  a fresh DB backup exists from the attempt.
+- NEXT: patch deploy-api-v1261.sh probe to INTR5500==INTRTOTAL (count of existing INTR rows)
+  && residue==0 → rerun API deploy → FE deploy (fe-v1.26.1.tar.gz already uploaded) →
+  git checkout main → Tier-4 live acceptance E2E (signature upload co7, ตราปั้ม, ตำแหน่ง,
+  default note prefill, 2-page doc, viewer-swap: doc approved by A shows A's signature
+  whoever views) → morning report.
+- Packages + scripts already ON the server (api+fe tarballs, deploy-*-v1261.sh).
+
+## (older checkpoint below)
 # PROGRESS — doc-signature + foot layout + E2E fixes — 2026-07-30 ~03:40 (92% quota)
 
 5h window resets ~06:30. Overnight autonomy per Ham (00:35): check/test/deploy allowed.

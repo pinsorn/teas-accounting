@@ -963,3 +963,19 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
   or (b) change `UpdateSoftAsync` to a real partial patch (bigger, a genuine behavior change,
   needs its own spec/review).
 - **Seen:** 2026-07-30, doc-signature-and-foot-layout spec Tier-2 finding #4 remediation.
+
+## PDF acceptance in the browser sandbox: blob: tabs are not screenshot-able
+- **Symptom**: Tier-4 E2E cannot screenshot a rendered PDF — `blob:` URL tabs and chrome's PDF
+  viewer return blank/unsupported captures.
+- **Fix that works** (2026-07-30): `javascript_tool` → `fetch('/api/proxy/.../pdf')` + anchor-click
+  download → GUID-named `.tmp` (valid PDF bytes) lands in `C:\Users\ham_c\Downloads` → copy+rename
+  to `.pdf` → the Read tool renders it inline, images included. Assert on that.
+
+## release-please: merging the release PR too early ships a stale version label
+- **Symptom**: tag came out v1.26.1 for a `feat:` push that should have minted v1.27.0.
+- **Root cause**: the release PR pre-existed (created from an earlier `fix:` commit); the
+  wait-loop merged it the moment it matched "release", BEFORE release-please's run on the new
+  feat commit updated the PR's version. Content was complete; only the label was stale.
+- **Fix**: before `gh pr merge`, check the PR TITLE version matches the expected bump for the
+  commits being released; if not, wait for the release-please run on the latest commit to
+  update the PR first.
