@@ -1,3 +1,18 @@
+# PROGRESS — v1.27.1 deploy in flight — 2026-07-30 ~22:05 (85%, insurance paid)
+
+## STATE
+- v1.27.1 tagged (banner loading-state fix only; FE 1 file + API restamp). API built+stamped
+  1.27.1+e985eb5, at publish/api-1271. Working tree ON TAG v1.27.1.
+- Loop proven live earlier: draft JV #186 -> Fable clicked via claude-in-chrome ->
+  Posted 07-2026-JV-0060, GL moved +123.45, GIF sent to Ham.
+- Everything else (v1.27.0 scope) deployed + smoked already. All 3 "ลุยให้หมด" items closed.
+
+## NEXT (if session dies mid-deploy — prod is SAFE on v1.27.0 either way)
+1. Package: tar api-1271 -> teas-api-1.27.1-sc.tar.gz; FE overlay = ONLY
+   frontend/app/(dashboard)/journals/[id]/page.tsx (single file since v1.27.0).
+2. Deploy: adapt publish/deploy-v1270.sh probes (expect same 401s; no migration/seed;
+   backup precautionary). scp + run. Marker: grep permsLoaded in journals/[id]/page.tsx.
+3. git checkout main. Verify footer v1.27.1 via public probe. Update STATUS. Done.
 # PROGRESS — overnight queue "ลุยให้หมด" — 2026-07-30 ~17:20 (88%, insurance paid)
 
 ## DONE since v1.26.1 shipped

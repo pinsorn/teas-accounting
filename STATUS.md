@@ -1,6 +1,10 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ v1.27.1 LIVE (2026-07-30 ~22:15)** — patch: approve-banner no longer flashes
+  "no permission" during permissions load; API restamped so the footer stays truthful.
+  First agent-draft→human-post round-trip COMPLETED: draft #186 posted as 07-2026-JV-0060
+  via claude-in-chrome (GIF delivered to Ham); GL moved exactly +123.45, Dr=Cr holds.
 - **✅ v1.27.0 LIVE + smoked 6/6 (2026-07-30 ~21:00) — agents-draft/humans-post journal loop.**
   MCP `create_manual_journal_draft` (draft-only; `.post` scopes still structurally
   ungrantable, pinned by test) + the missing human half: Post CTA + ?action=approve banner on
