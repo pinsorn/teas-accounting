@@ -60,8 +60,11 @@ no `period.closed` refusal. There is no future-date guard either — Oct/Nov/Dec
 
 This defeats the point of closing a month: a closed period can still be moved after the books are reported.
 
-*Fix:* inject the service and call `EnsureOpenAsync` on both paths. **Agent C1 is currently sweeping every
-other posting endpoint for the same gap** — result lands in `C1-period-immutability.md`.
+*Fix:* inject the service and call `EnsureOpenAsync` on both paths.
+
+**Scope of this gap is now settled.** Agent C1 swept every GL-writing endpoint — TI, RC, CN, DN, VI, PV, JV,
+expense claim, fixed-asset dispose/write-off/depreciation, bank-rec — and **all of them correctly refuse a
+closed period. Payroll is the only one.** Every immutability attack also failed cleanly (405/422).
 
 ### C4 · ภ.ง.ด.1 and ภ.ง.ด.1ก print the totals on the wrong row
 The summary totals are stamped onto **row 5 — ม.40(2) ผู้รับเงินได้มิได้เป็นผู้อยู่ในประเทศไทย** while the
@@ -85,6 +88,12 @@ unvalidated. **Pin the exact target row against the template before fixing.**
 | H3 | **Conversion routes check the wrong scope — systemic** [verified] — every "create-from / convert" route authorizes on the **source** document's manage scope and never on the **target** document's create scope: `billing-notes/{id}/create-tax-invoice` and `delivery-orders/{id}/create-ti` both mint a **ใบกำกับภาษี** off billing-note / delivery-order permissions; `sales-orders/{id}/create-invoice`, `delivery-orders/{id}/create-invoice`, `quotations/{id}/convert-to-so` follow the same pattern. Net effect: a user holding only delivery-order manage can mint a tax invoice, though direct `POST /tax-invoices` returns 403 for them. Drafts only — no ledger movement, no number consumed — which is why this is HIGH, not CRITICAL. Two agents each found one instance; the pattern only appeared when both were read together. | A1, C2 |
 | H4 | **Attachment download skips its permission guard** [verified] — `GET /attachments/{id}/download` (AttachmentEndpoints.cs:77-80) omits the `ParentGuard` that upload (line 51) and list (line 69) enforce. A user with only the broadly-granted `sys.attachment.read` gets **403 on the list but 200 and the full PDF on download**, walking sequential ids. Company scope is *not* bypassed (confirmed: cross-company ids all 404), so this is intra-tenant. | B2, C2 |
 | H5 | **A voided payment voucher prints as "ต้นฉบับ"** [verified] with the approver's name in the signature box and no ยกเลิก mark; a draft PV prints "ต้นฉบับ" too. `PaymentVoucherService.Read.cs:238` hard-codes the watermark instead of calling `PaperDocConfig.Watermark`, whose line 52 already maps a cancelled status to "ยกเลิก". `PurchaseOrderService.cs:325` repeats the mistake. Every other doctype does it correctly. | D1 |
+| H10 | **A fiscal year can become impossible to close — a three-way deadlock** [live-proved, zero writes] — closing a period requires a depreciation run; the depreciation run requires the period OPEN; reopening requires it CLOSED. All three refuse each other. **co5's FY2026 can now never be year-closed**; on a real tenant with fixed assets this is recoverable only by editing the database. Read together with the standing O14 limitation (a closed month cannot be reopened inside a closed year — the reason co6 is frozen until 2027), period management has two traps that need a human to escape. Treat as CRITICAL for any real tenant approaching year-end with fixed assets. | C1 |
+| H11 | **Reopening a period is unauditable — and that enables silent back-dating** — the activity row is written against `AccountingPeriod` but **no API route reads it**, and reopening NULLs `ClosedAt`/`ClosedBy`/`CloseNotes`. C1 closed June, reopened it, back-dated two journal entries into it, and re-closed — **all in 27 seconds, with no readable surface anywhere showing June was ever reopened.** For an accounting system this defeats the point of the audit trail. | C1 |
+| H12 | **Trial Balance / Balance Sheet default their as-of to UTC while AR/AP aging use Bangkok** — at 05:30 ICT the same defaults produced AP control **46,803.50 on ap-aging (`balanced:true`) versus 36,103.50 on the Trial Balance**, a ฿10,700 gap, with the whole TB omitting ฿162,124.765 of the current Bangkok day. Every day between 00:00 and 07:00 the two reports disagree. (Filed LOW earlier in the round on a phantom-gap sighting; C1's live measurement upgrades it — two reports that must agree, don't.) | A2, C1 |
+| H7 | **AR and AP aging ignore `asOf` entirely** [verified] — `ArAgingAsync` (SubledgerReportService.cs, ~line 173) filters only `Status == Posted && PaymentStatus != "PAID"` with **no `DocDate <= asOf`**, and computes `TotalAmount - AmountPaid` from the *current* paid figure. `asOf` moves the aging buckets and nothing else. Proven: `ar-aging/export?asOf=` for 1900-01-01, 2020-01-01 and 2026-06-30 all return **byte-identical CSV** (md5 `1d0f75e9…`, ฿19,979.31) although control account 1130 provably held ฿0.00 with zero rows through 2026-06-30. Hits the backend CSV and the FE AP CSV. **This is the report an auditor pulls for a prior year-end.** The correct pattern sits a few lines above in the same file — the reconciliation query does filter `m.DocDate <= asOf`. | D3 |
+| H8 | **Every สปส.1-10 SSO upload file ships employer account `0000000000`** — all 5 payroll runs, HTTP 200, no warning; `ssoEmployerAccountNo` is null on co5 and optional in the validator with no export-side guard. The sibling ภ.พ.30 exporter *does* refuse on a missing mandatory field (`pp30_batch.missing_address`, verified live) — SSO does not. The user discovers this at the government portal. | D3 |
+| H9 | **SSO files ship `?????????????` as insured-person names** (runs 13 & 15: 37 and 19 `?` bytes) — the root data is the known one-byte-per-char corruption class, now on co5 and already inside POSTED runs. Two export-layer defects compound it: `Encoding.GetEncoding(874).GetBytes` uses the default replacement fallback, so **any** non-cp874 character (including the Bengali `ম` this project greps for) silently becomes `?`; and nothing validates a payee name before it goes into a government filing. | D3 |
 | H6 | **Payslip YTD contradicts the 50ทวิ and ภ.ง.ด.1ก** for the same employee and year — 1,040,000.00 / 88,900.00 versus 560,000.00 / 52,450.00, where 560,000 is ground truth. YTD is frozen at run creation (`PayrollRunService.cs:134`) and never recomputed, so it survives deleted and back-dated runs; June shows a larger YTD than July. | D1 |
 
 ---
@@ -100,6 +109,24 @@ unvalidated. **Pin the exact target row against the template before fixing.**
 - Draft-path JV throws a raw 500 (Postgres 22001) on an over-length reference or description, where the manual path caps both; no 200-line cap on the draft path; financial statements print CE years on a doc labelled for ภ.ง.ด.50; no PDF exists for JV or expense claim; trial balance defaults its as-of to `UtcNow` while AP-aging uses Bangkok-today (they disagree by a day between 00:00–07:00); VI can over-bill a PO to ~200% with only an advisory chip; expense claims have no amount cap (a ฿1.07-trillion claim approved with no escalation); attachment MIME is spoofable; stale comments claim an SoD DB constraint that no longer exists.
 
 ---
+
+## The pattern behind five of these bugs
+
+Worth naming, because it points at a cheap systemic check rather than five separate fixes. In five
+independent findings, **the correct implementation already existed a few lines away and simply was not
+called**:
+
+| Finding | The correct thing that already existed | Where the bug is |
+|---|---|---|
+| C1 sub-satang | `CreateManualJournalValidator`'s 2-decimal rule *and its warning comment* | `CreateJournalValidator`, **same file**, 20 lines down |
+| H5 voided PV prints "ต้นฉบับ" | `PaperDocConfig.Watermark` already maps a cancelled status → "ยกเลิก" | `PaymentVoucherService.Read.cs:238` hard-codes the string instead of calling it |
+| H7 aging ignores `asOf` | the reconciliation query filters `m.DocDate <= asOf` | `ArAgingAsync`, **same file**, a few lines below |
+| MCP `.post` denylist | `McpScopes.Normalize` — an allowlist, already used on the OAuth path | not called at API-key mint |
+| H8 SSO ships `0000000000` | the ภ.พ.30 exporter refuses on a missing mandatory field (verified live) | the SSO exporter has no equivalent guard |
+
+Every one is a *second* code path that never adopted the fix the *first* path already carries. A grep for
+"who else does this?" at review time would have caught all five. That is a more valuable outcome than any
+individual fix on this list.
 
 ## What held up
 
@@ -135,9 +162,7 @@ Worth stating plainly, because it is most of the system:
 - **Signature and stamp images are untestable on co5** — `stampUrl` is null and no signature attachments
   exist there, so the v1.26.1 signature pipeline could only be checked for *absence* correctness. Needs a
   company that has them uploaded.
-- Two agents were still running when this was written: **C1** (sweeping every posting endpoint for more
-  C3-class period-guard gaps) and **D3** (export/encoding/formula-injection attack). Their findings will be
-  appended.
+- All 13 dispatchable agents have now reported. The 4 not run are the co7 ones (3) plus the co7 PDF sweep.
 
 ---
 
@@ -146,8 +171,11 @@ Worth stating plainly, because it is most of the system:
 Grouped so one change closes several findings:
 
 1. **One exception-mapping pass** kills the whole 500 family (H2 + the >5MB upload + the bad bankAccountId +
-   the over-length JV field): mirror `PaymentVoucherService`'s `DbUpdateConcurrencyException` → 409 wrapper
-   into the TI/RC/JV post paths, and map Postgres 22001/23505 to clean 400/409 globally.
+   the over-length JV field + **C1's seven period-endpoint 500s** from unvalidated year/month
+   `ArgumentOutOfRangeException` — one of which, a read-only `GET /periods/{y}/year-status`, is reachable by
+   the lowest-privilege user): mirror `PaymentVoucherService`'s `DbUpdateConcurrencyException` → 409 wrapper
+   into the TI/RC/JV post paths, map Postgres 22001/23505 to clean 400/409 globally, and range-validate
+   year/month at the period endpoints.
 2. **One validator + one post-time guard** closes C1 (sub-satang) — and the post-time guard is what makes it
    durable against the next new path.
 3. **One helper on every conversion route** closes H3 systemically; the grep that found it becomes the
