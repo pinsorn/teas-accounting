@@ -23,8 +23,10 @@ Prod = **v1.27.1** (teas.kazaki-rio.com). Not a feature round: the deliverable i
 
 ## Swarm shape
 Concurrency is safe: agents drive **prod over HTTP/browser**, no shared test DB.
-10 co5 swarm accounts exist (`UxSwarm-2026-*`) — creds in the header of
-`specs/uxswarm-round5-finding-verify.md`. co7 users: nvadmin02 / nvchief02.
+**co5 accounts (REUSE, exist on prod):** sales01 acct01 appr01 ap01 ar01 audit01 chief01
+admin01 purch01 tax01 — password `UxSwarm-2026-<suffix>` where suffix =
+A1 sales · A2 acct · A3 appr · A4 ap · A5 ar · A6 audit · A7 chief · A8 admin · A9 purch · B1 tax.
+**co7 (non-VAT):** nvadmin02 / nvchief02. Target host: https://teas.kazaki-rio.com
 Chrome MCP is single-session → **at most ONE browser agent at a time**; the rest drive
 the API through the public host (login → JWT → REST), which is how rounds 3–5 ran 10-wide.
 
