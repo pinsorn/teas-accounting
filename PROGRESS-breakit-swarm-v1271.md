@@ -28,41 +28,78 @@ Concurrency is safe: agents drive **prod over HTTP/browser**, no shared test DB.
 Chrome MCP is single-session → **at most ONE browser agent at a time**; the rest drive
 the API through the public host (login → JWT → REST), which is how rounds 3–5 ran 10-wide.
 
-### Wave A — adversarial money/compliance (co5 VAT) — 4 agents, API-driven
-1. **A1 doc-number + concurrency**: hammer concurrent post/approve on TI/RC/PV/JV; look for
-   23505 `*_doc_no`, gaps, reused numbers under the retry-guard (CRIT-1 family, cap now 50).
-2. **A2 VAT math attack**: CN/DN against a paid TI, partial credit, 0-VAT line mixed with 7%,
-   rounding at .005, ภ.พ.30 vs sales-summary vs TB three-way tie. Any disagreement = finding.
-3. **A3 period/immutability attack**: post into a closed period, reopen month, back-date,
-   future-date, edit/delete a POSTED doc via direct API (not just UI), void attempts.
-4. **A4 payroll edge**: mid-month hire/leave proration (O8 known gap — confirm blast radius),
-   negative adjustment, deduction > net, two runs same period, ภ.ง.ด.1 vs GL tie.
+Every agent works its module **twice**: (1) happy path end-to-end, numbers tied to hand-calc;
+(2) then attack it. A module that only passes the happy path is not "tested" this round.
 
-### Wave B — non-VAT (co7) — 3 agents
-5. **B1 non-VAT purity**: any VAT UI/field/GL 1170 leaking into co7 anywhere (VI, PV, EC, PDFs).
-   VI VAT must fold into cost, vendor paid in FULL (the 2026-07-25 spec-error class).
-6. **B2 full cycle**: PO→VI→PV, expense claim create→approve→pay, TB Dr=Cr after each.
-7. **B3 cross-tenant / RBAC attack**: co7 user reaching co5 data by id-guessing on every
-   REST route (documents, reports, attachments, exports); super-admin scope boundaries.
+Waves run **sequentially**, agents inside a wave in parallel. Wave B's docs feed Wave D's PDFs.
 
-### Wave C — the new surface (both cos) — 3 agents
-8. **C1 MCP agent surface**: API-key scopes — try to grant/forge a `.post` scope, post a draft
-   via MCP (must be structurally impossible), draft on a company the key doesn't own,
-   unbalanced/garbage payloads, header+inactive accounts (v1.27.0 gates).
-9. **C2 journal/JV attack**: unbalanced by 0.01, 30-line JV, float split, header/inactive
-   accounts, post twice (double-click race), approve banner with a permission-less user.
-10. **C3 reports/exports attack**: every export (CSV/PDF/txt) — formula injection, TIS-620,
-    empty-data crashes, huge date ranges, blob-tab flakiness; PDF pagination on a 30+ line doc.
+### Wave A — sales + purchase full chains, both companies — 5 agents, API-driven
+1. **A1 sales chain co5 (VAT)**: QT→SO→DO→IV→TI→RC end-to-end + partial receipt, over-receipt,
+   ใบวางบิล (billing note) from 2 invoices, CN/DN against a PAID TI, partial credit,
+   0% line mixed with 7%, rounding at .005. Three-way tie ภ.พ.30 vs sales-summary vs TB.
+2. **A2 purchase chain co5 (VAT)**: PO→VI→PV incl. WHT 1/3/5%, partial payment, one PV
+   settling 2 VIs, PO close/reopen, VI over-billing a PO, AP aging vs TB tie.
+3. **A3 foreign vendor co5**: never-driven ภ.พ.36 + ภ.ง.ด.54 reverse-charge chain
+   (foreign vendor → service VI → นำส่ง) vs hand-calc; the v1.22.11 fix must still hold.
+4. **A4 sales+purchase co7 (non-VAT)**: same two chains in non-VAT mode. Any VAT field, VAT GL
+   (1170/2151), or VAT wording surfacing = finding. VI VAT folds into cost, vendor paid in FULL
+   (the 2026-07-25 spec-error class). TB Dr=Cr after every post.
+5. **A5 doc-number + concurrency**: hammer concurrent post/approve on TI/RC/PV/JV across both
+   companies; 23505 `*_doc_no`, gaps, reused numbers under the retry-guard (CRIT-1 family, cap 50).
+
+### Wave B — approval / expense claims / payroll — 5 agents
+6. **B1 approval + SoD attack (both cos)**: every doctype's approve/post chain — self-approval,
+   approver without the scope, approve twice (double-click race), approve a doc another user is
+   editing, pending-approvals widget accuracy, approve after period close, out-of-order transitions.
+7. **B2 expense claims full cycle co5**: create→submit→approve→pay + attachments, VAT-carrying
+   claim, claim > limit, reject-then-resubmit, GL 1170 correctness, claim paid twice.
+8. **B3 expense claims co7 (non-VAT)**: same cycle; the non-VAT 1170 guard (v1.22.10 F-A) must
+   hold live — JE carries no 1170, VAT folds into cost.
+9. **B4 payroll full cycle co5**: create→calc→approve→post→pay + month-2 continuity, opening-YTD,
+   deduction, dup-guard, ภ.ง.ด.1 / 1ก / สปส.1-10 / payslip / 50ทวิ generated, GL tie
+   5400/5410/2153/2160/2170 to hand-calc.
+10. **B5 payroll edge attack (co7)**: mid-month hire/leave proration (O8 known gap — confirm
+    blast radius in GL + on the printed forms), negative adjustment, deduction > net, zero salary,
+    two runs same period, delete a posted run, ภ.ง.ด.1 vs GL tie.
+
+### Wave C — period / immutability / tenant / MCP — 4 agents
+11. **C1 period + immutability attack**: post into a closed period, reopen month, back-date,
+    future-date, edit/delete a POSTED doc via direct API (not just UI), void attempts, year-close.
+12. **C2 cross-tenant + RBAC attack**: co7 user reaching co5 data by id-guessing on EVERY REST
+    route (documents, reports, attachments, exports); super-admin scope boundaries; token replay.
+13. **C3 MCP agent surface**: API-key scopes — try to grant/forge a `.post` scope, post a draft
+    via MCP (must be structurally impossible), draft on a company the key doesn't own,
+    unbalanced/garbage payloads, header+inactive accounts (v1.27.0 gates).
+14. **C4 journal/JV attack**: unbalanced by 0.01, 30-line JV, float split, header/inactive
+    accounts, post twice (double-click race), approve banner with a permission-less user.
+
+### Wave D — PDF / print / exports (runs on the docs Waves A–B produced) — 3 + vision
+15. **D1 PDF sweep co5 (VAT)**: download/open EVERY doctype's PDF — QT/SO/DO/IV/TI/RC/CN/DN/BN/
+    PO/VI/PV/EC/payslip + ภ.พ.30/ภ.ง.ด.1/1ก/3/53/54/50ทวิ/สปส.1-10. Check: totals match the
+    screen, Thai glyphs (grep ม vs Bengali ম), BE dates, doc-no, signature+stamp on issued docs
+    and NOT on drafts, 30-line pagination (repeated header, atomic bottom group, หน้า x/y).
+16. **D2 PDF sweep co7 (non-VAT)**: same list in non-VAT layout — no VAT columns/wording anywhere.
+17. **D3 exports attack**: every CSV/txt/batch export — OWASP formula injection, TIS-620 encoding,
+    empty-data crash, huge date range, blob-tab flakiness, RD Format กลาง batch files.
+- **Vision pass (AGY — separate quota pool)**: screenshots/PDFs from D1–D2 compared against the
+  official RD/SSO form layouts for field placement. AGY writes to its sandbox, never the repo.
 
 Each agent returns `swarm-findings/breakit-v1271/<agent>.md`: repro steps, exact request/response,
 expected vs actual, severity. **No fixes, no commits** — evidence only.
 
 ## Next (resume here)
 1. [ ] Confirm quota window reset.
-2. [ ] Pull the 10 co5 creds + co7 creds into the dispatch prompts.
-3. [ ] Dispatch Wave A (4) + Wave B (3) in one message (disjoint companies/areas, all API-driven).
-4. [ ] Wave C after A/B report (C1 needs an API key; C3 wants a browser slot).
-5. [ ] Consolidate → `VERDICT-breakit-v1271.md` → Ham decides the fix arc.
+2. [ ] Pull the 10 co5 creds + co7 creds (nvadmin02/nvchief02) into the dispatch prompts.
+3. [ ] Dispatch **Wave A** (5 agents, one message — distinct companies/doc-types, all API-driven).
+4. [ ] **Wave B** (5) after A reports.
+5. [ ] **Wave C** (4) — C3 needs an API key issued from settings first.
+6. [ ] **Wave D** (3) last — it consumes the documents A/B created; give D1 the browser slot.
+       Vision comparison → AGY (separate pool), keeps Claude quota for the finders.
+7. [ ] Consolidate → `VERDICT-breakit-v1271.md` → Ham decides the fix arc.
+
+Re-check quota between waves; ≥85% = stop dispatching, checkpoint, wakeup, resume next window.
+17 agents will not fit one 5h window — expect this to span 2+ windows, which is why the wave
+boundaries are also the checkpoint boundaries.
 
 ## Rules recap
 - Prod writes only on co5/co7. Verify company badge/id before every write.
