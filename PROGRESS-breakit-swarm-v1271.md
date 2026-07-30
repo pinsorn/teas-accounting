@@ -258,6 +258,30 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
     fires on the human-post path too; period/future/closed-boundary gates; permission-less sales01
     refused server-side 403; immutability (re-post → `je.not_draft`, PUT/DELETE → 405).
 
+- **C2 (cross-tenant/RBAC) — NO cross-tenant leak, NO 500, NO cross-tenant escalation.** Every non-co5
+  id → 403/404; every 200 verified as co5's own. Isolation is two-layer (EF query filter + DB RLS).
+  switch-company super-admin-gated; `admin/rbac/*?companyId=2` → `rbac.cross_company.scope_required`;
+  api-keys RLS-scoped; reports take no `companyId` and `businessUnitId` can't cross tenants;
+  audit01 reached ZERO writes by any route.
+  - **F16 question ANSWERED — stays intra-tenant HIGH, NOT a cross-tenant CRIT.** The attachment
+    download route skips the parent-permission guard but does NOT skip company scope (chief01 → 404
+    on every foreign-company id).
+  - **F25 (F10 + C2's F-C2-1 merged) — HIGH, SYSTEMIC. Fable-VERIFIED by auditing every side route.**
+    Two agents each found one instance; the grep shows it is a **design-wide gap**: every
+    "create-from / convert" route authorizes on the **SOURCE** document's manage scope and NEVER on
+    the **TARGET** document's create scope. All in SalesChainEndpoints.cs / BillingNoteEndpoints.cs:
+    · `billing-notes/{id}/create-tax-invoice` → billing-note `managePol` → mints a **ใบกำกับภาษี**
+    · `delivery-orders/{id}/create-ti` (:131) → `doManage` → mints a **ใบกำกับภาษี**
+    · `sales-orders/{id}/create-invoice` (:98) → sales-order scope → mints invoice/TI
+    · `delivery-orders/{id}/create-invoice` (:134) → `doManage` → mints a billing note
+    · `quotations/{id}/convert-to-so` (:55) → `qManage` → mints a sales order
+    Net effect: a user holding ONLY delivery-order manage can mint a tax invoice, though direct
+    `POST /tax-invoices` is 403 for them. Drafts only (no ledger movement, no number consumed) —
+    which is why it is HIGH not CRIT. Fix = require BOTH source-manage AND target-create on every
+    conversion route (one shared helper), then re-run this grep as the regression check.
+  - **F26 (C2) INFO** — no server-side logout/token revocation (stateless JWT, no `/auth/logout`);
+    a captured token stays valid to expiry. Mitigated by httpOnly + short TTL + absolute session cap.
+
 ## WAVE B COMPLETE (3/3).
 ## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
 Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
