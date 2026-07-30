@@ -166,6 +166,12 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
   confirmed finding in code before ordering fixes.
 - Tier 3: Haiku runs the consolidated gate; run-and-report only, any
   failure auto-escalates to Fable.
+- Footgun/money releases MAY add an **acceptance-tester** pass (blind
+  spec-only test writer, `sonnet/acceptance-tester.md`) between implement and
+  Tier-2: it tests what the spec PROMISES, never reading the implementer's
+  work first — the counter to author-tests-own-code bias. Its divergences are
+  adjudicated by Fable, never silently reconciled. (PLAN-test-hardening.md
+  WS-1, adopted 2026-07-30.)
 - Tier 4 — live acceptance (MANDATORY for money/compliance releases): after
   deploy, a scripted E2E leg on prod/staging with REAL data walks the money
   path end-to-end and verifies the numbers ON SCREEN and on the artifacts,
