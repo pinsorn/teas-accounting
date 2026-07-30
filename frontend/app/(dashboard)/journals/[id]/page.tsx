@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate, useHasScope } from '@/components/PermissionGate';
-import { useJournal, useJournalPost } from '@/lib/queries';
+import { useJournal, useJournalPost, useMePermissions } from '@/lib/queries';
 import { formatTHB, formatDate } from '@/lib/utils';
 import { problemToast } from '@/lib/api';
 
@@ -19,6 +19,9 @@ export default function JournalDetailPage() {
   const { data: d, isLoading } = useJournal(id);
   const post = useJournalPost();
   const hasScope = useHasScope();
+  // hasScope returns false while /me/permissions is still in flight — without this flag the
+  // banner flashes "no permission" at a user who HAS it (seen live on the v1.27.0 smoke).
+  const permsLoaded = useMePermissions().data != null;
   // B3 — ?action=approve deep-link (mirrors purchase-orders/[id]/page.tsx:54,79): the MCP
   // tool's ApprovalUrl points here so a human reviewing an agent-drafted JV sees a prominent
   // banner instead of the plain read-only view.
@@ -59,9 +62,9 @@ export default function JournalDetailPage() {
               >
                 {t('post')}
               </button>
-            ) : (
+            ) : permsLoaded ? (
               <p className="text-sm font-medium text-error">{ta('noPermission')}</p>
-            )}
+            ) : null}
           </div>
         </div>
       )}
