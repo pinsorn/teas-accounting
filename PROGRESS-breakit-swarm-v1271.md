@@ -23,10 +23,12 @@ Prod = **v1.27.1** (teas.kazaki-rio.com). Not a feature round: the deliverable i
 
 ## Swarm shape
 Concurrency is safe: agents drive **prod over HTTP/browser**, no shared test DB.
-**co5 accounts (REUSE, exist on prod):** sales01 acct01 appr01 ap01 ar01 audit01 chief01
-admin01 purch01 tax01 — password `UxSwarm-2026-<suffix>` where suffix =
-A1 sales · A2 acct · A3 appr · A4 ap · A5 ar · A6 audit · A7 chief · A8 admin · A9 purch · B1 tax.
-**co7 (non-VAT):** nvadmin02 / nvchief02. Target host: https://teas.kazaki-rio.com
+**co5 accounts (REUSE, exist on prod)** — password suffix is the ROLE-SLOT CODE, NOT the role name
+(this bit A5's first dispatch; corrected live). Exact map:
+sales01=`UxSwarm-2026-A1` · acct01=`-A2` · appr01=`-A3` · ap01=`-A4` · ar01=`-A5` · audit01=`-A6`
+· chief01=`-A7` · admin01=`-A8` · purch01=`-A9` · tax01=`-B1`. chief01 posts everything.
+**co7 (non-VAT):** nvadmin02 / nvchief02 — password unknown (see blocker below).
+Target host: https://teas.kazaki-rio.com
 Chrome MCP is single-session → **at most ONE browser agent at a time**; the rest drive
 the API through the public host (login → JWT → REST), which is how rounds 3–5 ran 10-wide.
 
@@ -98,6 +100,17 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
   per its own hard-rules). Blocks A4, B3, B5 (the 3 non-VAT agents). co5 agents unaffected.
   **ASK HAM** for co7 creds, or reset via super-admin. Everything else (approval both-via-co5,
   expense co5, payroll co5, period/JV/MCP, PDF co5) runs without it.
+
+## FINDINGS (Fable to verify each in code before any fix arc)
+- **F1 (A5) — HIGH robustness, no data loss.** Concurrent double-post of the SAME draft JV →
+  `POST /journals/{id}/post` returns **raw HTTP 500 `internal_error`** to the losing racers.
+  Min trigger N=3 (N=2 clean). Root cause per A5: `je.not_draft` guard is a read-check TOCTOU;
+  real conflict escapes at SaveChanges (DbUpdateConcurrencyException) unmapped → generic 500.
+  NEW trigger of the CRIT-1 raw-500 class (state-transition race, not bucket drift). Data integrity
+  HELD: posted exactly once, Dr=Cr, unique docNo, no orphaned number on the 500 threads.
+  Follow-up A5 flagged: same generic `IConcurrencyVersioned` post path → one-shot double-post race
+  on `/tax-invoices/{id}/post` and `/payment-vouchers/{id}/post|approve` likely repro too.
+  A5 PASS otherwise: JV seq bulletproof 20-wide (0062..0086, contiguous), mixed-type no 23505/40P01.
 
 ## Next (resume here)
 1. [x] Quota window reset (0%).
