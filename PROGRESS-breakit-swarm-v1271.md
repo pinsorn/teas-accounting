@@ -224,9 +224,25 @@ Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1
 ## Next (resume here)
 1. [x] Quota window reset (0%). Wave A done.
 2. [x] Wave B RUNNING (co5): B1 approval/SoD · B2 expense-claims · B4 payroll. (B3/B5 blocked on co7 pw.)
-3. [ ] Wave C after B: C1 period/immutability · C2 cross-tenant/RBAC · C3 MCP scope (needs API key) · C4 JV.
-4. [ ] Wave D last (PDF/exports on the docs A/B produced) + AGY vision. co7 waves whenever pw arrives.
-5. [ ] Consolidate → VERDICT-breakit-v1271.md → Ham decides fix arc.
+3. [~] Wave C RUNNING: C2 cross-tenant/RBAC · C3 MCP scope · C4 JV validation. **C1 held** (period
+   close/reopen mutates shared state — run it ALONE after C2-C4 so it doesn't lock periods under them).
+4. [ ] Launch C1 (period/immutability) after C2-C4 report.
+5. [ ] Wave D last (PDF/exports on the docs A/B produced) + AGY vision. co7 waves whenever pw arrives.
+6. [ ] Consolidate → VERDICT-breakit-v1271.md → Ham decides fix arc.
+
+## RUNNING VERDICT (after Waves A+B, 7/17 agents)
+**2 CRIT · 4 HIGH · 4 MED · ~8 LOW. Zero data corruption, zero cross-tenant leak so far; TB Dr=Cr held
+in every posted scenario.** The bugs are control-gap + robustness, not money-math — the arithmetic ties.
+- CRIT F2 — ภ.พ.36 double-counts reverse-charge VAT → over-remits to RD on finalize.
+- CRIT F18 — payroll post/pay is the one posting path with NO period-close guard → immutable JE into a
+  closed month; no future-date guard either (F19).
+- HIGH F1 — double-post race → raw 500 on JV+TI+RC post (PV immune; fix = mirror PV's try/catch). F14/F15
+  are the same unmapped-exception→500 class (big attachment, bad bankAccountId).
+- HIGH F6 — duplicate tax-doc running numbers (branch-scoped unique index vs branch-blind allocator).
+- HIGH F10 — RBAC side-route: mint a TI without the TI-create scope via billing-note→TI.
+- HIGH F16 — attachment download IDOR (skips ParentGuard; within-tenant).
+Theme for the fix arc: (1) a shared exception→domain-error mapper kills the whole 500 family; (2) payroll
+must inject IPeriodCloseService; (3) attachment download + billing-note→TI need the missing guards.
 2. [ ] Pull the 10 co5 creds + co7 creds (nvadmin02/nvchief02) into the dispatch prompts.
 3. [ ] Dispatch **Wave A** (5 agents, one message — distinct companies/doc-types, all API-driven).
 4. [ ] **Wave B** (5) after A reports.
