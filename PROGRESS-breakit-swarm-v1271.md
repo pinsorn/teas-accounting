@@ -179,6 +179,27 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
   - **F13 (B1) LOW** — PV `CreatedBy` never stamped (`createdBy:null` while approvedBy/postedBy set);
     activity-log audit covers it, so LOW.
 
+- **B2 (expense claims co5) — money core PASS; 1 HIGH security + 2 robustness-500.**
+  Round 1 JE ties exactly (Input VAT→**1170**, Dr=Cr=1,784, no WHT); CASH vs TRANSFER branches
+  correct; concurrent double-pay → exactly one JE; reject→resubmit clean; immutability/RBAC negatives
+  clean 422/403; cross-tenant attachment read = no leak; TB balanced throughout.
+  - **F16 (B2) — HIGH security. Fable-VERIFIED in code.** IDOR on `GET /attachments/{id}/download`
+    (`AttachmentEndpoints.cs:77-80`): it skips the `ParentGuard` that upload (line 51) and LIST
+    (line 69) enforce, so a user with only the broadly-granted `sys.attachment.read` but WITHOUT the
+    parent entity's read perm gets **403 on LIST but 200 + full PDF on download**. Any attachment
+    readable by walking small sequential ids. Within-tenant (RLS blocks cross-company). Fix = call
+    `ParentGuard` (resolve parent from the attachment) in the download handler.
+  - **F14 (B2) — 500-robustness (F1 class).** Attachment upload >~5MB → opaque `internal_error`
+    (5MB→201, 10/24/26MB→500); the advertised 25MB limit is unreachable, no graceful 413. Shared
+    infra → also hits VI/PV/TI uploads.
+  - **F15 (B2) — 500-robustness (F1 class).** Pay TRANSFER with a nonexistent/zero `bankAccountId`
+    → 500; the pay validator only null-checks it, never validates existence/ownership. Rolls back
+    clean (no orphan JE/doc-no).
+  - **F17 (B2) LOW cluster** — MIME spoofable (HTML bytes accepted as application/pdf, no sniffing);
+    attachments add/delete-able on a PAID claim (no audit lock); NO amount cap/approval threshold
+    (a ฿1.07-trillion claim approved with no escalation); no SoD (chief self-create→approve→pay,
+    permission-only per Ham ruling — cash-control weakness worth a note).
+
 ## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
 Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
 
