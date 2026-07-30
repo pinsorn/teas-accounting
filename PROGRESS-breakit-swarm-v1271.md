@@ -160,9 +160,12 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
     PND30 and TB agree with each other; sales-summary is the odd one out.
   - **F9 (A1) — MED (O2b class).** Billing note with BOTH TaxInvoiceIds and manual Lines silently
     drops the linked TI from the total while still referencing it.
-  - **F10 (A1) — HIGH security (verify at fix-arc).** RBAC leak: sales01 is denied direct
-    `POST /tax-invoices` (403) but CAN mint a TI draft via `POST /billing-notes/{id}/create-tax-invoice`
-    (200) — the scope check is missing on the billing-note→TI route.
+  - **F10 (A1) — MED security (A1 filed HIGH; Fable downgraded after code verify).** Scope-crossing
+    side route: `BillingNoteEndpoints.cs:55-57` guards `POST /billing-notes/{id}/create-tax-invoice`
+    with the **billing-note** `managePol`, NOT the tax-invoice create scope — so sales01 (403 on direct
+    `POST /tax-invoices`) mints a TI via the side door (200). Real scope-boundary break; downgraded to
+    MED because it yields a DRAFT only (no doc number consumed, no ledger movement, not yet a legal
+    tax document). Fix = require BOTH scopes on that route.
   - A1 LOW: per-line VAT rounding +0.01; zero-total TI accepted; zero-value billing note accepted.
   - A1 PASS: happy path ties (2,500/175/2,675); over-receipt→422; posted-TI edit/delete→405;
     receive-draft→422; VAT7+rate0 injection normalized; mixed 0%/7% correct; concurrent TI posts unique.
@@ -248,7 +251,7 @@ Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1
 6. [ ] Consolidate → VERDICT-breakit-v1271.md → Ham decides fix arc.
 
 ## RUNNING VERDICT (after Waves A+B, 7/17 agents)
-**2 CRIT · 4 HIGH · 4 MED · ~8 LOW. Zero data corruption, zero cross-tenant leak so far; TB Dr=Cr held
+**2 CRIT · 3 HIGH · 7 MED · ~8 LOW. Zero data corruption, zero cross-tenant leak so far; TB Dr=Cr held
 in every posted scenario.** The bugs are control-gap + robustness, not money-math — the arithmetic ties.
 - CRIT F2 — ภ.พ.36 double-counts reverse-charge VAT → over-remits to RD on finalize.
 - CRIT F18 — payroll post/pay is the one posting path with NO period-close guard → immutable JE into a
