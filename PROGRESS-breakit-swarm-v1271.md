@@ -128,6 +128,17 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
 - A3 PASS: v1.22.11 VI-linked-PV guard HOLDS (JE 229 balanced, WHT 3,529.41 ref); ภ.ง.ด.54 does
   NOT double-count (1 cert/PV); empty period clean; posted VI/PV immutable; non-THB clean 400.
 
+- **A2 (purchase co5) — PASS, no CRIT/HIGH.** Chain money-correct end-to-end (input VAT→1170,
+  WHT→2152, vendor net = gross−WHT, AP→0), immutability 6/6 clean, parallel numbering no 23505.
+  - **F4 LOW** — VI can over-bill a PO to ~200% and post with only an advisory chip; no hard block
+    or approval gate on >105% over-receipt (loose matching by design, but the control is non-binding).
+  - **F5 LOW** — `/reports/trial-balance` defaults as-of to `UtcNow`; `/reports/ap-aging` defaults to
+    Bangkok-today → between 00:00–07:00 Bangkok the two disagree by a full day (phantom AP gap;
+    gone with explicit `?asOfDate=`). TB also silently ignores an unknown query param (no 400).
+  - INFO: one-PV-settling-many-VIs is NOT supported by the API (single `VendorInvoiceId`) → A2's
+    "PV settling 2 VIs" attack N/A. PV SoD is permission-based (no hard creator≠approver), per prior
+    Ham decision.
+
 ## Next (resume here)
 1. [x] Quota window reset (0%).
 2. [ ] Pull the 10 co5 creds + co7 creds (nvadmin02/nvchief02) into the dispatch prompts.
