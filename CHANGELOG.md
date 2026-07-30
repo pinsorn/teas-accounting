@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.0](https://github.com/pinsorn/teas-accounting/compare/v1.26.1...v1.27.0) (2026-07-30)
+
+
+### Features
+
+* **mcp:** create_manual_journal_draft — agents draft manual JVs, humans post ([10a8814](https://github.com/pinsorn/teas-accounting/commit/10a8814ee0ba24dbb45dbd9e12ec5311d3e5a6b2))
+
 ## [1.26.1](https://github.com/pinsorn/teas-accounting/compare/v1.26.0...v1.26.1) (2026-07-29)
 
 
