@@ -282,9 +282,53 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
   - **F26 (C2) INFO** — no server-side logout/token revocation (stateless JWT, no `/auth/logout`);
     a captured token stays valid to expiry. Mitigated by httpOnly + short TTL + absolute session cap.
 
+- **D1 (PDF/printed docs co5) — 1 CRIT + 3 HIGH. Biggest single haul.** NOT yet Fable-code-verified
+  (quota cliff hit at 94% right after D1 landed) — verify these FIRST on resume.
+  - **F27 (D1) — CRIT compliance filing. VERIFY FIRST.** ภ.ง.ด.1 + ภ.ง.ด.1ก print the summary totals
+    onto **row 5 = ม.40(2) ผู้รับเงินได้มิได้เป็นผู้อยู่ในประเทศไทย** while the **"6. รวม" row prints
+    blank** → the RD return declares the entire payroll as NON-RESIDENT income. Values correct,
+    placement wrong. `Pnd1FormFiller.cs:98-105`, `Pnd1aFormFiller.cs:66-67` → `Text2.18/19/20`.
+    Corroborating signal: that field map carries its own "Ham visual-validation pending" note, i.e.
+    this area was known-unvalidated. (File lives at `backend/src/Accounting.Infrastructure/Pdf/`.)
+  - **F28 (D1) — HIGH.** A **VOIDED** payment voucher prints "ต้นฉบับ" with the approver's name in the
+    signature box and NO ยกเลิก mark; a **DRAFT** PV also prints "ต้นฉบับ". Cause:
+    `PaymentVoucherService.Read.cs:238` hard-codes the watermark instead of calling
+    `PaperDocConfig.Watermark` (which already maps Voided→ยกเลิก); `PurchaseOrderService.cs:325` same.
+    Every other doctype does it right.
+  - **F6 INDEPENDENTLY CONFIRMED by D1** — two POSTED credit notes (noteId 1 and 5) both PRINT
+    `07-2026-CN-0001`, referencing different original tax invoices. A duplicate legal number on a
+    ม.86/10 VAT document, now proven on the printed artifact, not just in the API.
+  - **F29 (D1) — HIGH.** Payslip YTD contradicts 50ทวิ and ภ.ง.ด.1ก for the same employee/year
+    (1,040,000.00 / 88,900.00 vs 560,000.00 / 52,450.00; ground truth 560,000). YTD is frozen at
+    run-creation (`PayrollRunService.cs:134`) and never recomputed, so it survives deleted/back-dated
+    runs — June shows a LARGER YTD than July.
+  - **F30 (D1) — MED-HIGH.** Line numbers ≥10 wrap vertically ("10" renders as "1" over "0", proven
+    from the content stream at y=2171.85/2182.20) on **every** document template → hits any invoice
+    with 10+ lines.
+  - **F31 (D1) — MED.** Financial statements print CE years on a doc labelled "แนบประกอบการยื่น ภ.ง.ด.50".
+  - **F32 (D1) — MED.** No PDF at all for JV or expense claim.
+  - D1 CLEAN: zero 500s across 22 error probes · zero Bengali `ম` · sales01 correctly 403s on 19/26 PDF
+    routes · `/public/pdf` 404s without a token · pagination + `?copy=true` correct · all 21 trade-doc
+    totals tie to the API · สปส.1-10 is genuine TIS-620 · ภ.พ.36 404 confirmed (F3).
+  - Untestable on co5: signature/stamp IMAGES (`stampUrl: null`, no signature attachments) — needs a
+    company with those uploaded. Artifact left on prod: draft quotation id 37 (32 Thai lines), unposted.
+
 ## WAVE B COMPLETE (3/3).
 ## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
 Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
+
+## ⏸ CHECKPOINT 2026-07-31 ~01:5x — quota hit 94% (block 95). 12/17 agents done.
+Resume order when the window resets (~03:40 GMT+7, epoch 1785448800):
+1. **VERIFY IN CODE FIRST (not yet done):** F27 (ภ.ง.ด.1 totals on the non-resident row — CRIT),
+   F28 (hard-coded watermark), F29 (frozen payslip YTD). Everything else listed above is
+   already Fable-code-verified.
+2. **Then dispatch the 3 remaining co5 agents:** C1 (period/immutability — run ALONE, it mutates
+   period state) · D3 (exports: formula injection / TIS-620 / huge ranges) · optionally re-run a
+   signature/stamp check on a company that HAS stamp+signature uploaded (co5 has neither).
+3. **co7 non-VAT (A4/B3/B5) — still blocked on the password.** If Ham supplies it, these 3 are the
+   last real coverage gap (non-VAT purity, expense 1170 guard, payroll edge).
+4. **Then write `VERDICT-breakit-v1271.md`** — consolidate all findings, group by fix-arc theme, hand
+   to Ham for the fix-round decision. Do NOT start fixing without Ham's go.
 
 ## Next (resume here)
 1. [x] Quota window reset (0%). Wave A done.
