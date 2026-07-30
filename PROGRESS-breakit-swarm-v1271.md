@@ -217,6 +217,23 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
     (Dr 5400+5410 = Cr 2153+2160+2170); pay clears 2170; ภ.ง.ด.1 PIT = 2153 movement; สปส.1-10 + 50ทวิ tie;
     all guards hold (deduction>net/negative/zero/dup/ghost → 400; posted immutable → 422; dup-period 422).
 
+- **C3 (MCP surface) — NO CRIT. The agents-draft/humans-post split HOLDS behaviourally.**
+  No posting/approve tool exists (fake names → clean `-32602`); cross-company blocked (no `companyId`
+  field, foreign account → not found); every gate-bypass payload rejected/neutralized with **zero 500**
+  (docDate is server-pinned to today, which kills the closed-period + future-date classes outright);
+  malformed/missing/revoked/no-scope keys → clean 401. 5 drafts JV-277..281 left DRAFT, GL unmoved.
+  - **F20 (C3) — MED (Fable adjudication; C3 proposed LOW). Fable-VERIFIED in code.** The mcp `.post`
+    guard is a **denylist**: `EnforceMcpNoPostGuard` (ApiKeyService.cs:153-163) tests
+    `s.Trim().EndsWith(suffix)`. .NET `Trim()` does NOT strip U+200B (not whitespace), so minting with
+    `gl.journal.post​` returns **201 with a kind=mcp key carrying a `.post`-suffixed scope**.
+    No live exploit (PermissionHandler matches exact-ordinal, no MCP tool consumes `.post`) — raised to
+    MED because it breaches the invariant the entire draft/post safety model rests on, and the correct
+    **allowlist already exists and is already used on the OAuth path** (`McpScopes.Normalize`,
+    OAuthEndpoints.cs:125) but is not called at mint. Fix = call Normalize at mint (one line).
+  - **F21 (C3) — MED.** `/mcp` X-Api-Key auth is **kind-agnostic**: an `integration` key carrying
+    `gl.journal.post` authenticates at `/mcp`. The split holds only because no MCP tool consumes
+    `.post` — behavioural, not structural. Fix = pin `/mcp` to `kind == mcp`.
+
 ## WAVE B COMPLETE (3/3).
 ## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
 Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
