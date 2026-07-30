@@ -139,8 +139,35 @@ expected vs actual, severity. **No fixes, no commits** — evidence only.
     "PV settling 2 VIs" attack N/A. PV SoD is permission-based (no hard creator≠approver), per prior
     Ham decision.
 
+- **A1 (sales co5) — no 500, no Dr≠Cr, no cross-tenant; TB held 514,505.64 through every attack.**
+  - **F6 (A1) — HIGH compliance. Fable-VERIFIED structural cause.** Duplicate running numbers on
+    posted tax documents: 4 duplicate TI numbers (TI-0001..4 each ×2) + **live-reproduced** a
+    duplicate ใบลดหนี้ (`07-2026-CN-0001` posted identical to an existing posted CN). Cause: the
+    TI/CN/RC unique index is `(CompanyId, BranchId, DocNo)` (TaxInvoiceConfiguration.cs:99,
+    TaxAdjustmentNoteConfiguration.cs:62, ReceiptConfiguration.cs:66) but the number allocator
+    sequences per (company,type) ignoring branch → docs on a different/NULL branch reuse the same
+    visible running number and the DB accepts them. RD requires unique tax-doc numbers. Fix-arc Q:
+    branch-aware allocator OR company-wide unique index OR branch segment in the number.
+  - **F7 (A1) — MED.** `/reports/number-gaps` reports `hasGaps:false` for the same period — it only
+    detects MISSING numbers, never REUSED ones → false "compliant" on a compliance control (masks F6).
+  - **F8 (A1) — MED.** Three-way tie FAILS: `sales-summary` sums only posted TaxInvoiceLines and
+    EXCLUDES CN/DN → disagrees with ภ.พ.30/TB by exactly the credit-note total (+2,000 net/+140 VAT).
+    PND30 and TB agree with each other; sales-summary is the odd one out.
+  - **F9 (A1) — MED (O2b class).** Billing note with BOTH TaxInvoiceIds and manual Lines silently
+    drops the linked TI from the total while still referencing it.
+  - **F10 (A1) — HIGH security (verify at fix-arc).** RBAC leak: sales01 is denied direct
+    `POST /tax-invoices` (403) but CAN mint a TI draft via `POST /billing-notes/{id}/create-tax-invoice`
+    (200) — the scope check is missing on the billing-note→TI route.
+  - A1 LOW: per-line VAT rounding +0.01; zero-total TI accepted; zero-value billing note accepted.
+  - A1 PASS: happy path ties (2,500/175/2,675); over-receipt→422; posted-TI edit/delete→405;
+    receive-draft→422; VAT7+rate0 injection normalized; mixed 0%/7% correct; concurrent TI posts unique.
+
+## WAVE A COMPLETE (4/4). Tally: 1 CRIT (F2) · 3 HIGH (F1, F6, F10) · 4 MED (F3, F7, F8, F9) · 3 LOW.
+Fable-verified in code: F2 (PND36 no-dedup), F6 (branch-scoped unique index). F1/F10 verify at fix-arc.
+
 ## Next (resume here)
-1. [x] Quota window reset (0%).
+1. [x] Quota window reset (0%). Wave A done.
+2. [ ] Launch Wave B co5-runnable: B1 approval/SoD · B2 expense-claims · B4 payroll. (B3/B5 need co7 pw.)
 2. [ ] Pull the 10 co5 creds + co7 creds (nvadmin02/nvchief02) into the dispatch prompts.
 3. [ ] Dispatch **Wave A** (5 agents, one message — distinct companies/doc-types, all API-driven).
 4. [ ] **Wave B** (5) after A reports.
