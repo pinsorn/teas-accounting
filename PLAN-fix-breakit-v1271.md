@@ -1,5 +1,53 @@
 # PLAN — fix round for the break-it swarm findings (v1.27.1)
 
+## ⏸ STATE AS OF 2026-07-31 ~06:0x — PAUSED AT HAM'S 85% RULE, NOTHING IN FLIGHT
+
+| Stage | Status |
+|---|---|
+| Break-it swarm (17 agents) | ✅ complete — `VERDICT-breakit-v1271.md`, evidence in `swarm-findings/breakit-v1271/` |
+| Ham's 4 decisions | ✅ recorded below |
+| Repttown non-VAT | ✅ confirmed by Ham → C6 backfill required on real books |
+| **R1 design spec** | ✅ `specs/fix-breakit-r1-ledger-integrity.md` — Opus-designed, **Fable-reviewed APPROVED** |
+| R1 implementation | ⬜ **not started** — deliberately deferred, see below |
+| R2 / R3 / R4 design | ⬜ not started |
+| co5/co7 wipe+reseed | ⬜ not started (now MANDATORY — see the C1 consequence) |
+
+**Why paused:** 7-day quota 83% against Ham's hard stop at 85% (2026-07-31: stop completely, no Codex/AGY
+fallback, not urgent, write everything down). R1 is ~40 source files across 5 work packages — starting it
+now would strand it mid-flight. Nothing is running; no worker is warm; the tree is clean.
+
+### Resume order (a fresh session can follow this without re-planning)
+1. Read `VERDICT-breakit-v1271.md` §CRITICAL, then `specs/fix-breakit-r1-ledger-integrity.md`
+   (it is approved — do **not** re-design it).
+2. Answer the 5 open decisions below if Ham has replied; **WP-2 (the Repttown backfill) cannot be applied
+   without decisions 3 and 4.** WP-1/3/4/5 need none of them and can start immediately.
+3. Dispatch in the spec's stated order: **WP-1 → WP-2 (same warm worker) ; WP-3 → WP-4 → WP-5**
+   (WP-3/4/5 share files, so that order is mandatory; only one worker may run the test suite at a time).
+4. Per the spec's §10: ship WP-1/3/4/5 + WP-2's *code* as the release; run the Repttown `apply` afterwards
+   as a separately authorised prod operation, never inside a code-release gate.
+5. After R1 ships: wipe+reseed co5/co7, then design R2.
+
+### 🔴 5 decisions waiting on Ham (nothing is blocked on them except WP-2's apply)
+Two are tax questions, three are product questions. None were decided silently.
+
+1. **Prior-year revenue on Repttown vs an already-filed ภ.ง.ด.50 (TAX).** The backfill moves revenue to
+   its true issue date. Where that crosses a fiscal-year boundary, it changes a year already filed. The
+   preview endpoint reports the exact figure per year (`byFiscalYear[].revenueDelta`) — so this can be
+   answered with a number in hand, before anything is written. Options: amend the filing · absorb the
+   movement in the current year · leave prior years untouched and backfill from a cutoff date.
+2. **A correction that lands inside a closed fiscal year (TAX/process).** The spec hard-stops rather than
+   guessing. Decide: reopen the year, or shift those corrections to the current open period with a note.
+3. **Receipt against an already-invoiced delivery order (PRODUCT).** Must be refused to stop
+   double-counting revenue (`rc.do_already_invoiced`); the wording and the UX around the refusal is a
+   product call, not the implementer's.
+4. **Payroll `PayDate <= Bangkok-today` bound (PRODUCT).** Stops the 2099 case, but also blocks posting a
+   run *before* payday, which some businesses do. The looser alternative is one line.
+5. **PV/VI carry the identical C5 account-type hole, deliberately deferred (PRODUCT).** A payment voucher
+   legitimately debits non-expense accounts (asset purchase, loan repayment), so the allowed account set
+   has to be defined by Ham before it can be pinned. C1's precision guard still protects the ledger
+   meanwhile. Needs a `troubles-wiki.md` entry at diff review or it will be rediscovered.
+
+
 Source of truth for findings: `VERDICT-breakit-v1271.md` · raw evidence: `swarm-findings/breakit-v1271/` (17 files).
 ~48 findings → **4 themed releases**. Nothing is descoped; LOWs land in R4.
 
