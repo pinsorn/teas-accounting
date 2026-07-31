@@ -16,7 +16,32 @@ to the RD) and **C4** (ภ.ง.ด.1 totals on the ม.40(2) non-resident row). 
 defects. R1 is designed to carry everything that writes bad data into the **immutable ledger**, which is the
 only class that gets worse with time. **If a filing deadline lands before R2 ships, say so and C2/C4 move to R1.**
 
-### ⚠️ C6 is almost certainly LIVE ON REAL BOOKS — Ham to confirm in one word
+### 🔴 CONFIRMED BY HAM (2026-07-31): Repttown IS non-VAT — C6 is live on REAL books
+This is now the most serious item in the round. A real operating company's ledger has **no accounts
+receivable at all**, recognises revenue only when cash arrives, while its purchases accrue normally — the
+books run on two different bases, and any ภ.ง.ด.50 filed off them understates revenue by the invoices
+issued-but-unpaid at period end.
+
+**C6 becomes work package 1 of R1, and a backfill migration is REQUIRED, not optional.** The backfill is
+the hard half, and it is prod-data surgery on a real tenant:
+- Historical JEs are immutable — corrections must be new postings, never edits.
+- Past receipts on that company **already recognised revenue at receipt**, so naively posting
+  Dr AR / Cr Revenue at each invoice's issue date would **double-count**. Total revenue per sale must
+  come out unchanged.
+- Affected periods are largely **CLOSED**, and reopening inside a closed fiscal year is refused (and a
+  year-close deadlock exists, H10). Where the correcting entries land is a design decision with tax
+  consequences.
+- **If a correction moves revenue across a fiscal-year boundary it touches a year whose ภ.ง.ด.50 was
+  already filed → that is a tax decision for Ham, not an engineering one.** The spec must separate the
+  cases that can be corrected silently from those needing an amended filing.
+- Requires: DB backup, a dry-run report listing what WOULD post before anything is written, per-company scoping.
+
+Invariant for the whole work package: **total revenue recognised for any given sale is unchanged; AR clears
+exactly; Dr=Cr on every correcting entry; cash never moves.**
+
+Reseeding co5/co7 (decision 4) does **not** touch this — Repttown is real data.
+
+<details><summary>Original open question (now answered) — kept for the record</summary>
 I went looking for whether any real tenant runs non-VAT. **Two independent documents say Repttown does:**
 - `HANDOFF-untested-army.md:9-10` — "**NO non-VAT dummy company exists yet** — create one first (Step 0) so
   non-VAT tests **don't touch Repttown**." (i.e. Repttown was the only non-VAT company available to test on)
@@ -38,6 +63,7 @@ Consequences if confirmed:
 - Reseeding co5/co7 (decision 4) does **not** clean this up — Repttown is untouchable real data.
 
 If Repttown is in fact VAT-registered, none of the above applies and C6 stays a forward-only fix.
+</details>
 
 ---
 
@@ -102,6 +128,13 @@ Footgun tier: compliance → Opus design for C2/C4, Sonnet implements, Opus revi
    regressed. The 17 dispatch briefs are reusable as-is.
 3. Correct the stale notes in `STATUS.md`: O8 proration is FIXED; co7's `???` names are a client-side
    artifact, not a server bug.
+
+## Quota rule for this whole fix round (Ham, 2026-07-31)
+**7-day pool ≥85% → STOP completely. Do NOT fall back to Codex or AGY.** Not urgent — the instruction is
+"บันทึกทุกอย่างเอาไว้": write the state down and pause. At the stop point, leave behind (a) this plan with
+every work package marked done / in-flight / not-started, (b) any spec files produced so far, (c) a resume order,
+(d) a checkpoint commit. The 5-hour window rule is unchanged: checkpoint + ScheduleWakeup and continue the
+same day.
 
 ## Standing rules for every dispatch in this plan
 - Workers never `git commit`. Fable runs the consolidated gate and reads the full diff before each commit.

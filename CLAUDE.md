@@ -234,9 +234,15 @@ makes Fable worse, not better):
   reset, then resume from the checkpoint. Resume = read PROGRESS + spec
   checklists, never re-plan from scratch. 85% → stop new Claude-worker dispatches (Codex/AGY,
   separate pools, still allowed).
-- Quota arbitrage: Claude pool high → implementation to Codex, digest/
-  research/drafting to AGY. Footgun work goes to Codex — never downgraded
-  to a cheaper Claude model.
+- **7-day pool ≥85% → STOP. Do not fall back to Codex/AGY** (Ham, 2026-07-31:
+  "ถ้า Weekly Limit ถึง 85 ไม่ต้องใช้ Codex หยุดเลยได้ ไม่รีบ แค่บันทึกทุกอย่างเอาไว้").
+  Write everything down — PROGRESS + specs + a resume order — checkpoint-commit,
+  then pause. This OVERRIDES the quota-arbitrage rule below for the 7-day pool:
+  work continuing on a different pool is not worth the loss of a single reviewed
+  context. The 5-hour rule is unchanged (checkpoint + ScheduleWakeup, resume same day).
+- Quota arbitrage (5-hour pressure only, 7-day still under 85%): Claude pool high →
+  implementation to Codex, digest/research/drafting to AGY. Footgun work goes to
+  Codex — never downgraded to a cheaper Claude model.
 - Fable's context stays lean: summaries and diffs only; workers/AGY digest
   raw material.
 
