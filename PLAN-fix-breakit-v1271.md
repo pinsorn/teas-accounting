@@ -16,12 +16,28 @@ to the RD) and **C4** (ภ.ง.ด.1 totals on the ม.40(2) non-resident row). 
 defects. R1 is designed to carry everything that writes bad data into the **immutable ledger**, which is the
 only class that gets worse with time. **If a filing deadline lands before R2 ships, say so and C2/C4 move to R1.**
 
-### Open question created by decision 1 — must be answered before R1 implementation
-C6 posts AR at invoice-issue **from now on**. Existing issued-unpaid invoices have no journal entry.
-- For co5/co7 this is moot — they get wiped (decision 4).
-- **For any REAL non-VAT tenant it is not moot**: their historical invoices would stay unaccrued while new
-  ones accrue, leaving the books on two different bases. **Action: confirm whether any real tenant runs
-  non-VAT before R1 implementation.** If yes, R1 gains a backfill migration; if no, nothing to do.
+### ⚠️ C6 is almost certainly LIVE ON REAL BOOKS — Ham to confirm in one word
+I went looking for whether any real tenant runs non-VAT. **Two independent documents say Repttown does:**
+- `HANDOFF-untested-army.md:9-10` — "**NO non-VAT dummy company exists yet** — create one first (Step 0) so
+  non-VAT tests **don't touch Repttown**." (i.e. Repttown was the only non-VAT company available to test on)
+- `PROGRESS-vat-dummy-test.md:6` — "ก่อนหน้านี้เทสแค่ **non-VAT/Repttown**"
+
+If that holds, C6 is not a dummy-company gap: **a real company's books currently have no accounts receivable
+at all, and recognise revenue only when cash arrives** — while its purchases accrue normally. Its P&L and
+balance sheet are on two different bases, and any ภ.ง.ด.50 filed off them understates revenue for invoices
+issued-but-unpaid at period end.
+
+**Ham: confirm whether Repttown (co2/co3) is non-VAT.** I did not query the prod database to settle it —
+one word from you is cheaper and safer than me touching real data.
+
+Consequences if confirmed:
+- **R1 gains a backfill migration** (post the missing AR/revenue for historical issued-unpaid invoices),
+  which is schema-and-money work — Opus design, not a side task.
+- The severity ordering changes: C6 stops being "a company type is incomplete" and becomes "real financial
+  statements are wrong right now", which would justify pulling it ahead of everything else in R1.
+- Reseeding co5/co7 (decision 4) does **not** clean this up — Repttown is untouchable real data.
+
+If Repttown is in fact VAT-registered, none of the above applies and C6 stays a forward-only fix.
 
 ---
 
