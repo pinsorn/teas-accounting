@@ -40,8 +40,21 @@ decimal would be STORED and would make ΣDr==ΣCr pass on invisible satang. Reje
 The bug class was known, documented, fixed on one path, and left open on the path v1.27.0 then handed to
 autonomous agents. `PostAsync`/`MarkPosted` check only the header total, never per-line precision.
 
-*Fix:* port the rule to `CreateJournalValidator` **and** add a post-time guard (validators can be bypassed
-by any future path). Then decide what to do about co5's already-skewed ledger.
+**This is systemic, not one missing rule.** By the end of the round, **three independent paths** were proven
+to write >2-decimal money into the ledger:
+- the journal draft path and MCP (above) — co5 TB `822801.785`;
+- **expense claims** — `BuildLinesAsync` rounds to **4** decimals (ExpenseClaimService.cs:100), posting
+  `Dr 100.005` (co7 JE 295);
+- **payroll** — a deduction of `100.129` accepted with no validation at all, landing in the GL, the bank
+  and the TB (co7: 2170 = 145,165.951, 2180 = 100.129, bank 1120 = −49,554.951) **while the payslip PDF
+  prints 100.13 / 14,149.87 — so the payslip no longer foots to its own journal entry.**
+
+There is no money-precision invariant in this system. There is one 2-decimal rule, in one validator, and
+every other path predates or bypasses it.
+
+*Fix:* not "port the rule" — put the guard at the **posting seam** every path funnels through, so no future
+path can reintroduce it, and have the validators fail fast on top. Then decide what to do about the
+already-skewed ledgers on co5 and co7.
 
 ### C2 · ภ.พ.36 double-counts reverse-charge VAT — over-remits to the RD [verified]
 `WhtFilingService.GeneratePnd36Async` (WhtFilingService.cs:257-266) does `viRows.Concat(pvRows)` with **no
@@ -69,6 +82,16 @@ This defeats the point of closing a month: a closed period can still be moved af
 **Scope of this gap is now settled.** Agent C1 swept every GL-writing endpoint — TI, RC, CN, DN, VI, PV, JV,
 expense claim, fixed-asset dispose/write-off/depreciation, bank-rec — and **all of them correctly refuse a
 closed period. Payroll is the only one.** Every immutability attack also failed cleanly (405/422).
+
+**Reproduced on a second company** (co7: immutable JEs 298/300 into explicitly-closed June 2026, HTTP 204
+where 422 was due) — so this is the product, not one company's state. It is also **unbounded into the
+future**: period `209912` with payDate 2099-12-31 was created, approved and posted, leaving a permanent
+**JE `12-2099-JV-0001` dated 2099-12-31**.
+
+⚠️ **Implementation warning for whoever fixes this — adding the guard alone will brick payroll.** co7's only
+open period already holds a run, and the duplicate-period guard is permanent, so *today the missing guard is
+the only reason payroll runs at all on that company*. The fix has to ship together with a way to open the
+period you actually need (or reopen/redo a run), or the first customer to hit it cannot run payroll at all.
 
 ### C4 · ภ.ง.ด.1 and ภ.ง.ด.1ก print the totals on the wrong row
 The summary totals are stamped onto **row 5 — ม.40(2) ผู้รับเงินได้มิได้เป็นผู้อยู่ในประเทศไทย** while the
@@ -122,11 +145,13 @@ category-create time, where the poison enters.
 | H3 | **Conversion routes check the wrong scope — systemic** [verified] — every "create-from / convert" route authorizes on the **source** document's manage scope and never on the **target** document's create scope: `billing-notes/{id}/create-tax-invoice` and `delivery-orders/{id}/create-ti` both mint a **ใบกำกับภาษี** off billing-note / delivery-order permissions; `sales-orders/{id}/create-invoice`, `delivery-orders/{id}/create-invoice`, `quotations/{id}/convert-to-so` follow the same pattern. Net effect: a user holding only delivery-order manage can mint a tax invoice, though direct `POST /tax-invoices` returns 403 for them. Drafts only — no ledger movement, no number consumed — which is why this is HIGH, not CRITICAL. Two agents each found one instance; the pattern only appeared when both were read together. | A1, C2 |
 | H4 | **Attachment download skips its permission guard** [verified] — `GET /attachments/{id}/download` (AttachmentEndpoints.cs:77-80) omits the `ParentGuard` that upload (line 51) and list (line 69) enforce. A user with only the broadly-granted `sys.attachment.read` gets **403 on the list but 200 and the full PDF on download**, walking sequential ids. Company scope is *not* bypassed (confirmed: cross-company ids all 404), so this is intra-tenant. | B2, C2 |
 | H5 | **A voided payment voucher prints as "ต้นฉบับ"** [verified] with the approver's name in the signature box and no ยกเลิก mark; a draft PV prints "ต้นฉบับ" too. `PaymentVoucherService.Read.cs:238` hard-codes the watermark instead of calling `PaperDocConfig.Watermark`, whose line 52 already maps a cancelled status to "ยกเลิก". `PurchaseOrderService.cs:325` repeats the mistake. Every other doctype does it correctly. | D1 |
+| H13 | **Official RD filings generate from an unapproved, unposted DRAFT payroll run** — ภ.ง.ด.1, the สปส.1-10 upload file and PDF, and payslips all rendered from a run with `journalId: null`: a signable return declaring ฿1,103.02 of PIT **with zero ledger backing**. The agent then deleted the run behind it, leaving the artifact with nothing to tie back to. A filing artifact should only ever come from posted data. | B5 |
 | H10 | **A fiscal year can become impossible to close — a three-way deadlock** [live-proved, zero writes] — closing a period requires a depreciation run; the depreciation run requires the period OPEN; reopening requires it CLOSED. All three refuse each other. **co5's FY2026 can now never be year-closed**; on a real tenant with fixed assets this is recoverable only by editing the database. Read together with the standing O14 limitation (a closed month cannot be reopened inside a closed year — the reason co6 is frozen until 2027), period management has two traps that need a human to escape. Treat as CRITICAL for any real tenant approaching year-end with fixed assets. | C1 |
 | H11 | **Reopening a period is unauditable — and that enables silent back-dating** — the activity row is written against `AccountingPeriod` but **no API route reads it**, and reopening NULLs `ClosedAt`/`ClosedBy`/`CloseNotes`. C1 closed June, reopened it, back-dated two journal entries into it, and re-closed — **all in 27 seconds, with no readable surface anywhere showing June was ever reopened.** For an accounting system this defeats the point of the audit trail. | C1 |
 | H12 | **Trial Balance / Balance Sheet default their as-of to UTC while AR/AP aging use Bangkok** — at 05:30 ICT the same defaults produced AP control **46,803.50 on ap-aging (`balanced:true`) versus 36,103.50 on the Trial Balance**, a ฿10,700 gap, with the whole TB omitting ฿162,124.765 of the current Bangkok day. Every day between 00:00 and 07:00 the two reports disagree. (Filed LOW earlier in the round on a phantom-gap sighting; C1's live measurement upgrades it — two reports that must agree, don't.) | A2, C1 |
 | H7 | **AR and AP aging ignore `asOf` entirely** [verified] — `ArAgingAsync` (SubledgerReportService.cs, ~line 173) filters only `Status == Posted && PaymentStatus != "PAID"` with **no `DocDate <= asOf`**, and computes `TotalAmount - AmountPaid` from the *current* paid figure. `asOf` moves the aging buckets and nothing else. Proven: `ar-aging/export?asOf=` for 1900-01-01, 2020-01-01 and 2026-06-30 all return **byte-identical CSV** (md5 `1d0f75e9…`, ฿19,979.31) although control account 1130 provably held ฿0.00 with zero rows through 2026-06-30. Hits the backend CSV and the FE AP CSV. **This is the report an auditor pulls for a prior year-end.** The correct pattern sits a few lines above in the same file — the reconciliation query does filter `m.DocDate <= asOf`. | D3 |
 | H8 | **Every สปส.1-10 SSO upload file ships employer account `0000000000`** — all 5 payroll runs, HTTP 200, no warning; `ssoEmployerAccountNo` is null on co5 and optional in the validator with no export-side guard. The sibling ภ.พ.30 exporter *does* refuse on a missing mandatory field (`pp30_batch.missing_address`, verified live) — SSO does not. The user discovers this at the government portal. | D3 |
+| H9-note | **The `?????` mechanism is now proven, and one standing assumption is REFUTED** — B5 showed a CJK/Bengali character in a name becomes a literal `?` in the สปส.1-10 file and is **silently dropped** from the ภ.ง.ด.1 ใบแนบ. But co7's legacy `???` employee names are **client-side, not a server bug** — Thai round-trips byte-perfect through the API. The standing note blaming an old PowerShell API write should be corrected. | B5 |
 | H9 | **SSO files ship `?????????????` as insured-person names** (runs 13 & 15: 37 and 19 `?` bytes) — the root data is the known one-byte-per-char corruption class, now on co5 and already inside POSTED runs. Two export-layer defects compound it: `Encoding.GetEncoding(874).GetBytes` uses the default replacement fallback, so **any** non-cp874 character (including the Bengali MA at U+09AE this project greps for) silently becomes `?`; and nothing validates a payee name before it goes into a government filing. | D3 |
 | H6 | **Payslip YTD contradicts the 50ทวิ and ภ.ง.ด.1ก** for the same employee and year — 1,040,000.00 / 88,900.00 versus 560,000.00 / 52,450.00, where 560,000 is ground truth. YTD is frozen at run creation (`PayrollRunService.cs:134`) and never recomputed, so it survives deleted and back-dated runs; June shows a larger YTD than July. | D1 |
 
