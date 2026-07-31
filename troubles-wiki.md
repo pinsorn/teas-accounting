@@ -995,3 +995,28 @@ Seen: 2026-07-25, WP-E2 (`specs/fix-army-findings-2026-07-22.md`) — live repro
 - **Fix**: before `gh pr merge`, check the PR TITLE version matches the expected bump for the
   commits being released; if not, wait for the release-please run on the latest commit to
   update the PR first.
+
+## Swarm/test account passwords live in `swarm-findings/*/` — search ALL of it before declaring "creds lost"
+**Symptom:** a dispatch needs a prod test account (co5 UX-swarm roles, co6/co7 non-VAT users) and no
+password is findable, so the work gets declared blocked and parked for a human.
+
+**Root cause:** the scripts that created/used these accounts delete themselves after a run (the army
+legs' own hard rules), so the credentials survive only as prose inside whichever findings report
+happened to quote them. They are scattered across sibling directories — `swarm-findings/army/`,
+`swarm-findings/round3..5/`, `swarm-findings/v1241/`, `swarm-findings/breakit-v1271/` — and a search
+of only one or two of those comes up empty and looks authoritative.
+
+**Fix / what to do:** grep the WHOLE `swarm-findings/` tree (plus `specs/`) before concluding anything
+is lost. On 2026-07-31 a co7 blocker that stalled 4 agents was resolved in ~2 minutes this way: the
+creds were in `swarm-findings/v1241/legF-jv-prod.md:4` all along; the first sweep had covered
+`army/` + `specs/` and skipped `v1241/`.
+
+**The conventions (verified live against prod 2026-07-31):**
+- co5 UX-swarm roles: `UxSwarm-2026-<SLOT>` where SLOT is the **agent-slot code, not the role name** —
+  sales01=A1 · acct01=A2 · appr01=A3 · ap01=A4 · ar01=A5 · audit01=A6 · chief01=A7 · admin01=A8 ·
+  purch01=A9 · tax01=B1. (`UxSwarm-2026-chief` is WRONG and 401s — this cost 3 agents a retry.)
+- co6/co7 non-VAT users: `UxSwarm-2026-NV<n>` — **nvadmin02=NV4 · nvchief02=NV5**.
+- Seeded admin (local/dev): `admin` / `Admin@1234` (per `130_seed_admin_and_customer.sql`).
+
+**Prevention:** a dispatch that mints or uses a test account should state the credential convention in
+its own findings report, so the next round finds it by grep instead of by archaeology.
