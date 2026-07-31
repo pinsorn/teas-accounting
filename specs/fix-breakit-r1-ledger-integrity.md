@@ -1061,3 +1061,38 @@ is therefore mandatory, not housekeeping.**
 **Not started — implementation is deliberately deferred.** 7-day quota is at 83% against Ham's 85% hard
 stop (no Codex fallback, 2026-07-31). Starting a ~40-file release now would strand it mid-flight. Resume
 order is in `PLAN-fix-breakit-v1271.md`.
+
+---
+
+## ⚠️ WP-2 REDESIGN REQUIRED — Fable, 2026-07-31 (after Thai tax/accounting research)
+
+**Do not implement WP-2 as currently specified.** The design has correcting entries land at their true
+event dates inside closed periods. Research into Thai practice (full findings + citations:
+`specs/research-thai-prior-period-correction.md`) says the opposite is standard: a prior-period error is
+corrected in the **CURRENT open period against opening retained earnings** (กำไรสะสม), with comparatives
+restated for presentation only. Re-posting into a period whose statements are already filed with the DBD
+is done only for very large errors or on DBD demand, and is the signing CPA's call — not ours.
+
+**Replacement design (simpler than what is specced above):**
+
+| Case | Entry |
+|---|---|
+| Sale already settled, any year | **Nothing.** Revenue was recognised at receipt, cash collected, AR is 0 today — the correct present state is already the actual state. Only the timing *within closed years* was wrong, and that is fixed by the amended tax return, not by the ledger. |
+| Invoice unpaid, issued in a **closed** year | `Dr 1130 AR / Cr กำไรสะสม`, dated in the **current open period**. |
+| Invoice unpaid, issued in the **current open** year | `Dr 1130 AR / Cr Revenue`, dated at issue. |
+
+One entry per outstanding invoice. Nothing touches a closed period. This removes the reopen question, the
+closed-fiscal-year hard stop, and any interaction with the year-close deadlock (H10) — and it leaves
+statements already filed with the DBD untouched.
+
+**Invariants change accordingly** — I9's "revenue is unchanged for a settled sale" now holds *trivially*
+(no entry is posted for those at all), and the net effect becomes: `Σ Dr 1130 == Σ outstanding of
+unpaid invoices`, split between Revenue (current year) and Retained Earnings (closed years) on the credit
+side. **The preview must report that split per fiscal year** — those are the exact numbers the company's
+accountant needs for the amended ภ.ง.ด.50, and the current year's return must then back the
+retained-earnings portion out of taxable income so it is not taxed twice.
+
+**Still true and still required:** dry-run/preview before any write · DB backup · per-company scoping ·
+idempotency · no modification of existing journal entries.
+
+Everything else in this spec (WP-1, WP-3, WP-4, WP-5) is unaffected and remains approved as written.

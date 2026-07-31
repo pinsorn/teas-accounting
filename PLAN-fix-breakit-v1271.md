@@ -27,16 +27,55 @@ now would strand it mid-flight. Nothing is running; no worker is warm; the tree 
    as a separately authorised prod operation, never inside a code-release gate.
 5. After R1 ships: wipe+reseed co5/co7, then design R2.
 
-### 🔴 5 decisions waiting on Ham (nothing is blocked on them except WP-2's apply)
-Two are tax questions, three are product questions. None were decided silently.
+### ✅ Decisions 1 & 2 — RESEARCHED (Ham: "ไม่รู้เหมือนกัน ไปหามา", 2026-07-31)
+Full findings with citations: **`specs/research-thai-prior-period-correction.md`** (delegated to agy;
+it is research, not tax advice — every point needs the company's CPA to confirm before filing).
 
-1. **Prior-year revenue on Repttown vs an already-filed ภ.ง.ด.50 (TAX).** The backfill moves revenue to
-   its true issue date. Where that crosses a fiscal-year boundary, it changes a year already filed. The
-   preview endpoint reports the exact figure per year (`byFiscalYear[].revenueDelta`) — so this can be
-   answered with a number in hand, before anything is written. Options: amend the filing · absorb the
-   movement in the current year · leave prior years untouched and backfill from a cutoff date.
-2. **A correction that lands inside a closed fiscal year (TAX/process).** The spec hard-stops rather than
-   guessing. Decide: reopen the year, or shift those corrections to the current open period with a note.
+**The research CONTRADICTS the spec's WP-2 design, which is why it was worth asking.** The spec has
+correcting entries land at their **true event dates**, i.e. inside closed periods. Thai practice is the
+opposite: a prior-period error is corrected in the **CURRENT open period against opening retained
+earnings** (กำไรสะสม), with comparatives restated for presentation only. Reopening a period whose
+financial statements are already with the DBD is done only for very large errors or on DBD demand, and
+is the CPA's call. (TFRS for NPAEs บทที่ 5 / TAS 8 ¶42 require retrospective *restatement*, which is a
+presentation exercise — not re-posting into a locked ledger.)
+
+**This makes WP-2 dramatically simpler — Fable's proposed redesign, for the implementer:**
+- Sale already settled (any year): revenue was recognised at receipt, cash collected, AR is 0 today.
+  **The correct state today is already the actual state → post nothing.** Only the *timing within closed
+  years* was wrong, and that is a tax matter (amended return), not a ledger matter.
+- Invoice unpaid, issued in a **closed** year: `Dr 1130 AR / Cr กำไรสะสม`, dated in the current open period.
+- Invoice unpaid, issued in the **current open** year: `Dr 1130 AR / Cr Revenue`, dated at issue.
+
+One entry per outstanding invoice, nothing touches a closed period, and it sidesteps the year-close
+deadlock (H10), the closed-fiscal-year question entirely, and any change to statements already filed with
+the DBD. **Decision 2 is therefore answered: corrections go in the current open period. Do not reopen.**
+
+**Decision 1 (tax) — the ledger fix does NOT settle the tax side; it is a separate, parallel task:**
+- The mechanism exists: **ภ.ง.ด.50 เพิ่มเติม**, filed per accounting period (e-Filing or the area office).
+- **เงินเพิ่ม 1.5%/เดือน (ม.27) cannot be waived or reduced** — it is statutory, and it is capped at the
+  tax due. **เบี้ยปรับ can be waived to 0%** for a voluntary correction made **before** the RD issues a
+  summons (ท.ป. 81/2542); once an audit starts it is 100% (50% at best if you cooperate). **So filing
+  early is worth real money — the cost grows 1.5% per month either way.**
+- Assessment window: **2 years** from filing (ม.19), extendable to **5** where evasion is suspected;
+  a 10-year civil limitation (ม.193/31) exists beyond that. Practical scope: correct everything within 5 years.
+- **No materiality threshold exists in tax law** — understated revenue is understated revenue.
+- Recognising revenue on cash receipt **is** an incorrect filing: ม.65 + ท.ป. 1/2528 mandate เกณฑ์สิทธิ
+  (accrual). Timing matters even though lifetime revenue is identical, because tax is assessed per
+  12-month period.
+- **Book-to-tax:** once the ledger correction is booked to retained earnings in the current year, the
+  current year's ภ.ง.ด.50 must **back that revenue out**, or it gets taxed twice — it was already taxed
+  via the amended prior-year return.
+
+**What still needs a human, not more research** (agy flagged these itself): negotiating the เบี้ยปรับ
+waiver with the area RD office · whether to re-file the statements with the DBD (materiality — the CPA
+who signed them decides) · anything older than 5 years.
+
+**→ For Ham: this is now an action for the company's accountant, in parallel with the code fix.** The
+preview endpoint gives the exact per-year revenue figure to hand them. My recommendation: run the
+preview first, take those numbers to the CPA, and let the amended-return work start while R1 is built —
+the 1.5%/month clock is already running.
+
+### 🔴 3 product decisions still waiting on Ham
 3. **Receipt against an already-invoiced delivery order (PRODUCT).** Must be refused to stop
    double-counting revenue (`rc.do_already_invoiced`); the wording and the UX around the refusal is a
    product call, not the implementer's.
