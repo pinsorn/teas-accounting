@@ -11,6 +11,10 @@ Every finding below marked **[verified]** was re-checked by Fable in the source,
 
 ## The one-paragraph answer
 
+> **Note on scope:** the CRITICAL list grew to five when the non-VAT agents ran. C5 in particular is
+> **not** a non-VAT defect — it was found on co7 but sits in code shared by every company, including the
+> real tenants. Read it first.
+
 **The arithmetic is sound; the controls around it are not.** Across every chain driven — sales, purchase,
 foreign-vendor reverse charge, expense claims, payroll, manual JV — the money math tied to hand-calc to the
 satang, the trial balance held Dr=Cr in every posted scenario, and **there was no cross-tenant leak and no
@@ -78,6 +82,36 @@ evidence; the field map itself carries a "Ham visual-validation pending" note, i
 unvalidated. **Pin the exact target row against the template before fixing.**
 
 ---
+
+### C5 · An expense claim can be booked to ANY account — including the bank — and marked Paid without reimbursing anyone [verified, and broader than the agent reported]
+`EnsureExpenseAccountAsync` (ExpenseClaimService.cs:53-66) validates only that the account **exists, is
+active, and is not a header**. It never checks the account **type**. So bank (1120), accounts payable
+(2110), revenue (4100), equity (3300) and input VAT (1170) are all accepted as "expense accounts".
+The bank case produces a claim marked **Paid** whose journal entry never reimburses the employee — and
+the books look settled.
+
+Two things make this worse than a crafted-payload attack:
+
+- **It needs no attacker.** `POST /expense-categories` accepts `defaultExpenseAccountId: 1170` with zero
+  validation, so an ordinary user picking from the category dropdown posts to it. There is no update,
+  delete or deactivate route for expense categories, so a poisoned category is **permanent** (co7 now
+  carries category id 78 as evidence).
+- **The category path skips the guard entirely** — an extra hole the agent did not report. At line 94-97
+  `EnsureExpenseAccountAsync` runs *only* on the override branch; the `category.DefaultExpenseAccountId`
+  branch has nothing but a null check. A category whose default account is later deactivated, or turned
+  into a header, still posts.
+
+**This is not a non-VAT bug.** It was found on co7 but `ExpenseClaimService` is shared by every company —
+co5, and the real tenants co2/co3, are on the same code path.
+
+Related, same file: the v1.22.10 non-VAT 1170 guard only forces `IsRecoverableVat = false`, which kills the
+*derived* VAT line but does nothing about an explicitly-passed 1170 account — so `Dr 1170 = 535.00` is now
+posted and immutable in co7's JE 293, showing a fictitious recoverable-input-VAT asset on a company that
+can never reclaim it. And line 100 rounds to **4 decimals**, so this path leaks sub-satang amounts into the
+ledger too (JE 295), the same class as C1.
+
+*Fix:* validate account TYPE (expense/cost only) and run the validation on **both** branches — plus at
+category-create time, where the poison enters.
 
 ## HIGH
 
