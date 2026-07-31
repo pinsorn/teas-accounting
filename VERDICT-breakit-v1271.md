@@ -104,6 +104,10 @@ row 6 would be Text2.16/17/18, so the mapping is off by two. The rendered-PDF me
 evidence; the field map itself carries a "Ham visual-validation pending" note, i.e. this area was known to be
 unvalidated. **Pin the exact target row against the template before fixing.**
 
+**Confirmed on a second company.** D2 reproduced this byte-for-byte on co7 across three separate payroll
+runs and the annual ภ.ง.ด.1ก — totals land on row 5 (ม.40(2) non-resident) *as well as* row 1, and both
+"6. รวม" and "8. รวมยอด" print blank. This is the product, not one company's data.
+
 ---
 
 ### C5 · An expense claim can be booked to ANY account — including the bank — and marked Paid without reimbursing anyone [verified, and broader than the agent reported]
@@ -145,6 +149,8 @@ category-create time, where the poison enters.
 | H3 | **Conversion routes check the wrong scope — systemic** [verified] — every "create-from / convert" route authorizes on the **source** document's manage scope and never on the **target** document's create scope: `billing-notes/{id}/create-tax-invoice` and `delivery-orders/{id}/create-ti` both mint a **ใบกำกับภาษี** off billing-note / delivery-order permissions; `sales-orders/{id}/create-invoice`, `delivery-orders/{id}/create-invoice`, `quotations/{id}/convert-to-so` follow the same pattern. Net effect: a user holding only delivery-order manage can mint a tax invoice, though direct `POST /tax-invoices` returns 403 for them. Drafts only — no ledger movement, no number consumed — which is why this is HIGH, not CRITICAL. Two agents each found one instance; the pattern only appeared when both were read together. | A1, C2 |
 | H4 | **Attachment download skips its permission guard** [verified] — `GET /attachments/{id}/download` (AttachmentEndpoints.cs:77-80) omits the `ParentGuard` that upload (line 51) and list (line 69) enforce. A user with only the broadly-granted `sys.attachment.read` gets **403 on the list but 200 and the full PDF on download**, walking sequential ids. Company scope is *not* bypassed (confirmed: cross-company ids all 404), so this is intra-tenant. | B2, C2 |
 | H5 | **A voided payment voucher prints as "ต้นฉบับ"** [verified] with the approver's name in the signature box and no ยกเลิก mark; a draft PV prints "ต้นฉบับ" too. `PaymentVoucherService.Read.cs:238` hard-codes the watermark instead of calling `PaperDocConfig.Watermark`, whose line 52 already maps a cancelled status to "ยกเลิก". `PurchaseOrderService.cs:325` repeats the mistake. Every other doctype does it correctly. | D1 |
+| H15 | **Every non-VAT payment voucher prints a Grand Total its own lines do not add up to** [verified] — a line of 1,000.00 under a total of `฿ 1,070.00` with no row explaining the 70. `PaperFootPlan.Build` (PaperFootPlan.cs:31-41) adds the Subtotal / BeforeVat / VAT rows **only when `ShowVat` is true**, but still computes `grand = Subtotal + VAT`. The earlier "cont.120" change hid the VAT *display* on non-VAT companies without reconciling the arithmetic. The ledger is right (VAT folds into cost, vendor paid 1,070 in full) — it is the **document handed to the vendor** that does not foot. 3/3 VAT-vendor PVs on co7 (22/55/56). | D2 |
+| H16 | **ภ.พ.30 — the VAT return — renders a fully identity-filled 2-page PDF for a company that has no VAT registration** (`tax-filings/pnd30/pdf?period=202607` → 200, with name, 13-digit tax ID, address and พ.ศ. 2569 all stamped in). No `VatMode` gate on the route. A non-VAT company can produce a VAT return it must never file. | D2 |
 | H13 | **Official RD filings generate from an unapproved, unposted DRAFT payroll run** — ภ.ง.ด.1, the สปส.1-10 upload file and PDF, and payslips all rendered from a run with `journalId: null`: a signable return declaring ฿1,103.02 of PIT **with zero ledger backing**. The agent then deleted the run behind it, leaving the artifact with nothing to tie back to. A filing artifact should only ever come from posted data. | B5 |
 | H10 | **A fiscal year can become impossible to close — a three-way deadlock** [live-proved, zero writes] — closing a period requires a depreciation run; the depreciation run requires the period OPEN; reopening requires it CLOSED. All three refuse each other. **co5's FY2026 can now never be year-closed**; on a real tenant with fixed assets this is recoverable only by editing the database. Read together with the standing O14 limitation (a closed month cannot be reopened inside a closed year — the reason co6 is frozen until 2027), period management has two traps that need a human to escape. Treat as CRITICAL for any real tenant approaching year-end with fixed assets. | C1 |
 | H11 | **Reopening a period is unauditable — and that enables silent back-dating** — the activity row is written against `AccountingPeriod` but **no API route reads it**, and reopening NULLs `ClosedAt`/`ClosedBy`/`CloseNotes`. C1 closed June, reopened it, back-dated two journal entries into it, and re-closed — **all in 27 seconds, with no readable surface anywhere showing June was ever reopened.** For an accounting system this defeats the point of the audit trail. | C1 |
@@ -159,6 +165,10 @@ category-create time, where the poison enters.
 
 ## MEDIUM (11) and LOW (~10) — the short list
 
+- **สปส.1-10 ส่วนที่ 2 prints entirely blank** on every run — no employee national ID anywhere across the
+  4 pages — while ส่วนที่ 1 certifies 3–4 insured persons. **ภ.ง.ด.2 has no PDF route at all**, despite a
+  Posted `Pnd2` certificate existing on co7. `pnd50`/`pnd51` PDFs return **HTTP 500** for `year ≤ 0` or
+  `≥ 9999` (siblings return a clean 422), and with no validation in between, year 999 or 3000 renders happily.
 - **ภ.พ.36 has no printable form at all** (`/tax-filings/pnd36/pdf` → 404) though every sibling filing has one — the mandatory reverse-charge return cannot be filed on paper.
 - **`/reports/number-gaps` reports `hasGaps:false`** for the very period that contains H1's duplicates — it detects missing numbers, never reused ones, so a compliance control reports clean over a real breach.
 - **sales-summary excludes CN/DN** and therefore disagrees with ภ.พ.30 and the trial balance by exactly the credit-note total. ภ.พ.30 and TB agree with each other; sales-summary is the outlier.
@@ -204,6 +214,10 @@ Worth stating plainly, because it is most of the system:
 - **The v1.27.0 agent model works.** No MCP tool can post; fake tool names return a clean protocol error;
   cross-company drafts are refused; `docDate` is server-pinned, which kills the closed-period and future-date
   attack classes outright; every gate-bypass payload was rejected with zero 500s.
+- **Non-VAT templates are genuinely clean.** D2 traced every `VAT` string in co7's documents to
+  user-entered data: no VAT wording, no VAT column, no VAT total row, no "ใบกำกับภาษี" title and no ม.86
+  reference anywhere in a co7 template. The non-VAT rendering work held up — the PV total bug (H15) is an
+  arithmetic omission, not a VAT leak.
 - **The v1.22.11 foreign-vendor fix still holds** — the VI-linked self-withhold PV posts, JE balanced,
   WHT 3,529.41 matching the reference figure. **O8 payroll proration is fixed** (a mid-month hire and leaver
   both prorate correctly) — the standing note in STATUS.md calling it an open gap is stale and should be corrected.
