@@ -97,7 +97,7 @@ All file:line VERIFIED by reading the file during design (2026-07-31), not infer
 | Every other poster guards: `JournalService.cs:265`, `ExpenseClaimService.cs:252`, `ReceiptService.cs:398`, `PaymentVoucherService.cs:~181`, FixedAsset 238/300, BankRec 236. | as cited |
 | **`IsOpenAsync` already bounds the future**: a month with no `AccountingPeriod` row is OPEN only when it is the current Asia/Bangkok month; every other missing month (past or future) is CLOSED. So `EnsureOpenAsync` alone also kills the `209912` case — but with a `period.closed` message that names a reopen which cannot work for a future month. | `PeriodCloseService.cs:25-49` |
 | The O14 monthly reopen exists and is reachable: `POST /periods/{year}/{month}/reopen`, permission `Permissions.Gl.PeriodClose`. It refuses inside a closed fiscal year (`period.year_closed`). | `Accounting.Api/Endpoints/PeriodEndpoints.cs:20-28`; `PeriodCloseService.cs:123-163` |
-| The manual-JV path's date contract is `docDate <= TodayInBangkok()` → `je.future_date`. Payroll adopting the same rule is repo-consistent, not novel. | `JournalService.cs:158-159` |
+| The manual-JV path's date contract is `docDate <= TodayInBangkok()` → `je.future_date`. Payroll deliberately does NOT copy it — Ham decided the bound is the run's own period end, so pre-payday posting keeps working (§8 #3). | `JournalService.cs:158-159` |
 
 ### 1.5 Footguns folded in (do NOT rediscover these)
 
@@ -448,7 +448,33 @@ so a customer with both never splits into two lines.
 Both comment blocks (`GlPostingService.cs:94-96`/`:124-125` and `SubledgerReportService.cs:78-83`) get
 rewritten to state the new model.
 
-#### 3.2.5 The Repttown backfill (WP-2)
+#### 3.2.5 The Repttown backfill (WP-2) — REDESIGNED 2026-07-31 after Thai practice research
+
+> **This section replaces an earlier design that posted correcting entries at their true event dates
+> inside closed periods.** Research (`specs/research-thai-prior-period-correction.md`) established that
+> Thai practice is the opposite: a prior-period error is corrected in the **current open period against
+> opening retained earnings** (กำไรสะสม), with comparatives restated for presentation only. Reopening a
+> period whose statements are already filed with the DBD is done only for very large errors or on DBD
+> demand, and is the signing CPA's call. The redesign is also much simpler.
+
+**The rule — one entry per OUTSTANDING invoice, nothing else.**
+
+| Case | Entry | Why |
+|---|---|---|
+| Sale already **settled** (any year) | **none** | Revenue was recognised at the receipt, cash was collected, AR is 0 today. The correct present state *is* the actual present state. Only the timing **within closed years** was wrong, and that is fixed by the amended tax return, not by the ledger. |
+| Invoice **unpaid**, issued in a **closed** fiscal year | `Dr 1130 AR / Cr กำไรสะสม (retained earnings)`, dated **in the current open period** | The revenue belongs to a closed year, so it must not hit this year's P&L. |
+| Invoice **unpaid**, issued in the **current open** fiscal year | `Dr 1130 AR / Cr Revenue`, dated at the invoice's issue date | The period is open; normal recognition applies. |
+
+**Consequences of the redesign — all simplifications:**
+- **No entry ever lands in a closed period.** The closed-fiscal-year hard stop, the reopen dance, and any
+  interaction with the year-close deadlock (H10) all disappear from this work package.
+- Statements already filed with the DBD are untouched.
+- Partially-paid invoices use the **outstanding** amount, not the invoiced amount.
+- Cancelled/void invoices: no entry.
+
+**Detector, unchanged and still sound.** Only invoices with `JournalEntryId IS NULL` are candidates —
+after WP-1 ships, null unambiguously means "issued before the fix". It doubles as the idempotency and
+resume key. No JE-line inspection and no cutoff-date heuristic is needed.
 
 **Delivery mechanism.** A super-admin-gated endpoint, mirroring the repo's existing
 `tax-filings/pnd30?mode=preview|finalize` shape:
@@ -458,105 +484,31 @@ POST /admin/nonvat-ar-backfill?mode=preview      → 200, full plan, ZERO writes
 POST /admin/nonvat-ar-backfill?mode=apply        → 200, plan + minted JV numbers
 ```
 
-- New permission `sys.nonvat_ar_backfill.run` (or reuse an existing super-admin-only policy — the
-  implementer picks whichever matches the repo's admin-endpoint convention and states which).
-- **`mode` has no default. A request without an explicit `mode` is a 400.** No "accidental apply".
-- **Same-company only.** The target is `tenant.CompanyId` — there is no `companyId` parameter. This keeps
-  `app.company_id` pinned by `TenantMiddleware` and sidesteps the RLS trap in troubles-wiki line 769
-  entirely. To run it on Repttown, the super-admin switches company first.
-- **Not a migration, not a SqlScript, not a startup job.** It writes money; it must be invoked
-  deliberately, by a human, with a preview read first.
+Correcting entries are posted through `IGlPostingService.PostManualEntryAsync`, which already accepts an
+arbitrary `docDate` + `reference` and allocates a real JV number.
 
-**Rejected alternatives:** an EF migration or SqlScript (raw-SQL money logic, no doc numbers, no domain
-guards, runs unattended at startup on every environment); a one-off console app (not reachable through the
-public domain, so no Tier-4 leg).
+**The preview response is a deliverable in its own right — it is what goes to the accountant.** It must
+report, per fiscal year:
+- `outstandingTotal` — Σ unpaid amounts of invoices issued in that year
+- `creditSide` — `Revenue` (current open year) or `RetainedEarnings` (closed year)
+- `invoiceCount`, and the invoice list with doc numbers, issue dates and outstanding amounts
 
-**Enumeration — every BillingNote state:**
+**A non-zero `RetainedEarnings` figure for a year whose ภ.ง.ด.50 was already filed is an amended-filing
+question, not an engineering one** (§8). Hand those numbers to the company's CPA.
 
-| BN state | condition | action |
-|---|---|---|
-| Draft | — | skip (no number, no revenue) |
-| Cancelled | — | skip |
-| Issued or Settled | `JournalEntryId != null` | skip — already accrued (post-fix or a prior backfill run). **This is the idempotency/resume key.** |
-| Issued or Settled | `JournalEntryId == null` | **backfill** (below) |
-| VAT company (`tax.VatMode == true`) | any | **the whole run refuses** — `backfill.vat_company` |
+**Book-to-tax follow-through (record it in the release notes, it is easy to forget).** Once the
+retained-earnings correction is booked, the **current** year's ภ.ง.ด.50 must back that revenue out — it
+was already taxed via the amended prior-year return, so leaving it in would tax it twice.
 
-**The two correcting entries per backfilled invoice.** Because we only touch BNs that never accrued, we
-know with certainty that **every** posted receipt against them credited Sales (that is precisely what the
-pre-fix `PostReceiptAsync` did, and the post-fix one only credits AR when `JournalEntryId != null`). No
-per-receipt JE inspection is needed — the state of `JournalEntryId` *is* the detector.
+**Resume protocol (irreversible prod writes).** Each invoice's entry commits in **one transaction per
+invoice**, ending with `bn.JournalEntryId = …`. If the run dies mid-way, re-running `mode=apply` skips
+every invoice that already has a `JournalEntryId` and resumes at the first that does not. The response
+reports `resumedFrom` / `alreadyDone` counts. **Never a single giant transaction** — a crash at invoice
+300 of 400 must not roll back 299 good corrections *and* must not double-post them.
 
-```
-Entry A — accrual, one per invoice, ALWAYS
-  docDate    = bn.DocDate
-  Dr 1130    = bn.TotalAmount
-  Cr 4000    = bn.TotalAmount
-  description= $"IV {bn.DocNo} (R1 non-VAT AR backfill)"
-  reference  = bn.DocNo
-  → then set bn.JournalEntryId = <new journalId>
-
-Entry B — revenue-timing correction, one per POSTED receipt that applied to this invoice
-  applied     = Σ AppliedAmount of that receipt's applications against this BN
-  docDate     = rc.DocDate
-  Dr 4000     = applied      ← removes the revenue recognised at the receipt
-  Cr 1130     = applied      ← clears the AR raised by Entry A
-  description = $"RC {rc.DocNo} (R1 revenue-timing backfill)"
-  reference   = rc.DocNo
-```
-
-Both post through **`IGlPostingService.PostManualEntryAsync(companyId, branchId, docDate, description,
-reference, lines, ct)`** — it already takes an arbitrary `docDate` and a `reference`, allocates a real JV
-number for that month, runs the balance check, and calls `MarkPosted`. **No new GL method, no period
-gate** (the poster has never had one; the gate lives in calling services — the backfill deliberately does
-not call it, exactly as `PostClosingEntryAsync:447` documents for year-end). `IsClosingEntry` stays
-**false** — these are ordinary entries and must appear in range-based P&L.
-
-**Why post at true event dates rather than one catch-up entry in an open period:** a catch-up entry would
-move a prior period's revenue into the current one, breaking every already-reported month and any filed
-return based on it. The whole point is that the books become what they would have been. Cost of the choice:
-JEs land in closed months. That cost is paid by the privileged path, not by reopening periods — reopening
-would also hit H10's year-close deadlock and O14's refusal inside a closed fiscal year.
-
-**Hard stop — closed fiscal year.** Before writing anything, for every planned `docDate`:
-
-```
-db.FiscalYearCloses.Any(x => x.ReversedAt == null && x.FiscalStartDate <= d && x.FiscalEndDate >= d)
-```
-Any hit → that row goes into `blockers[]` and **`mode=apply` refuses the entire run** (`backfill.fiscal_year_closed`).
-Reason: the year-end closing JE already rolled P&L to retained earnings; adding revenue afterwards makes
-that closing entry untrue and silently mis-states equity. Resolving it is a **product/tax decision**
-(§8) — either reopen + re-close the year, or post an accepted equity adjustment, or accept the residual.
-**The implementer must not choose.**
-
-**Preview output** (`mode=preview`, and the same body echoed by `apply` with `journalIds`/`docNos` filled):
-
-```jsonc
-{
-  "companyId": 2, "mode": "preview", "generatedAt": "...",
-  "totals": {
-    "invoicesToAccrue": 0, "receiptCorrections": 0,
-    "arDebitTotal": 0, "arCreditTotal": 0,
-    "netArIncrease": 0,          // = arDebitTotal − arCreditTotal = outstanding AR created
-    "netRevenueIncrease": 0      // MUST equal netArIncrease exactly
-  },
-  "byFiscalYear": [ { "year": 2025, "revenueDelta": 0, "entryCount": 0 } ],
-  "blockers": [ { "code": "fiscal_year_closed", "docNo": "...", "docDate": "...", "year": 2025 } ],
-  "rows": [ { "billingNoteId": 0, "docNo": "", "docDate": "", "status": "", "totalAmount": 0,
-              "entries": [ { "kind": "accrual", "docDate": "", "debitAccount": "1130",
-                             "creditAccount": "4000", "amount": 0 },
-                           { "kind": "revenue_timing", "receiptDocNo": "", "docDate": "",
-                             "debitAccount": "4000", "creditAccount": "1130", "amount": 0 } ] } ]
-}
-```
-
-`byFiscalYear[].revenueDelta` is the number Ham needs: a **non-zero delta on a year whose ภ.ง.ด.50 was
-already filed is an amended-filing question**, not an engineering one (§8).
-
-**Resume protocol (irreversible prod writes).** Each invoice's Entry A + its Entry Bs commit in **one
-transaction per invoice**, ending with `bn.JournalEntryId = …`. If the run dies mid-way, re-running
-`mode=apply` skips every invoice that already has a `JournalEntryId` and resumes at the first that does
-not. The response reports `resumedFrom` / `alreadyDone` counts. **Never a single giant transaction** — a
-crash at invoice 300 of 400 must not roll back 299 good corrections *and* must not double-post them.
+**Which account is "กำไรสะสม"?** Resolve it from the company's live chart of accounts, never hardcode a
+code — the same lesson as the input-VAT account in leg V3b. If the company has no retained-earnings
+account the run must **stop with a clear error**, not invent one.
 
 ### 3.3 C5 — expense account type + fixable categories (WP-4)
 
@@ -659,10 +611,16 @@ private async Task EnsurePostablePayDateAsync(PayrollRun run, CancellationToken 
     // system accepted period 209912 / payDate 2099-12-31 and minted a permanent JE (co7 JE 301).
     // IsOpenAsync would also refuse it, but with a "reopen the period" message that is nonsense
     // for a month that was never open.
-    if (run.PayDate > today)
-        throw new DomainException("payroll.future_pay_date",
-            $"วันจ่ายเงิน {run.PayDate:yyyy-MM-dd} อยู่ในอนาคต — ลงบัญชีเงินเดือนล่วงหน้าไม่ได้ " +
-            $"(pay date is in the future; post on or after that date).");
+    // Ham decision 2026-07-31: bound to the run's OWN period, NOT to today — posting on the 28th
+    // for a pay date of the 30th is normal practice, so `PayDate > today` would block real work.
+    // This still kills the unbounded case (period 209912 / payDate 2099-12-31 → co7 JE 301),
+    // because the period itself must be open and the pay date is capped inside it.
+    var periodEnd = new DateOnly(run.PeriodYear, run.PeriodMonth, 1).AddMonths(1).AddDays(-1);
+    if (run.PayDate > periodEnd)
+        throw new DomainException("payroll.pay_date_outside_period",
+            $"วันจ่ายเงิน {run.PayDate:yyyy-MM-dd} อยู่นอกงวด {run.PeriodYear}-{run.PeriodMonth:D2} " +
+            $"(ต้องไม่เกิน {periodEnd:yyyy-MM-dd}) " +
+            $"[pay date must fall within the run's own period].");
 
     if (!await period.IsOpenAsync(run.PayDate.Year, run.PayDate.Month, ct))
         throw new DomainException("payroll.period_closed",
@@ -680,12 +638,16 @@ never-opened future month, and only the first has a reopen as its way out. Retur
 for `2099-12` would send the user to a route that answers `period.not_closed` — a dead end. That is
 precisely the failure the plan's decision #2 forbids.
 
-**Stated behaviour change:** a run whose `PayDate` is in the future can no longer be posted until that date
-arrives. This matches the manual-JV contract and is a **product decision flagged in §8** — the alternative
-(allow up to the end of the current Bangkok month, so a run payable on the 31st can be posted on the 28th)
-is written out there for Ham.
+**Stated behaviour change (Ham-decided, §8 #3):** a run's `PayDate` must fall **within the run's own
+period**. Pre-payday posting still works — post on the 28th for a pay date of the 30th — which is why the
+bound is the period end and not `today`. `PayDate` beyond the period end is refused; a period that is
+itself closed or never-opened is refused by the `IsOpenAsync` check with its own message.
 
-`payroll.period_closed` / `payroll.future_pay_date` → 422 (middleware default).
+`payroll.period_closed` / `payroll.pay_date_outside_period` → 422 (middleware default).
+
+**Implementer note:** confirm the run's period fields are named `PeriodYear`/`PeriodMonth` before using
+them (the sketch above assumes it); if the entity stores the period differently, derive `periodEnd` from
+whatever it does store — the rule is "last day of the run's own period", not the exact field names.
 
 ---
 
@@ -712,11 +674,13 @@ Each is a money statement, not a field value. `T#` = the test in §6 that proves
   invoice issued before deploy recognises revenue exactly once (at the receipt), and AR never goes
   negative. → **T6**
 
-**C6 backfill (WP-2)**
-- **I9** — **For any already-settled historical sale, total revenue is UNCHANGED** by the backfill; only
-  its date moves. For an unsettled sale, revenue increases by exactly the unpaid invoiced amount — revenue
-  that was previously never recognised at all. Formally:
-  `netRevenueIncrease == netArIncrease == Σ outstanding of backfilled invoices`. → **T8, T9**
+**C6 backfill (WP-2)** — redesigned; see §3.2.5
+- **I9** — **A settled sale is not touched at all.** The backfill posts NOTHING for an invoice that is
+  fully receipted, so its total revenue is unchanged by construction. For an **unpaid** invoice, exactly
+  one entry is posted and it increases AR by the outstanding amount. Formally:
+  `Σ Dr 1130 == Σ outstanding of unpaid non-VAT invoices`, and the credit side splits into
+  **Revenue** (invoice issued in the current open fiscal year) + **กำไรสะสม** (issued in a closed year).
+  → **T8, T9**
 - **I10** — **The backfill touches no cash account.** 1110/1120 balances are bit-identical before and
   after. → **T9**
 - **I11** — **Dr = Cr on every correcting entry**, and **no existing journal entry is modified or
@@ -725,6 +689,9 @@ Each is a money statement, not a field value. `T#` = the test in §6 that proves
   interrupted mid-way resumes without duplicating or skipping. → **T10**
 - **I13** — **`mode=preview` writes nothing.** Row counts of `gl.journal_entries`, `gl.journal_lines` and
   `sales.billing_notes WHERE journal_entry_id IS NOT NULL` are unchanged by a preview. → **T11**
+- **I13b** — **No correcting entry is dated inside a closed period.** Every entry the backfill posts falls
+  in the current open period, except the current-open-year case which is dated at its own issue date
+  (also open by definition). → **T8**
 
 **C1 — precision (WP-3)**
 - **I14** — **No amount with more than 2 decimal places can enter the ledger by any path.** Every posted
@@ -748,7 +715,7 @@ Each is a money statement, not a field value. `T#` = the test in §6 that proves
 **C3 — payroll period (WP-5)**
 - **I21** — **Payroll cannot move a closed month.** Neither `post` nor `pay` writes a journal entry into a
   period that is not open. → **T18**
-- **I22** — **Payroll cannot post into the future.** → **T19**
+- **I22** — **A payroll run's pay date stays inside its own period.** It cannot post with a pay date beyond the period end (which is what made the 2099 JE possible), but posting *before* payday within the period still works. → **T19**
 - **I23** — **Payroll still works.** A run for the current Bangkok month posts and pays normally, and a
   back-month run posts after the period is reopened via O14. The refusal message names that route. → **T20**
 
@@ -773,17 +740,20 @@ Each is a money statement, not a field value. `T#` = the test in §6 that proves
 
 ### WP-2 — C6 backfill for Repttown *(depends on WP-1; same-area, keep the SAME warm worker)*
 
-- [ ] `INonVatArBackfillService` + implementation: enumeration exactly per §3.2.5's state table; preview builds the plan with zero writes.
-- [ ] Fiscal-year hard stop: any planned `docDate` inside a non-reversed `FiscalYearClose` → `blockers[]`, and `apply` refuses the whole run (`backfill.fiscal_year_closed`).
+- [ ] `INonVatArBackfillService` + implementation: enumerate **only invoices with `JournalEntryId IS NULL` that still have an outstanding balance**; settled invoices are skipped entirely (§3.2.5). Preview builds the plan with zero writes.
+- [ ] Credit-side routing per §3.2.5: issue date in the **current open fiscal year** → Revenue, dated at issue; issue date in a **closed** fiscal year → **กำไรสะสม**, dated in the current open period.
+- [ ] Resolve the retained-earnings account from the company's **live chart of accounts** — never hardcode a code. No such account → stop with a clear error.
 - [ ] VAT-company refusal (`backfill.vat_company`).
-- [ ] `apply` posts Entry A + its Entry Bs via `IGlPostingService.PostManualEntryAsync`, **one transaction per invoice**, stamping `bn.JournalEntryId` last in that transaction.
+- [ ] `apply` posts via `IGlPostingService.PostManualEntryAsync`, **one transaction per invoice**, stamping `bn.JournalEntryId` last in that transaction.
 - [ ] `POST /admin/nonvat-ar-backfill` with a **required** `mode` (`preview`|`apply`), super-admin-gated, **no `companyId` parameter** (target = `tenant.CompanyId`).
-- [ ] Response body exactly per §3.2.5's shape, including `byFiscalYear[].revenueDelta`.
+- [ ] Preview response per §3.2.5: per fiscal year `outstandingTotal` / `creditSide` / `invoiceCount` + the invoice list. **This output is handed to the company's accountant** — make it readable, not just machine-parseable.
 - [ ] Tests T8–T11 green.
 - [ ] `RbacAuthMapTests` / `RbacCartesianTests` green with `TEAS_REPO_ROOT` set (a new endpoint always disturbs these).
 - [ ] **The apply run on Repttown is NOT part of this dispatch.** Ship the code; Fable runs the operation per §7's Tier-4 checklist.
 
 **Blast cap:** max **8** source files + **2** test files. 0 migrations, 0 SqlScripts. New public endpoint: **1**.
+**Dropped by the redesign:** the fiscal-year hard stop and its `backfill.fiscal_year_closed` blocker are
+no longer needed — no entry can land in a closed period by construction.
 
 ### WP-3 — C1 precision *(independent of WP-1/2; shares `ExpenseClaimService.cs` with WP-4 and `PayrollDtos.cs` with WP-5 → run WP-3 → WP-4 → WP-5 in that order)*
 
@@ -845,7 +815,7 @@ Behavioural tests exercise the **real transition** (issue → receipt → post),
 | **T16** | A claim on the seeded **CAPEX** category (default 1610, `AccountType.Asset`) still creates and pays successfully | I19 |
 | **T17** | `POST /expense-categories` with `defaultExpenseAccountId` = 1170 → rejected. `PUT /expense-categories/{id}` repoints a bad default and deactivates it; a new claim on the deactivated category → rejected | I20 |
 | **T18** | Close a period; payroll `post` for a run dated in it → **422 `payroll.period_closed`**, message contains the `reopen` route; **no JE created**. Then `pay` on an already-posted run into a since-closed period → same refusal | I21 |
-| **T19** | Run with `PayDate` = tomorrow (Bangkok) → `post` → **422 `payroll.future_pay_date`**, no JE. A `209912` run likewise | I22 |
+| **T19** | (a) Run whose `PayDate` falls **after its own period end** → `post` → **422 `payroll.pay_date_outside_period`**, no JE. (b) A `209912` run → refused (its period is not open). (c) **REGRESSION — the case Ham's decision protects:** a run for the current period with `PayDate` = a still-future day *inside* that period (e.g. post on the 28th, pay on the 30th) **posts normally**. | I22 |
 | **T20** | Current-month run posts and pays normally. Then: close the previous month, create a run for it, `post` → refused; **reopen via `POST /periods/{y}/{m}/reopen`** → `post` succeeds → re-close. Proves the escape hatch the error message names actually works | I23 |
 
 Not automatable, must be reported honestly rather than skipped: the **Repttown preview numbers** (§7 Tier-4)
@@ -921,27 +891,37 @@ Plus at least one probe **through the public domain** (`https://teas.kazaki-rio.
 - H10's year-close deadlock, H11's unauditable reopen — R3.
 - Any `SqlScripts/*.sql`. If one seems necessary: **stop and re-spec.**
 
-**Product decisions — flagged, NOT decided here:**
+**Product decisions — ALL ANSWERED by Ham, 2026-07-31. Implement these; do not re-open them.**
 
-1. **[WP-2, tax] Prior-year revenue movement on Repttown.** If the backfill moves revenue across a fiscal
-   year whose ภ.ง.ด.50 was already filed, the filed return understated revenue. Fixable silently? Or does
-   it require an amended filing? The preview's `byFiscalYear[].revenueDelta` gives the exact number per
-   year. **Engineering will not decide this.**
-2. **[WP-2] Closed fiscal years.** If any correction lands inside a closed FY, the year-end closing JE
-   becomes untrue. Options: reopen + re-close the year (may hit H10's deadlock); post an accepted equity
-   adjustment; or accept the residual and document it. The backfill **hard-stops** rather than guessing.
-3. **[WP-5] Payroll future-date bound.** Spec'd as `PayDate <= Bangkok-today`, matching the manual-JV
-   contract. Alternative if Ham wants pre-payday posting: allow `PayDate <= last day of the current
-   Bangkok month`. One-line change, same guard.
-4. **[WP-1] `rc.do_already_invoiced`.** Refusing a receipt against an already-invoiced delivery order is a
-   behaviour change. It is **required** to prevent double-counting, but the copy — and whether the UI
-   should auto-redirect to the invoice instead of refusing — is a product call.
-5. **[WP-4] Capex expense claims.** The rule permits an `AccountType.Asset` debit when the category is
-   capex. Confirm that an employee reimbursement *should* be able to capitalise an asset; if not, the rule
-   tightens to Expense-only and the seeded CAPEX category must be repointed on every company (a data
-   migration, not in this spec).
+1. **[WP-2, tax] Prior-year revenue movement — RESOLVED by the §3.2.5 redesign + research.**
+   Corrections now land in the **current open period against กำไรสะสม**, so no closed year's ledger is
+   restated and no filed statement changes. The **tax** side is handled separately and by humans: the
+   preview's per-year figures go to the company's CPA, who files **ภ.ง.ด.50 เพิ่มเติม** for the affected
+   years. Voluntary correction before an RD summons waives เบี้ยปรับ (ท.ป. 81/2542); เงินเพิ่ม 1.5%/month
+   (ม.27) is statutory and cannot be waived. Full findings + citations:
+   `specs/research-thai-prior-period-correction.md`. **Engineering ships the preview numbers; it does not
+   file anything.**
 
----
+2. **[WP-2] Closed fiscal years — RESOLVED, question no longer arises.** By construction no correcting
+   entry is dated inside a closed period (§3.2.5), so the year-end closing JE stays true and H10's
+   deadlock is never touched. The `backfill.fiscal_year_closed` blocker is dropped.
+
+3. **[WP-5] Payroll future-date bound — DECIDED: bound to the run's own period, NOT to today.**
+   `PayDate <= last day of the payroll run's period` (Bangkok). Rationale (Ham): posting on the 28th for a
+   pay date of the 30th is normal business practice, so `PayDate <= today` would block real work. This
+   still kills the unbounded case the swarm found (period `209912` → JE dated 2099-12-31), because the
+   *period itself* must be open, and the guard now caps the pay date inside it.
+
+4. **[WP-1] Receipt against an already-invoiced delivery order — DECIDED: refuse, and say where to go.**
+   Refuse with `rc.do_already_invoiced`, and the message must name the existing invoice
+   (e.g. "ใบส่งของนี้ออกใบแจ้งหนี้ IV-xxxx แล้ว — รับชำระที่ใบแจ้งหนี้นั้น"). Allowing it would
+   double-count revenue, so refusing was the only safe option; the decision was only about the wording.
+
+5. **[R3, not this release] PV/VI account-type validation — the allowed set is now DEFINED.**
+   Still deferred to R3, but no longer an open question. **Allowed:** Expense, Asset (e.g. buying
+   equipment), Liability (e.g. repaying a director loan). **Forbidden:** Revenue (4xxx), input VAT (1170)
+   on a non-VAT company, and a cash/bank account on the **debit** side (that is a transfer, a different
+   document). Record this in `troubles-wiki.md` at diff review so it is not rediscovered.
 
 ## 9. Blast-radius cap (release total)
 
@@ -954,7 +934,7 @@ post-review remediation must **edit these numbers in the same edit** that adds t
 - Breaking API changes: **none**. New error codes only: `je.precision`, `gl.bn_missing`,
   `gl.bn_vat_unexpected`, `billing_note.cannot_cancel_posted`, `rc.do_already_invoiced`,
   `expense_claim.expense_category_inactive`, `expense_category.default_account_invalid`,
-  `expense_category.not_found`, `payroll.period_closed`, `payroll.future_pay_date`,
+  `expense_category.not_found`, `payroll.period_closed`, `payroll.pay_date_outside_period`,
   `backfill.vat_company`, `backfill.fiscal_year_closed`.
 
 **Stop-and-re-spec triggers:**
@@ -1064,35 +1044,8 @@ order is in `PLAN-fix-breakit-v1271.md`.
 
 ---
 
-## ⚠️ WP-2 REDESIGN REQUIRED — Fable, 2026-07-31 (after Thai tax/accounting research)
+## WP-2 redesign — folded into §3.2.5, §4 and §5 on 2026-07-31
 
-**Do not implement WP-2 as currently specified.** The design has correcting entries land at their true
-event dates inside closed periods. Research into Thai practice (full findings + citations:
-`specs/research-thai-prior-period-correction.md`) says the opposite is standard: a prior-period error is
-corrected in the **CURRENT open period against opening retained earnings** (กำไรสะสม), with comparatives
-restated for presentation only. Re-posting into a period whose statements are already filed with the DBD
-is done only for very large errors or on DBD demand, and is the signing CPA's call — not ours.
+The standalone redesign note that used to live here has been merged into the spec body, so §3.2.5 is now
+the single source of truth for the backfill. Rationale and citations: `specs/research-thai-prior-period-correction.md`.
 
-**Replacement design (simpler than what is specced above):**
-
-| Case | Entry |
-|---|---|
-| Sale already settled, any year | **Nothing.** Revenue was recognised at receipt, cash collected, AR is 0 today — the correct present state is already the actual state. Only the timing *within closed years* was wrong, and that is fixed by the amended tax return, not by the ledger. |
-| Invoice unpaid, issued in a **closed** year | `Dr 1130 AR / Cr กำไรสะสม`, dated in the **current open period**. |
-| Invoice unpaid, issued in the **current open** year | `Dr 1130 AR / Cr Revenue`, dated at issue. |
-
-One entry per outstanding invoice. Nothing touches a closed period. This removes the reopen question, the
-closed-fiscal-year hard stop, and any interaction with the year-close deadlock (H10) — and it leaves
-statements already filed with the DBD untouched.
-
-**Invariants change accordingly** — I9's "revenue is unchanged for a settled sale" now holds *trivially*
-(no entry is posted for those at all), and the net effect becomes: `Σ Dr 1130 == Σ outstanding of
-unpaid invoices`, split between Revenue (current year) and Retained Earnings (closed years) on the credit
-side. **The preview must report that split per fiscal year** — those are the exact numbers the company's
-accountant needs for the amended ภ.ง.ด.50, and the current year's return must then back the
-retained-earnings portion out of taxable income so it is not taxed twice.
-
-**Still true and still required:** dry-run/preview before any write · DB backup · per-company scoping ·
-idempotency · no modification of existing journal entries.
-
-Everything else in this spec (WP-1, WP-3, WP-4, WP-5) is unaffected and remains approved as written.

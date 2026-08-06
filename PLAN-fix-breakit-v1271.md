@@ -75,84 +75,30 @@ preview endpoint gives the exact per-year revenue figure to hand them. My recomm
 preview first, take those numbers to the CPA, and let the amended-return work start while R1 is built —
 the 1.5%/month clock is already running.
 
-### 🔴 3 product decisions still waiting on Ham
-3. **Receipt against an already-invoiced delivery order (PRODUCT).** Must be refused to stop
-   double-counting revenue (`rc.do_already_invoiced`); the wording and the UX around the refusal is a
-   product call, not the implementer's.
-4. **Payroll `PayDate <= Bangkok-today` bound (PRODUCT).** Stops the 2099 case, but also blocks posting a
-   run *before* payday, which some businesses do. The looser alternative is one line.
-5. **PV/VI carry the identical C5 account-type hole, deliberately deferred (PRODUCT).** A payment voucher
-   legitimately debits non-expense accounts (asset purchase, loan repayment), so the allowed account set
-   has to be defined by Ham before it can be pinned. C1's precision guard still protects the ledger
-   meanwhile. Needs a `troubles-wiki.md` entry at diff review or it will be rediscovered.
+### ✅ 3 product decisions — ANSWERED by Ham 2026-07-31 (all "ตามที่เสนอ")
+Recorded in the spec's §8 as binding; the spec body was updated to match, so there is one source of truth.
 
+3. **Receipt against an already-invoiced delivery order → REFUSE**, with a message naming the existing
+   invoice ("ใบส่งของนี้ออกใบแจ้งหนี้ IV-xxxx แล้ว — รับชำระที่ใบแจ้งหนี้นั้น"). Allowing it would
+   double-count revenue; only the wording was ever in question.
+4. **Payroll future bound → the run's OWN period end, not `today`.** `PayDate <= last day of the run's
+   period`. Posting on the 28th for a pay date of the 30th keeps working; the unbounded 2099 case still
+   dies because the period itself must be open. (The spec originally said `<= today`; that was too tight
+   and has been rewritten, along with test T19, which now carries an explicit regression case for
+   pre-payday posting.)
+5. **PV/VI allowed account set → defined** (still implemented in R3, but no longer an open question):
+   **allow** Expense · Asset · Liability; **forbid** Revenue (4xxx) · input VAT (1170) on a non-VAT
+   company · a cash/bank account on the debit side (that is a transfer, a different document).
 
-Source of truth for findings: `VERDICT-breakit-v1271.md` · raw evidence: `swarm-findings/breakit-v1271/` (17 files).
-~48 findings → **4 themed releases**. Nothing is descoped; LOWs land in R4.
+### 📋 Spec cleanup — DONE 2026-07-31
+`specs/fix-breakit-r1-ledger-integrity.md` is dispatch-ready:
+- §3.2.5 rewritten to the retained-earnings design; the standalone "do not implement" appendix is gone,
+  so an implementer cannot follow the superseded half by accident.
+- Invariants I9/I13b and the WP-2 checklist rewritten to match; the dropped fiscal-year blocker is noted.
+- §8 now records all five decisions as binding instead of flagging them as open.
+- §3.5 payroll guard, error codes and test T19 rewritten to the period-end bound.
 
-## Ham's decisions (2026-07-31)
-1. **C6 non-VAT basis → ACCRUAL.** Post revenue + AR when the invoice is issued, mirroring the VAT path.
-2. **C3 payroll period escape → reuse the existing O14 monthly reopen.** No new feature; the guard must
-   return an error that *names the way out*, not a bare `period.closed`.
-3. **Release shape → themed, 3–4 releases** (not CRIT-first).
-4. **Test data → wipe+reseed BOTH co5 and co7 after the fixes land**, giving a clean baseline to verify on.
-
-### Consequence of decision 3 — flagged, needs a yes/no if a deadline is near
-Themed batching puts two compliance CRITs in **R2, not R1**: **C2** (ภ.พ.36 double-counts → over-remits VAT
-to the RD) and **C4** (ภ.ง.ด.1 totals on the ม.40(2) non-resident row). Both are wrong-number-on-a-filed-form
-defects. R1 is designed to carry everything that writes bad data into the **immutable ledger**, which is the
-only class that gets worse with time. **If a filing deadline lands before R2 ships, say so and C2/C4 move to R1.**
-
-### 🔴 CONFIRMED BY HAM (2026-07-31): Repttown IS non-VAT — C6 is live on REAL books
-This is now the most serious item in the round. A real operating company's ledger has **no accounts
-receivable at all**, recognises revenue only when cash arrives, while its purchases accrue normally — the
-books run on two different bases, and any ภ.ง.ด.50 filed off them understates revenue by the invoices
-issued-but-unpaid at period end.
-
-**C6 becomes work package 1 of R1, and a backfill migration is REQUIRED, not optional.** The backfill is
-the hard half, and it is prod-data surgery on a real tenant:
-- Historical JEs are immutable — corrections must be new postings, never edits.
-- Past receipts on that company **already recognised revenue at receipt**, so naively posting
-  Dr AR / Cr Revenue at each invoice's issue date would **double-count**. Total revenue per sale must
-  come out unchanged.
-- Affected periods are largely **CLOSED**, and reopening inside a closed fiscal year is refused (and a
-  year-close deadlock exists, H10). Where the correcting entries land is a design decision with tax
-  consequences.
-- **If a correction moves revenue across a fiscal-year boundary it touches a year whose ภ.ง.ด.50 was
-  already filed → that is a tax decision for Ham, not an engineering one.** The spec must separate the
-  cases that can be corrected silently from those needing an amended filing.
-- Requires: DB backup, a dry-run report listing what WOULD post before anything is written, per-company scoping.
-
-Invariant for the whole work package: **total revenue recognised for any given sale is unchanged; AR clears
-exactly; Dr=Cr on every correcting entry; cash never moves.**
-
-Reseeding co5/co7 (decision 4) does **not** touch this — Repttown is real data.
-
-<details><summary>Original open question (now answered) — kept for the record</summary>
-I went looking for whether any real tenant runs non-VAT. **Two independent documents say Repttown does:**
-- `HANDOFF-untested-army.md:9-10` — "**NO non-VAT dummy company exists yet** — create one first (Step 0) so
-  non-VAT tests **don't touch Repttown**." (i.e. Repttown was the only non-VAT company available to test on)
-- `PROGRESS-vat-dummy-test.md:6` — "ก่อนหน้านี้เทสแค่ **non-VAT/Repttown**"
-
-If that holds, C6 is not a dummy-company gap: **a real company's books currently have no accounts receivable
-at all, and recognise revenue only when cash arrives** — while its purchases accrue normally. Its P&L and
-balance sheet are on two different bases, and any ภ.ง.ด.50 filed off them understates revenue for invoices
-issued-but-unpaid at period end.
-
-**Ham: confirm whether Repttown (co2/co3) is non-VAT.** I did not query the prod database to settle it —
-one word from you is cheaper and safer than me touching real data.
-
-Consequences if confirmed:
-- **R1 gains a backfill migration** (post the missing AR/revenue for historical issued-unpaid invoices),
-  which is schema-and-money work — Opus design, not a side task.
-- The severity ordering changes: C6 stops being "a company type is incomplete" and becomes "real financial
-  statements are wrong right now", which would justify pulling it ahead of everything else in R1.
-- Reseeding co5/co7 (decision 4) does **not** clean this up — Repttown is untouchable real data.
-
-If Repttown is in fact VAT-registered, none of the above applies and C6 stays a forward-only fix.
-</details>
-
----
+**Status: waiting for Ham's go signal to start implementing.** Nothing is running.
 
 ## R1 — Ledger integrity (everything that writes wrong data into an immutable ledger)
 Footgun tier: money + a new GL posting path → **Opus design spec, Fable reviews it, Sonnet implements,
