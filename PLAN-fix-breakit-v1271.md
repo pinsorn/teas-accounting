@@ -1,20 +1,20 @@
 # PLAN — fix round for the break-it swarm findings (v1.27.1)
 
-## ⏸ STATE AS OF 2026-07-31 ~06:0x — PAUSED AT HAM'S 85% RULE, NOTHING IN FLIGHT
+## ▶ STATE — READY TO IMPLEMENT, WAITING ON HAM'S GO SIGNAL
 
 | Stage | Status |
 |---|---|
 | Break-it swarm (17 agents) | ✅ complete — `VERDICT-breakit-v1271.md`, evidence in `swarm-findings/breakit-v1271/` |
-| Ham's 4 decisions | ✅ recorded below |
-| Repttown non-VAT | ✅ confirmed by Ham → C6 backfill required on real books |
-| **R1 design spec** | ✅ `specs/fix-breakit-r1-ledger-integrity.md` — Opus-designed, **Fable-reviewed APPROVED** |
-| R1 implementation | ⬜ **not started** — deliberately deferred, see below |
+| Ham's decisions (4 + 3 product) | ✅ all answered, recorded below and binding in the spec's §8 |
+| Repttown non-VAT | ✅ confirmed → C6 backfill required on real books |
+| Thai tax/accounting research | ✅ `specs/research-thai-prior-period-correction.md` — answered decisions 1 & 2 |
+| **R1 design spec** | ✅ Opus-designed, **Fable-reviewed APPROVED**, cleaned up 2026-07-31 — dispatch-ready |
+| R1 implementation | ⬜ **not started — waiting for Ham's go** |
 | R2 / R3 / R4 design | ⬜ not started |
-| co5/co7 wipe+reseed | ⬜ not started (now MANDATORY — see the C1 consequence) |
+| co5/co7 wipe+reseed | ⬜ not started (MANDATORY once C1 ships — they can no longer be year-closed) |
+| Tax track (amended ภ.ง.ด.50) | ⬜ human task for Ham + the company's CPA; runs in PARALLEL, does not wait on R1 |
 
-**Why paused:** 7-day quota 83% against Ham's hard stop at 85% (2026-07-31: stop completely, no Codex/AGY
-fallback, not urgent, write everything down). R1 is ~40 source files across 5 work packages — starting it
-now would strand it mid-flight. Nothing is running; no worker is warm; the tree is clean.
+Nothing is running. No worker is warm. The tree is clean.
 
 ### Resume order (a fresh session can follow this without re-planning)
 1. Read `VERDICT-breakit-v1271.md` §CRITICAL, then `specs/fix-breakit-r1-ledger-integrity.md`
