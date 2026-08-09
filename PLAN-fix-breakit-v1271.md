@@ -100,6 +100,16 @@ Recorded in the spec's §8 as binding; the spec body was updated to match, so th
 
 **Status: waiting for Ham's go signal to start implementing.** Nothing is running.
 
+## 🆕 NEW SCOPE from Ham 2026-08-06 — document lifecycle
+Spec: **`specs/doc-lifecycle-cancel-reissue-backdate.md`** (draft; 5 questions for Ham in its §6).
+Three features, deliberately split across releases because their dependencies differ:
+
+| Feature | Where it goes | Why |
+|---|---|---|
+| **C — delete "customer has paid" (`MarkSettledAsync`), receipt becomes the only settlement proof** | **fold into R1** | R1's C6 makes an invoice accrue AR; `MarkSettled` would then flip it to settled **without crediting AR or debiting cash** — an active money hole, not a UX nit. Ships with R1 or immediately after. Needs a pre-flight report on invoices already settled with no receipt (Repttown may have some). |
+| **A — cancel a posted TI/RC and reissue, traceably** | own release **after R2** | Neither TaxInvoice nor Receipt has ANY cancel path today — this is new construction. Its ภ.พ.30 treatment is an open compliance question needing research + the CPA, same as the prior-period question. |
+| **B — set the document date before posting** | **after R3** | Gated on **H1** (duplicate running numbers): the document number is derived FROM `DocDate`, so backdating hammers the very allocator H1 says is broken. |
+
 ## R1 — Ledger integrity (everything that writes wrong data into an immutable ledger)
 Footgun tier: money + a new GL posting path → **Opus design spec, Fable reviews it, Sonnet implements,
 Opus reviews the diff, Fable reads the full diff before commit.** Acceptance-tester pass before Tier-2.
