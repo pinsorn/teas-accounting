@@ -80,6 +80,9 @@ public sealed class RbacCartesianTests
     private static readonly HashSet<string> HandlerGatedAuthnOnly =
     [
         "POST /system/setup/instance-keys",
+        // R1/C6 (WP-2) — AdminBackfillEndpoints gates on the is_super_admin CLAIM only (no live
+        // DB lookup), which a synthetic super-admin token still satisfies.
+        "POST /admin/nonvat-ar-backfill",
     ];
 
     /// <summary>

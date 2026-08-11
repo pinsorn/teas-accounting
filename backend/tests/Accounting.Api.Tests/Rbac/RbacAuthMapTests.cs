@@ -43,6 +43,11 @@ public sealed class RbacAuthMapTests
         "GET /documents/purchase-chain",
         "GET /me",
         "GET /me/permissions",
+        // R1/C6 (WP-2) — non-VAT AR backfill: RequireAuthorization at the policy, super-admin
+        // enforced in the handler (a permission policy would need an ungrantable-by-design
+        // permission — this is a one-time prod-data operation, not a role-grantable feature).
+        // Mirrors "POST /system/setup/instance-keys" below exactly.
+        "POST /admin/nonvat-ar-backfill",
         // WP2.1 (F16, D6 sliding re-issue) — any authenticated caller may refresh THEIR OWN
         // token; there is no "permission to refresh". The handler itself is the gate: it
         // re-validates the caller (auth_time absolute cap, active/not-locked via a live DB

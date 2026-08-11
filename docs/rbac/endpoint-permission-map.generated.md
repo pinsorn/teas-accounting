@@ -8,12 +8,12 @@
 | Kind | Count |
 |---|---:|
 | Anonymous | 8 |
-| AuthnOnly | 15 |
+| AuthnOnly | 16 |
 | Perm | 295 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **357** |
+| **TOTAL** | **358** |
 
 ## Routes
 
@@ -23,6 +23,7 @@
 | GET | `/accounts/` | Perm | master.coa.manage |
 | POST | `/accounts/` | Perm | master.coa.manage |
 | PUT | `/accounts/{id:long}` | Perm | master.coa.manage |
+| POST | `/admin/nonvat-ar-backfill` | AuthnOnly | — |
 | GET | `/admin/rbac/permissions` | Perm | sys.role.manage |
 | GET | `/admin/rbac/roles` | Perm | sys.role.manage |
 | POST | `/admin/rbac/roles` | Perm | sys.role.manage |

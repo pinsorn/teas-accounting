@@ -18,6 +18,13 @@ public sealed class GlAccountsOptions
     public string WhtReceivableAccount { get; init; } = "1180"; // ภาษีหัก ณ ที่จ่ายค้างรับ (AR-side, Sprint 8.6)
     public string SalesReturnAccount { get; init; } = "4100"; // Sales return / discount (for CN)
 
+    /// <summary>R1/C6 (WP-2) — กำไรสะสม (Retained Earnings), the credit side of a non-VAT AR
+    /// backfill correction for an invoice issued in a CLOSED fiscal year (never Sales — that
+    /// year's P&amp;L is already final). Same code YearCloseService already sweeps into
+    /// (YearCloseService.cs:139, hardcoded there); resolved dynamically here instead, per the
+    /// "never hardcode a code" rule every other GL role in this options object follows.</summary>
+    public string RetainedEarningsAccount { get; init; } = "3300"; // กำไรสะสม
+
     /// <summary>ม.83/6 reverse-charge VAT (ภ.พ.36) paid by a NON-VAT-registered service
     /// receiver: it must remit the VAT but CANNOT reclaim it (no ภ.พ.30) — the VAT is a
     /// permanent sunk cost, so it is expensed here instead of debited to InputVat (1170).
@@ -47,6 +54,7 @@ public sealed class GlAccountsOptions
     [
         ArAccount, ApAccount, CashAccount, BankAccount, SalesAccount, OutputVatAccount,
         InputVatAccount, WhtPayableAccount, WhtReceivableAccount, SalesReturnAccount,
+        RetainedEarningsAccount,
         IrrecoverableVatExpenseAccount, SalaryExpenseAccount, EmployerSsoExpenseAccount,
         PitPayableAccount, SsoPayableAccount, NetWagesPayableAccount, OtherDeductionsPayableAccount,
         FixedAssetCostAccount, AccumulatedDepreciationAccount, DepreciationExpenseAccount,

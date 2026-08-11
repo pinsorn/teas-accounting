@@ -572,6 +572,7 @@ app.MapTaxFilingEndpoints();
 app.MapCitEndpoints();
 app.MapSalesChainEndpoints();
 app.MapBillingNoteEndpoints();
+app.MapAdminBackfillEndpoints();   // R1/C6 WP-2 — non-VAT AR backfill (super-admin)
 app.MapDocumentCrossRefEndpoints();
 app.MapActivityEndpoints();
 app.MapPrintEndpoints();

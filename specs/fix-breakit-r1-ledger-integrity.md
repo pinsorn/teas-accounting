@@ -741,16 +741,16 @@ Each is a money statement, not a field value. `T#` = the test in §6 that proves
 
 ### WP-2 — C6 backfill for Repttown *(depends on WP-1; same-area, keep the SAME warm worker)*
 
-- [ ] `INonVatArBackfillService` + implementation: enumerate **only invoices with `JournalEntryId IS NULL` that still have an outstanding balance**; settled invoices are skipped entirely (§3.2.5). Preview builds the plan with zero writes.
-- [ ] Credit-side routing per §3.2.5: issue date in the **current open fiscal year** → Revenue, dated at issue; issue date in a **closed** fiscal year → **กำไรสะสม**, dated in the current open period.
-- [ ] Resolve the retained-earnings account from the company's **live chart of accounts** — never hardcode a code. No such account → stop with a clear error.
-- [ ] VAT-company refusal (`backfill.vat_company`).
-- [ ] `apply` posts via `IGlPostingService.PostManualEntryAsync`, **one transaction per invoice**, stamping `bn.JournalEntryId` last in that transaction.
-- [ ] `POST /admin/nonvat-ar-backfill` with a **required** `mode` (`preview`|`apply`), super-admin-gated, **no `companyId` parameter** (target = `tenant.CompanyId`).
-- [ ] Preview response per §3.2.5: per fiscal year `outstandingTotal` / `creditSide` / `invoiceCount` + the invoice list. **This output is handed to the company's accountant** — make it readable, not just machine-parseable.
-- [ ] Tests T8–T11 green.
-- [ ] `RbacAuthMapTests` / `RbacCartesianTests` green with `TEAS_REPO_ROOT` set (a new endpoint always disturbs these).
-- [ ] **The apply run on Repttown is NOT part of this dispatch.** Ship the code; Fable runs the operation per §7's Tier-4 checklist.
+- [x] `INonVatArBackfillService` + implementation: enumerate **only invoices with `JournalEntryId IS NULL` that still have an outstanding balance**; settled invoices are skipped entirely (§3.2.5). Preview builds the plan with zero writes. Evidence: T11.
+- [x] Credit-side routing per §3.2.5: issue date in the **current open fiscal year** → Revenue, dated at issue (or today if the issue month is independently closed); issue date in a **prior (closed)** fiscal year → **กำไรสะสม**, dated in the current open period. Evidence: T8. **Updated per Ham's ruling (2026-08-11):** "closed" = a prior fiscal year, a pure `fy < currentFy` comparison — the `FiscalYearClose`-row approach this row originally described was replaced (it under-reported closure for a company, like Repttown, that never ran the in-app year-close). Plus a second guard: a current-FY invoice whose own issue MONTH is independently closed (ordinary monthly close) still credits Revenue but dates at today, never into that closed month (I13b, now enforced at the month level too).
+- [x] Resolve the retained-earnings account from the company's **live chart of accounts** — never hardcode a code. No such account → stop with a clear error. Evidence: `Missing_retained_earnings_account_stops_with_clear_error_and_posts_nothing`. Added `GlAccountsOptions.RetainedEarningsAccount` (default `"3300"`, matching the code `YearCloseService` already hardcodes) — resolved the same way as every other GL role in that options object.
+- [x] VAT-company refusal (`backfill.vat_company`). Evidence: `Vat_company_is_refused_on_both_preview_and_apply`.
+- [x] `apply` posts via `IGlPostingService.PostManualEntryAsync`, **one transaction per invoice**, stamping `bn.JournalEntryId` last in that transaction. Evidence: T8/T9/T10.
+- [x] `POST /admin/nonvat-ar-backfill` with a **required** `mode` (`preview`|`apply`), super-admin-gated, **no `companyId` parameter** (target = `tenant.CompanyId`). Gate mirrors `InstanceSetupEndpoints` exactly: `.RequireAuthorization()` (authn only) + in-handler `IsSuperAdmin` claim check — a permission policy would need an ungrantable-by-design permission for a one-time prod-data operation.
+- [x] Preview response per §3.2.5: per fiscal year `outstandingTotal` / `creditSide` / `invoiceCount` + the invoice list. **This output is handed to the company's accountant** — make it readable, not just machine-parseable. Evidence: `NonVatArBackfillResult.ByFiscalYear`.
+- [x] Tests T8–T11 green. Evidence: `NonVatArBackfillTests.cs` 6/6 (T8, T9, T10, T11, VAT refusal, missing-account error), 0 skipped.
+- [x] `RbacAuthMapTests` / `RbacCartesianTests` green with `TEAS_REPO_ROOT` set (a new endpoint always disturbs these). Allowlist entries added (`ExpectedAuthnOnly` + `HandlerGatedAuthnOnly`, claims-only gate). Evidence: 4/4 passed, 4m22s.
+- [ ] **The apply run on Repttown is NOT part of this dispatch.** Ship the code; Fable runs the operation per §7's Tier-4 checklist. (Not run — code-only, as instructed.)
 
 **Blast cap:** max **8** source files + **2** test files. 0 migrations, 0 SqlScripts. New public endpoint: **1**.
 **Dropped by the redesign:** the fiscal-year hard stop and its `backfill.fiscal_year_closed` blocker are
@@ -1044,6 +1044,138 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   `m.DocDate <= asOf` filter over `ArMovementsAsync`'s per-movement dates — both already correctly
   asOf-scoped (unlike `ArAgingAsync`'s own row-level table, which has the deliberately-deferred H7 gap) —
   not run-verified. **The coordinator should treat this test's first run as the real gate**, not this report.
+- **2026-08-11 sonnet-implementer: WP-2 implemented, all checklist items `[x]` except the (deliberately
+  out-of-scope) Repttown apply run.** 6 source files (`GlAccountsOptions.cs`, `DependencyInjection.cs`,
+  `Program.cs` edited; `NonVatArBackfillDtos.cs`, `NonVatArBackfillService.cs`,
+  `AdminBackfillEndpoints.cs` new) + 1 test file (`NonVatArBackfillTests.cs`, new) — both within the 8/2
+  cap. Also touched `RbacAuthMapTests.cs` + `RbacCartesianTests.cs` (mechanical allowlist entries for the
+  new authn-only endpoint, same footgun WP-1 didn't hit since it added no endpoint) — counted separately
+  from the 2-test-file budget, same reasoning as WP-1's EF-migration-file exclusion.
+  RED confirmed first: moved the 3 new implementation files out and stashed the 3 tracked-file edits →
+  `NonVatArBackfillTests.cs` fails to compile (`INonVatArBackfillService` doesn't exist) — strongest
+  possible proof. Restored → `dotnet build` 0/0 → T8–T11 + 2 supplementary tests (VAT refusal, missing-
+  account error) all green, 0 skipped → `RbacAuthMapTests`+`RbacCartesianTests` 4/4, 4m22s.
+  **Judgment calls made, both flagged for the coordinator's awareness:**
+  1. **"Closed fiscal year" classification uses the `FiscalYearClose` table literally** (a year is closed
+     iff an ACTIVE row exists for it — `YearCloseService`'s own definition, D7), not a "prior year vs
+     current year" heuristic. This matches the checklist's literal wording and reuses an already-audited
+     codebase concept, but leaves one edge case open: a company that never ran a formal year-end close
+     (plausible for Repttown — it apparently never got AR/revenue accrual right either) would have EVERY
+     past fiscal year read as "not closed," so an old, never-closed invoice would credit Revenue at its
+     own historical date rather than RetainedEarnings-at-today. This is a real, not hypothetical, ambiguity
+     — the PREVIEW report surfaces it plainly (unexpected `Revenue` entries in an old fiscal year), so a
+     human reviews it before any `apply`, per §3.2.5's own framing ("a non-zero RetainedEarnings figure...
+     is an amended-filing question, not an engineering one" — the inverse gap is the same kind of question).
+  2. **`AlreadyDone`/`ResumedFrom` are computed via a description-prefix tag** (`"AR Backfill "` on every
+     correcting JE) rather than a separate tracking column — `BillingNote.JournalEntryId` alone can't
+     distinguish "corrected by this backfill" from "accrued normally by WP-1" once both are simply
+     non-null, so a second `apply` invocation (with an empty candidate plan) needs SOME way to report how
+     much prior work exists. The tag is greppable/self-documenting, mirrors `GlPostingService`'s own
+     `"IV {DocNo}"`/`"RC {DocNo}"` convention, and needed no schema change (0 migrations, per cap).
+  Not run: the Repttown apply operation itself (explicitly out of scope — code + tests only, per dispatch).
+- **2026-08-11 (post-review) sonnet-implementer: resolved judgment-call #1 per Ham's ruling.**
+  `BuildPlanAsync` redefined: "closed" = a PRIOR fiscal year (`fy < currentFy`, pure comparison,
+  `FiscalYearCloses` query dropped entirely — Repttown never ran the in-app year-close, so that
+  table under-reported closure). Added a second guard: a CURRENT-fiscal-year invoice can still
+  have its own issue MONTH already closed via the ordinary monthly `IPeriodCloseService` — I13b
+  now actually guaranteed (not just at the year level): `postDate = period.IsOpenAsync(bn.DocDate)
+  ? bn.DocDate : today`, credit side stays Revenue either way (still this FY's P&L, only the
+  date moves). New constructor dependency: `IPeriodCloseService` (already DI-registered, no
+  wiring change needed).
+  RED confirmed for this specific fix: temporarily reverted `BuildPlanAsync` to the pre-fix
+  `FiscalYearClose`-based logic (tests unchanged) → exactly the 3 tests touching classification
+  failed for the right reasons (T9: no RetainedEarnings group found; T8: prior-FY invoice dated
+  at its own 2025 issue date instead of today; missing-account test: no exception thrown at all,
+  since the old logic never even reached the RetainedEarnings resolution) — T10/T11/VAT-refusal
+  correctly stayed green (unrelated to this logic), proving the tests are precisely targeted, not
+  vacuous. Restored → `dotnet build` 0/0 → all 6 green again.
+  **A second, unplanned bug surfaced while building the "current FY, own month open" test case**:
+  `PeriodCloseService.IsOpenAsync`'s real default is "OPEN only for the literal CURRENT Bangkok
+  month; every OTHER missing month — past OR future — is CLOSED" (verified by reading the method,
+  not assumed — same rule WP-1's spec already documented). This means almost every REAL historical
+  invoice's issue month reads as closed by default (only an explicit `AccountingPeriod` row can
+  make a past month open), so `postDate = today` is actually the COMMON case for current-FY
+  legacy invoices, not the exception the naming implied. Fixed the test to construct a genuinely
+  open past month via an explicit `AccountingPeriod(Status=Open)` row (`OpenPastMonthAsync`
+  helper) rather than assuming an arbitrary past date would be open. RBAC not re-run for this
+  incremental fix — no route/endpoint/policy changed, only an already-DI-registered constructor
+  dependency was added, and all 6 tests already prove DI resolution succeeds.
+- **2026-08-12 sonnet-implementer: fixed all 3 findings from WP-2's Opus REJECT review** (verified
+  real by the coordinator in code, not reviewer noise; full suite green 1089/0/8, money math
+  confirmed correct — these were defensive gaps on the immutable ledger, not I9 breaks).
+  **FIX 1 (HIGH)** — `ApplyAsync` now preflights `await period.EnsureOpenAsync(today, ct)` before
+  ANY posting: `PostManualEntryAsync` deliberately never calls `EnsureOpenAsync` itself (every
+  poster's CALLER owns that gate), and an explicit `Closed` `AccountingPeriod` row is authoritative
+  even for the literal current month (overriding `IsOpenAsync`'s "no row → open only if current
+  month" default) — so a company that closes its month promptly could otherwise post every
+  closed-year/closed-month correction straight into a closed period, unfixably (the JE is
+  immutable once posted). `PreviewAsync` surfaces the same check as a non-throwing `Blockers`
+  entry instead (new `NonVatArBackfillResult.Blockers` field) — the plan still returns, flagged.
+  **FIX 2 (MEDIUM)** — the in-loop re-read's comment claimed it "guards against a concurrent apply
+  run"; it did not — `AccountingDbContext.SaveChangesAsync` never bumps `BillingNote.Version`
+  automatically (only `ExpenseClaimService`/`FixedAssetService` do it manually — the "inert
+  Version token" pattern, `ExpenseClaimService.cs:35`), so the configured EF concurrency token was
+  dead weight. Added `bn.Version++` immediately before the `JournalEntryId` stamp (mirrors
+  `ExpenseClaimService.cs:186`) so a losing concurrent writer's `SaveChangesAsync` now genuinely
+  throws `DbUpdateConcurrencyException` (its own transaction rolls back via the `await using tx`
+  — no half-posted JE survives); corrected the comment to describe the REAL mechanism.
+  **FIX 3 (LOW-MED)** — T10 previously ran `apply` to completion then added a NEW invoice and
+  re-ran, proving incremental pickup but never crash-atomicity of the one-tx-per-invoice loop
+  (spec §6 T10 explicitly asks for a mid-run abort). Rewrote it with a decorator
+  (`FailSecondManualPostGl`, test-file-local) wrapping the real `GlPostingService`: the FIRST
+  `PostManualEntryAsync(ManualJvLine[])` call passes through unchanged (invoice 1 posts and
+  commits for real), the SECOND throws before reaching the real poster (simulating "the process
+  died before invoice 2"). Asserts invoice 1 survives intact, invoice 2 has no JE, and a normal
+  resume run completes it with exactly one JE per invoice — plus kept the original "apply again
+  with nothing new → 0 posted" idempotency check as a third phase of the same test (I12's other
+  half, genuinely different from crash-resume).
+  **LOW item** — `PreviewAsync` now probes AR/Sales/RetainedEarnings existence too (not just the
+  period), reported via the same `Blockers` list — a missing `3300` is now visible in the
+  accountant-facing preview, not only when `apply` explodes.
+  **RED→GREEN for all three, via temporary reverts (not git-stash — these files were never
+  committed) confirmed then restored:**
+  - FIX 1: commented out the `EnsureOpenAsync` preflight → the new
+    `Apply_refuses_when_current_period_is_closed_...` test failed exactly as expected ("Expected a
+    DomainException to be thrown, but no exception was thrown") → restored → green.
+  - FIX 3: temporarily merged the per-invoice transactions into ONE shared transaction for the
+    whole loop → the rewritten T10 failed exactly as expected ("Expected a value because invoice 1
+    committed before the simulated crash" — invoice 1's correction was lost too when invoice 2's
+    simulated failure rolled back the SHARED transaction) → restored → green.
+  - FIX 2: no dedicated concurrency-race test was written (would need its own decorator/threading
+    harness; not requested) — verified by code reading + the existing T8/T9/T10 suite staying green
+    with `Version++` now live (no behavioral regression for the non-concurrent path).
+  Final: `dotnet build` 0/0 → `NonVatArBackfillTests.cs` **7/7 passed, 0 skipped** (T8, T9,
+  rewritten T10, new period-closed-blocks-apply test, VAT refusal, missing-account test extended
+  to also check the preview blocker). Full suite not run (coordinator runs it). `apply` not run
+  against any real company. Not committed.
+- **2026-08-12 sonnet-implementer: Opus round 2 — APPROVE with 3 LOW items + 1 cosmetic note, all fixed.**
+  Coordinator's own suite was live against `teas_test` for this whole round, so per instruction no
+  `dotnet test` was run at all (even targeted) — verified by `dotnet build` to an isolated `-o`
+  output directory instead (avoids the `MSB3027 locked by testhost` collision without touching
+  their process), confirmed 0/0 twice. **Tests were written and are believed correct but are
+  UNRUN — the coordinator's own run of them, after their all-clear, is the real gate for this round.**
+  **LOW 1** — added `SaveGuardedAsync` mirroring `ExpenseClaimService.cs:36-47` exactly: catches
+  `DbUpdateConcurrencyException`, rethrows `DomainException("backfill.locked_mismatch", ...)` (the
+  `.locked_mismatch` suffix `DomainExceptionMiddleware` already maps to 409, confirmed by re-reading
+  `StatusFor`). `posted.Count` folded into the message text (no new exception field, no
+  restructuring) so a 409'd caller still learns how many corrected before the conflict.
+  **LOW 2** — the T10 decorator's second-call branch now calls the REAL `PostManualEntryAsync`
+  FIRST (so invoice 2's transaction genuinely holds a fresh JE), THEN throws — the actual
+  orphan-JE window. New assertion: zero JEs with `Reference == invB's DocNo` survive after the
+  rollback.
+  **LOW 3** — new `Version_concurrency_token_actually_fires_on_a_stale_write` test: two independent
+  `DbContext` scopes (never through `ApplyAsync`) — context B updates+bumps the same
+  `BillingNote.Version` first, then context A's own `Version++` + `SaveChangesAsync` must throw
+  `DbUpdateConcurrencyException`. Pins the raw EF mechanism directly, so it survives even if a
+  future edit swaps the tracked re-read for `AsNoTracking`/`ExecuteUpdateAsync` (the exact "inert
+  Version token" trap `ExpenseClaimService.cs:32-35` already names once).
+  **Cosmetic** — `ProbeBlockersAsync`'s period-closed check is now unconditional (previously gated
+  behind `if (plan.Count == 0) return blockers;`, so an empty plan silently reported zero blockers
+  even when `apply` would still throw `period.closed` — preview now agrees with apply). Confirmed
+  the empty-plan-refuses-when-closed behavior itself is UNCHANGED per the coordinator's explicit
+  "do not fix this" — only preview's HONESTY about it changed.
+  `NonVatArBackfillTests.cs` now has 8 tests total (7 from round 1 + the new LOW 3 test); T10 gained
+  the orphan-JE assertion inline. Not committed.
 
 ---
 

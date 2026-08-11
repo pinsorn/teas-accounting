@@ -111,6 +111,8 @@ public static class DependencyInjection
         // GL auto-posting — bind account-code map then register the poster.
         services.AddOptions<Ledger.GlAccountsOptions>().Bind(cfg.GetSection("GlAccounts"));
         services.AddScoped<Application.Ledger.IGlPostingService,         Ledger.GlPostingService>();
+        // R1/C6 (WP-2) — non-VAT AR backfill for pre-WP-1 invoices (specs/fix-breakit-r1-ledger-integrity.md §3.2.5).
+        services.AddScoped<Application.Ledger.INonVatArBackfillService,  Ledger.NonVatArBackfillService>();
 
         // Cycle C (specs/expense-claims.md) — employee expense reimbursement.
         services.AddScoped<Application.Expense.IExpenseClaimService,     Expense.ExpenseClaimService>();
