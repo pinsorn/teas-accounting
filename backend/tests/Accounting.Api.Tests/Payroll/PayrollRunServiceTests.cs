@@ -110,7 +110,14 @@ public sealed class PayrollRunServiceTests
         {
             CompanyId = companyId, EmployeeCode = "EMP-" + Sfx(),
             FirstNameTh = "ทดสอบ", LastNameTh = Sfx(), NationalId = Nid(),
-            HireDate = hireDate ?? new DateOnly(2020, 1, 1), TerminationDate = terminationDate,
+            // The default must predate EVERY period a test can pick. FreshOpeningYearAsync/
+            // FreshYearAsync scan 2100 DOWNWARD for a year with no payroll run, and each suite
+            // run consumes one — on the shared, never-reset teas_test that pool has drifted
+            // below 2020, so a 2020 default eventually fails PayrollRunService's
+            // `HireDate <= periodEnd` guard with "No employees are active in this period".
+            // A far-past default decouples the helper from that drift entirely; tests that
+            // actually exercise hire-date behaviour pass hireDate explicitly.
+            HireDate = hireDate ?? new DateOnly(1900, 1, 1), TerminationDate = terminationDate,
             BaseSalary = salary,
             SsoApplicable = sso, MaritalStatus = marital,
             SpouseHasIncome = spouseHasIncome, ChildrenCount = children,

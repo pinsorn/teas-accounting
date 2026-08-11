@@ -1037,3 +1037,31 @@ its own findings report, so the next round finds it by grep instead of by archae
   spend time trying to fix Google Fonts connectivity from inside the sandbox.
 - **Seen:** 2026-08-11, R1 WP-1 (fix-breakit-r1-ledger-integrity.md) — one-line `docType` map addition
   in `frontend/lib/utils.ts`, zero relation to fonts, `next build` still hit this.
+
+## Payroll tests self-exhaust a finite year pool on the shared teas_test — "No employees are active in this period" appears out of nowhere
+**Symptom:** `PayrollRunServiceTests.Opening_ytd_is_included_in_midyear_projection_and_sso_allowance`
+(or a sibling) suddenly fails with `DomainException: No employees are active in this period.` on a
+suite that was green earlier the same day. Fails standalone too, so it does not look like a flake —
+and nothing in the diff touches payroll.
+
+**Root cause:** three things compound.
+1. `FreshOpeningYearAsync` / `FreshYearAsync` scan **from 2100 DOWNWARD** for a year with no
+   `payroll_runs` row and return the first free one.
+2. The tests then **create a run in that year**, permanently consuming it — and `teas_test` is shared
+   and never reset, so the pool marches down roughly one year per suite run, across every session.
+3. `AddEmployee`'s default `HireDate` was hardcoded `2020-01-01`, while `PayrollRunService`
+   (`:60-69`) filters `e.HireDate <= periodEnd`. Once the pool drifted **below 2020**, the employee
+   was no longer active in the chosen period and the run refused.
+
+**Fix applied (2026-08-12):** `AddEmployee`'s default is now `1900-01-01`, which predates any year the
+pool can ever reach, decoupling the helper from the drift. Tests that actually exercise hire-date
+behaviour still pass `hireDate` explicitly. Payroll namespace: 38/38 green after the change.
+
+**Watch for:** the drift itself is NOT fixed — the year pool still shrinks by one per suite run. Any
+*other* test helper with a hardcoded date near the pool's current position will fail the same way, and
+the symptom will again look unrelated to whatever diff is in flight. If this recurs, reset `teas_test`
+(see the migration-squash reset note) rather than chasing the individual date.
+
+**Diagnosis technique worth reusing:** to prove a red test is pre-existing and not your diff, run it at
+HEAD in a throwaway worktree — `git worktree add <tmp> HEAD --detach`, run the single test there,
+`git worktree remove --force`. Zero risk to your working tree, and it settles the question outright.
