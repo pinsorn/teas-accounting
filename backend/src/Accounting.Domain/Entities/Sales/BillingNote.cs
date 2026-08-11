@@ -56,6 +56,14 @@ public class BillingNote : ITenantOwned, IAuditable, IConcurrencyVersioned
     public long? IssuedBy { get; set; }
     public DateTimeOffset? SettledAt { get; set; }
 
+    /// <summary>R1/C6 (WP-1) — non-VAT companies accrue revenue+AR at Issue (a non-VAT
+    /// Invoice is their only sales document, ม.86/4 blocks the Tax Invoice). Null until
+    /// posted; also the single source of truth for "has this invoice accrued" used by the
+    /// receipt path, AR reports, the cancel guard, and the WP-2 backfill's idempotency check.
+    /// VAT companies never post here (their BN groups already-accrued TIs) so this stays
+    /// null for them forever. No FK (mirrors PayrollRun.JournalId's convention).</summary>
+    public long? JournalEntryId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public long? CreatedBy { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

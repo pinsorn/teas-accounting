@@ -1020,3 +1020,20 @@ creds were in `swarm-findings/v1241/legF-jv-prod.md:4` all along; the first swee
 
 **Prevention:** a dispatch that mints or uses a test account should state the credential convention in
 its own findings report, so the next round finds it by grep instead of by archaeology.
+
+## `next build` fails "Failed to fetch font file from fonts.gstatic.com" / "`next/font` error: Failed to fetch `Noto Sans Thai`"
+- **Symptom:** `npx next build` fails at the webpack compile step with repeated `Failed to fetch font
+  file from https://fonts.gstatic.com/...woff2` retries (3x) then `Failed to compile` — even when the
+  diff never touched `app/layout.tsx` or anything font-related.
+- **Root cause:** `app/layout.tsx` imports `Noto_Sans_Thai` (+ Inter/Sarabun/JetBrains_Mono) via
+  `next/font/google`, which fetches the actual `.woff2` files from Google's font CDN at BUILD time
+  (not request time). In this Windows agent sandbox, general internet egress works (`curl
+  https://www.google.com` → 200) but the specific font-file URLs 404/fail — a sandbox/proxy egress
+  restriction on that CDN path, not a code defect.
+- **Fix:** before blaming your diff, confirm the failure is present with `git stash` on your frontend
+  changes (or just check your diff touches nothing under `next/font`/`layout.tsx`) — this is
+  environment-specific and unrelated to typical FE diffs. Report `tsc --noEmit` (clean) as the
+  compile-correctness proof and flag `next build`'s font-fetch step as environment-blocked; do not
+  spend time trying to fix Google Fonts connectivity from inside the sandbox.
+- **Seen:** 2026-08-11, R1 WP-1 (fix-breakit-r1-ledger-integrity.md) — one-line `docType` map addition
+  in `frontend/lib/utils.ts`, zero relation to fonts, `next build` still hit this.

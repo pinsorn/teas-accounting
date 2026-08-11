@@ -13,8 +13,10 @@ namespace Accounting.Infrastructure.Reports;
 /// AR/AP sub-ledger suite (specs/subledgers.md) — AR Aging, Customer Statement, Vendor
 /// Ledger, all sharing one reconciliation model. <c>JournalLine</c> carries no
 /// customer/vendor tag, so the party-level subledger is sourced entirely from document
-/// tables (TaxInvoice/Receipt/TaxAdjustmentNote for AR; VendorInvoice/PaymentVoucherApplication
-/// for AP) — never from GL. Control accounts (1130 AR / 2110 AP) are resolved from
+/// tables (TaxInvoice/Receipt/TaxAdjustmentNote for AR — plus, R1/C6, an ACCRUED BillingNote
+/// (JournalEntryId != null): a non-VAT company's Invoice, GL-posted at Issue just like a
+/// TaxInvoice; VendorInvoice/PaymentVoucherApplication for AP) — never from GL. Control
+/// accounts (1130 AR / 2110 AP) are resolved from
 /// <see cref="GlAccountsOptions"/> (never hardcoded) exactly as <c>GlPostingService</c> does,
 /// except a missing account code resolves to a 0 control balance (no postings are possible to
 /// an account that doesn't exist in the tenant's CoA) rather than throwing.
@@ -75,24 +77,51 @@ public sealed class SubledgerReportService(
                 t.TotalAmount, 0m))
             .ToListAsync(ct);
 
+        // R1/C6 (WP-1) — accrued Invoices (BillingNote.JournalEntryId != null) debit AR at
+        // Issue exactly like a TaxInvoice — PostBillingNoteAsync posts the identical
+        // Dr 1130/Cr 4000 shape. A pre-fix Invoice (JournalEntryId == null) is deliberately
+        // excluded: it never touched the GL, so it stays out of AR exactly as it is out of
+        // the GL (transition safety — self-heals once WP-2 backfills it).
+        var bnRows = await db.BillingNotes.AsNoTracking()
+            .Where(b => b.CompanyId == tenant.CompanyId && b.JournalEntryId != null
+                     && b.Status != BillingNoteStatus.Cancelled
+                     && (customerId == null || b.CustomerId == customerId))
+            .Select(b => new PartyMovement(
+                b.CustomerId, b.DocDate, "Invoice", 0, b.BillingNoteId, b.DocNo ?? "", null,
+                b.TotalAmount, 0m))
+            .ToListAsync(ct);
+
+        // Every accrued Invoice id (company-wide, NOT customer-filtered — this only
+        // classifies a receipt's OWN applications below; the receipt row itself is already
+        // customer-filtered).
+        var accruedBnIds = await db.BillingNotes.AsNoTracking()
+            .Where(b => b.CompanyId == tenant.CompanyId && b.JournalEntryId != null)
+            .Select(b => b.BillingNoteId)
+            .ToListAsync(ct);
+
         // One row per Receipt (not per application) — Credit = the portion of the receipt
-        // that actually clears AR (sum of TI-linked applications only; DO/BillingNote
-        // applications recognize revenue at receipt and never touch 1130 — GlPostingService
-        // .PostReceiptAsync). AppliedAmount already includes any WHT withheld on that
-        // application (cash + WHT = sum(applied), Sprint 8.6), so it ties to the AR credit
-        // GlPostingService actually posts — the same value TaxInvoice.AmountPaid accumulates.
+        // that actually clears AR: TI-linked applications (VAT path) PLUS applications
+        // against an ACCRUED Invoice (R1/C6 — GlPostingService.PostReceiptAsync credits AR
+        // for those, not Sales). A DO application or a not-yet-accrued Invoice application
+        // recognizes revenue at receipt and never touches 1130, so it is excluded here too.
+        // Merged into ONE row (not two) so a receipt never appears twice in a statement.
+        // AppliedAmount already includes any WHT withheld on that application (cash + WHT =
+        // sum(applied), Sprint 8.6), so it ties to the AR credit GlPostingService actually posts.
         var receiptRaw = await db.Receipts.AsNoTracking()
             .Where(r => r.CompanyId == tenant.CompanyId && r.Status == DocumentStatus.Posted
                      && (customerId == null || r.CustomerId == customerId))
             .Select(r => new
             {
                 r.CustomerId, r.ReceiptId, r.DocDate, r.DocNo,
-                Applied = r.Applications.Where(a => a.TaxInvoiceId != null).Sum(a => a.AppliedAmount),
+                TiApplied = r.Applications.Where(a => a.TaxInvoiceId != null).Sum(a => a.AppliedAmount),
+                BnApplied = r.Applications.Where(a => a.BillingNoteId != null
+                         && accruedBnIds.Contains(a.BillingNoteId!.Value)).Sum(a => a.AppliedAmount),
             })
             .ToListAsync(ct);
-        var rcRows = receiptRaw.Where(x => x.Applied > 0m)
+        var rcRows = receiptRaw.Where(x => x.TiApplied + x.BnApplied > 0m)
             .Select(x => new PartyMovement(
-                x.CustomerId, x.DocDate, "Receipt", 1, x.ReceiptId, x.DocNo ?? "", null, 0m, x.Applied));
+                x.CustomerId, x.DocDate, "Receipt", 1, x.ReceiptId, x.DocNo ?? "", null, 0m,
+                x.TiApplied + x.BnApplied));
 
         // CN reverses AR (Credit); DN increases AR (Debit) — sign per GlPostingService
         // .PostTaxAdjustmentNoteAsync.
@@ -105,7 +134,7 @@ public sealed class SubledgerReportService(
             ? new PartyMovement(n.CustomerId, n.DocDate, "CreditNote", 2, n.NoteId, n.DocNo ?? "", n.Reason, 0m, n.TotalAmount)
             : new PartyMovement(n.CustomerId, n.DocDate, "DebitNote", 2, n.NoteId, n.DocNo ?? "", n.Reason, n.TotalAmount, 0m));
 
-        return tiRows.Concat(rcRows).Concat(noteRows).ToList();
+        return tiRows.Concat(bnRows).Concat(rcRows).Concat(noteRows).ToList();
     }
 
     private async Task<List<PartyMovement>> ApMovementsAsync(long? vendorId, CancellationToken ct)
@@ -199,6 +228,36 @@ public sealed class SubledgerReportService(
             Amount = n.NoteType == TaxAdjustmentNoteType.Credit ? -n.TotalAmount : n.TotalAmount,
         }).ToListAsync(ct);
 
+        // R1/C6 (WP-1) — accrued Invoices (BillingNote.JournalEntryId != null) age exactly
+        // like a TaxInvoice — same DocDate-bucketing convention (incl. the asOf gap left for
+        // R4/H7 — see spec §2.1: fixing it for BN but not TI would make one report use two
+        // bases). outstanding = total − Σ applied on POSTED receipts (BillingNote carries no
+        // AmountPaid column; mirrors ReceiptService.cs:515-525's "already paid" convention).
+        var bnQ = db.BillingNotes.AsNoTracking()
+            .Where(b => b.CompanyId == tenant.CompanyId && b.JournalEntryId != null
+                     && b.Status != BillingNoteStatus.Cancelled);
+        if (customerId is { } cid3) bnQ = bnQ.Where(b => b.CustomerId == cid3);
+
+        var bnHeaders = await bnQ.Select(b => new
+            { b.BillingNoteId, b.CustomerId, b.CustomerName, b.CustomerTaxId, b.DocDate, b.TotalAmount })
+            .ToListAsync(ct);
+        var bnIds = bnHeaders.Select(b => b.BillingNoteId).ToList();
+        var paidByBn = bnIds.Count > 0
+            ? await db.ReceiptApplications.AsNoTracking()
+                .Where(a => a.BillingNoteId != null && bnIds.Contains(a.BillingNoteId!.Value))
+                .Join(db.Receipts.AsNoTracking()
+                        .Where(r => r.CompanyId == tenant.CompanyId && r.Status == DocumentStatus.Posted),
+                    a => a.ReceiptId, r => r.ReceiptId, (a, _) => a)
+                .GroupBy(a => a.BillingNoteId!.Value)
+                .Select(g => new { BillingNoteId = g.Key, Paid = g.Sum(x => x.AppliedAmount) })
+                .ToDictionaryAsync(x => x.BillingNoteId, x => x.Paid, ct)
+            : new Dictionary<long, decimal>();
+        var bnRaw = bnHeaders.Select(b => new
+        {
+            b.CustomerId, b.CustomerName, b.CustomerTaxId, b.DocDate,
+            Amount = b.TotalAmount - paidByBn.GetValueOrDefault(b.BillingNoteId),
+        }).Where(x => x.Amount != 0m).ToList();
+
         var customerCodes = await db.Customers.AsNoTracking()
             .Where(c => c.CompanyId == tenant.CompanyId)
             .Select(c => new { c.CustomerId, c.CustomerCode })
@@ -208,7 +267,7 @@ public sealed class SubledgerReportService(
         // differ from a TI's if the customer master changed between the two doc dates, which
         // would otherwise split one customer into two rows); display name/taxId from either
         // source, whichever is present.
-        var rows = tiRaw.Concat(noteRaw)
+        var rows = tiRaw.Concat(noteRaw).Concat(bnRaw)
             .GroupBy(x => x.CustomerId)
             .Select(g =>
             {

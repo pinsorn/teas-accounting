@@ -188,6 +188,10 @@ internal sealed class BillingNoteConfiguration : IEntityTypeConfiguration<Billin
         b.Property(x => x.Notes).HasMaxLength(2000);
         b.Property(x => x.InternalNotes).HasMaxLength(2000);
         b.Property(x => x.CancelledReason).HasMaxLength(500);
+        // R1/C6 (WP-1) — JournalEntryId (nullable bigint) needs no explicit config: no FK
+        // (mirrors PayrollRun.JournalId's convention, which also has none), no index (read
+        // only by BillingNoteId-keyed lookups, never queried by JournalEntryId itself).
+        // UseSnakeCaseNamingConvention() already maps it to journal_entry_id by convention.
         b.Property(x => x.IssuedAt).HasColumnType("timestamptz(3)");
         b.Property(x => x.SettledAt).HasColumnType("timestamptz(3)");
         b.Property(x => x.CreatedAt).HasColumnType("timestamptz(3)");

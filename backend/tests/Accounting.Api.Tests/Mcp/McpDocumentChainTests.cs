@@ -229,10 +229,12 @@ public sealed class McpDocumentChainTests
         lines.Should().NotContain(l => l.AccountId == sales, "revenue was already recognized at TI post — never re-credited");
     }
 
-    // ── D8 #2 — non-VAT sales happy path: pins D3(b) (Dr 1110/Cr 4000); TI creation blocked ──
+    // ── D8 #2 — non-VAT sales happy path: R1/C6 (WP-1) — Issue now accrues Dr 1130/Cr
+    //    4000; the receipt then settles AR (Dr 1110/Cr 1130), it does not re-recognize
+    //    revenue. TI creation stays blocked. ────────────────────────────────────────────
 
     [SkippableFact]
-    public async Task NonVat_sales_chain_settles_billing_note_pins_D3b_je_and_blocks_tax_invoice()
+    public async Task NonVat_sales_chain_accrues_at_issue_settles_ar_at_receipt_and_blocks_tax_invoice()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
@@ -242,13 +244,24 @@ public sealed class McpDocumentChainTests
         var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "GOOD", 50_000m, 0m);
         var doId = await CreateAndIssueDoFromSoAsync(sp, soId, today);
 
-        long bnId;
+        long bnId; string bnDocNo;
         await using (var s = sp.CreateAsyncScope())
         {
             var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
             bnId = await bnSvc.CreateFromDeliveryOrderAsync(doId, default);
             await bnSvc.IssueAsync(bnId, default);
+            var detail = await bnSvc.GetAsync(bnId, default);
+            bnDocNo = detail!.DocNo!;
+            detail.JournalEntryId.Should().NotBeNull("R1/C6 — a non-VAT Invoice accrues at Issue");
         }
+
+        var (ar, sales, cash) = (
+            await AccountIdAsync(sp, co.CompanyId, "1130"), await AccountIdAsync(sp, co.CompanyId, "4000"),
+            await AccountIdAsync(sp, co.CompanyId, "1110"));
+        var (issueDebit, issueCredit, issueLines) = await JournalAsync(sp, bnDocNo);
+        issueDebit.Should().Be(issueCredit).And.Be(50_000m);
+        issueLines.Should().Contain(l => l.AccountId == ar && l.Debit == 50_000m);
+        issueLines.Should().Contain(l => l.AccountId == sales && l.Credit == 50_000m);
 
         // ม.86/4 — a non-VAT company cannot create a Tax Invoice at all (existing chokepoint,
         // reused unchanged by the new CreateFromDeliveryOrderAsync/CreateFromBillingNoteAsync).
@@ -271,12 +284,13 @@ public sealed class McpDocumentChainTests
             rcDocNo = posted.DocNo;
         }
 
-        var (cash, sales) = (
-            await AccountIdAsync(sp, co.CompanyId, "1110"), await AccountIdAsync(sp, co.CompanyId, "4000"));
         var (totalDebit, totalCredit, lines) = await JournalAsync(sp, rcDocNo);
         totalDebit.Should().Be(totalCredit).And.Be(50_000m);
         lines.Should().Contain(l => l.AccountId == cash && l.Debit == 50_000m);
-        lines.Should().Contain(l => l.AccountId == sales && l.Credit == 50_000m);
+        // R1/C6 — the receipt SETTLES the AR the Issue already accrued; it must not
+        // credit Sales again (that would double-count this sale's revenue).
+        lines.Should().Contain(l => l.AccountId == ar && l.Credit == 50_000m);
+        lines.Should().NotContain(l => l.AccountId == sales);
     }
 
     // ── D8 #3 — service-only SO skips the DO node entirely ────────────────────

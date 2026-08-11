@@ -132,6 +132,9 @@ const DOC_TYPE_I18N_KEY: Record<string, string> = {
   DebitNote: 'debitNote',
   VendorInvoice: 'vendorInvoice',
   PaymentVoucher: 'paymentVoucher',
+  // R1/C6 (WP-1) — non-VAT accrued Invoice row from SubledgerReportService.ArMovementsAsync.
+  // Reuses the existing 'billingNote' message key (already "Invoice"/"ใบแจ้งหนี้").
+  Invoice: 'billingNote',
 };
 
 /** Raw docType string → `crossRef` i18n key (falls back to the raw value for

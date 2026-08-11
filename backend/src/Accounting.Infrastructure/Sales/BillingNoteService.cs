@@ -1,5 +1,6 @@
 using Accounting.Application.Abstractions;
 using Accounting.Application.Audit;
+using Accounting.Application.Ledger;
 using Accounting.Application.Pdf;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
@@ -17,11 +18,15 @@ namespace Accounting.Infrastructure.Sales;
 // yet). Issued/Settled/Cancelled are read-only header. Settled is the terminal
 // "fully paid" state set by ReceiptService (Sprint 13i) — manual MarkSettled
 // endpoint shipped here for ckpt3.
+// R1/C6 (WP-1) — a non-VAT company's Issue now accrues revenue+AR (its Invoice is the
+// only sales document, ม.86/4 blocks the Tax Invoice); IGlPostingService/IPeriodCloseService
+// added for that. VAT companies are unaffected — their BN groups already-accrued TIs.
 
 public sealed class BillingNoteService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    ICompanyTaxConfigService taxCfg, IFileStorageService storage) : IBillingNoteService
+    ICompanyTaxConfigService taxCfg, IFileStorageService storage,
+    IGlPostingService gl, IPeriodCloseService period) : IBillingNoteService
 {
     private void Auth()
     {
@@ -302,6 +307,15 @@ public sealed class BillingNoteService(
         var bn = await LoadAsync(id, ct);
         if (bn.Status != BillingNoteStatus.Draft)
             throw new DomainException("billing_note.bad_status", "Only a Draft billing note can be issued.");
+
+        // R1/C6 (WP-1) — non-VAT only: issuing now moves money, so the period must be open
+        // BEFORE the number allocation below (no invoice number consumed on a closed-period
+        // issue). VAT companies: no JE, unchanged behaviour, zero risk (their BN groups
+        // already-accrued Tax Invoices).
+        var tax = await taxCfg.GetAsync(ct);
+        if (!tax.VatMode)
+            await period.EnsureOpenAsync(bn.DocDate, ct);
+
         // cont.69 (Ham) — Invoice number prefix BL → IV. Existing BL-numbered invoices
         // keep their numbers; new ones start a fresh IV monthly sequence per BU.
         var issuedAt = clock.UtcNow;
@@ -313,6 +327,13 @@ public sealed class BillingNoteService(
             (v, _) => { bn.DocNo = v.Value; bn.Status = BillingNoteStatus.Issued; bn.IssuedAt = issuedAt; bn.IssuedBy = tenant.UserId; },
             ct);
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Issued", "Draft", "Issued");
+
+        // R1/C6 (WP-1) — post AFTER number allocation: PostBillingNoteAsync re-reads the BN
+        // on this same DbContext and needs DocNo populated (identity-map note, mirrors
+        // ExpenseClaimService.PayAsync:280-284).
+        if (!tax.VatMode)
+            bn.JournalEntryId = await gl.PostBillingNoteAsync(bn.BillingNoteId, ct);
+
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
     }
@@ -324,6 +345,12 @@ public sealed class BillingNoteService(
         if (bn.Status is BillingNoteStatus.Settled or BillingNoteStatus.Cancelled)
             throw new DomainException("billing_note.bad_status",
                 "Cannot cancel a settled or already cancelled billing note.");
+        // R1/C6 (WP-1) — an accrued Invoice (JournalEntryId set) is ledger-backed and
+        // immutable like every other posted document: cancelling it would strand its AR
+        // debit with nothing left to clear it.
+        if (bn.JournalEntryId is not null)
+            throw new DomainException("billing_note.cannot_cancel_posted",
+                $"Invoice {bn.DocNo} has already posted to the GL and cannot be cancelled.");
         var fromCancel = bn.Status.ToString();
         bn.Status = BillingNoteStatus.Cancelled; bn.CancelledReason = reason;
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Cancelled", fromCancel, "Cancelled", note: reason);
@@ -437,7 +464,8 @@ public sealed class BillingNoteService(
             bn.Notes,
             bn.Lines.OrderBy(l => l.LineNo).Select(l => new ChainLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList());
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+            bn.JournalEntryId);
     }
 
     // Compliance backstops (SalesLineBackstop): snapshot ProductType from the product

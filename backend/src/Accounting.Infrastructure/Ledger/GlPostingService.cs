@@ -66,6 +66,36 @@ public sealed class GlPostingService : IGlPostingService
             businessUnitId: ti.BusinessUnitId);
     }
 
+    /// <summary>R1/C6 (WP-1) — non-VAT revenue+AR accrual at Invoice issue. Mirrors
+    /// <see cref="PostTaxInvoiceAsync"/> exactly. A non-VAT company's Invoice is its ONLY
+    /// sales document (ม.86/4 blocks the Tax Invoice), so it is the revenue-recognition
+    /// point. A VAT company's BillingNote groups already-accrued Tax Invoices and must
+    /// NEVER post here — that would double-count AR and revenue.</summary>
+    public async Task<long> PostBillingNoteAsync(long billingNoteId, CancellationToken ct)
+    {
+        var bn = await _db.BillingNotes.FirstOrDefaultAsync(b => b.BillingNoteId == billingNoteId, ct)
+            ?? throw new DomainException("gl.bn_missing", $"Invoice {billingNoteId} not found for GL posting.");
+
+        if (bn.VatAmount != 0m)
+            throw new DomainException("gl.bn_vat_unexpected",
+                $"Invoice {bn.DocNo} carries VAT {bn.VatAmount}; a non-VAT invoice must not.");
+
+        var ar    = await ResolveAccountIdAsync(bn.CompanyId, _accounts.ArAccount, ct);
+        var sales = await ResolveAccountIdAsync(bn.CompanyId, _accounts.SalesAccount, ct);
+
+        var lines = new List<JournalLine>
+        {
+            new() { LineNo = 1, AccountId = ar,    DebitAmount = bn.TotalAmount, CreditAmount = 0m,
+                    Description = $"AR {bn.DocNo}" },
+            new() { LineNo = 2, AccountId = sales, DebitAmount = 0m, CreditAmount = bn.TotalAmount,
+                    Description = $"Sales {bn.DocNo}" },
+        };
+
+        return await BuildAndPostAsync(
+            bn.CompanyId, bn.BranchId, bn.DocDate, $"IV {bn.DocNo}", bn.DocNo, lines, ct,
+            businessUnitId: bn.BusinessUnitId);
+    }
+
     public async Task<long> PostReceiptAsync(long receiptId, CancellationToken ct)
     {
         var rc = await _db.Receipts.Include(r => r.Applications)
@@ -91,8 +121,22 @@ public sealed class GlPostingService : IGlPostingService
                 .Where(t => tiIds.Contains(t.TaxInvoiceId))
                 .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.BusinessUnitId, ct)
             : new Dictionary<long, int?>();
-        // Non-VAT receipts (DO-applied / standalone) have no prior AR — they recognize
-        // revenue at receipt (Cr Sales), cash basis (ม.86 — non-VAT issues no TI).
+        // R1/C6 (WP-1) — pre-load every applied BillingNote once (mirrors tiBu above).
+        // JournalEntryId != null means the Invoice already accrued AR+revenue at Issue
+        // (PostBillingNoteAsync); this receipt then only CLEARS that AR (Cr AR, not Cr
+        // Sales — crediting Sales again would double-count revenue). JournalEntryId ==
+        // null is a pre-fix Invoice that never accrued: the receipt is still its
+        // revenue-recognition point (transition safety — self-heals once WP-2 backfills it).
+        var bnIds = rc.Applications.Where(a => a.BillingNoteId.HasValue)
+            .Select(a => a.BillingNoteId!.Value).ToList();
+        var bnInfo = bnIds.Count > 0
+            ? await _db.BillingNotes.AsNoTracking()
+                .Where(b => bnIds.Contains(b.BillingNoteId))
+                .ToDictionaryAsync(b => b.BillingNoteId, b => (b.JournalEntryId, b.BusinessUnitId), ct)
+            : new Dictionary<long, (long? JournalEntryId, int? BusinessUnitId)>();
+        // Revenue recognized at RECEIPT (Cr Sales, cash basis, ม.86 — non-VAT issues no TI)
+        // applies only to a DO-applied/standalone receipt or a not-yet-accrued Invoice —
+        // never to an accrued Invoice, which recognized revenue at Issue instead.
         var salesAcct = await ResolveAccountIdAsync(rc.CompanyId, _accounts.SalesAccount, ct);
 
         var lines = new List<JournalLine>
@@ -121,8 +165,20 @@ public sealed class GlPostingService : IGlPostingService
                     Description = $"AR settle {rc.DocNo}",
                     BusinessUnitId = tiBu.GetValueOrDefault(tid),
                 });
-            else // DO (cont.68) or Invoice/BillingNote (cont.69) application — non-VAT,
-                 // recognize revenue now (Cr Sales 4000, cash basis; no prior AR to settle).
+            else if (a.BillingNoteId is { } bid
+                     && bnInfo.TryGetValue(bid, out var bnI) && bnI.JournalEntryId is not null)
+                // R1/C6 — accrued Invoice: the receipt only clears the AR that
+                // PostBillingNoteAsync already posted at Issue.
+                lines.Add(new JournalLine
+                {
+                    LineNo = ln++, AccountId = ar, DebitAmount = 0m,
+                    CreditAmount = a.AppliedAmount,
+                    Description = $"AR settle {rc.DocNo}",
+                    BusinessUnitId = bnI.BusinessUnitId,
+                });
+            else // DO (cont.68) application, or a pre-fix Invoice (BillingNote.JournalEntryId
+                 // == null, never accrued) — non-VAT, recognize revenue now (Cr Sales 4000,
+                 // cash basis; no prior AR to settle).
                 lines.Add(new JournalLine
                 {
                     LineNo = ln++, AccountId = salesAcct, DebitAmount = 0m,

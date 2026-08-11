@@ -132,6 +132,19 @@ public sealed partial class ReceiptService : IReceiptService
         var dos = doIds.Count > 0
             ? await _db.DeliveryOrders.Where(d => doIds.Contains(d.DeliveryOrderId)).ToListAsync(ct)
             : new List<DeliveryOrder>();
+        // R1/C6 (WP-1) — a DO that was already invoiced accrued its revenue+AR at the
+        // Invoice. The link lives on BillingNote.DeliveryOrderId, NOT a column on
+        // DeliveryOrder itself (the billingNoteId field on the DO detail DTO is a computed
+        // lookup, SalesOrderDeliveryServices.cs:467-470). One batched read for every
+        // applied DO — used by the DO-application guard below.
+        var invoicedDo = doIds.Count > 0
+            ? (await _db.BillingNotes.AsNoTracking()
+                .Where(b => b.DeliveryOrderId != null
+                         && doIds.Contains(b.DeliveryOrderId!.Value)
+                         && b.Status != BillingNoteStatus.Cancelled)
+                .Select(b => new { DoId = b.DeliveryOrderId!.Value, b.DocNo })
+                .ToListAsync(ct)).ToDictionary(x => x.DoId, x => x.DocNo)
+            : new Dictionary<long, string?>();
         // cont.69 Phase 1 — non-VAT apply-to-Invoice (BillingNote).
         var bnIds = req.Applications.Where(a => a.BillingNoteId.HasValue)
             .Select(a => a.BillingNoteId!.Value).ToList();
@@ -172,6 +185,15 @@ public sealed partial class ReceiptService : IReceiptService
                 if (dord.CustomerId != customer.CustomerId)
                     throw new DomainException("rc.do_customer_mismatch",
                         $"Delivery Order {dord.DeliveryOrderId} is for a different customer.");
+                // R1/C6 (Ham decision, spec §8 #4) — refuse: revenue+AR already accrued at
+                // Invoice issue. Applying a receipt to the DO instead would recognise the
+                // same sale's revenue twice and leave its AR outstanding forever. Live
+                // evidence: A4 DO 17 → Invoice 07-2026-IV-0001.
+                if (invoicedDo.TryGetValue(doId, out var ivNo))
+                    throw new DomainException("rc.do_already_invoiced",
+                        $"ใบส่งของ {dord.DocNo} ออกใบแจ้งหนี้ {ivNo} แล้ว — กรุณารับชำระกับใบแจ้งหนี้ฉบับนั้นแทน " +
+                        $"(Delivery Order {dord.DeliveryOrderId} was already invoiced as {ivNo}; " +
+                        "apply the receipt to that invoice.)");
             }
             else if (app.BillingNoteId is { } bnId)
             {

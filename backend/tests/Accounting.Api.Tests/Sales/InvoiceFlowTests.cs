@@ -15,8 +15,9 @@ namespace Accounting.Api.Tests.Sales;
 ///   non-VAT: DO → Invoice (BillingNote) → Receipt(apply Invoice)
 /// Verifies (a) DO mark-delivered no longer auto-creates a TI; (b) DO→Invoice copies
 /// lines + DeliveryOrderId; (c) VAT Invoice→TI copies lines + BillingNoteId;
-/// (d) non-VAT Invoice→TI throws ti.non_vat_blocked; (e) a non-VAT receipt applied to
-/// an Invoice posts revenue to Sales 4000 (cash basis), not AR. Real Postgres.
+/// (d) non-VAT Invoice→TI throws ti.non_vat_blocked; (e) R1/C6 (WP-1) — a non-VAT
+/// Invoice now accrues Dr AR/Cr Sales at Issue, so a receipt applied to it SETTLES
+/// AR (Cr 1130), it no longer re-recognizes revenue to Sales 4000. Real Postgres.
 /// </summary>
 [Collection(nameof(PostgresCollection))]
 public sealed class InvoiceFlowTests
@@ -167,14 +168,17 @@ public sealed class InvoiceFlowTests
             .Which.Code.Should().Be("ti.non_vat_blocked");
     }
 
-    // ── (e) non-VAT receipt applied to an Invoice → Cr Sales 4000 ───────────
+    // ── (e) R1/C6 (WP-1) — non-VAT receipt applied to an Invoice → settles AR,
+    //    does NOT re-recognize revenue (the Invoice already accrued Dr AR/Cr Sales
+    //    at Issue — spec fix-breakit-r1-ledger-integrity.md §3.2.3) ────────────────
     [SkippableFact]
-    public async Task NonVat_receipt_applied_to_invoice_recognizes_revenue_to_sales()
+    public async Task NonVat_receipt_applied_to_invoice_settles_ar_not_sales()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         var (sp, cust) = await NonVatProviderAsync();
         await using var _ = sp;
         var salesAcct = await AccountId(sp, "4000");
+        var ar = await AccountId(sp, "1130");
         var doId = await IssuedDoAsync(sp, cust, 1m, 750m, 0m);
 
         long invId;
@@ -199,10 +203,10 @@ public sealed class InvoiceFlowTests
         var je = await db.JournalEntries.Include(j => j.Lines)
             .FirstAsync(j => j.Reference == res.DocNo);
         je.TotalDebit.Should().Be(je.TotalCredit).And.Be(750m);
-        // Revenue must land on Sales 4000 (cash basis), not AR.
-        je.Lines.Should().Contain(l => l.AccountId == salesAcct && l.CreditAmount == 750m);
-        var ar = await AccountId(sp, "1130");
-        je.Lines.Should().NotContain(l => l.AccountId == ar);
+        // R1/C6 — the Invoice already accrued revenue at Issue; the receipt only
+        // clears the AR it posted then. Crediting Sales again would double-count.
+        je.Lines.Should().Contain(l => l.AccountId == ar && l.CreditAmount == 750m);
+        je.Lines.Should().NotContain(l => l.AccountId == salesAcct);
 
         // Receipt detail derives its line items from the applied Invoice.
         var detail = await rsvc.GetDetailAsync(rcId, default);

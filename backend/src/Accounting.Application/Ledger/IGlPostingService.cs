@@ -14,6 +14,16 @@ public sealed record ManualJvLine(
 public interface IGlPostingService
 {
     Task<long> PostTaxInvoiceAsync(long taxInvoiceId, CancellationToken ct);
+
+    /// <summary>
+    /// R1/C6 (WP-1) — non-VAT revenue+AR accrual at Invoice issue (BillingNoteService
+    /// .IssueAsync, non-VAT branch only). Mirrors <see cref="PostTaxInvoiceAsync"/>'s
+    /// structure: Dr 1130 AR / Cr 4000 Sales for the invoice total. Throws
+    /// <c>gl.bn_vat_unexpected</c> if the BN carries VAT — a VAT company's BN groups
+    /// already-accrued Tax Invoices and must NEVER post here (double-counts AR+revenue).
+    /// </summary>
+    Task<long> PostBillingNoteAsync(long billingNoteId, CancellationToken ct);
+
     Task<long> PostReceiptAsync(long receiptId, CancellationToken ct);
     Task<long> PostPaymentVoucherAsync(long paymentVoucherId, CancellationToken ct);
     Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct);

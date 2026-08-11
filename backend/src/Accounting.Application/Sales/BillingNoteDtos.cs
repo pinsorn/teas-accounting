@@ -47,7 +47,10 @@ public sealed record BillingNoteDetail(
     long CustomerId, string CustomerName, int? BusinessUnitId,
     long? QuotationId, IReadOnlyList<BillingNoteTaxInvoiceRef> TaxInvoices,
     string CurrencyCode, decimal SubtotalAmount, decimal VatAmount, decimal TotalAmount,
-    string? Notes, IReadOnlyList<ChainLineDto> Lines);
+    string? Notes, IReadOnlyList<ChainLineDto> Lines,
+    // R1/C6 (WP-1) — additive: set once the non-VAT accrual JE posts at Issue; always
+    // null for a VAT company (its BN never posts) or a Draft/pre-fix Invoice.
+    long? JournalEntryId = null);
 
 public interface IBillingNoteService
 {

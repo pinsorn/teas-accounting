@@ -725,18 +725,19 @@ Each is a money statement, not a field value. `T#` = the test in §6 that proves
 
 ### WP-1 — C6 forward fix: non-VAT revenue + AR *(no dependencies; do this first)*
 
-- [ ] EF migration adding `sales.billing_notes.journal_entry_id bigint NULL` + `BillingNote.JournalEntryId (long?)` + EF configuration. **No SqlScript.** Done when `dotnet ef migrations list` shows it and a fresh `teas_test` applies clean.
-- [ ] `IGlPostingService` + `GlPostingService`: new `PostBillingNoteAsync` exactly per §3.2.2 (incl. the `gl.bn_vat_unexpected` assertion). Done when a non-VAT BN issue produces `Dr 1130 / Cr 4000` for `TotalAmount` with `Reference == bn.DocNo`.
-- [ ] `BillingNoteService`: inject `IGlPostingService` + `IPeriodCloseService`; `IssueAsync` gates on `!taxCfg.GetAsync().VatMode`, calls `EnsureOpenAsync(bn.DocDate)`, posts, stamps `bn.JournalEntryId` — all inside the existing transaction. Done when a closed-period issue returns `period.closed` **and consumes no invoice number**.
-- [ ] `BillingNoteService.CancelAsync`: refuse when `JournalEntryId is not null` (`billing_note.cannot_cancel_posted`, 422).
-- [ ] `GlPostingService.PostReceiptAsync`: split the DO/BN `else` per §3.2.3's table; pre-load applied BNs in one query; rewrite the `:94-96` and `:124-125` comments.
-- [ ] `ReceiptService`: DO branch refuses an already-invoiced DO (`rc.do_already_invoiced`).
-- [ ] `SubledgerReportService.ArMovementsAsync`: accrued-BN debit rows + BN-applied receipt credits merged into the existing per-receipt row. Rewrite the `:78-83` comment.
-- [ ] `SubledgerReportService.ArAgingAsync`: accrued-BN rows, outstanding = total − Σ posted applications, same bucketing and grouping as TI rows.
-- [ ] Grep the frontend for a hand-enumerated AR `docType` list; if one exists, extend it and note it. If none, record the grep in the attempt log.
-- [ ] Tests T1–T7 green.
+- [x] EF migration adding `sales.billing_notes.journal_entry_id bigint NULL` + `BillingNote.JournalEntryId (long?)` + EF configuration. **No SqlScript.** Done when `dotnet ef migrations list` shows it and a fresh `teas_test` applies clean. Evidence: `20260811115620_AddBillingNoteJournalEntryId` — `AddColumn<long>("journal_entry_id", schema:"sales", table:"billing_notes", nullable:true)`, no other DDL. `dotnet ef migrations list` against `teas_test` shows it applied (no `(Pending)` tag). EF config: no explicit `b.Property(...)` chain needed — snake_case convention + no-FK/no-index (mirrors `PayrollRun.JournalId`, which also has zero explicit config) — documented inline instead of a no-op call.
+- [x] `IGlPostingService` + `GlPostingService`: new `PostBillingNoteAsync` exactly per §3.2.2 (incl. the `gl.bn_vat_unexpected` assertion). Done when a non-VAT BN issue produces `Dr 1130 / Cr 4000` for `TotalAmount` with `Reference == bn.DocNo`. Evidence: T1.
+- [x] `BillingNoteService`: inject `IGlPostingService` + `IPeriodCloseService`; `IssueAsync` gates on `!taxCfg.GetAsync().VatMode`, calls `EnsureOpenAsync(bn.DocDate)`, posts, stamps `bn.JournalEntryId` — all inside the existing transaction. Done when a closed-period issue returns `period.closed` **and consumes no invoice number**. Evidence: `Closed_period_issue_returns_period_closed_and_consumes_no_invoice_number`. **Placement chosen:** `EnsureOpenAsync` called BEFORE the number allocation (matches the spec's stated preference, achievable with no restructuring — fetch `taxCfg` once at the guard, gate before `AllocateAndSaveAsync`); `PostBillingNoteAsync` call stays AFTER allocation (needs `DocNo` populated, identity-map re-read).
+- [x] `BillingNoteService.CancelAsync`: refuse when `JournalEntryId is not null` (`billing_note.cannot_cancel_posted`, 422). Evidence: `Cancel_on_accrued_invoice_is_refused`.
+- [x] `GlPostingService.PostReceiptAsync`: split the DO/BN `else` per §3.2.3's table; pre-load applied BNs in one query; rewrite the `:94-96` and `:124-125` comments. Evidence: T2, T6.
+- [x] `ReceiptService`: DO branch refuses an already-invoiced DO (`rc.do_already_invoiced`). Evidence: T5 (message names the invoice DocNo, matches Ham's decision §8 #4 exactly).
+- [x] `SubledgerReportService.ArMovementsAsync`: accrued-BN debit rows + BN-applied receipt credits merged into the existing per-receipt row. Rewrite the `:78-83` comment. Evidence: T3 (customer statement).
+- [x] `SubledgerReportService.ArAgingAsync`: accrued-BN rows, outstanding = total − Σ posted applications, same bucketing and grouping as TI rows. Evidence: T3 (aging + reconciliation.difference == 0).
+- [x] Grep the frontend for a hand-enumerated AR `docType` list; if one exists, extend it and note it. If none, record the grep in the attempt log. **Found one**: `frontend/lib/utils.ts`'s `DOC_TYPE_I18N_KEY` map (feeds `docTypeLabelKey()`, used by customer-statement/vendor-ledger row rendering — comment there explicitly says "Must cover every docType emitted by SubledgerReportService.cs"). Extended with `Invoice: 'billingNote'` (reuses the existing `billingNote` i18n message key, already "Invoice"/"ใบแจ้งหนี้" — no new message-file entries needed).
+- [x] Tests T1–T7 green. Evidence: all 9 tests in `NonVatArAccrualTests.cs` (T1–T7 + 2 extra WP-1-checklist tests) pass, 0 skipped — see report below.
 
 **Blast cap:** max **11** source files + **3** test files. 1 EF migration, 0 SqlScripts. Public API: additive only (`journalEntryId` on the BN detail DTO is optional). **Hitting the cap = stop and re-spec.**
+**Actual:** 10 source files (9 backend `.cs` + 1 frontend `lib/utils.ts`) + 3 test files (1 new `NonVatArAccrualTests.cs`, 2 edited pre-existing tests that encoded the OLD buggy cash-basis behavior — `InvoiceFlowTests.cs`, `McpDocumentChainTests.cs`) + 1 EF migration + 0 SqlScripts. Within cap.
 
 ### WP-2 — C6 backfill for Repttown *(depends on WP-1; same-area, keep the SAME warm worker)*
 
@@ -995,6 +996,54 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   **type** validation (§2.2, product decision), the sales-line `Math.Round(qty*price, 4)` producers
   (§2.3), H7's `asOf` gap now spanning BN rows too (§2.1), `payroll.duplicate_period`'s one-run-per-period
   permanence, and the FE expense-account picker. Each needs a `troubles-wiki.md` entry at diff review.
+- **2026-08-11 sonnet-implementer: WP-1 implemented, all checklist items `[x]`.** 10 source files (9
+  backend + `frontend/lib/utils.ts`) + 3 test files (1 new, 2 edited) + 1 EF migration, 0 SqlScripts — within
+  the 11/3 cap. RED confirmed first: with the implementation git-stashed, `NonVatArAccrualTests.cs` fails to
+  even COMPILE against the pre-fix code (`JournalEntryId`/`PostBillingNoteAsync`/`cannot_cancel_posted` don't
+  exist) — the strongest possible proof the fix doesn't exist yet. After un-stashing: `dotnet build` 0/0,
+  all 9 new tests green (T1–T7 + closed-period-consumes-no-number + cancel-refused).
+  **Two pre-existing tests found asserting the OLD buggy cash-basis behaviour** (they predate C6's fix and
+  literally pinned the bug): `InvoiceFlowTests.NonVat_receipt_applied_to_invoice_recognizes_revenue_to_sales`
+  and `McpDocumentChainTests.NonVat_sales_chain_settles_billing_note_pins_D3b_je_and_blocks_tax_invoice` —
+  both asserted a BN-applied receipt credits Sales for an issued Invoice. Both rewritten to assert the
+  correct behaviour (receipt settles AR; the Issue itself now posts the accrual JE) rather than deleted or
+  loosened — this consumed 2 of the 3 test-file budget, noted here so a reviewer doesn't mistake it for
+  scope creep. **EnsureOpenAsync placement:** before the number allocation in `IssueAsync` (spec's stated
+  preference, achieved with zero restructuring — `taxCfg` fetched once, gate before
+  `AllocateAndSaveAsync`, `PostBillingNoteAsync` call stays after since it needs `DocNo`).
+  **EF config deviation:** no explicit `b.Property(x => x.JournalEntryId)` chain added — it would be a
+  no-op (snake_case convention + no FK/index needed) — documented inline instead; `PayrollRun.JournalId`
+  is the exact in-repo precedent for "no explicit config at all" (spec's own citation), though
+  `ExpenseClaim.JournalEntryId` is a *different* precedent that DOES add an FK — noted for the record since
+  the spec's parenthetical undersold that the precedent is mixed.
+  Full test evidence (all green): `NonVatArAccrualTests.cs` 9/9 · combined
+  `Sales`+`Reports`+`Mcp` namespaces 278/278 (0 skipped) · `RbacAuthMapTests`+`RbacCartesianTests` 4/4 ·
+  one flake in `Sprint87ForeignVendorTests` (random-id collision, troubles-wiki-documented pattern,
+  standalone rerun passed — confirmed unrelated). FE: `tsc --noEmit` clean; `next build` blocked by a
+  pre-existing sandbox network restriction on Google Fonts (documented in troubles-wiki, unrelated to this
+  diff — the only FE change is a 3-line docType-map addition in `lib/utils.ts`).
+  **WP-2 is NOT implemented** — per dispatch, only WP-1's checklist was in scope.
+- **2026-08-11 (post-review) sonnet-implementer: added the cross-period AR reconciliation test**
+  requested at diff review (invoice issued month N, receipt settling month N+1, `ar-aging` reconciled
+  `asOf` = end-of-N must tie out). Added to `NonVatArAccrualTests.cs` (stayed inside the 3-test-file
+  budget). Discovered mid-write: a POSTED `JournalEntry.doc_date` is a DB-trigger-guarded critical field
+  (`020_journal_immutability.sql fn_enforce_je_immutability`, UPDATE-only — verified by reading the
+  trigger, not assumed), so an already-posted JE's date can never be shifted after the fact, and
+  `BillingNoteService`/`ReceiptService` both pin `DocDate` to server-today regardless of request input
+  (existing footgun). Worked around by INSERTing the invoice directly with `DocDate` = last day of the
+  previous month (mirrors the T6 pattern; `sales.billing_notes` has no immutability trigger at all) and
+  calling the real `GlPostingService.PostBillingNoteAsync` against that already-dated row — an INSERT-time
+  post, so the JE trigger (UPDATE-only) never engages; the receipt then posts through the ordinary,
+  unmodified `ReceiptService` flow, dated today (naturally the next calendar month). **Per the coordinator's
+  explicit instruction, no test was RUN** (their full-suite run held `teas_test`) — verified compile-only,
+  built to an isolated output directory (`-o` to a scratch path) to avoid the coordinator's locked
+  `bin/Accounting.Api.Tests.dll` (troubles-wiki "locked by testhost") without touching their process:
+  0 Warning(s), 0 Error(s). Correctness of the assertions (`Reconciliation.Difference == 0`,
+  `ControlAccountBalance == SubLedgerTotal == total`) reasoned from static re-reading of
+  `ControlAccountBalanceAsync`'s `j.DocDate <= asOf` filter and `ArReconciliationAsync`'s
+  `m.DocDate <= asOf` filter over `ArMovementsAsync`'s per-movement dates — both already correctly
+  asOf-scoped (unlike `ArAgingAsync`'s own row-level table, which has the deliberately-deferred H7 gap) —
+  not run-verified. **The coordinator should treat this test's first run as the real gate**, not this report.
 
 ---
 
