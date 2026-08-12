@@ -1181,10 +1181,20 @@ is the `Settled` status, and its practical consequence is a trap: because the do
 settled, **nobody will ever issue a receipt against it, so that AR can never be cleared through the normal
 path.** ฿15,400 would sit in 1130 forever.
 
-**→ E7 is now a concrete question with two rows and a number.** For each of these invoices Ham decides:
-- **(a) the customer really did pay** → issue a real receipt for it; AR clears normally and the status
-  becomes true; or
-- **(b) the customer has not paid** → revert the status to `Issued` so the UI matches the ledger and the
-  invoice can be receipted when payment arrives.
-Only Ham knows which. **WP-7 must not delete `MarkSettledAsync` until these two rows are dispositioned**,
-because deleting the path is what removes the ability to reason about how they got there.
+**→ E7 ANSWERED by Ham, 2026-08-12: neither invoice has been paid.** So option (b) for both —
+**revert the status to `Issued`** so the UI matches the ledger. The ledger itself is already correct and
+must NOT be touched: revenue ฿15,400 (co3) and the AR behind it are the truthful position for an unpaid
+sale, and JE 309 stays exactly as posted. Only the document status is wrong.
+
+Ham also confirms **everything on prod is still demo data**, which is why a status correction is
+acceptable here at all; on a real customer's books this would be a documented adjustment, not an edit.
+
+**WP-7 therefore has a defined pre-step**, and it is a status change, not a ledger change:
+| company | doc_no | action |
+|---|---|---|
+| co3 | `08-2026-IV-0001` | `SETTLED` → `ISSUED`; leave `journal_entry_id 309` and the JE untouched; clear `settled_at` |
+| co5 | `07-2026-IV-0003` | same (co5 is scheduled for wipe+reseed anyway, so this one is optional) |
+
+After the revert, co3's invoice reads as outstanding in the UI, matches its ฿15,400 AR balance, and can be
+receipted normally when payment arrives — which closes the trap. Only then does WP-7 delete
+`MarkSettledAsync`, so nothing can re-create the state.
