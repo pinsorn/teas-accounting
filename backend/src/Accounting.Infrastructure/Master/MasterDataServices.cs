@@ -622,12 +622,83 @@ public sealed class DocumentPrefixService(AccountingDbContext db) : IDocumentPre
             .ToListAsync(ct);
 }
 
-public sealed class ExpenseCategoryService(AccountingDbContext db, ITenantContext tenant) : IExpenseCategoryService
+public sealed class ExpenseCategoryService(
+    AccountingDbContext db, ITenantContext tenant, IOptions<GlAccountsOptions> glAccounts)
+    : IExpenseCategoryService
 {
+    /// <summary>R1/C5 — a category's default account is what BuildLinesAsync's category-default
+    /// branch (and, transitively, every claim-line override on this category — the line rule
+    /// pins to WHATEVER this method already blessed) trusts on every expense claim it resolves,
+    /// so it is the ONE place that must actually decide "is this a legitimate Expense or capex-
+    /// fixed-asset account": exists tenant-scoped / active / non-header / correct type. Uses
+    /// ExpenseAccountRule.IsAllowedCategoryDefaultAccount — NOT the claim-line rule — because the
+    /// claim-line rule's "account IS the category's own default" shape would be comparing this
+    /// very candidate against itself here (a tautology that permits anything once IsCapex is
+    /// set). This is the guard C5 found missing entirely — POST /expense-categories accepted any
+    /// account, of any type.
+    /// AMENDED 2026-08-12 round 3 (Opus Tier-2) — the type check alone still let
+    /// Sys.ExpenseCatManage point a capex category's default at Bank/Cash/AR/InputVat/
+    /// WhtReceivable (all AccountType.Asset), after which EVERY ordinary employee's claim on that
+    /// category passes the claim-line rule (the account now IS the blessed default) and posts
+    /// Dr Bank / Cr Bank — the same P0 one permission level up. Closed with a DENYLIST, applied
+    /// ONLY inside the IsCapex-and-Asset branch. This is deliberately NOT the same choice as the
+    /// claim-line path (which rejected a denylist): the claim-line path is a broad surface any
+    /// employee exercises against arbitrary account ids, so it needs the tight allowlist-of-one.
+    /// THIS path is a single decision, made once, by an elevated permission, over GL roles the
+    /// system already knows by configuration (GlAccountsOptions) — a denylist here is defence in
+    /// depth BEHIND the real control (the permission gate + the type check), not standing in for
+    /// it. Do not "simplify" this back into one shared predicate with the claim-line rule.</summary>
+    private async Task EnsureDefaultAccountAsync(long accountId, int companyId, bool isCapex, CancellationToken ct)
+    {
+        var account = await db.ChartOfAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(a => a.AccountId == accountId && a.CompanyId == companyId, ct)
+            ?? throw new DomainException("expense_category.default_account_invalid",
+                $"Account {accountId} not found.");
+        if (!account.IsActive)
+            throw new DomainException("expense_category.default_account_invalid",
+                $"Account {accountId} is not active.");
+        if (account.IsHeader)
+            throw new DomainException("expense_category.default_account_invalid",
+                $"Account {accountId} is a header account — pick a postable (non-header) account.");
+        if (!ExpenseAccountRule.IsAllowedCategoryDefaultAccount(account.AccountType, isCapex))
+            throw new DomainException("expense_category.default_account_invalid",
+                $"Account {account.AccountCode} is {account.AccountType} — an expense category default " +
+                "must use an expense account" + (isCapex ? " or a fixed-asset account (IsCapex)." : "."));
+
+        if (isCapex && account.AccountType == AccountType.Asset)
+        {
+            // Resolve-by-code, never hardcode — same GlAccountsOptions convention as
+            // GlPostingService/FixedAssetService's ResolveAccountIdAsync, but ONE batched query
+            // instead of N sequential/parallel round trips (EF Core's DbContext is not safe for
+            // concurrent operations on the same instance — Task.WhenAll over N calls sharing this
+            // `db` would throw "a second operation was started before the previous completed").
+            // A role code absent from this company's CoA is skipped rather than throwing — a
+            // capex-category edit must not fail on an unrelated missing account.
+            var acc = glAccounts.Value;
+            var roleCodes = new[]
+                { acc.CashAccount, acc.BankAccount, acc.ArAccount, acc.InputVatAccount, acc.WhtReceivableAccount };
+            var isKnownRoleAccount = await db.ChartOfAccounts.AsNoTracking()
+                .AnyAsync(a => a.CompanyId == companyId && a.AccountId == accountId && roleCodes.Contains(a.AccountCode), ct);
+            if (isKnownRoleAccount)
+                throw new DomainException("expense_category.default_account_invalid",
+                    $"Account {account.AccountCode} is a configured cash/bank/AR/VAT role account, not a " +
+                    "fixed-asset account — a capex category must point at a genuine fixed-asset account.");
+
+            var isCompanyBankGlAccount = await db.BankAccounts.AsNoTracking()
+                .AnyAsync(b => b.CompanyId == companyId && b.GlCashAccountId == accountId, ct);
+            if (isCompanyBankGlAccount)
+                throw new DomainException("expense_category.default_account_invalid",
+                    $"Account {account.AccountCode} is a bank account's GL cash account, not a fixed-asset " +
+                    "account — a capex category must point at a genuine fixed-asset account.");
+        }
+    }
+
     public async Task<int> CreateAsync(CreateExpenseCategoryRequest req, CancellationToken ct)
     {
         if (await db.ExpenseCategories.AnyAsync(c => c.CategoryCode == req.CategoryCode, ct))
             throw new DomainException("expense_category.duplicate", $"Category '{req.CategoryCode}' already exists.");
+        if (req.DefaultExpenseAccountId is { } acctId)
+            await EnsureDefaultAccountAsync(acctId, tenant.CompanyId, req.IsCapex, ct);
 
         var e = new ExpenseCategory
         {
@@ -647,11 +718,43 @@ public sealed class ExpenseCategoryService(AccountingDbContext db, ITenantContex
         return e.CategoryId;
     }
 
-    // BP-01: scope to the ACTIVE company explicitly. The global query filter
-    // bypasses on a super-admin (admin), which made this list (and the PV picker)
-    // show every company's categories — surfacing apparent "duplicate" codes
-    // (company 1's ADS + company 2's ADS, etc.). A settings list must show only
-    // the current tenant's set. Narrowing only — never widens, so no §4.7 leak.
+    /// <summary>R1/C5 — the fix for a poisoned category (co7's category 78 is live evidence):
+    /// there is no delete route (historical claims reference it), so a bad default account is
+    /// corrected here, or the category is deactivated (IsActive=false) so it can never be picked
+    /// on a NEW claim again. CategoryCode is deliberately not on the request — it is the
+    /// document-number sub-prefix and immutable after create.
+    /// AMENDED 2026-08-12 (§3.3 amendment, Opus Tier-2 MEDIUM) — this is a full-replace PUT, so
+    /// `DefaultExpenseAccountId` is now REQUIRED on the request (see ReferenceDtos.cs) and is
+    /// ALWAYS validated, unconditionally: the original `if (req.DefaultExpenseAccountId is {}
+    /// acctId)` meant a caller who omitted the field skipped validation entirely on the way to
+    /// NULLING the stored default — exactly the shape of the seeded-CAPEX-category footgun
+    /// (`{"nameTh":"x","isActive":false}` cleared 1610 and flipped IsCapex false with zero
+    /// account validation, stranding every Approved capex claim per FIX 2 above).</summary>
+    public async Task UpdateAsync(int id, UpdateExpenseCategoryRequest req, CancellationToken ct)
+    {
+        var e = await db.ExpenseCategories.FirstOrDefaultAsync(c => c.CategoryId == id, ct)
+            ?? throw new DomainException("expense_category.not_found", $"Expense category {id} not found.");
+        await EnsureDefaultAccountAsync(req.DefaultExpenseAccountId, e.CompanyId, req.IsCapex, ct);
+
+        e.NameTh = req.NameTh; e.NameEn = req.NameEn; e.Description = req.Description;
+        e.DefaultExpenseAccountId = req.DefaultExpenseAccountId;
+        e.DefaultTaxCodeId = req.DefaultTaxCodeId;
+        e.DefaultIsRecoverableVat = req.DefaultIsRecoverableVat;
+        e.DefaultWhtTypeId = req.DefaultWhtTypeId;
+        e.IsCapex = req.IsCapex; e.IsCogs = req.IsCogs;
+        e.ParentCategoryId = req.ParentCategoryId;
+        e.IsActive = req.IsActive;
+        await db.SaveChangesAsync(ct);
+    }
+
+    // BP-01: scope to the ACTIVE company explicitly. Originally written to compensate for a
+    // super-admin bypass of the global query filter that showed every company's categories,
+    // surfacing apparent "duplicate" codes (company 1's ADS + company 2's ADS, etc.) — that
+    // bypass arm was REMOVED 2026-07-08 (600_superadmin_scoped_rls.sql: is_super_admin data-scope
+    // arm dropped from every company_isolation policy). Corrected 2026-08-12 (Opus Tier-2 LOW) —
+    // the stale claim made a reviewer re-open a settled question. The explicit filter itself is
+    // still correct to keep: a settings list must show only the current tenant's set regardless
+    // of WHY the global filter might ever not apply, and narrowing-only can never cause a §4.7 leak.
     public async Task<IReadOnlyList<ExpenseCategoryDto>> ListAsync(CancellationToken ct) =>
         await db.ExpenseCategories.Where(c => c.CompanyId == tenant.CompanyId)
             .OrderBy(c => c.CategoryCode)

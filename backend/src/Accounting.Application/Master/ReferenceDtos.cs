@@ -41,9 +41,32 @@ public sealed class CreateExpenseCategoryValidator : AbstractValidator<CreateExp
         RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
     }
 }
+// R1/C5 (WP-4) — CategoryCode is deliberately ABSENT: it is the document-number sub-prefix
+// (ExpenseCategory doc-comment) and immutable after create. IsActive is settable — the fix
+// for a poisoned category that must never vanish (historical claims reference it).
+// AMENDED 2026-08-12 (§3.3 amendment, Opus Tier-2 MEDIUM) — DefaultExpenseAccountId is
+// REQUIRED (non-nullable), not optional: this is a full-replace PUT (same idiom as
+// UpdateAccountRequest/UpdateVendorRequest elsewhere in this file/codebase — no partial-patch
+// null-means-unchanged semantics anywhere here), so a caller MUST always supply and re-validate
+// the account. The original nullable shape let a partial `{"nameTh":"x","isActive":false}` PUT
+// silently NULL a category's default account with zero validation (EnsureDefaultAccountAsync
+// only ran `if (req.DefaultExpenseAccountId is {} acctId)`) — on the seeded CAPEX category that
+// cleared 1610 AND flipped IsCapex false in one call, stranding every Approved capex claim.
+public sealed record UpdateExpenseCategoryRequest(string NameTh, string? NameEn, string? Description,
+    long DefaultExpenseAccountId, int? DefaultTaxCodeId, bool DefaultIsRecoverableVat,
+    int? DefaultWhtTypeId, bool IsCapex, bool IsCogs, int? ParentCategoryId, bool IsActive);
+public sealed class UpdateExpenseCategoryValidator : AbstractValidator<UpdateExpenseCategoryRequest>
+{
+    public UpdateExpenseCategoryValidator()
+    {
+        RuleFor(x => x.NameTh).NotEmpty().MaximumLength(255);
+        RuleFor(x => x.DefaultExpenseAccountId).GreaterThan(0);
+    }
+}
 public interface IExpenseCategoryService
 {
     Task<int> CreateAsync(CreateExpenseCategoryRequest req, CancellationToken ct);
+    Task UpdateAsync(int id, UpdateExpenseCategoryRequest req, CancellationToken ct);
     Task<IReadOnlyList<ExpenseCategoryDto>> ListAsync(CancellationToken ct);
 }
 

@@ -167,6 +167,17 @@ public static class MasterEndpoints
             return Results.Created($"/expense-categories/{await svc.CreateAsync(req, ct)}", null);
         }).RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.ExpenseCatManage);
 
+        // R1/C5 (WP-4) — the fix for a poisoned category (bad default account, or one that
+        // should never be picked again): same permission as POST, no RBAC matrix churn.
+        g.MapPut("/{id:int}", async (int id, [FromBody] UpdateExpenseCategoryRequest req,
+            IValidator<UpdateExpenseCategoryRequest> v, IExpenseCategoryService svc, CancellationToken ct) =>
+        {
+            var val = await v.ValidateAsync(req, ct);
+            if (!val.IsValid) return Results.ValidationProblem(val.ToDictionary());
+            await svc.UpdateAsync(id, req, ct);
+            return Results.NoContent();
+        }).RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.ExpenseCatManage);
+
         g.MapGet("/", async (IExpenseCategoryService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)))
             .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.ExpenseCatRead);
     }

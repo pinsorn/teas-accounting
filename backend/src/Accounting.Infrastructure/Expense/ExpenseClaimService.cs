@@ -49,8 +49,15 @@ public sealed class ExpenseClaimService(
     /// <summary>Codex review finding #2 (2026-07-10) — mirrors BankReconciliationService
     /// .CreateJournalAsync's contra-account check (exists tenant-scoped, active, non-header): a
     /// client-supplied line override must not be trusted unvalidated (a forged/foreign/header
-    /// account would otherwise post silently and mis-roll the trial balance).</summary>
-    private async Task<long> EnsureExpenseAccountAsync(long accountId, int companyId, CancellationToken ct)
+    /// account would otherwise post silently and mis-roll the trial balance).
+    /// R1/C5 — AMENDED 2026-08-12 (§3.3 amendment, Opus Tier-2 CRITICAL): an expense-claim line
+    /// may debit any AccountType.Expense account, or an AccountType.Asset account ONLY when it IS
+    /// the resolved category's OWN already-blessed <paramref name="categoryDefaultAccountId"/> —
+    /// see ExpenseAccountRule.IsAllowedClaimLineAccount's doc for why "categoryIsCapex && Asset"
+    /// alone (the original, defective rule) let bank/AR/input-VAT through. Never Liability, Equity
+    /// or Revenue.</summary>
+    private async Task<long> EnsureExpenseAccountAsync(
+        long accountId, int companyId, bool categoryIsCapex, long? categoryDefaultAccountId, CancellationToken ct)
     {
         var account = await db.ChartOfAccounts.AsNoTracking()
                 .FirstOrDefaultAsync(a => a.AccountId == accountId && a.CompanyId == companyId, ct)
@@ -62,7 +69,32 @@ public sealed class ExpenseClaimService(
         if (account.IsHeader)
             throw new DomainException("expense_claim.expense_account_invalid",
                 $"Expense account {accountId} is a header account — pick a postable (non-header) account.");
+        if (!ExpenseAccountRule.IsAllowedClaimLineAccount(account.AccountType, accountId, categoryIsCapex, categoryDefaultAccountId))
+            throw new DomainException("expense_claim.expense_account_invalid",
+                $"Account {account.AccountCode} is {account.AccountType} — an expense line must use an " +
+                "expense account" + (categoryIsCapex ? " or the category's own fixed-asset account." : "."));
         return accountId;
+    }
+
+    /// <summary>R1/C5 amendment (Opus HIGH-2, a dead-end-class fix) — re-validate every line's
+    /// RESOLVED account. Called at Submit AND Approve (not only at Pay): without this, a legacy
+    /// draft holding a bad account (created before this guard existed, or poisoned/deactivated
+    /// after drafting) sails through both transitions after deploy and only hits the wall at Pay
+    /// — creating NEW stuck Approved claims with no exit, instead of failing early and loudly.
+    /// Also called from PayAsync (one more time, defence in depth, immediately before posting).</summary>
+    private async Task RevalidateLineAccountsAsync(ExpenseClaim claim, CancellationToken ct)
+    {
+        await db.Entry(claim).Collection(c => c.Lines).LoadAsync(ct);
+        var categoryIds = claim.Lines.Select(l => l.ExpenseCategoryId).Distinct().ToList();
+        var categories = await db.ExpenseCategories.AsNoTracking()
+            .Where(c => categoryIds.Contains(c.CategoryId))
+            .ToDictionaryAsync(c => c.CategoryId, c => new { c.IsCapex, c.DefaultExpenseAccountId }, ct);
+        foreach (var l in claim.Lines)
+        {
+            var cat = categories.GetValueOrDefault(l.ExpenseCategoryId);
+            await EnsureExpenseAccountAsync(
+                l.ExpenseAccountId, claim.CompanyId, cat?.IsCapex ?? false, cat?.DefaultExpenseAccountId, ct);
+        }
     }
 
     private async Task<(List<ExpenseClaimLine> Lines, decimal Subtotal, decimal Vat, decimal Total)> BuildLinesAsync(
@@ -85,16 +117,24 @@ public sealed class ExpenseClaimService(
                     .FirstOrDefaultAsync(c => c.CategoryId == input.ExpenseCategoryId, ct)
                 ?? throw new DomainException("expense_claim.expense_category_missing",
                     $"Expense category {input.ExpenseCategoryId} not found.");
+            // R1/C5 — a deactivated category (the fix for a poisoned one, I20) must not be
+            // usable on a NEW claim, else deactivation is cosmetic.
+            if (!category.IsActive)
+                throw new DomainException("expense_claim.expense_category_inactive",
+                    $"Expense category '{category.CategoryCode}' is deactivated — pick another category.");
 
             // Frozen at draft: line override ?? category default (identical rule to
-            // PaymentVoucherService.cs:162) — never re-resolved after this point. A client
-            // OVERRIDE is validated (finding #2); the category default is trusted (already
-            // validated when the category was set up).
+            // PaymentVoucherService.cs:162) — never re-resolved after this point. R1/C5 — BOTH
+            // branches are validated by EnsureExpenseAccountAsync (exists/active/non-header/type);
+            // the category default used to be trusted on the claim that "it was already validated
+            // when the category was set up" — it never was (VERDICT C5).
             var expenseAccountId = input.ExpenseAccountId is { } overrideId
-                ? await EnsureExpenseAccountAsync(overrideId, companyId, ct)
-                : category.DefaultExpenseAccountId
-                    ?? throw new DomainException("expense_claim.expense_account_missing",
-                        $"Line {i + 1}: no expense account (category '{category.CategoryCode}' has no default).");
+                ? await EnsureExpenseAccountAsync(overrideId, companyId, category.IsCapex, category.DefaultExpenseAccountId, ct)
+                : await EnsureExpenseAccountAsync(
+                    category.DefaultExpenseAccountId
+                        ?? throw new DomainException("expense_claim.expense_account_missing",
+                            $"Line {i + 1}: no expense account (category '{category.CategoryCode}' has no default)."),
+                    companyId, category.IsCapex, category.DefaultExpenseAccountId, ct);
 
             var isRecoverableVat = companyVatRegistered && input.IsRecoverableVat;
             // R1/C1 (WP-3) — THB is a 2-decimal currency; 4dp reached the immutable ledger.
@@ -196,6 +236,7 @@ public sealed class ExpenseClaimService(
     {
         Auth();
         var claim = await LoadAsync(id, ct);
+        await RevalidateLineAccountsAsync(claim, ct);
         claim.Submit();
         await SaveGuardedAsync(ct);
     }
@@ -204,6 +245,7 @@ public sealed class ExpenseClaimService(
     {
         Auth();
         var claim = await LoadAsync(id, ct);
+        await RevalidateLineAccountsAsync(claim, ct);
         var approver = tenant.UserId ?? 0;
         claim.Approve(approver, clock.UtcNow);
         await SaveGuardedAsync(ct);
@@ -243,9 +285,14 @@ public sealed class ExpenseClaimService(
         // create/edit path, this is defence for the stale-row edge case only.
         var companyVatRegistered = await db.Companies.Where(c => c.CompanyId == claim.CompanyId)
             .Select(c => c.VatRegistered).FirstOrDefaultAsync(ct);
+        // R1/C5 — re-validate each line's RESOLVED account one more time before posting (defence
+        // in depth): Submit/Approve already re-validate, but a category can still be poisoned or
+        // an account deactivated in the window between Approve and Pay. This is the LAST gate
+        // before GlPostingService.PostExpenseClaimAsync reads ExpenseAccountId off these lines and
+        // posts them verbatim. Also loads Lines (needed below for the VAT re-guard too).
+        await RevalidateLineAccountsAsync(claim, ct);
         if (!companyVatRegistered)
         {
-            await db.Entry(claim).Collection(c => c.Lines).LoadAsync(ct);
             foreach (var l in claim.Lines) l.IsRecoverableVat = false;
         }
 

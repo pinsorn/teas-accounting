@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 16 |
-| Perm | 295 |
+| Perm | 296 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **358** |
+| **TOTAL** | **359** |
 
 ## Routes
 
@@ -161,6 +161,7 @@
 | GET | `/etax/submissions` | Perm | tax.filing.read |
 | GET | `/expense-categories/` | Perm | sys.expense_category.read |
 | POST | `/expense-categories/` | Perm | sys.expense_category.manage |
+| PUT | `/expense-categories/{id:int}` | Perm | sys.expense_category.manage |
 | GET | `/expense-claims/` | Perm | expense.claim.read |
 | POST | `/expense-claims/` | Perm | expense.claim.create |
 | GET | `/expense-claims/{id:long}` | Perm | expense.claim.read |

@@ -4,6 +4,7 @@ using Accounting.Application.Attachments;
 using Accounting.Application.Bank;
 using Accounting.Application.Expense;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Expense;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Enums;
@@ -266,7 +267,15 @@ public sealed class ExpenseClaimServiceTests
         (await Assert.ThrowsAsync<DomainException>(() => svc.SubmitAsync(draftId, default))).Code
             .Should().Be("expense_claim.not_draft");
 
-        // Cancel-on-Approved (only Draft/Rejected are cancellable)
+        // R1/C5 amendment (Opus HIGH-2, 2026-08-12) — Cancel-on-Approved is NO LONGER illegal:
+        // it is now the escape hatch for an Approved claim whose account became invalid (no other
+        // transition offers one). See Cancel_is_now_legal_from_Approved_the_escape_hatch_for_an_
+        // invalidated_account for the dedicated positive test; only Paid remains uncancellable
+        // (a JE already exists by then).
+        await svc.CancelAsync(draftId, default);
+        (await svc.GetDetailAsync(draftId, default))!.Status.Should().Be(nameof(ExpenseClaimStatus.Cancelled));
+
+        // Cancel-on-Cancelled (terminal) — still illegal.
         (await Assert.ThrowsAsync<DomainException>(() => svc.CancelAsync(draftId, default))).Code
             .Should().Be("expense_claim.cannot_cancel");
     }
@@ -532,6 +541,338 @@ public sealed class ExpenseClaimServiceTests
         (await svcB.GetDetailAsync(id, default)).Should().BeNull();
         var dbB = sB.ServiceProvider.GetRequiredService<AccountingDbContext>();
         (await dbB.ExpenseClaims.AnyAsync(c => c.ExpenseClaimId == id)).Should().BeFalse();
+    }
+
+    // ── R1/C5 (WP-4) — expense-account TYPE guard (I17, I18, I19) ──────────────────
+
+    /// <summary>Seeds a bank/AP/revenue/equity/input-VAT account by CODE (already present on
+    /// every TestCompanyFactory company via DefaultChartOfAccounts) — these are exactly the
+    /// account types EnsureExpenseAccountAsync must never accept for an expense line.</summary>
+    private static async Task<long> AccountIdByCodePublic(ServiceProvider sp, int companyId, string code)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        return await AccountIdByCode(db, companyId, code);
+    }
+
+    [SkippableTheory]
+    [InlineData("1120")] // Bank
+    [InlineData("2110")] // AP
+    [InlineData("4100")] // Revenue
+    [InlineData("3300")] // Equity (retained earnings)
+    [InlineData("1170")] // Input VAT
+    public async Task Line_account_OVERRIDE_naming_a_non_expense_account_is_rejected(string badAccountCode)
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, _) = await SeedCategoryAsync(sp, co.CompanyId, "W15A-" + badAccountCode, "ทดสอบผิดประเภท-" + badAccountCode);
+        var badAcctId = await AccountIdByCodePublic(sp, co.CompanyId, badAccountCode);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, badAcctId, "bad override", Today, 100m, null, 0m, true)]),
+            default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid",
+                $"account {badAccountCode} does not represent a cost the employee incurred (I17/I18)");
+    }
+
+    [SkippableTheory]
+    [InlineData("1120")] // Bank
+    [InlineData("2110")] // AP
+    [InlineData("4100")] // Revenue
+    [InlineData("3300")] // Equity (retained earnings)
+    [InlineData("1170")] // Input VAT
+    public async Task Category_whose_DEFAULT_account_is_a_non_expense_account_is_rejected(string badAccountCode)
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var badAcctId = await AccountIdByCodePublic(sp, co.CompanyId, badAccountCode);
+
+        // Directly insert a poisoned category (bypasses ExpenseCategoryService.CreateAsync's new
+        // guard) — simulates a category poisoned before WP-4 shipped, exactly like co7's category
+        // 78, and proves the CATEGORY-DEFAULT branch (which previously had no guard at all).
+        await using var s0 = sp.CreateAsyncScope();
+        var db0 = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var poisoned = new ExpenseCategory
+        {
+            CompanyId = co.CompanyId, CategoryCode = TestIds.ExpenseCategoryCode("W15B"),
+            NameTh = "หมวดพิษ-" + badAccountCode, DefaultExpenseAccountId = badAcctId,
+            DefaultIsRecoverableVat = true,
+        };
+        db0.ExpenseCategories.Add(poisoned);
+        await db0.SaveChangesAsync();
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(poisoned.CategoryId, null, "bad default", Today, 100m, null, 0m, true)]),
+            default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid",
+                $"the category-default branch had NO type guard before WP-4 (account {badAccountCode})");
+    }
+
+    [SkippableFact]
+    public async Task Seeded_CAPEX_category_still_creates_and_pays_successfully()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+
+        await using var s0 = sp.CreateAsyncScope();
+        var db0 = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        // TestCompanyFactory.CreateAsync goes through the real ICompanyService.CreateAsync
+        // onboarding path, which seeds the 19 default expense categories incl. CAPEX -> 1610
+        // (AccountType.Asset) on EVERY company (MasterDataServices.cs DefaultExpenseCategorySpecs).
+        var capexCat = await db0.ExpenseCategories.AsNoTracking()
+            .SingleAsync(c => c.CompanyId == co.CompanyId && c.CategoryCode == "CAPEX");
+        var capexAcct = await db0.ChartOfAccounts.AsNoTracking()
+            .SingleAsync(a => a.AccountId == capexCat.DefaultExpenseAccountId);
+        capexAcct.AccountType.Should().Be(AccountType.Asset, "1610 is the seeded fixed-asset account");
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var id = await svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(capexCat.CategoryId, null, "โต๊ะทำงาน", Today, 5000m, null, 0m, true)]),
+            default);
+        await svc.SubmitAsync(id, default);
+        await svc.ApproveAsync(id, default);
+        var paid = await svc.PayAsync(id, new PayExpenseClaimRequest("CASH", null), default);
+
+        paid.TotalAmount.Should().Be(5000m);
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .FirstAsync(j => j.JournalId == paid.JournalEntryId);
+        je.Lines.Should().ContainSingle(l => l.AccountId == capexAcct.AccountId)
+            .Which.DebitAmount.Should().Be(5000m, "the CAPEX category's Asset account must still be usable (I19)");
+    }
+
+    /// <summary>R1/C5 AMENDMENT (§3.3, Opus Tier-2 CRITICAL) — this is THE P0 regression test.
+    /// The ORIGINAL (defective) rule "Expense || (categoryIsCapex && Asset)" let this exact call
+    /// through: an ordinary employee overrides a CAPEX-category line to account 1120 (Bank, also
+    /// AccountType.Asset) and gets Dr Bank / Cr Bank on Pay — balanced, green, "Paid", employee
+    /// never reimbursed. The corrected rule (allowlist of exactly the category's OWN
+    /// DefaultExpenseAccountId) must reject this.</summary>
+    [SkippableFact]
+    public async Task CAPEX_category_override_to_BANK_is_rejected_the_P0_this_WP_exists_to_close()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+
+        await using var s0 = sp.CreateAsyncScope();
+        var db0 = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var capexCat = await db0.ExpenseCategories.AsNoTracking()
+            .SingleAsync(c => c.CompanyId == co.CompanyId && c.CategoryCode == "CAPEX");
+        var bankAcctId = await AccountIdByCode(db0, co.CompanyId, "1120");
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(capexCat.CategoryId, bankAcctId, "แล็ปท็อป", Today, 30000m, null, 0m, true)]),
+            default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid",
+                "Dr Bank / Cr Bank on a claim marked Paid would violate I18 — the employee is never reimbursed");
+    }
+
+    /// <summary>Confirms the amendment's documented "accepted trade-off": a capex claim can no
+    /// longer override to a DIFFERENT fixed-asset account, even a legitimate-looking one (1690
+    /// Accumulated Depreciation is also AccountType.Asset). The rule pins to exactly the
+    /// category's OWN default account, not "any Asset account" — proves it is a true allowlist of
+    /// one, not merely "type Asset" with extra steps.</summary>
+    [SkippableFact]
+    public async Task CAPEX_category_override_to_a_DIFFERENT_asset_account_is_also_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+
+        await using var s0 = sp.CreateAsyncScope();
+        var db0 = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var capexCat = await db0.ExpenseCategories.AsNoTracking()
+            .SingleAsync(c => c.CompanyId == co.CompanyId && c.CategoryCode == "CAPEX");
+        var otherAssetAcctId = await AccountIdByCode(db0, co.CompanyId, "1690"); // Accumulated Depreciation
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(capexCat.CategoryId, otherAssetAcctId, "x", Today, 1000m, null, 0m, true)]),
+            default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid");
+    }
+
+    [SkippableFact]
+    public async Task Claim_on_an_inactive_category_is_rejected()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, _) = await SeedCategoryAsync(sp, co.CompanyId, "W15D", "หมวดปิดใช้งาน");
+
+        await using var s0 = sp.CreateAsyncScope();
+        var db0 = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var cat = await db0.ExpenseCategories.FirstAsync(c => c.CategoryId == catId);
+        cat.IsActive = false;
+        await db0.SaveChangesAsync();
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, null, "x", Today, 10m, null, 0m, true)]),
+            default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_category_inactive");
+    }
+
+    [SkippableFact]
+    public async Task Pay_re_guard_rejects_a_line_whose_account_was_deactivated_after_drafting()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, acctId) = await SeedCategoryAsync(sp, co.CompanyId, "W15E", "หมวด re-guard");
+
+        await using var s0 = sp.CreateAsyncScope();
+        var svc0 = s0.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var id = await svc0.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, null, "x", Today, 10m, null, 0m, true)]),
+            default);
+        await svc0.SubmitAsync(id, default);
+        await svc0.ApproveAsync(id, default);
+
+        // Poison the ALREADY-RESOLVED line account between Approve and Pay — the exact
+        // defence-in-depth scenario the Pay re-guard exists for (§3.3 checklist item 4).
+        await using var s1 = sp.CreateAsyncScope();
+        var db1 = s1.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var acct = await db1.ChartOfAccounts.FirstAsync(a => a.AccountId == acctId);
+        acct.IsActive = false;
+        await db1.SaveChangesAsync();
+
+        await using var s2 = sp.CreateAsyncScope();
+        var svc2 = s2.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc2.PayAsync(id, new PayExpenseClaimRequest("CASH", null), default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid");
+    }
+
+    /// <summary>R1/C5 amendment (Opus HIGH-2) — a LEGACY draft (inserted directly, bypassing
+    /// BuildLinesAsync's own validation — simulates a claim created before this guard existed)
+    /// holding a bad account must be caught at SUBMIT, not sail through to Approve/Pay and only
+    /// fail there (which would create a NEW stuck Approved claim post-deploy, not just strand old
+    /// ones).</summary>
+    [SkippableFact]
+    public async Task Submit_rejects_a_legacy_draft_holding_an_invalid_account()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, _) = await SeedCategoryAsync(sp, co.CompanyId, "W2A", "หมวด legacy");
+
+        await using var s0 = sp.CreateAsyncScope();
+        var db0 = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var bankAcctId = await AccountIdByCode(db0, co.CompanyId, "1120");
+        var claim = new ExpenseClaim
+        {
+            CompanyId = co.CompanyId, BranchId = co.BranchId, EmployeeId = employeeId,
+            ClaimDate = Today, Title = "legacy pre-guard draft",
+            Lines = [new ExpenseClaimLine
+            {
+                CompanyId = co.CompanyId, LineNo = 1, ExpenseCategoryId = catId,
+                ExpenseAccountId = bankAcctId, Description = "x", Amount = 100m,
+                VatRate = 0m, VatAmount = 0m, IsRecoverableVat = false, LineTotal = 100m,
+            }],
+            SubtotalAmount = 100m, TotalAmount = 100m,
+        };
+        db0.ExpenseClaims.Add(claim);
+        await db0.SaveChangesAsync();
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc.SubmitAsync(claim.ExpenseClaimId, default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid");
+    }
+
+    /// <summary>R1/C5 amendment (Opus HIGH-2) — an account poisoned/deactivated in the window
+    /// between Submit and Approve must be caught at APPROVE, not sail through to Pay.</summary>
+    [SkippableFact]
+    public async Task Approve_rejects_a_submitted_claim_whose_account_was_deactivated_after_submit()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, acctId) = await SeedCategoryAsync(sp, co.CompanyId, "W2B", "หมวด approve-guard");
+
+        await using var s0 = sp.CreateAsyncScope();
+        var svc0 = s0.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var id = await svc0.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, null, "x", Today, 10m, null, 0m, true)]),
+            default);
+        await svc0.SubmitAsync(id, default);
+
+        await using var s1 = sp.CreateAsyncScope();
+        var db1 = s1.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var acct = await db1.ChartOfAccounts.FirstAsync(a => a.AccountId == acctId);
+        acct.IsActive = false;
+        await db1.SaveChangesAsync();
+
+        await using var s2 = sp.CreateAsyncScope();
+        var svc2 = s2.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var act = () => svc2.ApproveAsync(id, default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code
+            .Should().Be("expense_claim.expense_account_invalid");
+    }
+
+    /// <summary>R1/C5 amendment (Opus HIGH-2) — the new escape hatch: before this fix, Approved
+    /// had NO exit whatsoever once its account became invalid (Pay throws, Reject is Submitted-
+    /// only, edit is Draft/Rejected-only, no unapprove). Cancel-from-Approved closes that dead
+    /// end.</summary>
+    [SkippableFact]
+    public async Task Cancel_is_now_legal_from_Approved_the_escape_hatch_for_an_invalidated_account()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, acctId) = await SeedCategoryAsync(sp, co.CompanyId, "W2C", "หมวด cancel-approved");
+
+        await using var s0 = sp.CreateAsyncScope();
+        var svc0 = s0.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var id = await svc0.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, null, "x", Today, 10m, null, 0m, true)]),
+            default);
+        await svc0.SubmitAsync(id, default);
+        await svc0.ApproveAsync(id, default);
+
+        await using var s1 = sp.CreateAsyncScope();
+        var db1 = s1.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var acct = await db1.ChartOfAccounts.FirstAsync(a => a.AccountId == acctId);
+        acct.IsActive = false;
+        await db1.SaveChangesAsync();
+
+        await using var s2 = sp.CreateAsyncScope();
+        var svc2 = s2.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        // Pay is now a dead end (the existing re-guard, proven by the sibling test above)...
+        (await Assert.ThrowsAsync<DomainException>(
+            () => svc2.PayAsync(id, new PayExpenseClaimRequest("CASH", null), default)))
+            .Code.Should().Be("expense_claim.expense_account_invalid");
+
+        // ...but Cancel is now the way out.
+        await svc2.CancelAsync(id, default);
+        (await svc2.GetDetailAsync(id, default))!.Status.Should().Be(nameof(ExpenseClaimStatus.Cancelled));
     }
 
     // ── Attachment wiring (§5/§6) ───────────────────────────────────────────────────

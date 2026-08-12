@@ -108,10 +108,17 @@ public class ExpenseClaim : ITenantOwned, IAuditable, IConcurrencyVersioned
         Version++;
     }
 
-    /// <summary>Draft/Rejected -&gt; Cancelled. Only legal pre-GL (no JE was ever posted).</summary>
+    /// <summary>Draft/Rejected/Approved -&gt; Cancelled. Only legal pre-GL (no JE was ever
+    /// posted) — Paid is excluded because a JE exists by then and cancellation is never a way to
+    /// unwind a posted entry. R1/C5 amendment (Opus HIGH-2, 2026-08-12) — Approved was added
+    /// because it previously had NO exit at all: Pay throws once RevalidateLineAccountsAsync
+    /// refuses an invalidated line, Reject is Submitted-only, edit is Draft/Rejected-only, and
+    /// there is no unapprove. Deactivating (or repointing) a COA account used by an Approved claim
+    /// would otherwise strand that claim permanently.</summary>
     public void Cancel()
     {
-        if (Status != ExpenseClaimStatus.Draft && Status != ExpenseClaimStatus.Rejected)
+        if (Status != ExpenseClaimStatus.Draft && Status != ExpenseClaimStatus.Rejected
+            && Status != ExpenseClaimStatus.Approved)
             throw new DomainException("expense_claim.cannot_cancel",
                 $"Cannot cancel an expense claim in status {Status}.");
         Status = ExpenseClaimStatus.Cancelled;
