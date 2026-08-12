@@ -22,6 +22,32 @@ Entry format — terse, greppable by symptom:
 
 <!-- entries below — newest on top -->
 
+## A precision/money guard suddenly refuses to post payroll with an absurd amount (`je.precision` on a 9-figure total) after an unrelated change
+- **Symptom:** `PayrollRunService.PostAsync` (or any company-1 payroll test using `RunThroughPost`)
+  throws `je.precision` with a nonsensical debit like `151390834.9492` — no single employee has
+  anywhere near that salary.
+- **Root cause:** `PayrollRunServiceTests.B1_full_month_control_gross_taxable_is_unrounded_base_salary`
+  (O8 proration) deliberately creates an employee with a 4dp `BaseSalary` (`45_678.9012m`) to prove the
+  full-month short-circuit does no rounding. That employee is never deactivated and has no
+  `TerminationDate`, so per this test class's own documented invariant ("the run pools EVERY active
+  company-1 employee in the shared `teas_test` DB") it silently joins the aggregate salary-expense total
+  of **every other** payroll-posting test, forever, across every historical session that ran B1 — 41
+  copies had accumulated in `teas_test` by 2026-08-12. This was always latent (the aggregate was always
+  4dp-corrupted); WP-3's `JournalEntry.MarkPosted` precision guard (specs/fix-breakit-r1-ledger-integrity.md
+  §3.1) was simply the first thing to actually check `Round(x,2)==x` on the posted total instead of
+  silently accepting it — the guard is correct, the leaked test fixture is the bug.
+- **Fix:** confirm before touching anything — query
+  `SELECT count(*) FROM sys.employees WHERE company_id=1 AND is_active AND base_salary <> round(base_salary,2)`
+  (via a throwaway `AccountingDbContext` query in a temp test, no `psql` on this box). If it's B1's
+  fixture again, deactivate the leaked rows (`IsActive=false`, one-time data cleanup, not a migration) and
+  make B1 deactivate its own employee immediately after its assertions (see
+  `PayrollRunServiceTests.cs`, `B1_full_month_control_...`). Never round/relax the money guard to make
+  this go away — the guard is doing its job on genuinely corrupted aggregate data (same lesson as the
+  spec's co5/co7 "cannot be year-closed on corrupt data" consequence, §8).
+- **Seen:** 2026-08-12, WP-3 (`specs/fix-breakit-r1-ledger-integrity.md`) — 17 unrelated payroll tests
+  went red on the first full sweep after the precision guard landed; root-caused via a throwaway
+  diagnostic query rather than guessed.
+
 ## Mandatory glyph grep (`ม`/`ד`) fails with `grep: -P supports only unibyte and UTF-8 locales` in Git Bash
 - **Symptom:** running the required pre-commit glyph check (`grep -nP "ม|ד" <file>`) in this
   environment's Git Bash errors out with `grep: -P supports only unibyte and UTF-8 locales`
@@ -387,6 +413,26 @@ for historical context only.
   copies locked. Same symptom/fix: `taskkill //PID <N> //F` (or `Stop-Process -Id <N> -Force` in
   PowerShell), confirm via `tasklist //FI "PID eq <N>"` first if unsure what the PID is before
   killing it — a build worker doesn't know if it's the user's live server.
+- **Variant — the lock owner is a LEGITIMATE concurrent run, never kill it.** When the orchestrator
+  (Fable) or another worker has its own `dotnet test` actively running against the shared `teas_test`
+  DB (e.g. the Tier-1 full-suite gate, or a sibling worker mid-dispatch), that `testhost` PID is not
+  stale — killing it destroys real in-progress verification. Do NOT `Stop-Process` in this case.
+  Instead: `dotnet build <project.csproj> --no-restore -o <scratchpad-dir>` (an isolated output path
+  — `-o` on a `.sln` prints `NETSDK1194` but still works; prefer targeting the leaf test `.csproj`
+  directly to avoid the warning) never touches the shared `bin/`, so it never collides with the lock.
+  Verify by running the specific new/changed test directly against the isolated DLL:
+  `dotnet test <isolated-dir>/Accounting.Api.Tests.dll --filter "FullyQualifiedName~<Test>"` — this
+  is plain `vstest` against a pre-built assembly (no MSBuild copy step), so it is safe to run
+  concurrently as long as the test itself doesn't open a Postgres connection (pure/unit-only
+  `[Fact]`s — anything DB-backed, e.g. `[SkippableFact]`s needing `PostgresFixture`, still needs an
+  explicit all-clear from whoever owns the DB-touching run, since Postgres itself — not just the
+  build output — is the shared resource).
+- **Seen (this variant):** 2026-08-12, `specs/fix-breakit-r1-ledger-integrity.md` WP-3 FIX A/B round
+  — Fable's full-suite Tier-1 gate was live against `teas_test` while dispatching a same-round
+  follow-up fix; `dotnet build backend/Accounting.sln` failed MSB3027/MSB3021 on every project DLL
+  (PID confirmed as `testhost`, NOT stale). Isolated `-o` build + direct-DLL `vstest` run on a pure
+  `EmployeeSalaryPrecisionTests` (no DB) proved RED→GREEN cleanly with zero interference — 65-83ms
+  wall time, no Postgres connection opened, shared `bin/` never touched.
 
 ## Posted-document "immutability" trigger doesn't fire on a header-only field edit (Receipt trigger 570, or any `fn_enforce_*_immutability`-style trigger)
 - **Root cause:** `fn_enforce_receipt_immutability()` (`SqlScripts/570_receipt_immutability_rls.sql`) —

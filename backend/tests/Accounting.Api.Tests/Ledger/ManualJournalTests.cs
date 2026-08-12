@@ -654,6 +654,93 @@ public sealed class ManualJournalTests
         }
     }
 
+    // ── R1/C1 (WP-3) — the posting-seam precision guard (JournalEntry.MarkPosted) ───────────
+    // §3.1: THB is a 2-decimal currency. The seam REJECTS, never rounds. T12/T13.
+
+    [Fact]
+    public void T12a_draft_request_with_3dp_line_is_refused_by_the_validator()
+    {
+        // Mirrors Three_decimal_amount_is_refused_by_the_validator above, but for the DRAFT
+        // path's CreateJournalValidator (JournalDtos.cs:85-108) — the one MCP/REST /journals
+        // POST uses, which today has NO precision rule at all (unlike CreateManualJournalValidator).
+        var req = new CreateJournalRequest(Today, Today, "3dp draft test", null, "THB", 1m,
+        [
+            new JournalLineInput(1, 100.005m, 0m, null, null, null),
+            new JournalLineInput(2, 0m, 100.005m, null, null, null),
+        ]);
+        var result = new CreateJournalValidator().Validate(req);
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.ErrorMessage.Contains("2 decimal"));
+    }
+
+    [SkippableFact]
+    public async Task T12b_posting_a_pre_seeded_4dp_draft_is_refused_and_stays_draft()
+    {
+        // CreateDraftAsync performs no precision validation (mirrors the existing
+        // account/period gates above) — so a 4dp draft can be seeded directly, exactly
+        // like Post_of_draft_with_header_account_is_refused seeds a bad account. MarkPosted
+        // (the seam every posting path shares) must be the one to catch it.
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await NewCompanyAsync();
+        await using (sp)
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bank = await AccountId(db, "1120");
+            var loan = await AccountId(db, "2190");
+            var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+
+            var draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                Today, Today, "4dp draft (post gate)", null, "THB", 1m,
+                [
+                    new JournalLineInput(bank, 100.005m, 0m, null, null, null),
+                    new JournalLineInput(loan, 0m, 100.005m, null, null, null),
+                ]), default);
+
+            var act = () => svc.PostAsync(draftId, default);
+            (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("je.precision");
+
+            var entry = await db.JournalEntries.AsNoTracking().SingleAsync(j => j.JournalId == draftId);
+            entry.Status.Should().Be(DocumentStatus.Draft, "a refused post must not mark the entry Posted");
+            entry.DocNo.Should().BeNull("no JV number may be consumed by a refused post");
+        }
+    }
+
+    [SkippableFact]
+    public async Task T13_4dp_lines_that_net_balanced_are_rejected_in_full_no_row_no_number()
+    {
+        // C4 F1's live repro: 33.3333 / 33.3333 / 33.3334 nets to 100.0000 == Cr 100.00 at the
+        // HEADER (IsBalanced passes), but no individual line is clean at 2dp. Rounding each line
+        // to 2dp would give 33.33x3=99.99 != 100.00 — the seam must reject in full, not round,
+        // not plug. I14, I15.
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await NewCompanyAsync();
+        await using (sp)
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bank = await AccountId(db, "1120");
+            var loan = await AccountId(db, "2190");
+            var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+
+            var draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                Today, Today, "33.3333 split (post gate)", null, "THB", 1m,
+                [
+                    new JournalLineInput(bank, 33.3333m, 0m, null, null, null),
+                    new JournalLineInput(bank, 33.3333m, 0m, null, null, null),
+                    new JournalLineInput(bank, 33.3334m, 0m, null, null, null),
+                    new JournalLineInput(loan, 0m, 100.00m, null, null, null),
+                ]), default);
+
+            var act = () => svc.PostAsync(draftId, default);
+            (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("je.precision");
+
+            var entry = await db.JournalEntries.AsNoTracking().SingleAsync(j => j.JournalId == draftId);
+            entry.Status.Should().Be(DocumentStatus.Draft);
+            entry.DocNo.Should().BeNull("not rounded, not plugged — the entry is refused in full");
+        }
+    }
+
     [SkippableFact]
     public async Task Post_of_valid_draft_still_succeeds_unchanged_happy_path()
     {

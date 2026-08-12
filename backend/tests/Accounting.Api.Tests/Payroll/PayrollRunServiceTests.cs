@@ -1,6 +1,8 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Expense;
 using Accounting.Application.Payroll;
+using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Bank;
 using Accounting.Domain.Entities.Master;
@@ -817,15 +819,37 @@ public sealed class PayrollRunServiceTests
         await using var sp = Provider();
         var period = await FreshPeriodAsync(sp, 7);   // July — always 31 days
         var empId = await AddEmployee(sp, 45_678.9012m);
+        try
+        {
+            await using var s = sp.CreateAsyncScope();
+            var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(
+                new CreatePayrollRunRequest(period, new DateOnly(int.Parse(period[..4]), 7, 28), null), default);
+            var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
 
-        await using var s = sp.CreateAsyncScope();
-        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
-        var runId = await svc.CreateDraftAsync(
-            new CreatePayrollRunRequest(period, new DateOnly(int.Parse(period[..4]), 7, 28), null), default);
-        var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
-
-        slip.GrossTaxable.Should().Be(45_678.9012m);   // exact, un-rounded — full-month short-circuit
-        slip.NetPay.Should().Be(slip.GrossTaxable - slip.PitWithheld - slip.SsoEmployee);
+            slip.GrossTaxable.Should().Be(45_678.9012m);   // exact, un-rounded — full-month short-circuit
+            slip.NetPay.Should().Be(slip.GrossTaxable - slip.PitWithheld - slip.SsoEmployee);
+        }
+        finally
+        {
+            // R1/C1 (WP-3) — this employee's salary is DELIBERATELY 4dp to prove the full-month
+            // short-circuit does no rounding (above). But every AddEmployee row is permanent and
+            // has no TerminationDate (§8 class invariant: "the run pools EVERY active company-1
+            // employee"), so left active it silently joins every OTHER test's payroll GL total
+            // forever — invisible until JournalEntry.MarkPosted's new precision guard (I14) refuses
+            // to post any run whose aggregate salary expense inherits this employee's extra
+            // decimals. Found via WP-3's RED/GREEN sweep: 41 copies of this exact fixture had
+            // accumulated in the shared teas_test DB across historical runs and broke 17 unrelated
+            // payroll tests system-wide (troubles-wiki.md). `finally` (mirrors
+            // Pay_without_any_active_bank_credits_cash_1110's try/finally below) so a FAILED
+            // assertion above still deactivates this employee — an exception here must never
+            // re-leak the exact poison this block exists to clean up.
+            await using var cleanupScope = sp.CreateAsyncScope();
+            var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var emp = await cleanupDb.Employees.SingleAsync(e => e.EmployeeId == empId);
+            emp.IsActive = false;
+            await cleanupDb.SaveChangesAsync();
+        }
     }
 
     [SkippableFact]
@@ -1112,5 +1136,74 @@ public sealed class PayrollRunServiceTests
         var pdfSvc = s.ServiceProvider.GetRequiredService<IPayslipPdfService>();
         var payslipPdf = await pdfSvc.BuildAsync(runId, empId, default);
         System.Text.Encoding.ASCII.GetString(payslipPdf, 0, 5).Should().Be("%PDF-");
+    }
+
+    // ── R1/C1 (WP-3) — T14: payroll deduction / expense-claim / PV line precision. I14, I16. ──
+
+    [SkippableFact]
+    public async Task T14_3dp_deduction_expense_and_pv_lines_are_refused_valid_2dp_deduction_posts_and_ties_to_2170()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        // ── negative (I14): a 3dp amount is refused at every money-carrying validator ──
+        await using (var sp0 = Provider())
+        await using (var s0 = sp0.CreateAsyncScope())
+        {
+            var payrollForValidator = s0.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            IValidator<UpdatePayrollDeductionsRequest> deductionValidator =
+                new UpdatePayrollDeductionsValidator(payrollForValidator);
+            var badDeduction = new UpdatePayrollDeductionsRequest(
+                [new PayrollDeductionLine(1, 100.129m, "ทดสอบ WP-3")]) { PayrollRunId = 0 };
+            var deductionResult = await deductionValidator.ValidateAsync(badDeduction);
+            deductionResult.IsValid.Should().BeFalse();
+            deductionResult.Errors.Should().Contain(e => e.ErrorMessage.Contains("2 decimal"));
+        }
+
+        var expenseLineResult = new ExpenseClaimLineInputValidator().Validate(
+            new ExpenseClaimLineInput(1, null, "ทดสอบ WP-3", null, 100.005m, null, 0m, false));
+        expenseLineResult.IsValid.Should().BeFalse();
+        expenseLineResult.Errors.Should().Contain(e => e.ErrorMessage.Contains("2 decimal"));
+
+        var pvResult = new CreatePaymentVoucherValidator().Validate(new CreatePaymentVoucherRequest(
+            new SystemClock().TodayInBangkok(), 1, 1, PaymentMethod.Cash, null, null, null,
+            "THB", 1m, null, null,
+            [new PaymentVoucherLineInput(null, "ทดสอบ WP-3", 100.005m, null, 0m, false, null, 0m)]));
+        pvResult.IsValid.Should().BeFalse();
+        pvResult.Errors.Should().Contain(e => e.ErrorMessage.Contains("2 decimal"));
+
+        // ── positive (I16): a valid 2dp deduction posts, and the payslip's printed net foots
+        // EXACTLY to the 2170 credit. Uses a FRESH, single-employee company (TestCompanyFactory)
+        // rather than the shared company-1 pool — that pool accumulates employees across the
+        // whole suite, so the run-level 2170 credit (Σ every active employee's NetPay) would
+        // never equal one specific payslip's NetPay there (see the class-level isolation comment
+        // above). A brand-new company has exactly the one employee this test adds.
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var spX = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var employeeId = await AddEmployee(spX, 30_000m);
+        var period = await FreshPeriodAsync(spX, 1);
+
+        await using var scopeX = spX.CreateAsyncScope();
+        var payroll = scopeX.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(new CreatePayrollRunRequest(
+            period, new DateOnly(int.Parse(period[..4]), 1, 28), null), default);
+        await payroll.UpdateDeductionsAsync(runId, new UpdatePayrollDeductionsRequest(
+            [new PayrollDeductionLine(employeeId, 100.13m, "ทดสอบ WP-3 valid 2dp")]), default);
+        await payroll.ApproveAsync(runId, default);
+        await payroll.PostAsync(runId, default);
+
+        var posted = (await payroll.GetAsync(runId, default))!;
+        var slip = posted.Payslips.Single(p => p.EmployeeId == employeeId);
+
+        var db = scopeX.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .SingleAsync(j => j.JournalId == posted.JournalId);
+        var netWagesAccountId = await db.ChartOfAccounts.AsNoTracking()
+            .Where(a => a.AccountCode == "2170").Select(a => a.AccountId).SingleAsync();
+        var netCredit = je.Lines.Single(l => l.AccountId == netWagesAccountId).CreditAmount;
+
+        netCredit.Should().Be(slip.NetPay,
+            "I16 — the payslip's printed net (what PayslipPdf.cs renders) must foot exactly to the 2170 credit");
+        decimal.Round(netCredit, 2).Should().Be(netCredit, "the posted credit itself must carry no more than 2dp");
+        je.TotalDebit.Should().Be(je.TotalCredit);
     }
 }

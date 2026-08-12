@@ -572,9 +572,12 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
 
     private static TaxInvoiceLine BuildLine(TaxInvoiceLineInput input, int lineNo, bool inclusive)
     {
-        var gross = Math.Round(input.Quantity * input.UnitPrice, 4, MidpointRounding.AwayFromZero);
+        // R1/C1 (WP-3, deferral reversed) — THB is a 2-decimal currency. `net`/`total` below
+        // flow UNCHANGED into ti.SubtotalAmount/TotalAmount (no rounding step in between) and
+        // straight into the posted JE's Dr/Cr amounts, so a 4dp gross reached the ledger.
+        var gross = Math.Round(input.Quantity * input.UnitPrice, 2, MidpointRounding.AwayFromZero);
         var afterDisc = input.DiscountPercent > 0
-            ? Math.Round(gross * (1m - input.DiscountPercent / 100m), 4, MidpointRounding.AwayFromZero)
+            ? Math.Round(gross * (1m - input.DiscountPercent / 100m), 2, MidpointRounding.AwayFromZero)
             : gross;
 
         decimal net, vat, total;

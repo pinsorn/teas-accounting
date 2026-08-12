@@ -64,6 +64,34 @@ public class JournalEntry : ITenantOwned, IAuditable, IConcurrencyVersioned
         if (string.IsNullOrEmpty(docNo))
             throw new DomainException("je.no_docno", "DocNo is required when posting.");
 
+        // R1/C1 — THB is a 2-decimal currency and gl.journal_lines is numeric(19,4), so a 3rd/4th
+        // decimal is STORED silently and makes ΣDr==ΣCr pass on invisible satang (co5 TB 822801.785,
+        // co7 544060.031). This is the LAST gate EVERY posting path shares:
+        //   GlPostingService.BuildAndPostAsync · GlPostingService.PostClosingEntryAsync ·
+        //   JournalService.PostAsync.
+        // REJECT, never round: rounding here can break ΣDr==ΣCr (33.3333×3 vs 100.00) and would make
+        // the system invent a satang. Validators fail fast on top of this for a better message.
+        // Fable FIX B (2026-08-12) — this message must read sensibly from EVERY posting path,
+        // not just a hand-keyed manual JV: payroll has no "line" for the user to restate (the
+        // cause is an employee record), year-close's cause is immutable posted history, and the
+        // header variant used to name no line and no amount at all. State which line/amounts,
+        // say satang explicitly, and point at the SOURCE (document or master-data record) that
+        // produced the amount — never instruct "restate a split" the caller may not control.
+        foreach (var l in Lines)
+        {
+            if (decimal.Round(l.DebitAmount, 2) != l.DebitAmount
+             || decimal.Round(l.CreditAmount, 2) != l.CreditAmount)
+                throw new DomainException("je.precision",
+                    $"Line {l.LineNo}: amount is not in satang (Dr {l.DebitAmount} / Cr {l.CreditAmount} " +
+                    "— THB allows at most 2 decimal places). This was not rounded automatically — " +
+                    "check the source document or master-data record that produced this amount.");
+        }
+        if (decimal.Round(TotalDebit, 2) != TotalDebit || decimal.Round(TotalCredit, 2) != TotalCredit)
+            throw new DomainException("je.precision",
+                $"Journal totals are not in satang (Dr {TotalDebit} / Cr {TotalCredit} — THB allows " +
+                "at most 2 decimal places). This was not rounded automatically — check the source " +
+                "document or master-data record that produced this amount.");
+
         DocNo    = docNo;
         Status   = DocumentStatus.Posted;
         PostedAt = postedAt;

@@ -154,7 +154,8 @@ public sealed class CreateVendorInvoiceValidator : AbstractValidator<CreateVendo
         {
             l.RuleFor(x => x.ExpenseCategoryId).GreaterThan(0);
             l.RuleFor(x => x.Description).NotEmpty().MaximumLength(500);
-            l.RuleFor(x => x.Amount).GreaterThan(0);
+            // R1/C1 (WP-3) — this validator also covers UpdateDraftAsync (same request DTO).
+            l.RuleFor(x => x.Amount).GreaterThan(0).Satang();
             l.RuleFor(x => x.VatRate).InclusiveBetween(0m, 1m);
         });
     }

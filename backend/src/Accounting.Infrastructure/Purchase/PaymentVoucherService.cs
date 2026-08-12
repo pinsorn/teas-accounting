@@ -231,7 +231,8 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         for (var i = 0; i < req.Lines.Count; i++)
         {
             var input = req.Lines[i];
-            var net   = Math.Round(input.Amount, 4, MidpointRounding.AwayFromZero);
+            // R1/C1 (WP-3) — THB is a 2-decimal currency; 4dp reached the immutable ledger (A4 §K1, co7 JE 306).
+            var net   = Math.Round(input.Amount, 2, MidpointRounding.AwayFromZero);
             var vat   = Math.Round(net * input.VatRate, 2, MidpointRounding.AwayFromZero);
             var (wht, _) = WhtPayerModes.Compute(net, input.WhtRate, payerMode);
 

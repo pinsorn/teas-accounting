@@ -20,9 +20,11 @@ internal static class ChainMath
     public static (decimal net, decimal vat, decimal total) Line(
         decimal qty, decimal price, decimal discPct, decimal rate)
     {
-        var gross = Math.Round(qty * price, 4, MidpointRounding.AwayFromZero);
+        // R1/C1 (WP-3, deferral reversed) — THB is a 2-decimal currency; this net/total
+        // cascades Q→SO→DO→TI with no rounding step in between and can reach a posted JE.
+        var gross = Math.Round(qty * price, 2, MidpointRounding.AwayFromZero);
         var net = discPct > 0
-            ? Math.Round(gross * (1m - discPct / 100m), 4, MidpointRounding.AwayFromZero)
+            ? Math.Round(gross * (1m - discPct / 100m), 2, MidpointRounding.AwayFromZero)
             : gross;
         var vat = Math.Round(net * rate, 2, MidpointRounding.AwayFromZero);
         return (net, vat, net + vat);

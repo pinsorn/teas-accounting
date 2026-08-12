@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using Accounting.Domain.Entities.Payroll;
 using Accounting.Domain.Enums;
 using FluentValidation;
@@ -110,7 +111,8 @@ public sealed class UpdatePayrollDeductionsValidator : AbstractValidator<UpdateP
         RuleForEach(x => x.Deductions).ChildRules(line =>
         {
             line.RuleFor(x => x.EmployeeId).GreaterThan(0).WithMessage("รหัสพนักงานไม่ถูกต้อง");
-            line.RuleFor(x => x.Amount).GreaterThan(0m).WithMessage("จำนวนเงินหักต้องมากกว่า 0");
+            // R1/C1 (WP-3) — THB is a 2-decimal currency; no scale rule existed here before.
+            line.RuleFor(x => x.Amount).GreaterThan(0m).WithMessage("จำนวนเงินหักต้องมากกว่า 0").Satang();
             line.RuleFor(x => x.Reason).NotEmpty().MaximumLength(500)
                 .WithMessage("กรุณาระบุเหตุผลการหักเงินไม่เกิน 500 ตัวอักษร");
         });

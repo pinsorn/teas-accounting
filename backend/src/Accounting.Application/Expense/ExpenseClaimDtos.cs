@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using FluentValidation;
 
 namespace Accounting.Application.Expense;
@@ -64,7 +65,8 @@ public sealed class ExpenseClaimLineInputValidator : AbstractValidator<ExpenseCl
         RuleFor(x => x.ExpenseAccountId).Must(v => v is null || v > 0)
             .WithMessage("ExpenseAccountId must be null (use category default) or > 0.");
         RuleFor(x => x.Description).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.Amount).GreaterThan(0);
+        // R1/C1 (WP-3) — this is the shared Create+Update line validator (both DTOs use it).
+        RuleFor(x => x.Amount).GreaterThan(0).Satang();
         RuleFor(x => x.VatRate).InclusiveBetween(0m, 1m);
     }
 }

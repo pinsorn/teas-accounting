@@ -1299,6 +1299,61 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` → 0/0 throughout.
   No commit made; full solution-wide suite still deliberately not run (Fable's gate).
 
+- **2026-08-12 sonnet-implementer: WP-3 Opus-REJECT round — FIX A + FIX B, Fable-authorised, +2
+  source/+1 test on top of the round-2 cap (now 14/4).** Opus confirmed the guard itself correct
+  (choke point, reject-never-round, no FX regression, sales-line addition balances in both VAT
+  branches) and rejected on inputs/legacy data around the guard — the legacy-data half (existing
+  >2dp rows in `gl.journal_lines`/`payroll_runs.total_*`/`employees.base_salary`) is explicitly
+  **out of scope**, spun into the new WP-6 below; Fable specified it separately as a prod-data
+  operation, not code.
+
+  **FIX A** — `EmployeeRules.Common` (`EmployeeDtos.cs`) had `salary.GreaterThanOrEqualTo(0m)` and
+  no scale rule, so an employee with a >2dp `BaseSalary` (accepted today by both
+  `POST`/`PUT /employees`) flows RAW into the payroll accrual JE line
+  (`PayrollMath.MonthlyGross` returns a full-month `BaseSalary` unrounded, by design — no
+  `Math.Round` call in that path) and now hits `je.precision` at post time — refusing the WHOLE
+  company's run (nobody paid), naming a journal line the user cannot edit rather than the
+  employee record that caused it. Same mechanism, production-input side, as the 41 poisoned `B1`
+  fixture rows diagnosed earlier this WP. Added `.Satang()` to the shared `salary` rule in
+  `EmployeeRules.Common` — covers `CreateEmployeeValidator` + `UpdateEmployeeValidator` by
+  construction (one shared rule method, both validators call it).
+
+  **RED→GREEN** (pure FluentValidation unit tests, no DB — new file `EmployeeSalaryPrecisionTests.cs`):
+  `Create_with_more_than_2dp_salary_is_rejected_at_the_edge` / `Update_..._rejected_at_the_edge` /
+  `A_2dp_salary_still_validates_cleanly_on_create_and_update`. RED confirmed via a working-tree-only
+  `git stash` of `EmployeeDtos.cs` alone (Fable's suite was live against `teas_test`, so the whole
+  solution's shared `bin/` was lock-held by their `testhost` — MSB3027, troubles-wiki.md line 374 —
+  the usual `dotnet build -o <isolated dir>` workaround was used for every build+run this round,
+  never touching the shared output or Postgres): 2/3 failed (`IsValid` was `True` for the 4dp
+  salary on both Create and Update; the 2dp case correctly passed even pre-fix). Stash popped,
+  re-built isolated, re-ran: 3/3 GREEN. `dotnet test <isolated-dll-path> --filter ...` (vstest
+  directly against the pre-built DLL) was used instead of `dotnet test <project>` specifically
+  because these are pure sync unit tests with no DB dependency — confirmed genuinely non-conflicting
+  with Fable's running suite (0 Postgres connections, 65ms wall time, no shared `bin/` write).
+
+  **FIX B** — rewrote both `je.precision` messages in `JournalEntry.MarkPosted`. Old per-line text
+  ("Restate the split in satang — the entry is not rounded automatically") is correct only for a
+  hand-keyed manual JV; payroll has no line for the user to restate (the cause is an employee
+  record), year-close's cause is immutable posted history. New text states the line/amounts, says
+  satang (2dp) explicitly, and points at "the source document or master-data record that produced
+  this amount" instead of instructing a restate the caller may not control. The header variant
+  previously said nothing about the actual numbers — now names `TotalDebit`/`TotalCredit`
+  explicitly. Grepped the whole test tree for the old message substrings
+  (`"Restate the split"`, `"must have at most 2 decimal places"`) first — zero hits, so no test
+  pinned the old text; confirmed via the same isolated build (0/0).
+
+  **Not attempted, per Fable's explicit instruction:** the legacy >2dp rows already sitting in
+  `gl.journal_lines`, `payroll_runs.total_*`, `employees.base_salary` — a prod-data operation
+  Fable is specifying separately (now WP-6 below). Nothing in this round touches existing data.
+
+  Blast cap this round: +2 source (`EmployeeDtos.cs`, `JournalEntry.cs` — already-counted from
+  round 1/2) + 1 new test file. **Actual for the FIX A/B round: 2 source files touched
+  (`EmployeeDtos.cs` new edit, `JournalEntry.cs` re-edited) + 1 new test file
+  (`EmployeeSalaryPrecisionTests.cs`)** — within the +2/+1 authorisation. Running cumulative WP-3
+  total: 13 source files + 4 test files (12+3 from the scope-addition round, +1 new source file
+  `EmployeeDtos.cs` that round 1/2 never touched, +1 new test file this round;
+  `JournalEntry.cs` was already counted). No commit made.
+
 ---
 
 ## Fable spec review — 2026-07-31 — **APPROVED to implement**

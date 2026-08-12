@@ -237,7 +237,8 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
                 throw new DomainException("vi.vat_rate_out_of_range",
                     $"Line {i + 1}: VAT rate {input.VatRate} is out of range; must be a fraction between 0 and 1.");
 
-            var net = Math.Round(input.Amount, 4, MidpointRounding.AwayFromZero);
+            // R1/C1 (WP-3) — THB is a 2-decimal currency; 4dp reached the immutable ledger.
+            var net = Math.Round(input.Amount, 2, MidpointRounding.AwayFromZero);
             var vat = Math.Round(net * input.VatRate, 2, MidpointRounding.AwayFromZero);
 
             // cont.76 — สินค้า/บริการ snapshot. Default-GOOD on missing; reject invalid non-null.

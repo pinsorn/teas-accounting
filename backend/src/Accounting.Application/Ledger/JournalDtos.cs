@@ -87,15 +87,22 @@ public sealed class CreateJournalValidator : AbstractValidator<CreateJournalRequ
     public CreateJournalValidator()
     {
         RuleFor(x => x.Description).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.Reference).MaximumLength(255);
         this.ThbOnly(x => x.CurrencyCode, x => x.ExchangeRate);   // multi-currency deferred (05-C1/05-H1)
         RuleFor(x => x.Lines).NotEmpty().Must(l => l.Count >= 2)
             .WithMessage("A journal needs at least 2 lines (debit + credit).");
+        // R1/C1 (WP-3) — a sane upper bound, same as CreateManualJournalValidator's (Tier-2 F3).
+        RuleFor(x => x.Lines).Must(l => l.Count <= 200)
+            .WithMessage("A journal cannot have more than 200 lines.");
 
         RuleForEach(x => x.Lines).ChildRules(line =>
         {
             line.RuleFor(l => l.AccountId).GreaterThan(0);
-            line.RuleFor(l => l.DebitAmount).GreaterThanOrEqualTo(0);
-            line.RuleFor(l => l.CreditAmount).GreaterThanOrEqualTo(0);
+            line.RuleFor(l => l.DebitAmount).GreaterThanOrEqualTo(0).Satang();
+            line.RuleFor(l => l.CreditAmount).GreaterThanOrEqualTo(0).Satang();
+            // R1/C1 (WP-3) — same HasMaxLength(500) column as CreateManualJournalValidator's line
+            // Description; this draft path was missing it (C4 F2/F3, raw Postgres 22001 → 500).
+            line.RuleFor(l => l.Description).MaximumLength(500);
             line.RuleFor(l => l)
                 .Must(l => (l.DebitAmount > 0) ^ (l.CreditAmount > 0))
                 .WithMessage("Each line must be either pure debit or pure credit (not both, not neither).");

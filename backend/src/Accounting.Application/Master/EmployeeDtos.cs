@@ -1,3 +1,4 @@
+using Accounting.Application.Abstractions;
 using FluentValidation;
 
 namespace Accounting.Application.Master;
@@ -80,7 +81,12 @@ file static class EmployeeRules
         v.RuleFor(last).NotEmpty().WithMessage("validation.required").MaximumLength(150).WithMessage("validation.maxLength");
         v.RuleFor(nid).Must(s => new string((s ?? "").Where(char.IsDigit).ToArray()).Length == 13)
             .WithMessage("validation.nationalId");
-        v.RuleFor(salary).GreaterThanOrEqualTo(0m).WithMessage("validation.min");
+        // R1/C1 (WP-3, round 2, Fable FIX A 2026-08-12) — PayrollMath.MonthlyGross returns a
+        // full-month BaseSalary RAW (no rounding, by design), so an unrounded salary flows
+        // straight into the payroll JE line and now hits je.precision at post time — refusing
+        // the WHOLE run (nobody in the company gets paid), naming a journal line the user
+        // cannot edit instead of the employee record that caused it. Reject at the edge instead.
+        v.RuleFor(salary).GreaterThanOrEqualTo(0m).WithMessage("validation.min").Satang();
         v.RuleFor(marital).Must(m => m is "SINGLE" or "MARRIED").WithMessage("validation.required");
         v.RuleFor(children).GreaterThanOrEqualTo(0).WithMessage("validation.min");
     }

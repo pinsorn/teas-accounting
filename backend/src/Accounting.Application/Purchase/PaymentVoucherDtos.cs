@@ -112,7 +112,8 @@ public sealed class CreatePaymentVoucherValidator : AbstractValidator<CreatePaym
                 .Must(v => v is null || v > 0)
                 .WithMessage("ExpenseAccountId must be null (use category default) or > 0.");
             l.RuleFor(x => x.Description).NotEmpty().MaximumLength(500);
-            l.RuleFor(x => x.Amount).GreaterThan(0);
+            // R1/C1 (WP-3) — proven to reach the GL at 4dp (A4 §K1, co7 JE 306).
+            l.RuleFor(x => x.Amount).GreaterThan(0).Satang();
             l.RuleFor(x => x.VatRate).InclusiveBetween(0m, 1m);
             l.RuleFor(x => x.WhtRate).InclusiveBetween(0m, 1m);
         });
