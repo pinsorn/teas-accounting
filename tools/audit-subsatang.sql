@@ -1,3 +1,13 @@
+-- ⚠️ CORRECTED 2026-08-12 after the first real run. The original guessed several names wrong and
+-- one guess silently returned ZERO ROWS instead of erroring — the dangerous kind. Verified facts:
+--   * prod database is **teas** (the deployed appsettings says accounting_dev; that value is stale)
+--   * employees live in **master.employees**, not payroll.employees
+--   * payroll_runs has total_gross_taxable / total_gross_non_taxable / total_sso_employee —
+--     there is no total_gross or total_sso column
+--   * **status values are UPPERCASE** ('ISSUED' / 'SETTLED' / 'POSTED'). A title-case comparison
+--     matches nothing and reports a clean bill of health that is simply false. Always use upper().
+-- Run it as: sudo -u postgres psql -d teas -f audit-subsatang.sql
+--
 -- WP-6.1 — legacy sub-satang data audit. READ-ONLY. Run on PROD before deploying R1.
 --
 -- Why: R1's precision guard (JournalEntry.MarkPosted) rejects any amount with more than
@@ -46,17 +56,17 @@ ORDER BY je.company_id, coa.account_type;
 
 \echo '=== 2. Posted-but-unpaid payroll runs with >2dp totals (these strand at Pay) ==='
 SELECT company_id, payroll_run_id, period_year_month, status,
-       total_gross, total_net, total_pit, total_sso
+       total_gross_taxable, total_net, total_pit, total_sso_employee
 FROM payroll.payroll_runs
 WHERE (round(total_net,   2) <> total_net
-    OR round(total_gross, 2) <> total_gross
+    OR round(total_gross_taxable, 2) <> total_gross_taxable
     OR round(total_pit,   2) <> total_pit
-    OR round(total_sso,   2) <> total_sso)
+    OR round(total_sso_employee, 2) <> total_sso_employee)
 ORDER BY company_id, period_year_month;
 
 \echo '=== 3. Employees whose base salary is >2dp (the source of future payroll blockage) ==='
 SELECT company_id, employee_id, employee_code, base_salary, is_active
-FROM payroll.employees
+FROM master.employees
 WHERE round(base_salary, 2) <> base_salary
 ORDER BY company_id, is_active DESC, employee_code;
 
