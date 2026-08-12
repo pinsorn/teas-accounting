@@ -14,23 +14,28 @@
     (pm2 online · version 1.28.0 · migration column present · both new routes mapped · public login 200).
   - Gates before release: full suite **1129 passed / 0 failed / 8 skipped**; every WP had a proven RED→GREEN;
     Opus Tier-2 on all five, which REJECTED WP-2 once and WP-4 twice.
-- **🔴 NEEDS HAM — one command. The backfill `apply`.** I drove it through Ham's logged-in browser and
-  **`mode=preview` succeeded on co3**, confirming the numbers I had measured directly against prod:
-  `{"grandTotalOutstanding":15400, "byFiscalYear":[{"fiscalYear":2026, "creditSide":"Revenue",
-  "invoiceCount":1, "invoices":[{"docNo":"08-2026-IV-0001","docDate":"2026-08-08","outstanding":15400}]}],
-  "blockers":[]}` — and `posted:0`, i.e. preview wrote nothing, as designed.
-  Before-state on co3 also confirms the C6 bug exactly: AR control 1130 = **0.00**, sub-ledger 0.00,
-  balanced true, **zero AR rows** despite an issued unpaid invoice.
-  **`mode=apply` was blocked by the safety classifier** — it is an unattended state-changing write to a
-  production ledger, which is a reasonable thing to gate. I did not route around it (doing the same write
-  over SSH would defeat the point of the gate).
-  **To run it, from the browser console while logged in, per company:**
-  `await fetch('/api/proxy/admin/nonvat-ar-backfill?mode=apply',{method:'POST'}).then(r=>r.json())`
-  Do it once on **co3** (expect 1 invoice, ฿15,400) and once on **co2** after switching company
-  (expect 1 invoice, `07-2026-IV-LAB-0001`, ฿8,400, also FY2026 → Revenue). Run `mode=preview` first each
-  time; it writes nothing. Afterwards AR 1130 should equal the invoice amount and `ar-aging`'s
-  reconciliation should stay `balanced: true` with `difference: 0`.
-  Not urgent — until it runs, those two invoices simply do not appear in AR.
+- **✅ The AR backfill RAN on both real tenants (Ham executed the apply).** co3 ฿15,400 → JE 309;
+  co2 ฿8,400 → JE `08-2026-JV-0001`. Both `Dr = Cr`, `ar-aging` reconciliation `balanced: true,
+  difference: 0`, and idempotency proven on a re-run (`alreadyDone: 1`, outstanding 0 on re-preview).
+  Nothing left to do here.
+- **🟡 R2 compliance filings — wave 1 COMMITTED, wave 2 in flight.** Details in
+  `PROGRESS-r2-compliance.md`; spec `specs/fix-breakit-r2-compliance.md`.
+  - `5a9b1b0` **WP-6** ภ.ง.ด.50/51 reject a nonsense CE year with 422, not an unmapped 500.
+  - `0f59fab` **WP-5** สปส.1-10 / ภ.ง.ด.1 refuse a blank employer account and an unfilable name — the
+    `?????` names and the `0000000000` employer account can no longer reach a government file.
+  - `934a561` **WP-1 — C4 RETRACTED, it was never a defect.** The swarm's "totals print on row 5, รวม
+    blank" was a `pdftotext -layout` misreading, reproduced on demand and refuted from the rendered
+    image. Stages C/D/E and Ham's image gate cancelled. The pass still earned itself: the *committed
+    field map* was wrong in two places while the code was right, and ภ.ง.ด.1ก had no map at all.
+  - Gates: full suite **1151 / 0 / 14 skipped**, `tsc` 0, vitest 65/65 — and the counts reconcile
+    exactly, so nothing was silently disabled.
+  - Tier-2 (Opus) **REJECTed WP-5** on a real defect: adding an i18n entry makes `errorToToast` return
+    the dict string *instead of* the backend detail, deleting the employee id and character code point
+    the user needs. Fixed by removing the entry; a comment records why it must stay absent.
+  - In flight: **WP-2** (C2 ภ.พ.36 declares the payment, not the invoice), **WP-3** (ภ.พ.30
+    VAT-registrant-only), **WP-7** (delete the "customer has paid" button — the one public-API removal
+    in R2). **WP-4** (filing artifacts require a Posted run) is next; its product question is already
+    answered in the spec.
 - **✅ Tax question CLOSED, and it corrects what I said earlier.** I repeatedly flagged an amended
   ภ.ง.ด.50 and a 1.5%/month surcharge as urgent. Measured on prod: both real tenants are non-VAT with a
   January fiscal year, every settled invoice was receipted in the year it was issued, and the only
