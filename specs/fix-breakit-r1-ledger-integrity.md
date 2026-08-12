@@ -901,9 +901,27 @@ GREEN (guard restored + OpenPeriodAsync fixture fix applied):
 ```
 `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` → 0 Warning(s), 0 Error(s) both before and after the test-fixture fallout fix.
 
-**Evidence — ROUND 2 (ceiling removed per §3.5 amendment, commit `97ace1c`):** see the attempt-log
-entry below. Code + tests rewritten and isolated-build-verified (`0 Warning(s), 0 Error(s)`); full
-`dotnet test` run deferred — TEST-DB HOLD in effect while the WP-4 worker owns `teas_test`.
+**Evidence — ROUND 2 (ceiling removed per §3.5 amendment, commit `97ace1c`), DB-verified after the
+ALL-CLEAR:**
+```
+RED (git-stashed the source guard, zero guard at all): T18/T19/T20 → 3 failed, 0 passed — all
+  "Expected a DomainException to be thrown, but no exception was thrown." Stash restored, `git
+  stash list` empty afterward.
+
+GREEN, first pass: T18/T19/T20 → 2 passed, 1 failed — T19 sub-case (d) hit payroll.bank_required
+  from PayAsync's bank-resolution branch (own test-fixture bug: shared company 1 has accumulated
+  multiple active bank accounts across the suite's history), NOT from the period/pay-date guard.
+  Fixed by moving sub-case (d) to a fresh TestCompanyFactory company (zero banks by construction).
+
+GREEN, second pass: T18/T19/T20 → 3 passed, 0 failed, 0 skipped, 5s. All four T19 legs proven.
+
+Full class: PayrollRunServiceTests → 34 passed, 0 failed, 0 skipped, 3m9s.
+
+Pnd1_filings_follow_payment_date_not_period, isolated: 1 passed, 0 failed, 22s — driving the REAL
+  service (RunThroughPost, no seeded state) end to end.
+```
+See the ROUND 2 attempt-log entry below for full detail. Not committed — Fable runs the
+consolidated full suite before commit.
 
 ---
 
@@ -1814,8 +1832,48 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   WP-4's concurrently-edited `Accounting.Infrastructure`) → first attempt hit a transient CS7036 in
   `ExpenseClaimService.cs` (WP-4's own in-flight edit, not mine — confirmed via `git diff --stat`,
   zero WP-5 files involved); retried ~5s later → 0 Warning(s), 0 Error(s), confirming it was a
-  live-edit race, not a real defect. **Awaiting Fable's explicit ALL-CLEAR before running
-  `dotnet test`.** Not committed.
+  live-edit race, not a real defect. Not committed.
+
+- **2026-08-12 sonnet-implementer: WP-5 ROUND 2 — ALL-CLEAR received, DB evidence complete.**
+  `teas_test` freed (WP-4 committed). Ran the full RED→GREEN cycle for the amended (floor +
+  `IsOpenAsync` only, no ceiling) rule.
+
+  **RED** (`git stash push -- PayrollRunService.cs` — reverts to pre-WP-5 HEAD, zero guard at all;
+  test file untouched): T18/T19/T20 filtered run → **3 failed, 0 passed**, all three
+  `"Expected a DomainException to be thrown, but no exception was thrown"` at their first refusal
+  assertion (T19 fails at sub-case (a), the new floor check). `git stash pop` restored the guard;
+  `git stash list` confirmed **empty** afterward.
+
+  **GREEN**, first pass: T18/T19/T20 filtered run → 2 passed, 1 failed. T19 failed at its NEW
+  sub-case (d) (arrears pay) with `payroll.bank_required`, thrown from `PayAsync`'s bank-resolution
+  branch, NOT from `EnsurePostablePayDateAsync` — the period/pay-date guard itself raised no
+  exception, confirming it worked. Root cause: sub-case (d) used the shared `Provider()` (company
+  1), which has accumulated multiple active `BankAccount` rows across the whole suite's history
+  (every `Pay_posts_wages_payable_to_selected_bank_and_blocks_double_pay`-shaped test leaves one
+  behind, permanently, in the shared `teas_test`); `PayAsync(BankAccountId: null)` then hits
+  `activeBanks.Count > 1` → refuses. This is a fixture-design bug in my OWN new test (not a
+  "pre-existing failure unrelated to my change" needing the throwaway-worktree protocol — the
+  existing precedent for this exact hazard is already in the file,
+  `Pay_without_any_active_bank_credits_cash_1110`, which temporarily deactivates every bank first).
+  Fixed by switching sub-case (d) to a **fresh** `TestCompanyFactory` company (zero bank accounts
+  by construction, mirroring sub-case (c)'s existing pattern) instead of `Provider()`.
+
+  **GREEN**, second pass: T18/T19/T20 filtered run → **3 passed, 0 failed, 0 skipped**, 5s. All
+  four T19 legs proven: (a) floor violation refused (`payroll.pay_date_outside_period`, no JE);
+  (b) the generalised 209912 case still refused via `IsOpenAsync` alone (`payroll.period_closed`);
+  (c) pre-payday regression posts normally; (d) **arrears pay works** — a December-period run with
+  PayDate 5 ม.ค. of the following year POSTS and PAYS successfully once January is open.
+
+  **Full class**: `PayrollRunServiceTests` → **34 passed, 0 failed, 0 skipped**, 3m9s.
+
+  **`Pnd1_filings_follow_payment_date_not_period` explicitly confirmed** — isolated single-test
+  run → **1 passed, 0 failed**, 22s, driving the real service end to end
+  (`RunThroughPost(sp, Period(y, 12), payDate: new DateOnly(y + 1, 1, 5))`; grepped the test body to
+  confirm zero `db.PayrollRuns.Add(...)` seeding remains). This is the proof the period-END ceiling
+  — not anything else — was what broke arrears pay: same test, same assertions, now driving
+  `PostAsync`/the real posting path instead of a seeded bypass, and it passes.
+
+  Not committed. Awaiting Fable's consolidated full-suite run + diff review before commit.
 
 ---
 

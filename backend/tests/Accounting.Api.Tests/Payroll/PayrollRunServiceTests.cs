@@ -1,10 +1,12 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Expense;
+using Accounting.Application.Ledger;
 using Accounting.Application.Payroll;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Bank;
+using Accounting.Domain.Entities.Ledger;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
 using Accounting.Domain.Payroll;
@@ -98,6 +100,29 @@ public sealed class PayrollRunServiceTests
     private static async Task<string> FreshPeriodAsync(ServiceProvider sp, int month) =>
         Period(await FreshYearAsync(sp), month);
 
+    /// <summary>R1/C3 (WP-5) — PostAsync/PayAsync now guard on the period being OPEN (I21). Every
+    /// period this class posts into is a synthetic (often far-future) year/month chosen ONLY to
+    /// dodge payroll.duplicate_period collisions in the shared, never-reset teas_test DB — it was
+    /// never meant to model "is this period genuinely open", so PeriodCloseService.IsOpenAsync's
+    /// default-fallback rule (a missing row is open ONLY for the current real Bangkok month) now
+    /// refuses every one of them. Direct-seed an Open row, mirroring
+    /// FixedAssetServiceTests.OpenPeriodsAsync — the same fallback bites there for the same reason.
+    /// No-ops if a row already exists (e.g. a prior test in the same period, or the real current
+    /// month, which is open by default and needs no row at all).</summary>
+    private static async Task OpenPeriodAsync(ServiceProvider sp, int year, int month)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var companyId = s.ServiceProvider.GetRequiredService<ITenantContext>().CompanyId;
+        if (await db.AccountingPeriods.AnyAsync(p => p.Year == year && p.Month == (short)month))
+            return;
+        db.AccountingPeriods.Add(new AccountingPeriod
+        {
+            CompanyId = companyId, Year = year, Month = (short)month, Status = PeriodStatus.Open,
+        });
+        await db.SaveChangesAsync();
+    }
+
     private static async Task<long> AddEmployee(
         ServiceProvider sp, decimal salary, MaritalStatus marital = MaritalStatus.Single,
         bool spouseHasIncome = false, int children = 0, bool sso = true, bool isActive = true,
@@ -134,12 +159,12 @@ public sealed class PayrollRunServiceTests
 
     private static async Task<long> RunThroughPost(ServiceProvider sp, string period, DateOnly? payDate = null)
     {
+        var pd = payDate ?? new DateOnly(int.Parse(period[..4]), int.Parse(period[4..]), 28);
+        await OpenPeriodAsync(sp, pd.Year, pd.Month);   // R1/C3 (WP-5) — PostAsync now guards on this
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
         var id = await svc.CreateDraftAsync(
-            new CreatePayrollRunRequest(period,
-                payDate ?? new DateOnly(int.Parse(period[..4]), int.Parse(period[4..]), 28), null),
-            default);
+            new CreatePayrollRunRequest(period, pd, null), default);
         await svc.ApproveAsync(id, default);
         await svc.PostAsync(id, default);
         return id;
@@ -197,6 +222,7 @@ public sealed class PayrollRunServiceTests
         var year = await FreshYearAsync(sp);
         var period = Period(year, 4);
         var employeeId = await AddEmployee(sp, 50_000m);
+        await OpenPeriodAsync(sp, year, 4);   // R1/C3 (WP-5) — PostAsync below now guards on this
 
         await using var s = sp.CreateAsyncScope();
         var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
@@ -281,6 +307,7 @@ public sealed class PayrollRunServiceTests
         var year = await FreshYearAsync(sp);
         var hireDate = new DateOnly(year, 3, 16);
         var employeeId = await AddEmployee(sp, 31_000m, hireDate: hireDate);
+        await OpenPeriodAsync(sp, year, 3);   // R1/C3 (WP-5) — PostAsync below now guards on this
 
         await using var s = sp.CreateAsyncScope();
         var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
@@ -347,6 +374,7 @@ public sealed class PayrollRunServiceTests
             await using var sp = Provider(company.CompanyId, company.BranchId);
             var employeeId = await AddEmployee(sp, salary, sso: ssoApplicable);
             var year = await FreshYearAsync(sp);
+            await OpenPeriodAsync(sp, year, 1);   // R1/C3 (WP-5) — PostAsync below now guards on this
 
             await using var scope = sp.CreateAsyncScope();
             var payroll = scope.ServiceProvider.GetRequiredService<IPayrollRunService>();
@@ -386,6 +414,7 @@ public sealed class PayrollRunServiceTests
         var employee2 = await AddEmployee(sp, 20_000m);
         var employee3 = await AddEmployee(sp, 40_000m);
         var year = await FreshYearAsync(sp);
+        await OpenPeriodAsync(sp, year, 2);   // R1/C3 (WP-5) — PostAsync below now guards on this
 
         await using var scope = sp.CreateAsyncScope();
         var payroll = scope.ServiceProvider.GetRequiredService<IPayrollRunService>();
@@ -566,7 +595,11 @@ public sealed class PayrollRunServiceTests
         await using var sp = Provider();
         var y = await FreshYearAsync(sp);
         await AddEmployee(sp, 30_000m);
-        // Period ธ.ค. y, paid 5 ม.ค. y+1 (cross-month / cross-year).
+        // R1/C3 (WP-5) §3.5 AMENDED 2026-08-12 (commit 97ace1c) — the period-END ceiling this test
+        // used to have to route around (by seeding posted state directly) is GONE: arrears pay
+        // across a period boundary is a first-class capability again, so this drives the REAL
+        // service exactly as before WP-5. RunThroughPost opens PayDate's OWN month (y+1, ม.ค.),
+        // not the run's period month (y, ธ.ค.) — see its R1/C3 comment.
         await RunThroughPost(sp, Period(y, 12), payDate: new DateOnly(y + 1, 1, 5));
 
         await using var s = sp.CreateAsyncScope();
@@ -1181,6 +1214,7 @@ public sealed class PayrollRunServiceTests
         await using var spX = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
         var employeeId = await AddEmployee(spX, 30_000m);
         var period = await FreshPeriodAsync(spX, 1);
+        await OpenPeriodAsync(spX, int.Parse(period[..4]), 1);   // R1/C3 (WP-5) — PostAsync guards on this
 
         await using var scopeX = spX.CreateAsyncScope();
         var payroll = scopeX.ServiceProvider.GetRequiredService<IPayrollRunService>();
@@ -1205,5 +1239,218 @@ public sealed class PayrollRunServiceTests
             "I16 — the payslip's printed net (what PayslipPdf.cs renders) must foot exactly to the 2170 credit");
         decimal.Round(netCredit, 2).Should().Be(netCredit, "the posted credit itself must carry no more than 2dp");
         je.TotalDebit.Should().Be(je.TotalCredit);
+    }
+
+    // ── R1/C3 (WP-5) — payroll period + future-pay-date guard. T18–T20 prove I21–I23. ──
+
+    [SkippableFact]
+    public async Task T18_post_and_pay_refuse_into_a_closed_period_no_je_created()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        // Fresh, single-purpose company — this test CLOSES real period rows, which must never
+        // touch company 1's shared periods (other tests post "today"-dated documents there).
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+        var today = new SystemClock().TodayInBangkok();
+
+        // (a) a period closed BEFORE any run targets it → post is refused, no JE, run stays Approved.
+        var closedMonth = today.AddMonths(-2);
+        await AddEmployee(sp, 28_000m);
+        await using (var closeScope = sp.CreateAsyncScope())
+            await closeScope.ServiceProvider.GetRequiredService<IPeriodCloseService>()
+                .CloseAsync(closedMonth.Year, closedMonth.Month, "T18 setup", default);
+
+        await using (var s1 = sp.CreateAsyncScope())
+        {
+            var svc = s1.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(new CreatePayrollRunRequest(
+                Period(closedMonth.Year, closedMonth.Month),
+                new DateOnly(closedMonth.Year, closedMonth.Month, 28), null), default);
+            await svc.ApproveAsync(runId, default);
+
+            var post = () => svc.PostAsync(runId, default);
+            var ex = (await post.Should().ThrowAsync<DomainException>()).Which;
+            ex.Code.Should().Be("payroll.period_closed");
+            ex.Message.Should().Contain("reopen");
+
+            var stillUnposted = (await svc.GetAsync(runId, default))!;
+            stillUnposted.Status.Should().Be("APPROVED");
+            stillUnposted.JournalId.Should().BeNull();
+        }
+
+        // (b) a run posted while its own period was OPEN, then that period is closed afterward →
+        // Pay is refused. Proves the guard also protects PayAsync, not just PostAsync.
+        await AddEmployee(sp, 32_000m);
+        long runId2;
+        await using (var s2 = sp.CreateAsyncScope())
+        {
+            var svc = s2.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            runId2 = await svc.CreateDraftAsync(new CreatePayrollRunRequest(
+                Period(today.Year, today.Month), today, null), default);
+            await svc.ApproveAsync(runId2, default);
+            await svc.PostAsync(runId2, default);   // succeeds — current month is open by default
+        }
+        await using (var closeScope2 = sp.CreateAsyncScope())
+            await closeScope2.ServiceProvider.GetRequiredService<IPeriodCloseService>()
+                .CloseAsync(today.Year, today.Month, "T18 close-after-post", default);
+        await using (var s3 = sp.CreateAsyncScope())
+        {
+            var svc = s3.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var pay = () => svc.PayAsync(runId2, new PayPayrollRunRequest(null), default);
+            var ex = (await pay.Should().ThrowAsync<DomainException>()).Which;
+            ex.Code.Should().Be("payroll.period_closed");
+            ex.Message.Should().Contain("reopen");
+        }
+    }
+
+    // R1/C3 §3.5 AMENDED 2026-08-12 (commit 97ace1c) — the period-END ceiling this test used to
+    // assert is GONE (Fable's own error, reversed): it made arrears pay impossible and caught
+    // nothing the IsOpenAsync check below doesn't already catch. Only a FLOOR remains (cannot pay
+    // a period before it starts) plus the real guard (PayDate's own month must be open).
+    [SkippableFact]
+    public async Task T19_pay_date_before_period_start_is_refused_arrears_and_pre_payday_pay_both_work()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+
+        // (a) FLOOR — PayDate before the run's OWN period starts → refused, no JE. A sanity check,
+        // not a business rule: you cannot pay a period before it has begun.
+        await using (var spA = Provider())
+        {
+            var periodA = await FreshPeriodAsync(spA, 6);
+            var yearA = int.Parse(periodA[..4]);
+            await AddEmployee(spA, 25_000m);
+            await using var sA = spA.CreateAsyncScope();
+            var svc = sA.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(new CreatePayrollRunRequest(
+                periodA, new DateOnly(yearA, 5, 31), null), default);   // 1 day before June starts
+            await svc.ApproveAsync(runId, default);
+            var post = () => svc.PostAsync(runId, default);
+            var ex = (await post.Should().ThrowAsync<DomainException>()).Which;
+            ex.Code.Should().Be("payroll.pay_date_outside_period");
+            (await svc.GetAsync(runId, default))!.JournalId.Should().BeNull();
+        }
+
+        // (b) generalises the reported period=209912/payDate=2099-12-31 case: PayDate is INSIDE
+        // the period (so the floor in (a) does not fire — there is no ceiling to fire either) but
+        // the period was never opened (a distant, never-touched future month) → refused via
+        // IsOpenAsync, the ONLY thing that catches this case (the removed ceiling never did).
+        await using (var spB = Provider())
+        {
+            var yearB = await FreshYearAsync(spB);
+            await AddEmployee(spB, 25_000m);
+            var periodB = Period(yearB, 12);
+            await using var sB = spB.CreateAsyncScope();
+            var svc = sB.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(new CreatePayrollRunRequest(
+                periodB, new DateOnly(yearB, 12, 31), null), default);
+            await svc.ApproveAsync(runId, default);
+            var post = () => svc.PostAsync(runId, default);
+            (await post.Should().ThrowAsync<DomainException>()).Which.Code
+                .Should().Be("payroll.period_closed");
+        }
+
+        // (c) REGRESSION — the case Ham's original decision protects: a run for the CURRENT
+        // period with PayDate still in the future *inside* that period posts normally (post
+        // today, pay at period end — always >= today, so exercisable on any calendar day). A
+        // fresh company isolates the REAL current month, which random years can't dodge.
+        var companyC = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var spC = TestCompanyFactory.BuildProvider(_fx.ConnectionString, companyC.CompanyId, companyC.BranchId);
+        await AddEmployee(spC, 40_000m);
+        var today = new SystemClock().TodayInBangkok();
+        var periodEndC = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+        await using var sC = spC.CreateAsyncScope();
+        var svcC = sC.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runIdC = await svcC.CreateDraftAsync(new CreatePayrollRunRequest(
+            Period(today.Year, today.Month), periodEndC, null), default);
+        await svcC.ApproveAsync(runIdC, default);
+        await svcC.PostAsync(runIdC, default);   // must NOT throw
+        (await svcC.GetAsync(runIdC, default))!.Status.Should().Be("POSTED");
+
+        // (d) NEW — ARREARS PAY WORKS: a December-period run PAID in January (the following
+        // month, ม.52/ม.59) posts AND pays normally once January is open. This is exactly the
+        // capability the ceiling used to break — Pnd1_filings_follow_payment_date_not_period
+        // exists for the same reason and now drives the real service again (no more seed-bypass).
+        // Fresh company, not the shared Provider() — company 1 accumulates multiple active bank
+        // accounts across the whole suite's history (every Pay_posts_wages_payable_to_selected_
+        // bank_and_blocks_double_pay-style test leaves one behind), which makes PayAsync's
+        // no-explicit-bank branch throw payroll.bank_required (activeBanks.Count > 1) — a
+        // pre-existing DB-pollution hazard unrelated to this guard. A brand-new company starts
+        // with zero bank accounts, so PayAsync falls through to crediting cash (1110) directly.
+        var companyD = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using (var spD = TestCompanyFactory.BuildProvider(_fx.ConnectionString, companyD.CompanyId, companyD.BranchId))
+        {
+            var yearD = await FreshYearAsync(spD);
+            await AddEmployee(spD, 27_000m);
+            var arrearsPayDate = new DateOnly(yearD + 1, 1, 5);
+            await OpenPeriodAsync(spD, arrearsPayDate.Year, arrearsPayDate.Month);
+            await using var sD = spD.CreateAsyncScope();
+            var svc = sD.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(new CreatePayrollRunRequest(
+                Period(yearD, 12), arrearsPayDate, null), default);
+            await svc.ApproveAsync(runId, default);
+            await svc.PostAsync(runId, default);      // must NOT throw — arrears pay is legal again
+            await svc.PayAsync(runId, new PayPayrollRunRequest(null), default);
+            var paid = (await svc.GetAsync(runId, default))!;
+            paid.Status.Should().Be("POSTED");
+            paid.PaidAt.Should().NotBeNull();
+        }
+    }
+
+    [SkippableFact]
+    public async Task T20_current_month_posts_and_pays_back_month_recovers_via_o14_reopen()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+        var today = new SystemClock().TodayInBangkok();
+
+        // Current-month run posts and pays normally.
+        await AddEmployee(sp, 33_000m);
+        await using (var s1 = sp.CreateAsyncScope())
+        {
+            var svc = s1.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            var runId = await svc.CreateDraftAsync(new CreatePayrollRunRequest(
+                Period(today.Year, today.Month), today, null), default);
+            await svc.ApproveAsync(runId, default);
+            await svc.PostAsync(runId, default);
+            await svc.PayAsync(runId, new PayPayrollRunRequest(null), default);
+            (await svc.GetAsync(runId, default))!.Status.Should().Be("POSTED");
+        }
+
+        // Back month: close it, a run for it is refused, the message names the reopen route,
+        // reopening via that exact route unblocks Post, then the period re-closes.
+        var backMonth = today.AddMonths(-1);
+        await using (var closeScope = sp.CreateAsyncScope())
+            await closeScope.ServiceProvider.GetRequiredService<IPeriodCloseService>()
+                .CloseAsync(backMonth.Year, backMonth.Month, "T20 back-month setup", default);
+
+        await AddEmployee(sp, 33_000m);
+        long backRunId;
+        await using (var s2 = sp.CreateAsyncScope())
+        {
+            var svc = s2.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            backRunId = await svc.CreateDraftAsync(new CreatePayrollRunRequest(
+                Period(backMonth.Year, backMonth.Month), backMonth, null), default);
+            await svc.ApproveAsync(backRunId, default);
+            var post = () => svc.PostAsync(backRunId, default);
+            var ex = (await post.Should().ThrowAsync<DomainException>()).Which;
+            ex.Code.Should().Be("payroll.period_closed");
+            ex.Message.Should().Contain($"/periods/{backMonth.Year}/{backMonth.Month}/reopen");
+        }
+
+        await using (var reopenScope = sp.CreateAsyncScope())
+            await reopenScope.ServiceProvider.GetRequiredService<IPeriodCloseService>()
+                .ReopenAsync(backMonth.Year, backMonth.Month, "T20 verifying the escape hatch", default);
+
+        await using (var s3 = sp.CreateAsyncScope())
+        {
+            var svc = s3.ServiceProvider.GetRequiredService<IPayrollRunService>();
+            await svc.PostAsync(backRunId, default);   // must succeed now
+            (await svc.GetAsync(backRunId, default))!.Status.Should().Be("POSTED");
+        }
+
+        await using var recloseScope = sp.CreateAsyncScope();
+        await recloseScope.ServiceProvider.GetRequiredService<IPeriodCloseService>()
+            .CloseAsync(backMonth.Year, backMonth.Month, "T20 re-close", default);
     }
 }

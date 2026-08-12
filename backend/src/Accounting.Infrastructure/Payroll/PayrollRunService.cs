@@ -26,6 +26,7 @@ public sealed class PayrollRunService(
     IClock clock,
     INumberSequenceService numbers,
     IGlPostingService gl,
+    IPeriodCloseService period,
     IActivityRecorder activity,
     IOptions<SsoOptions> ssoOptions,
     IOptions<PayrollAllowanceOptions> allowanceOptions) : IPayrollRunService
@@ -206,6 +207,8 @@ public sealed class PayrollRunService(
             throw new DomainException("payroll.not_approved",
                 $"Run must be Approved before Post (current: {run.Status}).");
 
+        await EnsurePostablePayDateAsync(run, ct);
+
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         var postedAt = clock.UtcNow;
@@ -233,6 +236,8 @@ public sealed class PayrollRunService(
             throw new DomainException("payroll.not_posted", $"Run must be Posted before Pay (current: {run.Status}).");
         if (run.PaidAt is not null)
             throw new DomainException("payroll.already_paid", "Run is already marked paid.");
+
+        await EnsurePostablePayDateAsync(run, ct);
 
         var activeBanks = await db.BankAccounts.AsNoTracking()
             .Where(b => b.IsActive)
@@ -307,6 +312,46 @@ public sealed class PayrollRunService(
             .FirstOrDefaultAsync(ct);
 
     // ---- helpers ----
+
+    /// <summary>R1/C3 — payroll was the ONLY posting path with no period gate (VERDICT C3; every
+    /// other poster guards: JournalService:265, ExpenseClaimService:252, ReceiptService:398,
+    /// FixedAsset 238/300, BankRec 236). Both the accrual JE (GlPostingService.PostPayrollRunAsync
+    /// → BuildAndPostAsync, docDate = run.PayDate) and the settlement JE (PostManualEntryAsync,
+    /// docDate = run.PayDate) land on PayDate, so PayDate is what must be guarded.</summary>
+    private async Task EnsurePostablePayDateAsync(PayrollRun run, CancellationToken ct)
+    {
+        // R1/C3 §3.5 AMENDED 2026-08-12 (2nd time, commit 97ace1c) — the original design bounded
+        // PayDate to the run's OWN period END (no later than periodEnd), to preserve pre-payday
+        // posting (post the 28th, pay the 30th) without gating on `today`. That ceiling was WRONG:
+        // it made a December-period run paid 5 January — ordinary Thai arrears pay (ม.52/ม.59), the
+        // exact reason Pnd1_filings_follow_payment_date_not_period exists — impossible to produce
+        // through the service. And it caught nothing: for the swarm's period 209912 / PayDate
+        // 2099-12-31, periodEnd == PayDate, so the ceiling passed and IsOpenAsync below was what
+        // actually refused it. Ceiling removed. Only a FLOOR remains — a sanity check, not a
+        // business rule — plus the real guard: the PayDate's own month must be OPEN.
+        var year  = int.Parse(run.PeriodYearMonth[..4]);
+        var month = int.Parse(run.PeriodYearMonth[4..]);
+        var periodStart = new DateOnly(year, month, 1);
+        if (run.PayDate < periodStart)
+            throw new DomainException("payroll.pay_date_outside_period",
+                $"วันจ่ายเงิน {run.PayDate:yyyy-MM-dd} มาก่อนงวด {run.PeriodYearMonth} เริ่มต้น " +
+                $"({periodStart:yyyy-MM-dd}) " +
+                "[pay date cannot fall before the run's own period begins].");
+
+        // Two distinct codes on purpose: IsOpenAsync answers "closed" for both a genuinely closed
+        // month and a never-opened future month, and only the first has a reopen as its way out —
+        // this message names the O14 monthly reopen route so it is never a dead end. This check
+        // ALONE is what kills the 209912 case (a never-opened future month is never OPEN); arrears
+        // pay into a legitimately open following month still works.
+        if (!await period.IsOpenAsync(run.PayDate.Year, run.PayDate.Month, ct))
+            throw new DomainException("payroll.period_closed",
+                $"งวดบัญชี {run.PayDate.Year}-{run.PayDate.Month:D2} ปิดแล้ว จึงลงบัญชีเงินเดือนไม่ได้ — " +
+                $"เปิดงวดใหม่ก่อน (POST /periods/{run.PayDate.Year}/{run.PayDate.Month}/reopen " +
+                "ต้องมีสิทธิ์ gl.period.close) แล้วลงบัญชีอีกครั้ง จากนั้นปิดงวดตามเดิม. " +
+                $"[Period {run.PayDate.Year}-{run.PayDate.Month:D2} is closed. Reopen it via " +
+                $"POST /periods/{run.PayDate.Year}/{run.PayDate.Month}/reopen (needs gl.period.close), " +
+                "post, then close it again.]");
+    }
 
     private async Task<PayrollRun> LoadAsync(long id, CancellationToken ct) =>
         await db.PayrollRuns.Include(r => r.Payslips).FirstOrDefaultAsync(r => r.PayrollRunId == id, ct)
