@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.28.0](https://github.com/pinsorn/teas-accounting/compare/v1.27.1...v1.28.0) (2026-08-12)
+
+
+### Features
+
+* **gl:** R1/WP-2 — non-VAT AR backfill endpoint (preview/apply) for pre-WP-1 invoices ([2eb61c3](https://github.com/pinsorn/teas-accounting/commit/2eb61c38a3e5ebe71855091d2c75eaf93dc6a274))
+
+
+### Bug Fixes
+
+* **expense:** R1/WP-4 — an expense claim can no longer debit bank, AP, revenue or equity (C5) ([5111919](https://github.com/pinsorn/teas-accounting/commit/5111919c98c8f648f173baf41706f54d7c3f9d8e))
+* **gl:** R1/WP-1 — non-VAT invoices accrue revenue+AR at issue (C6) ([e750780](https://github.com/pinsorn/teas-accounting/commit/e750780f318075462d926683102fce13c43b7cb4))
+* **gl:** R1/WP-3 — reject sub-satang amounts at the posting seam (C1) ([7eaa81a](https://github.com/pinsorn/teas-accounting/commit/7eaa81ad48eb9d28a23d00edc546f9a4de8e0a95))
+* **payroll:** R1/WP-5 — payroll can no longer post into a closed period (C3) ([018babe](https://github.com/pinsorn/teas-accounting/commit/018babe1bf236efaebfee9075991331ab66e78fe))
+* **tools:** audit SQL — companies column is name_th, verified against prod ([b513e8a](https://github.com/pinsorn/teas-accounting/commit/b513e8a20c533e9ad6fd45b6dc6d95a44abc2fb2))
+* **tools:** correct audit-subsatang.sql schema names after its first real prod run ([23e7f35](https://github.com/pinsorn/teas-accounting/commit/23e7f35df447960f45af317be9c32deb9d37ac0c))
+
 ## [1.27.1](https://github.com/pinsorn/teas-accounting/compare/v1.27.0...v1.27.1) (2026-07-30)
 
 
