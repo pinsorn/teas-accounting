@@ -1111,3 +1111,29 @@ the symptom will again look unrelated to whatever diff is in flight. If this rec
 **Diagnosis technique worth reusing:** to prove a red test is pre-existing and not your diff, run it at
 HEAD in a throwaway worktree — `git worktree add <tmp> HEAD --detach`, run the single test there,
 `git worktree remove --force`. Zero risk to your working tree, and it settles the question outright.
+
+## Resetting `teas_test` — how, and why it is worth doing periodically
+**Symptom that means you need this:** tests fail in ways that have nothing to do with your diff, and each
+one traces to accumulated state rather than logic. In one session (2026-08-12) this cost five separate
+false alarms: 41 poisoned fixture employees with 4-dp salaries, a "fresh year" pool that had drifted below
+2020, a `pk_companies` random-id collision, and two suite failures proven pre-existing at HEAD.
+
+**How (verified 2026-08-12).** No local `psql`/`docker` on the dev box, so use a throwaway net10 console —
+the same trick the migration-squash note describes:
+```csharp
+// Npgsql 9.0.2, connect to the `postgres` DB as the `accounting` user
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='teas_test' AND pid<>pg_backend_pid();
+DROP DATABASE IF EXISTS teas_test;
+CREATE DATABASE teas_test OWNER accounting;
+```
+`<ImplicitUsings>enable</ImplicitUsings>` in the csproj or you get CS0246 on `Console`/`Exception`.
+Leave the DB **empty** — do NOT `dotnet ef database update` it. `PostgresFixture` bootstraps the EF
+migrations history itself and then runs `MigrateAsync`; pre-migrating breaks that path.
+
+**Result:** the next `dotnet test` rebuilds everything and passes identically — **1129 passed / 0 failed /
+8 skipped both before and after**, so a reset is behaviour-neutral. It is also markedly faster: the same
+suite went from **17–21 minutes to 9m49s**, because the queries stop dragging years of accumulated rows.
+
+**When to do it:** any time you hit a state-caused false alarm, and as routine hygiene before starting a
+release whose gates you need to trust. Do it when nothing is mid-flight — it is the one window where
+losing the test DB costs nothing.
