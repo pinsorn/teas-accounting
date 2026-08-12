@@ -58,6 +58,19 @@ WP-6's 12; skipped 8 → 14 = WP-1's 6 new `TEAS_DIAG`-gated diagnostics. Nothin
 - Both held workers hand their i18n keys back to Fable rather than touching `problems.ts` (the
   serialisation that avoided a three-way collision in wave 1).
 
+## Live PRE-deploy baseline (captured by Fable through the browser, read-only, nothing clicked)
+Captured on prod so the Tier-4 leg after R2 ships has something to compare against.
+- **WP-7** — `https://teas.kazaki-rio.com/invoices/3` (co2 `07-2026-IV-LAB-0001`, ฿8,400, status Issued)
+  renders the button **"ยืนยันชำระครบแล้ว"** immediately beside "สร้างใบเสร็จ". That is the button being
+  deleted. **After R2: it must be gone and only "สร้างใบเสร็จ" remains**, with the invoice still
+  reachable and still Issued.
+- Route note for future browser work: **there is no `/th` locale prefix** on this app — pages live at
+  the root (`/invoices/3`, `/payroll`, `/tax-filings`). `/th/...` returns a Next.js 404, and because it
+  is client-side routed the URL bar can keep showing the path you asked for while the body is the 404
+  page. Don't read the URL as proof the page loaded.
+- co2 has **zero payroll runs**, so the H13/WP-4 draft-run baseline cannot be captured there — use co5
+  or co7 for that leg (both are test playgrounds).
+
 ## Remaining in R2 after wave 2
 **WP-4 — H13 filing artifacts require a Posted run.** Not yet dispatched. Its E3 product question is
 already answered inside the spec (refuse from `Draft`, allow `Approved`+`Posted`, as a separately
@@ -72,9 +85,17 @@ supply the official PDFs.** (E1, E2, E3, E7 are all resolved.)
 
 ## Not R2
 R3 (duplicate tax-doc numbers · the 500 family · conversion routes checking the wrong scope · attachment
-IDOR · year-close deadlock · **the year=3000 nonsense-filing bound**) · R4 (documents/reports + LOW
-cluster) · doc-lifecycle features A and B — Ham's answers recorded in
-`specs/doc-lifecycle-cancel-reissue-backdate.md` §6.
+IDOR · year-close deadlock · **the year=3000 nonsense-filing bound** · **point-in-time VAT status for
+filing guards**, below) · R4 (documents/reports + LOW cluster) · doc-lifecycle features A and B — Ham's
+answers recorded in `specs/doc-lifecycle-cancel-reissue-backdate.md` §6.
+
+**New R3 candidate, surfaced by WP-3 and worth a spec of its own.** Every VAT filing guard reads
+`VatMode` as **current** state, never as the state during the period being filed. So a company that
+deregisters from VAT is blocked from filing even its final ภ.พ.30 for a pre-deregistration period.
+This is **pre-existing, not a WP-3 regression** — `TaxInvoiceService.EnsureVatRegisteredAsync`, the
+sibling WP-3's guard mirrors, has had the identical property all along, so WP-3 shipping does not make
+it worse. But it is exactly the class of guard-with-no-exit this project has been bitten by twice, and
+the fix is cross-cutting (a point-in-time registration history), not a drive-by edit.
 
 ## Also outstanding from R1
 wipe+reseed co5/co7 — confirmed necessary (co5 has 1 REVENUE and co7 3 EXPENSE sub-satang lines, exactly
