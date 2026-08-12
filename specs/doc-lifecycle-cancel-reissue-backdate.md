@@ -184,21 +184,24 @@ or needs a corrective receipt. Do not delete the endpoint before the report is r
 
 ---
 
-## 6. Questions for Ham — nothing gets implemented until these are answered
+## 6. ANSWERED by Ham — 2026-08-12. Binding.
 
-1. **May a reissued document change the total amount?** My recommendation: **no** — descriptive corrections
-   only; a value change must go through ใบลดหนี้/ใบเพิ่มหนี้, which already exists. Allowing amount changes
-   here would let cancel+reissue quietly replace the credit-note mechanism.
-2. **Should a document date be allowed in the future?** My recommendation: **no**, consistent with the
-   manual-JV rule — unless there is a real business case for dating an invoice ahead.
-3. **How far back may a draft be dated?** My recommendation: **(a) inside the current open period only** —
-   no numbering anomaly, and an open month is still being worked on by definition.
-4. **The ภ.พ.30 treatment of a cancelled tax invoice** (§1.6) — this needs research plus the company's CPA,
-   exactly like the prior-period question did. Want me to run that research now, or wait?
-5. **Feature C's existing-data question** — if Repttown has invoices marked settled with no receipt, leave
-   them as history, or issue corrective receipts?
-
----
+1. **A reissued document may NOT change the total amount.** Descriptive corrections only (name, address,
+   tax id, item description). A change in value goes through ใบลดหนี้/ใบเพิ่มหนี้, which already exists —
+   otherwise cancel+reissue quietly replaces the credit-note mechanism and history becomes rewritable.
+2. **Document date: backdating allowed only INSIDE an open period; future dates forbidden.** The document
+   number is derived from `DocDate` and numbering is monthly, so backdating across a closed month would
+   append a number out of chronological order. Confining it to an open period removes the anomaly
+   entirely. No-future matches the manual-JV contract.
+3. **Delete the "customer has paid" button NOW — it goes in R2, not later.** v1.28.0 made it an active
+   money hole: pressing it marks an invoice settled without crediting AR or debiting cash. Small change
+   (service + endpoint + button), but it must be preceded by a check for invoices already marked settled
+   with no receipt behind them.
+4. **RD form box positions: Ham validates from a rendered image.** Render the real form from prod data,
+   send the picture, Ham says whether each box sits in the right place. This is the only reliable route —
+   the ภ.ง.ด.1 field map already carries a "Ham visual-validation pending" note, and that unvalidated map
+   is exactly what produced the wrong-row defect.
+5. *(superseded)* The "settled without a receipt" data question folds into item 3's pre-flight check.
 
 ## 7. What we do next (the actual to-do list)
 
