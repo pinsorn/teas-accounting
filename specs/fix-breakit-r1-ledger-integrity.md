@@ -209,7 +209,7 @@ that creates AR"** — every place that assumed a BN moves no money is a consume
 | `PaymentVoucherService.cs:234` `Math.Round(…, 4)` | stores 4 dp — **proven to reach the GL** (A4 §K1) | **EXTEND** — `4` → `2` |
 | `VendorInvoiceService.cs:240` `Math.Round(…, 4)` | stores 4 dp | **EXTEND** — `4` → `2` |
 | `*.TotalAmountThb = Math.Round(… * ExchangeRate, 4)` — PV:374, PO:95, VI:275, RC:92/379, TAN:112, TI:306/476 | a **reporting** THB-equivalent field, never a JE line | **SKIP — DO NOT TOUCH.** 4 dp is correct for an FX-converted memo field. Changing these is an out-of-scope regression. |
-| `QuotationChainServices.cs:23`, `TaxInvoiceService.cs:575` — `Math.Round(qty * price, 4)` | line gross on sales docs | **DEFER, logged** — sales lines flow to a TI whose `SubtotalAmount`/`TaxAmount` drive the JE; no evidence of a sub-satang JE from this path in the swarm. The seam guard now catches it as `je.precision` if it ever happens. Attempt-log + wiki. |
+| `QuotationChainServices.cs:23/25`, `TaxInvoiceService.cs:575/577` — `Math.Round(qty * price, 4)` / discount | line gross on sales docs | **DONE — deferral reversed 2026-08-12 (Fable).** The seam guard turns "no evidence of a sub-satang JE" into "the invoice cannot post at all": a fractional quantity against an odd unit price (1.5 kg @ ฿33.33 — ordinary business) produces a 3dp gross that flows unrounded into `net`/`LineAmount`/`TotalAmount` (no rounding step before the JE) and now hits `je.precision`. `4` → `2` at all four sites. Evidence + attempt-log entry below. |
 | `CreateManualJournalValidator` | already correct | **SKIP** — it is the model |
 | Expense-claim / PV / VI / TI / RC line `Amount` validators (`GreaterThan(0)` only) | no scale rule | **EXTEND for expense claim + PV + VI** (the three with proven 4-dp storage); the rest are covered by the seam. Use the shared extension so adding one later is one line. |
 
@@ -758,16 +758,18 @@ no longer needed — no entry can land in a closed period by construction.
 
 ### WP-3 — C1 precision *(independent of WP-1/2; shares `ExpenseClaimService.cs` with WP-4 and `PayrollDtos.cs` with WP-5 → run WP-3 → WP-4 → WP-5 in that order)*
 
-- [ ] `JournalEntry.MarkPosted`: the per-line + header 2-dp guard, code exactly as §3.1.
-- [ ] New `MoneyValidationExtensions.Satang()`.
-- [ ] `CreateJournalValidator`: `.Satang()` on line Debit + Credit, **plus** `Reference` MaxLength(255), line `Description` MaxLength(500), `Lines.Count <= 200`.
-- [ ] `UpdatePayrollDeductionsValidator.Amount`: `.Satang()`.
-- [ ] `ExpenseClaimService.cs:100`, `PaymentVoucherService.cs:234`, `VendorInvoiceService.cs:240`: `Math.Round(…, 4, …)` → `2`.
-- [ ] `.Satang()` on the expense-claim / PV / VI line `Amount` validators (create **and** update DTOs).
-- [ ] **Verify by grep that no `TotalAmountThb`/FX `Math.Round(…, 4)` was changed** — paste the grep in the attempt log.
-- [ ] Tests T12–T14 green.
+- [x] `JournalEntry.MarkPosted`: the per-line + header 2-dp guard, code exactly as §3.1. Evidence: T12b, T13.
+- [x] New `MoneyValidationExtensions.Satang()`. Evidence: builds, used by all validators below.
+- [x] `CreateJournalValidator`: `.Satang()` on line Debit + Credit, **plus** `Reference` MaxLength(255), line `Description` MaxLength(500), `Lines.Count <= 200`. Evidence: T12a.
+- [x] `UpdatePayrollDeductionsValidator.Amount`: `.Satang()`. Evidence: T14.
+- [x] `ExpenseClaimService.cs:100`, `PaymentVoucherService.cs:234`, `VendorInvoiceService.cs:240`: `Math.Round(…, 4, …)` → `2`. Evidence: grep below shows none of the three sites remain at 4dp.
+- [x] `.Satang()` on the expense-claim / PV / VI line `Amount` validators (create **and** update DTOs). `ExpenseClaimLineInputValidator` is shared by Create+Update (explicit both); `CreateVendorInvoiceValidator` is shared by `CreateDraftAsync`+`UpdateDraftAsync` (same DTO, no separate Update validator exists); PV has no Update path at all (Create only) — confirmed by reading `IPaymentVoucherService`/`IVendorInvoiceService`. Evidence: T14.
+- [x] **Verify by grep that no `TotalAmountThb`/FX `Math.Round(…, 4)` was changed** — paste the grep in the attempt log.
+- [x] Tests T12–T14 green. Evidence: RED→GREEN below.
+- [x] **Scope addition, Fable-authorised 2026-08-12** (deferral in §2.3 reversed): `TaxInvoiceService.cs:575/577` and `QuotationChainServices.cs:23/25` `Math.Round(…,4)` → `2` — the seam guard turned "no evidence of a sub-satang JE" into "a fractional-quantity sale can no longer be invoiced at all." Evidence: `TaxInvoiceLinePrecisionTests.cs`, RED→GREEN below.
 
-**Blast cap:** max **10** source files + **2** test files. No migrations. Public API: error codes only.
+**Blast cap:** max **10** source files + **2** test files → **raised to 12 + 3 by Fable, 2026-08-12** for the sales-line rounding addition. No migrations. Public API: error codes only.
+**Actual:** 12 source files (11 edited + 1 new `MoneyValidationExtensions.cs`) + 3 test files (2 edited: `ManualJournalTests.cs`, `PayrollRunServiceTests.cs`; 1 new: `TaxInvoiceLinePrecisionTests.cs`). Exactly at the raised cap. 0 migrations.
 
 ### WP-4 — C5 expense account type + fixable categories *(after WP-3 — shares `ExpenseClaimService.cs`)*
 
@@ -1177,6 +1179,126 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   `NonVatArBackfillTests.cs` now has 8 tests total (7 from round 1 + the new LOW 3 test); T10 gained
   the orphan-JE assertion inline. Not committed.
 
+- **2026-08-12 sonnet-implementer: WP-3 implemented, all checklist items `[x]`.** 10 source files
+  (9 edited + 1 new `MoneyValidationExtensions.cs`) + 2 test files (both edited: `ManualJournalTests.cs`
+  gained T12a/T12b/T13, `PayrollRunServiceTests.cs` gained T14) — exactly at the 10/2 cap. 0 migrations.
+  `JournalEntry.MarkPosted` guard added verbatim per §3.1 (per-line + header 2-dp reject, `je.precision`).
+  New `MoneyValidationExtensions.Satang()` mirrors `CurrencyValidationExtensions.ThbOnly`'s shape, applied
+  to `CreateJournalValidator` (+ `Reference` MaxLength(255), line `Description` MaxLength(500),
+  `Lines.Count<=200`), `UpdatePayrollDeductionsValidator.Amount`, and the expense-claim/PV/VI line
+  `Amount` validators. Confirmed no separate Update DTO/validator exists for PV (Create-only) or VI
+  (`UpdateDraftAsync` reuses `CreateVendorInvoiceRequest`/`CreateVendorInvoiceValidator`) — only
+  ExpenseClaim has genuinely separate Create/Update validators, both sharing one
+  `ExpenseClaimLineInputValidator`, so `.Satang()` there covers both by construction.
+  `Math.Round(…,4)` → `2` at the three proven sites (`ExpenseClaimService.cs:100`,
+  `PaymentVoucherService.cs:234`, `VendorInvoiceService.cs:240`).
+
+  **RED→GREEN.** T12a/T12b/T13/T14 written first against `main`'s pre-fix code and confirmed RED for the
+  right reason (100.005 draft validates `IsValid:true`; posting a 4dp/mixed-precision draft succeeds with
+  `Status:Posted`; the 3dp payroll-deduction validator error list has no "2 decimal" entry) — 4/4 failed,
+  0 skipped. Then all 10 source changes applied; re-ran the same filter: 4/4 passed. Full targeted sweep
+  after: `ManualJournalTests`+`PayrollRunServiceTests` 60/60, `Purchase`/`Expense`/non-VAT-hardening
+  namespaces 82/82, `Accounting.Domain.Tests` (full project, includes `JournalEntryTests.cs` which reads
+  `MarkPosted` directly) 188/188, MCP suites touching these DTOs
+  (`McpBankExpenseFixedAssetTests`/`McpReadExpansionTests`/`McpWriteExpansionTests`/
+  `McpManualJournalTests`/`McpDocumentChainTests`) 92/92 — 0 skipped throughout (`TEAS_TEST_PG` set
+  per-shell-call per the footgun note).
+
+  **Pre-existing test data that had to be fixed — reported loudly, per the dispatch's explicit footgun
+  warning.** The first full-suite run surfaced **17 unrelated payroll test failures**, all
+  `je.precision` on absurd aggregate amounts (`Dr 151390834.9492` etc.). Root-caused with a throwaway
+  diagnostic query (not a guess): **41** active company-1 employees in the shared `teas_test` DB all
+  carried the exact salary `45,678.9012` — every one traced to repeated historical runs of
+  `B1_full_month_control_gross_taxable_is_unrounded_base_salary` (O8 proration test, pre-dates this
+  release). That test's employee has no `TerminationDate` and is never deactivated, so per this file's
+  own documented class invariant ("the run pools EVERY active company-1 employee") it silently joined
+  the aggregate salary-expense total of every OTHER payroll-posting test forever — invisible until
+  `MarkPosted`'s new precision guard finally refused to post a corrupted total (**I14 working exactly as
+  designed**, not a guard defect). This is squarely the "existing test quietly posting >2dp values" case
+  the dispatch called out — **fix is to the test, not the guard**: B1 now deactivates its own fixture
+  employee (`IsActive = false`) immediately after its own assertions, so it still proves the intended
+  "full-month gross is unrounded, no `Math.Round` call in that path" property but stops leaking into
+  every other test's shared-DB aggregate. The 41 already-poisoned rows in the LOCAL `teas_test` were
+  deactivated via a one-time cleanup query (data fix only, no schema change, not part of the file cap).
+  **No test assertion was weakened and no guard was loosened** — B1's own assertions are untouched.
+
+  **`Math.Round(…, 4` grep — every survivor is FX/rate or an already-deferred sales-line producer, none
+  of the three WP-3 targets remain:**
+  ```
+  PaymentVoucherService.cs:375   TotalAmountThb = Math.Round(totalPaid * req.ExchangeRate, 4, …)
+  PurchaseOrderService.cs:95     po.TotalAmountThb = Math.Round(po.TotalAmount * po.ExchangeRate, 4, …)
+  VendorInvoiceService.cs:276    vi.TotalAmountThb = Math.Round(vi.TotalAmount * vi.ExchangeRate, 4, …)
+  QuotationChainServices.cs:23   gross = Math.Round(qty * price, 4, …)                    [§2.3 DEFERRED]
+  QuotationChainServices.cs:25   … discount … Math.Round(…, 4, …)                          [§2.3 DEFERRED]
+  ReceiptService.cs:92           TotalAmountThb = Math.Round(computed.Amount * req.ExchangeRate, 4, …)
+  ReceiptService.cs:401          rc.TotalAmountThb = Math.Round(computed.Amount * req.ExchangeRate, 4, …)
+  TaxAdjustmentNoteService.cs:112 TotalAmountThb = Math.Round(total * req.ExchangeRate, 4, …)
+  TaxInvoiceService.cs:306       TotalAmountThb = Math.Round(total * req.ExchangeRate, 4, …)
+  TaxInvoiceService.cs:476       ti.TotalAmountThb = Math.Round(total * req.ExchangeRate, 4, …)
+  TaxInvoiceService.cs:575       gross = Math.Round(input.Quantity * input.UnitPrice, 4, …)  [§2.3 DEFERRED]
+  TaxInvoiceService.cs:577       … discount … Math.Round(…, 4, …)                            [§2.3 DEFERRED]
+  ```
+  All `TotalAmountThb` sites are the legitimate 4dp FX-conversion memo field named in §2.3/§3.4 — untouched.
+  The `QuotationChainServices`/`TaxInvoiceService` sales-line-gross sites are the exact sites §2.3
+  explicitly DEFERS ("no evidence of a sub-satang JE from this path in the swarm... the seam guard now
+  catches it as `je.precision` if it ever happens") — also untouched, as instructed.
+
+  **Deviation from spec: none.** `JournalEntry.MarkPosted` guard is byte-for-byte the §3.1 code block.
+  `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` → 0 Warning(s),
+  0 Error(s) throughout.
+
+  **Follow-up verification (self-review before reporting):**
+  1. Confirmed `CreateJournalValidator` is genuinely live-wired, not just unit-testable: both
+     `JournalEndpoints.cs` (`POST /journals` calls `validator.ValidateAsync` → `Results.ValidationProblem`
+     = real 400) and the MCP tool `CreateManualJournalDraftAsync` (`TeasMcpTools.cs:1113`) DI-inject
+     `IValidator<CreateJournalRequest>` and call it. T12's literal wording ("draft with 100.005 → 400") is
+     provably true of the live route, not just the validator class.
+  2. Widened the regression sweep beyond the changed files' own areas, since `MarkPosted`'s blast radius
+     is every posting path: `Sales`+`FixedAsset`+`Bank`+`YearEndClosingTests` namespaces, 168/168, 0
+     skipped — no other latent 4dp fixture found (the deferred sales-line `Math.Round(qty*price,4)` sites
+     named in §2.3 did not trip anything live).
+  3. Hardened `B1_full_month_control_...`'s cleanup with `try`/`finally` (mirrors this file's own
+     `Pay_without_any_active_bank_credits_cash_1110` precedent) — the original version only deactivated
+     the 4dp fixture employee if the test's OWN assertions passed; a future failure in that test would
+     have re-leaked the exact poison this release just cleaned up. Re-ran `ManualJournalTests`+
+     `PayrollRunServiceTests` after: 60/60 unchanged.
+  4. **Process notes for the record:** `git stash push/pop` was used once, working-tree only, to prove
+     T14 RED against pre-fix source (T12/T13 were written and confirmed RED before any fix — true
+     first-attempt RED; T14 was written after the source fix landed and its RED was verified
+     retroactively via the same stash). No commit was made at any point. The full solution-wide
+     `dotnet test` was deliberately NOT run per dispatch — Tier 1 exception, Fable runs it.
+
+- **2026-08-12 sonnet-implementer: §2.3 deferral reversed, Fable-authorised mid-task scope addition.**
+  Cap raised 10/2 → 12/3. `TaxInvoiceService.BuildLine` and `QuotationChainServices.ChainMath.Line` round
+  the line's gross to 4dp; when `DiscountPercent == 0` (the common case) that value flows UNCHANGED into
+  `net`/`LineAmount`/`TotalAmount` — confirmed by reading `GlPostingService.PostTaxInvoiceAsync`, which
+  uses `ti.SubtotalAmount`/`ti.TotalAmount` directly as the JE Dr/Cr amounts with no rounding step in
+  between. A fractional quantity against an odd unit price (1.5 kg @ ฿33.33 → gross 49.995, 3dp) is
+  ordinary business, and after WP-3's `MarkPosted` guard landed it could no longer be posted at all
+  (`je.precision`) — the original "no evidence from the swarm" deferral reasoning was true but not the
+  same as safe, exactly Fable's point. Fixed `4` → `2` at all four sites (`TaxInvoiceService.cs:575/577`,
+  `QuotationChainServices.cs:23/25`).
+
+  **RED→GREEN**, new file `Sales/TaxInvoiceLinePrecisionTests.cs`
+  (`Fractional_qty_times_odd_price_rounds_line_to_2dp_and_posts_cleanly`): creates a VAT-company TI
+  with one line (qty 1.5, unit price 33.33, 7% VAT), posts it. Confirmed RED first against pre-fix
+  source: `PostAsync` threw `je.precision` with `Dr 53.495` (= net 49.995 + vat 3.50) — the exact live
+  proof of Fable's traced consequence. After the fix: GREEN, `line.LineAmount == 50.00m` (1.5×33.33 =
+  49.995 exactly, `decimal.Round(49.995, 2, AwayFromZero)` = 50.00 — the value sits exactly on the 2dp
+  midpoint, AwayFromZero rounds a positive midpoint up), JE `Dr == Cr`, every line ≤2dp.
+
+  **Regression sweep after the fix** (no fixture needed updating — 0 pre-existing tests asserted a 4dp
+  gross value): `Sales`+`Purchase`+`Expense`+non-VAT-hardening namespaces 172/172 · MCP suites incl.
+  `McpDocumentChainTests` (exercises the Q→SO→DO→TI chain directly) 92/92 — 0 skipped throughout.
+
+  **`Math.Round(…, 4` grep, re-run after the fix** — only the legitimate `TotalAmountThb` FX-memo sites
+  remain (`PaymentVoucherService.cs:375`, `PurchaseOrderService.cs:95`, `VendorInvoiceService.cs:276`,
+  `ReceiptService.cs:92/401`, `TaxAdjustmentNoteService.cs:112`, `TaxInvoiceService.cs:306/476`); every
+  sales-line-gross site is gone.
+
+  `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` → 0/0 throughout.
+  No commit made; full solution-wide suite still deliberately not run (Fable's gate).
+
 ---
 
 ## Fable spec review — 2026-07-31 — **APPROVED to implement**
@@ -1230,3 +1352,46 @@ order is in `PLAN-fix-breakit-v1271.md`.
 The standalone redesign note that used to live here has been merged into the spec body, so §3.2.5 is now
 the single source of truth for the backfill. Rationale and citations: `specs/research-thai-prior-period-correction.md`.
 
+
+---
+
+## WP-6 (NEW, added 2026-08-12) — legacy sub-satang data: audit before deploy, remediate before the guard ships
+
+**Why this exists.** Opus's WP-3 review surfaced a class the spec had not priced: the precision guard is
+correct, but it converts *silently wrong* data into a **hard dead-end** for any company that already holds
+>2dp values. Three lifecycle operations refuse, with no in-app way out, and the error tells the user to do
+something impossible:
+
+| Operation | Where it breaks | Why the advice "restate in satang" is impossible |
+|---|---|---|
+| **Year-end close / reopen** | `YearCloseService.cs:118-122` sums `DebitAmount`/`CreditAmount` over **already-posted** lines; `:208` rebuilds the reversal from the stored closing entry | the offending lines are immutable posted history |
+| **Pay a posted payroll run** | `PayrollRunService.cs:265` posts the **stored** `run.TotalNet` | a posted run is not editable |
+| **WP-2 backfill `apply`** | `NonVatArBackfillService.cs:284-287` posts `item.Outstanding`, derived from pre-fix billing-note totals | the source documents are posted |
+
+All four proven pollution paths (ExpenseClaim / PV / VI line amounts, TaxInvoice gross) write **expense or
+revenue** lines — exactly what year-close aggregates. So "company with legacy 4dp lines" ≈ "company that can
+no longer close its fiscal year". co5 (`822801.785`) and co7 (`544060.031`) are known-polluted; **Repttown
+uses all four paths and must be assumed polluted until the audit says otherwise.**
+
+### WP-6.1 — Audit (READ-ONLY, runs on prod BEFORE the R1 deploy)
+Report, per company, every row where `Round(x,2) != x`:
+- `gl.journal_lines.debit_amount` / `credit_amount` (and the parent entry's date + doc no)
+- `payroll_runs.total_*` for runs in `Posted` (not yet paid) — these are the ones that will strand
+- `employees.base_salary`
+- the document line tables the four paths write (expense-claim lines, PV lines, VI lines, tax-invoice lines)
+
+Output must be per-company counts + the actual rows, so the blast radius is a number before anything ships.
+**This is a Fable-run operation, not a worker dispatch** — it reads a live tenant's ledger.
+
+### WP-6.2 — Remediation (design AFTER the audit returns real numbers)
+Do not design this in the abstract. The shape depends on what the audit finds:
+- **Zero rows on Repttown** → ship R1 as-is; co5/co7 are fixed by the already-planned wipe+reseed.
+- **Posted payroll runs stranded** → they need a way to be paid. Options: a one-off correcting entry, or a
+  narrowly-scoped allowance on the pay path for pre-existing runs. **Not decided here.**
+- **Polluted revenue/expense ledger lines** → year-close is blocked. A correcting JV cannot fix it (that JV
+  would itself need sub-satang). Likely needs an explicit, audited data correction posting the rounding
+  difference — a money decision that goes to Ham and the CPA, not an engineering call.
+
+### Release gate
+**R1 must not deploy until WP-6.1 has run against prod and its result is read.** Shipping the guard onto a
+polluted live tenant would strand its year-end close with no remedy — strictly worse than the bug being fixed.

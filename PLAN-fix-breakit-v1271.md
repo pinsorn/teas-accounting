@@ -110,6 +110,17 @@ Three features, deliberately split across releases because their dependencies di
 | **A — cancel a posted TI/RC and reissue, traceably** | own release **after R2** | Neither TaxInvoice nor Receipt has ANY cancel path today — this is new construction. Its ภ.พ.30 treatment is an open compliance question needing research + the CPA, same as the prior-period question. |
 | **B — set the document date before posting** | **after R3** | Gated on **H1** (duplicate running numbers): the document number is derived FROM `DocDate`, so backdating hammers the very allocator H1 says is broken. |
 
+## 🔴 R1 GATE ADDED 2026-08-12 — do NOT deploy R1 until the legacy-data audit runs on prod
+Opus's WP-3 review found that the precision guard, while correct, turns *silently wrong* legacy data into a
+**hard dead-end**: year-end close/reopen, paying an already-posted payroll run, and WP-2's backfill all
+re-post stored amounts and would now be refused with advice ("restate in satang") that is impossible to
+follow on immutable history. All four pollution paths write revenue/expense lines — exactly what year-close
+aggregates — so **Repttown must be assumed polluted until measured.**
+→ New **WP-6** in `specs/fix-breakit-r1-ledger-integrity.md`: a read-only prod audit (Fable-run, not a
+worker dispatch) that counts >2dp rows per company, then a remediation designed against those real numbers.
+**R1 ships only after that audit is read.** Shipping the guard onto a polluted live tenant would strand its
+year-end close with no remedy — strictly worse than the bug it fixes.
+
 ## R1 — Ledger integrity (everything that writes wrong data into an immutable ledger)
 Footgun tier: money + a new GL posting path → **Opus design spec, Fable reviews it, Sonnet implements,
 Opus reviews the diff, Fable reads the full diff before commit.** Acceptance-tester pass before Tier-2.
