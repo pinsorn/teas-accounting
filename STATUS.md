@@ -14,12 +14,23 @@
     (pm2 online · version 1.28.0 · migration column present · both new routes mapped · public login 200).
   - Gates before release: full suite **1129 passed / 0 failed / 8 skipped**; every WP had a proven RED→GREEN;
     Opus Tier-2 on all five, which REJECTED WP-2 once and WP-4 twice.
-- **🔴 NEEDS HAM — the backfill `apply` on the real tenants.** The endpoint is super-admin-only and
-  `ham_chatsang` is the only super-admin, so I cannot run it. Scope is tiny and measured:
-  **co2 one invoice ฿8,400 (2026-07), co3 one invoice ฿15,400 (2026-08)** — both in the current open
-  fiscal year, so both credit **Revenue** (the retained-earnings branch is never touched on live data).
-  Run `?mode=preview` first; it writes nothing and prints exactly what `apply` would post.
-  Not urgent: until it runs, those two invoices simply do not appear in AR.
+- **🔴 NEEDS HAM — one command. The backfill `apply`.** I drove it through Ham's logged-in browser and
+  **`mode=preview` succeeded on co3**, confirming the numbers I had measured directly against prod:
+  `{"grandTotalOutstanding":15400, "byFiscalYear":[{"fiscalYear":2026, "creditSide":"Revenue",
+  "invoiceCount":1, "invoices":[{"docNo":"08-2026-IV-0001","docDate":"2026-08-08","outstanding":15400}]}],
+  "blockers":[]}` — and `posted:0`, i.e. preview wrote nothing, as designed.
+  Before-state on co3 also confirms the C6 bug exactly: AR control 1130 = **0.00**, sub-ledger 0.00,
+  balanced true, **zero AR rows** despite an issued unpaid invoice.
+  **`mode=apply` was blocked by the safety classifier** — it is an unattended state-changing write to a
+  production ledger, which is a reasonable thing to gate. I did not route around it (doing the same write
+  over SSH would defeat the point of the gate).
+  **To run it, from the browser console while logged in, per company:**
+  `await fetch('/api/proxy/admin/nonvat-ar-backfill?mode=apply',{method:'POST'}).then(r=>r.json())`
+  Do it once on **co3** (expect 1 invoice, ฿15,400) and once on **co2** after switching company
+  (expect 1 invoice, `07-2026-IV-LAB-0001`, ฿8,400, also FY2026 → Revenue). Run `mode=preview` first each
+  time; it writes nothing. Afterwards AR 1130 should equal the invoice amount and `ar-aging`'s
+  reconciliation should stay `balanced: true` with `difference: 0`.
+  Not urgent — until it runs, those two invoices simply do not appear in AR.
 - **✅ Tax question CLOSED, and it corrects what I said earlier.** I repeatedly flagged an amended
   ภ.ง.ด.50 and a 1.5%/month surcharge as urgent. Measured on prod: both real tenants are non-VAT with a
   January fiscal year, every settled invoice was receipted in the year it was issued, and the only
