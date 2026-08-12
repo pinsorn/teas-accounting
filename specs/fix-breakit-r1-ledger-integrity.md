@@ -879,13 +879,18 @@ no longer needed — no entry can land in a closed period by construction.
 - [x] Called first in **both** `PostAsync` (after the `Approved`-status check, before the transaction/number allocation — no invoice number consumed on refusal) and `PayAsync` (after the `Posted`/`PaidAt` checks, before bank resolution/transaction).
 - [x] Swept payroll tests for `DateTime.UtcNow`/`Today` used as a document date. **Found: zero.** `PayrollRunServiceTests.cs` already computes every `PayDate`/period from `FreshYearAsync`/`RandYear()`-derived synthetic years via `new DateOnly(year, month, day)`, never wall-clock `Today`/`UtcNow`. Grepped the whole payroll-adjacent test surface (`Payroll/`, `Rbac/PayrollFilingRbacTests.cs`, `Reports/TaxSummaryTests.cs`, `TaxFilings/CitExpenseByAccountTests.cs`, `Sales/NonVatArBackfillTests.cs`, `Master/EmployeeSalaryPrecisionTests.cs`) for `DateTime.UtcNow`/`DateTime.Today` — the only hits are `CreatedAt`/`PostedAt`/`IssuedAt` audit `DateTimeOffset` stamps, never a document date compared against the new validator. The two NEW tests that do need the real current month (T19c, T20) use `new SystemClock().TodayInBangkok()` (matches `PeriodMonthlyReopenTests.cs` precedent), never `UtcNow`/`Today`.
 - [x] **Unplanned but required fallout** (found via advisor review before implementing, confirmed by a RED run against the reverted guard): adding the period gate at all — not just the future-date half — breaks nearly every EXISTING payroll test that posts a run, because `FreshYearAsync`/`RandYear()` deliberately pick a synthetic (usually far-future) year purely to dodge `payroll.duplicate_period` collisions in the shared `teas_test` DB, and `PeriodCloseService.IsOpenAsync`'s fallback treats any month with no explicit row as CLOSED unless it equals the real current Bangkok month. Fix: added `OpenPeriodAsync(sp, year, month)` test helper (direct-seeds an Open `AccountingPeriod` row, mirroring the existing `FixedAssetServiceTests.OpenPeriodsAsync` precedent for the identical fallback) and called it from `RunThroughPost` plus the 5 other direct `PostAsync` call sites in the file. Confirmed via a RED run (guard reverted, only these 6 sites lacked it) → 19 of 34 tests failed with `payroll.period_closed`; after the fix, 34/34 green.
-- [x] **Deliberate capability change flagged, not silently patched**: `Pnd1_filings_follow_payment_date_not_period` asserted a December-period run PAID in January of the next year (ม.52/ม.59 arrears pay) posts successfully — this is now literally the T19(a) refusal shape (`PayDate` beyond the run's own period end), so I22 makes it impossible to *produce* through the service going forward. This is Ham's decision as written (§8 #3, T19(a)), not a bug in this WP — but prod already holds runs posted before WP-5 with exactly this shape, and the filing service reads `Payslips`/`PayrollRuns` directly (not through the posting guard), so that coverage still matters. Fixed the test to seed the posted run/payslip directly via `AccountingDbContext` (bypassing `PayrollRunService` entirely — confirmed no immutability trigger exists on `payroll_runs`/`payslips`), preserving the filing-follows-payment-date assertion without going through the now-guarded `PostAsync`. **Flagging per the dispatch: arrears pay across a period boundary is no longer producible via the API/service — only pre-WP-5 historical data can have this shape.** Not something I resolved unilaterally; reported here for Fable/Ham to confirm intended (advisor concurred this is in-scope for the worker to fix since the worker's own change broke it, not a pre-existing failure).
-- [x] Tests T18–T20 green. Evidence below.
+- [x] ~~Deliberate capability change flagged~~ — **SUPERSEDED, see the §3.5 AMENDED block above.**
+  I originally flagged that the period-END ceiling made `Pnd1_filings_follow_payment_date_not_period`'s
+  arrears-pay scenario unproducible through the service and had to rewrite the test to bypass
+  `PostAsync`. Fable/Ham agreed the ceiling itself was wrong (commit `97ace1c`) and removed it —
+  see the ROUND 2 entry below. `Pnd1_filings_follow_payment_date_not_period` now drives the real
+  service again, no bypass.
+- [x] Tests T18–T20 green (T19 rewritten for the amended rule — see ROUND 2 entry). Evidence below.
 
 **Blast cap:** max **4** source files + **2** test files. No migrations, no API-shape change.
 **Actual:** 1 source file (`PayrollRunService.cs`) + 1 test file (`PayrollRunServiceTests.cs`, 1 existing test fixed + 3 new: T18, T19, T20 + a new `OpenPeriodAsync` test helper). Well within cap. 0 migrations, 0 API-shape changes.
 
-**Evidence — RED→GREEN (T18/T19/T20):**
+**Evidence — ROUND 1 (period-END ceiling, since superseded) RED→GREEN (T18/T19/T20):**
 ```
 RED (git-stashed the source guard only, kept the new tests):
   Failed: 3, Passed: 0, Skipped: 0, Total: 3
@@ -895,6 +900,10 @@ GREEN (guard restored + OpenPeriodAsync fixture fix applied):
   Full PayrollRunServiceTests class: Failed: 0, Passed: 34, Skipped: 0, Total: 34, Duration: 2m 59s
 ```
 `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` → 0 Warning(s), 0 Error(s) both before and after the test-fixture fallout fix.
+
+**Evidence — ROUND 2 (ceiling removed per §3.5 amendment, commit `97ace1c`):** see the attempt-log
+entry below. Code + tests rewritten and isolated-build-verified (`0 Warning(s), 0 Error(s)`); full
+`dotnet test` run deferred — TEST-DB HOLD in effect while the WP-4 worker owns `teas_test`.
 
 ---
 
@@ -1566,6 +1575,40 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   Ready to run the FULL round 2 + round 3 targeted evidence — including the mandatory RED proof for
   `CAPEX_category_override_to_BANK_is_rejected_the_P0_this_WP_exists_to_close` against round-1's rule
   — the instant the coordinator's ALL-CLEAR lands. Not committed.
+
+- **2026-08-12 sonnet-implementer: ALL-CLEAR received, RED→GREEN evidence gathered, checkpoint.**
+  `teas_test` freed by the coordinator (WP-5 payroll finished). Ran the mandatory proofs:
+  **LEG 1 (P0, round-1's exact rule)** — since round 1 was never a separate commit, git-stashed
+  ONLY `ExpenseClaimService.cs` (`git stash push -- <file>`, safe: `IExpenseClaimService`'s public
+  signatures never changed, so the reverted file still satisfies the interface) to reach pre-WP-4
+  HEAD, THEN hand-applied round-1's literal formula (`Expense || (categoryIsCapex && Asset)`) on
+  top, restoring the `categoryIsCapex` param and the override-branch call site exactly as round 1
+  had it. Ran `CAPEX_category_override_to_BANK_is_rejected_the_P0_this_WP_exists_to_close` filtered
+  → **RED: 1 failed, "No exception was thrown."** Restored via `git checkout -- <file>` (discard
+  temp patch, back to HEAD) then `git stash pop` (round-3 code back) — verified `grep -c "TEMP
+  RED-LEG-1"` → 0, `dotnet build` → 0/0. Re-ran the same filter → **GREEN: 1 passed.**
+  **LEG 2 (category-master denylist, round-2's code)** — a file-level stash was NOT viable here:
+  reverting `MasterDataServices.cs`/`ReferenceDtos.cs`/`MasterEndpoints.cs` to HEAD removes
+  `UpdateAsync`/`UpdateExpenseCategoryRequest`/the PUT route entirely, which `ExpenseCategoryServiceTests.cs`
+  references in OTHER test methods too — the whole assembly fails to compile, blocking every test,
+  not just the 2 targeted. Used a surgical temporary edit instead (working-tree-only, same spirit):
+  deleted round-3's denylist `if` block from `EnsureDefaultAccountAsync` only, kept everything else
+  (ctor param, type check, `UpdateAsync` etc.) intact. Ran both new theories
+  (`Create_of_a_CAPEX_category_pointing_at_a_cash_bank_or_VAT_role_account_is_rejected`,
+  `Update_of_a_CAPEX_category_to_point_at_a_cash_bank_or_VAT_role_account_is_rejected`, 2 InlineData
+  each) → **RED: 4 failed, all "No exception was thrown"** (bank AND input-VAT both silently
+  accepted as a capex default without the denylist). Restored the block via Edit, verified
+  `grep -c "TEMP RED-LEG-2"` → 0, `dotnet build` → 0/0. Re-ran → **GREEN: 4 passed.**
+  **Full GREEN sweep:** `ExpenseClaimServiceTests` + `ExpenseCategoryServiceTests` (both classes,
+  one filter) → **39 passed / 0 failed / 0 skipped.** `Rbac` namespace (`RbacAuthMapTests` +
+  `RbacCartesianTests`, `TEAS_REPO_ROOT` set) → **67 passed / 0 failed / 0 skipped**, ~6m13s.
+  No pre-existing `teas_test` pollution encountered in these namespaces (coordinator warned of 5
+  unrelated state-caused failures elsewhere today from WP-5/other work — none surfaced here; stayed
+  entirely inside Expense/Master/Rbac namespaces as instructed, never touched payroll). Stash list
+  confirmed empty after both legs; no `TEMP RED-LEG` markers left in `backend/src/`. **Quota
+  checkpoint at 89% (block 95) — this entry written as durable insurance; no commit made (worker
+  rule + coordinator's explicit "do NOT commit" both apply — the coordinator commits after reading
+  the full diff).** Not committed.
   Cap raised 10/2 → 12/3. `TaxInvoiceService.BuildLine` and `QuotationChainServices.ChainMath.Line` round
   the line's gross to 4dp; when `DiscountPercent == 0` (the common case) that value flows UNCHANGED into
   `net`/`LineAmount`/`TotalAmount` — confirmed by reading `GlPostingService.PostTaxInvoiceAsync`, which
@@ -1721,6 +1764,59 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   failed, 0 skipped, 2m59s. Full solution suite deliberately NOT run (Fable's gate, per dispatch).
   No commit made.
 
+- **2026-08-12 sonnet-implementer: WP-5 ROUND 2 — §3.5 amendment implemented (period-END ceiling
+  removed, commit `97ace1c`).** Fable reversed the ceiling based on exactly the two things ROUND 1's
+  report flagged: it made arrears pay (a December-period run paid 5 ม.ค.) unproducible through the
+  service, and it caught nothing the `IsOpenAsync` check didn't already catch for the `209912` case.
+  Fault stated as Fable's own recommendation, not the implementer's — the ceiling was reproduced
+  exactly as ROUND 1 spec'd it and the report's own deviation section is what triggered the reversal.
+
+  **Code change** (`PayrollRunService.EnsurePostablePayDateAsync`): the `PayDate > periodEnd` ceiling
+  is gone. Replaced with a floor (`PayDate < periodStart` → `payroll.pay_date_outside_period`,
+  message rewritten for "before the period starts" instead of "outside the period") plus the
+  unchanged `IsOpenAsync(PayDate.Year, PayDate.Month)` check (`payroll.period_closed`, still names
+  the O14 reopen route). Chose to KEEP `payroll.pay_date_outside_period` for the floor rather than
+  collapsing to one code — a payment dated before its own period begins is a distinct, meaningful
+  violation (almost certainly a data-entry error) from a legitimately-timed payment landing in a
+  closed or never-opened month, and the two now have zero message/meaning overlap.
+
+  **Test changes:**
+  - `Pnd1_filings_follow_payment_date_not_period` reverted to drive the REAL service again
+    (`RunThroughPost(sp, Period(y, 12), payDate: new DateOnly(y + 1, 1, 5))`), no seeded bypass — it
+    needed no further workaround after the ceiling's removal, confirming Fable's prediction. Removed
+    the now-unused `Accounting.Domain.Entities.Payroll` using (no more direct `PayrollRun`/`Payslip`
+    entity construction in the file).
+  - T19 rewritten and renamed
+    (`T19_pay_date_before_period_start_is_refused_arrears_and_pre_payday_pay_both_work`): (a) NEW —
+    PayDate one day before the run's own period starts → `payroll.pay_date_outside_period`, no JE
+    (the floor). (b) KEPT, reworded — the generalised `209912` case still refuses via
+    `payroll.period_closed` (PayDate == periodEnd is no longer even a distinguishing feature since
+    there is no ceiling; it refuses purely because the period was never opened). (c) KEPT unchanged
+    — the pre-payday regression (post today, pay at period end, current real month). (d) NEW —
+    arrears pay WORKS: a December-period run with PayDate 5 ม.ค. of the following year both POSTS
+    and PAYS successfully once that January is opened (`OpenPeriodAsync(spD, arrearsPayDate.Year,
+    arrearsPayDate.Month)` — opens PayDate's own month, which is what `EnsurePostablePayDateAsync`
+    actually checks; the run's nominal December period is never itself checked for openness).
+  - T18 and T20 unchanged — neither exercised the ceiling (all their PayDates already sit inside
+    their own period), confirmed by re-reading both before leaving them alone, per the coordinator's
+    explicit "keep as they are."
+  - `OpenPeriodAsync` helper and its wiring into `RunThroughPost` + the 5 direct call sites are
+    unchanged — that mechanical work was correct under either rule and needed no rework.
+
+  **Deviations from ROUND 1 now resolved:** the "no escape hatch" consequence (ROUND 1's second
+  flag) disappears entirely — there is no longer a PayDate shape that is structurally unpayable
+  forever; every refusal now has either the O14 reopen route or a same-day date correction as its
+  way out. The "arrears pay impossible" capability change (ROUND 1's first flag) is reversed.
+
+  **Verification under the TEST-DB HOLD** (WP-4 worker owns `teas_test` — no `dotnet test` run):
+  isolated `-o` build of `Accounting.Infrastructure.csproj` alone → 0 Warning(s), 0 Error(s).
+  Isolated `-o` build of the full `Accounting.Api.Tests.csproj` (pulls in every project including
+  WP-4's concurrently-edited `Accounting.Infrastructure`) → first attempt hit a transient CS7036 in
+  `ExpenseClaimService.cs` (WP-4's own in-flight edit, not mine — confirmed via `git diff --stat`,
+  zero WP-5 files involved); retried ~5s later → 0 Warning(s), 0 Error(s), confirming it was a
+  live-edit race, not a real defect. **Awaiting Fable's explicit ALL-CLEAR before running
+  `dotnet test`.** Not committed.
+
 ---
 
 ## Fable spec review — 2026-07-31 — **APPROVED to implement**
@@ -1817,3 +1913,54 @@ Do not design this in the abstract. The shape depends on what the audit finds:
 ### Release gate
 **R1 must not deploy until WP-6.1 has run against prod and its result is read.** Shipping the guard onto a
 polluted live tenant would strand its year-end close with no remedy — strictly worse than the bug being fixed.
+
+---
+
+## WP-6.1 AUDIT RESULT — run on prod 2026-08-12. **DEPLOY GATE SATISFIED.**
+
+Read-only queries against the live `teas` database (OVH VPS, via the `repttown_deploy` key). Nothing written.
+
+### Sub-satang pollution — the R1 deploy blocker
+
+| source | co2 (Repttown) | co3 | co5 | co7 |
+|---|---|---|---|---|
+| `gl.journal_lines` >2dp | **0** | **0** | 5 | 8 |
+| `payroll_runs` totals >2dp | **0** | **0** | 0 | 1 |
+| `master.employees.base_salary` >2dp | **0** | **0** | 0 | 0 |
+| `expense_claim_lines.amount` >2dp | **0** | **0** | 1 | 2 |
+
+**Both real tenants are clean.** Every polluted row is on co5/co7, which are already scheduled for
+wipe+reseed. **R1 can deploy without stranding anyone's year-end close, payroll payment or backfill.**
+The dead-end class WP-6 exists to prevent does not exist in live data.
+
+### C6 backfill scope on the real tenants — and the tax answer
+
+Both co2 and co3 are `vat_registered = false` (so C6 applies to both, not just Repttown) and both have
+`fiscal_year_start_month = 1`.
+
+| company | outstanding invoices | amount | issued |
+|---|---|---|---|
+| co2 | 1 (`07-2026-IV-LAB-0001`) | ฿8,400.00 | 2026-07-12 |
+| co3 | 1 (`08-2026-IV-0001`) | ฿15,400.00 | 2026-08-08 |
+
+Every *settled* invoice on both tenants was receipted in the **same calendar year it was issued**
+(earliest billing note anywhere is 2026-06), so no prior year ever had revenue deferred out of it.
+
+**→ NO PRIOR FISCAL YEAR WAS UNDERSTATED. No amended ภ.ง.ด.50 is required, and the 1.5%/month
+เงินเพิ่ม exposure is ZERO.** This corrects the standing assumption in `PLAN-fix-breakit-v1271.md` and
+`specs/research-thai-prior-period-correction.md`, which were written before the data was measured and
+prudently assumed exposure. The research itself remains valid and worth keeping — it is simply not
+triggered.
+
+**Consequence for WP-2:** on real data the backfill posts **two entries, both crediting Revenue in the
+current open fiscal year**. The retained-earnings branch is never exercised on a live tenant. It stays in
+the code because co5/co7 and any future tenant can still need it, but the Repttown "apply" run is a
+two-invoice, ฿23,800 operation — not the archaeology we had budgeted for.
+
+### Method notes (for whoever re-runs this)
+- Prod DB is **`teas`**, not the `accounting_dev` name in the deployed `appsettings` (that value is stale).
+- Real schemas differ from the guesses in `tools/audit-subsatang.sql`: employees live in **`master`**, not
+  `payroll`; `payroll_runs` has `total_gross_taxable`/`total_gross_non_taxable`, not `total_gross`.
+- **Status values are UPPERCASE** (`ISSUED`/`SETTLED`/`POSTED`). A title-case comparison silently returns
+  zero rows — it briefly made this audit report "no outstanding invoices anywhere", which was wrong.
+  Use `upper(status)`. `tools/audit-subsatang.sql` should be corrected before its next use.

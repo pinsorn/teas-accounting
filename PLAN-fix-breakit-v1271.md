@@ -110,16 +110,21 @@ Three features, deliberately split across releases because their dependencies di
 | **A — cancel a posted TI/RC and reissue, traceably** | own release **after R2** | Neither TaxInvoice nor Receipt has ANY cancel path today — this is new construction. Its ภ.พ.30 treatment is an open compliance question needing research + the CPA, same as the prior-period question. |
 | **B — set the document date before posting** | **after R3** | Gated on **H1** (duplicate running numbers): the document number is derived FROM `DocDate`, so backdating hammers the very allocator H1 says is broken. |
 
-## 🔴 R1 GATE ADDED 2026-08-12 — do NOT deploy R1 until the legacy-data audit runs on prod
-Opus's WP-3 review found that the precision guard, while correct, turns *silently wrong* legacy data into a
-**hard dead-end**: year-end close/reopen, paying an already-posted payroll run, and WP-2's backfill all
-re-post stored amounts and would now be refused with advice ("restate in satang") that is impossible to
-follow on immutable history. All four pollution paths write revenue/expense lines — exactly what year-close
-aggregates — so **Repttown must be assumed polluted until measured.**
-→ New **WP-6** in `specs/fix-breakit-r1-ledger-integrity.md`: a read-only prod audit (Fable-run, not a
-worker dispatch) that counts >2dp rows per company, then a remediation designed against those real numbers.
-**R1 ships only after that audit is read.** Shipping the guard onto a polluted live tenant would strand its
-year-end close with no remedy — strictly worse than the bug it fixes.
+## ✅ R1 DEPLOY GATE — SATISFIED 2026-08-12 (audit run on prod, read-only)
+Full result + method notes: `specs/fix-breakit-r1-ledger-integrity.md` §"WP-6.1 AUDIT RESULT".
+- **Both real tenants (co2 Repttown, co3) hold ZERO sub-satang rows** — journal lines, payroll run totals,
+  employee salaries, expense-claim lines, all clean. Every polluted row is on co5/co7, already scheduled
+  for wipe+reseed. **R1 can deploy without stranding a live company's year-end close, payroll payment or
+  backfill.** The dead-end class WP-6 exists to prevent does not occur in live data.
+- **🔴 CORRECTION to a claim I made repeatedly: the tax exposure is ZERO.** Both real tenants are non-VAT
+  with a January fiscal year, every settled invoice was receipted in the **same year it was issued**, and
+  the only outstanding invoices are co2 ฿8,400 (2026-07) and co3 ฿15,400 (2026-08) — both inside the
+  **current open** fiscal year. So no prior year was ever understated: **no amended ภ.ง.ด.50, and the
+  1.5%/month เงินเพิ่ม clock I kept flagging as urgent does not apply.** I flagged it before the data was
+  measured, which was the right precaution — but it was an assumption, and the measurement retires it.
+  The research in `specs/research-thai-prior-period-correction.md` stays valid, just untriggered.
+- **WP-2's real-tenant scope is two invoices, ฿23,800 total, both crediting Revenue in the open year.**
+  The retained-earnings branch is never hit on live data (kept for co5/co7 and future tenants).
 
 ## R1 — Ledger integrity (everything that writes wrong data into an immutable ledger)
 Footgun tier: money + a new GL posting path → **Opus design spec, Fable reviews it, Sonnet implements,
