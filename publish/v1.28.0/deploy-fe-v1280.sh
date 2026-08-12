@@ -1,10 +1,9 @@
 #!/bin/bash
-# FE deploy v1.28.0 — finding batch WP1 (route-guard deny on 16 /new routes + CN/DN buttons +
-# tax-filing/period-close/attachment gates), WP3 (report date-basis labels, AP-aging tie banner,
-# AR-aging negatives, bank-recon badge/auto-select), WP5 (api-keys deny+#418 fix, users
-# self/peer-admin guard, internal_error Thai toast, VI-new category-clobber fix).
-# package.json + pnpm-lock expected UNCHANGED -> NO pnpm install (verify below). Full
-# `git archive v1.28.0 frontend` overlay (--strip-components=1). Rebuild, restart, auto-rollback.
+# FE deploy v1.28.0 — R1 ledger integrity. The ONLY frontend change in this release is
+# lib/utils.ts's docType map gaining `Invoice: 'billingNote'`, so the AR movement rows a non-VAT
+# company now produces (WP-1 accrues AR at invoice issue) render a translated label instead of the
+# raw docType. package.json + pnpm-lock UNCHANGED -> no pnpm install. Full `git archive v1.28.0
+# frontend` overlay (--strip-components=1). Rebuild, restart, auto-rollback.
 # RUN AS THE NORMAL DEPLOY USER — NEVER sudo THIS SCRIPT (troubles-wiki: sudo corrupts ownership).
 set -uo pipefail
 D=/opt/npm-sites/teas.kazaki-rio.com/frontend
@@ -17,10 +16,7 @@ mv .next .next.old
 echo "== overlay new source =="
 tar xf /tmp/fe-src-v1280.tar --strip-components=1
 echo "overlaid: $(tar tf /tmp/fe-src-v1280.tar | wc -l) entries"
-for f in 'app/(dashboard)/tax-invoices/new/page.tsx' \
-         'app/(dashboard)/settings/users/page.tsx' \
-         'app/(dashboard)/reports/ap-aging/page.tsx' \
-         'lib/i18n/problems.ts'; do
+for f in 'lib/utils.ts' 'app/(dashboard)/reports/ar-aging/page.tsx'; do
   test -e "$f" || { echo "FILE_MISSING: $f -- abort"; rm -rf .next; mv .next.old .next; exit 1; }
 done
 # R1 content anchors — prove the built tree is THIS release, not a stale checkout.
