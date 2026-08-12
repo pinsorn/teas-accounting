@@ -97,7 +97,7 @@ GROUP BY c.company_id
 ORDER BY 1, 2;
 
 \echo '=== 5. Company name lookup, so the numbers above are readable ==='
-SELECT company_id, company_name_th, vat_registered FROM master.companies ORDER BY company_id;
+SELECT company_id, name_th, vat_registered FROM master.companies ORDER BY company_id;
 
 -- Interpreting the result:
 --   * Section 1c with revenue/expense rows for a company => that company CANNOT close its
