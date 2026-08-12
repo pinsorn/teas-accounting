@@ -134,6 +134,9 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         var payeeName = emp is null
             ? s0.EmployeeName
             : $"{emp.TitleTh} {emp.FirstNameTh} {emp.LastNameTh}".Trim();
+        // R2/H9 — the same silent corruption/drop the SSO file guards against also applies to the
+        // 50ทวิ certificate's payee name (FilingNameRules.EnsureFilable).
+        FilingNameRules.EnsureFilable(payeeName, "ชื่อผู้มีเงินได้ (payee name)", emp?.EmployeeCode ?? s0.NationalId);
 
         var payerAddress = string.Join(" ", new[]
         {
@@ -161,16 +164,27 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
     }
 
     // EmployeeId → (ชื่อ = title + first name, ชื่อสกุล = last name) for the form's split name boxes.
+    // R2/H9 — the cheap systemic close of the H9 note: the same character that becomes '?' in the
+    // SSO file is silently DROPPED from the ภ.ง.ด.1 ใบแนบ (and 1ก, which reuses this map) today.
+    // Feeds both BuildPnd1MonthlyAsync and BuildPnd1aAnnualAsync — one guard covers both filings.
     private async Task<Dictionary<long, (string First, string Last)>> NameMapAsync(
         IEnumerable<long> employeeIds, CancellationToken ct)
     {
         var ids = employeeIds.Distinct().ToList();
-        return await db.Employees.AsNoTracking()
+        var employees = await db.Employees.AsNoTracking()
             .Where(e => ids.Contains(e.EmployeeId))
-            .ToDictionaryAsync(
-                e => e.EmployeeId,
-                e => (((e.TitleTh ?? "") + " " + e.FirstNameTh).Trim(), e.LastNameTh),
-                ct);
+            .Select(e => new { e.EmployeeId, e.EmployeeCode, e.TitleTh, e.FirstNameTh, e.LastNameTh })
+            .ToListAsync(ct);
+
+        var map = new Dictionary<long, (string First, string Last)>();
+        foreach (var e in employees)
+        {
+            var first = ((e.TitleTh ?? "") + " " + e.FirstNameTh).Trim();
+            FilingNameRules.EnsureFilable(first, "ชื่อ (first name)", e.EmployeeCode);
+            FilingNameRules.EnsureFilable(e.LastNameTh, "นามสกุล (last name)", e.EmployeeCode);
+            map[e.EmployeeId] = (first, e.LastNameTh);
+        }
+        return map;
     }
 
     // Use the master split when available; else split the frozen snapshot name on its last space.

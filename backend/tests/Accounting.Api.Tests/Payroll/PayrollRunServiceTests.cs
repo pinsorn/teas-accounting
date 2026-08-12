@@ -2,6 +2,7 @@ using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Expense;
 using Accounting.Application.Ledger;
+using Accounting.Application.Master;
 using Accounting.Application.Payroll;
 using Accounting.Application.Purchase;
 using Accounting.Domain.Common;
@@ -11,6 +12,7 @@ using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Enums;
 using Accounting.Domain.Payroll;
 using Accounting.Infrastructure;
+using Accounting.Infrastructure.Payroll;
 using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
 using FluentValidation;
@@ -128,7 +130,9 @@ public sealed class PayrollRunServiceTests
         bool spouseHasIncome = false, int children = 0, bool sso = true, bool isActive = true,
         int? ytdOpeningYear = null, decimal ytdOpeningIncome = 0m,
         decimal ytdOpeningPit = 0m, decimal ytdOpeningSso = 0m,
-        DateOnly? hireDate = null, DateOnly? terminationDate = null)
+        DateOnly? hireDate = null, DateOnly? terminationDate = null,
+        // R2/WP-5 (H9) — override the default name to plant an unencodable/over-length name.
+        string? firstNameTh = null, string? lastNameTh = null)
     {
         await using var s = sp.CreateAsyncScope();
         var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
@@ -136,7 +140,7 @@ public sealed class PayrollRunServiceTests
         var e = new Employee
         {
             CompanyId = companyId, EmployeeCode = "EMP-" + Sfx(),
-            FirstNameTh = "ทดสอบ", LastNameTh = Sfx(), NationalId = Nid(),
+            FirstNameTh = firstNameTh ?? "ทดสอบ", LastNameTh = lastNameTh ?? Sfx(), NationalId = Nid(),
             // The default must predate EVERY period a test can pick. FreshOpeningYearAsync/
             // FreshYearAsync scan 2100 DOWNWARD for a year with no payroll run, and each suite
             // run consumes one — on the shared, never-reset teas_test that pool has drifted
@@ -219,6 +223,12 @@ public sealed class PayrollRunServiceTests
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         await using var sp = Provider();
+        // R2/WP-5 (H8) — this test calls sso.BuildMonthlyFileAsync on company 1 below, whose seeded
+        // profile carries no SsoEmployerAccountNo anywhere in the SqlScripts seed. Without this, the
+        // new H8 guard would fail this test for a reason unrelated to what it actually exercises
+        // (deduction round-tripping through the SSO file byte-for-byte). Not a workaround for a bug —
+        // company 1 genuinely has no employer account configured; a real company would set one.
+        await SetSsoEmployerAccountAsync(sp, "1234567890");
         var year = await FreshYearAsync(sp);
         var period = Period(year, 4);
         var employeeId = await AddEmployee(sp, 50_000m);
@@ -654,6 +664,122 @@ public sealed class PayrollRunServiceTests
         model.GrandTotalContribution.Should().Be(model.TotalEmployeeContribution + model.TotalEmployerContribution);
         model.EmployeeCount.Should().Be(model.Lines.Count);
         model.Lines.Should().OnlyContain(l => l.EmployeeContribution > 0m);
+    }
+
+    // ── R2/WP-5 (H8/H9) — nothing silently wrong goes into a government file ──────────────
+
+    private static async Task SetSsoEmployerAccountAsync(ServiceProvider sp, string accountNo)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<ICompanyProfileService>();
+        var before = await svc.GetAsync(default);
+        // Every field must be echoed back: UpdateSoftAsync overwrites the WHOLE record, so an omitted
+        // member silently NULLs it — and on the shared, never-reset teas_test that damage is permanent.
+        await svc.UpdateSoftAsync(new UpdateCompanyProfileSoftRequest(
+            before!.TradeName, before.LogoUrl, before.Phone, before.Email, before.Website,
+            before.ContactName, before.BankName, before.BankAccountNo, before.BankAccountName,
+            SsoEmployerAccountNo: accountNo, DefaultDocNotes: before.DefaultDocNotes), default);
+    }
+
+    [SkippableFact]
+    public async Task T14_sso_file_refuses_a_blank_employer_account_instead_of_zero_filling()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        // A fresh TestCompanyFactory company has SsoEmployerAccountNo=null on its profile, and this
+        // suite's Provider() never configures Payroll:Sso:EmployerAccountNo — so the resolved
+        // model.EmployerAccountNo is blank, exactly the H8 scenario (today: silently zero-filled to
+        // "0000000000" in the file). RunThroughPost (not a bare Draft) so WP-4's future Posted-run
+        // guard cannot break this test when it lands.
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        await AddEmployee(sp, 30_000m);
+        var period = await FreshPeriodAsync(sp, 1);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+
+        var act = () => sso.BuildMonthlyFileAsync(runId, default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("sso_batch.missing_employer_account");
+    }
+
+    [SkippableFact]
+    public async Task T15_sso_pdf_refuses_missing_employer_account_but_sso_schedule_still_renders()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        await AddEmployee(sp, 30_000m);
+        var period = await FreshPeriodAsync(sp, 2);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+
+        var actPdf = () => sso.BuildMonthlyPdfAsync(runId, default);
+        (await actPdf.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("sso_batch.missing_employer_account");
+
+        // O11-alt's on-screen สปส.1-10 ส่วนที่ 2 schedule must keep rendering — it SHOWS the user
+        // what is missing rather than shutting them out (guard lives only in the file/PDF builders).
+        var model = await sso.BuildMonthlyAsync(runId, default);
+        model.EmployerAccountNo.Should().BeNullOrWhiteSpace();
+    }
+
+    [SkippableFact]
+    public async Task T16_sso_file_refuses_a_name_with_a_non_cp874_character_naming_the_employee_and_code_point()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        await SetSsoEmployerAccountAsync(sp, "1234567890");
+        // U+09AE (Bengali "MA") looks near-identical to Thai ม (U+0E21) but is a
+        // DIFFERENT, non-cp874 character — a real corruption repro (co5 shipped 37 '?' bytes
+        // from a character in this family). Written as the C# escape below, never the literal
+        var empId = await AddEmployee(sp, 30_000m, firstNameTh: "สม\u09AEชาย");
+        var period = await FreshPeriodAsync(sp, 3);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var nationalId = await db.Employees.AsNoTracking()
+            .Where(e => e.EmployeeId == empId).Select(e => e.NationalId).SingleAsync();
+
+        var act = () => sso.BuildMonthlyFileAsync(runId, default);
+        var ex = (await act.Should().ThrowAsync<DomainException>()).Which;
+        ex.Code.Should().Be("sso_batch.unencodable_name");
+        ex.Message.Should().Contain("U+09AE", "the offending character's code point must be named");
+        ex.Message.Should().Contain(nationalId, "the offending employee must be identifiable");
+    }
+
+    [SkippableFact]
+    public async Task T17_sso_file_still_truncates_an_over_length_name_instead_of_refusing_it()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        // Pins §3.5(c) as DELIBERATE: 30/35/45 is the fixed-width file's own capacity, not a
+        // defect. A future reviewer must not "fix" this into a refusal — that would leave a
+        // company with a long legal name unable to file at all (the exact dead-end class R1's
+        // review caught twice).
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        await SetSsoEmployerAccountAsync(sp, "1234567890");
+        var longFirst = new string('ก', 35);   // > ชื่อ's 30-char field width
+        await AddEmployee(sp, 30_000m, firstNameTh: longFirst, lastNameTh: "นามสกุลทดสอบ");
+        var period = await FreshPeriodAsync(sp, 4);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+
+        var (content, _) = await sso.BuildMonthlyFileAsync(runId, default);   // must NOT throw
+        content.Should().NotBeEmpty();
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        var text = System.Text.Encoding.GetEncoding(SpsBatchFormat.CodePage).GetString(content);
+        var detail = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries)[1];
+        detail.Substring(17, 30).TrimEnd().Should()
+            .Be(longFirst[..30], "truncated to the field's own capacity, not refused (I5's carve-out)");
     }
 
     [SkippableFact]

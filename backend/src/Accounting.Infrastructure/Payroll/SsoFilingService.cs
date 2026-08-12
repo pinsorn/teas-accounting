@@ -67,13 +67,51 @@ public sealed class SsoFilingService(AccountingDbContext db, IOptions<SsoOptions
             Lines: lines);
     }
 
-    public async Task<byte[]> BuildMonthlyPdfAsync(long runId, CancellationToken ct) =>
-        Pdf.Sps110FormFiller.Fill(await BuildMonthlyAsync(runId, ct));
+    public async Task<byte[]> BuildMonthlyPdfAsync(long runId, CancellationToken ct)
+    {
+        var model = await BuildMonthlyAsync(runId, ct);
+        EnsureEmployerAccount(model);
+        return Pdf.Sps110FormFiller.Fill(model);
+    }
 
     public async Task<(byte[] Content, string FileName)> BuildMonthlyFileAsync(long runId, CancellationToken ct)
     {
         var model = await BuildMonthlyAsync(runId, ct);
+        EnsureEmployerAccount(model);
+        EnsureNamesFilable(model);
         return (SpsBatchFormat.BuildBytes(model), SpsBatchFormat.FileName(model));
+    }
+
+    // R2/H8 — เลขที่บัญชีนายจ้าง is mandatory on สปส.1-10. Today a blank one is emitted as
+    // "0000000000" by SpsBatchFormat.Digits (:67/:122-127) and the user discovers it at the SSO
+    // portal. Mirrors the ภ.พ.30 exporter's refusal (Pp30BatchExportService.cs:39-52,
+    // pp30_batch.missing_address) — the sibling that already does this right. Guards ONLY the two
+    // artifacts (file + PDF), NOT BuildMonthlyAsync — the on-screen สปส.1-10 ส่วนที่ 2 schedule
+    // (sso-schedule) must keep rendering so the user can SEE what is missing.
+    private static void EnsureEmployerAccount(SsoMonthlyModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.EmployerAccountNo))
+            throw new DomainException("sso_batch.missing_employer_account",
+                "ยังไม่ได้ตั้งค่าเลขที่บัญชีนายจ้าง (10 หลัก) — กรอกในข้อมูลบริษัทก่อนจึงจะออกไฟล์ สปส.1-10 ได้ " +
+                "[SSO employer account number is required for สปส.1-10. Set it on the company profile " +
+                "(CompanyProfile.SsoEmployerAccountNo) first.]");
+    }
+
+    // R2/H9 — every name that becomes literal TEXT in the สปส.1-10 upload file must be filable
+    // (FilingNameRules.EnsureFilable). File-channel ONLY (§2.3 of the spec): Sps110FormFiller.Fill
+    // (the PDF channel) does shrink-to-fit with no cp874 encoding step, so it cannot suffer the
+    // same silent-'?'-substitution defect and needs no guard. คำนำหน้า (Title) is deliberately NOT
+    // checked here — the file never carries it as text, only as a numeric code (PrefixCode), and a
+    // blank Title is a legitimate, already-tested value (SpsBatchFormatTests: PrefixCode("")=="099").
+    private static void EnsureNamesFilable(SsoMonthlyModel model)
+    {
+        FilingNameRules.EnsureFilable(model.EmployerName, "ชื่อสถานประกอบการ (employer name)", "นายจ้าง (employer)");
+        foreach (var l in model.Lines)
+        {
+            var who = $"ผู้ประกันตน {l.NationalId}";
+            FilingNameRules.EnsureFilable(l.FirstName, "ชื่อ (first name)", who);
+            FilingNameRules.EnsureFilable(l.LastName, "ชื่อสกุล (last name)", who);
+        }
     }
 
     // EmployeeId → (คำนำหน้า, ชื่อ, ชื่อสกุล, เลขประกันสังคม) from the master — kept split because

@@ -47,11 +47,18 @@ public static class SpsBatchFormat
     private static bool _providerReady;
 
     /// <summary>Encode the file as TIS-620 / Windows-874 (single-byte Thai), no BOM — the SSO e-Service
-    /// convention. Registers the code-pages provider once (TIS-620 is not built into .NET Core).</summary>
+    /// convention. Registers the code-pages provider once (TIS-620 is not built into .NET Core).
+    /// R2/H9 — <see cref="EncoderFallback.ExceptionFallback"/> (not the default '?' replacement) is a
+    /// BACKSTOP: the real refusal is FilingNameRules.EnsureFilable, called upstream in
+    /// SsoFilingService before this ever runs. This just makes sure a future caller who forgets that
+    /// guard fails loudly instead of silently shipping a '?' to the government (co5 shipped 37 of
+    /// them as an insured person's name). For valid cp874-encodable input, behaviour is unchanged
+    /// (I6) — every existing byte-equality test stays green.</summary>
     public static byte[] BuildBytes(SsoMonthlyModel m)
     {
         if (!_providerReady) { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); _providerReady = true; }
-        return Encoding.GetEncoding(CodePage).GetBytes(Build(m));
+        var enc = Encoding.GetEncoding(CodePage, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+        return enc.GetBytes(Build(m));
     }
 
     /// <summary>Download filename (SSO mandates none): sps1-10_YYYYMM(CE).txt.</summary>

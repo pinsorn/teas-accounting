@@ -126,10 +126,23 @@ const TH: Record<string, string> = {
   'company_info.vat_rate_invalid': 'อัตรา VAT ต้องอยู่ระหว่าง 0 ถึง 1',
   'company_info.pnd30_invalid': "รูปแบบการยื่น ภ.พ.30 ต้องเป็น 'manual' หรือ 'auto'",
 
+  // tax_filing.* (R2/WP-6 — ภ.ง.ด.50/51 year validation, TaxFilingPeriod.EnsureYear)
+  'tax_filing.bad_year': 'ปีภาษีไม่ถูกต้อง กรุณาระบุปี ค.ศ. ที่ถูกต้อง (เช่น 2026)',
+
   // pp30_batch.* (ภ.พ.30 RD Prep "Format กลาง" batch-file export guard — Pp30BatchExportService)
   'pp30_batch.no_data': 'ไม่มียอดขายในงวดนี้ ไม่สามารถสร้างไฟล์ ภ.พ.30 ได้ (ต้องมียอดขายมากกว่า 0)',
   'pp30_batch.missing_address':
     'ข้อมูลที่อยู่จดทะเบียนของบริษัทไม่ครบถ้วน (ต้องมีเลขที่และรหัสไปรษณีย์) กรุณากรอกข้อมูลโปรไฟล์บริษัทให้ครบก่อนสร้างไฟล์ ภ.พ.30',
+
+  // sso_batch.* (R2/H8+H9 — สปส.1-10 file/PDF export guards, SsoFilingService + FilingNameRules)
+  'sso_batch.missing_employer_account':
+    'ยังไม่ได้ตั้งค่าเลขที่บัญชีนายจ้าง (10 หลัก) กรุณากรอกในข้อมูลบริษัทก่อนจึงจะออกไฟล์ สปส.1-10 ได้',
+  // NO entry for 'sso_batch.unencodable_name' — deliberate. `errorToToast` returns
+  // `resolveProblemKey(code) ?? detail`, so a key here REPLACES the backend detail rather than
+  // titling it. That message is the only thing carrying the offending employee's id and the
+  // character's code point (U+xxxx), and the character is a lookalike that cannot be found by eye —
+  // without them the user cannot locate the row and cannot file at all. The backend message is
+  // already Thai-first, so nothing is lost by falling through to it.
 
   // payroll.*
   'payroll.duplicate_period': 'มีรอบจ่ายของงวดนี้อยู่แล้ว',
