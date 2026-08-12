@@ -36,9 +36,14 @@
   January fiscal year, every settled invoice was receipted in the year it was issued, and the only
   outstanding invoices sit in the current open year. **No prior year was understated — nothing to amend,
   and the surcharge exposure is zero.** The research stays valid, just untriggered.
-- **⬜ Still to close R1:** wipe+reseed co5/co7 (they hold sub-satang rows, so they can no longer be
-  year-closed) · reset the local `teas_test` (years of accumulated state caused five false-alarm test
-  failures in one session).
+- **✅ `teas_test` reset done** — dropped and recreated empty; the fixture rebuilt it from migrations and
+  the suite passes **identically (1129/0/8)**, so the reset is behaviour-neutral — and it now runs in
+  **9m49s instead of 17–21 min**. Procedure recorded in `troubles-wiki.md`.
+- **⬜ wipe+reseed co5/co7 — confirmed necessary, deliberately deferred.** Measured on prod: the
+  sub-satang rows sit in exactly the account types year-close aggregates — **co5 has 1 REVENUE line,
+  co7 has 3 EXPENSE lines** — so both companies genuinely can no longer be year-closed, as predicted.
+  Not urgent (it only bites when someone attempts a year-close, a test scenario) and it is a destructive
+  prod operation, so it is queued for just before the swarm re-run, which wants clean companies anyway.
 - **⏳ WAITING ON HAM — 5 questions** in `specs/doc-lifecycle-cancel-reissue-backdate.md` §6 (cancel+reissue
   posted tax documents · settable document date · delete the "customer has paid" button). **Feature C should
   land next** — v1.28.0 turns `MarkSettledAsync` into an active hole: it marks an accrued invoice settled
