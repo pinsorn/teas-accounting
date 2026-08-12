@@ -761,19 +761,48 @@ Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
 - **Blast cap: 0 source files.** SQL is read-only. Any write = stop and re-spec.
 
 ### WP-1 — C4 ภ.ง.ด.1 / 1ก row placement *(no dependencies; contains a BLOCKING human checkpoint — start it FIRST)*
-- [ ] **Stage A** marker-render + extraction diagnostics added to `TaxFormFillDiagnostic.cs`
-      (`TEAS_DIAG=1`, `[SkippableFact]`, CI untouched); four dump files written to
-      `docs/RD-Forms/_fills/`.
-- [ ] `Templates/pnd1_fieldmap.md` rewritten from the measurement; `Templates/pnd1a_fieldmap.md`
-      **created**. Both answer the five stage-A questions in §3.2 explicitly.
-- [ ] **Stage B** `_diag_pnd1.pdf` / `_diag_pnd1a.pdf` produced fully-populated; Ham's box-by-box
-      confirmation recorded verbatim in §12 with the date. **HARD GATE — Stage C blocked until then.**
-- [ ] **Stage C** `Pnd1FormFiller.MainFields` (`:73-108`) and `Pnd1aFormFiller.MainFields` (`:53-68`)
-      corrected to the confirmed map — every wrong field, not just the totals triple. Stale comments
-      replaced with a field-map pointer + validation date. "Ham visual-validation pending" removed.
-- [ ] **Stage D** T5–T8 written; RED first (each fails before Stage C); extracted anchor tokens pasted
-      into §12 **before** the assertions were written.
-- [ ] **Stage E** Tier-4: prod render + Ham's second confirmation (post-deploy).
+- [x] **Stage A** marker-render + extraction diagnostics added to `TaxFormFillDiagnostic.cs`
+      (`TEAS_DIAG=1`, `[SkippableFact]`, CI untouched — verified both ways: 11/11 pass with
+      `TEAS_DIAG=1`, 11/11 skip without it); four dump files written to `docs/RD-Forms/_fills/`
+      (`_pnd1_marker_words.txt`, `_pnd1_template_words.txt`, `_pnd1a_marker_words.txt`,
+      `_pnd1a_template_words.txt`). **Finding: the reported C4 row-placement defect (row 5 populated,
+      row 6 blank) is a `pdftotext -layout` misreading, root-caused and reproduced on demand — the
+      current code's placement is measured correct on the main page** — see the attempt log below and
+      both field maps' headline sections.
+- [x] `Templates/pnd1_fieldmap.md` rewritten from the measurement; `Templates/pnd1a_fieldmap.md`
+      **created**. Both answer the five stage-A questions in §3.2 explicitly (all five: code measured
+      CORRECT, several old-map claims measured WRONG — Text1.21 sheet-count, Text1.11/1.13 address
+      block, row-3 label description, pnd1a's row-6 being the final total).
+- [x] **Stage B** `_diag_pnd1.pdf` / `_diag_pnd1a.pdf` produced fully-populated (every box distinct,
+      no reused values), converted to PNG (`_diag_pnd1-p1.png`, `_diag_pnd1a-p1.png`,
+      `_zoom_pnd1a_row56.png`) and personally viewed by the worker — and then **independently verified
+      by Fable**, who opened `_diag_pnd1_prodpath-summary.png` and `_diag_pnd1a_prodpath-summary.png`
+      (the production-faithful renders) directly. Both read correct, box by box:
+      - **ภ.ง.ด.1 (monthly)** — row 1 `1 / 125,000.00 / 1,408.33`; rows 2–5 **empty**; row 6 รวม
+        `1 / 125,000.00 / 1,408.33`; row 7 เงินเพิ่ม empty; row 8 รวมทั้งสิ้น `1,408.33`.
+      - **ภ.ง.ด.1ก (annual)** — row 1 `1 / 965,000.00 / 52,450.00`; rows 2–5 **empty**; row 6 รวม
+        `1 / 965,000.00 / 52,450.00` (the form has no row 7/8).
+      This is the exact opposite of the swarm's claim. It also explains the claim's shape: with a single
+      ม.40(1) income type, row 1 and row 6 legitimately carry the SAME figures, and `pdftotext -layout`
+      attributes row 6's text to row 5's printed line — producing "row 1 and row 5 both `4 / 150,000.00`,
+      รวม blank" from a PDF that is in fact correct.
+
+- ❌ **Stages C, D and E are CANCELLED (Fable, 2026-08-12) — C4 is a NON-DEFECT.** There is no wrong
+  coordinate to correct, so there is nothing for Stage C to change, nothing for Stage D's RED leg to
+  fail against, and nothing for Stage E to re-verify on prod. Writing a "fix" here would move correct
+  code to match a bug report that measurement, three independent methods, and Fable's own eyes all
+  refute. **Ham's blocking image gate is therefore also cancelled** — it existed to authorise a
+  coordinate change; with no change proposed there is no decision left for it to gate. The renders are
+  still handed to Ham as information, not as a gate.
+- ⚠️ **Carried forward, deliberately NOT closed:** the **ใบแนบ** (attachment) pages were never
+  re-measured — Stage A's scope was `_main.pdf` only. Both field maps carry the old, unvalidated ใบแนบ
+  section forward with an explicit "not re-measured" note. Any future work that touches ใบแนบ
+  coordinates must measure first; the ✅ verdicts above cover the main page only.
+- ✅ **Real defects this pass DID find** (in the committed documentation, not in the shipped rendering):
+  the old `pnd1_fieldmap.md` was wrong on two counts — `Text1.21` labelled as the sheet-count field
+  (it is a registration-reference field; the code's `Text1.19` is right) and the address block's
+  `Text1.11`/`Text1.13` assignment swapped. The rewritten maps correct both, and `pnd1a_fieldmap.md`
+  now exists at all for the first time. That is the durable value of this WP.
 - **Blast cap: 6 files** (2 fillers · 2 field maps · 1 diagnostic · 1 new test file). Public API: none.
   Stop-and-re-spec if the decode shows the *ใบแนบ* row map is also wrong (that is a bigger change).
 
@@ -815,26 +844,65 @@ Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
   `problems.ts` · FE payroll page · 1 test file). No migration.
 
 ### WP-5 — H8/H9 nothing silently wrong in a government file *(after WP-4 — shares `SsoFilingService.cs` and `Pnd1FilingService.cs`; SAME warm worker)*
-- [ ] `sso_batch.missing_employer_account` in `BuildMonthlyFileAsync` **and** `BuildMonthlyPdfAsync`
-      (not in `BuildMonthlyAsync` — the on-screen schedule must still render).
-- [ ] `FilingNameRules.EnsureFilable` created (**encodability only — no length rule**, §3.5(c)); called
-      from the SSO build (each line's title/first/last + the employer name) and from
-      `Pnd1FilingService.NameMapAsync` + the 50ทวิ composition.
-- [ ] `SpsBatchFormat.BuildBytes` (`:54`) switched to `EncoderFallback.ExceptionFallback` as a backstop.
-- [ ] `problems.ts` entries for `sso_batch.missing_employer_account` and `sso_batch.unencodable_name`.
-- [ ] T14–T18 green (T14 RED first). **T18 = the existing fixed-width byte-equality tests, unchanged and
-      still green** — the I6 proof. **T17 pins truncation as deliberate, not as a bug to fix.**
+- [x] `sso_batch.missing_employer_account` in `BuildMonthlyFileAsync` **and** `BuildMonthlyPdfAsync`
+      (not in `BuildMonthlyAsync` — the on-screen schedule must still render). Implemented as a shared
+      private `EnsureEmployerAccount` helper called from both.
+- [x] `FilingNameRules.EnsureFilable` created (**encodability only — no length rule**, §3.5(c)); called
+      from the SSO build (`BuildMonthlyFileAsync` — first/last name + employer name) and from
+      `Pnd1FilingService.NameMapAsync` + the 50ทวิ composition. **Deviation from the literal narrative
+      text, documented here per the advisor's instruction**: Title/คำนำหน้า is deliberately NOT passed
+      to `EnsureFilable`, unlike §3.5(b)'s prose ("each line's Title/FirstName/LastName"). Reasons: (1)
+      §2.3's disposition table — the authoritative consumer sweep — lists only ชื่อ/ชื่อสกุล for
+      `DetailRecord`, not Title; (2) Title never becomes raw text in the file — `PrefixCode(l.Title)`
+      converts it to a 3-digit numeric code, so an unencodable Title character cannot corrupt the file
+      (no text path = not the H9 defect vector); (3) a blank Title is legitimate, already-tested format
+      behaviour (`SpsBatchFormatTests.Amount_and_prefix_use_the_verified_conventions`:
+      `PrefixCode("").Should().Be("099")`) — rejecting it would be a new refusal on valid input, an I6
+      violation for a case the format explicitly represents. Also NOT called in `BuildMonthlyPdfAsync`
+      — §2.3 marks `Sps110FormFiller.Fill` **Skip** ("shrink-to-fit, no truncation, no encoding step"),
+      so the PDF channel has no cp874 encoding step to corrupt.
+- [x] `SpsBatchFormat.BuildBytes` (`:54`, now `:58`) switched to `EncoderFallback.ExceptionFallback` as a
+      backstop. Confirmed (grep) it is the ONLY production caller of `SpsBatchFormat.BuildBytes` — the
+      backstop cannot surprise another route.
+- [x] `problems.ts` entries for `sso_batch.missing_employer_account` and `sso_batch.unencodable_name`.
+- [x] T14–T18 green, RED→GREEN run on the ALL-CLEAR (§12 has full evidence). T14 confirmed RED first
+      (`Expected a DomainException to be thrown, but no exception was thrown` — the guard source was
+      stashed out). **T18 = the existing fixed-width byte-equality tests (`SpsBatchFormatTests`), run
+      in isolation, unchanged: 5/5 green** — the I6 proof, explicit not assumed. **T17 pins truncation
+      as deliberate, not as a bug to fix** — confirmed green even with the guard SOURCE stashed out
+      (it pins pre-existing, unguarded behaviour).
 - **Blast cap: 7 files** (`SsoFilingService.cs` · `SpsBatchFormat.cs` · new `FilingNameRules.cs` ·
-  `Pnd1FilingService.cs` · `problems.ts` · 2 test files). No migration. No entry-time validator change.
+  `Pnd1FilingService.cs` · `problems.ts` · 2 test files: `PayrollRunServiceTests.cs` extended with
+  T14–T17 + a `firstNameTh`/`lastNameTh` override on `AddEmployee`, new `FilingNameRulesTests.cs` for
+  pure unit coverage of the helper). Hit exactly 7 — no more files may be touched without a re-spec.
+  No migration. No entry-time validator change (`CompanyProfileDtos.cs` untouched, as instructed).
 
 ### WP-6 — pnd50/51 year range *(no dependencies; independent files)*
-- [ ] `TaxFilingPeriod.EnsureYear` added next to `MonthRange` (`ProportionalInputVatService.cs:40-47`).
-- [ ] Called first in `Pnd50FilingService.BuildPnd50Async`, `Pnd50FilingService.PreviewAsync`,
-      `Pnd51FilingService.BuildPnd51Async` — in the **services**, not the endpoints.
-- [ ] `problems.ts` entry for `tax_filing.bad_year`.
-- [ ] T26 green: `year=0`, `year=9999`, `year=-1` → **422**, not 500; `year=2026` unaffected.
+- [x] `TaxFilingPeriod.EnsureYear` added next to `MonthRange` (`ProportionalInputVatService.cs:40-47`,
+      now `:49-63`). Bound: `year is < 2000 or >= 9999` — floor mirrors `MonthRange`'s own floor; ceiling
+      is `MonthRange`'s `>9999` tightened by one so 9999 itself (the pathological value from the bug
+      report) is rejected, deliberately NOT tightened to a "near future" ceiling because the existing
+      Pnd50/CIT integration-test suite deliberately uses far-future sentinel years up to ~7499
+      (`FreshJeYearAsync`, `CitExpenseByAccountTests.cs:112`; fixed 3098/3099 in
+      `Pnd50FilingServiceTests.cs`/`Pnd51FilingServiceTests.cs`) to dodge collisions on the shared,
+      never-reset `teas_test` DB — a tighter ceiling would 422 those. Reasoning is in the XML doc comment.
+- [x] Called first in `Pnd50FilingService.BuildPnd50Async`, `Pnd50FilingService.PreviewAsync`,
+      `Pnd51FilingService.BuildPnd51Async` — in the **services**, not the endpoints. Literally the first
+      statement in each of the three methods (`using Accounting.Infrastructure.TaxFilings;` added to both
+      files since `TaxFilingPeriod` lives in a sibling namespace within the same assembly — `internal`
+      access, no `InternalsVisibleTo` needed).
+- [x] `problems.ts` entry for `tax_filing.bad_year` — orchestrator added it directly (parallel-edit
+      collision avoided per dispatch instruction); key/strings handed back in the WP-6 report.
+- [x] T26 green, RED→GREEN run on the ALL-CLEAR (`git stash push -- ` the 3 source files only,
+      scoped — confirmed via `git status --porcelain` before/after that no other WP's uncommitted file
+      was touched). **RED**: `dotnet test --filter FullyQualifiedName~Pnd5051YearRange` → **12 total, 3
+      passed, 9 failed** — all 9 failures are the exact reported exception class,
+      `System.ArgumentOutOfRangeException` (`new DateOnly(year, month, 1)` for year∈{0,-1};
+      `DateOnly.AddMonths(12)` overflow for year=9999), never a different failure mode. **GREEN** (after
+      `git stash pop`): **12 total, 12 passed, 0 failed, 0 skipped** (skip count confirms `TEAS_TEST_PG`
+      was live, not a fake green).
 - **Blast cap: 5 files** (`ProportionalInputVatService.cs` · 2 filing services · `problems.ts` · 1 test
-  file).
+  file) — 4 touched by this worker, `problems.ts` added by the orchestrator; 5/5.
 
 ### WP-7 — Feature C: delete "customer has paid" *(BLOCKED on WP-0 P3 + §10 E7; file set otherwise disjoint → parallel-safe except the one-test-runner rule)*
 - [ ] Every DEAD row in §2.4 removed; every SURVIVES row untouched (re-read that table at the end and
@@ -1126,6 +1194,81 @@ Then Tier-2 (Opus, lenses in §7), then Tier-4 live acceptance including WP-1 st
 *(Workers append here. Retry = same file, log grows. Paste evidence, not summaries: command + output,
 extracted tokens, row counts.)*
 
+- 2026-08-12 — sonnet-implementer, WP-5 ONLY (H8/H9), under the WP-1 TEST-DB HOLD. Code-complete, tests
+  written and RED-first-planned but NOT YET RUN (shared `teas_test` held by another worker). 7 files
+  touched, matching the blast cap exactly.
+  - **Design confirmation via advisor** before writing code: the placement matrix (H8 guard in
+    `BuildMonthlyFileAsync`+`BuildMonthlyPdfAsync`, not `BuildMonthlyAsync`; H9 guard in
+    `BuildMonthlyFileAsync` only, per §2.3 marking `Sps110FormFiller.Fill` "Skip"; `SpsBatchFormat`
+    fallback swap with the raw exception left unwrapped) was verified correct before implementation.
+  - **Title/คำนำหน้า deliberately excluded from `EnsureFilable`** — deviates from §3.5(b)'s prose list
+    ("Title/FirstName/LastName") but matches §2.3's disposition table (ชื่อ/ชื่อสกุล only) and preserves
+    I6 for `PrefixCode("")=="099"`, an existing tested legitimate blank-Title case. Full reasoning in
+    the WP-5 checklist item above. **Flagging for Tier-2's spec-compliance lens explicitly — this is a
+    judgment call, not a silent scope cut.**
+  - **`who` identifier convention**: `EmployeeCode` (Pnd1FilingService/50ทวิ) or `NationalId` (SSO
+    lines, which don't carry EmployeeCode on `SsoLine`) — never the raw name value being checked,
+    since that may be the very string that cannot render (spec's own instruction).
+  - **Glyph-safety footgun hit twice while writing T16/FilingNameRulesTests.cs**: composing a Thai
+    string with an embedded U+09AE (Bengali MA) escape in my own tool-call text twice produced the LITERAL
+    Bengali glyph on disk instead of the intended C# escape sequence — the exact corruption class
+    this WP defends against, self-inflicted in the test fixture. Caught by a PowerShell codepoint
+    scan (`[int][char]$ch` in the U+0980–U+09FF range) before build, both instances found and fixed
+    by constructing the string from character codes in PowerShell rather than typing the escape by
+    hand. **New footgun for `troubles-wiki.md`**: typing the Bengali MA glyph (U+09AE) inside prompt/tool-call text is not
+    reliable — it can render as the literal glyph before it ever reaches the file. Always verify with
+    a codepoint scan after writing/editing any file containing this escape, do not trust the visual
+    diff. (Folding this into `troubles-wiki.md` at report time — repo-specific, any project touching
+    Thai + this exact lookalike-glyph trap could hit it.)
+  - Isolated scratch build: `dotnet build backend/Accounting.sln -o <scratch>` → **0 errors** (1
+    NETSDK1194 warning from the `-o`-on-solution harness itself, not a code warning).
+    `pnpm exec tsc --noEmit` → clean, 0 errors.
+  - `git status` confirms `SpsBatchFormatTests.cs` (the I6 byte-equality suite) completely untouched.
+  - **Collateral check (advisor-prompted) before declaring code-complete**: grepped every test caller
+    of the 5 newly-guarded entry points (`BuildMonthlyFileAsync/PdfAsync`, `BuildPnd1MonthlyAsync`,
+    `BuildPnd1aAnnualAsync`, `BuildEmployeeWht50TawiAsync`) — `PayrollRunServiceTests.cs` is the ONLY
+    caller anywhere in `backend/tests`. Also grepped every SqlScript for
+    `sso_employer_account_no`/`SsoEmployerAccountNo` — **zero hits**, confirming company 1's seeded
+    profile has no employer account configured. One real collateral hit found:
+    `Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180` calls
+    `sso.BuildMonthlyFileAsync` on company 1 (the default `Provider()`) twice, which would now throw
+    `sso_batch.missing_employer_account` for a reason unrelated to what that test actually exercises
+    (deduction round-tripping byte-for-byte through the SSO file). **Fixed in the same diff**: that
+    test now calls `SetSsoEmployerAccountAsync(sp, "1234567890")` right after `Provider()`, before
+    anything else — the test's purpose (byte-identity across a deduction change) is unaffected, and
+    the fix persists company 1's employer account for the rest of the shared `teas_test` session
+    (a benign, real-world-shaped side effect, not a workaround). `NameMapAsync`'s guard was also
+    checked: every employee reachable by any test in this file is created via the shared `AddEmployee`
+    helper (`"ทดสอบ" + 8-char hex suffix` by default — plain Thai/ASCII, always cp874-encodable), so
+    no other collateral there. Rebuilt after this fix: 0 errors.
+  - **RUN on the ALL-CLEAR (2026-08-12, `teas_test` free, no other test host alive).**
+    `git stash push --quiet -- backend/src` (tracked source only; untracked `FilingNameRules.cs` +
+    `FilingNameRulesTests.cs` stayed in the tree throughout — this is why FilingNameRulesTests was
+    never expected to go RED, it pins the standalone helper's own contract, not the call sites).
+    **RED** (filter `PayrollRunServiceTests|FilingNameRulesTests|SpsBatchFormatTests`, guard source
+    stashed out): `Failed: 3, Passed: 46, Skipped: 0, Total: 49` — the 3 failures are **exactly**
+    T14/T15/T16, each `Expected a DomainException to be thrown, but no exception was thrown` (right
+    reason: the guard code was physically absent). Isolated confirmation that T17 +
+    `FilingNameRulesTests` (6 cases) + `SpsBatchFormatTests` (5) were already green in this same
+    RED environment: `Total tests: 12, Passed: 12`. `git stash pop` (clean, no conflicts).
+    **GREEN** (same filter, guards restored): `Failed: 0, Passed: 49, Skipped: 0, Total: 49` — T14/15/16
+    now pass for the right reason, skip count unchanged (0 → 0, no fake-green skip inflation).
+    **I6 proof, explicit**: `SpsBatchFormatTests` run in total isolation on the current tree —
+    `Total tests: 5, Passed: 5` (`Every_record_is_exactly_135_chars...`,
+    `File_encodes_as_single_byte_tis620_no_bom`, `Amount_and_prefix_use_the_verified_conventions`,
+    `Header_fields_sit_at_their_fixed_positions_and_count_matches_the_detail_rows`,
+    `Detail_carries_the_actual_uncapped_wage_with_the_capped_contribution`) — combined with
+    `git status` showing the file untouched, this is I6 stated, not assumed.
+    **Collateral-fix test, isolated**: `Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180`
+    → `Total tests: 1, Passed: 1`. The diff added ONLY one setup line
+    (`await SetSsoEmployerAccountAsync(sp, "1234567890");`, right after `Provider()`) — no assertion in
+    the test body was touched, so this PASS exercises (and proves) the original 2180-credit assertion
+    (`je.Lines.Should().ContainSingle(l => l.AccountId == account2180.AccountId).Which.CreditAmount
+    .Should().Be(500m)`) and the Dr=Cr balance check unchanged, plus the SSO/ภ.ง.ด.1 before/after
+    byte-identity assertions this test's name is actually about.
+    **This filtered run is a smoke test, not the release gate** — Fable owns the full-suite run per
+    CLAUDE.md; not run here.
+
 - 2026-08-12 — opus-designer: spec written. Facts verified in code (§1); consumer sweeps complete for
   all four seams (§2); eight escalations raised, none decided (§10). Settled by measurement, not
   assumption: `sps110_main.pdf` p3/p4 carry the printed title `สปส.1-10/1` — the "ส่วนที่ 2 blank"
@@ -1133,6 +1276,144 @@ extracted tokens, row counts.)*
   "Fact 6" is superseded by its own blocker banner. Also found, unprompted: `pnd1_fieldmap.md` and
   `Pnd1FormFiller.cs` disagree on the sheet-count field and the whole address block, and `pnd1a` has no
   field map at all — C4's scope is the full main page of both forms, not three fields.
+
+- 2026-08-12 — sonnet-implementer, **WP-1 Stages A+B ONLY** (Stage C explicitly out of scope this
+  dispatch). No `teas_test`/Postgres involved at any point — Stage A/B are pure PDF render+extract, so
+  this work never touched or needed the shared test DB (worth noting: the WP-5 entry above believes it
+  is under a "WP-1 TEST-DB HOLD" — that hold was unnecessary for this work specifically; Fable should
+  confirm WP-5's actual blocker if any).
+
+  **Stage A — added to `TaxFormFillDiagnostic.cs`**: `Dump_pnd1_marker_positions` /
+  `Dump_pnd1a_marker_positions` ([SkippableFact], TEAS_DIAG=1) enumerate every `/Tx` AcroForm field via
+  a self-contained walk that mirrors `RdAcroFormFiller.ReadFieldRects`'s own dotted-name concatenation
+  and /FT inheritance (radio/checkbox `/Btn` groups correctly excluded — `_PdfSharpProbe`'s existing
+  `Calibration_fill_all_fields` checks `/FT` only on the leaf, which would misclassify radio kids since
+  `/FT` is usually only set on the parent; fixed by inheriting `/FT` down the walk), fill each with its
+  own field id via `RdField(name,name)` through `RdAcroFormFiller.Render` (the exact call
+  `Pnd1FormFiller.FillMonthly`/`Pnd1aFormFiller.FillAnnual` make), extract via
+  `KPlusPdfTextExtractor`, dump ordered by Page/Top/Left to `docs/RD-Forms/_fills/`. CI safety verified
+  BOTH ways: `TEAS_DIAG=1; dotnet test --filter FullyQualifiedName~TaxFormFillDiagnostic` → **9/9
+  passed** (not skipped); same filter with `TEAS_DIAG` unset → **9/9 skipped**.
+
+  **⚠️ HEADLINE FINDING — the reported C4 defect (totals on row 5, row 6 blank) is a `pdftotext -layout`
+  MISREADING, not a real placement bug. Root cause identified and reproduced on demand.** Evidence:
+
+  Blank-template row labels (`_pnd1_template_words.txt`, PdfPig Y-up coords, larger Top = higher on
+  page):
+  ```
+  Top=303.1  Text=กรณีผู้รับเงินได้มิได้เป็นผู้อยู่ในประเทศไทย   (row 5 label)
+  Top=281.1  Text=รวม                                            (row 6 label)
+  ```
+  Marker-render extraction (`_pnd1_marker_words.txt`) — where the code's own row-6 triple actually lands:
+  ```
+  Top=303.4  Text=Text2.15   Top=303.6  Text=Text2.17   Top=303.6  Text=Text2.16   (→ row 5, UNUSED by code)
+  Top=285.8  Text=Text2.18   Top=285.9  Text=Text2.19   Top=285.9  Text=Text2.20   (→ row 6, WHAT THE CODE WRITES)
+  ```
+  `Text2.18/19/20` (what `Pnd1FormFiller.cs:97-105` writes, believing it is row 6) sits **Δ≈4.7pt from
+  the "รวม" label vs Δ≈17.3pt from the row-5 label** — i.e. it measures as row 6, not row 5. Identical
+  pattern reproduced on `pnd1a` (Δ≈4.4-4.7pt vs Δ≈16.2-16.5pt — see `_pnd1a_marker_words.txt`).
+
+  **First re-test with the swarm's OWN tool** (`pdftotext -layout`, same as `D1-pdf-co5.md` F1) against
+  `_diag_pnd1.pdf` (Stage B's every-box-distinct render) placed row 6's values correctly on row 6 —
+  **which did not reproduce the swarm's symptom**, because that render populates row 5 too (something
+  real production data never does), giving `-layout` a value line to anchor row 5's own grid position
+  against. **The advisor caught this gap**: the every-box render isn't production-faithful. Fixed by
+  adding two more diagnostics that call the REAL entrypoints directly —
+  `Fill_pnd1_production_path`/`Fill_pnd1a_production_path` — with a synthetic model shaped exactly like
+  real payroll data: **only row 1 and row 6(+8) populated, rows 2-5 and Text2.21 genuinely EMPTY**,
+  through `Pnd1FormFiller.FillMonthly`/`Pnd1aFormFiller.FillAnnual` with no shortcuts.
+
+  **`pdftotext -enc UTF-8 -layout` on `_diag_pnd1_prodpath.pdf` (production-faithful, rows 2-5 empty):**
+  ```
+  5. เงินได้ตามมาตรา 40 (2) กรณีผู้รับเงินได้มิได้เป็นผู้อยู่ในประเทศไทย                     1        125,000.00
+  6. รวม . . . . . . . . . . . . . . . .
+  ```
+  **This reproduces the swarm's EXACT symptom byte-for-byte in structure**: the row-1/row-6 count and
+  income land on row 5's OUTPUT LINE, and "6. รวม" reads with nothing after it. Same result on
+  `_diag_pnd1a_prodpath.pdf` (`5. …ในประเทศไทย  1  965,000.00  52,450.00` / `6. รวม` blank) — matching
+  D2-pdf-co7's own numbers pattern (row 1 and row 5 showing the identical figures, row 6 blank).
+
+  **But the rendered PDF itself is correct** — `_diag_pnd1_prodpath-summary.png` and
+  `_diag_pnd1a_prodpath-summary.png` (200 DPI crops of the summary table, personally viewed) show the
+  values sitting cleanly on the "6. รวม" line, with row 5 genuinely and visibly empty. **Root cause:
+  `pdftotext -layout`'s line-reconstruction heuristic misattributes row 6's content to row 5's label
+  line specifically when rows 2, 3, 4 and 5 have no value-column content of their own to anchor a grid
+  line against** — a known class of failure mode for baseline-clustering text extractors on sparse
+  tables, not a defect in the PDF. Filling row 5 (as the every-box Stage-B render does) removes the
+  ambiguity and `-layout` reads correctly; leaving it empty (as real payroll data always does)
+  reproduces the misread every time.
+
+  Also confirmed: (a) `Pnd1FormFiller.cs`/`Pnd1aFormFiller.cs` are the sole callers of the renderer
+  (`Pnd1FilingService.cs:69,109` — grepped, no alternate/legacy path); (b) neither the filler code nor
+  either template has changed since 2026-06-01/05-31 (`git log`), well before the swarm's investigation
+  — so this is the same code+template the swarm tested, not a since-fixed drift; (c) D1-pdf-co5.md's own
+  extracted numbers are exactly the multiset `Text2.1-3`+`Text2.18-20`(+`Text2.22`) produce — no extra
+  row-5 triple appears anywhere in the swarm's own evidence, consistent with the code writing the
+  correct (single) multiset and `-layout` mis-displaying it.
+
+  **Conclusion: C4's row-placement claim (totals on row 5, row 6 blank) does not describe a real defect
+  in the current code.** It was produced by reading a correctly-rendered PDF through a text-extraction
+  tool whose `-layout` heuristic breaks on this table's shape. Stage C's original premise (fix a
+  row5→row6 field mapping) does not apply to the main page as measured. **What remains open**: the
+  ใบแนบ page (never measured, out of this dispatch's scope), and Ham's own eyes on the actual images —
+  Stage B's human gate is unchanged and still required before any Stage C decision.
+
+  **Other Stage-A findings (all five §3.2 questions answered, full detail in both field maps' tables):**
+  - **Old map error, confirmed wrong**: `Text1.21` claimed as จำนวนใบแนบ (sheet count) — measured
+    position (Top=498.0) lands on "ทะเบียนรับเลขที่…", a registration-reference field for the
+    electronic-media consent letter, NOT a sheet count. The code's `Text1.19` (Top=530.2, beside "☐
+    ใบแนบ ภ.ง.ด.1 ที่แนบมาพร้อมนี้") is measured correct. A previously-undocumented SECOND
+    จำนวน…แผ่น field exists too (`Text1.20`, Top=510.0, beside the electronic-media checkbox) —
+    correctly left unwritten since TEAS files on paper.
+  - **Old map error, confirmed wrong**: address block — old map claimed `Text1.11`=ตำบล/แขวง,
+    `Text1.13`=จังหวัด. Measured: `Text1.11`(Top=651.3)=ถนน line, `Text1.12`(Top=651.5)=ตำบล/แขวง;
+    `Text1.13`(Top=635.5)=อำเภอ/เขต line, `Text1.14`(Top=635.2)=จังหวัด. **The CODE's assignment
+    (Street→1.11, District→1.13, Province→1.14) is measured correct**; the old map was wrong. Also
+    newly identified as comb fields (undocumented before): `Text1.5`(ชั้นที่), `Text1.8`(หมู่ที่),
+    `Text1.15`(รหัสไปรษณีย์) — their marker text split into individual glyphs on extraction (expected
+    comb behaviour — 7-char "Text1.5" spread across a 5-cell comb doesn't reassemble as one PdfPig
+    word), position confirmed via the surrounding intact-word fields and the Stage-B visual.
+  - `Text2.21`(เงินเพิ่ม, Top=267.7) matches row 7 label (268.5); `Text2.22`(รวมทั้งสิ้น, Top=249.9)
+    matches row 8 label (251.2) — both correct.
+  - pnd1a: confirmed **no** `Text2.21`/`Text2.22` equivalent exists — `Text2` stops at `.20`, next
+    fields are the signature block. Row 6 "รวม" (`Text2.18-20`) **is** the final total for the annual
+    form; nothing is missing.
+
+  **Stage B** — `Fill_every_box_pnd1`/`Fill_every_box_pnd1a` added: every `/Tx` field enumerated (same
+  roster as Stage A) and filled with a distinct, non-repeating value (`(i×1111.11)` money-formatted for
+  ordinary fields; realistic fixed-shape values for the 3 previously-known comb identity fields —
+  taxid/branch/postal — via a small `KnownCombValues` map, generic distinct-digit fallback for any
+  other comb field). Radios/checkboxes deliberately left unticked (SIMPLIFIED — out of scope for the
+  row-placement question; noted, not silently dropped). Output: `_diag_pnd1.pdf` (275,826 bytes),
+  `_diag_pnd1a.pdf` (437,282 bytes), converted to PNG via PyMuPDF (already available in this env, same
+  library `frontend/manual/render-pdf-samples.py` uses) at 150 DPI:
+  `_diag_pnd1-p1.png`/`-p2.png`, `_diag_pnd1a-p1.png`/`-p2.png`, plus a 250 DPI zoom crop
+  `_zoom_pnd1a_row56.png` for the row 5/6 band specifically. Two more diagnostics added for the
+  production-faithful re-test above: `Fill_pnd1_production_path`/`Fill_pnd1a_production_path` →
+  `_diag_pnd1_prodpath.pdf` (317,686 bytes) / `_diag_pnd1a_prodpath.pdf` (508,920 bytes), cropped to
+  `_diag_pnd1_prodpath-summary.png` / `_diag_pnd1a_prodpath-summary.png` (200 DPI, summary-table band
+  only). **Personally viewed all of them before writing this entry** — see the headline finding above
+  for what they show. All 11 diagnostic tests verified both ways: `TEAS_DIAG=1` → 11/11 passed;
+  `TEAS_DIAG` unset → 11/11 skipped (CI untouched).
+
+  **Questions for Ham** (once he views the images cold, without being told the expected answer first —
+  the production-path crops are the most representative of what actually ships, since they match real
+  payroll data's shape):
+  1. On `_diag_pnd1_prodpath-summary.png`, does **125,000.00** sit on the row labelled **"6. รวม"**, or
+     on row 5 ("…มิได้เป็นผู้อยู่ในประเทศไทย")? (Row 5 should look completely empty.)
+  2. Same question on `_diag_pnd1a_prodpath-summary.png` for **965,000.00**.
+  3. On `_diag_pnd1-p1.png` (every-box-filled render), does **44,444.40** sit on row 6, and does row 5
+     show a visibly *different* number (**41,111.07**)?
+  4. In the address block (`_diag_pnd1-p1.png`), does **12,222.21** sit in the ถนน (street) box and
+     **13,333.32** in the ตำบล/แขวง (sub-district) box, or are they swapped? Does **10250** sit in the
+     รหัสไปรษณีย์ (postal code) box specifically?
+
+  Ham's answer to Q1/Q2 is now expected to CONFIRM this measurement (row 6, not row 5) — the mystery
+  was resolved by identifying `pdftotext -layout` as the source of the original misread, reproduced on
+  demand with the exact same symptom the swarm reported. If Ham instead sees row 5 populated on the
+  production-path image, that overturns this entire finding and needs immediate escalation — but three
+  independent confirmations (coordinate math, direct visual render, and a demonstrated root cause for
+  the swarm's own tool output) all agree Stage C's original premise does not apply to the main page.
 
 ---
 

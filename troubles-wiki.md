@@ -64,6 +64,30 @@ Entry format — terse, greppable by symptom:
   and every file "passed" via the locale error; caught before reporting, re-ran with `LC_ALL=C.UTF-8`
   and plain `grep -n` (both clean, genuinely).
 
+## Typing the Bengali-MA lookalike of Thai `ม` (U+09AE) in a tool-call composes the LITERAL glyph, not the intended escape
+- **Symptom:** writing a test fixture or a spec note that describes the Thai-`ม`-lookalike corruption
+  character — intending to write the C# escape sequence `\u09AE` (six ASCII characters) into the
+  target file — instead lands the actual Bengali glyph on disk, verbatim, the exact corruption class
+  the surrounding work exists to guard against. Happened 3 times in one dispatch (a test string
+  literal, a freshly-`Write`-created test file, and prose in a spec's attempt log) despite each one
+  being *intended* as an escape.
+- **Root cause:** composing text that mentions this specific glyph inside a tool-call's text content
+  is unreliable — the model's own output can render the literal character instead of the six-character
+  ASCII escape string, and nothing about the tool call surfaces this (the Edit/Write tool reports
+  success either way; only a byte/codepoint-level read reveals which one landed).
+- **Fix:** never trust a visual diff or a normal `Read` for this specific character. After writing or
+  editing ANY file that is supposed to contain a `\u09AE` escape (or that discusses this glyph in
+  prose), verify with a codepoint scan, not a text search — e.g. in PowerShell:
+  `Get-Content $path -Encoding UTF8 | ForEach-Object -Begin{$i=0} { $i++; $_.ToCharArray() | Where-Object {[int][char]$_ -ge 0x0980 -and [int][char]$_ -le 0x09FF} | ForEach-Object { "$i" } }`
+  (Git Bash `grep -P` for this glyph itself fails per the entry above — use the PowerShell scan, not
+  grep, when hunting for this exact character.) If found, do not re-type it: construct the replacement
+  from character codes (`[char]0x5C + "u09AE"` for the ASCII escape text, `[char]0x0E21` for the
+  correct Thai ม) via `[System.IO.File]::WriteAllText(...)`, never by typing the glyph again into
+  another tool call — repeat offenses happened even on the SECOND deliberate attempt to fix the first.
+- **Seen:** 2026-08-12, `specs/fix-breakit-r2-compliance.md` WP-5 (H8/H9) — self-inflicted while
+  writing the T16 unencodable-name test and its pure-unit-test sibling; caught before the RED/GREEN
+  run by a PowerShell codepoint sweep across all 7 changed files.
+
 ## ภ.พ.36 reverse-charge JV lands on today, not on the filing period date — `CreateDraftAsync` silently discards its own `docDate` argument
 - **Symptom:** a reverse-charge JV created for a specific filing period (via `WhtFilingService.cs:311-319` → `IJournalService.CreateDraftAsync`) posts/appears dated at `_clock.TodayInBangkok()` regardless of the `docDate` the caller passed in.
 - **Root cause:** `JournalService.CreateDraftAsync` (`Accounting.Infrastructure/Ledger/JournalService.cs`) never reads `req.DocDate` — it unconditionally pins `DocDate`/`PostingDate` to `_clock.TodayInBangkok()` per the `§10` "manual JE dates are always today" rule. That rule was written for a UI-driven manual JV form (no legitimate reason to backdate) and is correct there, but `WhtFilingService` is a second, non-UI caller of the SAME draft path that DOES pass a real filing-period `docDate` — which is silently thrown away.
@@ -1137,3 +1161,33 @@ suite went from **17–21 minutes to 9m49s**, because the queries stop dragging 
 **When to do it:** any time you hit a state-caused false alarm, and as routine hygiene before starting a
 release whose gates you need to trust. Do it when nothing is mid-flight — it is the one window where
 losing the test DB costs nothing.
+
+## Marker-render field decode: a comb field's own field-id text disappears from the PdfPig extraction
+- **Symptom:** decoding an RD AcroForm by filling every field with its own field id (e.g. `Text1.15`
+  prints the literal string `Text1.15`) via `RdAcroFormFiller.Render`, then extracting with
+  `KPlusPdfTextExtractor` — most fields extract as one clean word matching their id, but a handful
+  (usually short numeric-looking boxes: postal code, floor, moo, a 2-digit day-of-month) are simply
+  ABSENT from the extraction. Grepping the dump for the exact field-id string finds nothing.
+- **Root cause:** those fields are COMB fields (`/Ff` bit 25) with a small `MaxLen`. `RdAcroFormFiller`'s
+  comb path places each character of the value in its OWN cell, spaced by `cellW = boxW/MaxLen` — for a
+  narrow 5-digit box this can be ~10pt between glyph centres, wider than PdfPig's word-merge threshold.
+  The marker text (e.g. 7 characters of `"Text1.5"`) truncates to `MaxLen` characters (comb fields
+  truncate rather than shrink-to-fit) and each surviving character extracts as its OWN single-character
+  "word" instead of recombining into one token — so grepping for the whole field-id string matches
+  nothing, even though the field rendered and extracted fine, just fragmented.
+- **Fix:** don't rely on the reassembled id string for comb fields. Either (a) identify them by POSITION
+  only — cross-reference the individual single-character tokens' `Top`/`Left` against the expected
+  label's `Top` band (the position is still exactly where the real rect is; only the text token split),
+  or (b) skip marker-id decoding for comb fields entirely and assign them realistic short synthetic
+  values instead (what Stage-B "fill every box distinct" renders should do anyway — comb fields get
+  hand-picked realistic values, e.g. a fake tax id/postal code, not a truncated field-id).
+- **Also worth knowing:** `/FT` (field type: `/Tx` text vs `/Btn` button/radio) is INHERITABLE and often
+  only set on the PARENT field dict, not on each widget kid. A field-enumeration walk that checks `/FT`
+  only on the terminal (kids-less) widget dict — as the pre-existing `_PdfSharpProbe.Calibration_
+  fill_all_fields`'s `Walk` does — will silently misclassify a same-named radio/checkbox GROUP's kids as
+  text fields (they inherit no `/FT` of their own). Thread the inherited `/FT` down the recursion (same
+  pattern the production `RdAcroFormFiller.ReadFieldRects` already uses for `/MaxLen`/comb inheritance)
+  before filtering to `/Tx`.
+- **Seen:** 2026-08-12, R2/WP-1 (C4 ภ.ง.ด.1/1ก decode) — `Text1.5`/`Text1.8`/`Text1.15` (ชั้นที่/หมู่ที่/
+  รหัสไปรษณีย์, all comb) vanished from the first extraction pass; resolved by matching each field's
+  single-character glyph cluster's position against the template's own label dump instead.

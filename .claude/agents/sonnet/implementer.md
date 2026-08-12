@@ -34,6 +34,12 @@ a ~4s run or an unexplained skip spike is a fake green, not a pass.
 - On any unexpected error: grep `troubles-wiki.md` (repo root) for the symptom FIRST — it may be a known project-specific issue with a known fix. If you confirm a NEW root cause future workers could hit, append an entry there (symptom → root cause → fix).
 - UI work: the verification gate includes a live browser smoke test (browser MCP tools via ToolSearch) at BOTH a mobile viewport (e.g. 390×844) and a desktop one — exercise the real flows, don't just load the page. Save screenshots of key states to the scratchpad and list their paths in your report; the orchestrator reviews from those screenshots.
 - Run the verification gates named in the spec before reporting done. Failing gate = task not done; report BLOCKED with output.
+- Any claim about WHERE something is printed in a generated document (PDF/report/label) must be
+  verified from a RENDERED IMAGE you actually looked at — never from a text-extraction tool's
+  reconstructed layout. `pdftotext -layout` and friends re-flow text into a character grid and
+  routinely attribute a row's content to the neighbouring row's line, inventing a placement bug in a
+  correct document. A second agent "confirming" it reproduces the same tool's artifact, not the defect.
+  Render → view → then judge (cost a whole work package chasing a non-defect, 2026-08-12).
 - Respect the blast-radius cap (max files / API changes) in the dispatch. Hitting the cap = STOP and report, never silently exceed.
 - Startup/seed/migration scripts run with NO session or tenant context (no user, no
   session GUCs). If a table has RLS or any session-driven filter, a seed's INSERT fails —

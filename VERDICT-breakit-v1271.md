@@ -109,6 +109,26 @@ unvalidated. **Pin the exact target row against the template before fixing.**
 runs and the annual ภ.ง.ด.1ก — totals land on row 5 (ม.40(2) non-resident) *as well as* row 1, and both
 "6. รวม" and "8. รวมยอด" print blank. This is the product, not one company's data.
 
+> ## ❌ RETRACTED 2026-08-12 — C4 IS NOT A DEFECT. Do not "fix" this.
+> R2/WP-1 measured both forms from a marker render through the production pipeline and got the opposite
+> result; Fable then opened the rendered pages directly and confirmed it by eye:
+> **ภ.ง.ด.1** row 1 `1 / 125,000.00 / 1,408.33`, rows 2–5 **empty**, row 6 รวม `1 / 125,000.00 / 1,408.33`,
+> row 8 รวมทั้งสิ้น `1,408.33`. **ภ.ง.ด.1ก** row 1 `1 / 965,000.00 / 52,450.00`, rows 2–5 **empty**,
+> row 6 รวม `1 / 965,000.00 / 52,450.00`. The shipped placement is correct.
+>
+> **Root cause of the false finding, reproduced on demand:** every agent that reported this read the PDF
+> with `pdftotext -layout`, which attributes row 6's text to row 5's printed line. Running it on a
+> production-faithful render reproduces the reported symptom exactly — "row 1 and row 5 both filled,
+> รวม blank" — from a PDF whose PNG shows the values on row 6 with row 5 empty. The "off by two" field
+> arithmetic in the paragraph above is also wrong: the summary rows are not a uniform three-fields-per-row
+> grid, so counting `Text2.N` in threes does not locate a row. Measure, never count.
+>
+> **Lesson for every future swarm finding about a PDF:** `pdftotext -layout` is not evidence of where
+> something is PRINTED. Render to an image and look at it. Two agents agreeing does not make a
+> misreading true — D2's "confirmation on a second company" reproduced the same tool's artifact, not the
+> defect. Evidence: `docs/RD-Forms/_fills/_diag_pnd1_prodpath-summary.png`,
+> `_diag_pnd1a_prodpath-summary.png`; full chain in `specs/fix-breakit-r2-compliance.md` §12 (WP-1).
+
 ---
 
 ### C5 · An expense claim can be booked to ANY account — including the bank — and marked Paid without reimbursing anyone [verified, and broader than the agent reported]
