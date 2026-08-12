@@ -129,6 +129,11 @@ const TH: Record<string, string> = {
   // tax_filing.* (R2/WP-6 — ภ.ง.ด.50/51 year validation, TaxFilingPeriod.EnsureYear)
   'tax_filing.bad_year': 'ปีภาษีไม่ถูกต้อง กรุณาระบุปี ค.ศ. ที่ถูกต้อง (เช่น 2026)',
 
+  // pp30.* (R2/WP-3 — ภ.พ.30 is a VAT return; a company with no VAT registration must not file one)
+  'pp30.non_vat_blocked':
+    'บริษัทที่ไม่ได้จดทะเบียนภาษีมูลค่าเพิ่มไม่ต้องยื่น ภ.พ.30 ' +
+    'หากบริษัทนี้จดทะเบียนแล้ว กรุณาตั้งค่าโหมดภาษีมูลค่าเพิ่มในข้อมูลภาษีของบริษัทก่อน',
+
   // pp30_batch.* (ภ.พ.30 RD Prep "Format กลาง" batch-file export guard — Pp30BatchExportService)
   'pp30_batch.no_data': 'ไม่มียอดขายในงวดนี้ ไม่สามารถสร้างไฟล์ ภ.พ.30 ได้ (ต้องมียอดขายมากกว่า 0)',
   'pp30_batch.missing_address':
@@ -143,6 +148,13 @@ const TH: Record<string, string> = {
   // character's code point (U+xxxx), and the character is a lookalike that cannot be found by eye —
   // without them the user cannot locate the row and cannot file at all. The backend message is
   // already Thai-first, so nothing is lost by falling through to it.
+
+  // payroll.* — R2/WP-4 (H13) keeps these two codes SEPARATE on purpose: a filing artifact needs a
+  // Posted run, a payslip only needs an Approved one, so one message cannot honestly cover both.
+  'payroll.not_posted_for_filing':
+    'งวดเงินเดือนนี้ยังไม่ได้ลงบัญชี ต้องอนุมัติและลงบัญชี (Post) ก่อนจึงจะออกเอกสารยื่นราชการได้',
+  'payroll.not_approved_for_payslip':
+    'งวดเงินเดือนนี้ยังเป็นฉบับร่าง ต้องอนุมัติก่อนจึงจะพิมพ์สลิปเงินเดือนได้',
 
   // payroll.*
   'payroll.duplicate_period': 'มีรอบจ่ายของงวดนี้อยู่แล้ว',

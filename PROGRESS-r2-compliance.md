@@ -145,3 +145,48 @@ locate the TEAS repo root" without `TEAS_REPO_ROOT`) — treat that as a failed 
 
 ## Test-DB queue (one runner at a time)
 WP-2 ✅ done → **WP-3 running now** → WP-7 next (its RED→GREEN plan is written and ready) → WP-4 last.
+
+---
+
+# 🛑 RESUME FROM HERE — quota wind-down 2026-08-12 ~23:20, 5-hour pool at 95% (block)
+
+All four wave-2 work packages are **code-complete**. Nothing from wave 2 is committed yet. The working
+tree is the deliverable and it survives a pause — do NOT re-plan, do NOT re-dispatch, do NOT reset.
+
+## State of each work package
+| WP | code | tests | note |
+|---|---|---|---|
+| WP-2 (C2 ภ.พ.36 PV-only) | ✅ | ✅ RED+GREEN, 9/9 + 36/36 collateral, 0 skipped | done, needs commit |
+| WP-3 (H16 ภ.พ.30 VAT-only) | ✅ | ✅ RED 2-for-the-right-reason, GREEN 4/4, 0 skipped | done, needs commit |
+| WP-7 (delete mark-settled) | ✅ | 🔄 **was running its RED→GREEN when the quota wall hit** | check its report first |
+| WP-4 (H13 posted-run filings) | ✅ | ⏸ **held — never got the ALL-CLEAR** | release it FIRST on resume |
+
+## Uncommitted work by Fable (in the tree, not yet committed)
+`frontend/lib/i18n/problems.ts` — four keys added by hand across the wave, all glyph-swept and
+`tsc`-clean: `pp30.non_vat_blocked` (WP-3), `payroll.not_posted_for_filing` +
+`payroll.not_approved_for_payslip` (WP-4), plus the WP-5 comment explaining why
+`sso_batch.unencodable_name` must stay ABSENT. Do not re-add that key.
+
+## Resume steps, in order
+1. Read WP-7's final report (task `aa87a1d1203492950`). If its RED→GREEN did not finish, re-send the
+   ALL-CLEAR — it has its exact commands ready.
+2. **ALL-CLEAR WP-4** (task `a2bf6e5c138f344d2`) — it is the last holder in the queue and has never run
+   its tests. One test runner at a time.
+3. Run ONE consolidated full suite. Baseline to beat: **1151 passed / 0 failed / 14 skipped** (wave 1).
+   Expect the passed count to rise by wave 2's new tests and the skipped count to stay 14.
+4. Read every diff personally, then commit sliced by work package. Two things to check at that review:
+   - **`Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180` has now been edited by BOTH
+     WP-5 and WP-4.** Confirm its original 2180-credit assertions are still byte-identical. A weakened
+     assertion smuggled in as a "collateral fix" is the single most likely defect in this wave.
+   - **WP-2's deliberate deviation**: the spec cited `PurchaseReadDtos.cs:41` but that line is
+     `PaymentVoucherDetail`'s own live flag; the comment went on `VendorInvoice.cs:62` instead. It
+     flagged this rather than doing it silently — verify and accept or reject.
+   - `docs/rbac/endpoint-permission-map.generated.md` must have regenerated (see the gotcha above).
+5. **Tier-2 (Opus) on WP-2 at minimum** — it changes what gets declared on a VAT return filed with the
+   Revenue Department. Wave 1's Tier-2 caught a real defect that two other passes missed; do not skip it.
+6. Release **v1.29.0** — scripts already written and syntax-checked in `publish/v1.29.0/`.
+7. Tier-4 browser leg against the baseline in this file (the `/invoices/3` button must be gone).
+
+## Not started, still genuinely blocked on Ham
+**E6 / E8 — the official RD PDF templates** (ภ.พ.36, ภ.ง.ด.2, ส่วนที่ 2). No file, no form filler.
+Everything else in R2 is either done or in the queue above.
