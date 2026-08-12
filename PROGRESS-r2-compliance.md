@@ -45,7 +45,32 @@ WP-6's 12; skipped 8 → 14 = WP-1's 6 new `TEAS_DIAG`-gated diagnostics. Nothin
   convention. Residue — `year=3000` still renders an empty filing — is a nonsense answer, not a crash;
   **deferred to R3**, where the seam is API-request validation.
 
-## Wave 2 — IN FLIGHT (3 parallel implementers, nothing committed)
+## ⚠️ Quota checkpoint 2026-08-12 23:00 — 5-hour at **86%** (block 95, resets in ~3h). 7-day 32%.
+**No new Claude-worker dispatches from here** (per the 85% rule). The four already-running workers may
+finish; releasing a held worker via SendMessage is a continuation, not a new dispatch, so that is allowed.
+Everything verified is committed — the working tree holds only in-flight worker output.
+**Resume order if this session dies:** (1) read this file + the spec checklists, do not re-plan;
+(2) whichever worker holds `teas_test`, let it finish, then ALL-CLEAR the next one — **one test runner
+at a time**; (3) collect all four WPs, run ONE consolidated full suite, read each diff, commit sliced by
+work package; (4) Tier-2 on the money/compliance diffs (WP-2 especially); (5) release v1.29.0 with the
+already-written scripts in `publish/v1.29.0/`; (6) Tier-4 browser leg against the baseline recorded below.
+
+## Wave 2 — IN FLIGHT (4 parallel implementers, nothing committed)
+
+**WP-2 is code-complete and verified** (not yet committed — waiting for the consolidated suite):
+- Blocking pre-check answered properly: `VendorInvoice.SettledAmount`/`SettlementStatus` are mutated in
+  exactly ONE place repo-wide (`PaymentVoucherService.PostAsync:647-648`), the MCP tool routes through
+  the same service method, and no `.sql` file writes them. So PV really is the only settlement route and
+  removing the invoice rows cannot make a purchase vanish from ภ.พ.36.
+- **T1 RED proved the exact double-count**: 2 rows (฿20,000/฿1,400 each) where there should be 1.
+  GREEN: `Sprint9WhtComplianceTests` 9/9, plus a 36/36 collateral sweep, 0 skipped.
+- One deviation to check at review: the checklist cited `PurchaseReadDtos.cs:41` for the
+  "informational-only" comment, but that line is `PaymentVoucherDetail`'s own live flag —
+  `VendorInvoiceDetail` has no such DTO field. The comment went on the entity (`VendorInvoice.cs:62`)
+  instead. **Flagged for the spec-compliance lens rather than done silently — that is the right call.**
+- It also corrected its own first draft, which had attributed the E1 tax decision to Ham; E1 was
+  de-escalated by the prod probe and **CPA confirmation is still pending**.
+
 - **WP-2 — C2 ภ.พ.36 declares the payment.** Owns `teas_test`. Removes the vendor-invoice rows from
   `GeneratePnd36Async` so one foreign-service purchase is declared once, at the ม.83/6 payment tax point.
   Carries a **blocking pre-check**: if any route other than `PaymentVoucher` can settle a
