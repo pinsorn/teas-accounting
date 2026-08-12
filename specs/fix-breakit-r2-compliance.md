@@ -1198,3 +1198,26 @@ acceptable here at all; on a real customer's books this would be a documented ad
 After the revert, co3's invoice reads as outstanding in the UI, matches its ฿15,400 AR balance, and can be
 receipted normally when payment arrives — which closes the trap. Only then does WP-7 delete
 `MarkSettledAsync`, so nothing can re-create the state.
+### E7 pre-step EXECUTED on prod — 2026-08-12
+
+DB backed up first (`teas-pre-settled-revert-*.sql.gz`, verified with `gunzip -t`). Then, inside one
+transaction, **status only**:
+
+```sql
+UPDATE sales.billing_notes SET status='ISSUED', settled_at=NULL
+ WHERE billing_note_id IN (36, 20) AND upper(status)='SETTLED';   -- UPDATE 2
+```
+
+| id | company | doc_no | before | after | `journal_entry_id` |
+|---|---|---|---|---|---|
+| 36 | co3 (real) | `08-2026-IV-0001` | SETTLED | **ISSUED** | **309 — unchanged** |
+| 20 | co5 (test) | `07-2026-IV-0003` | SETTLED | **ISSUED** | null — unchanged |
+
+**Ledger verified untouched afterwards:** JE 309 is still `POSTED`, `AR Backfill 08-2026-IV-0001`,
+Dr 15,400.00 = Cr 15,400.00; co3's account 1130 still nets to **15,400.00**. co2's AR aging still
+reconciles (`control 8,400 = subledger 8,400, difference 0, balanced true`) — the change touched neither
+company's books.
+
+The two invoices now read as outstanding in the UI, which matches the ledger, and each can be receipted
+normally when payment arrives. **WP-7 is unblocked** — deleting `MarkSettledAsync` can now proceed without
+destroying the ability to reason about how this state arose.
