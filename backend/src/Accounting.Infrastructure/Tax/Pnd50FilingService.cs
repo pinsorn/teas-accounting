@@ -5,6 +5,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Tax;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.TaxFilings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Tax;
@@ -140,6 +141,7 @@ public sealed class Pnd50FilingService(
         int year, bool? isSme, bool hasRelatedPartyOver200M,
         Pnd50Attestation? attest, CancellationToken ct)
     {
+        TaxFilingPeriod.EnsureYear(year);
         var comp = await ComposeAsync(year, isSme, ct);
         var blocking = comp.Refusals.Where(r => !InformationalRefusals.Contains(r)).ToList();
         if (blocking.Count > 0)
@@ -174,6 +176,7 @@ public sealed class Pnd50FilingService(
 
     public async Task<Pnd50PreviewDto> PreviewAsync(int year, bool? isSme, CancellationToken ct)
     {
+        TaxFilingPeriod.EnsureYear(year);
         var comp = await ComposeAsync(year, isSme, ct);
         var cit = comp.Cit;
         var net = cit.TaxBeforeCredits - cit.CreditsTotal;

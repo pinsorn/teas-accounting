@@ -5,6 +5,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Tax;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.TaxFilings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Tax;
@@ -31,6 +32,8 @@ public sealed class Pnd51FilingService(
         Pnd51Attestation? attest,
         CancellationToken ct)
     {
+        TaxFilingPeriod.EnsureYear(year);
+
         var c = await db.Companies.AsNoTracking()
             .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("company.not_found", "Company not found.");

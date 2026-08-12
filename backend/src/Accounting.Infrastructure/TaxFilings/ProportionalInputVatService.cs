@@ -53,4 +53,28 @@ internal static class TaxFilingPeriod
         var next = new DateOnly(y, m, 1).AddMonths(1);
         return new DateOnly(next.Year, next.Month, day);
     }
+
+    /// <summary>
+    /// R2/WP-6 — pnd50/pnd51 threw an unmapped ArgumentOutOfRangeException (500) for a
+    /// nonsense CE year (year&lt;=0, year&gt;=9999) while this class's own MonthRange (above)
+    /// already returns a clean 422 for the analogous period case. Same convention, same code
+    /// family (tax_filing.bad_*).
+    /// Bound: mirrors MonthRange's y&gt;9999 ceiling, tightened by one to y&gt;=9999 — 9999 is
+    /// the classic "impossible year" placeholder (no real filing is ever for CE 9999), so
+    /// rejecting it and anything above closes the exact hole in the bug report. Deliberately
+    /// NOT tightened further to a "near future" ceiling: the Pnd50/CIT integration-test suite
+    /// (FreshJeYearAsync, CitExpenseByAccountTests.cs:112, plus fixed years 3098/3099 in
+    /// Pnd50FilingServiceTests.cs/Pnd51FilingServiceTests.cs) deliberately files far-future
+    /// years up to ~7499 as a "definitely fake" sentinel to dodge collisions on the shared,
+    /// never-reset teas_test DB — a lower ceiling would 422 those tests. Floor of 2000 mirrors
+    /// MonthRange's own y&lt;2000 check; kept loose so a legitimate late filing for an old year
+    /// is never refused (the R1 lesson: a guard that turns a wrong answer into an impossible
+    /// one has broken a real capability).
+    /// </summary>
+    public static void EnsureYear(int year)
+    {
+        if (year is < 2000 or >= 9999)
+            throw new DomainException("tax_filing.bad_year",
+                $"Year '{year}' must be a CE year (e.g. 2026).");
+    }
 }
