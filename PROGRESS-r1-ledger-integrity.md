@@ -29,9 +29,17 @@ they override everything below them). Plan: `PLAN-fix-breakit-v1271.md`. Finding
   accounts plus every `bank_accounts.GlCashAccountId` — closing the "admin poisons the category" variant.
 - Re-validation added at Submit and Approve (not only Pay), and **cancel is now allowed from Approved** so an
   invalidated claim has an exit.
-- **STATE WHEN PAUSED: it had just been given the test-DB all-clear and was running its evidence pass.**
-  The mandatory item is the RED proof for `CAPEX_category_override_to_BANK_is_rejected_the_P0_this_WP_exists_to_close`
-  against round-1's rule. **Do not commit WP-4 without that RED→GREEN.**
+- ✅ **EVIDENCE COMPLETE (2026-08-12, 5h quota 91%).** Both RED legs delivered against the real prior code:
+  - **P0 leg** — restored round-1's literal rule (`Expense || (categoryIsCapex && Asset)`) and ran
+    `CAPEX_category_override_to_BANK_is_rejected_the_P0_this_WP_exists_to_close` → **RED, "No exception was
+    thrown"**; restored → GREEN. This is the proof I refused to commit without.
+  - **Denylist leg** — removed round-3's denylist block only (a file-level revert would not compile, since
+    other tests reference `UpdateAsync`/the PUT route) and ran both new theories → **RED, 4 failed**;
+    restored → GREEN.
+  - Full sweep: `ExpenseClaimServiceTests` + `ExpenseCategoryServiceTests` **39/0/0**; `Rbac` namespace
+    **67/0/0**. Stash list empty, no leftover temp-patch markers, WP-5's payroll files untouched.
+- **REMAINING FOR WP-4: my full-suite run + diff read, then commit.** Not done — deliberately deferred at
+  91% quota rather than start a 20-minute suite that could hit the 95% block mid-run.
 
 **WP-5 — payroll period + pay-date guard.** Code complete, waiting on the test DB.
 - `EnsureOpenAsync(PayDate)` is the real guard, called first in both `PostAsync` and `PayAsync`; two distinct
