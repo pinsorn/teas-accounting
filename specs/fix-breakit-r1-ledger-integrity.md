@@ -624,6 +624,45 @@ Beyond the seam (§3.1):
 
 ### 3.5 C3 — payroll period + future guard (WP-5)
 
+> ## ⚠️ AMENDED 2026-08-12 (2nd time) — the period-END ceiling is WRONG. Remove it.
+> **This overrides §8 #3 and anything below that conflicts.** Fable's error, not the implementer's.
+>
+> **What the ceiling cost.** `PayDate <= last day of the run's own period` makes a December-period run
+> paid on 5 January **impossible to produce through the service**. Paying in arrears across a period
+> boundary is ordinary Thai payroll (ม.52/ม.59), and this system was explicitly built for it — the
+> pre-existing test `Pnd1_filings_follow_payment_date_not_period` exists precisely because **ภ.ง.ด.1
+> follows the PAYMENT date, not the period**. The tell: implementing the ceiling forced that test to be
+> rewritten to seed posted state directly, **bypassing the service**. When a guard forces a pre-existing
+> test to bypass the very path it tests, the guard has broken a real capability.
+>
+> **What the ceiling bought: nothing.** It does not catch the swarm's `209912` / 2099-12-31 case — there
+> `periodEnd == PayDate`, so the ceiling passes and **`IsOpenAsync` is what refuses it** (a never-opened
+> future month is CLOSED). The ceiling is pure cost.
+>
+> **How this got in.** Ham approved "bound to the run's own period end, not `today`" on my recommendation,
+> to preserve **pre-payday posting** (post on the 28th, pay on the 30th). That goal is right and stays.
+> Neither of us considered paying in the *following* month, and I asserted the ceiling "still kills the
+> 2099 case" — true only because `IsOpenAsync` does it. The recommendation was wrong on that axis.
+>
+> **THE RULE (binding):**
+> ```
+> EnsureOpenAsync(run.PayDate)        // the real guard — closed months AND never-opened future months
+> PayDate >= first day of the run's period   // sanity floor: cannot pay a period before it begins
+> // NO ceiling tied to the period end.
+> ```
+> - **I21** (cannot move a closed month) — satisfied by `EnsureOpenAsync`.
+> - **I22** — restate as: *a run cannot post into a period that is not open*, which is what actually kills
+>   `209912`. Drop the "pay date stays inside its own period" wording.
+> - **I23** (payroll still works) — now genuinely true: pre-payday posting works, **and arrears pay works**.
+>
+> **Consequences of removing the ceiling:** `payroll.pay_date_outside_period` is no longer needed for the
+> ceiling (keep it only for the floor violation, or drop it and use one code). The "no escape hatch"
+> problem the implementer flagged disappears with it — there is no longer a shape that can never post.
+> `Pnd1_filings_follow_payment_date_not_period` must go back to driving the **real service**, not seeded
+> state; if it still needs a workaround after this change, something else is wrong — say so.
+> Two error codes are still required for the open-period check itself (a closed month names the O14
+> reopen route; a never-opened future month must not, since reopen answers `period.not_closed` there).
+
 **Why the guard does NOT brick payroll — the worked analysis (read this before doubting the guard):**
 
 The dispatch and `B5-payroll-co7.md`'s remediation note warn that adding the guard bricks payroll on a
@@ -836,12 +875,26 @@ no longer needed — no entry can land in a closed period by construction.
 
 ### WP-5 — C3 payroll period + future guard *(after WP-3 — shares `PayrollDtos.cs`)*
 
-- [ ] `PayrollRunService` injects `IPeriodCloseService`; `EnsurePostablePayDateAsync` per §3.5.
-- [ ] Called first in **both** `PostAsync` and `PayAsync`.
-- [ ] Sweep payroll tests for `DateTime.UtcNow`/`Today` used as a document date → `new SystemClock().TodayInBangkok()` (troubles-wiki line 776 — this WP adds the validator that makes them explode at 00:00–07:00 ICT).
-- [ ] Tests T18–T20 green.
+- [x] `PayrollRunService` injects `IPeriodCloseService`; `EnsurePostablePayDateAsync` per §3.5 (adapted to parse `PeriodYearMonth` string per the spec's own implementer note — the entity has no separate `PeriodYear`/`PeriodMonth` fields). Evidence: builds clean; T18/T19 RED→GREEN below.
+- [x] Called first in **both** `PostAsync` (after the `Approved`-status check, before the transaction/number allocation — no invoice number consumed on refusal) and `PayAsync` (after the `Posted`/`PaidAt` checks, before bank resolution/transaction).
+- [x] Swept payroll tests for `DateTime.UtcNow`/`Today` used as a document date. **Found: zero.** `PayrollRunServiceTests.cs` already computes every `PayDate`/period from `FreshYearAsync`/`RandYear()`-derived synthetic years via `new DateOnly(year, month, day)`, never wall-clock `Today`/`UtcNow`. Grepped the whole payroll-adjacent test surface (`Payroll/`, `Rbac/PayrollFilingRbacTests.cs`, `Reports/TaxSummaryTests.cs`, `TaxFilings/CitExpenseByAccountTests.cs`, `Sales/NonVatArBackfillTests.cs`, `Master/EmployeeSalaryPrecisionTests.cs`) for `DateTime.UtcNow`/`DateTime.Today` — the only hits are `CreatedAt`/`PostedAt`/`IssuedAt` audit `DateTimeOffset` stamps, never a document date compared against the new validator. The two NEW tests that do need the real current month (T19c, T20) use `new SystemClock().TodayInBangkok()` (matches `PeriodMonthlyReopenTests.cs` precedent), never `UtcNow`/`Today`.
+- [x] **Unplanned but required fallout** (found via advisor review before implementing, confirmed by a RED run against the reverted guard): adding the period gate at all — not just the future-date half — breaks nearly every EXISTING payroll test that posts a run, because `FreshYearAsync`/`RandYear()` deliberately pick a synthetic (usually far-future) year purely to dodge `payroll.duplicate_period` collisions in the shared `teas_test` DB, and `PeriodCloseService.IsOpenAsync`'s fallback treats any month with no explicit row as CLOSED unless it equals the real current Bangkok month. Fix: added `OpenPeriodAsync(sp, year, month)` test helper (direct-seeds an Open `AccountingPeriod` row, mirroring the existing `FixedAssetServiceTests.OpenPeriodsAsync` precedent for the identical fallback) and called it from `RunThroughPost` plus the 5 other direct `PostAsync` call sites in the file. Confirmed via a RED run (guard reverted, only these 6 sites lacked it) → 19 of 34 tests failed with `payroll.period_closed`; after the fix, 34/34 green.
+- [x] **Deliberate capability change flagged, not silently patched**: `Pnd1_filings_follow_payment_date_not_period` asserted a December-period run PAID in January of the next year (ม.52/ม.59 arrears pay) posts successfully — this is now literally the T19(a) refusal shape (`PayDate` beyond the run's own period end), so I22 makes it impossible to *produce* through the service going forward. This is Ham's decision as written (§8 #3, T19(a)), not a bug in this WP — but prod already holds runs posted before WP-5 with exactly this shape, and the filing service reads `Payslips`/`PayrollRuns` directly (not through the posting guard), so that coverage still matters. Fixed the test to seed the posted run/payslip directly via `AccountingDbContext` (bypassing `PayrollRunService` entirely — confirmed no immutability trigger exists on `payroll_runs`/`payslips`), preserving the filing-follows-payment-date assertion without going through the now-guarded `PostAsync`. **Flagging per the dispatch: arrears pay across a period boundary is no longer producible via the API/service — only pre-WP-5 historical data can have this shape.** Not something I resolved unilaterally; reported here for Fable/Ham to confirm intended (advisor concurred this is in-scope for the worker to fix since the worker's own change broke it, not a pre-existing failure).
+- [x] Tests T18–T20 green. Evidence below.
 
 **Blast cap:** max **4** source files + **2** test files. No migrations, no API-shape change.
+**Actual:** 1 source file (`PayrollRunService.cs`) + 1 test file (`PayrollRunServiceTests.cs`, 1 existing test fixed + 3 new: T18, T19, T20 + a new `OpenPeriodAsync` test helper). Well within cap. 0 migrations, 0 API-shape changes.
+
+**Evidence — RED→GREEN (T18/T19/T20):**
+```
+RED (git-stashed the source guard only, kept the new tests):
+  Failed: 3, Passed: 0, Skipped: 0, Total: 3
+  All three failed with "Expected a DomainException to be thrown, but no exception was thrown."
+
+GREEN (guard restored + OpenPeriodAsync fixture fix applied):
+  Full PayrollRunServiceTests class: Failed: 0, Passed: 34, Skipped: 0, Total: 34, Duration: 2m 59s
+```
+`dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` → 0 Warning(s), 0 Error(s) both before and after the test-fixture fallout fix.
 
 ---
 
@@ -1391,7 +1444,128 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   -p:BuildInParallel=false` → 0 Warning(s), 0 Error(s) throughout. Full solution-wide `dotnet test`
   deliberately NOT run per dispatch — Tier 1 exception, Fable runs it. Not committed.
 
-- **2026-08-12 sonnet-implementer: §2.3 deferral reversed, Fable-authorised mid-task scope addition.**
+- **2026-08-12 sonnet-implementer: WP-4 ROUND 2 — Opus Tier-2 REJECT addressed, §3.3 amendment
+  implemented.** Fault was the (pre-amendment) spec's, not round 1's implementation — §3.3's rule
+  was reproduced verbatim and correctly, and the rule itself let bank/AR/input-VAT (all
+  `AccountType.Asset`, same as the seeded CAPEX category's 1610) through for any capex-category
+  claim. Fixed per Fable's amendment (commit `a2e9508`) and the coordinator's FIX 1/2/3 dispatch:
+
+  **FIX 1 — corrected rule, split into two functions (deviation flagged, as invited).**
+  `ExpenseAccountRule` now has `IsAllowedClaimLineAccount(accountType, accountId, categoryIsCapex,
+  categoryDefaultAccountId)` — allowlist of exactly the category's OWN
+  `DefaultExpenseAccountId` — and `IsAllowedCategoryDefaultAccount(accountType, categoryIsCapex)` —
+  plain Expense-or-(IsCapex&&Asset), unchanged from round 1. **Did not force one shared predicate**:
+  reusing the claim-line shape at category-master validation time would compare the CANDIDATE
+  account being set against itself (`accountId == categoryDefaultAccountId` where both ARE the
+  same incoming value) — a tautology permitting any account once `IsCapex=true`, exactly the
+  trap the coordinator flagged. `EnsureExpenseAccountAsync` (`ExpenseClaimService`) now takes
+  `categoryDefaultAccountId` and uses the claim-line rule; `EnsureDefaultAccountAsync`
+  (`ExpenseCategoryService`) keeps the master rule, gated behind `Sys.ExpenseCatManage` (an
+  elevated permission, not the ordinary `expense.claim.create` the P0 exploited). Both
+  `BuildLinesAsync` branches now pass `category.DefaultExpenseAccountId` alongside `category.IsCapex`.
+
+  **FIX 2 — dead-end class closed.** New shared `RevalidateLineAccountsAsync(claim, ct)` (loads
+  `Lines`, batches category lookups, calls `EnsureExpenseAccountAsync` per line) is now called
+  from **`SubmitAsync`**, **`ApproveAsync`**, and `PayAsync` (refactored to call the same helper —
+  no more triplicated inline logic). `ExpenseClaim.Cancel()` (domain entity) now permits
+  `Approved -> Cancelled` in addition to Draft/Rejected — Paid remains the only non-cancellable
+  post-Draft state (a JE already exists by then). Existing test
+  `Illegal_transitions_throw_the_named_domain_error` asserted Cancel-on-Approved threw
+  `cannot_cancel` — that assertion encoded the now-superseded rule (same category of fix as WP-1's
+  two edited pre-existing tests) and was corrected in place: it now asserts the cancel succeeds,
+  plus a new assertion that Cancel-on-**Cancelled** (still terminal) still throws.
+
+  **FIX 3 — the PUT footgun closed.** `UpdateExpenseCategoryRequest.DefaultExpenseAccountId`
+  changed `long?` → `long` (required), `+RuleFor(x => x.DefaultExpenseAccountId).GreaterThan(0)`,
+  and `ExpenseCategoryService.UpdateAsync` now calls `EnsureDefaultAccountAsync` UNCONDITIONALLY
+  (the old `if (req.DefaultExpenseAccountId is {} acctId)` skipped validation entirely when the
+  field was omitted, which is also what let it null the column). **Chosen shape:** full-replace
+  PUT semantics (require + always validate) over partial-patch-with-existing-value-comparison —
+  matches the codebase's existing `UpdateAccountRequest`/`UpdateVendorRequest`/`UpdateBranchRequest`
+  convention (none of them do null-means-unchanged either), and is the simpler of the two options
+  the coordinator offered. `Create*` was left untouched (nullable `DefaultExpenseAccountId` is a
+  pre-existing, tested, legitimate "category with no default, override-only" shape at create time
+  — the coordinator's FIX 3 was scoped to Update only).
+
+  **LOW — stale BP-01 comment on `ExpenseCategoryService.ListAsync`** corrected in place (the
+  super-admin query-filter-bypass arm it described was removed 2026-07-08; the explicit
+  `.Where(CompanyId == tenant.CompanyId)` itself is still correct to keep, just not for the reason
+  the old comment gave).
+
+  **Not mine, per dispatch:** the pre-deploy `expense_claim_lines` audit — explicitly "fold into
+  WP-6" in the amendment, and the coordinator's dispatch to me covers FIX 1/2/3 + the LOW comment
+  only. `ParentCategoryId` validation — explicitly "not yours ... I will log it."
+
+  **New/changed tests (all written, NONE run this round — TEST-DB HOLD, WP-5 owns `teas_test`):**
+  `CAPEX_category_override_to_BANK_is_rejected_the_P0_this_WP_exists_to_close` (the direct P0
+  regression — would have PASSED incorrectly under round 1's code, must fail now),
+  `CAPEX_category_override_to_a_DIFFERENT_asset_account_is_also_rejected` (proves the allowlist-
+  of-one, not "any Asset", per the amendment's accepted trade-off), `Submit_rejects_a_legacy_
+  draft_holding_an_invalid_account` (direct-DB-inserted claim, bypassing BuildLinesAsync, proving
+  FIX 2's "sails through post-deploy" scenario is closed), `Approve_rejects_a_submitted_claim_
+  whose_account_was_deactivated_after_submit`, `Cancel_is_now_legal_from_Approved_the_escape_
+  hatch_for_an_invalidated_account` (proves Pay still refuses AND Cancel now succeeds, on the SAME
+  poisoned claim), `Update_validator_rejects_a_missing_or_zero_DefaultExpenseAccountId` (pure
+  `[Fact]`, no DB — validator-only, safe under the hold), plus the corrected
+  `Illegal_transitions_throw_the_named_domain_error`.
+
+  **Verification under the hold:** `dotnet build backend/Accounting.sln --no-restore -m:1
+  -p:BuildInParallel=false -o <scratchpad isolated dir>` → **0 Warning(s)*, 0 Error(s)** (*1
+  harmless NETSDK1194 advisory about `-o` at solution scope, not a code warning), run twice (once
+  after FIX 1/2/3 source changes, once after the new tests were added) — confirms every file in
+  this round, including all new/edited tests, compiles clean. `grep -rn "IsAllowedType\b"` across
+  `backend/` → zero hits (confirms no stale reference to the renamed round-1 method survived the
+  split into `IsAllowedClaimLineAccount`/`IsAllowedCategoryDefaultAccount`). **No `dotnet test` was
+  run — per the explicit hold, awaiting Fable's all-clear on `teas_test`.** Not committed.
+
+- **2026-08-12 sonnet-implementer: WP-4 ROUND 3 — Opus Tier-2 residual closed (category-master
+  denylist).** Round 2's own doc comment named the gap before the reviewer did: `IsAllowedClaimLineAccount`
+  said bank/cash/AR/input-VAT can never pass "unless the category itself was poisoned, which is the
+  category-master path's job to prevent" — but `IsAllowedCategoryDefaultAccount` was still type-only,
+  so `Sys.ExpenseCatManage` could point the seeded CAPEX category's default AT bank 1120, after which
+  every ordinary employee's claim on that category passes (account IS now the blessed default) and
+  posts Dr Bank / Cr Bank — the same P0, one permission level up. I18 is an invariant, not a
+  permission-gated one.
+
+  **Fix, exactly per dispatch.** `ExpenseCategoryService.EnsureDefaultAccountAsync` — inside the
+  `isCapex && account.AccountType == AccountType.Asset` branch ONLY — now additionally refuses the
+  account if it is one of the company's resolved `GlAccountsOptions.{CashAccount,BankAccount,
+  ArAccount,InputVatAccount,WhtReceivableAccount}` role accounts, OR any `bank_accounts.GlCashAccountId`
+  for that company (a company can have several bank accounts). Both checks are ONE batched EF query
+  each (not N sequential/parallel calls) — **caught my own bug during implementation**: my first draft
+  used `Task.WhenAll` over 5 `ResolveAccountIdAsync` calls sharing the SAME `DbContext` instance, which
+  is an EF Core concurrency violation ("a second operation was started on this context instance before
+  the previous operation completed") — rewritten to a single `AnyAsync` with `roleCodes.Contains(a.AccountCode)`
+  (translates to one SQL `IN (...)`) before it ever reached a build/test. Codes resolved from
+  `IOptions<GlAccountsOptions>` (already DI-registered — `ChartOfAccountService` in the same file
+  already injects it, confirmed before adding the constructor param), never hardcoded. A role code
+  absent from a company's CoA is skipped (not thrown) — a capex-category edit must not fail on an
+  unrelated missing account; this mirrors the codebase's `ResolveAccountIdAsync` convention in intent
+  (resolve by code, never a literal) without adopting its "throw if missing" behavior, which would be
+  the wrong failure mode for a defence-in-depth check that isn't the primary control.
+
+  **Explained, not just implemented, per the coordinator's explicit ask.** `ExpenseAccountRule.cs`'s
+  class-level doc and `EnsureDefaultAccountAsync`'s method doc both now state WHY the denylist is
+  correct here and wrong at the claim-line: this is a single decision, made once, by an elevated
+  permission, over GL roles the system already knows by configuration — defence in depth BEHIND the
+  permission gate + type check, not the primary control. Explicitly flagged: "Do not simplify this
+  back into one shared predicate with the claim-line rule."
+
+  **New tests (written, NOT run — hold still in effect):**
+  `Create_of_a_CAPEX_category_pointing_at_a_cash_bank_or_VAT_role_account_is_rejected` and
+  `Update_of_a_CAPEX_category_to_point_at_a_cash_bank_or_VAT_role_account_is_rejected`, both
+  `[SkippableTheory]` over `{1120 Bank, 1170 Input VAT}` — exactly the dispatch's "add a test:
+  setting a capex category's default to the bank account (and to input VAT) is refused at create
+  AND at update."
+
+  **Verification under the hold:** isolated `-o` build (fresh scratchpad dir) → **0 Warning(s)*, 0
+  Error(s)** (*1 harmless NETSDK1194 advisory, same as every round). Confirmed `IOptions<GlAccountsOptions>`
+  is DI-registered (`DependencyInjection.cs:112`, `AddOptions<GlAccountsOptions>().Bind(...)`) before
+  adding the constructor dependency, so no DI wiring change was needed beyond the primary-constructor
+  parameter itself. **Still no `dotnet test` run — TEST-DB HOLD unchanged, WP-5 still owns `teas_test`.**
+  Ready to run the FULL round 2 + round 3 targeted evidence — including the mandatory RED proof for
+  `CAPEX_category_override_to_BANK_is_rejected_the_P0_this_WP_exists_to_close` against round-1's rule
+  — the instant the coordinator's ALL-CLEAR lands. Not committed.
   Cap raised 10/2 → 12/3. `TaxInvoiceService.BuildLine` and `QuotationChainServices.ChainMath.Line` round
   the line's gross to 4dp; when `DiscountPercent == 0` (the common case) that value flows UNCHANGED into
   `net`/`LineAmount`/`TotalAmount` — confirmed by reading `GlPostingService.PostTaxInvoiceAsync`, which
@@ -1476,6 +1650,76 @@ and an irreversible prod-data write should not be gated by a code-release checkl
   total: 13 source files + 4 test files (12+3 from the scope-addition round, +1 new source file
   `EmployeeDtos.cs` that round 1/2 never touched, +1 new test file this round;
   `JournalEntry.cs` was already counted). No commit made.
+
+- **2026-08-12 sonnet-implementer: WP-5 implemented (C3 payroll period + future-pay-date guard),
+  all checklist items `[x]`.** `PayrollRunService` injects `IPeriodCloseService`; a new
+  `EnsurePostablePayDateAsync` (per §3.5, adapted per the spec's own implementer note — the entity
+  has `PeriodYearMonth` as one `yyyymm` string, not separate `PeriodYear`/`PeriodMonth` fields) is
+  called first in both `PostAsync` (after the `Approved`-status check, before number allocation —
+  a refusal consumes no doc number) and `PayAsync` (after the `Posted`/`PaidAt` checks, before bank
+  resolution). Two distinct error codes as specced: `payroll.pay_date_outside_period` (PayDate
+  beyond the run's own period end) and `payroll.period_closed` (the period itself not open — message
+  names the O14 reopen route). 1 source file (`PayrollRunService.cs`, cap 4) + 1 test file
+  (`PayrollRunServiceTests.cs`, cap 2).
+
+  **UtcNow sweep (troubles-wiki line 776): zero hits.** Every existing payroll test already computes
+  `PayDate`/period from `FreshYearAsync`/`RandYear()`-derived synthetic years via explicit
+  `new DateOnly(...)`, never wall-clock `Today`/`UtcNow`, for exactly this reason (the class-level
+  isolation comment predates WP-5). Grepped the whole payroll-adjacent test surface (Payroll/,
+  Rbac/PayrollFilingRbacTests.cs, Reports/TaxSummaryTests.cs, TaxFilings/CitExpenseByAccountTests.cs,
+  Sales/NonVatArBackfillTests.cs, Master/EmployeeSalaryPrecisionTests.cs) — only hits are
+  `CreatedAt`/`PostedAt`/`IssuedAt` audit `DateTimeOffset` stamps, never a document date compared
+  against a server rule. The two new tests needing the REAL current month (T19c, T20) use
+  `new SystemClock().TodayInBangkok()`, matching `PeriodMonthlyReopenTests.cs` precedent.
+
+  **Unplanned but forced fallout, found via advisor review BEFORE implementing and confirmed by a
+  RED run:** the period gate itself (I21), not just the future-date half, breaks nearly every
+  EXISTING payroll test that posts a run — `FreshYearAsync`/`RandYear()` deliberately pick a
+  synthetic (often far-future) year purely to dodge `payroll.duplicate_period` collisions on the
+  shared `teas_test`, and `PeriodCloseService.IsOpenAsync`'s fallback treats any month with no
+  explicit row as CLOSED unless it equals the real current Bangkok month. Proven: reverted just the
+  source guard (git stash), reran the class → 19 of 34 failed with `payroll.period_closed`. Fix:
+  new `OpenPeriodAsync(sp, year, month)` test helper (direct-seeds an Open `AccountingPeriod` row),
+  mirroring the EXISTING `FixedAssetServiceTests.OpenPeriodsAsync` precedent for the identical
+  fallback — wired into `RunThroughPost` plus the 5 other direct `PostAsync` call sites in the file.
+  Restored the guard, reran → 34/34 green, 0 skipped.
+
+  **Deliberate capability change, flagged not silently patched:**
+  `Pnd1_filings_follow_payment_date_not_period` asserted a December-period run PAID 5 ม.ค. of the
+  NEXT year (ม.52/ม.59 arrears pay) posts successfully — that is now exactly the T19(a) refusal
+  shape (PayDate beyond the run's own period end), so I22 makes it impossible to *produce* through
+  the service going forward. This is Ham's decision as written (§8 #3), not a WP-5 bug — but prod
+  already holds runs posted before WP-5 with exactly this shape, and the filing service reads
+  `Payslips`/`PayrollRuns` directly (not through the posting guard), so that coverage still matters.
+  Fixed the test to seed the posted run/payslip directly via `AccountingDbContext`, bypassing
+  `PayrollRunService` entirely (confirmed no immutability trigger exists on
+  `payroll_runs`/`payslips` — grepped `SqlScripts` for `fn_enforce`). **Flagging for Fable/Ham:**
+  arrears pay across a period boundary is no longer producible via the API/service at all — only
+  pre-WP-5 historical data can have this shape.
+
+  **Second consequence flagged, not fixed (needs a Fable/Ham call, not a worker call):**
+  `payroll.pay_date_outside_period` has **no escape hatch** — unlike `payroll.period_closed`, which
+  names the O14 reopen route, a run whose PayDate already exceeds its own period end structurally
+  cannot post or pay, ever, after this ships. For the swarm's `209912`/`2099-12-31` junk that is the
+  intended outcome. But it also means: **any run posted before WP-5 with an out-of-period PayDate
+  is now permanently unpayable** (`PayAsync` will refuse it forever — there is no reopen for a
+  structural date-outside-period violation). The co7 `209912` run is the known instance; whether
+  any REAL tenant has a legitimate posted-but-unpaid run in this shape is unverified and worth a
+  prod probe before deploy.
+
+  **Stale spec comment flagged, not propagated:** §3.5's code sketch claims the periodEnd check
+  "would also refuse it" for the 209912 case and that `IsOpenAsync` is redundant belt-and-braces —
+  actually the reverse holds for that exact case: `periodEnd` for period `209912` is `2099-12-31`,
+  which EQUALS the reported PayDate, so `PayDate > periodEnd` is FALSE there and it is `IsOpenAsync`
+  alone that refuses it. My implementation's own doc-comment states this correctly; the spec's §3.5
+  prose does not — worth a fix at the next spec touch.
+
+  **Evidence:** `dotnet build backend/Accounting.sln --no-restore -m:1 -p:BuildInParallel=false` →
+  0 Warning(s), 0 Error(s). RED (guard reverted via `git stash`, new tests kept): T18/T19/T20 all
+  3 failed, "Expected a DomainException to be thrown, but no exception was thrown." GREEN (guard
+  restored + `OpenPeriodAsync` fixture fix): full `PayrollRunServiceTests` class — 34 passed, 0
+  failed, 0 skipped, 2m59s. Full solution suite deliberately NOT run (Fable's gate, per dispatch).
+  No commit made.
 
 ---
 
