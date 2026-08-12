@@ -512,6 +512,53 @@ account the run must **stop with a clear error**, not invent one.
 
 ### 3.3 C5 — expense account type + fixable categories (WP-4)
 
+> ## ⚠️ AMENDED 2026-08-12 — the original rule below was DEFECTIVE and shipped the bug it was meant to close.
+> Opus Tier-2 caught it; Fable confirmed in code. **This amendment overrides anything below that conflicts.**
+>
+> **What was wrong.** The rule read `Expense || (categoryIsCapex && Asset)`. But `AccountType` has only five
+> members — Asset, Liability, Equity, Revenue, Expense — with **no cash / fixed-asset distinction**. Bank
+> `1120`, AR `1130` and Input VAT `1170` are all `AccountType.Asset` (MasterDataServices.cs:421-423), and the
+> `CAPEX` category is seeded on **every** company. So an ordinary employee with only `expense.claim.create`
+> could file a claim against the seeded CAPEX category with `expenseAccountId = 1120`, have it pass both the
+> line guard and the pay re-guard, and post **Dr Bank / Cr Bank** — balanced, green, status **Paid**, and the
+> employee never reimbursed. That is verbatim the P0 this work package exists to close.
+>
+> **Why it got through.** §3.3 contradicted its own invariants. **I17** says "an expense account, or *the
+> fixed-asset account of a capex category*" — singular, the category's own. **I18** says "the debit side is
+> never a cash/bank account". The snippet said neither. The implementer followed §3.3 exactly and was right
+> to. This is the 2026-07-25 lesson repeating: *when a money spec's stated rule and its invariant disagree,
+> the invariant is the specification* — and a spec review that checks the money formula but never tests the
+> rule against the invariants will miss it, which is exactly what happened here.
+>
+> **THE RULE (binding):**
+> ```
+> allowed = accountType == Expense
+>        || (categoryIsCapex && accountId == category.DefaultExpenseAccountId)
+> ```
+> Asset is permitted **only when it is the capex category's own default account** — an allowlist of exactly
+> one account per category, which structurally cannot admit bank, cash, AR or input VAT. Never Liability,
+> Equity or Revenue.
+>
+> **Why an allowlist and not "Asset except bank/cash/VAT".** A denylist has to enumerate every
+> non-fixed-asset account correctly, forever, on every tenant's chart. This repo already shipped a denylist
+> that was bypassed by a zero-width space (the MCP `.post` guard). One-account allowlist has no such surface.
+>
+> **Accepted trade-off:** a capex claim can no longer override to a *different* fixed-asset account (e.g.
+> 1620 Vehicles under a CAPEX category). The remedy is a second capex category pointing at 1620, which is
+> better modelling anyway — a category maps to an account. **If Ham wants multi-account capex categories,
+> that is a product decision and a later change; it does not go back to permitting bare `Asset`.**
+>
+> **Also required by this amendment (fixes Opus HIGH-2, a new dead-end class):**
+> - Re-validate lines in **`SubmitAsync` and `ApproveAsync`**, not only at pay. Without this, a legacy draft
+>   holding a bad account sails through submit and approve after deploy and only hits the wall at pay,
+>   creating NEW stuck claims post-deploy.
+> - Allow **cancel from `Approved`** so a claim whose account became invalid has an exit. Today Approved has
+>   no route out at all: pay throws, cancel is Draft/Rejected-only, reject is Submitted-only, edit is
+>   Draft/Rejected-only, and no unapprove exists. Deactivating any COA account currently strands every
+>   Approved claim referencing it.
+> - **Pre-deploy audit** (fold into WP-6): count `expense_claim_lines` whose resolved account would now be
+>   refused, per company, before this ships.
+
 **The rule** (one method, cited by every caller):
 
 ```csharp
@@ -773,15 +820,19 @@ no longer needed — no entry can land in a closed period by construction.
 
 ### WP-4 — C5 expense account type + fixable categories *(after WP-3 — shares `ExpenseClaimService.cs`)*
 
-- [ ] `EnsureExpenseAccountAsync` takes `categoryIsCapex` and enforces the §3.3 type rule.
-- [ ] Both `BuildLinesAsync` branches call it; the "already validated" comment is deleted.
-- [ ] `BuildLinesAsync` refuses an inactive category (`expense_claim.expense_category_inactive`).
-- [ ] `PayAsync` re-guard re-validates each line's resolved account.
-- [ ] `ExpenseCategoryService.CreateAsync` validates `DefaultExpenseAccountId` with the same rule.
-- [ ] New `UpdateAsync` + `PUT /expense-categories/{id}` (`Sys.ExpenseCatManage`), `CategoryCode` immutable, `IsActive` settable.
-- [ ] Tests T15–T17 green; RBAC map tests green.
+- [x] `EnsureExpenseAccountAsync` takes `categoryIsCapex` and enforces the §3.3 type rule. Evidence: `ExpenseAccountRule.IsAllowedType` (new shared helper) called from the guard; T15 RED→GREEN.
+- [x] Both `BuildLinesAsync` branches call it; the "already validated" comment is deleted. Evidence: diff shows both the override and category-default branches now route through `EnsureExpenseAccountAsync(..., category.IsCapex, ct)`; stale comment replaced.
+- [x] `BuildLinesAsync` refuses an inactive category (`expense_claim.expense_category_inactive`). Evidence: `Claim_on_an_inactive_category_is_rejected` RED→GREEN.
+- [x] `PayAsync` re-guard re-validates each line's resolved account. Evidence: `Pay_re_guard_rejects_a_line_whose_account_was_deactivated_after_drafting` RED→GREEN.
+- [x] `ExpenseCategoryService.CreateAsync` validates `DefaultExpenseAccountId` with the same rule (`EnsureDefaultAccountAsync`, same exists/active/header/type bundle, error `expense_category.default_account_invalid`). Evidence: `Create_with_a_wrong_type_default_account_is_rejected` RED→GREEN.
+- [x] New `UpdateAsync` + `PUT /expense-categories/{id}` (`Sys.ExpenseCatManage`), `CategoryCode` immutable (absent from `UpdateExpenseCategoryRequest`), `IsActive` settable. Evidence: `Update_can_repoint_a_poisoned_default_account_to_a_valid_one`, `Update_repointing_to_ANOTHER_wrong_type_account_is_still_rejected`, `Update_can_deactivate_a_category_and_a_new_claim_against_it_is_rejected` all green; RBAC-generated doc shows `PUT /expense-categories/{id:int} | Perm | sys.expense_category.manage`.
+- [x] Tests T15–T17 green; RBAC map tests green. Evidence below.
 
 **Blast cap:** max **7** source files + **2** test files. New public endpoint: **1** (`PUT`). No migrations.
+**Actual:** 5 source files (4 edited: `ExpenseClaimService.cs`, `ReferenceDtos.cs`, `MasterDataServices.cs`,
+`MasterEndpoints.cs`; 1 new: `ExpenseAccountRule.cs` — shared type-rule helper so `ExpenseClaimService` and
+`ExpenseCategoryService` can never drift apart) + 2 test files (1 edited: `ExpenseClaimServiceTests.cs`;
+1 new: `ExpenseCategoryServiceTests.cs`). Within cap. 0 migrations. 1 new endpoint (`PUT`).
 
 ### WP-5 — C3 payroll period + future guard *(after WP-3 — shares `PayrollDtos.cs`)*
 
@@ -1267,6 +1318,78 @@ and an irreversible prod-data write should not be gated by a code-release checkl
      first-attempt RED; T14 was written after the source fix landed and its RED was verified
      retroactively via the same stash). No commit was made at any point. The full solution-wide
      `dotnet test` was deliberately NOT run per dispatch — Tier 1 exception, Fable runs it.
+
+- **2026-08-12 sonnet-implementer: WP-4 implemented, all checklist items `[x]`.** 5 source files
+  (4 edited + 1 new `Accounting.Application/Abstractions/ExpenseAccountRule.cs`) + 2 test files (1 edited:
+  `ExpenseClaimServiceTests.cs`; 1 new: `ExpenseCategoryServiceTests.cs`). 0 migrations. 1 new endpoint
+  (`PUT /expense-categories/{id}`).
+
+  **The rule.** New shared static `ExpenseAccountRule.IsAllowedType(AccountType, bool categoryIsCapex)`
+  (`accountType == Expense || (categoryIsCapex && accountType == Asset)`) — placed in
+  `Accounting.Application.Abstractions` (already referenced by both `ExpenseClaimService` and
+  `MasterDataServices`) specifically so the two independent callers (line resolution +
+  category-master validation) can never drift apart, per the spec's "same rule" instruction. This
+  is the ONLY deviation from a byte-for-byte reading of §3.3's inline snippet — the snippet's
+  `typeOk` expression is reproduced verbatim inside the helper, just factored so it is defined once.
+
+  `ExpenseClaimService.EnsureExpenseAccountAsync` gained a `categoryIsCapex` parameter and the type
+  check (after the existing exists/active/header checks, same error code
+  `expense_claim.expense_account_invalid`). **Both** `BuildLinesAsync` branches (override AND
+  category-default) now call it with `category.IsCapex` — the stale "already validated when the
+  category was set up" comment is deleted and replaced with a comment stating the true history
+  (VERDICT C5: it never was). `BuildLinesAsync` also now refuses an inactive category
+  (`expense_claim.expense_category_inactive`) right after the category lookup, before either branch
+  resolves an account. `PayAsync`'s existing non-VAT re-guard block was extended: `Lines` is now
+  loaded unconditionally (previously only under the non-VAT branch), then EVERY line's resolved
+  `ExpenseAccountId` is re-validated through `EnsureExpenseAccountAsync` against its category's
+  live `IsCapex` flag — defence in depth for a claim drafted before this shipped, or whose category/
+  account was poisoned or deactivated between Approve and Pay.
+
+  `ExpenseCategoryService` gained a private `EnsureDefaultAccountAsync` (same exists/active/header/
+  type bundle, error `expense_category.default_account_invalid`) called from **both** `CreateAsync`
+  (when `DefaultExpenseAccountId` is supplied) and the new `UpdateAsync`. `UpdateExpenseCategoryRequest`
+  deliberately has NO `CategoryCode` field (structural immutability — the doc-prefix invariant is
+  enforced by the type system, not a runtime guard) and DOES carry `IsActive` (the fix for a
+  poisoned category that cannot be deleted). `PUT /expense-categories/{id}` reuses
+  `Permissions.Sys.ExpenseCatManage` (same as `POST`) — confirmed zero RBAC matrix churn via the
+  auto-generated `docs/rbac/endpoint-permission-map.generated.md` diff (+1 row, `Perm |
+  sys.expense_category.manage`, total 358→359) produced by the RBAC test run itself.
+
+  **RED→GREEN.** All 15 new/changed tests (T15: 2×5 theory cases [override + category-default
+  branches] × {1120 Bank, 2110 AP, 4100 Revenue, 3300 Equity, 1170 Input VAT} = 10, plus inactive-
+  category and Pay-re-guard cases; T16: 1 CAPEX test; T17: 4 tests — create-rejected, update-repoint-
+  valid, update-repoint-still-invalid, update-deactivate-then-claim-rejected) were written FIRST
+  against a minimal compile-only scaffold (DTO/interface/no-op `UpdateAsync` stub, zero validation
+  logic) and run: **15 failed / 14 passed / 0 skipped** — every failure was `Assert.Throws() ...
+  No exception was thrown`, i.e. every wrong-type account (bank/AP/revenue/equity/input-VAT) and
+  every "should still be rejected/inactive" case was silently ACCEPTED, proving the C5 bug and the
+  missing category-management guards for the right reason. The 14 passes were the pre-existing
+  suite plus the one repoint-to-a-VALID-account test (correctly green even pre-fix, since basic
+  CRUD already worked — only the wrong-type rejection was missing). Then all 5 source changes
+  applied (the stub `UpdateAsync` replaced by the real validating implementation); re-ran the exact
+  same filter: **29 passed / 0 failed / 0 skipped.**
+
+  **Confirmed I19 (the trap this WP exists to avoid) explicitly:** `Seeded_CAPEX_category_still_
+  creates_and_pays_successfully` reads the CAPEX category seeded by `TestCompanyFactory.CreateAsync`
+  (the real `ICompanyService.CreateAsync` onboarding path — not a hand-rolled fixture), asserts its
+  resolved account IS `AccountType.Asset` (1610) BEFORE exercising it, then drives a real claim
+  through Create→Submit→Approve→Pay and asserts the JE's debit line lands on that Asset account for
+  the full amount. Green both before AND after (never broke it) — proves the Asset-iff-IsCapex
+  exception works, not merely that it compiles.
+
+  **Regression sweep after GREEN:** `Rbac` namespace (RbacAuthMapTests + RbacCartesianTests) 67/67, 0
+  skipped, ~6m10s (a new endpoint always disturbs these — TEAS_REPO_ROOT set). Broader sweep —
+  `Expense`+`Master`+`Purchase`+`Mcp` namespaces (covers every other caller of `ExpenseClaimService`,
+  `ExpenseCategoryService`, and the MCP `ListExpenseCategoriesAsync` read path) — 356/356, 0 skipped,
+  ~6m. No pre-existing failures encountered (unlike WP-3's 41-row salary poisoning) — no test data
+  needed cleanup.
+
+  **Deviation from spec: none**, except the ONE factoring choice noted above (shared
+  `ExpenseAccountRule` helper vs. inlining the 2-line `typeOk` check twice) — made to satisfy the
+  spec's own "same rule" requirement for `ExpenseCategoryService`'s validation with zero risk of the
+  two copies drifting apart later. `dotnet build backend/Accounting.sln --no-restore -m:1
+  -p:BuildInParallel=false` → 0 Warning(s), 0 Error(s) throughout. Full solution-wide `dotnet test`
+  deliberately NOT run per dispatch — Tier 1 exception, Fable runs it. Not committed.
 
 - **2026-08-12 sonnet-implementer: §2.3 deferral reversed, Fable-authorised mid-task scope addition.**
   Cap raised 10/2 → 12/3. `TaxInvoiceService.BuildLine` and `QuotationChainServices.ChainMath.Line` round
