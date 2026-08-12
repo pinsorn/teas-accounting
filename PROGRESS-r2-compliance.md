@@ -207,3 +207,16 @@ Everything else in R2 is either done or in the queue above.
   (Python). Its stale "mark-settled" text is **not** a failed gate and must not be treated as one —
   refresh it with `mkdocs build` whenever the docs site is next published, outside this release.
 - **Only WP-4 still needs its test run.** It is the sole remaining holder of the test-DB queue.
+
+## 🔔 WP-4 HAS ALREADY BEEN RELEASED (23:06) — do not re-send its ALL-CLEAR
+Sent at 5-hour quota 98%. WP-4 (task `a2bf6e5c138f344d2`) now owns `teas_test` and is running its
+RED→GREEN. It was additionally asked to show the exact diff of its two collateral fixes to
+`Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180` and
+`B6_sso_recomputed_on_the_prorated_wage_ties_out_on_sps110`, with an explicit statement on whether any
+assertion moved. **Read that answer before committing anything** — the ฿500 credit to 2180 and the
+balanced-posting assertions must be byte-identical, and that test has now been edited by two different
+work packages.
+
+So on resume the queue is: **WP-4's report → consolidated full suite → per-WP diff read + commits →
+Tier-2 (Opus) on WP-2 → v1.29.0 release → Tier-4 browser leg.** Step 1 of the earlier resume list
+(re-send WP-7's all-clear) is also DONE — WP-7 is fully verified, 31/31.
