@@ -1,6 +1,42 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ v1.28.0 LIVE (2026-08-12) — R1 ledger integrity, all 5 work packages.** Closes 4 of the 6 CRITs
+  the 17-agent break-it swarm found. API + FE both deployed and probed; live binary reports 1.28.0.
+  - **WP-1** non-VAT invoices accrue `Dr 1130 / Cr 4000` at issue; the receipt settles AR instead of
+    re-recognising revenue. Both real tenants are non-VAT and had **no accounts receivable at all**.
+  - **WP-2** `/admin/nonvat-ar-backfill?mode=preview|apply` — corrects pre-fix history.
+  - **WP-3** sub-satang amounts rejected at `JournalEntry.MarkPosted`, the seam every posting path shares.
+  - **WP-4** an expense claim can no longer debit bank/AP/revenue/equity — the bank case used to produce a
+    claim marked *Paid* whose JE never reimburses the employee.
+  - **WP-5** payroll can no longer post into a closed period, and arrears pay still works.
+  - Deploy: DB backed up · the sub-satang gate re-asserted inside the script before the swap · probes 6/6
+    (pm2 online · version 1.28.0 · migration column present · both new routes mapped · public login 200).
+  - Gates before release: full suite **1129 passed / 0 failed / 8 skipped**; every WP had a proven RED→GREEN;
+    Opus Tier-2 on all five, which REJECTED WP-2 once and WP-4 twice.
+- **🔴 NEEDS HAM — the backfill `apply` on the real tenants.** The endpoint is super-admin-only and
+  `ham_chatsang` is the only super-admin, so I cannot run it. Scope is tiny and measured:
+  **co2 one invoice ฿8,400 (2026-07), co3 one invoice ฿15,400 (2026-08)** — both in the current open
+  fiscal year, so both credit **Revenue** (the retained-earnings branch is never touched on live data).
+  Run `?mode=preview` first; it writes nothing and prints exactly what `apply` would post.
+  Not urgent: until it runs, those two invoices simply do not appear in AR.
+- **✅ Tax question CLOSED, and it corrects what I said earlier.** I repeatedly flagged an amended
+  ภ.ง.ด.50 and a 1.5%/month surcharge as urgent. Measured on prod: both real tenants are non-VAT with a
+  January fiscal year, every settled invoice was receipted in the year it was issued, and the only
+  outstanding invoices sit in the current open year. **No prior year was understated — nothing to amend,
+  and the surcharge exposure is zero.** The research stays valid, just untriggered.
+- **⬜ Still to close R1:** wipe+reseed co5/co7 (they hold sub-satang rows, so they can no longer be
+  year-closed) · reset the local `teas_test` (years of accumulated state caused five false-alarm test
+  failures in one session).
+- **⏳ WAITING ON HAM — 5 questions** in `specs/doc-lifecycle-cancel-reissue-backdate.md` §6 (cancel+reissue
+  posted tax documents · settable document date · delete the "customer has paid" button). **Feature C should
+  land next** — v1.28.0 turns `MarkSettledAsync` into an active hole: it marks an accrued invoice settled
+  without crediting AR or debiting cash.
+- **⬜ Remaining from the swarm: 2 CRIT + 17 HIGH, none designed yet.** R2 compliance filings (ภ.พ.36
+  double-counts reverse-charge VAT · ภ.ง.ด.1 prints totals on the non-resident row) · R3 guards (duplicate
+  tax-document numbers · the 500 family · conversion routes checking the wrong scope · attachment IDOR) ·
+  R4 documents and reports. All catalogued in `VERDICT-breakit-v1271.md`.
+
 - **🔨 R1 (ledger integrity) IN FLIGHT — 3 of 5 work packages committed, none deployed.**
   Fixing the 6 CRITs from the 17-agent break-it swarm (`VERDICT-breakit-v1271.md`). Plan:
   `PLAN-fix-breakit-v1271.md` · spec: `specs/fix-breakit-r1-ledger-integrity.md`.
