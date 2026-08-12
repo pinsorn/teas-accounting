@@ -1,6 +1,40 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **🔨 R1 (ledger integrity) IN FLIGHT — 3 of 5 work packages committed, none deployed.**
+  Fixing the 6 CRITs from the 17-agent break-it swarm (`VERDICT-breakit-v1271.md`). Plan:
+  `PLAN-fix-breakit-v1271.md` · spec: `specs/fix-breakit-r1-ledger-integrity.md`.
+  - ✅ **WP-1 `e750780`** — non-VAT invoices now accrue Dr 1130 / Cr 4000 at issue; the receipt
+    settles AR instead of re-recognising revenue. Repttown is a live non-VAT tenant whose books
+    had NO accounts receivable at all.
+  - ✅ **WP-2 `2eb61c3`** — `/admin/nonvat-ar-backfill?mode=preview|apply` corrects the history:
+    outstanding pre-fix invoices post Dr AR / Cr retained-earnings (prior FY) or Cr revenue
+    (current FY). Preview output is the deliverable for the company's accountant.
+  - ✅ **WP-3 `7eaa81a`** — sub-satang amounts rejected at `JournalEntry.MarkPosted`, the seam every
+    posting path shares. Reject, never round.
+  - 🔄 **WP-4** — expense-claim account-type rule. Round 3; Opus REJECTed twice. **The spec's own
+    §3.3 authorized the bug it was meant to close** (amended in `a2e9508`).
+  - 🔄 **WP-5** — payroll period + pay-date guard. In flight.
+- **🔴 DEPLOY GATE — WP-6, `tools/audit-subsatang.sql`.** R1 must NOT ship until this read-only audit
+  runs on prod. WP-3's guard is correct, but on a company that already holds >2dp data it turns silent
+  wrongness into a **hard dead-end**: year-end close/reopen, paying an already-posted payroll run, and
+  WP-2's own backfill all re-post STORED amounts and would be refused — with advice ("restate in
+  satang") that is impossible on immutable history. co5/co7 are known polluted; **Repttown uses all
+  four pollution paths and must be assumed polluted until measured.**
+- **⏳ WAITING ON HAM — 5 questions** in `specs/doc-lifecycle-cancel-reissue-backdate.md` §6 (new scope
+  from 2026-08-06: cancel+reissue posted tax documents, settable doc date, delete the "customer has
+  paid" button). Feature C must ship WITH R1 — R1 turns `MarkSettledAsync` from a weak path into an
+  active hole (it would mark an accrued invoice settled without crediting AR or debiting cash).
+- **⏳ PARALLEL, HUMAN, CLOCK RUNNING — the Repttown tax track.** Amended ภ.ง.ด.50 for the years whose
+  revenue was understated. Voluntary filing before an RD summons waives เบี้ยปรับ; เงินเพิ่ม 1.5%/month
+  is statutory and accruing now. Research + citations: `specs/research-thai-prior-period-correction.md`.
+  Does not wait on R1 — the WP-2 preview supplies the per-year figures.
+- **⚠️ teas_test is structurally dirty.** Four unrelated test failures this session traced to years of
+  accumulated state (41 poisoned fixture employees; a fresh-year pool that has drifted below 2020; a
+  `pk_companies` id collision). Two were fixed at the fixture; **a full reset is the real remedy** and is
+  queued before R2. Technique for proving a red test is pre-existing: run it at HEAD in a throwaway
+  worktree — now in `troubles-wiki.md`.
+
 - **✅ v1.27.1 LIVE (2026-07-30 ~22:15)** — patch: approve-banner no longer flashes
   "no permission" during permissions load; API restamped so the footer stays truthful.
   First agent-draft→human-post round-trip COMPLETED: draft #186 posted as 07-2026-JV-0060
