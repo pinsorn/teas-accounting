@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.0](https://github.com/pinsorn/teas-accounting/compare/v2.0.0...v2.1.0) (2026-08-13)
+
+
+### Features
+
+* **tax:** surface foreign-service payments that ภ.พ.36 would otherwise miss ([18f6fcc](https://github.com/pinsorn/teas-accounting/commit/18f6fcccd368a46bed510b893a337752e25abbd7))
+
+
+### Bug Fixes
+
+* **numbering:** document numbers are now sequenced per company, not per login channel ([ca820f5](https://github.com/pinsorn/teas-accounting/commit/ca820f533adcdc7f1564b1725fbe01d6d31b75ec))
+* **release:** make the v2.0.0 deploy probes actually prove what they claim ([3c8e032](https://github.com/pinsorn/teas-accounting/commit/3c8e0322d9875e3897beb09c15f8e00f9ac58cc6))
+* **security:** attachment download and delete now authorize against the parent document ([0381d60](https://github.com/pinsorn/teas-accounting/commit/0381d602ce91f58357203167ea69ccd5ca226068))
+
 ## [2.0.0](https://github.com/pinsorn/teas-accounting/compare/v1.28.0...v2.0.0) (2026-08-13)
 
 
