@@ -1,6 +1,29 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **🟡 R3 in progress — two fixes committed on main, NOT yet released.**
+  - `18f6fcc` **F1** — ภ.พ.36 now surfaces foreign-service payments it would otherwise miss entirely.
+    Clearing a foreign vendor's payable with a manual journal entry produced no voucher, so under
+    v2.0.0's (correct) payment-tax-point rule that purchase was declared in **no period at all**.
+    Detects and requires sign-off; deliberately no blocklist on the AP account, which would have
+    recreated the dead end remediated in `cb2e362`.
+  - `0381d60` **H4** — attachment download AND delete now authorize against the parent document.
+    `sys.attachment.read` is granted to every role, so any user could walk ids and pull files from
+    documents they cannot see (403 on the list, 200 on the download). Tier-2 caught two things before
+    this shipped: the first cut would have **403'd the company logo, stamp and signature for nearly
+    every user** — that route is also the canonical brand-image URL — and it closed only 9 of 12
+    parent types, leaving imported bank statements readable by any role.
+  - **H1 — duplicate document numbers. Probe run on prod; the bug is live.** co2 Repttown holds two
+    POSTED receipts sharing `07-2026-RC-LAB-0001` (฿3,000 and ฿18,000, eight days apart), and **both
+    real tenants carry the split-counter condition today** — co2 mints from branches `{0,2}`, co3 from
+    `{0,3}`. Branch scopes the sequence but never appears in the printed number, and branch is *who is
+    logged in*: web UI = 0, API key / MCP = the real branch. The stop-the-bleeding half (WP-1/2/3/3b)
+    is in flight. **The unique index (WP-4) is a separate release** — shipping it while that co2
+    duplicate exists would make the release permanently un-deployable, since a failed EF migration is
+    not recorded and retries on every boot.
+  - Left for the next round, deliberately: the 500 family, conversion routes checking the wrong scope,
+    the year-close deadlock, the year=3000 bound.
+
 - **✅ v2.0.0 LIVE (2026-08-13) — R2 compliance filings.** API + FE both deployed and probed.
   Major bump, not 1.29.0: WP-7 removes a public endpoint and the `feat!` is honest about it.
   - **WP-2** ภ.พ.36 declares a foreign service ONCE, at the ม.83/6 payment tax point. It used to
