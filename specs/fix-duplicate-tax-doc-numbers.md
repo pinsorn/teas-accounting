@@ -444,10 +444,14 @@ An invariant without a test is a wish; each row above names one.
 
 ## 5. Requirements checklist
 
-### WP-0 — prod probe *(Ham runs it; not an implementer task)* — **blocks WP-4 and §7**
-- [ ] Run §6 Q0 first and confirm the blindness control is non-zero.
-- [ ] Run Q1–Q3; paste the output into the attempt log.
-- [ ] Record: which companies, which tables, how many, whether any are on **co2 Repttown / co3**.
+### WP-0 — prod probe — ✅ **DONE 2026-08-13 (Fable). Full output in §6-RESULTS at the end of this file.**
+- [x] Q0 blindness control run FIRST and non-zero: `current_user = postgres`, `ti_rows = 48`. A run under
+      the app role would have read "clean" — it did not.
+- [x] Q1–Q3 run; output pasted in §6-RESULTS.
+- [x] Recorded: **11 duplicates. One is on a REAL tenant** — co2 Repttown, `sales.receipts`
+      `07-2026-RC-LAB-0001`, two POSTED rows (฿3,000 branch 2 / ฿18,000 branch 0). The other 10 are all
+      on co5. **Both real tenants carry split counters** (co2 `{0,2}`, co3 `{0,3}`), so co3 has not
+      collided yet only by luck. → **WP-4 stays gated; WP-1/2/3/3b are now urgent, not merely correct.**
 
 ### WP-1 — collapse the sequence key to company-wide *(no DDL, no data change)*
 - [ ] `Accounting.Application/Abstractions/INumberSequenceService.cs` — remove the `branchId` parameter; add the comment from §3.2 verbatim.
