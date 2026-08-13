@@ -512,7 +512,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         // save, further down).
         var pvNo = await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(pv.CompanyId, pv.BranchId, PvPrefix, subPrefix, postDate, c),
+            c => _numbers.NextAsync(pv.CompanyId, PvPrefix, subPrefix, postDate, c),
             (v, first) => { if (first) pv.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else pv.DocNo = v.Value; },
             ct);
         _activity.Record("PaymentVoucher", pv.PaymentVoucherId, pv.DocNo, pv.CompanyId,
@@ -596,7 +596,7 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
                 // collision (residual sequence drift), isolated per-certificate.
                 var grpNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
                     _db,
-                    c => _numbers.NextAsync(pv.CompanyId, pv.BranchId, WtPrefix, subPrefix: null, postDate, c),
+                    c => _numbers.NextAsync(pv.CompanyId, WtPrefix, subPrefix: null, postDate, c),
                     (v, _) => cert.DocNo = v.Value,
                     ct)).Value;
 

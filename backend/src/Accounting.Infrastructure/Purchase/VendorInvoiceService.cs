@@ -384,7 +384,7 @@ public sealed partial class VendorInvoiceService : IVendorInvoiceService
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         var docNo = await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(vi.CompanyId, vi.BranchId, ViPrefix, subPrefix: buCode, vi.DocDate, c),
+            c => _numbers.NextAsync(vi.CompanyId, ViPrefix, subPrefix: buCode, vi.DocDate, c),
             (v, first) => { if (first) vi.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else vi.DocNo = v.Value; },
             ct);
         _activity.Record("VendorInvoice", vi.VendorInvoiceId, vi.DocNo, vi.CompanyId,

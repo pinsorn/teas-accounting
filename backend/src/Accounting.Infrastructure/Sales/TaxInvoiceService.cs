@@ -534,7 +534,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         var docNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(ti.CompanyId, ti.BranchId, TiPrefix, subPrefix: buCode, postDate, c),
+            c => _numbers.NextAsync(ti.CompanyId, TiPrefix, subPrefix: buCode, postDate, c),
             (v, first) => { if (first) ti.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else ti.DocNo = v.Value; },
             ct)).Value;
         _activity.Record("TaxInvoice", ti.TaxInvoiceId, docNo, ti.CompanyId, "Posted", "Draft", "Posted");

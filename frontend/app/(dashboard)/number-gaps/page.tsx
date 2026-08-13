@@ -16,7 +16,12 @@ export default function NumberGapAuditPage() {
 
   const { data, isLoading, isError } = useNumberGaps(year, month, docType);
   const gaps = data?.gaps ?? [];
-  const clean = !isLoading && !isError && gaps.length === 0;
+  const duplicates = data?.duplicates ?? [];
+  // H1 (specs/fix-duplicate-tax-doc-numbers.md) §3.5 — `clean` must require BOTH lists empty. A
+  // duplicate is a real compliance breach tax.v_number_gaps cannot see (it groups by series, so a
+  // cross-branch duplicate pair contributes one distinct value and stays invisible); showing the
+  // green shield off `gaps` alone is the verdict's exact complaint.
+  const clean = !isLoading && !isError && gaps.length === 0 && duplicates.length === 0;
 
   return (
     <>
@@ -66,6 +71,37 @@ export default function NumberGapAuditPage() {
                   <tr key={`${g.series}-${g.missingSeqNo}-${i}`} className="text-error">
                     <td className="font-mono">{g.series}</td>
                     <td className="text-right font-mono tabular-nums">{g.missingSeqNo}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {!isLoading && !isError && duplicates.length > 0 && (
+        <>
+          <div role="alert" className="alert alert-error mb-4 mt-4">
+            <ShieldAlert className="h-5 w-5" aria-hidden />
+            <span>{t('duplicatesFound')} ({duplicates.length})</span>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-error/40">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{t('table')}</th>
+                  <th>{t('docNo')}</th>
+                  <th className="text-right">{t('copies')}</th>
+                  <th>{t('branches')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {duplicates.map((d, i) => (
+                  <tr key={`${d.table}-${d.docNo}-${i}`} className="text-error">
+                    <td className="font-mono">{d.table}</td>
+                    <td className="font-mono">{d.docNo}</td>
+                    <td className="text-right font-mono tabular-nums">{d.copies}</td>
+                    <td className="font-mono">{d.branchIds.join(', ')}</td>
                   </tr>
                 ))}
               </tbody>

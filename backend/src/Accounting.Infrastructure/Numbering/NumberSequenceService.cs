@@ -16,6 +16,11 @@ namespace Accounting.Infrastructure.Numbering;
 /// first transaction commits, so no two callers ever read the same value.
 /// Numbers are only allocated at POST (CLAUDE.md §17.5). Runs on the caller's ambient
 /// transaction when present (number + document commit atomically).
+/// H1 (specs/fix-duplicate-tax-doc-numbers.md): branch_id ALWAYS binds the literal 0 now — the
+/// column and its slot in the unique index stay (a schema change buys nothing, see spec §2), but
+/// every NEW allocation lands in the single company-wide bucket. 0 was already the web UI's bucket,
+/// so the most active counter keeps its own row and its history; see 634_reconcile_number_sequences_
+/// company_wide.sql for the one-time lift of that bucket to the true cross-branch max.
 /// </summary>
 public sealed class NumberSequenceService : INumberSequenceService
 {
@@ -25,7 +30,6 @@ public sealed class NumberSequenceService : INumberSequenceService
 
     public async Task<DocumentNumber> NextAsync(
         int companyId,
-        int branchId,
         string prefixCode,
         string? subPrefix,
         DateOnly docDate,
@@ -56,7 +60,7 @@ public sealed class NumberSequenceService : INumberSequenceService
             """;
 
         AddParam(cmd, "@p0", companyId);
-        AddParam(cmd, "@p1", branchId);
+        AddParam(cmd, "@p1", 0);   // H1 — 0 now means "company-wide", not "no branch".
         AddParam(cmd, "@p2", prefixCode);
         AddParam(cmd, "@p3", sub);
         AddParam(cmd, "@p4", year);

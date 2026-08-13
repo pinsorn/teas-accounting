@@ -85,7 +85,7 @@ public sealed class Sprint1HardeningTests
         {
             await using var scope = sp.CreateAsyncScope();
             var seq = scope.ServiceProvider.GetRequiredService<INumberSequenceService>();
-            var dn = await seq.NextAsync(company, 1, prefix, subPrefix: null, date, ct);
+            var dn = await seq.NextAsync(company, prefix, subPrefix: null, date, ct);
             results[i] = Seq(dn.Value);
         });
 
@@ -237,7 +237,7 @@ public sealed class Sprint1HardeningTests
         int r1, r2, r3;
         await using (var s = sp.CreateAsyncScope())
             r1 = Seq((await s.ServiceProvider.GetRequiredService<INumberSequenceService>()
-                .NextAsync(company, 1, prefix, null, date, default)).Value);
+                .NextAsync(company, prefix, null, date, default)).Value);
 
         // Allocate inside a transaction, then roll it back — must NOT burn the number.
         await using (var s = sp.CreateAsyncScope())
@@ -245,13 +245,13 @@ public sealed class Sprint1HardeningTests
             var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             await using var tx = await db.Database.BeginTransactionAsync();
             r2 = Seq((await s.ServiceProvider.GetRequiredService<INumberSequenceService>()
-                .NextAsync(company, 1, prefix, null, date, default)).Value);
+                .NextAsync(company, prefix, null, date, default)).Value);
             await tx.RollbackAsync();
         }
 
         await using (var s = sp.CreateAsyncScope())
             r3 = Seq((await s.ServiceProvider.GetRequiredService<INumberSequenceService>()
-                .NextAsync(company, 1, prefix, null, date, default)).Value);
+                .NextAsync(company, prefix, null, date, default)).Value);
 
         r1.Should().Be(1);
         r2.Should().Be(2, "the in-tx call sees the next value");

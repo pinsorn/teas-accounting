@@ -91,7 +91,11 @@ public sealed class NumberSequenceRetryGuardTests
                 SeedPostedJe(t.CompanyId, t.BranchId, today, DocumentNumber.Build(today.Year, today.Month, JvPrefix, null, 9).Value),
                 SeedPostedJe(t.CompanyId, t.BranchId, today, DocumentNumber.Build(today.Year, today.Month, JvPrefix, null, 10).Value));
             await db.SaveChangesAsync();
-            await SeedSequenceAsync(db, t.CompanyId, t.BranchId, JvPrefix, today, 7);
+            // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-1 — NextAsync always allocates from
+            // the company-wide branch_id=0 bucket now, regardless of which branch the document
+            // itself carries; the drift must be seeded into THAT bucket to be reachable by the
+            // real post below.
+            await SeedSequenceAsync(db, t.CompanyId, 0, JvPrefix, today, 7);
         }
 
         long journalId;
@@ -112,7 +116,7 @@ public sealed class NumberSequenceRetryGuardTests
             DocumentNumber.TryParse(je.DocNo, out var parsed).Should().BeTrue();
             parsed.Sequence.Should().Be(11, "doc_no must land on max(10)+1, not the stale counter+1");
 
-            (await CurrentValueAsync(db, t.CompanyId, t.BranchId, JvPrefix, today)).Should().Be(11,
+            (await CurrentValueAsync(db, t.CompanyId, 0, JvPrefix, today)).Should().Be(11,
                 "the sequence counter must have climbed all the way past the drift, not just +1");
         }
     }
@@ -178,7 +182,11 @@ public sealed class NumberSequenceRetryGuardTests
                 SeedPostedJe(t.CompanyId, t.BranchId, today, DocumentNumber.Build(today.Year, today.Month, JvPrefix, null, 9).Value),
                 SeedPostedJe(t.CompanyId, t.BranchId, today, DocumentNumber.Build(today.Year, today.Month, JvPrefix, null, 10).Value));
             await db.SaveChangesAsync();
-            await SeedSequenceAsync(db, t.CompanyId, t.BranchId, JvPrefix, today, 7);
+            // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-1 — NextAsync always allocates from
+            // the company-wide branch_id=0 bucket now, regardless of which branch the document
+            // itself carries; the drift must be seeded into THAT bucket to be reachable by the
+            // real post below.
+            await SeedSequenceAsync(db, t.CompanyId, 0, JvPrefix, today, 7);
         }
 
         // Attempt A — the PRE-fix shape: a bare NextAsync + SaveChanges, no retry. Proves the
@@ -187,7 +195,7 @@ public sealed class NumberSequenceRetryGuardTests
         {
             var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
             var numbers = s.ServiceProvider.GetRequiredService<INumberSequenceService>();
-            var docNo = await numbers.NextAsync(t.CompanyId, t.BranchId, JvPrefix, null, today, default);
+            var docNo = await numbers.NextAsync(t.CompanyId, JvPrefix, null, today, default);
             docNo.Sequence.Should().Be(8, "the drifted counter (7) hands out 8, which already exists");
 
             var now = DateTimeOffset.UtcNow;
@@ -221,7 +229,7 @@ public sealed class NumberSequenceRetryGuardTests
 
             var docNo = await NumberedDocumentWriter.AllocateAndSaveAsync(
                 db,
-                c => numbers.NextAsync(t.CompanyId, t.BranchId, JvPrefix, null, today, c),
+                c => numbers.NextAsync(t.CompanyId, JvPrefix, null, today, c),
                 (v, first) => { if (first) je.MarkPosted(v.Value, 1, DateTimeOffset.UtcNow); else je.DocNo = v.Value; },
                 default);
 

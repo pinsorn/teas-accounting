@@ -143,7 +143,7 @@ public sealed class PurchaseOrderService(
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         await NumberedDocumentWriter.AllocateAndSaveAsync(
             db,
-            c => numbers.NextAsync(po.CompanyId, po.BranchId, "PO", buCode, po.DocDate, c),
+            c => numbers.NextAsync(po.CompanyId, "PO", buCode, po.DocDate, c),
             (v, first) => { if (first) po.MarkApproved(tenant.UserId ?? 0, v.Value, approvedAt); else po.DocNo = v.Value; },   // SoD in entity + ck_po_sod
             ct);
         activity.Record("PurchaseOrder", po.PurchaseOrderId, po.DocNo, po.CompanyId,

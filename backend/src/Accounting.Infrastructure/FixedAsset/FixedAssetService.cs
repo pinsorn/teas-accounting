@@ -200,7 +200,7 @@ public sealed class FixedAssetService(
         {
             await NumberedDocumentWriter.AllocateAndSaveAsync(
                 db,
-                c => numbers.NextAsync(asset.CompanyId, asset.BranchId, FaPrefix, subPrefix: null, activateDate, c),
+                c => numbers.NextAsync(asset.CompanyId, FaPrefix, subPrefix: null, activateDate, c),
                 (v, first) => { if (first) asset.Activate(v.Value, tenant.UserId, activatedAt); else asset.DocNo = v.Value; },
                 ct);
         }

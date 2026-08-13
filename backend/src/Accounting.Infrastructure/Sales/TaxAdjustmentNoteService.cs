@@ -144,7 +144,7 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         var docNo = await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(note.CompanyId, note.BranchId, note.PrefixCode, subPrefix: buCode, note.DocDate, c),
+            c => _numbers.NextAsync(note.CompanyId, note.PrefixCode, subPrefix: buCode, note.DocDate, c),
             (v, first) => { if (first) note.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else note.DocNo = v.Value; },
             ct);
         _activity.Record(EntityTypeOf(note), note.NoteId, docNo, note.CompanyId, "Posted", "Draft", "Posted");

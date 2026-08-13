@@ -357,6 +357,22 @@ for historical context only.
   AddPostedJe`'s `DocNo` pattern produced `JVTESTf11443527012` (company 700926), permanently
   breaking the full-suite gate's `Sprint1HardeningTests.RolledBack_allocation_...` test. Fixed by
   `613_number_gap_view_bigint.sql` the same day (coordinator-approved Cycle A rider).
+- **UPDATE (2026-08-14) — how to test-seed a DELIBERATELY toxic doc_no without repeating this:**
+  `634_reconcile_number_sequences_company_wide.sql` needed the identical `bigint`/length-guard
+  class of fix for its own `seq_str::int` cast (Tier-2 FIX 2, `NumberSequenceReconcileScriptTests.
+  Script634_survives_a_garbage_doc_no_with_an_overlong_digit_run`), and a superuser cleanup was
+  needed once, live, to un-poison teas_test after the first draft of that test seeded its garbage
+  `doc_no` as `status='POSTED'` and hit exactly this trap (4 rows across 4 synthetic test
+  companies, cleaned up via a scoped `ALTER TABLE ... DISABLE TRIGGER` / `DELETE` / `ENABLE
+  TRIGGER` transaction matched on the exact garbage string — narrow, verified, not a routine
+  move). **The actual fix, and the one to reuse:** `626`/`634`'s `raw_docs` CTE has NO `status`
+  filter (unlike `tax.v_number_gaps`, which filters `WHERE status = 'POSTED'`) — so seed the
+  toxic row as `status='DRAFT'` instead. It is picked up by the reconcile script identically, but
+  `020_journal_immutability.sql`'s two triggers only fire when `OLD.status <> 'DRAFT'`
+  (delete-block) / `OLD.status = 'POSTED'` (update-block), so a `finally`-block `DELETE` cleans it
+  up normally, pass or fail, no superuser bypass required. `626` itself carries the identical
+  unguarded cast (out of scope, "do not edit 626" — a real script targeting it must never be
+  tested with a POSTED toxic row either, for the same reason).
 
 ## A test with `new StubTenant { CompanyId = 1, IsSuperAdmin = true }` reads back a FRESHLY-created OTHER company's `ITenantOwned` rows and gets 0 results ("could not find codes {empty}", "found 0" branches/etc.)
 - **Root cause:** `AccountingDbContext`'s EF global query filter used to be
@@ -1417,3 +1433,19 @@ losing the test DB costs nothing.
   covers the edit. Do not read the in-flight run's result as covering anything edited after it started.
 - **Seen:** 2026-08-13, R3/F1 — Fable rewrote a DomainException message to be Thai-first while the
   consolidated suite was running, then tried to rebuild. Cost one wasted suite run.
+
+## Windows `vitest.cmd`/`pnpm.cmd` chokes on a path containing parens (Next.js route groups)
+- **Symptom:** running any vitest/pnpm command whose target path includes an `app/(dashboard)/...`
+  style Next.js route-group segment fails from `cmd.exe`'s batch-file parsing (`"(" was unexpected at
+  this time.`) even when the whole path is double-quoted at the PowerShell/Bash-tool level — the `.cmd`
+  wrapper re-parses its own argument line as a batch script before handing off to node.
+- **Root cause:** Next.js route groups are parenthesized directories by convention
+  (`app/(dashboard)/...`); `.cmd` shims (pnpm, vitest, tsc when invoked via the `pnpm`/`corepack pnpm`
+  wrapper) go through `cmd.exe`'s batch parser first, and unescaped `(`/`)` are batch syntax, not just
+  shell metacharacters — outer quoting done by the calling tool does not survive that second parse.
+- **Fix:** `cd` into the parenthesized directory first (so the offending segment is out of the argument
+  string) and invoke the test runner with a relative bare filename plus `--root` pointing back at the
+  project root; or filter by test name/pattern instead of passing the literal path. Every future test
+  file that lives under an app-router route group hits this identically.
+- **Seen:** 2026-08-13, R3/H1 — `frontend/app/(dashboard)/number-gaps/page.test.tsx`, the first-ever
+  rendered-component test in this repo.

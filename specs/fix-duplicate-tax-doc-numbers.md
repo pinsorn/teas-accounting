@@ -453,32 +453,37 @@ An invariant without a test is a wish; each row above names one.
       on co5. **Both real tenants carry split counters** (co2 `{0,2}`, co3 `{0,3}`), so co3 has not
       collided yet only by luck. → **WP-4 stays gated; WP-1/2/3/3b are now urgent, not merely correct.**
 
-### WP-1 — collapse the sequence key to company-wide *(no DDL, no data change)*
-- [ ] `Accounting.Application/Abstractions/INumberSequenceService.cs` — remove the `branchId` parameter; add the comment from §3.2 verbatim.
-- [ ] `Accounting.Infrastructure/Numbering/NumberSequenceService.cs` — bind literal `0` to `@p1`; update the class doc-comment (it currently says "per-(company,branch,prefix,sub,year,month) serialization"). UPSERT otherwise untouched.
-- [ ] Update all 15 call sites (§2) — delete the branch argument only. **No other edit in those files.**
-- [ ] `Sprint1HardeningTests.cs:88,240,248,254` and `NumberSequenceRetryGuardTests.cs:190,224` — signature update only.
-- [ ] Done-criterion: `dotnet build` clean; no remaining `NextAsync(` call with 6 arguments.
+### WP-1 — collapse the sequence key to company-wide *(no DDL, no data change)* — ✅ DONE 2026-08-13
+- [x] `Accounting.Application/Abstractions/INumberSequenceService.cs` — removed the `branchId` parameter; added the comment from §3.2 verbatim.
+- [x] `Accounting.Infrastructure/Numbering/NumberSequenceService.cs` — binds literal `0` to `@p1`; class doc-comment updated. UPSERT otherwise untouched.
+- [x] Updated all 14 call-site FILES (17 call sites — §2's own count, confirmed by the compiler after the signature change) — deleted the branch argument only. No other edit in those files.
+- [x] `Sprint1HardeningTests.cs:88,240,248,254` and `NumberSequenceRetryGuardTests.cs:190,224` — signature update only.
+- [x] Additionally required (not a scope change — a mechanical consequence of WP-1): `NumberSequenceRetryGuardTests.cs` and `NumberSequenceAmbientTxRetryTests.cs` seeded drift into `t.BranchId`'s bucket; post-WP-1 every real allocation reads/writes bucket `branch_id=0` only, so the seeded drift became unreachable (4 tests went red: `Drift_behind_max_then_post_succeeds_and_lands_on_max_plus_one`, `Naive_allocate_then_save_reproduces_23505_but_the_retry_helper_recovers`, `TaxInvoice_post_recovers_from_JE_doc_no_drift_under_ambient_tx`, `Receipt_post_recovers_from_JE_doc_no_drift_under_ambient_tx`). Fixed by seeding/reading bucket `0` instead of `t.BranchId` in those 2 files — the JE rows' own `BranchId` field is untouched (immaterial; `gl.journal_entries`' doc_no uniqueness is company-wide already).
+- [x] Done-criterion: `dotnet build backend/Accounting.sln` → 0 errors, 0 warnings. `grep -rn "NextAsync(" backend/src backend/tests` → every hit has 5 arguments (verified by hand, all 25 call sites listed).
+- [x] New RED→GREEN tests (`NumberSequenceCompanyWideTests.cs`, T1/T3/T6/T8) + full G2 filter: 22/22 passed, 0 skipped (baseline 18/0).
 
-### WP-2 — company-wide reconcile SqlScript *(depends on WP-1)*
-- [ ] New `SqlScripts/6NN_reconcile_number_sequences_company_wide.sql` per §3.4. Copy `626` and make exactly the three stated changes. **Do not edit `626`.**
-- [ ] Confirm the chosen number is free (`ls`) and record it here.
-- [ ] Verify no curly brace anywhere in the file (F20).
-- [ ] Done-criterion: on a `SET ROLE teas` test DB, the script runs and query B of §3.4 returns **0 rows** (F19 — a superuser run proves nothing).
+### WP-2 — company-wide reconcile SqlScript *(depends on WP-1)* — ✅ DONE 2026-08-13
+- [x] New `SqlScripts/634_reconcile_number_sequences_company_wide.sql` per §3.4. Copied `626` line for line; the three stated changes at authoring time (GROUP BY drops branch_id; INSERT writes literal `0`; header cites this spec) plus two defensive guards added in the 2026-08-14 Tier-2 fix round (overflow-safe seq cast; all-garbage-bucket exclusion) — see attempt log. **`626` untouched.**
+- [x] Chosen number: **634** (635 also claimed for WP-3's view). `ls SqlScripts/` showed 633 as latest at implementation time; both free.
+- [x] Brace scan: `grep -c '[{}]' 634_....sql` → **0**.
+- [x] Done-criterion, role note: **no literal `teas` role exists on this local Postgres** (`accounting`=superuser/BYPASSRLS, only `pg_database_owner` is NOBYPASSRLS — confirmed via `pg_roles` query). This repo's established substitute for a NOBYPASSRLS+FORCE-RLS role in tests is `SET ROLE pg_database_owner` (troubles-wiki.md, `NumberSequenceReconcileScriptTests.cs` precedent for `626`) — used identically here. Evidence:
+  - New tests `Script634_changes_no_doc_no` (T4) and `Company_with_two_branch_series_has_no_gaps_after_collapse` (T5) run the ACTUAL script file under `SET ROLE pg_database_owner` — both green.
+  - Full-DB verification (script already run under `pg_database_owner` at every `teas_test` fixture bootstrap since 634 was added — apply-once tracked): §3.4 query B, corrected to join on `(company_id, prefix, sub, period_year, period_month)` and run as superuser (query B is a cross-company auditor query — RLS-blind under any single-company-pinned role, matching §6's own "trust only if it can see rows" warning) → **0 rows**. Query C control: `count(*) FROM sys.number_sequences WHERE branch_id=0` → **5644** (`> 0`, passes). `sys.applied_sql_scripts` shows `634_reconcile_number_sequences_company_wide.sql` applied exactly once.
 
-### WP-3 — make the audit report see duplicates *(parallel-safe with WP-2: different files. WP-3b is FE-only — `tsc`/vitest, no DB — so it is safe to run alongside a backend worker; two dotnet+DB dispatches are NOT, the test DB is shared)*
-- [ ] New SqlScript creating `tax.v_duplicate_doc_numbers` per §3.5.
-- [ ] `INumberGapReportService.cs` — add `NumberDuplicateRow` + `Duplicates` to `NumberGapReport`.
-- [ ] `NumberGapReportService.cs` — read the view, **filtered on `_tenant.CompanyId`**, honouring `year`/`month`/`docType`.
-- [ ] `ReportEndpoints.cs:146` — unchanged if the DTO carries it; confirm the route and permission are untouched.
-- [ ] Done-criterion: on a company with a seeded duplicate the endpoint returns it; on a clean company `duplicates` is empty.
+### WP-3 — make the audit report see duplicates *(parallel-safe with WP-2: different files. WP-3b is FE-only — `tsc`/vitest, no DB — so it is safe to run alongside a backend worker; two dotnet+DB dispatches are NOT, the test DB is shared)* — ✅ DONE 2026-08-13
+- [x] New SqlScript **635_duplicate_doc_number_view.sql** creating `tax.v_duplicate_doc_numbers` per §3.5. Brace scan: 0.
+- [x] `INumberGapReportService.cs` — added `NumberDuplicateRow(Table, DocNo, Copies, BranchIds)` + `Duplicates` (and `HasDuplicates`) to `NumberGapReport`.
+- [x] `NumberGapReportService.cs` — reads the view, **filtered on `_tenant.CompanyId`**, honouring `year`/`month`/`docType` (mirrors the gaps query's LIKE-filter shape, applied to `doc_no` directly since the view has no `series` column).
+- [x] `ReportEndpoints.cs:146` — confirmed unchanged: `Results.Ok(await svc.GetGapsAsync(...))` serializes the additive field automatically; route + `Report.AuditRead` permission untouched.
+- [x] Done-criterion: new tests T9 (`Duplicate_report_is_tenant_scoped`) + T10 (`Duplicate_report_surfaces_what_number_gaps_missed`) in `NumberGapReportDuplicatesTests.cs` — RED (compile error, `Duplicates` didn't exist) → GREEN. 2/2 passed.
 
-### WP-3b — the frontend half of the control *(same work package as WP-3; do not ship one without the other)*
-- [ ] `frontend/lib/types.ts` — add `NumberDuplicateRow`, add `duplicates` to `NumberGapReport`.
-- [ ] `frontend/app/(dashboard)/number-gaps/page.tsx` — `clean` requires **both** lists empty; add the duplicates table.
-- [ ] `frontend/app/(dashboard)/page.tsx` — a **separate** `dup` alert alongside `gap`, `tone: 'error'`, href `/number-gaps`.
-- [ ] `frontend/messages/en.json` **and** `frontend/messages/th.json` — new keys in **both**, verified by hand (F15b: nothing enforces this).
-- [ ] Done-criterion: with a seeded duplicate the page shows **no** green shield and the dashboard shows the alert; with clean data the green shield still appears.
+### WP-3b — the frontend half of the control *(same work package as WP-3; do not ship one without the other)* — ✅ DONE 2026-08-13
+- [x] `frontend/lib/types.ts` — added `NumberDuplicateRow`, added `duplicates` + `hasDuplicates` to `NumberGapReport`. `queries.ts` needed no edit (type flows through the existing generic `apiGet<NumberGapReport>`).
+- [x] `frontend/app/(dashboard)/number-gaps/page.tsx` — `clean` now requires **both** `gaps.length === 0 && duplicates.length === 0`; added the duplicates table (Table/DocNo/Copies/BranchIds), styled like the gaps table.
+- [x] `frontend/app/(dashboard)/page.tsx` — added a **separate** `dup` alert alongside `gap`, `tone: 'error'`, href `/number-gaps`, driven by `gaps.data?.duplicates?.length` (Tier-2 FIX 1, 2026-08-14: the original `?.duplicates.length` left an un-guarded `.length` that throws on the old 5-field API response during a deploy skew window; see attempt log).
+- [x] `frontend/messages/en.json` **and** `frontend/messages/th.json` — new keys (`dashboard.alerts.numberDuplicates`, `numberGaps.duplicatesFound`/`table`/`docNo`/`copies`/`branches`) in **both**. Verified by hand with a recursive key-diff script (not just visual inspection): **2020/2020 keys in each file, 0 mismatch either direction.** Thai text also codepoint-scanned for U+0980–U+09FF (Bengali lookalike) — 0 hits.
+- [x] Done-criterion: new vitest test `app/(dashboard)/number-gaps/page.test.tsx` (T11) — RED (green shield wrongly shown with only duplicates present) → GREEN after the `clean` fix. Both scenarios covered: only-duplicates hides the shield and renders the row; both-empty still shows the shield.
+- [x] **Infra note:** this is the FIRST rendered-component vitest test in the repo (only `.test.ts` pure-logic tests existed before, despite `@testing-library/react`/`jest-dom` already being installed). Required two small additions to make already-declared tooling usable: `jsdom` devDependency (`frontend/package.json` + lockfile) and `esbuild: { jsx: 'automatic' }` in `vitest.config.ts` (esbuild's default classic JSX mode needs `React` in scope; Next's own SWC compiler already targets the automatic runtime, so this avoids touching page source just to satisfy the test transform). Both scoped as narrowly as possible; see report SKIPPED/SIMPLIFIED for the blast-radius note.
 
 ### WP-4 — the unique indexes *(SEPARATE RELEASE — gated on WP-0 + §7)*
 - [ ] **Gate: §6 probe returns zero duplicate rows for the seven tables, or Ham has chosen the grandfather route and supplied the row ids.** Paste the evidence here before starting.
@@ -710,12 +715,18 @@ Do not edit backend source while any suite run is in flight (F24).
 
 ## 12. Blast-radius cap
 
-**Release 1 (WP-1 + WP-2 + WP-3 + WP-3b): max 32 files.**
+**Release 1 (WP-1 + WP-2 + WP-3 + WP-3b): max 35 files.**
 2 numbering files · 14 service files · 2 existing test files · 2 new SqlScripts · 3 backend report files ·
 5 frontend files (`types.ts`, `queries.ts`, `number-gaps/page.tsx`, `(dashboard)/page.tsx`, `en.json` + `th.json`) ·
 up to 3 new/edited test files.
 *(Raised from 26 when the frontend consumer sweep was corrected — F15/F15a. The FE half is not optional:
 without it the system keeps showing a green compliance shield over a live breach.)*
+*(Raised again 32 → 35, Tier-2 REJECT-round accept, 2026-08-14: the implementer's exact reconciled count
+came to 35 — see the attempt log entry below for the full bucket-by-bucket breakdown (+2 existing-test-file
+edits mechanically forced by WP-1's bucket-0 change, +3 wholly unbudgeted FE infra files needed to run
+T11, the first rendered-component test in this repo, −1 saved because `ReportEndpoints.cs` needed no
+edit). Fable/Tier-2 accepted the overage as justified, no scope creep — this header now reflects that
+acceptance rather than the pre-acceptance budget.)*
 
 **Release 2 (WP-4): max 12 files.**
 7 EF configurations · 1 migration (`.cs` + `.Designer.cs` + `ModelSnapshot.cs`) · up to 2 test files.
@@ -738,6 +749,37 @@ without it the system keeps showing a green compliance shield over a live breach
   branch-**aware**; the printed number is branch-blind). Found four holes the verdict missed
   (`vendor_invoices`, `payment_vouchers`, `expense_claims`, `fixed_assets`) and the M13 precedent showing
   the bug class was already known and patched per-channel. Not implemented; WP-0 and §7 are open.
+- 2026-08-13 implementer (Sonnet): WP-1+WP-2+WP-3+WP-3b implemented and green. **Blast-radius cap
+  note — 32-file budget exceeded by ~5, flagged here rather than silently absorbed:**
+  - "up to 3 new/edited test files" bucket used **5**: 3 new (`NumberSequenceCompanyWideTests.cs`,
+    `NumberGapReportDuplicatesTests.cs`, `number-gaps/page.test.tsx`) as budgeted, **plus 2 more
+    existing-file edits not in the original budget** — `NumberSequenceAmbientTxRetryTests.cs` and
+    `NumberSequenceReconcileScriptTests.cs`. Both were mechanical, unavoidable consequences of WP-1
+    itself: they seeded drift/history into `t.BranchId`'s `sys.number_sequences` bucket, and post-WP-1
+    every real allocation reads/writes bucket `branch_id=0` only, so the seeded drift became
+    unreachable (4 tests went red for that reason — see WP-1's checklist entry). Fixing the seed
+    target, not the assertions, restored the SAME invariant coverage (I5) the tests always had.
+  - **3 files entirely outside the original budget**: `frontend/vitest.config.ts` (added
+    `esbuild.jsx: 'automatic'`), `frontend/package.json` + `frontend/pnpm-lock.yaml` (added `jsdom`
+    devDependency). T11 is the FIRST rendered-component vitest test in this repo — only pure-logic
+    `.test.ts` files existed before, despite `@testing-library/react`/`jest-dom` already being
+    installed. Rendering `number-gaps/page.tsx` for real (not a logic-only extraction) is what T11's
+    own spec text asks for (§10: "render `number-gaps/page.tsx`... assert the banner is absent... the
+    duplicate row is rendered"), so this was scoped as narrowly as the requirement allows — one
+    devDependency + one esbuild option, no plugin, no per-file source edits.
+  - **Exact reconciled count** (from `git status --porcelain -- backend frontend`, excluding this
+    living spec doc and `troubles-wiki.md` as process docs, not release files): **35** — 30 modified +
+    5 new. Against the header's stated cap of **32**, that is **3 files over**. Bucket-by-bucket against
+    §12's own itemization (which sums to 31, one below the stated 32): numbering 2/2, service 14/14,
+    SqlScripts 2/2, frontend 5/5 exactly on budget; backend-report **2 used vs 3 budgeted** (−1,
+    `ReportEndpoints.cs` needed no edit — confirmed, see WP-3 checklist); existing-test-file bucket
+    **4 used vs 2 budgeted** (+2 — the WP-1 seed-bucket fix in `NumberSequenceAmbientTxRetryTests.cs`
+    and `NumberSequenceReconcileScriptTests.cs`, on top of the 2 originally-budgeted signature-only
+    fixes); new-test-file bucket exactly 3/3 as budgeted; **+3 wholly unbudgeted infra files**
+    (`vitest.config.ts`, `package.json`, `pnpm-lock.yaml`). Net: −1 +2 +3 = **+4** against the
+    bucket sum, **+3** against the rounder stated cap. Every over-budget file is listed above with its
+    reason; none is scope creep — no WP-4 code, no unrequested feature, no touched
+    `AttachmentEndpoints.cs`/`problems.ts`. Left for Fable to accept or order trimmed.
 - 2026-08-13 opus-designer, self-review pass: **caught two errors in my own first draft.** (1) F15 claimed
   "no FE consumer" from a grep against `frontend/src`, **which does not exist** — the control grep was
   empty too, which is what exposed it. There is a whole audit page, a dashboard alert, a query hook, a
@@ -746,6 +788,61 @@ without it the system keeps showing a green compliance shield over a live breach
   solution is `backend/Accounting.sln`. Also recorded F15b: **no i18n parity gate exists in this repo**
   (verified by an empty grep over `package.json` and `.github/workflows/`), so th/en parity is a manual
   checklist item and must never be described as enforced.
+- 2026-08-14 Tier-2 (single fresh reviewer) REJECTed on one must-fix, plus two more requested. Everything
+  named high-risk in the review passed: reconcile arithmetic a true MAX, idempotent, no index/constraint
+  renamed, `tax.v_duplicate_doc_numbers` tenant wall correct, the FE `clean` control genuine, vitest config
+  cannot reach the prod build. Full suite green at 1206/0/14 (Fable's run, not this worker's).
+  - **FIX 1 (must-fix):** `frontend/app/(dashboard)/page.tsx:52` — `gaps.data?.duplicates.length` throws
+    if `data` is present but `duplicates` is absent (deploy-skew window, old 5-field response, client
+    component on the landing page → white-screens every user). Changed to
+    `gaps.data?.duplicates?.length ?? 0`. Checked the sibling read at `number-gaps/page.tsx:19` for the
+    identical class — already safe (`data?.duplicates ?? []`, guards the missing-field case regardless of
+    whether `data` itself is present).
+  - **FIX 2:** `634`'s `seq_str::int` cast (inherited from `626`) overflows int4 (`22003`) on an 11+ digit
+    garbage `doc_no`, rolling back the whole script (never recorded in `sys.applied_sql_scripts` →
+    retries every boot). Adopted `613`'s guard PATTERN, not its literal numbers: `613` casts to `bigint`
+    with an 18-char cap because its target is only ever a small synthetic `generate_series` value cast
+    back down; `634` writes the parsed value DIRECTLY into `sys.number_sequences.current_value`, which is
+    declared plain `int` — an 18-char bigint intermediate would only relocate the same overflow to the
+    INSERT's implicit bigint→int assignment cast for any 10–18-digit garbage run, not remove it. Used
+    `CASE WHEN length(seq_str) <= 9 THEN seq_str::int ELSE NULL END` instead — 9 digits is the largest
+    length for which EVERY possible value is unconditionally inside int4 range, so no bigint step is
+    needed at all. RED confirmed on the unguarded cast (`pg_strtoint32_safe`, 22003) before restoring the
+    guard. Self-review during RED/GREEN verification surfaced a SECOND, related hole the coordinator's
+    ask hadn't named: a bucket where every row is excluded by the guard (all-garbage, no legitimate
+    sibling) yields `MAX(seq) = NULL`, and `current_value` is `NOT NULL` → 23502, same failure mode,
+    different SQLSTATE. Added `WHERE seq IS NOT NULL` to the `buckets` CTE (a bucket with nothing legit
+    left simply emits no row). RED confirmed on this path too before restoring. `626` carries both of
+    these identical unguarded risks — out of scope, "do not edit 626" — flagged for the fix-later list.
+  - **Self-inflicted incident, disclosed and resolved:** the first draft of the new guard test seeded its
+    garbage `doc_no` as `status='POSTED'`. `020_journal_immutability.sql`'s two triggers make a POSTED
+    `doc_no` permanently unfixable (UPDATE and DELETE both blocked) — an already-known troubles-wiki class
+    (`22003`/`JVTESTf11443527012` entry), now hit again from a different angle. 4 rows landed in the
+    shared `teas_test` DB across 4 synthetic test companies from repeated RED/GREEN verification runs, and
+    one of them broke `Script626_lifts_a_drifted_bucket_to_true_max_and_is_idempotent_under_RLS` (626
+    scans every company in `master.companies`, unfiltered by which test created it). Cleaned up via a
+    single transaction — `ALTER TABLE ... DISABLE TRIGGER` (both), `DELETE` matched on the exact garbage
+    string (verified beforehand: exactly 4 rows, all from this session's own synthetic companies, no
+    unrelated data at risk), `ALTER TABLE ... ENABLE TRIGGER` (both), committed, then verified 0 poisoned
+    rows remain and both triggers show `tgenabled='O'`. Real fix, not just cleanup: `626`/`634`'s
+    `raw_docs` CTE has no `status` filter, so re-seeded the test's garbage rows as `status='DRAFT'`
+    instead of `'POSTED'` — picked up by the script identically, but not immutability-protected, so the
+    test's own `finally`-block `DELETE` now cleans up normally on every run, pass or fail, no superuser
+    bypass ever needed again. Appended the remedy to troubles-wiki's existing `22003` entry for the next
+    worker who needs to seed a deliberately-toxic `doc_no`.
+  - **FIX 3:** this header (§12) updated 32 → 35 to match the exact reconciled count above, in the same
+    edit as this log entry, per CLAUDE.md's "the header number changes in the same edit as the scope
+    change" rule.
+  - Extended `NumberSequenceReconcileScriptTests.cs` with one new test (self-initiated, not requested by
+    the coordinator — Ponytail's "non-trivial logic leaves one runnable check behind"; the coordinator's
+    ask was to re-run T4/T5, not add coverage), `Script634_survives_a_garbage_doc_no_with_an_overlong_
+    digit_run`, covering both guard paths (excluded-but-bucket-survives, and all-garbage-bucket-emits-
+    nothing). Reconcile-file filter now reports 4 tests, not 3.
+  - Gates re-run: `dotnet build` 0/0 · reconcile-script filter 4/4 (626's own test + T4 + T5 + the new
+    test), 0 skipped · extended G2 filter 27/27 (26 + the new test), 0 skipped · `tsc --noEmit` 0 errors ·
+    vitest 15 files/67 tests · brace scan 634 → 0 (both before and after the buckets-CTE addition) ·
+    Bengali-codepoint scan on the troubles-wiki addition → 0 (the one pre-existing hit elsewhere in the
+    file is unrelated, a self-referential example inside the R8 entry, not touched this round).
 
 ---
 

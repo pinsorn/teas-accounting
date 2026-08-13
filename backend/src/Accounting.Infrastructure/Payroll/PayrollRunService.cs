@@ -216,7 +216,7 @@ public sealed class PayrollRunService(
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         await NumberedDocumentWriter.AllocateAndSaveAsync(
             db,
-            c => numbers.NextAsync(run.CompanyId, run.BranchId, PrefixCode, subPrefix: null, run.PayDate, c),
+            c => numbers.NextAsync(run.CompanyId, PrefixCode, subPrefix: null, run.PayDate, c),
             (v, first) => { if (first) run.MarkPosted(v.Value, tenant.UserId ?? 0, postedAt); else run.DocNo = v.Value; },
             ct);
         activity.Record(EntityType, run.PayrollRunId, run.DocNo, run.CompanyId,

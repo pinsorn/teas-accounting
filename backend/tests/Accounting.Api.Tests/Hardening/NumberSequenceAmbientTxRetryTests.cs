@@ -108,7 +108,10 @@ public sealed class NumberSequenceAmbientTxRetryTests
             // the old MaxAttempts(5), so the pre-fix guard `when (attempt < MaxAttempts ...)` lets the
             // attempt-5 collision escape as a raw DbUpdateException → 500 internal_error, and the
             // ambient tx rolls back every NextAsync bump so the counter never climbs (deterministic).
-            await SeedJvDriftAsync(db, t.CompanyId, t.BranchId, today, max: 8, counter: 0);
+            // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-1 — NextAsync always allocates from
+            // the company-wide branch_id=0 bucket now; seed the drift there, not on t.BranchId,
+            // or the real post below never sees it.
+            await SeedJvDriftAsync(db, t.CompanyId, 0, today, max: 8, counter: 0);
         }
 
         var tiId = await CreateTiDraftAsync(sp, t.CustomerId, today);
@@ -130,7 +133,7 @@ public sealed class NumberSequenceAmbientTxRetryTests
                 .OrderByDescending(j => j.JournalId).FirstAsync();
             DocumentNumber.Parse(je.DocNo!).Sequence.Should().Be(9,
                 "the TI's JE must land on max(8)+1, not collide-and-500 on the drifted counter");
-            (await JvCurrentValueAsync(db, t.CompanyId, t.BranchId, today)).Should().Be(9,
+            (await JvCurrentValueAsync(db, t.CompanyId, 0, today)).Should().Be(9,
                 "the JV counter must have climbed all the way past the drift and COMMITTED");
         }
     }
@@ -166,10 +169,12 @@ public sealed class NumberSequenceAmbientTxRetryTests
             for (var seq = 2; seq <= 9; seq++)
                 db.JournalEntries.Add(SeedPostedJe(t.CompanyId, t.BranchId, today, seq));
             await db.SaveChangesAsync();
+            // H1 WP-1 — drift the company-wide branch_id=0 bucket (the one the real receipt post
+            // below actually reads), not t.BranchId.
             await db.Database.ExecuteSqlRawAsync(
-                "UPDATE sys.number_sequences SET current_value=1 WHERE company_id={0} AND branch_id={1} " +
-                "AND prefix_code='JV' AND sub_prefix='' AND period_year={2} AND period_month={3}",
-                t.CompanyId, t.BranchId, today.Year, today.Month);
+                "UPDATE sys.number_sequences SET current_value=1 WHERE company_id={0} AND branch_id=0 " +
+                "AND prefix_code='JV' AND sub_prefix='' AND period_year={1} AND period_month={2}",
+                t.CompanyId, today.Year, today.Month);
         }
 
         await using (var s = sp.CreateAsyncScope())
@@ -182,7 +187,7 @@ public sealed class NumberSequenceAmbientTxRetryTests
         await using (var s = sp.CreateAsyncScope())
         {
             var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
-            (await JvCurrentValueAsync(db, t.CompanyId, t.BranchId, today)).Should().Be(10,
+            (await JvCurrentValueAsync(db, t.CompanyId, 0, today)).Should().Be(10,
                 "the receipt's JE must have climbed past the drift to max(9)+1 and COMMITTED");
         }
     }

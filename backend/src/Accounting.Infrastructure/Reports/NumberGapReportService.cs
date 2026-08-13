@@ -23,6 +23,10 @@ public sealed class NumberGapReportService : INumberGapReportService
 
     private sealed record Row(string Series, int MissingSeqNo);
 
+    // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-3 — Tbl/DocNo/Copies/BranchIds map to
+    // tax.v_duplicate_doc_numbers' tbl/doc_no/copies/branch_ids columns (EF snake-case convention).
+    private sealed record DupRow(string Tbl, string DocNo, int Copies, int[] BranchIds);
+
     public async Task<NumberGapReport> GetGapsAsync(
         int? year, int? month, string? docType, CancellationToken ct)
     {
@@ -64,7 +68,41 @@ public sealed class NumberGapReportService : INumberGapReportService
             .SqlQueryRaw<Row>(sql, args.ToArray())
             .ToListAsync(ct);
 
+        // tax.v_duplicate_doc_numbers has NO series column (F21 — no numeric cast, group on the
+        // string doc_no itself), so the same year/month/docType filters apply to doc_no directly —
+        // it starts with the identical "MM-YYYY-" prefix and ends "...-PREFIX[-SUB]-NNNN".
+        var dupArgs = new List<object> { _tenant.CompanyId };
+        var dupWhere = "company_id = {0}";
+
+        if (year is { } dy)
+        {
+            dupWhere += $" AND doc_no LIKE '%-' || {{{dupArgs.Count}}} || '-%'";
+            dupArgs.Add(dy.ToString("D4"));
+        }
+        if (month is { } dm)
+        {
+            dupWhere += $" AND doc_no LIKE {{{dupArgs.Count}}} || '-%'";
+            dupArgs.Add(dm.ToString("D2"));
+        }
+        if (!string.IsNullOrWhiteSpace(docType))
+        {
+            dupWhere += $" AND doc_no LIKE '%-' || {{{dupArgs.Count}}} || '-%'";
+            dupArgs.Add(docType);
+        }
+
+        var dupSql = $"""
+            SELECT tbl, doc_no, copies, branch_ids
+            FROM tax.v_duplicate_doc_numbers
+            WHERE {dupWhere}
+            ORDER BY tbl, doc_no
+            """;
+
+        var dupRows = await _db.Database
+            .SqlQueryRaw<DupRow>(dupSql, dupArgs.ToArray())
+            .ToListAsync(ct);
+
         return new NumberGapReport(year, month, docType,
-            rows.Select(r => new NumberGapRow(r.Series, r.MissingSeqNo)).ToList());
+            rows.Select(r => new NumberGapRow(r.Series, r.MissingSeqNo)).ToList(),
+            dupRows.Select(r => new NumberDuplicateRow(r.Tbl, r.DocNo, r.Copies, r.BranchIds)).ToList());
     }
 }

@@ -2116,6 +2116,7 @@
       "section": "To do / alerts",
       "allClear": "Nothing pending — all clear",
       "numberGaps": "{n} document number gap(s)",
+      "numberDuplicates": "{n} duplicate document number(s)",
       "incompletePurchase": "{n} incomplete purchase document(s)",
       "pnd30Due": "PND.30 due by {day} {month}",
       "view": "View",
@@ -2207,7 +2208,12 @@
     "missing": "Missing no.",
     "year": "Year",
     "month": "Month",
-    "docType": "Doc type"
+    "docType": "Doc type",
+    "duplicatesFound": "Duplicate document numbers found — investigate immediately",
+    "table": "Table",
+    "docNo": "Document no.",
+    "copies": "Copies",
+    "branches": "Branches"
   },
   "login": {
     "title": "Sign in to TEAS",

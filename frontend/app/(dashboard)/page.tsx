@@ -46,6 +46,10 @@ export default function DashboardPage() {
 
   const gaps = useNumberGaps();
   const gapCount = gaps.data?.gaps.length ?? 0;
+  // H1 (specs/fix-duplicate-tax-doc-numbers.md) §3.5 — a duplicate is a DIFFERENT compliance
+  // failure from a gap (tax.v_number_gaps cannot see it at all); a SEPARATE alert so one never
+  // hides behind the other.
+  const dupCount = gaps.data?.duplicates?.length ?? 0;
   const threshold = useVatThresholdStatus().data?.status;
   const incompleteVi = useVendorInvoices(true).data?.length ?? 0;
   const agentApprovals = usePendingAgentApprovals().data;
@@ -65,6 +69,8 @@ export default function DashboardPage() {
     alerts.push({ key: 'tha', tone: 'warning', icon: AlertTriangle, text: t('vatThreshold.approaching'), href: '/settings/company', cta: t('alerts.view') });
   if (gapCount > 0)
     alerts.push({ key: 'gap', tone: 'error', icon: ListChecks, text: t('alerts.numberGaps', { n: gapCount }), href: '/number-gaps', cta: t('alerts.review') });
+  if (dupCount > 0)
+    alerts.push({ key: 'dup', tone: 'error', icon: ListChecks, text: t('alerts.numberDuplicates', { n: dupCount }), href: '/number-gaps', cta: t('alerts.review') });
   if (incompleteVi > 0)
     alerts.push({ key: 'vi', tone: 'warning', icon: FileInput, text: t('alerts.incompletePurchase', { n: incompleteVi }), href: '/vendor-invoices', cta: t('alerts.complete') });
   if (pnd30Due)

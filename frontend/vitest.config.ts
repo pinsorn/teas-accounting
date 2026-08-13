@@ -12,6 +12,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.'),
     },
   },
+  // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-3b/T11 — the FIRST vitest run to render a .tsx
+  // component. esbuild's default JSX mode is 'classic' (requires `React` in scope); Next's own SWC
+  // compiler already uses the 'automatic' runtime (tsconfig's `"jsx": "preserve"` defers to it, no
+  // React import anywhere in app/**). Matching esbuild to 'automatic' here lets vitest render real
+  // page/component source unmodified — no per-file React import, no new dependency (esbuild is
+  // vite's built-in transform, already a vitest transitive dep).
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
     // e2e/ and manual/ are Playwright specs (their own playwright.config.ts testDir) — vitest's
     // default include glob otherwise collects them too and fails every one with "Playwright

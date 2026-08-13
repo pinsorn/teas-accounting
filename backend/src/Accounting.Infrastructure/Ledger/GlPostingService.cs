@@ -541,7 +541,7 @@ public sealed class GlPostingService : IGlPostingService
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(companyId, branchId, JvPrefix, subPrefix: null, docDate, c),
+            c => _numbers.NextAsync(companyId, JvPrefix, subPrefix: null, docDate, c),
             (v, first) => { if (first) je.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else je.DocNo = v.Value; },
             ct);
         return je.JournalId;
@@ -616,7 +616,7 @@ public sealed class GlPostingService : IGlPostingService
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(companyId, branchId, JvPrefix, subPrefix: null, docDate, c),
+            c => _numbers.NextAsync(companyId, JvPrefix, subPrefix: null, docDate, c),
             (v, first) => { if (first) je.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else je.DocNo = v.Value; },
             ct);
         return je.JournalId;

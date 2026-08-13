@@ -351,6 +351,6 @@ public sealed class QuotationService(
             ? await db.BusinessUnits.Where(x => x.BusinessUnitId == b)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        return await numbers.NextAsync(tenant.CompanyId, tenant.BranchId, prefix, buCode, docDate, ct);
+        return await numbers.NextAsync(tenant.CompanyId, prefix, buCode, docDate, ct);
     }
 }

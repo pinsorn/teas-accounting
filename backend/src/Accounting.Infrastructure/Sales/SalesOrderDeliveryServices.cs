@@ -294,7 +294,7 @@ public sealed class SalesOrderService(
             ? await db.BusinessUnits.Where(x => x.BusinessUnitId == b)
                 .Select(x => x.Code).FirstOrDefaultAsync(ct)
             : null;
-        return await numbers.NextAsync(tenant.CompanyId, tenant.BranchId, prefix, buCode, docDate, ct);
+        return await numbers.NextAsync(tenant.CompanyId, prefix, buCode, docDate, ct);
     }
 }
 
@@ -380,7 +380,7 @@ public sealed class DeliveryOrderService(
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         await NumberedDocumentWriter.AllocateAndSaveAsync(
             db,
-            c => numbers.NextAsync(tenant.CompanyId, tenant.BranchId, "DO", buCode, dord.DocDate, c),
+            c => numbers.NextAsync(tenant.CompanyId, "DO", buCode, dord.DocDate, c),
             (v, _) => { dord.DocNo = v.Value; dord.Status = DeliveryOrderStatus.Issued; dord.PostedAt = issuedAt; dord.PostedBy = tenant.UserId; },
             ct);
         activity.Record("DeliveryOrder", dord.DeliveryOrderId, dord.DocNo, dord.CompanyId, "Issued", "Draft", "Issued");

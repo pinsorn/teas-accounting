@@ -110,7 +110,7 @@ public sealed class JournalService : IJournalService
         // (residual sequence drift); re-allocates and retries instead of a raw 500.
         var docNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(entry.CompanyId, entry.BranchId, JvPrefix, subPrefix: null, entry.DocDate, c),
+            c => _numbers.NextAsync(entry.CompanyId, JvPrefix, subPrefix: null, entry.DocDate, c),
             (v, first) => { if (first) entry.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else entry.DocNo = v.Value; },
             ct)).Value;
         await tx.CommitAsync(ct);

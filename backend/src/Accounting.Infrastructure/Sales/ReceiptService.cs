@@ -456,7 +456,7 @@ public sealed partial class ReceiptService : IReceiptService
         // by a retry.
         var rcNo = (await NumberedDocumentWriter.AllocateAndSaveAsync(
             _db,
-            c => _numbers.NextAsync(rc.CompanyId, rc.BranchId, RcPrefix, subPrefix: buCode, rc.DocDate, c),
+            c => _numbers.NextAsync(rc.CompanyId, RcPrefix, subPrefix: buCode, rc.DocDate, c),
             (v, first) => { if (first) rc.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else rc.DocNo = v.Value; },
             ct)).Value;
         _activity.Record("Receipt", rc.ReceiptId, rcNo, rc.CompanyId, "Posted", "Draft", "Posted");

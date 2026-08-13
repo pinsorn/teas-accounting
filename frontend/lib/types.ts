@@ -354,12 +354,22 @@ export interface NumberGapRow {
   series: string;
   missingSeqNo: number;
 }
+// H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-3b — the complementary defect to a gap: the SAME
+// doc_no minted more than once (a cross-branch collision the old gap-only view could not see).
+export interface NumberDuplicateRow {
+  table: string;
+  docNo: string;
+  copies: number;
+  branchIds: number[];
+}
 export interface NumberGapReport {
   year: number | null;
   month: number | null;
   docType: string | null;
   gaps: NumberGapRow[];
   hasGaps: boolean;
+  duplicates: NumberDuplicateRow[];
+  hasDuplicates: boolean;
 }
 
 export interface TaxInvoicePostedResult {

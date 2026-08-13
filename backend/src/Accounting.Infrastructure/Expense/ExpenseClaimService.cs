@@ -315,7 +315,7 @@ public sealed class ExpenseClaimService(
         {
             await NumberedDocumentWriter.AllocateAndSaveAsync(
                 db,
-                c => numbers.NextAsync(claim.CompanyId, claim.BranchId, ExPrefix, claim.SubPrefix, postDate, c),
+                c => numbers.NextAsync(claim.CompanyId, ExPrefix, claim.SubPrefix, postDate, c),
                 (v, first) => { if (first) claim.MarkPaid(v.Value, method, req.BankAccountId, tenant.UserId ?? 0, now); else claim.DocNo = v.Value; },
                 ct);
         }
