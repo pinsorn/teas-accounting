@@ -108,11 +108,13 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
               </>
             )}
             {/* Non-VAT (ม.86/4): no Tax Invoice — the Invoice settles straight to a Receipt.
-                Available while Issued OR already Settled (a Settled Invoice may still need
-                another Receipt: R2/WP-7 — the Receipt is the ONLY way to Settled now, so this
-                button must never strand a user here). WHT is auto-categorized server-side
-                from the Invoice's service lines on /receipts/new. */}
-            {!vatMode && (d.status === 'Issued' || d.status === 'Settled') && (
+                Issued ONLY. It used to stay visible on a Settled Invoice, because the deleted
+                "mark settled" button could reach Settled without a Receipt and the user still
+                needed to issue one. R2/WP-7 removed that path: a Settled Invoice is settled
+                BECAUSE a Receipt covered it, so the button had become a guaranteed 422
+                (`rc.invoice_already_settled`, ReceiptService.cs:218). WHT is auto-categorized
+                server-side from the Invoice's service lines on /receipts/new. */}
+            {!vatMode && d.status === 'Issued' && (
               <button
                 data-testid="bn-create-receipt"
                 className="btn btn-primary btn-sm"
