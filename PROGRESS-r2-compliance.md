@@ -312,3 +312,47 @@ Draft/Approved rule strands nobody (`ApproveAsync` is unconditional from Draft);
 code, not just in comments; no live caller of the deleted endpoint remains anywhere; `sales.billing_note.manage`
 is not over-granted; and the ภ.พ.36 tests are stronger than they first look — T3 genuinely pins the
 month-straddle in the right direction rather than merely asserting a count of 1.
+
+---
+
+# 🚀 RELEASED — v2.0.0 is LIVE on production (2026-08-13)
+
+Major, not 1.29.0: WP-7 removes a public endpoint and the `feat!` should be visible in the version.
+Tag + GitHub release cut by release-please (PR #109), CI green on main, API and FE both deployed.
+
+## Tier-4 acceptance — the artifact leg, PASSED against what is actually deployed
+Run directly on the prod box, not inferred from the build:
+- **WP-7 button** — `bn-mark-settled` appears in **0** files of the served `.next` bundle;
+  `bn-create-receipt` appears in **2**, which proves the grep can find things and the zero is a real
+  absence rather than an empty search.
+- **WP-7 route** — `mark-settled` has **0** references in the deployed `Accounting.Api.dll`;
+  `create-tax-invoice` has **1** as the control.
+- **All six R2/R1 guards are present in the deployed assemblies**, each in the one you would expect:
+  `pp30.non_vat_blocked`, `payroll.not_posted_for_filing`, `payroll.not_approved_for_payslip`,
+  `tax_filing.bad_year`, `sso_batch.missing_employer_account`, `sso_batch.unencodable_name` in
+  `Accounting.Infrastructure.dll`; R1's `je.precision` in `Accounting.Domain.dll`.
+- Version `2.0.0` live · public login 200 through the real domain · **settled-invoice census unchanged
+  on both real tenants** (co2=3, co3=1) before and after the swap.
+
+## Tier-4 — the behavioural leg, still OPEN, and honestly so
+What the artifact leg does NOT prove is that a real authenticated request gets the right refusal. That
+needs a logged-in session, and the API restart during deploy invalidated the browser's
+(`auth.unauthenticated / No session`, refresh also 401). Entering credentials is not something I do, so
+**this needs Ham to log in at https://teas.kazaki-rio.com** — after that the three checks are read-only
+and take a minute:
+1. `/invoices/3` on co2 shows สร้างใบเสร็จ and **no** ยืนยันชำระครบแล้ว (baseline for the "before" state
+   is recorded earlier in this file).
+2. ภ.พ.30 on a non-VAT company refuses with `pp30.non_vat_blocked`.
+3. A Draft payroll run refuses ภ.ง.ด.1 / สปส.1-10 with `payroll.not_posted_for_filing`.
+The behaviour itself is covered by the suite (1170/0/14, every guard with a proven RED→GREEN); what is
+unverified is only the last mile through a live session.
+
+## Deploy findings, all fixed in `publish/v2.0.0/` and written up in `troubles-wiki.md`
+1. The original API probe expected 404 to prove the route was gone and got 401 — this app authenticates
+   before it routes, so a real route, a deleted route and a nonexistent route all answer 401. It rolled
+   back a good release. Now greps the assembly with `strings -a -el` (UTF-16LE — plain `strings` finds
+   nothing and would "pass" on any build) plus a control grep.
+2. The FE negative anchor matched the source COMMENT documenting the deletion. Now anchors on the
+   button's `data-testid` and the i18n key — artifacts that exist only while the feature does.
+3. `next build` re-fetched Noto Sans Thai and got rate-limited, because renaming `.next` away took
+   332 MB of font/webpack cache with it. The cache is now carried forward before the build.

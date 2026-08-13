@@ -1251,7 +1251,12 @@ losing the test DB costs nothing.
   far enough to 404. Going through `/api/proxy/*` is worse: the Next.js BFF answers 401 itself and never
   forwards. There is no credential-free HTTP probe that distinguishes "removed" from "present".
 - **Fix:** probe the ARTIFACT, not the HTTP surface —
-  `strings -a -el unpacked/Accounting.Api.dll | grep -c "<route>"`. **The `-el` matters**: .NET stores
+  `strings -a -el unpacked/Accounting.Api.dll | grep -c "<route>"`. **Search the right assembly**: route
+  strings live in `Accounting.Api.dll`, but DOMAIN ERROR CODES (`pp30.non_vat_blocked`,
+  `payroll.not_posted_for_filing`, ...) live in `Accounting.Infrastructure.dll`, and `je.precision` in
+  `Accounting.Domain.dll`. Grepping only the Api assembly for an error code returns 0 for every code,
+  which reads exactly like "the guard did not ship". Loop over `Accounting.*.dll` and report WHICH
+  assembly matched. **The `-el` matters**: .NET stores
   these literals as UTF-16LE, so plain `strings` finds nothing and a naive check "passes" on every build,
   including one where the route is still there. Always pair it with a CONTROL grep for a sibling route
   that must still exist — otherwise a zero could just mean the grep found nothing at all (wrong path,
