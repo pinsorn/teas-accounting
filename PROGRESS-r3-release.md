@@ -100,3 +100,51 @@ automated enforcement).
 Full suite re-running over the final tree. Everything else is verified. **Next action on resume:
 read the suite result, then commit H1 and continue to the release.** Do not re-plan; the resume order
 above still stands.
+
+---
+
+# 🔻 DUPLICATE CLEANUP — Ham authorised it ("Backup เอกสารไว้ แล้วล้างแม่งเลย", 2026-08-14 ~01:10)
+
+## Backup: DONE, verified, on the prod box
+`~/backups/h1-dupes/` — full `pg_dump` (`teas-pre-dupe-cleanup-20260814-011100.sql.gz`, 359,452 bytes,
+`gunzip -t` verified) **plus** an all-columns CSV export of every duplicate row:
+`dupe_co2_receipts.csv` (2 rows) · `dupe_co5_ti.csv` (13) · `dupe_co5_rc.csv` (11) ·
+`dupe_co5_vi.csv` (10) · `dupe_co5_cn.csv` (2).
+
+## NOT executed tonight, deliberately
+The deletion needs the immutability triggers disabled while it runs. At 89% of the 5-hour quota, being
+cut off mid-operation would leave **immutability triggers switched off on production** — the worst
+reachable state. The backup is read-only and was safe to take; the deletion waits for a fresh window.
+
+## ⚠️ READ THIS BEFORE DELETING — two things that are not obvious
+**1. A posted receipt has a journal entry behind it.** Deleting the receipt row alone leaves an orphaned
+JE; deleting both changes the trial balance. Decide which before running anything, and check what
+`sales.receipts` → `gl.journal_entries` actually links through. This is the part that makes "just delete
+the row" not a one-liner.
+
+**2. For co2 the two rows are two REAL, DIFFERENT transactions** — ฿3,000 (receipt_id 3, branch 2,
+2026-07-12) and ฿18,000 (receipt_id 21, branch 0, 2026-07-20) — that merely collided on a number.
+Deleting either removes a genuine posted transaction from the books. **Renumbering the later one
+reaches the identical end state** (zero duplicate `(company_id, doc_no)` pairs, so WP-4's index applies)
+**without losing a transaction**, and the triggers have to come off either way.
+Ham said "ล้าง", so delete is the instruction and the backup makes it recoverable — but surface this
+choice to him before executing, because it costs nothing to ask and a deleted posted document cannot be
+un-deleted from the app.
+co5's 10 duplicates carry no such concern: it is a test playground already slated for wipe+reseed.
+
+## Runbook when the window is fresh
+1. Re-verify the backup is still present and `gunzip -t` clean **before touching anything**.
+2. Re-run §6 Q1 — confirm the duplicate set is still exactly the 11 rows recorded in §6-RESULTS. If it
+   has changed, STOP: something minted a new one and that is a different problem.
+3. Decide the co2 question above (delete vs renumber) and the JE question. Write the decision down here
+   before running the statement.
+4. `ALTER TABLE ... DISABLE TRIGGER` → the change → `ENABLE TRIGGER` → **verify `tgenabled='O'` on every
+   trigger you touched**, in the same session. Never end the session between disable and re-enable.
+5. Re-run Q1: expect zero rows.
+6. Only then is WP-4 unblocked. Ship it in its own release, after v2.1.0 — the migration must never meet
+   a duplicate.
+
+## Resume protocol if this dies mid-run (CLAUDE.md's irreversible-write rule)
+The resumed session **re-establishes what was already written before writing anything**: check trigger
+state first (`SELECT tgname, tgenabled FROM pg_trigger WHERE ...`), then re-run Q1 to see what is already
+gone. Do not re-run the delete blind — it is not idempotent against a partially-completed run.
