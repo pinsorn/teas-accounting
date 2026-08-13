@@ -64,3 +64,39 @@ everything verified is committed; only the H1 work sits uncommitted in the worki
 4. Add the branch-0-is-max probe above to the API deploy script.
 5. Tier-4 through the browser: the number-gaps page must now show the co2 duplicate and **no** green
    compliant shield.
+
+---
+
+## UPDATE ~01:20 — the three Tier-2 fixes are IN the tree, verified by Fable in source
+- `page.tsx:52` now `gaps.data?.duplicates?.length ?? 0`.
+- `634` carries **two** guards: `CASE WHEN length(seq_str) <= 9 THEN seq_str::int ELSE NULL END`
+  and `WHERE seq IS NOT NULL` in the buckets CTE. Brace scan 0. Spec header now says 35.
+
+**The worker overruled my instruction and was right.** I said "bigint + an 18-char cap, like `613`".
+It pointed out `sys.number_sequences.current_value` is plain `int`, so a bigint intermediate only
+*relocates* the overflow to the INSERT's implicit bigint→int cast. It used `length(seq_str) <= 9`
+instead — the largest length for which every possible value is inside int4. Simpler and actually
+correct. Record the reasoning, not just the outcome: **`613`'s bigint fix is safe only because its
+target is a synthetic `generate_series` value; copying it to a column-bound write does not transfer.**
+
+**It also found a second failure of the same class while verifying**: a bucket whose rows are ALL
+excluded by the guard yields `MAX(seq) = NULL`, and `current_value` is NOT NULL → `23502` → the same
+never-recorded / retries-every-boot mode, different SQLSTATE. RED-proved both guards separately.
+
+**Disclosed self-inflicted incident, resolved:** its first draft seeded the garbage row as `POSTED`,
+which `020_journal_immutability.sql` makes permanently unfixable (UPDATE and DELETE both blocked). 4
+rows landed in the shared `teas_test` and broke the pre-existing `626` test, which scans every company
+unfiltered. It disabled the two triggers, deleted exactly those 4 rows, re-enabled, and verified counts
+before and after — then fixed the root cause by seeding `DRAFT` instead (the reconcile's `raw_docs` CTE
+has no status filter, so the script still picks it up, but the test's own cleanup works). Acceptable on
+`teas_test`; would NOT be on prod.
+
+**`626` carries both of the same unguarded risks** — out of scope this round ("do not edit 626"), on the
+fix-later list with: the duplicates-vs-gaps `docType` predicate mismatch, `jsdom@30`'s Node floor vs the
+repo's `engines: >=20`, and CI never running vitest at all (so the compliance-control test T11 has zero
+automated enforcement).
+
+## Where this stands right now
+Full suite re-running over the final tree. Everything else is verified. **Next action on resume:
+read the suite result, then commit H1 and continue to the release.** Do not re-plan; the resume order
+above still stands.
