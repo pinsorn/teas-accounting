@@ -243,8 +243,11 @@ public sealed class PayrollRunServiceTests
 
         var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
         var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
-        var pnd1Before = await pnd1.BuildPnd1MonthlyAsync(runId, default);
-        var ssoBefore = (await sso.BuildMonthlyFileAsync(runId, default)).Content;
+        // R2/WP-4 (H13) — pnd1.BuildPnd1MonthlyAsync/sso.BuildMonthlyFileAsync now refuse a non-Posted
+        // run, so the byte-identity "deductions don't change the filed value" comparison for THESE two
+        // artifacts moved below, into the same post-then-mutate window the ภ.ง.ด.1ก check already uses
+        // (this test still exercises deduction-setting pre-Approve via UpdateDeductionsAsync, which is
+        // the real Draft-only product feature — only the RENDER comparison moved).
 
         await payroll.UpdateDeductionsAsync(runId,
             new UpdatePayrollDeductionsRequest(
@@ -260,11 +263,6 @@ public sealed class PayrollRunServiceTests
         slipAfter.SsoEmployee.Should().Be(slipBefore.SsoEmployee);
         after.TotalOtherDeductions.Should().Be(before.TotalOtherDeductions + 500m);
         after.TotalNet.Should().Be(before.TotalNet - 500m);
-
-        PdfText(await pnd1.BuildPnd1MonthlyAsync(runId, default)).Should().Be(PdfText(pnd1Before),
-            "deductions must not change any rendered ภ.ง.ด.1 filing value");
-        (await sso.BuildMonthlyFileAsync(runId, default)).Content.Should().Equal(ssoBefore,
-            "deductions must not change สปส.1-10 output");
 
         await payroll.UpdateDeductionsAsync(runId, new UpdatePayrollDeductionsRequest([]), default);
         var cleared = (await payroll.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == employeeId);
@@ -294,6 +292,13 @@ public sealed class PayrollRunServiceTests
         PdfText(await payslipPdf.BuildAsync(runId, employeeId, default)).Should()
             .Contain("(เรียกคืนเงินจ่ายเกิน)");
 
+        // R2/WP-4 (H13) — run is Posted now, so the monthly ภ.ง.ด.1 + สปส.1-10 file byte-identity
+        // checks (moved from pre-Post above) join the existing ภ.ง.ด.1ก dance: snapshot at the CURRENT
+        // (500-deduction) state, mutate the deduction to 0 directly via the DB (UpdateDeductionsAsync
+        // is Draft-only and would throw payroll.not_draft on a Posted run), re-render, assert identical,
+        // then restore — proving none of the three filings reflect NetPay/OtherDeductions.
+        var pnd1MonthlyBeforeMutate = await pnd1.BuildPnd1MonthlyAsync(runId, default);
+        var ssoBeforeMutate = (await sso.BuildMonthlyFileAsync(runId, default)).Content;
         var pnd1aBefore = await pnd1.BuildPnd1aAnnualAsync(year, default);
         var storedSlip = await db.Payslips.SingleAsync(p => p.PayrollRunId == runId && p.EmployeeId == employeeId);
         var storedRun = await db.PayrollRuns.SingleAsync(r => r.PayrollRunId == runId);
@@ -301,6 +306,10 @@ public sealed class PayrollRunServiceTests
         storedSlip.ComputeNet();
         storedRun.RecalculateTotals();
         await db.SaveChangesAsync();
+        PdfText(await pnd1.BuildPnd1MonthlyAsync(runId, default)).Should().Be(PdfText(pnd1MonthlyBeforeMutate),
+            "deductions must not change any rendered ภ.ง.ด.1 filing value");
+        (await sso.BuildMonthlyFileAsync(runId, default)).Content.Should().Equal(ssoBeforeMutate,
+            "deductions must not change สปส.1-10 output");
         PdfText(await pnd1.BuildPnd1aAnnualAsync(year, default)).Should().Be(PdfText(pnd1aBefore),
             "deductions must not change any rendered ภ.ง.ด.1ก filing value");
         storedSlip.OtherDeductions = 500m;
@@ -782,6 +791,157 @@ public sealed class PayrollRunServiceTests
             .Be(longFirst[..30], "truncated to the field's own capacity, not refused (I5's carve-out)");
     }
 
+    // ── R2/WP-4 (H13) — a filing artifact only comes from a POSTED run ────────────────────────
+
+    [SkippableFact]
+    public async Task T9_pnd1_pdf_refuses_a_draft_run()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        await AddEmployee(sp, 30_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 5), new DateOnly(year, 5, 28), null), default);
+
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var act = () => pnd1.BuildPnd1MonthlyAsync(runId, default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.not_posted_for_filing");
+    }
+
+    [SkippableFact]
+    public async Task T10_sso_file_and_pdf_refuse_a_draft_run()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        await AddEmployee(sp, 30_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 5), new DateOnly(year, 5, 28), null), default);
+
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+        var actFile = () => sso.BuildMonthlyFileAsync(runId, default);
+        (await actFile.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.not_posted_for_filing");
+        var actPdf = () => sso.BuildMonthlyPdfAsync(runId, default);
+        (await actPdf.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.not_posted_for_filing");
+    }
+
+    [SkippableFact]
+    public async Task T11_sso_schedule_refuses_a_draft_run()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        await AddEmployee(sp, 30_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 5), new DateOnly(year, 5, 28), null), default);
+
+        // sso-schedule (PayrollEndpoints.cs:131-134, the O11-alt on-screen ส่วนที่ 2) calls
+        // BuildMonthlyAsync directly with no other filter — this pins the SAME method T10 exercises
+        // via its two artifact wrappers, proving the shared-loader guard placement covers it too.
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+        var act = () => sso.BuildMonthlyAsync(runId, default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.not_posted_for_filing");
+    }
+
+    [SkippableFact]
+    public async Task T12_all_four_filing_surfaces_succeed_on_a_posted_run_with_journal_backing()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        // WP-5's H8 guard (missing SSO employer account) sits AFTER this guard in the same builders —
+        // set it so this test exercises ONLY the H13 posted-run guard, not a collateral H8 refusal.
+        await SetSsoEmployerAccountAsync(sp, "1234567890");
+        await AddEmployee(sp, 30_000m);
+        var period = await FreshPeriodAsync(sp, 6);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+
+        (await pnd1.BuildPnd1MonthlyAsync(runId, default)).Should().NotBeEmpty();
+        (await sso.BuildMonthlyFileAsync(runId, default)).Content.Should().NotBeEmpty();
+        (await sso.BuildMonthlyPdfAsync(runId, default)).Should().NotBeEmpty();
+        (await sso.BuildMonthlyAsync(runId, default)).Should().NotBeNull();   // sso-schedule's own loader
+
+        // I4's stated equivalence — Status == Posted iff JournalId != null.
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var run = await db.PayrollRuns.AsNoTracking().SingleAsync(r => r.PayrollRunId == runId);
+        run.Status.Should().Be(DocumentStatus.Posted);
+        run.JournalId.Should().NotBeNull();
+    }
+
+    [SkippableFact]
+    public async Task T13_draft_runs_payslips_are_excluded_from_pnd1a_and_wht50tawi()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var empId = await AddEmployee(sp, 30_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 6), new DateOnly(year, 6, 28), null), default);
+        // Deliberately left Draft — never Approved/Posted. This is a REGRESSION PIN: the exclusion
+        // already exists (Pnd1FilingService.cs :79-82 / :118-120 filter Status == Posted) — no new
+        // guard added for it, per §2.2's disposition. A year with only a Draft run has zero posted
+        // data, so both surfaces correctly report payroll.no_data.
+
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var actAnnual = () => pnd1.BuildPnd1aAnnualAsync(year, default);
+        (await actAnnual.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.no_data");
+
+        var actTawi = () => pnd1.BuildEmployeeWht50TawiAsync(empId, year, default);
+        (await actTawi.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.no_data");
+    }
+
+    // ── R2/WP-4 §10 E3 (SEPARATE, REVERTABLE COMMIT) — a payslip may render once Approved; only ──
+    // ── a Draft run is refused (an internal document, not an RD/SSO filing artifact). ───────────
+
+    [SkippableFact]
+    public async Task Payslip_refuses_a_draft_run_but_renders_once_approved()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var year = await FreshYearAsync(sp);
+        var empId = await AddEmployee(sp, 30_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var payroll = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+        var runId = await payroll.CreateDraftAsync(
+            new CreatePayrollRunRequest(Period(year, 6), new DateOnly(year, 6, 28), null), default);
+
+        var payslipPdf = s.ServiceProvider.GetRequiredService<IPayslipPdfService>();
+        var actDraft = () => payslipPdf.BuildAsync(runId, empId, default);
+        (await actDraft.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.not_approved_for_payslip");
+        var actZipDraft = () => payslipPdf.BuildRunZipAsync(runId, default);
+        (await actZipDraft.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("payroll.not_approved_for_payslip");
+
+        await payroll.ApproveAsync(runId, default);
+        (await payslipPdf.BuildAsync(runId, empId, default)).Should().NotBeEmpty();
+        var (zip, _) = await payslipPdf.BuildRunZipAsync(runId, default);
+        zip.Should().NotBeEmpty();
+    }
+
     [SkippableFact]
     public async Task Ytd_carries_so_constant_salary_withholds_evenly_across_two_months()
     {
@@ -1106,10 +1266,14 @@ public sealed class PayrollRunServiceTests
         var period = Period(year, 7);
         var empId = await AddEmployee(sp, 20_000m, hireDate: new DateOnly(year, 7, 15));
 
+        // R2/WP-4 (H13) — sso.BuildMonthlyAsync now refuses a non-Posted run, so this test posts
+        // first (RunThroughPost, same as its sibling Sso_monthly_aggregates_insured_employees_...
+        // above) instead of reading straight off the Draft. Post does not change the computed
+        // wage/SSO figures (only adds Status/DocNo/JournalId), so the golden assertions are unaffected.
+        var runId = await RunThroughPost(sp, period, new DateOnly(year, 7, 28));
+
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
-        var runId = await svc.CreateDraftAsync(
-            new CreatePayrollRunRequest(period, new DateOnly(year, 7, 28), null), default);
         var slip = (await svc.GetAsync(runId, default))!.Payslips.Single(p => p.EmployeeId == empId);
 
         slip.GrossTaxable.Should().Be(10_967.74m);

@@ -18,6 +18,19 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         var run = await db.PayrollRuns.AsNoTracking().Include(r => r.Payslips)
                 .FirstOrDefaultAsync(r => r.PayrollRunId == runId, ct)
             ?? throw new DomainException("payroll.not_found", $"Payroll run {runId} not found.");
+        // R2/H13 — an RD/SSO filing artifact must never be produced from an unposted run: a signable
+        // return with no ledger behind it (VERDICT H13; co5 rendered ภ.ง.ด.1 for ฿1,103.02 of PIT from a
+        // run with journalId:null, then the run was deleted). ภ.ง.ด.1ก and 50ทวิ already do this —
+        // BuildPnd1aAnnualAsync (:79-82) and BuildEmployeeWht50TawiAsync (:118-120) filter
+        // p.Run!.Status == DocumentStatus.Posted. This makes the three ungated paths match, and makes
+        // SsoFilingService's own doc comment ("from a posted PayrollRun", :10-11) true. Runs FIRST,
+        // before the payslip-count check below and before WP-5's data-quality guards — a Draft run is
+        // refused before we start complaining about its data.
+        if (run.Status != DocumentStatus.Posted)
+            throw new DomainException("payroll.not_posted_for_filing",
+                $"งวดเงินเดือน {run.PeriodYearMonth} ยังไม่ได้ลงบัญชี (สถานะ {run.Status}) — " +
+                $"ต้องอนุมัติและลงบัญชีก่อนจึงจะออกแบบยื่นได้ " +
+                $"[Payroll run {run.PeriodYearMonth} is {run.Status}; a filing artifact requires a Posted run.]");
         if (run.Payslips.Count == 0)
             throw new DomainException("payroll.no_employees", "Run has no payslips.");
 

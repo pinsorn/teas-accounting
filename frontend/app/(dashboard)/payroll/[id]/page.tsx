@@ -261,10 +261,15 @@ export default function PayrollRunDetailPage() {
                   </td>
                   <td className="text-right font-medium tabular-nums">{formatTHB(p.netPay)}</td>
                   <td className="text-right">
-                    <button className="btn btn-ghost btn-xs gap-1"
-                      onClick={(e) => { e.stopPropagation(); pr(`payroll/runs/${id}/payslips/${p.employeeId}/pdf`); }}>
-                      <Printer className="h-3 w-3" aria-hidden /> {tc('print')}
-                    </button>
+                    {/* R2/WP-4 §10 E3 (payslip commit — separate, revertable) — the backend now
+                        refuses a payslip from a DRAFT run, so hide rather than error, matching the
+                        pnd1/sso buttons' own idiom below. */}
+                    {run.status !== 'DRAFT' && (
+                      <button className="btn btn-ghost btn-xs gap-1"
+                        onClick={(e) => { e.stopPropagation(); pr(`payroll/runs/${id}/payslips/${p.employeeId}/pdf`); }}>
+                        <Printer className="h-3 w-3" aria-hidden /> {tc('print')}
+                      </button>
+                    )}
                     {run.status === 'POSTED' && (
                       // P-D #4 — annual 50ทวิ (ม.50ทวิ) for this employee; year = the run's
                       // PAYMENT year (same ม.59 basis as ภ.ง.ด.1/1ก).

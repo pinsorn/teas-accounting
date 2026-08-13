@@ -3,6 +3,7 @@ using System.IO.Compression;
 using Accounting.Application.Payroll;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Payroll;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -49,10 +50,24 @@ public sealed class PayslipPdfService(AccountingDbContext db) : IPayslipPdfServi
         return (ms.ToArray(), $"payslips-{run.PeriodYearMonth}.zip");
     }
 
-    private async Task<PayrollRun> LoadRunAsync(long runId, CancellationToken ct) =>
-        await db.PayrollRuns.AsNoTracking().Include(r => r.Payslips)
-            .FirstOrDefaultAsync(r => r.PayrollRunId == runId, ct)
-        ?? throw new DomainException("payroll.not_found", $"Payroll run {runId} not found.");
+    // R2/WP-4 §10 E3 (Ham, PRODUCT) — SEPARATE, INDEPENDENTLY-REVERTABLE from the H13 filing guard in
+    // Pnd1FilingService/SsoFilingService: a payslip is an internal document, not an RD/SSO filing, so
+    // previewing one after Approval is normal practice — only an unapproved DRAFT is refused. Note an
+    // Approved (not yet Posted) run's DocNo is still null (BuildModel below prints run.DocNo) — flagged
+    // per the spec, not fixed here.
+    private async Task<PayrollRun> LoadRunAsync(long runId, CancellationToken ct)
+    {
+        var run = await db.PayrollRuns.AsNoTracking().Include(r => r.Payslips)
+                .FirstOrDefaultAsync(r => r.PayrollRunId == runId, ct)
+            ?? throw new DomainException("payroll.not_found", $"Payroll run {runId} not found.");
+        if (run.Status == DocumentStatus.Draft)
+            throw new DomainException("payroll.not_approved_for_payslip",
+                $"งวดเงินเดือน {run.PeriodYearMonth} ยังเป็นฉบับร่าง (สถานะ {run.Status}) — " +
+                $"ต้องอนุมัติก่อนจึงจะพิมพ์สลิปเงินเดือนได้ " +
+                $"[Payroll run {run.PeriodYearMonth} is still Draft; a payslip requires at least an " +
+                "Approved run.]");
+        return run;
+    }
 
     private async Task<(string Name, string TaxId, string? Address)> EmployerAsync(int companyId, CancellationToken ct)
     {

@@ -1,6 +1,7 @@
 ﻿using Accounting.Application.Abstractions;
 using Accounting.Application.Payroll;
 using Accounting.Domain.Common;
+using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -22,6 +23,19 @@ public sealed class SsoFilingService(AccountingDbContext db, IOptions<SsoOptions
         var run = await db.PayrollRuns.AsNoTracking().Include(r => r.Payslips)
                 .FirstOrDefaultAsync(r => r.PayrollRunId == runId, ct)
             ?? throw new DomainException("payroll.not_found", $"Payroll run {runId} not found.");
+        // R2/H13 — this is the SHARED loader for all three สปส.1-10 surfaces: BuildMonthlyFileAsync,
+        // BuildMonthlyPdfAsync, and the sso-schedule on-screen JSON (PayrollEndpoints.cs:131-134, which
+        // calls BuildMonthlyAsync directly with no other filter) — guarding here covers all three in one
+        // place, since the on-screen schedule is transcribed onto the paper form and is the same filing
+        // hole as the other two. Runs FIRST, before the payslip-count check and before WP-5's
+        // EnsureEmployerAccount/EnsureNamesFilable (called from the two artifact builders, AFTER this
+        // method returns) — a Draft run is refused before we start complaining about its data quality.
+        // See Pnd1FilingService.BuildPnd1MonthlyAsync for the full VERDICT H13 citation.
+        if (run.Status != DocumentStatus.Posted)
+            throw new DomainException("payroll.not_posted_for_filing",
+                $"งวดเงินเดือน {run.PeriodYearMonth} ยังไม่ได้ลงบัญชี (สถานะ {run.Status}) — " +
+                $"ต้องอนุมัติและลงบัญชีก่อนจึงจะออกแบบยื่นได้ " +
+                $"[Payroll run {run.PeriodYearMonth} is {run.Status}; a filing artifact requires a Posted run.]");
         if (run.Payslips.Count == 0)
             throw new DomainException("payroll.no_employees", "Run has no payslips.");
 
