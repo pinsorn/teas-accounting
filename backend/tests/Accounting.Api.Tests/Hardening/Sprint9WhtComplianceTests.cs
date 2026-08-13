@@ -51,6 +51,13 @@ public sealed class Sprint9WhtComplianceTests
     private static DateOnly PeriodDate(int period) =>
         new(period / 100, period % 100, 10);
 
+    // R2/C2 (§6 T3) — the month immediately after `period`, rolling the year at December.
+    private static int NextMonth(int period)
+    {
+        var (y, m) = (period / 100, period % 100);
+        return m == 12 ? (y + 1) * 100 + 1 : y * 100 + (m + 1);
+    }
+
     // N3 (Tier-2 round 2) — mirrors the internal TaxFilingPeriod.MonthRange (not accessible
     // cross-project) so T6's baseline query can match the generators' own month-wide scope.
     private static (DateOnly from, DateOnly to) MonthRange(int period)
@@ -225,7 +232,7 @@ public sealed class Sprint9WhtComplianceTests
             await db.SaveChangesAsync(default);
             vendorId = ven.VendorId;
 
-            db.VendorInvoices.Add(new VendorInvoice
+            var vi = new VendorInvoice
             {
                 CompanyId = 1, BranchId = 1, DocNo = "VI-" + Sfx(),
                 DocDate = dd,
@@ -239,6 +246,24 @@ public sealed class Sprint9WhtComplianceTests
                 TotalAmountThb = 10000m, HasInputVat = false,
                 RequiresPnd36ReverseCharge = true,
                 SettledAmount = 0m, SettlementStatus = "UNPAID",
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            };
+            db.VendorInvoices.Add(vi);
+            await db.SaveChangesAsync(default);
+
+            // R2/C2 — ภ.พ.36 now declares from the settling PAYMENT VOUCHER only (the VI above
+            // is informational history; §3.1 I1). Same period, same amount, so this test's
+            // existing assertions (TotalVat 700m, one balanced JV) hold under the new rule too.
+            db.PaymentVouchers.Add(new PaymentVoucher
+            {
+                CompanyId = 1, BranchId = 1, SubPrefix = "PV",
+                DocDate = dd, PostingDate = dd,
+                VendorId = vendorId, VendorName = "AWS", VendorType = CustomerType.Corporate,
+                CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 10000m, VatAmount = 0m, WhtAmount = 0m,
+                TotalPaid = 10000m, TotalAmountThb = 10000m,
+                VendorInvoiceId = vi.VendorInvoiceId,
+                RequiresPnd36ReverseCharge = true,
                 Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
             });
             await db.SaveChangesAsync(default);
@@ -270,6 +295,235 @@ public sealed class Sprint9WhtComplianceTests
         var act = () => svc.GeneratePnd36Async(period, TaxFilingMode.Finalize, default);
         (await act.Should().ThrowAsync<DomainException>())
             .Which.Code.Should().Be("tax_filing.already_finalized");
+    }
+
+    // R2/C2 (specs/fix-breakit-r2-compliance.md §3.1/§6, INVARIANT I1) — ภ.พ.36 must declare one
+    // foreign service EXACTLY ONCE, from the settling PAYMENT VOUCHER, never from the
+    // VendorInvoice (ม.83/6's tax point is payment, not invoice). T1 is the RED-first case:
+    // before the fix, the VI+PV chain below produced 2 rows / ฿40,000 / ฿2,800 (double-counted
+    // across both sides). After the fix: 1 row / ฿20,000 / ฿1,400.
+    [SkippableFact]
+    public async Task Pnd36_VI_plus_settling_PV_same_period_declares_once()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = RandPeriod();
+        var dd = PeriodDate(period);
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = 1, VendorCode = "V-" + Sfx(), NameTh = "Overseas Co",
+                IsForeign = true, CountryCode = "US", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            await db.SaveChangesAsync(default);
+
+            var vi = new VendorInvoice
+            {
+                CompanyId = 1, BranchId = 1, DocNo = "VI-" + Sfx(), DocDate = dd,
+                VendorTaxInvoiceNo = "OS-" + Sfx(), VendorTaxInvoiceDate = dd,
+                VatClaimPeriod = period, VendorId = ven.VendorId, VendorName = "Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 20000m, VatAmount = 0m, NonRecoverableVatAmount = 0m,
+                TotalAmount = 20000m, TotalAmountThb = 20000m, HasInputVat = false,
+                RequiresPnd36ReverseCharge = true, SettledAmount = 20000m, SettlementStatus = "PAID",
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            };
+            db.VendorInvoices.Add(vi);
+            await db.SaveChangesAsync(default);
+
+            db.PaymentVouchers.Add(new PaymentVoucher
+            {
+                CompanyId = 1, BranchId = 1, SubPrefix = "PV", DocDate = dd, PostingDate = dd,
+                VendorId = ven.VendorId, VendorName = "Overseas Co", VendorType = CustomerType.Corporate,
+                CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 20000m, VatAmount = 0m, WhtAmount = 0m,
+                TotalPaid = 20000m, TotalAmountThb = 20000m,
+                VendorInvoiceId = vi.VendorInvoiceId, RequiresPnd36ReverseCharge = true,
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync(default);
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var f = await svc.GeneratePnd36Async(period, TaxFilingMode.Preview, default);
+
+        f.Rows.Should().ContainSingle();
+        f.TotalService.Should().Be(20000.00m);
+        f.TotalVat.Should().Be(1400.00m);
+    }
+
+    // T2 — standalone PV, no VI: one row, correct amounts. Confirms dropping the VI side does
+    // not break the case the VI side never covered (the old code's own comment already noted
+    // this — the PV side alone covered standalone PVs).
+    [SkippableFact]
+    public async Task Pnd36_standalone_PV_no_VI_declares_once()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = RandPeriod();
+        var dd = PeriodDate(period);
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = 1, VendorCode = "V-" + Sfx(), NameTh = "Standalone Overseas Co",
+                IsForeign = true, CountryCode = "SG", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            await db.SaveChangesAsync(default);
+
+            db.PaymentVouchers.Add(new PaymentVoucher
+            {
+                CompanyId = 1, BranchId = 1, SubPrefix = "PV", DocDate = dd, PostingDate = dd,
+                VendorId = ven.VendorId, VendorName = "Standalone Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 15000m, VatAmount = 0m, WhtAmount = 0m,
+                TotalPaid = 15000m, TotalAmountThb = 15000m,
+                VendorInvoiceId = null, RequiresPnd36ReverseCharge = true,
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync(default);
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var f = await svc.GeneratePnd36Async(period, TaxFilingMode.Preview, default);
+
+        f.Rows.Should().ContainSingle();
+        f.TotalService.Should().Be(15000.00m);
+        f.TotalVat.Should().Be(1050.00m);
+    }
+
+    // T3 — VI in period P, settling PV in period P+1: P declares nothing (no payment yet in P),
+    // P+1 declares it once (E1: ม.83/6's tax point is payment, so the filing period follows the
+    // PV, not the VI). Pins the period-shift decision in a test.
+    [SkippableFact]
+    public async Task Pnd36_VI_and_later_PV_declare_only_in_the_payment_period()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var periodP = RandPeriod();
+        var periodP1 = NextMonth(periodP);
+        var docDateP = PeriodDate(periodP);
+        var payDateP1 = PeriodDate(periodP1);
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = 1, VendorCode = "V-" + Sfx(), NameTh = "Late-Paid Overseas Co",
+                IsForeign = true, CountryCode = "JP", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            await db.SaveChangesAsync(default);
+
+            var vi = new VendorInvoice
+            {
+                CompanyId = 1, BranchId = 1, DocNo = "VI-" + Sfx(), DocDate = docDateP,
+                VendorTaxInvoiceNo = "LP-" + Sfx(), VendorTaxInvoiceDate = docDateP,
+                VatClaimPeriod = periodP, VendorId = ven.VendorId, VendorName = "Late-Paid Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 12000m, VatAmount = 0m, NonRecoverableVatAmount = 0m,
+                TotalAmount = 12000m, TotalAmountThb = 12000m, HasInputVat = false,
+                RequiresPnd36ReverseCharge = true, SettledAmount = 0m, SettlementStatus = "UNPAID",
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            };
+            db.VendorInvoices.Add(vi);
+            await db.SaveChangesAsync(default);
+
+            db.PaymentVouchers.Add(new PaymentVoucher
+            {
+                CompanyId = 1, BranchId = 1, SubPrefix = "PV", DocDate = payDateP1, PostingDate = payDateP1,
+                VendorId = ven.VendorId, VendorName = "Late-Paid Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 12000m, VatAmount = 0m, WhtAmount = 0m,
+                TotalPaid = 12000m, TotalAmountThb = 12000m,
+                VendorInvoiceId = vi.VendorInvoiceId, RequiresPnd36ReverseCharge = true,
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync(default);
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+
+        var fP  = await svc.GeneratePnd36Async(periodP, TaxFilingMode.Preview, default);
+        var fP1 = await svc.GeneratePnd36Async(periodP1, TaxFilingMode.Preview, default);
+
+        fP.Rows.Should().BeEmpty("no payment happened in period P — ม.83/6 has no liability yet");
+        fP1.Rows.Should().ContainSingle();
+        fP1.TotalService.Should().Be(12000.00m);
+        fP1.TotalVat.Should().Be(840.00m);
+    }
+
+    // T4 (INVARIANT I10) — non-VAT company: ภ.พ.36 is NOT VAT-mode-gated (ม.83/6 binds non-VAT
+    // payers too — WhtFilingService.PostReverseChargeJvAsync already branches on VatMode for
+    // exactly this reason). finalize still posts a balanced JV, debit = the irrecoverable-VAT
+    // expense account (5350 — the company can never reclaim it), Cr 2151, Dr=Cr, and the JV
+    // total equals the SINGLE declared VAT (proving the PV-only rule holds under the non-VAT
+    // branch too, not just the VAT-registered one exercised by the test above).
+    [SkippableFact]
+    public async Task Pnd36_non_VAT_company_still_finalizes_with_irrecoverable_debit()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        await using var sp = TestCompanyFactory.BuildProvider(
+            _fx.ConnectionString, company.CompanyId, company.BranchId);
+        var period = RandPeriod();
+        var dd = PeriodDate(period);
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = company.CompanyId, VendorCode = "V-" + Sfx(), NameTh = "NonVat Overseas Co",
+                IsForeign = true, CountryCode = "US", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            await db.SaveChangesAsync(default);
+
+            db.PaymentVouchers.Add(new PaymentVoucher
+            {
+                CompanyId = company.CompanyId, BranchId = company.BranchId, SubPrefix = "PV",
+                DocDate = dd, PostingDate = dd,
+                VendorId = ven.VendorId, VendorName = "NonVat Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 8000m, VatAmount = 0m, WhtAmount = 0m,
+                TotalPaid = 8000m, TotalAmountThb = 8000m,
+                VendorInvoiceId = null, RequiresPnd36ReverseCharge = true,
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync(default);
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var f = await svc.GeneratePnd36Async(period, TaxFilingMode.Finalize, default);
+
+        f.Rows.Should().ContainSingle();
+        f.TotalVat.Should().Be(560.00m);            // 8000 * 0.07
+        f.ReverseChargeJournalId.Should().NotBeNull();
+
+        var db2 = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var jl = await (
+            from l in db2.JournalLines.AsNoTracking()
+            join a in db2.ChartOfAccounts.AsNoTracking() on l.AccountId equals a.AccountId
+            where l.JournalId == f.ReverseChargeJournalId
+            select new { a.AccountCode, l.DebitAmount, l.CreditAmount })
+            .ToListAsync(default);
+
+        jl.Sum(x => x.DebitAmount).Should().Be(jl.Sum(x => x.CreditAmount), "JV must balance");
+        jl.Single(x => x.AccountCode == "5350").DebitAmount.Should().Be(560.00m);
+        jl.Single(x => x.AccountCode == "2151").CreditAmount.Should().Be(560.00m);
     }
 
     [SkippableFact]

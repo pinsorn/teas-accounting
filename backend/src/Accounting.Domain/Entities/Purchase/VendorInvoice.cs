@@ -58,7 +58,11 @@ public class VendorInvoice : ITenantOwned, IAuditable, IConcurrencyVersioned
     // VAT can't be claimed → lumped into expense (Dr Expense gross / Cr AP gross),
     // matching the ม.82/5 non-recoverable pattern.
     public bool HasInputVat                 { get; set; } = true;
-    /// <summary>Auto-set when vendor is foreign without Thai VAT-D — Sprint 9 ภ.พ.36 generator scans this.</summary>
+    /// <summary>Auto-set when vendor is foreign without Thai VAT-D. INFORMATIONAL ONLY since R2/C2
+    /// (specs/fix-breakit-r2-compliance.md §3.1, 2026-08-12): predicts "this invoice will trigger
+    /// ภ.พ.36 when paid" but is never itself a filing-row source — ม.83/6's tax point is PAYMENT,
+    /// so WhtFilingService.GeneratePnd36Async reads the settling PaymentVoucher's own
+    /// RequiresPnd36ReverseCharge flag instead (PaymentVoucher.cs), never this one.</summary>
     public bool RequiresPnd36ReverseCharge  { get; set; }
 
     /// <summary>Sprint 12 — optional retroactive link to an internal PO (loose

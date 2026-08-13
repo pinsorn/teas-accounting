@@ -17,8 +17,10 @@ namespace Accounting.Infrastructure.TaxFilings;
 /// requires_pnd36_reverse_charge; on finalize posts the Dr 1170 / Cr 2151 JV,
 /// net 0). Finalize persists to the immutable tax.tax_filings history via the
 /// shared <see cref="TaxFilingStore"/>. Tenant-scoped via the query filter.
-/// WHT period = CertDate month; ภ.พ.36 period = doc DocDate month. All ภ.ง.ด.
-/// / ภ.พ.36 are due the 7th of the following month.
+/// WHT period = CertDate month; ภ.พ.36 period = the settling PaymentVoucher's
+/// DocDate month (R2/C2, specs/fix-breakit-r2-compliance.md §3.1 — ม.83/6's tax
+/// point is PAYMENT, not the VendorInvoice's own DocDate). All ภ.ง.ด. / ภ.พ.36
+/// are due the 7th of the following month.
 /// </summary>
 public sealed class WhtFilingService(
     AccountingDbContext db,
@@ -230,6 +232,26 @@ public sealed class WhtFilingService(
         AttachCountRaiField: "Text1.19", AttachCountSheetField: "Text1.20");
 
 
+    /// <summary>
+    /// R2/C2 (specs/fix-breakit-r2-compliance.md §3.1, INVARIANT I1) — for one foreign service
+    /// of ฿X, ภ.พ.36 declares it EXACTLY ONCE, in exactly one filing period, regardless of chain
+    /// shape ((a) VI + settling PV, (b) standalone PV, (c) VI never paid). Rows come from POSTED
+    /// PAYMENT VOUCHERS ONLY — the old code also unioned posted VendorInvoice rows (keyed on the
+    /// invoice's own DocDate) with no dedup, so a VI+PV chain was declared TWICE, and a chain
+    /// straddling a month boundary split the double-count across two filed periods (a same-period
+    /// dedup key alone would not have caught that — see the spec's rejected-alternative note).
+    /// Why the PV and not the VI: ม.83/6's reverse-charge liability arises on PAYMENT to the
+    /// overseas provider, and ภ.พ.36 is due within 7 days of the end of the PAYMENT month — so a
+    /// VI dated June settled by a PV dated July belongs in July's return, and an unpaid VI owes
+    /// nothing yet (zero rows, correctly). E1 resolved 2026-08-12 (spec §10 E1 / §12 WP-0 probe):
+    /// PND36 has never been finalized for any company, so this ships as a pure correctness fix,
+    /// not a remediation of an actual over-remittance — CPA confirmation of the rule itself still
+    /// to follow before a real tenant starts using foreign services (§10 E1, not yet closed).
+    /// VendorInvoice.RequiresPnd36ReverseCharge stays on the entity as an INFORMATIONAL-ONLY flag
+    /// ("this invoice will trigger ภ.พ.36 when paid") — see its doc comment — and is never again a
+    /// filing-row source. Do NOT add a VatMode gate here: ม.83/6 binds non-VAT payers too
+    /// (PostReverseChargeJvAsync below already branches on VatMode for exactly that reason).
+    /// </summary>
     public async Task<Pnd36Filing> GeneratePnd36Async(
         int period, TaxFilingMode mode, CancellationToken ct)
     {
@@ -237,15 +259,8 @@ public sealed class WhtFilingService(
         var (from, to) = TaxFilingPeriod.MonthRange(period);
         const decimal vatRate = 0.07m;
 
-        // Foreign-service reverse-charge docs: VI + PV flagged in Sprint 8.7,
-        // posted in the period. vat = 7% of the foreign-service (subtotal).
-        var viRows = await db.VendorInvoices.AsNoTracking()
-            .Where(v => v.RequiresPnd36ReverseCharge
-                     && v.Status == DocumentStatus.Posted
-                     && v.DocDate >= from && v.DocDate <= to)
-            .Join(db.Vendors.AsNoTracking(), v => v.VendorId, ven => ven.VendorId,
-                  (v, ven) => new { v.VendorName, ven.CountryCode, v.DocNo, v.SubtotalAmount })
-            .ToListAsync(ct);
+        // Posted PAYMENT VOUCHERS only (see the method doc comment above). vat = 7% of the
+        // foreign-service (subtotal).
         var pvRows = await db.PaymentVouchers.AsNoTracking()
             .Where(p => p.RequiresPnd36ReverseCharge
                      && p.Status == DocumentStatus.Posted
@@ -254,14 +269,10 @@ public sealed class WhtFilingService(
                   (p, ven) => new { p.VendorName, ven.CountryCode, p.DocNo, p.SubtotalAmount })
             .ToListAsync(ct);
 
-        var rows = viRows.Select(x => new Pnd36Row(
+        var rows = pvRows.Select(x => new Pnd36Row(
                 x.VendorName, x.CountryCode, x.DocNo ?? "",
                 x.SubtotalAmount, vatRate,
                 decimal.Round(x.SubtotalAmount * vatRate, 2)))
-            .Concat(pvRows.Select(x => new Pnd36Row(
-                x.VendorName, x.CountryCode, x.DocNo ?? "",
-                x.SubtotalAmount, vatRate,
-                decimal.Round(x.SubtotalAmount * vatRate, 2))))
             .OrderBy(r => r.RefDoc)
             .ToList();
 
