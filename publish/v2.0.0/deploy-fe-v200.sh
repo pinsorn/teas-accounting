@@ -19,6 +19,19 @@ cd "$D"
 echo "== rename current build (rollback point) =="
 rm -rf .next.old
 mv .next .next.old
+# Carry the build cache forward. `next/font/google` downloads Noto Sans Thai at BUILD time and caches
+# it under .next/cache — moving .next away wholesale leaves the build to re-fetch every weight from
+# fonts.gstatic.com, and that is exactly what failed this deploy ("Retrying 3/3" then "Failed to
+# fetch `Noto Sans Thai`"). Egress from the box is fine; it is Google rate-limiting a cold burst.
+# Restoring the cache also makes the webpack build substantially faster. Rollback is unaffected —
+# .next.old keeps its own copy.
+if [ -d .next.old/cache ]; then
+  mkdir -p .next
+  cp -a .next.old/cache .next/cache
+  echo "CACHE_CARRIED_FORWARD $(du -sh .next/cache | cut -f1)"
+else
+  echo "NOTE: no .next.old/cache to carry forward — a cold font fetch may rate-limit."
+fi
 
 echo "== overlay new source =="
 tar xf /tmp/fe-src-v200.tar --strip-components=1
@@ -31,7 +44,11 @@ for f in 'app/(dashboard)/invoices/[id]/page.tsx' 'messages/th.json' 'messages/e
 done
 
 # NEGATIVE anchors — prove the deletion actually landed, not just that a tarball unpacked.
-grep -q 'mark-settled' 'app/(dashboard)/invoices/[id]/page.tsx' && fail "CONTENT_CHECK_FAILED: mark-settled still referenced in the invoice page"
+# Match the ARTIFACTS, never the word: the first version of this grepped for "mark-settled" and
+# aborted a good deploy on the code COMMENT that documents the removal. Assert the button's own
+# test id and its i18n key are gone; both exist only while the feature does.
+grep -q 'data-testid="bn-mark-settled"' 'app/(dashboard)/invoices/[id]/page.tsx' && fail "CONTENT_CHECK_FAILED: the mark-settled button is still in the invoice page"
+grep -q '"markSettled"' 'messages/th.json' && fail "CONTENT_CHECK_FAILED: the markSettled i18n key is still in th.json"
 # POSITIVE anchor — prove the receipt route (the surviving settlement path) is still wired up.
 grep -q 'receipts' 'app/(dashboard)/invoices/[id]/page.tsx' || fail "CONTENT_CHECK_FAILED: the invoice page lost its receipt path too"
 # Both locale files must still be valid JSON after the key removals (th/en.json have a known

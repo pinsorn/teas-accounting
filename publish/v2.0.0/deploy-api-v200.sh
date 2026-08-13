@@ -62,24 +62,30 @@ VERSION=$(grep -o '"Accounting.Api/[0-9.]*"' unpacked/Accounting.Api.deps.json |
 TOTALSCRIPTS=$(sudo -u postgres psql -d teas -tAc "SELECT count(*) FROM public.applied_sql_scripts;" 2>/dev/null | tr -d ' ')
 
 # --- R2-specific probes ------------------------------------------------------
-# 1. WP-7: the mark-settled route must be GONE. Unauthenticated, a route that still exists answers
-#    401 (auth runs before the handler); a route that no longer exists answers 404. So 404 = removed,
-#    401/403 = STILL THERE and the release did not do its one public-API job.
-MS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://teas.kazaki-rio.com/api/proxy/billing-notes/1/mark-settled")
-# 2. a route that certainly still exists, as the control for probe 1 — proves 404 above means
-#    "removed", not "the whole API is down or the proxy is misrouting everything".
-CTRL=$(curl -s -o /dev/null -w "%{http_code}" "https://teas.kazaki-rio.com/api/proxy/billing-notes")
+# 1. WP-7: the mark-settled route must be GONE.
+#    NOT probed over HTTP, deliberately. The first version of this script asked for a 404 and got a
+#    401, which rolled back a perfectly good deploy: this app authenticates BEFORE routing, so an
+#    unauthenticated request returns 401 for a real route, a deleted route AND a route that never
+#    existed — measured all three on the box. Going through /api/proxy/* is worse still, since the
+#    Next.js BFF answers 401 itself without ever forwarding. There is no credential-free HTTP probe
+#    that can tell "removed" from "present" here.
+#    So probe the ARTIFACT instead. .NET stores these literals as UTF-16LE, which is why `strings`
+#    with no -el finds nothing and would silently "pass" on any build.
+MS=$(strings -a -el unpacked/Accounting.Api.dll 2>/dev/null | grep -c "mark-settled")
+# 2. Control for probe 1: a sibling route that MUST still be present. Without this, a zero above
+#    could equally mean the grep found nothing at all (wrong path, wrong encoding, unreadable file).
+CTRL=$(strings -a -el unpacked/Accounting.Api.dll 2>/dev/null | grep -c "create-tax-invoice")
 # 3. public login still 200 through the full CDN -> proxy -> app path
 LOGIN=$(curl -s -o /dev/null -w "%{http_code}" "https://teas.kazaki-rio.com/login")
 
 echo "-- probe results --"
 [ "$ST" = "online" ] && echo "PASS pm2_status=$ST" || echo "FAIL pm2_status=$ST"
 [ "$VERSION" = "$VER" ] && echo "PASS version=$VERSION" || echo "FAIL version=$VERSION want=$VER"
-[ "$MS" = "404" ] && echo "PASS mark_settled_route_removed http=$MS" || echo "FAIL mark_settled still routed http=$MS (401/403 = still there)"
-if [ "$CTRL" = "401" ] || [ "$CTRL" = "403" ]; then
-  echo "PASS control_route_alive http=$CTRL"
+[ "$MS" = "0" ] && echo "PASS mark_settled_route_removed (0 refs in the deployed assembly)" || echo "FAIL mark_settled still present in the assembly (refs=$MS)"
+if [ "$CTRL" -ge 1 ] 2>/dev/null; then
+  echo "PASS control_route_present refs=$CTRL (so the zero above is a real absence, not a failed grep)"
 else
-  echo "FAIL control_route http=$CTRL (404 here means the 404 above proves nothing)"
+  echo "FAIL control_route refs=$CTRL -- the grep found nothing at all, probe 1 proves nothing"
 fi
 [ "$LOGIN" = "200" ] && echo "PASS public_login=$LOGIN" || echo "FAIL public_login=$LOGIN"
 
@@ -89,8 +95,8 @@ sudo -u postgres psql -d teas -tAc "
   FROM sales.billing_notes WHERE upper(status)='SETTLED' AND company_id IN (2,3)
   GROUP BY company_id ORDER BY company_id;"
 
-if [ "$ST" = "online" ] && [ "$VERSION" = "$VER" ] && [ "$MS" = "404" ] \
-   && { [ "$CTRL" = "401" ] || [ "$CTRL" = "403" ]; } && [ "$LOGIN" = "200" ]; then
+if [ "$ST" = "online" ] && [ "$VERSION" = "$VER" ] && [ "$MS" = "0" ] \
+   && [ "$CTRL" -ge 1 ] 2>/dev/null && [ "$LOGIN" = "200" ]; then
   echo "DEPLOY_OK version=$VERSION scripts=$TOTALSCRIPTS"
   echo "NOTE: the ภ.พ.30 non-VAT 422 and the draft-run filing refusal need an AUTHENTICATED"
   echo "      session, so they are NOT probed here — they are the Tier-4 browser leg."

@@ -1241,3 +1241,42 @@ losing the test DB costs nothing.
 - **Seen:** 2026-08-13, Tier-2 release review of R2 (finding F2). **Live exposure zero at the time** —
   probed prod: all 12 payroll runs are POSTED, none has a pay date before its period start, and the two real
   tenants have no payroll runs at all yet. Fixed before they start using payroll.
+
+## Deploy probes: this app answers 401 for routes that do not exist, so HTTP cannot prove a route was removed
+- **Symptom:** a deploy script that verifies a deleted endpoint by expecting `404` fails with `401` and
+  rolls back a perfectly good release. Measured on the box against a known-good binary: `POST` to the
+  real route, to the deleted route, and to a route that never existed **all return 401** — direct to the
+  API on `127.0.0.1:5180`, not just through the proxy.
+- **Root cause:** authentication runs before endpoint routing, so an unauthenticated request never gets
+  far enough to 404. Going through `/api/proxy/*` is worse: the Next.js BFF answers 401 itself and never
+  forwards. There is no credential-free HTTP probe that distinguishes "removed" from "present".
+- **Fix:** probe the ARTIFACT, not the HTTP surface —
+  `strings -a -el unpacked/Accounting.Api.dll | grep -c "<route>"`. **The `-el` matters**: .NET stores
+  these literals as UTF-16LE, so plain `strings` finds nothing and a naive check "passes" on every build,
+  including one where the route is still there. Always pair it with a CONTROL grep for a sibling route
+  that must still exist — otherwise a zero could just mean the grep found nothing at all (wrong path,
+  wrong encoding, unreadable file).
+- **Seen:** 2026-08-13, v2.0.0 deploy — cost one unnecessary rollback. The rollback itself was clean and
+  the release was fine.
+
+## A negative content anchor in a deploy script matches the comment that documents the deletion
+- **Symptom:** the FE deploy aborts with `CONTENT_CHECK_FAILED: mark-settled still referenced`, but the
+  feature really was deleted — the only remaining hit is a source COMMENT saying it was removed.
+- **Root cause:** the anchor grepped for the WORD. Good deletions leave prose behind explaining
+  themselves, and that prose contains the word by construction.
+- **Fix:** anchor on artifacts that exist only while the feature does — the button's `data-testid`, the
+  i18n key, the route string — never on a word that could appear in a comment. Keep a positive anchor
+  alongside (a surviving sibling) so a passing negative check is not just an empty grep.
+- **Seen:** 2026-08-13, v2.0.0 FE deploy.
+
+## `next build` re-downloads Google Fonts when `.next` is moved away, and Google rate-limits the cold burst
+- **Symptom:** a deploy that renames `.next` to `.next.old` and rebuilds fails with
+  `Failed to fetch font file from https://fonts.gstatic.com/...` / "Retrying 3/3" / ``next/font` error:
+  Failed to fetch `Noto Sans Thai``. Egress from the box is fine — `fonts.googleapis.com` returns 200.
+- **Root cause:** `next/font/google` downloads the font at BUILD time and caches it under `.next/cache`
+  (332 MB here). Moving `.next` wholesale takes the cache with it, so every weight is re-fetched cold and
+  Google throttles the burst.
+- **Fix:** carry the cache forward before building —
+  `mv .next .next.old && mkdir -p .next && cp -a .next.old/cache .next/cache`. Rollback is unaffected
+  (`.next.old` keeps its own copy) and the webpack build is much faster too.
+- **Seen:** 2026-08-13, v2.0.0 FE deploy — one failed build, cleanly auto-restored.
