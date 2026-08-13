@@ -220,3 +220,44 @@ work packages.
 So on resume the queue is: **WP-4's report → consolidated full suite → per-WP diff read + commits →
 Tier-2 (Opus) on WP-2 → v1.29.0 release → Tier-4 browser leg.** Step 1 of the earlier resume list
 (re-send WP-7's all-clear) is also DONE — WP-7 is fully verified, 31/31.
+
+---
+
+# ✅ R2 WAVE 2 IS COMMITTED (2026-08-13 09:20) — quota reset, work resumed and completed
+
+| commit | WP | what |
+|---|---|---|
+| `1e46a35` | WP-2 | ภ.พ.36 declares a foreign service ONCE, at the ม.83/6 payment tax point |
+| `10df042` | WP-3 | a company with no VAT registration can no longer file a ภ.พ.30 |
+| `c521adb` | WP-4 | RD/SSO filing artifacts require a Posted payroll run (+ the payslip rule) |
+| `1744fa4` | WP-7 | **BREAKING** — `POST /billing-notes/{id}/mark-settled` deleted |
+| `deab9e3` | — | spec checklists closed |
+
+**Consolidated full suite: 1167 passed / 0 failed / 14 skipped** (Domain 188/0/0). The count reconciles
+exactly against wave 1's 1151: +4 WP-2, +4 WP-3, +3−1 WP-7 (one dead H3-repro test deleted), +6 WP-4.
+Skipped stayed 14 — no test was silently disabled. Frontend `tsc` 0, vitest 65/65, both locale JSON
+files re-parsed after the key removals.
+
+## What Fable personally verified before committing (not taken on the workers' word)
+- **The 2180 trap is closed.** `Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180` was
+  edited by BOTH WP-5 and WP-4. Grepping the diff for `2180|CreditAmount|debits|credits` returns
+  **nothing** — the ฿500 credit assertion and the Dr=Cr check are not in any hunk. WP-4 relocated two
+  byte-identity comparisons (verbatim, same shape and messages) because its own guard now refuses the
+  Draft run they used to read from.
+- **WP-2 cannot under-declare** — the inverse failure, which would be worse than the bug being fixed.
+  `PaymentVoucherService.cs:339` derives `requiresPnd36 = vendor.IsForeign && !vendor.HasThaiVatDReg`,
+  **the identical expression** `VendorInvoiceService.cs:139` uses, and the code comment confirms it
+  applies to VI-linked and standalone vouchers alike. So no foreign payment loses its flag.
+- **WP-4's guards really do run first**, before wave 1's `EnsureEmployerAccount`/`EnsureNamesFilable` —
+  a Draft run is refused before the system starts complaining about its data quality.
+- WP-3's single guard genuinely covers all four ภ.พ.30 surfaces (preview, PDF, batch file, finalize)
+  because they all funnel through `GeneratePnd30Async` and none catches `DomainException`.
+
+## Now running
+**Tier-2 release review (Opus, read-only)** over all four commits, with under-declaration on ภ.พ.36 as
+the first lens — the old code over-declared (a refund conversation), the new code could in principle
+under-declare (a penalty conversation), and no test can prove an absence.
+
+## Remaining
+Tier-2 verdict → release **v1.29.0** (`publish/v1.29.0/`, scripts written and syntax-checked) → Tier-4
+browser leg: `/invoices/3` on co2 must show "สร้างใบเสร็จ" and NO "ยืนยันชำระครบแล้ว".
