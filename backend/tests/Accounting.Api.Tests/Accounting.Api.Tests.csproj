@@ -19,6 +19,9 @@
     <!-- Direct ref forces Microsoft.OpenApi 2.7.5 (patched) over the vulnerable 2.4.1 transitive. -->
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- Security pin only (NU1903 / GHSA-q939-rpr3-3284) — no code here uses SSH.NET; it comes in
+         under Testcontainers. See the note in Directory.Packages.props. -->
+    <PackageReference Include="SSH.NET" />
     <!-- M2 (MCP) — the client SDK (McpClient/HttpClientTransport) for the /mcp smoke test. -->
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>
