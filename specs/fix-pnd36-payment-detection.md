@@ -766,54 +766,89 @@ backend but **shares the test project and the shared test DB** — run it in the
 sequentially, never in parallel. WP-4 after WP-1/WP-3. WP-5 anytime.
 
 ### WP-1 — backend detection + acknowledgement *(no dependencies)*
-- [ ] `TaxFilingDtos.cs` — add `Pnd36UnreconciledEntry`, `Pnd36OutstandingInvoice`, `Pnd36Unreconciled`
+- [x] `TaxFilingDtos.cs` — add `Pnd36UnreconciledEntry`, `Pnd36OutstandingInvoice`, `Pnd36Unreconciled`
       exactly as §3.4. Append `PaymentDate` to `Pnd36Row`; append `Unreconciled`,
-      `AcknowledgedByUserId`, `AcknowledgedAt` to `Pnd36Filing`. **Done:** builds; no call site reordered.
-- [ ] `TaxFilingDtos.cs` — `IWhtFilingService.GeneratePnd36Async` gains
+      `AcknowledgedByUserId`, `AcknowledgedAt` to `Pnd36Filing`. **Done:** builds 0 errors; only 2
+      construction sites exist (both inside `WhtFilingService.cs`, both mine) — no call site reordered.
+- [x] `TaxFilingDtos.cs` — `IWhtFilingService.GeneratePnd36Async` gains
       `bool acknowledgeUnreconciled = false` **after** `CancellationToken ct`, with the §3.5 footgun
       comment. **Declare the `= false` default on BOTH the interface and `WhtFilingService`'s
-      implementation** — C# binds an optional-parameter default at the *compile-time* type, so an
-      interface-only default leaves any caller holding the concrete class without one (and vice
-      versa). **Done:** every existing call site compiles unchanged and still binds `default` to `ct`.
-- [ ] `WhtFilingService.cs` — add `DetectUnreconciledAsync` per §3.3, verifying the three `⚠verify`
-      names first. **Done:** T1, T3, T5 pass.
-- [ ] `WhtFilingService.cs` — populate `Pnd36Row.PaymentDate` from the PV's `DocDate` in the existing
-      projection (`:268-277`). **Done:** T6 asserts it.
-- [ ] `WhtFilingService.cs` — Finalize guard + acknowledgement stamping per §3.5, placed so Preview
+      implementation** — done on both. **Done:** all 9 existing call sites (grepped across
+      backend/src + backend/tests) compile unchanged, still bind `default` to `ct`.
+- [x] `WhtFilingService.cs` — add `DetectUnreconciledAsync` per §3.3, verifying the three `⚠verify`
+      names first. All three confirmed exact against the entities (`JournalLine.JournalId`,
+      `JournalEntry.Status`/`ReversalOfId`). **Done:** T1, T3, T5 pass.
+- [x] `WhtFilingService.cs` — populate `Pnd36Row.PaymentDate` from the PV's `DocDate` in the existing
+      projection. **Done:** T6 asserts it.
+- [x] `WhtFilingService.cs` — Finalize guard + acknowledgement stamping per §3.5, placed so Preview
       can never throw. **Done:** T2, T4 pass.
-- [ ] Verify §3.6: `TaxFilingStore.FinalizeAsync` and `IRdEfilingClient` tolerate the widened DTO, and
-      that no advisory field reaches the RD payload. **Done:** evidence pasted; failure ⇒ stop-and-re-spec.
-- [ ] `TaxFilingEndpoints.cs:153-161` — `[FromQuery] bool? acknowledge`, forwarded. **Done:** builds.
+- [x] Verify §3.6: `TaxFilingStore.FinalizeAsync` and `IRdEfilingClient` tolerate the widened DTO, and
+      that no advisory field reaches the RD payload. **Done:** verified, finding reported (not a
+      failure) — see worker report / attempt log below.
+- [x] `TaxFilingEndpoints.cs:153-161` — `[FromQuery] bool? acknowledge`, forwarded. **Done:** builds.
 
 ### WP-2 — frontend ภ.พ.36 page *(after WP-1)*
-- [ ] `frontend/lib/types.ts:648-656` — mirror the new DTO shapes exactly.
-- [ ] `frontend/lib/queries.ts:1564-1571` — `usePnd36` accepts `acknowledge?: boolean`, appended to `qs`.
-- [ ] `frontend/app/(dashboard)/tax-filings/pnd36/page.tsx` — render blocks (a) and (b) per §3.1;
-      checkbox state; Finalize disabled while `requiresAcknowledgement && !checked`; surface the
-      `pnd36.unreconciled_not_acknowledged` error as a readable message.
-- [ ] `frontend/messages/th.json` + `en.json` — new keys incl. the **remediation sentence**. Thai ม
-      (U+0E21) only. **Done:** G2 + G4 clean, G6 screenshot.
+- [x] `frontend/lib/types.ts:648-656` — mirror the new DTO shapes exactly.
+- [x] `frontend/lib/queries.ts:1564-1571` — `usePnd36` accepts `acknowledge?: boolean`, appended to `qs`
+      only when true (preview stays byte-identical).
+- [x] `frontend/app/(dashboard)/tax-filings/pnd36/page.tsx` — render blocks (a) and (b) per §3.1;
+      checkbox state; Finalize disabled while `requiresAcknowledgement && !checked`. Error surfacing:
+      kept the page's existing `e.message` toast pattern (sibling pnd2/3/53/54 pages all use it, not
+      yet migrated to `errorToToast`) — `ApiError.message` already carries the backend `detail`
+      string, so the new `DomainException`'s detail text is already readable without a page-level
+      refactor; `errorToToast`-based Thai resolution activates automatically once Fable adds the code
+      to `problems.ts` (handed back in the report, file untouched by this worker).
+- [x] `frontend/messages/th.json` + `en.json` — new keys incl. the **remediation sentence**. Thai ม
+      (U+0E21) only. **Done:** G2 (tsc) clean, G4a/G4b clean (see report). G6 screenshot — orchestrator
+      gate, not run by this worker per the gate table.
 
 ### WP-3 — at-source manual-JV advisory *(sequential with WP-1; shares the test project)*
-- [ ] `JournalDtos.cs:23` — append `string? AdvisoryCode = null` to `JournalPostedResult`.
-- [ ] `JournalService.cs` — inject `IOptions<GlAccountsOptions>`; add the two-gate advisory per §3.7 to
+- [x] `JournalDtos.cs:23` — append `string? AdvisoryCode = null` to `JournalPostedResult`.
+- [x] `JournalService.cs` — inject `IOptions<GlAccountsOptions>`; add the two-gate advisory per §3.7 to
       **both** `CreateAndPostManualAsync` and `PostAsync`. **Done:** T8, T9 pass, incl. both negatives.
-- [ ] `frontend/app/(dashboard)/journals/new/page.tsx` + both message files — warning toast alongside
-      the success toast. **Never** a blocking modal.
-- [ ] Confirm **no** change to `BankReconciliationService.cs` (§2 C5 deliberate skip). **Done:** absent
+- [x] `frontend/components/forms/ManualJournalForm.tsx` (**swap** — see report: `journals/new/page.tsx`
+      is a 7-line wrapper with no logic; the real create-and-post form/toast lives here) + both
+      message files — warning toast alongside the success toast. **Never** a blocking modal.
+- [x] `frontend/app/(dashboard)/journals/[id]/page.tsx` — **added by the R3/F1 Tier-2 remediation
+      (FIX 5); the ORIGINAL WP-3 pass named only `journals/new/page.tsx` and this was the omission
+      the reviewer caught.** This is the journal-detail Post button — the human-post half of the
+      MCP-drafted path (`create_manual_journal_draft`, §2 C8), which the spec's own T9 already
+      proves `PostAsync` returns the code for; nothing rendered it until this fix. Mirrors
+      `ManualJournalForm.tsx`'s warning-toast pattern.
+- [x] Confirm **no** change to `BankReconciliationService.cs` (§2 C5 deliberate skip). **Done:** absent
       from `git diff --name-only`.
 
 ### WP-4 — tests *(after WP-1 and WP-3)*
-- [ ] T1–T6, T8, T9 added to `Sprint9WhtComplianceTests.cs`; every one drives the real transition.
-- [ ] T7: the four existing tests green, **assertions unmodified**; `:408` gets the §11 comment only.
+- [x] T1–T6, T8, T9 added to `Sprint9WhtComplianceTests.cs`; every one drives the real transition
+      (fresh `TestCompanyFactory` company + current Bangkok month — RandPeriod() is incompatible with
+      any test posting a REAL JV, see report/attempt log).
+- [x] T7: the four existing tests green, **assertions unmodified**; `:408` gets the §11 comment only.
 
 ### WP-5 — knowledge capture *(anytime)*
-- [ ] `troubles-wiki.md`: update the "ภ.พ.36 blind spot" entry's **Fix:** section from "not yet
+- [x] `troubles-wiki.md`: update the "ภ.พ.36 blind spot" entry's **Fix:** section from "not yet
       decided" to what shipped, naming what it does and does not guarantee (§4 I1).
-- [ ] `troubles-wiki.md`: new entry for **L1** (PV `DocDate` re-pinned at post → wrong filing month;
+- [x] `troubles-wiki.md`: new entry for **L1** (PV `DocDate` re-pinned at post → wrong filing month;
       owner = Feature B; must also remove `PaymentVoucherService.cs:496-498`).
-- [ ] `troubles-wiki.md`: new entry for the **C6/C7 undetectable shapes** (payments that never touch
+- [x] `troubles-wiki.md`: new entry for the **C6/C7 undetectable shapes** (payments that never touch
       AP), naming E2 as the open CPA question.
+
+### WP-6 — Tier-2 remediation (6 findings + 2 also-fix, R3/F1 same-day retry)
+- [x] FIX 1 — locale copy replaced (both files, exact strings), dead key `tf.pnd36EntriesTitle`
+      deleted. **Done:** codepoint scan clean, both files valid JSON.
+- [x] FIX 2 — `Pnd36AdvisoryAsync` swallows any exception, returns `null`. **Done:** build 0/0.
+- [x] FIX 3(a) — month-picker reset. FIX 3(b) — `acknowledgedUnexplainedApDebit` param + new code
+      `pnd36.unreconciled_figure_changed`, endpoint `ackAmount`, FE sends the figure. **Done:** new
+      test `Pnd36_finalize_refuses_a_stale_acknowledged_figure_then_succeeds_with_the_fresh_one`
+      green (stale figure refused, missing figure refused, fresh figure succeeds, no side effect on
+      either refusal).
+- [x] FIX 4 — real-PV test added, `SeedCleanPnd36FixtureAsync` untouched. **Done:** green.
+- [x] FIX 5 — `journals/[id]/page.tsx` advisory toast mirrored from `ManualJournalForm.tsx`.
+- [x] FIX 6 — dead `reversedIds` query removed from `DetectUnreconciledAsync`.
+- [x] Also-fix — post-finalize checkbox reads checked+disabled; outstanding-invoices as-of caveat
+      comment added.
+- [x] Gates — `dotnet build` 0/0 · `Sprint9WhtComplianceTests` 19/19 (was 17) ·
+      `NonVatBillingTests`+`Pnd30VatRegistrantOnlyTests` 11/11 · `tsc --noEmit` clean ·
+      `vitest run` 65/65 · locale JSON valid · codepoint scan clean (0 in U+0980–U+09FF).
 
 ---
 
@@ -828,3 +863,45 @@ sequentially, never in parallel. WP-4 after WP-1/WP-3. WP-5 anytime.
   footgun in §3.5 — inserting a `bool` before `ct` would silently rebind `default` at four existing
   call sites and compile clean; (iv) **Feature B does not currently fix L1** (§11) — the post-time
   re-pin at `PaymentVoucherService.cs:496-498` is absent from that spec.
+
+- 2026-08-13 R3/F1 REMEDIATION (Tier-2 REJECT, 6 findings) — implementer worker, same-day retry on
+  this spec. All six fixes applied plus the two "also fix" items:
+  - **FIX 1** — `tf.pnd36UnexplainedFix` / `tf.pnd36AckCheckbox` copy replaced in both locale files
+    (the old copy told the filer to reverse a JV via a feature that does not exist, then required a
+    false attestation). Dead key `tf.pnd36EntriesTitle` deleted from both files (grepped — referenced
+    nowhere; `pnd36EntryDescription` stays, it IS used). Codepoint-scanned clean (0 hits in the full
+    Bengali block U+0980–U+09FF).
+  - **FIX 2** — `JournalService.Pnd36AdvisoryAsync` now wraps its whole body in try/catch-and-swallow
+    (any `Exception`, including `OperationCanceledException`), returning `null` on failure. Both call
+    sites (`PostAsync`, `CreateAndPostManualAsync`) run after their post already committed, so a throw
+    there was unrecoverable and risked a client retry double-posting the JV.
+  - **FIX 3** — (a) `pnd36/page.tsx`'s month-picker `onChange` now resets `filing`/`ack`, so a stale
+    tick from a previous period can never survive a period switch. (b) `GeneratePnd36Async` gained
+    `decimal? acknowledgedUnexplainedApDebit = null` (appended after `acknowledgeUnreconciled`, same
+    footgun as §3.5) — Finalize now refuses (new code `pnd36.unreconciled_figure_changed`, minted per
+    the dispatch's option since `problems.ts`'s existing static per-code dict cannot carry two dynamic
+    figures and is out of scope to touch) when the figure is missing OR no longer matches the fresh
+    detector output, telling the filer both figures and to re-preview. Endpoint carries it as
+    `ackAmount`; FE sends `unreconciled.unexplainedApDebit` alongside the tick. I4 exit preserved:
+    re-preview → re-tick (now carrying the current figure) → finalize, same screen/user/permission.
+  - **FIX 4** — new test `Pnd36_real_PV_settlement_of_a_real_VI_has_zero_unexplained_and_declares_once`
+    drives a REAL VendorInvoice (`IVendorInvoiceService`) settled by a REAL PaymentVoucher
+    (`IPaymentVoucherService.CreateFromVendorInvoiceAsync`), then runs the detector — closing the gap
+    where `SeedCleanPnd36FixtureAsync`'s `UnexplainedApDebit == 0` was arithmetic the fixture arranged
+    on both sides. `SeedCleanPnd36FixtureAsync` itself is UNCHANGED (T5/T6 still use it legitimately).
+  - **FIX 5** — `journals/[id]/page.tsx`'s `doPost` now reads `JournalPostedResult.advisoryCode` and
+    mirrors `ManualJournalForm.tsx`'s warning toast (non-blocking, alongside the existing success
+    toast) — this is the human-post half of the MCP-drafted path (§2 C8), previously discarded.
+  - **FIX 6** — `WhtFilingService.DetectUnreconciledAsync`'s dead `reversedIds` query (a company-wide,
+    no-date-bound list feeding `!reversedIds.Contains(...)`) deleted; `x.j.ReversalOfId == null` kept.
+    Removes both the pointless query (the list was always empty — no reversal feature reaches AP) and
+    the latent unbounded-`IN` risk against a method that runs before the Preview/Finalize branch.
+  - **Also fixed**: `pnd36/page.tsx`'s ack checkbox now renders checked+disabled once
+    `filing.status !== 'Preview'` (was: unticked "please confirm" under an already-immutable filing).
+    `WhtFilingService.cs`'s outstanding-invoices comment now states the as-of-NOW vs as-of-period-end
+    caveat on `SettledAmount` (informational tier, not restructured, per the dispatch).
+  - Verification: `dotnet build backend/Accounting.sln` 0/0; `Sprint9WhtComplianceTests` 19/19 (was
+    17, +2: the new FIX-4 real-PV test and a new FIX-3b stale-figure test); `NonVatBillingTests` +
+    `Pnd30VatRegistrantOnlyTests` 11/11; `tsc --noEmit` clean; `vitest run` 65/65; both locale files
+    valid JSON; codepoint scan clean. `frontend/lib/i18n/problems.ts` untouched (confirmed via
+    `git status`) — new code `pnd36.unreconciled_figure_changed` handed back for a TH entry.

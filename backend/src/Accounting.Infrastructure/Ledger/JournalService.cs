@@ -7,6 +7,7 @@ using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Accounting.Infrastructure.Ledger;
 
@@ -20,6 +21,7 @@ public sealed class JournalService : IJournalService
     private readonly INumberSequenceService   _numbers;
     private readonly IGlPostingService        _gl;
     private readonly IPeriodCloseService      _period;
+    private readonly IOptions<GlAccountsOptions> _glAccounts;
 
     public JournalService(
         AccountingDbContext db,
@@ -27,7 +29,8 @@ public sealed class JournalService : IJournalService
         IClock clock,
         INumberSequenceService numbers,
         IGlPostingService gl,
-        IPeriodCloseService period)
+        IPeriodCloseService period,
+        IOptions<GlAccountsOptions> glAccounts)
     {
         _db      = db;
         _tenant  = tenant;
@@ -35,6 +38,7 @@ public sealed class JournalService : IJournalService
         _numbers = numbers;
         _gl      = gl;
         _period  = period;
+        _glAccounts = glAccounts;
     }
 
     public async Task<long> CreateDraftAsync(CreateJournalRequest req, CancellationToken ct)
@@ -111,7 +115,12 @@ public sealed class JournalService : IJournalService
             ct)).Value;
         await tx.CommitAsync(ct);
 
-        return new JournalPostedResult(entry.JournalId, docNo, now);
+        // F1 (specs/fix-pnd36-payment-detection.md §3.7/§2 C8) — this is the path an MCP-drafted
+        // entry reaches when a human posts it; the advisory must fire here too, not only on
+        // CreateAndPostManualAsync.
+        var advisory = await Pnd36AdvisoryAsync(
+            entry.Lines.Select(l => (l.AccountId, l.DebitAmount)), ct);
+        return new JournalPostedResult(entry.JournalId, docNo, now, advisory);
     }
 
     public async Task<JournalDetail> GetDetailAsync(long journalId, CancellationToken ct)
@@ -208,7 +217,51 @@ public sealed class JournalService : IJournalService
 
         var entry = await _db.JournalEntries.AsNoTracking()
             .FirstAsync(j => j.JournalId == journalId, ct);
-        return new JournalPostedResult(journalId, entry.DocNo!, entry.PostedAt!.Value);
+
+        // F1 (specs/fix-pnd36-payment-detection.md §3.7) — at-source completeness advisory.
+        var advisory = await Pnd36AdvisoryAsync(
+            req.Lines.Select(l => (l.AccountId, l.DebitAmount)), ct);
+        return new JournalPostedResult(journalId, entry.DocNo!, entry.PostedAt!.Value, advisory);
+    }
+
+    // F1 (specs/fix-pnd36-payment-detection.md §3.7) — shared by CreateAndPostManualAsync and
+    // PostAsync (§2 C8: an MCP-drafted entry posted by a human takes PostAsync). Gate 1 (any
+    // posted line debits AP) is cheap and the overwhelmingly common answer is "no" — skip gate 2
+    // entirely in that case, no cost on the common path. Gate 2 is what keeps this from becoming
+    // noise: a company with no outstanding foreign-service invoices never sees it.
+    //
+    // R3/F1 Tier-2 remediation (FIX 2) — both call sites invoke this AFTER their post already
+    // committed (PostAsync: after tx.CommitAsync; CreateAndPostManualAsync: after PostManualEntryAsync
+    // returns), so there is nothing left to roll back if this throws — a connection blip or a
+    // cancelled request here would turn a SUCCESSFUL post into a 500, and the caller's retry would
+    // create a SECOND posted JV, manufacturing the very duplicate-clearing state this advisory
+    // exists to warn about (journals/manual has no idempotency key). An advisory must never change
+    // the outcome of an already-committed post — swallow ANY exception (including
+    // OperationCanceledException) and degrade to "no advisory" rather than fail the request.
+    // DELIBERATE — do not "improve" this into a rethrow.
+    private async Task<string?> Pnd36AdvisoryAsync(
+        IEnumerable<(long AccountId, decimal DebitAmount)> lines, CancellationToken ct)
+    {
+        try
+        {
+            var apCode = _glAccounts.Value.ApAccount;
+            var apAccountId = await _db.ChartOfAccounts.AsNoTracking()
+                .Where(a => a.AccountCode == apCode)
+                .Select(a => (long?)a.AccountId)
+                .FirstOrDefaultAsync(ct);
+            if (apAccountId is null || !lines.Any(l => l.AccountId == apAccountId && l.DebitAmount > 0m))
+                return null;
+
+            var hasOutstanding = await _db.VendorInvoices.AsNoTracking()
+                .AnyAsync(v => v.RequiresPnd36ReverseCharge
+                            && v.Status == DocumentStatus.Posted
+                            && v.SettledAmount < v.TotalAmount - 0.01m, ct);
+            return hasOutstanding ? "pnd36.ap_cleared_outside_pv" : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     public async Task<IReadOnlyList<JournalListItem>> ListAsync(

@@ -1,9 +1,12 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Ledger;
+using Accounting.Application.Purchase;
 using Accounting.Application.TaxFilings;
 using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Purchase;
+using Accounting.Domain.Entities.Sys;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
@@ -64,6 +67,144 @@ public sealed class Sprint9WhtComplianceTests
     {
         var (y, m) = (period / 100, period % 100);
         return (new DateOnly(y, m, 1), new DateOnly(y, m, DateTime.DaysInMonth(y, m)));
+    }
+
+    // F1 (specs/fix-pnd36-payment-detection.md §6) — a real posted manual JV is bound by
+    // je.future_date (JournalService.cs:158) AND PeriodCloseService.IsOpenAsync, which treats any
+    // missing-period month as CLOSED except the CURRENT Asia/Bangkok month (troubles-wiki "Batch A
+    // Task ③"). RandPeriod()'s far-future/-past periods are therefore incompatible with any test
+    // that posts a real JV/PV through the real service — T1/T2/T3/T4/T5/T6/T8/T9 all use TODAY's
+    // month on a FRESH company (never company 1 — avoids cross-test AP residue in the same month).
+    private static DateOnly TodayBkk() => new SystemClock().TodayInBangkok();
+    private static int CurrentPeriod(DateOnly d) => d.Year * 100 + d.Month;
+
+    private static async Task<long> AccountId(AccountingDbContext db, string code) =>
+        await db.ChartOfAccounts.Where(a => a.AccountCode == code).Select(a => a.AccountId).FirstAsync();
+
+    // F1 §6 T1/T2/T4 — the shared "hole" fixture: a reverse-charge VI cleared by a REAL manual JV
+    // (never a PaymentVoucher, §2 C3), so its AP debit is unexplained by any posted PV.
+    private async Task<(ServiceProvider Sp, DateOnly Today, int Period, string JvDocNo)>
+        SeedApHoleFixtureAsync(decimal amount = 10000m)
+    {
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+        var today = TodayBkk();
+        var period = CurrentPeriod(today);
+        string jvDocNo;
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = company.CompanyId, VendorCode = "V-" + Sfx(), NameTh = "JV-Paid Overseas Co",
+                IsForeign = true, CountryCode = "US", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            await db.SaveChangesAsync(default);
+
+            db.VendorInvoices.Add(new VendorInvoice
+            {
+                CompanyId = company.CompanyId, BranchId = company.BranchId, DocNo = "VI-" + Sfx(), DocDate = today,
+                VendorTaxInvoiceNo = "JV-" + Sfx(), VendorTaxInvoiceDate = today,
+                VatClaimPeriod = period, VendorId = ven.VendorId, VendorName = "JV-Paid Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = amount, VatAmount = 0m, NonRecoverableVatAmount = 0m,
+                TotalAmount = amount, TotalAmountThb = amount, HasInputVat = false,
+                RequiresPnd36ReverseCharge = true, SettledAmount = 0m, SettlementStatus = "UNPAID",
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync(default);
+
+            // THE HOLE (§2 C3) — clear the payable with a REAL manual JV, never a PaymentVoucher.
+            var ap = await AccountId(db, "2110");
+            var bank = await AccountId(db, "1120");
+            var journals = s0.ServiceProvider.GetRequiredService<IJournalService>();
+            var jv = await journals.CreateAndPostManualAsync(new CreateManualJournalRequest(
+                today, "Clear AP - " + Sfx(), null,
+                [
+                    new ManualJournalLineInput(ap, amount, 0m, null, null),
+                    new ManualJournalLineInput(bank, 0m, amount, null, null),
+                ]), default);
+            jvDocNo = jv.DocNo;
+        }
+
+        return (sp, today, period, jvDocNo);
+    }
+
+    // F1 §6 T5/T6 — the clean fixture: a VI settled by what a REAL PaymentVoucher post would have
+    // produced (a PaymentVoucherApplication row for the "Expected" side, a real manual JV for the
+    // "Actual" AP-clearing side, same amount) — so Actual == Expected == 0 unexplained, exercising
+    // the subtraction rather than trivially starting at 0-0.
+    private async Task<(ServiceProvider Sp, DateOnly Today, int Period)> SeedCleanPnd36FixtureAsync(
+        decimal amount = 10000m)
+    {
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+        var today = TodayBkk();
+        var period = CurrentPeriod(today);
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = company.CompanyId, VendorCode = "V-" + Sfx(), NameTh = "Clean Overseas Co",
+                IsForeign = true, CountryCode = "US", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            await db.SaveChangesAsync(default);
+
+            var vi = new VendorInvoice
+            {
+                CompanyId = company.CompanyId, BranchId = company.BranchId, DocNo = "VI-" + Sfx(), DocDate = today,
+                VendorTaxInvoiceNo = "CL-" + Sfx(), VendorTaxInvoiceDate = today,
+                VatClaimPeriod = period, VendorId = ven.VendorId, VendorName = "Clean Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = amount, VatAmount = 0m, NonRecoverableVatAmount = 0m,
+                TotalAmount = amount, TotalAmountThb = amount, HasInputVat = false,
+                RequiresPnd36ReverseCharge = true, SettledAmount = amount, SettlementStatus = "PAID",
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            };
+            db.VendorInvoices.Add(vi);
+            await db.SaveChangesAsync(default);
+
+            var pv = new PaymentVoucher
+            {
+                CompanyId = company.CompanyId, BranchId = company.BranchId, SubPrefix = "PV",
+                DocDate = today, PostingDate = today,
+                VendorId = ven.VendorId, VendorName = "Clean Overseas Co", VendorType = CustomerType.Corporate,
+                CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = amount, VatAmount = 0m, WhtAmount = 0m,
+                TotalPaid = amount, TotalAmountThb = amount,
+                VendorInvoiceId = vi.VendorInvoiceId, RequiresPnd36ReverseCharge = true,
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            };
+            db.PaymentVouchers.Add(pv);
+            await db.SaveChangesAsync(default);
+
+            // §3.3 "Expected" side — what a real PV settlement records (PaymentVoucherService.cs:641-646).
+            db.PaymentVoucherApplications.Add(new PaymentVoucherApplication
+            {
+                PaymentVoucherId = pv.PaymentVoucherId, VendorInvoiceId = vi.VendorInvoiceId,
+                AppliedAmount = amount,
+            });
+            await db.SaveChangesAsync(default);
+
+            // §3.3 "Actual" side — the AP-clearing JV a PV post would have produced, same amount,
+            // so Expected == Actual == 0 unexplained (exercises the subtraction for real).
+            var ap = await AccountId(db, "2110");
+            var bank = await AccountId(db, "1120");
+            var journals = s0.ServiceProvider.GetRequiredService<IJournalService>();
+            await journals.CreateAndPostManualAsync(new CreateManualJournalRequest(
+                today, "Settle AP - " + Sfx(), null,
+                [
+                    new ManualJournalLineInput(ap, amount, 0m, null, null),
+                    new ManualJournalLineInput(bank, 0m, amount, null, null),
+                ]), default);
+        }
+
+        return (sp, today, period);
     }
 
     private static async Task AddCert(
@@ -404,6 +545,15 @@ public sealed class Sprint9WhtComplianceTests
     // T3 — VI in period P, settling PV in period P+1: P declares nothing (no payment yet in P),
     // P+1 declares it once (E1: ม.83/6's tax point is payment, so the filing period follows the
     // PV, not the VI). Pins the period-shift decision in a test.
+    //
+    // L1 (specs/fix-pnd36-payment-detection.md §11) — this test's assertions are CORRECT (the
+    // period must follow the payment) and are seeded directly via DocDate, so they are not
+    // affected by L1. The DEFECT is elsewhere: PaymentVoucherService.cs:496-498 re-pins
+    // pv.DocDate = PostingDate = today at POST time for a REAL (non-seeded) PV, so the real
+    // ภ.พ.36 period follows the day the voucher was posted, not the day it was dated/paid. That
+    // fix belongs to Feature B (specs/doc-lifecycle-cancel-reissue-backdate.md), gated on H1 —
+    // NOT this spec (§8). troubles-wiki.md "L1 — PV DocDate re-pinned at post" has the full
+    // writeup. Do not "fix" this test's assertions.
     [SkippableFact]
     public async Task Pnd36_VI_and_later_PV_declare_only_in_the_payment_period()
     {
@@ -524,6 +674,428 @@ public sealed class Sprint9WhtComplianceTests
         jl.Sum(x => x.DebitAmount).Should().Be(jl.Sum(x => x.CreditAmount), "JV must balance");
         jl.Single(x => x.AccountCode == "5350").DebitAmount.Should().Be(560.00m);
         jl.Single(x => x.AccountCode == "2151").CreditAmount.Should().Be(560.00m);
+    }
+
+    // ── F1 (specs/fix-pnd36-payment-detection.md §6) — ภ.พ.36 payment detection ────────────────
+
+    // T1 — THE DEFECT ITSELF. A reverse-charge VI cleared by a real manual JV (never a
+    // PaymentVoucher) must be surfaced as an unexplained AP debit, not silently dropped. Proves I1.
+    [SkippableFact]
+    public async Task Pnd36_AP_cleared_by_manual_JV_is_flagged_not_silently_dropped()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var fx = await SeedApHoleFixtureAsync();
+        await using var sp = fx.Sp;
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var f = await svc.GeneratePnd36Async(fx.Period, TaxFilingMode.Preview, default);
+
+        f.Rows.Should().BeEmpty("no PaymentVoucher exists — the manual JV is the hole, not a filed row");
+        f.Unreconciled.UnexplainedApDebit.Should().Be(10000m);
+        f.Unreconciled.Entries.Should().Contain(e => e.JournalDocNo == fx.JvDocNo);
+        f.Unreconciled.RequiresAcknowledgement.Should().BeTrue();
+    }
+
+    // T2 — proves I1(b) AND I4: the guard fires, AND the one-click exit (acknowledgeUnreconciled)
+    // actually works. A test that only asserted the refusal would bless a dead end.
+    [SkippableFact]
+    public async Task Pnd36_finalize_refuses_unacknowledged_then_succeeds_when_acknowledged()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var fx = await SeedApHoleFixtureAsync();
+        await using var sp = fx.Sp;
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        var act = () => svc.GeneratePnd36Async(fx.Period, TaxFilingMode.Finalize, default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("pnd36.unreconciled_not_acknowledged");
+        (await db.TaxFilings.AnyAsync(x => x.FormType == "PND36" && x.Period == fx.Period))
+            .Should().BeFalse("a refused finalize must leave no side effect — the ack guard runs " +
+                "before any JV post / history write");
+
+        // R3/F1 Tier-2 remediation (FIX 3b) — the exit now also requires the FIGURE the filer
+        // saw, not just the boolean. fx.amount defaults to 10000m (SeedApHoleFixtureAsync).
+        var f = await svc.GeneratePnd36Async(
+            fx.Period, TaxFilingMode.Finalize, default,
+            acknowledgeUnreconciled: true, acknowledgedUnexplainedApDebit: 10000m);
+        f.Status.Should().BeOneOf("Finalized", "Submitted");
+        f.AcknowledgedByUserId.Should().Be(1);       // TestCompanyFactory.BuildProvider default userId
+        f.AcknowledgedAt.Should().NotBeNull();
+
+        (await db.TaxFilings.AnyAsync(x => x.FormType == "PND36" && x.Period == fx.Period))
+            .Should().BeTrue();
+    }
+
+    // R3/F1 Tier-2 remediation (FIX 3b) — a bare boolean let a stale sign-off through: preview a
+    // dirty period, tick, then something moves the AP picture (a new JV, or the client just holds
+    // a stale figure) — the OLD code trusted the tick regardless. The exit (I4) is unaffected: a
+    // FRESH figure re-submitted with the tick still finalizes on the same screen, same permission.
+    [SkippableFact]
+    public async Task Pnd36_finalize_refuses_a_stale_acknowledged_figure_then_succeeds_with_the_fresh_one()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var fx = await SeedApHoleFixtureAsync();
+        await using var sp = fx.Sp;
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        // Stale/wrong figure (real is 10000m) — must refuse, never silently trust the boolean.
+        var stale = () => svc.GeneratePnd36Async(
+            fx.Period, TaxFilingMode.Finalize, default,
+            acknowledgeUnreconciled: true, acknowledgedUnexplainedApDebit: 5000m);
+        (await stale.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("pnd36.unreconciled_figure_changed");
+
+        // No figure at all must ALSO refuse — the boolean alone is exactly what this closes.
+        var missing = () => svc.GeneratePnd36Async(
+            fx.Period, TaxFilingMode.Finalize, default, acknowledgeUnreconciled: true);
+        (await missing.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("pnd36.unreconciled_figure_changed");
+
+        (await db.TaxFilings.AnyAsync(x => x.FormType == "PND36" && x.Period == fx.Period))
+            .Should().BeFalse("both refusals must leave no side effect");
+
+        // The exit: re-submit with the FRESH (correct) figure — same screen, same call — succeeds.
+        var f = await svc.GeneratePnd36Async(
+            fx.Period, TaxFilingMode.Finalize, default,
+            acknowledgeUnreconciled: true, acknowledgedUnexplainedApDebit: 10000m);
+        f.Status.Should().BeOneOf("Finalized", "Submitted");
+    }
+
+    // T3 — THE SIGN-FLIP CATCHER (I5). ⚠ If this test fails — i.e. a pure AP CREDIT produces a
+    // positive `unexplained` — the spec's sign reasoning in §3.3 is wrong. STOP and re-spec; do
+    // NOT "fix" this assertion or flip a sign to make it pass (2026-07-09 sign-flip precedent).
+    [SkippableFact]
+    public async Task Pnd36_manual_AP_credit_does_not_trigger_the_warning()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+        var today = TodayBkk();
+        var period = CurrentPeriod(today);
+
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            // A hand-booked accrual — e.g. an unbilled utility charge — CREDITS AP with no
+            // PaymentVoucher in sight. §3.2: debits only, so this must never trip the warning.
+            var expense = await AccountId(db, "5400");
+            var ap = await AccountId(db, "2110");
+            var journals = s0.ServiceProvider.GetRequiredService<IJournalService>();
+            await journals.CreateAndPostManualAsync(new CreateManualJournalRequest(
+                today, "Accrue payable - " + Sfx(), null,
+                [
+                    new ManualJournalLineInput(expense, 5000m, 0m, null, null),
+                    new ManualJournalLineInput(ap, 0m, 5000m, null, null),
+                ]), default);
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var f = await svc.GeneratePnd36Async(period, TaxFilingMode.Preview, default);
+
+        f.Unreconciled.UnexplainedApDebit.Should().Be(0m);
+        f.Unreconciled.RequiresAcknowledgement.Should().BeFalse();
+    }
+
+    // T4 (I6) — Preview must never throw or mutate, even with an active unreconciled warning.
+    // Guards against someone moving the guard out of the Finalize branch.
+    [SkippableFact]
+    public async Task Pnd36_preview_never_throws_when_unreconciled()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var fx = await SeedApHoleFixtureAsync();
+        await using var sp = fx.Sp;
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+
+        var f1 = await svc.GeneratePnd36Async(fx.Period, TaxFilingMode.Preview, default);
+        var f2 = await svc.GeneratePnd36Async(fx.Period, TaxFilingMode.Preview, default);
+
+        f1.Unreconciled.RequiresAcknowledgement.Should().BeTrue();
+        f2.Should().BeEquivalentTo(f1);
+    }
+
+    // T5 — THE NO-NEW-FRICTION REGRESSION TEST. A clean VI+PV chain gains zero ceremony: no
+    // advisory, finalize succeeds with no flag. The single most likely way this change hurts a
+    // real user.
+    [SkippableFact]
+    public async Task Pnd36_clean_company_has_no_advisory_and_finalizes_without_a_flag()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var fx = await SeedCleanPnd36FixtureAsync();
+        await using var sp = fx.Sp;
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+
+        var preview = await svc.GeneratePnd36Async(fx.Period, TaxFilingMode.Preview, default);
+        preview.Unreconciled.UnexplainedApDebit.Should().Be(0m);
+        preview.Unreconciled.Entries.Should().BeEmpty();
+        preview.Unreconciled.RequiresAcknowledgement.Should().BeFalse();
+
+        var f = await svc.GeneratePnd36Async(fx.Period, TaxFilingMode.Finalize, default);
+        f.Status.Should().BeOneOf("Finalized", "Submitted");
+        f.AcknowledgedByUserId.Should().BeNull("nothing required acknowledging — a stamp here would be noise");
+        f.AcknowledgedAt.Should().BeNull();
+    }
+
+    // T6 (I3) — the advisory adds rows to a DIAGNOSTIC block only; the declared amount and the
+    // reverse-charge JV are bit-identical to what they were before this change.
+    [SkippableFact]
+    public async Task Pnd36_totals_unchanged_by_the_advisory()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var fx = await SeedCleanPnd36FixtureAsync();
+        await using var sp = fx.Sp;
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var f = await svc.GeneratePnd36Async(fx.Period, TaxFilingMode.Finalize, default);
+
+        f.Rows.Should().ContainSingle();
+        f.TotalService.Should().Be(10000.00m);
+        f.TotalVat.Should().Be(700.00m);
+        f.Rows[0].PaymentDate.Should().Be(fx.Today);
+        f.ReverseChargeJournalId.Should().NotBeNull();
+
+        var db2 = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var jl = await (
+            from l in db2.JournalLines.AsNoTracking()
+            join a in db2.ChartOfAccounts.AsNoTracking() on l.AccountId equals a.AccountId
+            where l.JournalId == f.ReverseChargeJournalId
+            select new { a.AccountCode, l.DebitAmount, l.CreditAmount })
+            .ToListAsync(default);
+
+        jl.Sum(x => x.DebitAmount).Should().Be(jl.Sum(x => x.CreditAmount), "JV must balance");
+        jl.Single(x => x.AccountCode == "1170").DebitAmount.Should().Be(700m);
+        jl.Single(x => x.AccountCode == "2151").CreditAmount.Should().Be(700m);
+    }
+
+    // T8 (WP-3 §3.7) — the at-source advisory's TARGETING is what matters: the negative cases
+    // (no outstanding invoice; no AP line at all) must stay quiet, or this becomes noise an
+    // accountant is trained to dismiss.
+    [SkippableFact]
+    public async Task ManualJv_clearing_AP_returns_the_pnd36_advisory_code()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var today = TodayBkk();
+
+        // Case 1 — an outstanding reverse-charge VI exists → advisory fires.
+        {
+            var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+            await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+            await using var s0 = sp.CreateAsyncScope();
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = company.CompanyId, VendorCode = "V-" + Sfx(), NameTh = "Outstanding Overseas Co",
+                IsForeign = true, CountryCode = "US", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            await db.SaveChangesAsync(default);
+            db.VendorInvoices.Add(new VendorInvoice
+            {
+                CompanyId = company.CompanyId, BranchId = company.BranchId, DocNo = "VI-" + Sfx(), DocDate = today,
+                VendorTaxInvoiceNo = "OS-" + Sfx(), VendorTaxInvoiceDate = today,
+                VatClaimPeriod = CurrentPeriod(today), VendorId = ven.VendorId, VendorName = "Outstanding Overseas Co",
+                VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+                SubtotalAmount = 5000m, VatAmount = 0m, NonRecoverableVatAmount = 0m,
+                TotalAmount = 5000m, TotalAmountThb = 5000m, HasInputVat = false,
+                RequiresPnd36ReverseCharge = true, SettledAmount = 0m, SettlementStatus = "UNPAID",
+                Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync(default);
+
+            var ap = await AccountId(db, "2110");
+            var bank = await AccountId(db, "1120");
+            var journals = s0.ServiceProvider.GetRequiredService<IJournalService>();
+            var res = await journals.CreateAndPostManualAsync(new CreateManualJournalRequest(
+                today, "Clear AP - " + Sfx(), null,
+                [
+                    new ManualJournalLineInput(ap, 1000m, 0m, null, null),
+                    new ManualJournalLineInput(bank, 0m, 1000m, null, null),
+                ]), default);
+            res.AdvisoryCode.Should().Be("pnd36.ap_cleared_outside_pv");
+        }
+
+        // Case 2 — no outstanding foreign invoice → no advisory, even though the JV debits AP.
+        {
+            var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+            await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+            await using var s0 = sp.CreateAsyncScope();
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ap = await AccountId(db, "2110");
+            var bank = await AccountId(db, "1120");
+            var journals = s0.ServiceProvider.GetRequiredService<IJournalService>();
+            var res = await journals.CreateAndPostManualAsync(new CreateManualJournalRequest(
+                today, "Clear AP - " + Sfx(), null,
+                [
+                    new ManualJournalLineInput(ap, 1000m, 0m, null, null),
+                    new ManualJournalLineInput(bank, 0m, 1000m, null, null),
+                ]), default);
+            res.AdvisoryCode.Should().BeNull();
+        }
+
+        // Case 3 — a JV that never touches AP at all → no advisory (gate 1 short-circuits).
+        {
+            var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+            await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+            await using var s0 = sp.CreateAsyncScope();
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bank = await AccountId(db, "1120");
+            var loan = await AccountId(db, "2190");
+            var journals = s0.ServiceProvider.GetRequiredService<IJournalService>();
+            var res = await journals.CreateAndPostManualAsync(new CreateManualJournalRequest(
+                today, "Director loan - " + Sfx(), null,
+                [
+                    new ManualJournalLineInput(bank, 1000m, 0m, null, null),
+                    new ManualJournalLineInput(loan, 0m, 1000m, null, null),
+                ]), default);
+            res.AdvisoryCode.Should().BeNull();
+        }
+    }
+
+    // T9 (§2 C8) — the MCP-drafted path posts through PostAsync, not CreateAndPostManualAsync.
+    // Without this test WP-3 covers only half the hole.
+    [SkippableFact]
+    public async Task Journal_draft_then_post_also_returns_the_advisory()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId);
+        var today = TodayBkk();
+
+        await using var s0 = sp.CreateAsyncScope();
+        var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var ven = new Vendor
+        {
+            CompanyId = company.CompanyId, VendorCode = "V-" + Sfx(), NameTh = "Draft-Posted Overseas Co",
+            IsForeign = true, CountryCode = "US", VatRegistered = true,
+        };
+        db.Vendors.Add(ven);
+        await db.SaveChangesAsync(default);
+        db.VendorInvoices.Add(new VendorInvoice
+        {
+            CompanyId = company.CompanyId, BranchId = company.BranchId, DocNo = "VI-" + Sfx(), DocDate = today,
+            VendorTaxInvoiceNo = "DP-" + Sfx(), VendorTaxInvoiceDate = today,
+            VatClaimPeriod = CurrentPeriod(today), VendorId = ven.VendorId, VendorName = "Draft-Posted Overseas Co",
+            VendorType = CustomerType.Corporate, CurrencyCode = "THB", ExchangeRate = 1m,
+            SubtotalAmount = 3000m, VatAmount = 0m, NonRecoverableVatAmount = 0m,
+            TotalAmount = 3000m, TotalAmountThb = 3000m, HasInputVat = false,
+            RequiresPnd36ReverseCharge = true, SettledAmount = 0m, SettlementStatus = "UNPAID",
+            Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync(default);
+
+        var ap = await AccountId(db, "2110");
+        var bank = await AccountId(db, "1120");
+        var journals = s0.ServiceProvider.GetRequiredService<IJournalService>();
+
+        var journalId = await journals.CreateDraftAsync(new CreateJournalRequest(
+            today, today, "Clear AP via draft - " + Sfx(), null, "THB", 1m,
+            [
+                new JournalLineInput(ap, 1000m, 0m, null, null, null),
+                new JournalLineInput(bank, 0m, 1000m, null, null, null),
+            ]), default);
+
+        var posted = await journals.PostAsync(journalId, default);
+        posted.AdvisoryCode.Should().Be("pnd36.ap_cleared_outside_pv");
+    }
+
+    // R3/F1 Tier-2 remediation (FIX 4) — SeedCleanPnd36FixtureAsync hand-seeds BOTH sides of
+    // §3.3's subtraction (a PaymentVoucherApplication row AND a matching manual JV), so T5/T6's
+    // UnexplainedApDebit == 0 is arithmetic the fixture arranged, not a real PV settlement
+    // exercising the invariant the whole design rests on: the AP debit GlPostingService.cs:225-228
+    // posts for a VI-linked PV (pv.SubtotalAmount + pv.VatAmount) equals what
+    // PaymentVoucherService.cs:634-646 records as PaymentVoucherApplication.AppliedAmount. This
+    // test drives the REAL transition — a real VendorInvoice posted via IVendorInvoiceService,
+    // settled by a real PaymentVoucher via IPaymentVoucherService.CreateFromVendorInvoiceAsync —
+    // then runs the detector for real. WHT (SVC, 15%) is DELIBERATELY included, not omitted: the
+    // finding this closes is "if a later change nets WHT into the AP line [or into AppliedAmount],
+    // every clean company gets a false ภ.พ.36 warning forever and the suite stays green" — a
+    // WhtAmount-less fixture can never catch that regression. Foreign+no-VAT-D auto-locks
+    // self-withhold, which adds a THIRD debit line (the gross-up, GlPostingService.cs:237) to the
+    // same JE — proving the detector still nets to 0 with that extra line present is exactly the
+    // point (mirrors Sprint87ForeignVendorTests.Vi_settled_foreign_self_withhold_pv_posts_balanced_je,
+    // whose assertions already prove the gross-up debit hits the expense account, never 2110).
+    [SkippableFact]
+    public async Task Pnd36_real_PV_settlement_of_a_real_VI_has_zero_unexplained_and_declares_once()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var sp  = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId, userId: 1);
+        var sp2 = TestCompanyFactory.BuildProvider(_fx.ConnectionString, company.CompanyId, company.BranchId, userId: 2);
+        var today = TodayBkk();
+        var period = CurrentPeriod(today);
+        const decimal amount = 8000m;
+
+        long vendorId; int catId; long expAcct;
+        await using (var s0 = sp.CreateAsyncScope())
+        {
+            var db = s0.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var ven = new Vendor
+            {
+                CompanyId = company.CompanyId, VendorCode = "V-" + Sfx(), NameTh = "Real-PV Overseas Co",
+                IsForeign = true, CountryCode = "US", VatRegistered = true,
+            };
+            db.Vendors.Add(ven);
+            expAcct = await AccountId(db, "5200");
+            var cat = new ExpenseCategory
+            {
+                CompanyId = company.CompanyId, CategoryCode = "F4C" + Sfx()[..5],
+                NameTh = "หมวด F4", DefaultExpenseAccountId = expAcct, DefaultIsRecoverableVat = true,
+            };
+            db.ExpenseCategories.Add(cat);
+            await db.SaveChangesAsync(default);
+            vendorId = ven.VendorId; catId = cat.CategoryId;
+        }
+
+        long viId;
+        await using (var s1 = sp.CreateAsyncScope())
+        {
+            var viSvc = s1.ServiceProvider.GetRequiredService<IVendorInvoiceService>();
+            viId = await viSvc.CreateDraftAsync(new CreateVendorInvoiceRequest(
+                today, vendorId, "F4-" + Sfx(), today, null, "THB", 1m, null,
+                [new VendorInvoiceLineInput(catId, expAcct, "real pv fixture", amount, 0m)]), default);
+            var db = s1.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            db.SeedViAttachment(viId); await db.SaveChangesAsync();   // VI Post requires the vendor-TI file
+            await viSvc.PostAsync(viId, default);
+        }
+
+        int? whtTypeId;
+        await using (var sw = sp.CreateAsyncScope())
+        {
+            var db = sw.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            whtTypeId = await db.WhtTypes.Where(w => w.Code == "SVC" && w.EffectiveTo == null)
+                .Select(w => (int?)w.WhtTypeId).FirstOrDefaultAsync();
+        }
+
+        long pvId;
+        await using (var s2 = sp.CreateAsyncScope())
+        {
+            var pvSvc = s2.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
+            pvId = await pvSvc.CreateFromVendorInvoiceAsync(
+                viId, new CreatePvFromViRequest(
+                    PaymentMethod.Transfer, WhtTypeId: whtTypeId, WhtRate: 0.15m), default);
+        }
+        await using (var s3 = sp2.CreateAsyncScope())
+        {
+            var pvSvc = s3.ServiceProvider.GetRequiredService<IPaymentVoucherService>();
+            await pvSvc.ApproveAsync(pvId, default);
+            await pvSvc.PostAsync(pvId, default);
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var whtSvc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+        var f = await whtSvc.GeneratePnd36Async(period, TaxFilingMode.Preview, default);
+
+        f.Unreconciled.UnexplainedApDebit.Should().Be(0m,
+            "a real PV settlement's AP debit must exactly match its own PaymentVoucherApplication");
+        f.Unreconciled.RequiresAcknowledgement.Should().BeFalse();
+        f.Rows.Should().ContainSingle();
+        f.Rows[0].ServiceAmountThb.Should().Be(amount);
     }
 
     [SkippableFact]

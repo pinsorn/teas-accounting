@@ -16,6 +16,8 @@ export default function JournalDetailPage() {
   const t = useTranslations('je');
   const tc = useTranslations('common');
   const ta = useTranslations('approve');
+  // F1 (specs/fix-pnd36-payment-detection.md §3.7) — 'jv' namespace, mirrors ManualJournalForm.tsx.
+  const tJv = useTranslations('jv');
   const { data: d, isLoading } = useJournal(id);
   const post = useJournalPost();
   const hasScope = useHasScope();
@@ -33,7 +35,16 @@ export default function JournalDetailPage() {
 
   async function doPost() {
     if (!window.confirm(t('confirmPost'))) return;
-    try { await post.mutateAsync(id); toast.success(tc('save')); }
+    try {
+      const res = await post.mutateAsync(id);
+      toast.success(tc('save'));
+      // R3/F1 Tier-2 remediation (FIX 5) — this is the human-post half of the MCP-drafted path
+      // (create_manual_journal_draft never posts; §2 C8); mirrors ManualJournalForm.tsx's toast.
+      // Non-blocking — the post already succeeded above, never a blocking modal.
+      if (res.advisoryCode === 'pnd36.ap_cleared_outside_pv') {
+        toast.warning(tJv('pnd36AdvisoryToast'));
+      }
+    }
     catch (e) { problemToast(e, tc('error')); }
   }
 

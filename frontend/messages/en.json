@@ -1059,7 +1059,8 @@
     "difference": "Difference",
     "balanced": "Balanced",
     "unbalancedHint": "Total debit must equal total credit, and both must be greater than 0, before posting.",
-    "searchPlaceholder": "Search doc no. or description"
+    "searchPlaceholder": "Search doc no. or description",
+    "pnd36AdvisoryToast": "This entry cleared Accounts Payable outside a Payment Voucher, and an outstanding foreign-service invoice exists. If this was a payment to an overseas provider, it will not appear on ภ.พ.36 — reverse this entry and re-record it as a Payment Voucher instead."
   },
   "tf": {
     "indexTitle": "Tax Filings",
@@ -1102,6 +1103,15 @@
     "jvPosted": "JV posted",
     "pnd36FinalizeConfirm": "Finalize ภ.พ.36? Posts Dr 1170 / Cr 2151 and is immutable.",
     "pnd36JvNote": "Finalize posts Dr 1170 Input VAT / Cr 2151 Output VAT (net 0).",
+    "pnd36OutstandingInfo": "{count} outstanding foreign-service invoice(s) · value ฿{value} · VAT due when paid ฿{vat}",
+    "pnd36UnexplainedWarning": "Found an unexplained ฿{amount} debit to the Accounts Payable control account this period",
+    "pnd36UnexplainedHint": "If any of these was a payment to an overseas service provider, it will NOT appear on this ภ.พ.36 return.",
+    "pnd36UnexplainedFix": "Fix: if any entry below is a payment to an overseas service provider, record that payment on a Payment Voucher so it is declared on ภ.พ.36 automatically. The original entry will still be listed here.",
+    "pnd36AckCheckbox": "I have reviewed the entries above and confirm that every payment to an overseas service provider in this period has been recorded on a Payment Voucher and is declared on this return.",
+    "pnd36EntryDescription": "Description",
+    "pnd36Debit": "Debit",
+    "pnd36Credit": "Credit",
+    "pnd36AckRequired": "Tick the confirmation above before finalizing.",
     "missingCertTitle": "Receipts missing 50ทวิ certificate",
     "missingCertDesc": "Posted receipts that withheld WHT but have no customer 50ทวิ certificate number recorded yet — the number can be entered later from the receipt page.",
     "docNo": "Doc No",

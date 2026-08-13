@@ -253,7 +253,8 @@ public sealed class WhtFilingService(
     /// (PostReverseChargeJvAsync below already branches on VatMode for exactly that reason).
     /// </summary>
     public async Task<Pnd36Filing> GeneratePnd36Async(
-        int period, TaxFilingMode mode, CancellationToken ct)
+        int period, TaxFilingMode mode, CancellationToken ct,
+        bool acknowledgeUnreconciled = false, decimal? acknowledgedUnexplainedApDebit = null)
     {
         EnsureAuth();
         var (from, to) = TaxFilingPeriod.MonthRange(period);
@@ -266,13 +267,14 @@ public sealed class WhtFilingService(
                      && p.Status == DocumentStatus.Posted
                      && p.DocDate >= from && p.DocDate <= to)
             .Join(db.Vendors.AsNoTracking(), p => p.VendorId, ven => ven.VendorId,
-                  (p, ven) => new { p.VendorName, ven.CountryCode, p.DocNo, p.SubtotalAmount })
+                  (p, ven) => new { p.VendorName, ven.CountryCode, p.DocNo, p.SubtotalAmount, p.DocDate })
             .ToListAsync(ct);
 
         var rows = pvRows.Select(x => new Pnd36Row(
                 x.VendorName, x.CountryCode, x.DocNo ?? "",
                 x.SubtotalAmount, vatRate,
-                decimal.Round(x.SubtotalAmount * vatRate, 2)))
+                decimal.Round(x.SubtotalAmount * vatRate, 2),
+                x.DocDate))
             .OrderBy(r => r.RefDoc)
             .ToList();
 
@@ -282,27 +284,192 @@ public sealed class WhtFilingService(
         var due = TaxFilingPeriod.DueDate(period, 7);
         long? jvId = null;
 
+        // F1 (specs/fix-pnd36-payment-detection.md §3.3) — computed for BOTH modes: Preview shows
+        // it (blocks a/b), Finalize gates on it. Read-only; never throws (fail-open on a missing
+        // AP account) — so its position here cannot break Preview's I6 (never throw/mutate).
+        var unreconciled = await DetectUnreconciledAsync(from, to, ct);
+
         if (mode == TaxFilingMode.Finalize)
         {
-            // Guard BEFORE posting the JV so a re-finalize can't orphan a JV.
+            // Guard order (§3.5): already-finalized FIRST — cheapest check, clearest error,
+            // preserves existing re-finalize behaviour — THEN the acknowledgement guard, BOTH
+            // before any side effect (JV post / immutable history write). DetectUnreconciledAsync
+            // above is a read with no side effect, so computing it earlier does not violate that.
             if (await db.TaxFilings.AnyAsync(
                     f => f.FormType == "PND36" && f.Period == period, ct))
                 throw new DomainException("tax_filing.already_finalized",
                     $"PND36 for period {period} is already finalized (immutable).");
 
+            if (unreconciled.RequiresAcknowledgement)
+            {
+                if (!acknowledgeUnreconciled)
+                    throw new DomainException("pnd36.unreconciled_not_acknowledged",
+                        "ภ.พ.36: an unexplained debit to the Accounts Payable control account was posted in this " +
+                        "period. Review the listed entries and confirm none of them is a payment to an overseas " +
+                        "service provider, then finalize again with the confirmation ticked.");
+
+                // R3/F1 Tier-2 remediation (FIX 3b) — a boolean alone is not enough: the sign-off
+                // must bind to WHAT the filer actually saw, not merely THAT they ticked a box.
+                // Reproduction: preview June (dirty) → tick → switch the month picker to July →
+                // the client's stale `filing` state still shows June's figures but the Finalize
+                // guard had nothing to check the tick against, so it finalized July on a June
+                // sign-off. If the acknowledged figure is missing or no longer matches what is
+                // true right now, refuse and say so — the exit (I4) is re-preview → re-tick →
+                // finalize, same screen, same user, same permission; no dead end.
+                const decimal ackTol = 0.01m;
+                if (acknowledgedUnexplainedApDebit is not { } ackFigure
+                    || Math.Abs(ackFigure - unreconciled.UnexplainedApDebit) > ackTol)
+                {
+                    var seenText = acknowledgedUnexplainedApDebit is { } seen
+                        ? seen.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)
+                        : "ไม่มี";
+                    // Thai-FIRST on purpose, and deliberately NOT given an entry in the frontend's
+                    // problems.ts: `errorToToast` returns `resolveProblemKey(code) ?? detail`, so a
+                    // dictionary entry REPLACES this message rather than titling it — and that
+                    // dictionary is a static Record with no parameter substitution, so it would
+                    // destroy the two figures below, which are the only reason this error is
+                    // actionable. Same reasoning as sso_batch.unencodable_name; see problems.ts.
+                    throw new DomainException("pnd36.unreconciled_figure_changed",
+                        $"ภ.พ.36: ยอดหักบัญชีเจ้าหนี้ที่ยังไม่มีใบสำคัญจ่ายรองรับ เปลี่ยนไปจากตอนที่ท่านตรวจสอบ " +
+                        $"(ที่ตรวจสอบไว้: ฿{seenText} / ปัจจุบัน: ฿{unreconciled.UnexplainedApDebit:N2}) " +
+                        "กรุณาดูตัวอย่างแบบของงวดนี้ใหม่ ตรวจสอบรายการอีกครั้ง แล้วจึงนำส่งแบบ " +
+                        "[The unexplained Accounts Payable figure changed since you reviewed it. " +
+                        "Re-preview this period, review the entries again, then finalize.]");
+                }
+            }
+
             if (totalVat > 0m)
                 jvId = await PostReverseChargeJvAsync(period, to, totalVat, ct);
 
+            // Stamp the sign-off only when one was actually required and given (§3.5) — a stamp
+            // on a clean filing (nothing to acknowledge) would be noise in an immutable record.
+            var acked = unreconciled.RequiresAcknowledgement && acknowledgeUnreconciled;
             var status = TaxFilingStore.FinalStatus(sub);
             var filing0 = new Pnd36Filing(
-                period, due, sub, rows, totalService, totalVat, jvId, status);
+                period, due, sub, rows, totalService, totalVat, jvId, status,
+                unreconciled,
+                acked ? tenant.UserId : null,
+                acked ? clock.UtcNow : null);
             await TaxFilingStore.FinalizeAsync(
                 db, tenant, clock, "PND36", period, sub, filing0, ct, rd);
             return filing0;
         }
 
         return new Pnd36Filing(
-            period, due, sub, rows, totalService, totalVat, null, "Preview");
+            period, due, sub, rows, totalService, totalVat, null, "Preview",
+            unreconciled, null, null);
+    }
+
+    // F1 (specs/fix-pnd36-payment-detection.md §3.3) — ม.83/6 keys on PAYMENT, and nothing forces a
+    // payment through a PaymentVoucher (§2 C3/C4/C5). JournalLine carries no vendor tag
+    // (SubledgerDtos.cs:5-7), so a Dr-2110 line can never be attributed to an invoice. What CAN be
+    // computed exactly is the aggregate: AP debits posted this month, minus what posted PVs explain.
+    // DEBITS ONLY — deliberately. A credit to AP (a hand-booked accrual) must NEVER net away a debit
+    // that may be a payment; netting is how a real omission hides (§3.2 asymmetry).
+    private async Task<Pnd36Unreconciled> DetectUnreconciledAsync(
+        DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        const decimal vatRateLocal = 0.07m;
+        const decimal tol = 0.01m;   // repo money tolerance, cf. pv.vi_over_settle
+
+        var apCode = glAccounts.Value.ApAccount;              // "2110", never a literal
+        var apAccountId = await db.ChartOfAccounts.AsNoTracking()
+            .Where(a => a.AccountCode == apCode)               // tenant-scoped by the global query filter
+            .Select(a => (long?)a.AccountId)
+            .FirstOrDefaultAsync(ct);
+
+        // A company with no AP account configured cannot have an AP anomaly. Fail OPEN (empty, no
+        // friction) rather than throwing — this is an advisory, and it must never break a filing.
+        if (apAccountId is null)
+            return new Pnd36Unreconciled(0m, [], [], false);
+
+        // Exclude reversal entries themselves via x.j.ReversalOfId == null below. R3/F1 Tier-2
+        // remediation (FIX 6) — this used to ALSO exclude any entry that HAD BEEN reversed, via a
+        // company-wide, NO-DATE-BOUND `reversedIds` list fed into `!reversedIds.Contains(...)`.
+        // §1.3 established there is no user-invocable reversal feature that can ever reach AP:
+        // ReversalOfId is written in exactly one place (GlPostingService.cs:536, reached only
+        // from YearCloseService, filtered to Revenue/Expense) — so that list was always empty and
+        // the extra query was dead weight. Worse, it was a landmine: if a reversal feature ever
+        // ships, an unbounded `IN (…)` over every reversed entry in the company can hit Npgsql's
+        // 65,535-parameter ceiling and throw — and this method runs BEFORE the mode branch
+        // (Preview included), so that throw would break Preview and violate I6 (preview never
+        // throws). Removed; re-add bounded to the filing month if/when reversal ships.
+        var apLines = await db.JournalLines.AsNoTracking()
+            .Join(db.JournalEntries.AsNoTracking(),
+                  l => l.JournalId, j => j.JournalId, (l, j) => new { l, j })
+            .Where(x => x.l.AccountId == apAccountId
+                     && x.j.Status == DocumentStatus.Posted
+                     && x.j.DocDate >= from && x.j.DocDate <= to
+                     && x.j.ReversalOfId == null)
+            .Select(x => new {
+                x.j.JournalId, x.j.DocNo, x.j.DocDate, x.j.Description, x.j.Reference,
+                x.l.DebitAmount, x.l.CreditAmount })
+            .ToListAsync(ct);
+
+        // Expected: exactly what posted PVs cleared against AP this month. Both sides bucket on the
+        // SAME date — GlPostingService.cs:299 posts the PV's entry with pv.DocDate.
+        var expectedApDebits = await db.PaymentVoucherApplications.AsNoTracking()
+            .Join(db.PaymentVouchers.AsNoTracking(),
+                  a => a.PaymentVoucherId, pv => pv.PaymentVoucherId, (a, pv) => new { a, pv })
+            .Where(x => x.pv.Status == DocumentStatus.Posted
+                     && x.pv.DocDate >= from && x.pv.DocDate <= to)
+            .SumAsync(x => (decimal?)x.a.AppliedAmount, ct) ?? 0m;
+
+        var unexplained = decimal.Round(apLines.Sum(x => x.DebitAmount) - expectedApDebits, 2);
+
+        // BEST-EFFORT attribution for display only. There is no structural PV→JournalEntry link
+        // (§1.3): every poster stamps the same PrefixCode and PaymentVoucher has no JournalEntryId.
+        // Convention is all we have — GlPostingService.cs:299 sets Reference = pv.DocNo. The AMOUNT
+        // above is authoritative; if this list is empty while `unexplained > tol`, the WARNING STILL
+        // FIRES. Never gate the warning on this list.
+        var pvDocNos = await db.PaymentVouchers.AsNoTracking()
+            .Where(p => p.Status == DocumentStatus.Posted
+                     && p.DocDate >= from && p.DocDate <= to && p.DocNo != null)
+            .Select(p => p.DocNo!)
+            .ToListAsync(ct);
+
+        // Both debits AND credits are listed, so a reversal-shaped pair reads as a pair to the filer.
+        var entries = apLines
+            .Where(x => x.Reference == null || !pvDocNos.Contains(x.Reference))
+            .OrderBy(x => x.DocDate).ThenBy(x => x.DocNo)
+            .Select(x => new Pnd36UnreconciledEntry(
+                x.DocNo ?? "", x.DocDate, x.Description ?? "", x.DebitAmount, x.CreditAmount))
+            .ToList();
+
+        // Informational tier: posted reverse-charge invoices not yet fully settled. Reads the
+        // INVOICE'S OWN snapshot flag, matching the filing query — never the vendor's current
+        // IsForeign value (§1.5 footgun). CAVEAT (R3/F1 Tier-2 remediation, also-fix): despite the
+        // copy reading "as of period end", SettledAmount is a live cumulative column — a report
+        // re-run for a PAST period after the invoice was later paid will no longer show it as
+        // outstanding, even though it genuinely was outstanding as of that period's end. There is
+        // no as-of-date settlement history to query instead; informational tier only, not fixed
+        // here. EF Core cannot translate
+        // Select(new Pnd36OutstandingInvoice(...)).OrderBy(r => r.DocDate) (a record constructor
+        // call re-inlined into the ORDER BY) — same anonymous-projection-then-materialize split
+        // already used above for pvRows/rows.
+        var outstandingRows = await db.VendorInvoices.AsNoTracking()
+            .Where(v => v.RequiresPnd36ReverseCharge
+                     && v.Status == DocumentStatus.Posted
+                     && v.DocDate <= to
+                     && v.SettledAmount < v.TotalAmount - tol)
+            .Join(db.Vendors.AsNoTracking(), v => v.VendorId, ven => ven.VendorId,
+                  (v, ven) => new {
+                      v.VendorName, ven.CountryCode, v.DocNo, v.DocDate,
+                      v.TotalAmount, v.SettledAmount, v.SubtotalAmount })
+            .OrderBy(x => x.DocDate)
+            .ToListAsync(ct);
+        var outstanding = outstandingRows
+            .Select(x => new Pnd36OutstandingInvoice(
+                x.VendorName, x.CountryCode, x.DocNo ?? "", x.DocDate,
+                x.TotalAmount - x.SettledAmount,
+                decimal.Round(x.SubtotalAmount * vatRateLocal, 2)))
+            .ToList();
+
+        return new Pnd36Unreconciled(
+            unexplained > tol ? unexplained : 0m,
+            unexplained > tol ? entries : [],
+            outstanding,
+            RequiresAcknowledgement: unexplained > tol);
     }
 
     /// <summary>

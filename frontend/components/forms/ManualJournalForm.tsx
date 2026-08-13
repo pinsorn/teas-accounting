@@ -99,6 +99,11 @@ export function ManualJournalForm() {
         })),
       });
       toast.success(tc('save'));
+      // F1 (specs/fix-pnd36-payment-detection.md §3.7) — non-blocking; the post already
+      // succeeded above. A warning toast alongside the success toast, never a blocking modal.
+      if (res.advisoryCode === 'pnd36.ap_cleared_outside_pv') {
+        toast.warning(t('pnd36AdvisoryToast'));
+      }
       router.push(`/journals/${res.journalId}`);
     } catch (e) {
       // Surface the server's (Thai-resolved) rejection as-is — the guarantee lives there,

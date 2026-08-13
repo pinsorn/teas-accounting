@@ -20,7 +20,11 @@ public sealed record CreateJournalRequest(
     decimal ExchangeRate,
     IReadOnlyList<JournalLineInput> Lines);
 
-public sealed record JournalPostedResult(long JournalId, string DocNo, DateTimeOffset PostedAt);
+// F1 (specs/fix-pnd36-payment-detection.md §3.7) — AdvisoryCode appended with a default so every
+// existing construction site compiles unchanged. Non-blocking, additive: null on the
+// overwhelmingly common path (no AP debit, or no outstanding foreign invoice — see JournalService).
+public sealed record JournalPostedResult(
+    long JournalId, string DocNo, DateTimeOffset PostedAt, string? AdvisoryCode = null);
 
 // ── JE detail (first read endpoint — GET /journals/{id}) ───────────────────────
 public sealed record JournalDetailLine(

@@ -113,12 +113,40 @@ public sealed record WhtFiling(
 // ── C5 ภ.พ.36 reverse-charge (consumes requires_pnd36_reverse_charge) ───────
 public sealed record Pnd36Row(
     string VendorName, string? VendorCountry, string RefDoc,
-    decimal ServiceAmountThb, decimal VatRate, decimal VatAmount);
+    decimal ServiceAmountThb, decimal VatRate, decimal VatAmount,
+    DateOnly PaymentDate);   // F1 (specs/fix-pnd36-payment-detection.md §3.4) — the settling PV's
+                             // DocDate; L1 VISIBILITY (§11), not an L1 fix — lets the filer see
+                             // which day each declared payment is bucketed on.
+
+// F1 §3.4 — one journal entry that moved the AP control account inside the filing month with no
+// PaymentVoucher behind it. BEST-EFFORT attribution (§3.3) — Pnd36Unreconciled.UnexplainedApDebit
+// is the authoritative figure; this list is for the filer's eyes.
+public sealed record Pnd36UnreconciledEntry(
+    string JournalDocNo, DateOnly DocDate, string Description,
+    decimal DebitAmount, decimal CreditAmount);
+
+// F1 §3.4 — a posted reverse-charge foreign-service invoice not yet fully settled.
+// Informational: an unpaid invoice owes nothing under ม.83/6 — it is declared in the month it is
+// PAID.
+public sealed record Pnd36OutstandingInvoice(
+    string VendorName, string? VendorCountry, string DocNo, DateOnly DocDate,
+    decimal OutstandingAmount, decimal VatIfPaid);
+
+// F1 §3.4 — ภ.พ.36 completeness advisory. NEVER blocks a preview; gates finalize only via
+// RequiresAcknowledgement (§3.5), which always has a one-click exit.
+public sealed record Pnd36Unreconciled(
+    decimal UnexplainedApDebit,
+    IReadOnlyList<Pnd36UnreconciledEntry> Entries,
+    IReadOnlyList<Pnd36OutstandingInvoice> OutstandingForeignInvoices,
+    bool RequiresAcknowledgement);
 
 public sealed record Pnd36Filing(
     int Period, DateOnly FilingDueDate, string SubmissionMode,
     IReadOnlyList<Pnd36Row> Rows, decimal TotalService, decimal TotalVat,
-    long? ReverseChargeJournalId, string Status);
+    long? ReverseChargeJournalId, string Status,
+    Pnd36Unreconciled Unreconciled,
+    long? AcknowledgedByUserId,
+    DateTimeOffset? AcknowledgedAt);
 
 public interface IWhtFilingService
 {
@@ -127,7 +155,18 @@ public interface IWhtFilingService
     Task<WhtFiling>   GeneratePnd3Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<WhtFiling>   GeneratePnd53Async(int period, TaxFilingMode mode, CancellationToken ct);
     Task<WhtFiling>   GeneratePnd54Async(int period, TaxFilingMode mode, CancellationToken ct);
-    Task<Pnd36Filing> GeneratePnd36Async(int period, TaxFilingMode mode, CancellationToken ct);
+    // F1 (specs/fix-pnd36-payment-detection.md §3.5) — ⚠ FOOTGUN: acknowledgeUnreconciled MUST
+    // stay AFTER ct, optional with `= false` on BOTH this interface and WhtFilingService's
+    // implementation. Every existing call site is GeneratePnd36Async(period, mode, default) —
+    // inserting a bool BEFORE ct would silently rebind `default` to the bool at 4+ call sites:
+    // it still compiles and no test fails. Do not "tidy" this into idiomatic parameter order.
+    // R3/F1 Tier-2 remediation (FIX 3b) — acknowledgedUnexplainedApDebit is appended for the SAME
+    // reason, after acknowledgeUnreconciled: a bare boolean let a sign-off outlive the AP picture
+    // it was given for (preview a dirty period, tick, switch periods, finalize still succeeds on
+    // the stale tick). Binding the sign-off to the FIGURE the filer actually saw closes that.
+    Task<Pnd36Filing> GeneratePnd36Async(
+        int period, TaxFilingMode mode, CancellationToken ct,
+        bool acknowledgeUnreconciled = false, decimal? acknowledgedUnexplainedApDebit = null);
     // Print-and-file filled RD-form PDFs (main page + ใบแนบ; no RD submission).
     Task<byte[]> BuildPnd3PdfAsync(int period, CancellationToken ct);
     Task<byte[]> BuildPnd53PdfAsync(int period, CancellationToken ct);

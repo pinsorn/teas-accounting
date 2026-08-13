@@ -129,6 +129,17 @@ const TH: Record<string, string> = {
   // tax_filing.* (R2/WP-6 — ภ.ง.ด.50/51 year validation, TaxFilingPeriod.EnsureYear)
   'tax_filing.bad_year': 'ปีภาษีไม่ถูกต้อง กรุณาระบุปี ค.ศ. ที่ถูกต้อง (เช่น 2026)',
 
+  // pnd36.* (R3/F1 — ม.83/6 keys on the PAYMENT, and a manual JV can clear a foreign vendor's payable
+  // without ever creating a PaymentVoucher. The filing is not refused; finalize just needs a tick.)
+  // NO entry for 'pnd36.unreconciled_figure_changed' — deliberate, same reason as
+  // sso_batch.unencodable_name below. That message names the figure the filer reviewed AND the
+  // current one; a key here would replace it with a static string and destroy both numbers, which
+  // are the only thing that makes the refusal actionable. Its backend message is Thai-first.
+  'pnd36.unreconciled_not_acknowledged':
+    'ภ.พ.36: พบรายการหักบัญชีเจ้าหนี้ที่ไม่มีใบสำคัญจ่ายรองรับในงวดนี้ ' +
+    'กรุณาตรวจสอบรายการที่แสดง แล้วยืนยันว่าไม่มีรายการใดเป็นการชำระเงินให้ผู้ให้บริการต่างประเทศ ' +
+    'จากนั้นนำส่งแบบอีกครั้งพร้อมติ๊กยืนยัน',
+
   // pp30.* (R2/WP-3 — ภ.พ.30 is a VAT return; a company with no VAT registration must not file one)
   'pp30.non_vat_blocked':
     'บริษัทที่ไม่ได้จดทะเบียนภาษีมูลค่าเพิ่มไม่ต้องยื่น ภ.พ.30 ' +

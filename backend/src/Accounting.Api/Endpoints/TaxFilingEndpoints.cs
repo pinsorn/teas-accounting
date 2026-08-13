@@ -150,14 +150,20 @@ public static class TaxFilingEndpoints
         }).RequireAuthorization(preview);
 
         // ── C5 ภ.พ.36 reverse-charge (+ auto-JV on finalize)
+        // F1 (specs/fix-pnd36-payment-detection.md §3.5) — acknowledge rides on the existing
+        // tax.filing.finalize gate; no new permission.
+        // R3/F1 Tier-2 remediation (FIX 3b) — ackAmount carries the unexplained-AP figure the
+        // filer actually saw when they ticked; GeneratePnd36Async refuses when it no longer
+        // matches the freshly computed figure (§3.5).
         app.MapPost("/tax-filings/pnd36", async (
-            [FromQuery] int period, [FromQuery] string? mode,
+            [FromQuery] int period, [FromQuery] string? mode, [FromQuery] bool? acknowledge,
+            [FromQuery] decimal? ackAmount,
             IWhtFilingService svc, ITenantContext tenant, IPermissionLookup perms,
             CancellationToken ct) =>
         {
             var m = ParseMode(mode);
             var deny = await GuardFinalizeAsync(m, tenant, perms, ct);
-            return deny ?? Results.Ok(await svc.GeneratePnd36Async(period, m, ct));
+            return deny ?? Results.Ok(await svc.GeneratePnd36Async(period, m, ct, acknowledge == true, ackAmount));
         }).RequireAuthorization(preview);
 
         // ── Phase C-B ภ.ง.ด.51 (ม.67ทวิ method A — mid-year CIT prepayment)

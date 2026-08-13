@@ -1564,8 +1564,18 @@ export const usePnd54 = whtFilingMutation('pnd54');
 export function usePnd36() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { period: number; mode: 'preview' | 'finalize' }) =>
-      apiPost<Pnd36Filing>(`tax-filings/pnd36${qs({ period: v.period, mode: v.mode })}`),
+    // F1 (specs/fix-pnd36-payment-detection.md §3.5) — acknowledge only appended when true, so a
+    // plain preview/finalize request stays byte-identical to before this change.
+    // R3/F1 Tier-2 remediation (FIX 3b) — ackAmount carries the unexplainedApDebit figure the
+    // filer actually saw when they ticked; the server refuses if it no longer matches the fresh
+    // figure (§3.5). Appended alongside acknowledge only, same byte-identical-preview guarantee.
+    mutationFn: (v: {
+      period: number; mode: 'preview' | 'finalize'; acknowledge?: boolean; ackAmount?: number;
+    }) =>
+      apiPost<Pnd36Filing>(`tax-filings/pnd36${qs({
+        period: v.period, mode: v.mode,
+        ...(v.acknowledge ? { acknowledge: true, ackAmount: v.ackAmount } : {}),
+      })}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tax-filings'] }),
   });
 }

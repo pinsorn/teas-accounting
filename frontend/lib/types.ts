@@ -648,11 +648,32 @@ export interface WhtFiling {
 export interface Pnd36Row {
   vendorName: string; vendorCountry: string | null; refDoc: string;
   serviceAmountThb: number; vatRate: number; vatAmount: number;
+  paymentDate: string;
+}
+// F1 (specs/fix-pnd36-payment-detection.md §3.4) — one journal entry that moved the AP control
+// account this month with no PaymentVoucher behind it. BEST-EFFORT list; unexplainedApDebit is
+// the authoritative figure (the warning fires even when this list is empty).
+export interface Pnd36UnreconciledEntry {
+  journalDocNo: string; docDate: string; description: string;
+  debitAmount: number; creditAmount: number;
+}
+export interface Pnd36OutstandingInvoice {
+  vendorName: string; vendorCountry: string | null; docNo: string; docDate: string;
+  outstandingAmount: number; vatIfPaid: number;
+}
+export interface Pnd36Unreconciled {
+  unexplainedApDebit: number;
+  entries: Pnd36UnreconciledEntry[];
+  outstandingForeignInvoices: Pnd36OutstandingInvoice[];
+  requiresAcknowledgement: boolean;
 }
 export interface Pnd36Filing {
   period: number; filingDueDate: string; submissionMode: string;
   rows: Pnd36Row[]; totalService: number; totalVat: number;
   reverseChargeJournalId: number | null; status: string;
+  unreconciled: Pnd36Unreconciled;
+  acknowledgedByUserId: number | null;
+  acknowledgedAt: string | null;
 }
 export interface TaxFilingHistoryRow {
   filingId: number; formType: string; period: number; status: string;
@@ -1692,4 +1713,9 @@ export interface CreateManualJournalRequest {
 }
 // POST /journals/manual response (JournalDtos.cs JournalPostedResult — shared with the
 // existing draft POST /journals/{id}/post, unchanged).
-export interface JournalPostedResult { journalId: number; docNo: string; postedAt: string; }
+// F1 (specs/fix-pnd36-payment-detection.md §3.7) — advisoryCode is null on the overwhelmingly
+// common path; "pnd36.ap_cleared_outside_pv" when this JV cleared AP with a foreign-service
+// invoice still outstanding. Non-blocking — the post already succeeded.
+export interface JournalPostedResult {
+  journalId: number; docNo: string; postedAt: string; advisoryCode: string | null;
+}
