@@ -390,3 +390,31 @@ can't produce a misleading green. Prod fixtures confirmed present:
 - **WP-4** — **no Draft/Approved run exists on prod today** (all POSTED). The script tests one only if
   present; otherwise it SKIPs and says so. To prove this leg behaviourally, create a Draft run on co7 and
   retry — that is a deliberate write, not something the read-only script does on its own.
+
+---
+
+# ✅ TIER-4 BEHAVIOURAL LEG — COMPLETE, ALL PASS (2026-08-13, live prod, authenticated)
+
+Ham logged in; every check below is a real authenticated request against production.
+
+| # | check | result |
+|---|---|---|
+| WP-7 route | `POST /billing-notes/3/mark-settled` on a real ISSUED invoice in the caller's own tenant | **404** — and BN 3 read `Issued` **before and after**, so nothing was mutated |
+| WP-7 UI | `/invoices/3` (co2, `07-2026-IV-LAB-0001`, ฿8,400) fully loaded | buttons are `สร้างใบเสร็จ · ยกเลิก · + อัปโหลด`; **`ยืนยันชำระครบแล้ว` is gone**, `bn-mark-settled` absent from the DOM. Baseline had exactly one more button — the right one disappeared |
+| WP-3 | `GET /tax-filings/pnd30/pdf?period=202607` on a non-VAT company | **422 `pp30.non_vat_blocked`** — this is the exact call that used to return a 200 PDF filled with the real 13-digit tax ID |
+| WP-3 | `GET /tax-filings/pnd30/batch-file?period=202607` | **422 `pp30.non_vat_blocked`** |
+| WP-6 | `GET /tax-filings/pnd50/preview?year=9999` | **422 `tax_filing.bad_year`** (was an unmapped 500) |
+| WP-4 | ภ.ง.ด.1 PDF from a Draft run | **422 `payroll.not_posted_for_filing`** |
+| WP-4 | สปส.1-10 file from a Draft run | **422 `payroll.not_posted_for_filing`** |
+| WP-4 | **`sso-schedule`** (the on-screen ส่วนที่ 2 the user transcribes onto paper) from a Draft run | **422 `payroll.not_posted_for_filing`** — the surface the implementer had to *prove* was covered by the shared loader |
+| **F2 remediation** | create a run for period `202609` with `payDate 2026-08-25` (before the period starts) | **400 validation on the `payDate` field** — the dead end can no longer be entered at all |
+
+**Method note:** WP-4 needed a Draft run and prod had none (every run is POSTED). One was created on
+**co7, a test playground**, used for the three refusals, then **deleted**; co7 is back to exactly its
+four original POSTED runs, verified after. No real tenant was written to at any point — the only call
+touching co2 was the mark-settled POST, which 404s.
+
+**Screenshot of the WP-7 result:** `Z:\temp\claude-chrome-screenshots-0OSZqs\screenshot-1786600493762-0.jpg`
+
+R2 is now verified end to end: unit/integration (1170/0/14) → CI → Tier-2 → artifact-on-prod → live
+authenticated behaviour. **Nothing in R2 is left unverified.**
