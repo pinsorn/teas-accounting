@@ -27,8 +27,18 @@ public sealed class RbacApiFactory : WebApplicationFactory<Program>
     public const string JwtSigningKey = "teas-rbac-cartesian-signing-key-0123456789-ABCDEF";
 
     private readonly string _connectionString;
+    private readonly string? _storageRoot;
 
-    public RbacApiFactory(string connectionString) => _connectionString = connectionString;
+    /// <param name="storageRoot">Optional FileStorage:StorageRoot override — REQUIRED for any
+    /// test that reads real file bytes back through this host (e.g. attachment download), else
+    /// the host falls back to appsettings.Development's real dev storage folder (storage-footgun:
+    /// see DocSignatureWp1Wp2Tests class doc). Omit for DENY-only (403/404) HTTP probes that never
+    /// reach storage.</param>
+    public RbacApiFactory(string connectionString, string? storageRoot = null)
+    {
+        _connectionString = connectionString;
+        _storageRoot = storageRoot;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -45,6 +55,7 @@ public sealed class RbacApiFactory : WebApplicationFactory<Program>
         // so they are visible at top-level read time.
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Postgres", _connectionString);
+        if (_storageRoot is not null) builder.UseSetting("FileStorage:StorageRoot", _storageRoot);
         builder.UseSetting("Database:RunInitializerOnStartup", "false");
         builder.UseSetting("Jwt:Issuer", JwtIssuer);
         builder.UseSetting("Jwt:Audience", JwtAudience);

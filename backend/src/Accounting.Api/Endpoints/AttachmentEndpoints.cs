@@ -10,6 +10,22 @@ namespace Accounting.Api.Endpoints;
 
 public static class AttachmentEndpoints
 {
+    // R3/H4 Tier-2 remediation FIX 1 — these three parent types are admin-managed BRAND/
+    // IDENTITY assets (company logo, company stamp, a user's saved signature), not documents.
+    // They are tenant-wide readable BY DESIGN: the sidebar and every PaperHead/PaperSign
+    // preview render them for EVERY user through this exact download route regardless of
+    // role. Their ParentReadPermission entries (master.company.manage /
+    // master.company_profile.manage / sys.user.manage — see AttachmentService
+    // .ParentReadPermission) gate who may CHANGE the asset, not who may view it — reusing
+    // them as a download gate 403s the company logo for nearly every non-admin user (even
+    // COMPANY_ADMIN, since master.company.manage is SUPER_ADMIN-only). Exempted from the
+    // download-path guard ONLY — delete still calls ParentGuard unconditionally, so removing
+    // a brand asset stays the manage question.
+    private static readonly HashSet<string> TenantWideReadableOnDownload = new(StringComparer.Ordinal)
+    {
+        "COMPANY_PROFILE", "COMPANY_STAMP", "USER_SIGNATURE",
+    };
+
     public static IEndpointRouteBuilder MapAttachmentEndpoints(this IEndpointRouteBuilder app)
     {
         var upload = PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.AttachmentUpload;
@@ -18,18 +34,28 @@ public static class AttachmentEndpoints
 
         // Parent-level read inheritance (§5): caller must hold the parent's
         // read perm (super-admin bypasses). Returns a 403 IResult or null.
+        // Split into a sync core + this async wrapper so a caller that already loaded
+        // `granted` (the delete route below) can reuse it instead of loading twice.
+        static IResult? ParentGuardCore(
+            string? parentType, IAttachmentService svc, ITenantContext tenant,
+            IReadOnlyList<string> granted)
+        {
+            if (tenant.IsSuperAdmin || string.IsNullOrEmpty(parentType)) return null;
+            var need = svc.ParentReadPermission(parentType);
+            if (need is null) return null;
+            return granted.Contains(need) ? null : Results.Problem(
+                title: "Forbidden",
+                detail: $"'{need}' required to attach to / read this parent.",
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
         static async Task<IResult?> ParentGuard(
             string? parentType, IAttachmentService svc, ITenantContext tenant,
             IPermissionLookup perms, CancellationToken ct)
         {
             if (tenant.IsSuperAdmin || string.IsNullOrEmpty(parentType)) return null;
-            var need = svc.ParentReadPermission(parentType);
-            if (need is null) return null;
             var (_, granted) = await perms.LoadAsync(tenant.UserId ?? 0, tenant.CompanyId, ct);
-            return granted.Contains(need) ? null : Results.Problem(
-                title: "Forbidden",
-                detail: $"'{need}' required to attach to / read this parent.",
-                statusCode: StatusCodes.Status403Forbidden);
+            return ParentGuardCore(parentType, svc, tenant, granted);
         }
 
         g.MapPost("/", async (
@@ -74,9 +100,23 @@ public static class AttachmentEndpoints
         g.MapGet("/categories", (IAttachmentService svc) =>
             Results.Ok(svc.Categories())).RequireAuthorization(read);
 
+        // R3/H4 — download/delete are id-only routes (the parent isn't on the request like
+        // it is for upload/list), so the SAME ParentGuard used there must first resolve the
+        // attachment's own parent from its row, then authorize against THAT — closing the gap
+        // where a caller holding only the broadly-granted sys.attachment.read/.delete could
+        // reach any attachment in the tenant regardless of parent-document visibility.
         g.MapGet("/{id:long}/download", async (
-            long id, IAttachmentService svc, CancellationToken ct) =>
+            long id, IAttachmentService svc, ITenantContext tenant,
+            IPermissionLookup perms, CancellationToken ct) =>
         {
+            var parent = await svc.ResolveParentAsync(id, ct);
+            if (parent is null) return Results.NotFound();
+            if (!TenantWideReadableOnDownload.Contains(parent.Value.ParentType))
+            {
+                IResult? deny = await ParentGuard(parent.Value.ParentType, svc, tenant, perms, ct);
+                if (deny is not null) return deny;
+            }
+
             var c = await svc.OpenForDownloadAsync(id, ct);
             return Results.File(c.Content, c.MimeType, c.FileName);
         }).RequireAuthorization(read);
@@ -85,12 +125,22 @@ public static class AttachmentEndpoints
             long id, IAttachmentService svc, ITenantContext tenant,
             IPermissionLookup perms, CancellationToken ct) =>
         {
-            var hasDelete = tenant.IsSuperAdmin;
-            if (!hasDelete)
-            {
-                var (_, granted) = await perms.LoadAsync(tenant.UserId ?? 0, tenant.CompanyId, ct);
-                hasDelete = granted.Contains(Permissions.Sys.AttachmentDelete);
-            }
+            var parent = await svc.ResolveParentAsync(id, ct);
+            if (parent is null) return Results.NotFound();
+
+            // R3/H4 Tier-2 remediation ("also fix") — load permissions ONCE and reuse for both
+            // the parent guard and the attachment-delete check below. PermissionLookup.LoadAsync
+            // opens its own transaction + set_config round-trip per call (§4.7 RLS pinning), so
+            // calling it twice per request was needless duplicate DB work. Super-admin still
+            // skips the load entirely (matches the pre-fix fast path).
+            IReadOnlyList<string> granted = [];
+            if (!tenant.IsSuperAdmin)
+                (_, granted) = await perms.LoadAsync(tenant.UserId ?? 0, tenant.CompanyId, ct);
+
+            IResult? deny = ParentGuardCore(parent.Value.ParentType, svc, tenant, granted);
+            if (deny is not null) return deny;
+
+            var hasDelete = tenant.IsSuperAdmin || granted.Contains(Permissions.Sys.AttachmentDelete);
             await svc.SoftDeleteAsync(id, hasDelete, ct);
             return Results.NoContent();
         }).RequireAuthorization(read);

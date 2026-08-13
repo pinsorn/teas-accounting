@@ -35,6 +35,13 @@ public interface IAttachmentService
 
     Task SoftDeleteAsync(long id, bool callerHasDeletePerm, CancellationToken ct);
 
+    /// <summary>Resolves an attachment's own parent (DB-string type + id) for
+    /// authorization — the id-only routes (download/delete) don't carry the parent
+    /// on the request, unlike upload/list, so the guard must look it up first.
+    /// Company-scoped (ITenantOwned filter) + excludes soft-deleted rows, matching
+    /// every other attachment read path. Null = not found / not visible here.</summary>
+    Task<(string ParentType, long ParentId)?> ResolveParentAsync(long id, CancellationToken ct);
+
     IReadOnlyList<string> Categories();
 
     /// <summary>Per-parent read permission required to attach/list/download
