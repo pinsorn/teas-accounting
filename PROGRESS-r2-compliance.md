@@ -261,3 +261,54 @@ under-declare (a penalty conversation), and no test can prove an absence.
 ## Remaining
 Tier-2 verdict → release **v1.29.0** (`publish/v1.29.0/`, scripts written and syntax-checked) → Tier-4
 browser leg: `/invoices/3` on co2 must show "สร้างใบเสร็จ" and NO "ยืนยันชำระครบแล้ว".
+
+## Tier-2 release review: REJECT → two findings, both verified by Fable in source, both probed against prod
+
+**F2 — payroll dead end. FIXING NOW** (worker dispatched). Verified all three legs myself:
+`CreatePayrollRunValidator` checks only `PeriodYearMonth`; `payroll.duplicate_period` is
+`AnyAsync(r => r.PeriodYearMonth == ...)` with **no status filter**; `DeleteDraftAsync` requires `Draft`.
+So a pay-date typo → Approved → un-postable → un-deletable → un-replaceable, and **this release closed the
+last way out** by making the filing artifacts refuse an unposted run. The guard is right; the lifecycle had
+no exit. Fix = validate `PayDate` at creation against the same floor Post uses (**no upper bound** — arrears
+pay must keep working) + allow deleting a never-Posted `Approved` run.
+**Prod probe: zero exposure.** All 12 payroll runs are POSTED, none has a pay date before its period start,
+and **co2/co3 have no payroll runs at all** — so this is being fixed before either real tenant ever uses
+payroll, which is the right moment.
+
+**F1 — ภ.พ.36 blind spot. NOT fixed in this release; it is a tax/product decision, escalated to Ham.**
+Verified: `JournalService` has **no control-account blocklist** and AP `2110` is a postable leaf, so a
+manual JV `Dr 2110 / Cr Bank` clears a foreign vendor's payable with no PaymentVoucher — and since WP-2
+sources rows from posted PVs only, that purchase is now declared in **no** period. Before WP-2 the VI side
+declared it (in the wrong month, but declared).
+**Shipping WP-2 anyway, deliberately** — reverting is worse, not better:
+- Prod probe: foreign reverse-charge invoices exist **only on co5** (4), neither real tenant has any, and
+  ภ.พ.36 has never been finalized for any company. Live exposure is zero.
+- The old code was wrong on the path that actually has data (it double-counted the ordinary VI→PV chain and
+  split the double-count across two filed periods when the chain straddled a month).
+- The old code also declared VI 18 on co5, which is POSTED but **UNPAID** — an invoice that owes nothing
+  yet under ม.83/6. The new behaviour is correct there.
+- The remedy needs a decision, not a patch: blocking manual JVs against AP would create a fresh dead end
+  (write-offs and opening balances legitimately post there) — exactly the mistake F2 is about.
+Recorded in `troubles-wiki.md` with the general lesson, and queued for R3.
+
+### Also from the review, queued for R3 (none block this release)
+- **L1 — ภ.พ.36's filing period follows the PV's ENTRY day, not the payment day.** `PaymentVoucherService`
+  pins `docDate` to `TodayInBangkok()` unconditionally, and the return filters on it. Pay a foreign provider
+  30 June, enter the voucher 3 July → declared in July's return instead of June's: one month late. This is
+  arguably **more likely to bite than F1**, and test T3 blesses the current behaviour, so nothing will catch
+  it. Invariant I1 only ever promised "exactly one period", never "the right one".
+- **L2 — an expense claim paying a foreign service provider never reaches ภ.พ.36.** Pre-existing, not a
+  regression; the company still owes the reverse charge regardless of who fronted the cash.
+- **L3 — the "create receipt" button stays visible on a Settled invoice and is now a guaranteed 422**
+  (`rc.invoice_already_settled`). The comment justifying it asserts a capability the code refuses.
+- **Multi-currency trap (latent, worth a wiki entry when it lands):** `Pnd36Row.ServiceAmountThb` is fed
+  document-currency `SubtotalAmount`; it is only safe today because every relevant validator enforces
+  `ThbOnly`.
+
+### The review also closed things, which is worth recording
+`VatMode` cannot go stale (its cache is per-request — service is `AddScoped`); the period/year-close exits
+are sound (the closed-period error names its own reopen route, and both reopen endpoints exist); the payslip
+Draft/Approved rule strands nobody (`ApproveAsync` is unconditional from Draft); guard ordering holds in
+code, not just in comments; no live caller of the deleted endpoint remains anywhere; `sales.billing_note.manage`
+is not over-granted; and the ภ.พ.36 tests are stronger than they first look — T3 genuinely pins the
+month-straddle in the right direction rather than merely asserting a count of 1.
