@@ -376,3 +376,17 @@ unverified is only the last mile through a live session.
 
 Nothing here needs a CLAUDE.md change: #1 and #3 are agent/template and wiki material respectively, #2
 confirms an existing practice rather than contradicting it, and #4 is a tooling footgun.
+
+## Tier-4 behavioural — PRE-STAGED, one call away from done
+The three checks are written as a single API-driven script:
+`Z:\temp\claude\Y--ClaudePlayground-TEAS-Project\188f3ba4-2441-4bcf-b448-cef644c33316\scratchpad\tier4-verify.js`
+The instant a session is live (Ham logs in at https://teas.kazaki-rio.com, tab is open on `/invoices/3`),
+run it via one `javascript_tool` call on that tab. It self-guards on `companies != 200` so a dead session
+can't produce a misleading green. Prod fixtures confirmed present:
+- **WP-7** — co2 BN 3 (`07-2026-IV-LAB-0001`, ISSUED). Expect POST `/billing-notes/3/mark-settled` → 404/405.
+- **WP-3** — non-VAT companies co2/co3/co6/co7 exist. Expect ภ.พ.30 preview → 422 `pp30.non_vat_blocked`
+  when the session is in a non-VAT company (the script prints the session's `vat_mode` so a VAT-company
+  session reads N/A rather than a false fail).
+- **WP-4** — **no Draft/Approved run exists on prod today** (all POSTED). The script tests one only if
+  present; otherwise it SKIPs and says so. To prove this leg behaviourally, create a Draft run on co7 and
+  retry — that is a deliberate write, not something the read-only script does on its own.
