@@ -617,6 +617,29 @@ NOT babysit it.
    Undetectable by any AP-based design. → troubles-wiki entry (WP-5), R4 candidate.
 2. **§2 C7 — expense-claim reimbursement of an employee who paid the overseas provider.** No vendor, no
    AP, structurally blocked from 2110. → troubles-wiki entry (WP-5) + **§10 E2 (CPA)**.
+   ⚠️ **RESEARCHED 2026-08-13 (Fable, at Ham's request) — the working assumption should be that this
+   liability DOES exist, not that it is avoided.** Ham's prior was that an employee paying personally
+   takes the company out of ม.83/6. The sources point the other way:
+   - **ป.104/2544 ข้อ 3** — the Revenue Department's own interpretive instruction on ม.83/6 — identifies
+     the ผู้จ่ายเงิน as **"ผู้รับบริการในราชอาณาจักร"**, i.e. it attaches the duty to the *recipient of
+     the service in Thailand*, not to whoever's account the money physically left.
+   - ม.83/6 itself triggers on *"เมื่อมีการชำระราคาสินค้าหรือราคาค่าบริการให้กับผู้ประกอบการ…"* and (2)'s
+     test is service performed abroad **and used in Thailand** — both satisfied regardless of who fronted
+     the cash.
+   - Practitioner guidance is consistent: where the company bears the cost and uses the service in
+     Thailand for its business, the company files ภ.พ.36.
+   On that reading an employee's payment is **สำรองจ่าย — an advance, not a transfer of who receives the
+   service.** The company→employee leg is a domestic reimbursement that does not itself trigger ม.83/6,
+   but ม.83/6 never attached to that leg; it attached when the overseas provider was paid.
+   **Honest limits:** no source found addresses the intermediary/reimbursement case head-on, ป.104/2544
+   included, and no ข้อหารือ on this exact shape surfaced. This is research, not a ruling — **E2 stays
+   open for a CPA or an RD ข้อหารือ**, and it is a penalty-bearing question, so it must not be closed on
+   this note alone.
+   **Consequence for scope:** this channel is a *known uncovered liability*, not a harmless edge. Keep it
+   out of THIS release — an AP-based detector genuinely cannot see it — but record that it is not
+   inherently undetectable: an expense claim carries its own category and lines, so a future round could
+   flag foreign-service claims from the claim's own data rather than from AP. That is the R4 candidate,
+   and it should be framed as closing a real gap, not polishing an edge case.
 3. **A vendor/document tag on `JournalLine`** — the real long-term fix (it would make the JV path
    first-class declarable instead of merely detectable). Schema change + a new seam across every JV
    consumer, for zero live exposure. Correct direction, wrong release.

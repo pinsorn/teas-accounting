@@ -1321,3 +1321,23 @@ losing the test DB costs nothing.
   question, and a separate "actual payment date" column is the wrong answer (it recreates a silent
   GL-vs-tax divergence).
 - **Seen:** 2026-08-13, R2 Tier-2 review finding L1, traced in `specs/fix-pnd36-payment-detection.md` §1.7.
+
+## ม.83/6's ผู้จ่ายเงิน is the SERVICE RECIPIENT, not whoever's card was charged
+- **Why it keeps coming up:** the intuition that "if an employee paid personally, the company is off the
+  hook for ภ.พ.36" is natural and appears to be wrong. It matters because guessing wrong under-remits a
+  tax return, which carries เงินเพิ่ม 1.5%/month.
+- **What the sources say:** **ป.104/2544 ข้อ 3** — the Revenue Department's interpretive instruction on
+  ม.83/6 — identifies the ผู้จ่ายเงิน as **"ผู้รับบริการในราชอาณาจักร"**, attaching the duty to the
+  recipient of the service in Thailand rather than to the account the money left from. ม.83/6 triggers
+  on *"เมื่อมีการชำระราคาสินค้าหรือราคาค่าบริการให้กับผู้ประกอบการ…"*, and (2)'s test is a service
+  performed abroad and **used in Thailand**. An employee fronting the cash is สำรองจ่าย — an advance —
+  and does not change who received the service.
+- **Limits, stated honestly:** no source found addresses the intermediary/reimbursement case head-on,
+  ป.104/2544 included. This is research, not a ruling. Treat it as "assume the liability exists until a
+  CPA or an RD ข้อหารือ says otherwise", never as a settled answer.
+- **Where it bites this codebase:** the expense-claim channel reimburses an employee and touches no
+  vendor and no AP, so `specs/fix-pnd36-payment-detection.md`'s AP-based detector cannot see it. It is a
+  known uncovered liability, not a harmless edge — and it is not inherently undetectable, since an
+  expense claim carries its own category and lines.
+- **Seen:** 2026-08-13, researched at Ham's request while adjudicating that spec's escalation E2.
+  Sources: rd.go.th/5207.html (ม.83/6), rd.go.th/3549.html (ป.104/2544).
