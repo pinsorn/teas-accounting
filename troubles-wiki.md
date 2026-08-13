@@ -1191,3 +1191,53 @@ losing the test DB costs nothing.
 - **Seen:** 2026-08-12, R2/WP-1 (C4 ภ.ง.ด.1/1ก decode) — `Text1.5`/`Text1.8`/`Text1.15` (ชั้นที่/หมู่ที่/
   รหัสไปรษณีย์, all comb) vanished from the first extraction pass; resolved by matching each field's
   single-character glyph cluster's position against the template's own label dump instead.
+
+## ภ.พ.36 blind spot: clearing a foreign vendor's AP with a manual JV skips the reverse-charge return entirely
+- **Symptom:** a foreign-service vendor invoice flagged `requires_pnd36reverse_charge` is paid, the GL shows
+  Accounts Payable cleared, and yet `GeneratePnd36Async` returns **zero rows** for that purchase in every
+  period. The ม.83/6 liability is never declared and never remitted. Nothing in the app surfaces the
+  discrepancy — the invoice sits at `settlement_status = UNPAID` forever while the ledger says it is paid.
+- **Root cause:** since R2/C2 (`1e46a35`, 2026-08-12) ภ.พ.36 sources rows from posted **PaymentVouchers
+  only**, because ม.83/6's tax point is the payment. That is correct *provided every payment to a foreign
+  provider flows through a PaymentVoucher* — and nothing enforces that. `JournalService` has **no
+  control-account blocklist** (its only line-level guards are `je.account_not_found`,
+  `je.account_inactive`, `je.account_is_header`), and AP `2110` is a postable leaf by construction. So a
+  manual JV of `Dr 2110 AP / Cr 1020 Bank` — which `CreateAndPostManualAsync` will create and post in one
+  call, and which an MCP agent can draft — clears the payable with no PaymentVoucher in existence.
+  `VendorInvoice.SettledAmount`/`SettlementStatus` are written **only** by `PaymentVoucherService.PostAsync`,
+  which is why the subledger and the GL disagree silently.
+- **Why the review that designed the change did not catch it:** the spec's blocking pre-check asked
+  "what writes `SettledAmount`/`SettlementStatus`?" and correctly answered "PaymentVoucher only". But that
+  is a question about the **AP subledger**, and ม.83/6 attaches to **payment**, which is the broader event.
+  The question asked and the question that mattered were not the same one. When a rule keys on a real-world
+  event, enumerate the ways that EVENT can happen, not the ways one column gets written.
+- **Fix:** not yet decided — it is a tax/product call, deliberately not a drive-by patch. Blocking manual
+  JVs against AP would create its own dead end (write-offs and opening balances legitimately post there).
+  Candidates: a detection report for `requires_pnd36reverse_charge` invoices still UNPAID while their AP has
+  cleared; a warning rather than a refusal on manual JV lines hitting a control account; or accepting it as
+  a CPA-signed documented gap.
+- **Seen:** 2026-08-13, Tier-2 release review of R2 (finding F1). **Live exposure zero at the time** —
+  probed prod directly: foreign reverse-charge invoices exist only on co5 (4, one of them POSTED+UNPAID),
+  neither real tenant has any, and ภ.พ.36 has never been finalized for any company.
+
+## A payroll run with a pay date before its own period start can never be posted, deleted, or replaced
+- **Symptom:** a run created with e.g. period `202605` and pay date `2026-04-25` (a one-character
+  month typo) is accepted and generates payslips. It can be Approved. Then `PostAsync` refuses forever with
+  `payroll.pay_date_outside_period`; `DeleteDraftAsync` refuses because the run is no longer `Draft`; and
+  creating a correct replacement refuses with `payroll.duplicate_period`. Since R2/WP-4 (`c521adb`) ภ.ง.ด.1
+  and สปส.1-10 also refuse it, so the company cannot even file the month late — it simply cannot file.
+- **Root cause:** three separately-reasonable rules with no exit between them. `CreatePayrollRunValidator`
+  validates only `PeriodYearMonth`, so `PayDate` is unvalidated at creation and has no edit path anywhere
+  (written once at `PayrollRunService.cs:80`; `UpdateDeductionsAsync` touches deductions only). The Post-time
+  floor guard is correct but arrives too late. `DeleteDraftAsync` requires `Draft`. And
+  `payroll.duplicate_period` is `AnyAsync(r => r.PeriodYearMonth == ...)` with **no status filter**, so the
+  dead run keeps its period reserved.
+- **Fix:** validate `PayDate` at creation against the same floor Post uses (never add an upper bound —
+  arrears pay, a December period paid 5 January, is legitimate and a previous release removed exactly such a
+  ceiling), and allow deleting an `Approved` run that was never Posted (no ledger behind it, so payslips
+  cascade safely).
+- **General lesson:** when you add a guard, ask what state the system is in when it fires and whether the
+  user can get out of that state. A guard is only safe if the state behind it has an exit.
+- **Seen:** 2026-08-13, Tier-2 release review of R2 (finding F2). **Live exposure zero at the time** —
+  probed prod: all 12 payroll runs are POSTED, none has a pay date before its period start, and the two real
+  tenants have no payroll runs at all yet. Fixed before they start using payroll.
