@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# TEAS API deploy — v1.29.0 (R2 compliance filings)
+# TEAS API deploy — v2.0.0 (R2 compliance filings)
 #
 # ⚠️ BEFORE RUNNING: this file must have UNIX line endings. A CRLF copy killed the v1.28.0 FE
 #    deploy with "set: pipefail: invalid option name" and a `cd` into a path ending in \r.
-#    On the box, always:  tr -d '\r' < deploy-api-v1290.sh > d.sh && bash d.sh
+#    On the box, always:  tr -d '\r' < deploy-api-v200.sh > d.sh && bash d.sh
 #
 # R2 ships NO EF migration (all four work packages are guard-only). The DB backup stays mandatory
 # anyway: SqlScripts still run at API startup, so a bad boot must be recoverable.
@@ -12,7 +12,7 @@
 set -u
 cd /opt/npm-sites/teas.kazaki-rio.com/api || exit 1
 TS=$(date +%Y%m%d-%H%M%S)
-VER=1.29.0
+VER=2.0.0
 mkdir -p ~/backups
 
 echo "== backup DB =="

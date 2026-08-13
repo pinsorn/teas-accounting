@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# FE deploy v1.29.0 — R2 compliance filings.
+# FE deploy v2.0.0 — R2 compliance filings.
 #
 # ⚠️ BEFORE RUNNING: this file must have UNIX line endings. A CRLF copy killed the v1.28.0 FE
 #    deploy with "set: pipefail: invalid option name" and a `cd` into a path ending in \r.
-#    On the box, always:  tr -d '\r' < deploy-fe-v1290.sh > d.sh && bash d.sh
+#    On the box, always:  tr -d '\r' < deploy-fe-v200.sh > d.sh && bash d.sh
 #
 # RUN AS THE NORMAL DEPLOY USER — NEVER sudo THIS SCRIPT (troubles-wiki: sudo corrupts ownership).
 #
@@ -21,8 +21,8 @@ rm -rf .next.old
 mv .next .next.old
 
 echo "== overlay new source =="
-tar xf /tmp/fe-src-v1290.tar --strip-components=1
-echo "overlaid: $(tar tf /tmp/fe-src-v1290.tar | wc -l) entries"
+tar xf /tmp/fe-src-v200.tar --strip-components=1
+echo "overlaid: $(tar tf /tmp/fe-src-v200.tar | wc -l) entries"
 
 fail() { echo "$1 -- abort"; rm -rf .next; mv .next.old .next; exit 1; }
 
@@ -43,12 +43,12 @@ echo "ANCHORS_OK"
 echo "== next build =="
 export NODE_ENV=production
 export PUBLIC_BASE_URL=https://teas.kazaki-rio.com
-node node_modules/next/dist/bin/next build > /tmp/fe-build-v1290.log 2>&1
+node node_modules/next/dist/bin/next build > /tmp/fe-build-v200.log 2>&1
 RC=$?
 if [ $RC -ne 0 ]; then
   echo "BUILD_FAILED rc=$RC -- rolling back"
-  tail -30 /tmp/fe-build-v1290.log
-  mv .next .next.broken-v1290; mv .next.old .next
+  tail -30 /tmp/fe-build-v200.log
+  mv .next .next.broken-v200; mv .next.old .next
   echo "RESTORED old .next"
   exit 1
 fi
@@ -75,7 +75,7 @@ if [ "$ST" = "online" ] && [ "$LOGIN" = "200" ] && [ "$PDF" = "404" ] && [ "$PUB
 else
   echo "FE_DEPLOY_FAILED -- ROLLING BACK"
   pm2 logs teas-web --lines 12 --nostream 2>&1 | tail -6
-  mv .next .next.broken-v1290; mv .next.old .next
+  mv .next .next.broken-v200; mv .next.old .next
   pm2 restart teas-web >/dev/null 2>&1; sleep 6
   curl -s -o /dev/null -w 'ROLLBACK login=%{http_code}\n' http://127.0.0.1:3100/login
   exit 1
