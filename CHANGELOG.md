@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.0.0](https://github.com/pinsorn/teas-accounting/compare/v1.28.0...v2.0.0) (2026-08-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sales:** delete "customer has paid" — the receipt is the only proof of settlement
+
+### Features
+
+* **sales:** delete "customer has paid" — the receipt is the only proof of settlement ([01fc85f](https://github.com/pinsorn/teas-accounting/commit/01fc85f52ca893280905b17b6ab6e1b06c1f02a8))
+
+
+### Bug Fixes
+
+* **deps:** pin SSH.NET past GHSA-q939-rpr3-3284 — it was failing the build ([9b40940](https://github.com/pinsorn/teas-accounting/commit/9b4094051fa45fdb5f05ba2955675a65f017dc99))
+* **payroll:** a government filing artifact now requires a Posted run ([55a572e](https://github.com/pinsorn/teas-accounting/commit/55a572ec9f78534cab422eb8a0b8328ea9532820))
+* **payroll:** give a stuck payroll run a way out before the filing guard traps it ([4c9c7d9](https://github.com/pinsorn/teas-accounting/commit/4c9c7d95e377152bdcd0eda31a2e4bd0d723b39b))
+* **payroll:** refuse a สปส.1-10 / ภ.ง.ด.1 that would ship silently-wrong data ([a46572d](https://github.com/pinsorn/teas-accounting/commit/a46572d4a2be15e0f3497a7620dcdd972bdcae42))
+* **sales:** hide "create receipt" on a Settled invoice — it was a guaranteed 422 ([accfa6d](https://github.com/pinsorn/teas-accounting/commit/accfa6d23997e79b57f1d1f558d8cb15f5376744))
+* **tax:** a company with no VAT registration can no longer file a ภ.พ.30 ([ffa7e82](https://github.com/pinsorn/teas-accounting/commit/ffa7e820d9afab35f1705d92631ab3ac6295730c))
+* **tax:** reject a nonsense filing year on ภ.ง.ด.50/51 with 422, not a 500 ([722abc9](https://github.com/pinsorn/teas-accounting/commit/722abc9777b01875aca693a299b8d08167cb56ad))
+* **tax:** ภ.พ.36 declares a foreign service once, at the payment tax point ([20308d2](https://github.com/pinsorn/teas-accounting/commit/20308d2eb8af59003b621fa3bde5662d155af0d4))
+
 ## [1.28.0](https://github.com/pinsorn/teas-accounting/compare/v1.27.1...v1.28.0) (2026-08-12)
 
 
