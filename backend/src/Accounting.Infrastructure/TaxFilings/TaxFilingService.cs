@@ -28,6 +28,18 @@ public sealed class TaxFilingService(
         if (!tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
+        // R2/H16 — a company with no VAT registration must never produce, let alone finalize, a ภ.พ.30.
+        // Single chokepoint: the JSON preview, BuildPnd30PdfAsync (:108), the RD batch file
+        // (Pp30BatchExportService.cs:32) and mode=finalize all funnel through this method.
+        // Mirrors TaxInvoiceService.EnsureVatRegisteredAsync (ti.non_vat_blocked, TaxInvoiceService.cs:74-81).
+        // NOTE: ภ.พ.36 must NOT get this guard — ม.83/6 reverse charge binds non-VAT payers too
+        // (WhtFilingService.PostReverseChargeJvAsync:306-323 branches on VatMode for exactly that reason).
+        if (!(await taxCfg.GetAsync(ct)).VatMode)
+            throw new DomainException("pp30.non_vat_blocked",
+                "บริษัทที่ไม่ได้จดทะเบียนภาษีมูลค่าเพิ่มไม่ต้องยื่น ภ.พ.30 " +
+                "[VAT-not-registered companies do not file ภ.พ.30 (ภ.พ.30 is a VAT return). " +
+                "If this company is VAT-registered, set VAT mode in company tax settings first.]");
+
         var (from, to) = TaxFilingPeriod.MonthRange(period);
         var s = await SalesCategorizer.ComputeAsync(db, from, to, ct);
         var ratio = await proportional.ComputeAsync(period, ct);
