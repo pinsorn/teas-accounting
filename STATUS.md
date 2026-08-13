@@ -1,6 +1,35 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ v2.1.0 LIVE (2026-08-14) — R3 round one.** API + FE deployed, 10/10 API probes and 4/4 FE
+  probes, Tier-4 verified in the browser on the live site.
+  - `18f6fcc` **F1** — ภ.พ.36 surfaces foreign-service payments it would otherwise miss. Clearing a
+    foreign vendor's payable with a manual journal entry produced no voucher, so under v2.0.0's correct
+    payment-tax-point rule that purchase was declared in **no period at all**.
+  - `0381d60` **H4** — attachment download *and* delete authorize against the parent document.
+    `sys.attachment.read` is granted to every role, so anyone could walk ids and pull files from
+    documents they cannot see.
+  - `ca820f5` **H1** — document numbers are sequenced per company, not per login channel. Branch scoped
+    the counter but never appeared in the printed number, and branch is *who is logged in* (web UI = 0,
+    API key / MCP = the real branch), so any company driven through both ran two counters into one
+    number space. Ships with a reconcile and with detection.
+  - **Tier-4 proof:** `/number-gaps` on co2 now shows a red "พบเลขเอกสารซ้ำ (1)" banner and the row
+    `sales.receipts | 07-2026-RC-LAB-0001 | copies 2 | branches 0, 2` — **no green compliant shield**.
+    co7, which is clean, still shows the shield.
+  - Two probe bugs cost one rollback (both mine, both now in `troubles-wiki.md`): `strings -a -el` finds
+    .NET string literals but NOT method names, which live in a UTF-8 heap; and `applied_sql_scripts` is
+    in `sys`, not `public`, where the wrong schema yields an empty string rather than a zero. Auto-rollback
+    worked and nothing was damaged — but that is the second probe-caused rollback in two releases.
+
+- **🔻 NEXT UP, needs one word from Ham.** The duplicate cleanup is authorised and the backup is taken
+  (`~/backups/h1-dupes/` — full dump + all-columns CSVs of every duplicate row). Two things to settle
+  before running it, both in `PROGRESS-r3-release.md`: a posted receipt has a **journal entry** behind
+  it, so deleting the row alone orphans the JE and deleting both moves the trial balance; and co2's two
+  rows are two **genuinely different transactions** (฿3,000 and ฿18,000) that merely collided on a
+  number — **renumbering the later one reaches the same end state without losing a posted document**.
+  Once the duplicates are gone, WP-4 (the unique indexes) ships as its own release and the class of bug
+  is closed structurally, not just behaviourally.
+
 - **🟡 R3 in progress — two fixes committed on main, NOT yet released.**
   - `18f6fcc` **F1** — ภ.พ.36 now surfaces foreign-service payments it would otherwise miss entirely.
     Clearing a foreign vendor's payable with a manual journal entry produced no voucher, so under
