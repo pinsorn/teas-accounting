@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 16 |
-| Perm | 296 |
+| Perm | 295 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **359** |
+| **TOTAL** | **358** |
 
 ## Routes
 
@@ -100,7 +100,6 @@
 | POST | `/billing-notes/{id:long}/create-tax-invoice` | Perm | sales.billing_note.manage |
 | POST | `/billing-notes/{id:long}/issue` | Perm | sales.billing_note.manage |
 | POST | `/billing-notes/{id:long}/mark-printed` | Perm | sales.billing_note.read |
-| POST | `/billing-notes/{id:long}/mark-settled` | Perm | sales.billing_note.manage |
 | GET | `/billing-notes/{id:long}/paper` | Perm | sales.billing_note.read |
 | GET | `/billing-notes/{id:long}/pdf` | Perm | sales.billing_note.read |
 | GET | `/branches/` | Perm | master.branch.manage |

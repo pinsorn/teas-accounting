@@ -96,10 +96,6 @@
     "bnIssue": {
       "title": "Confirm issuing the invoice",
       "warning": "Issuing the invoice issues the document number immediately and cannot be reverted to Draft."
-    },
-    "bnMarkSettled": {
-      "title": "Confirm marking as fully paid",
-      "warning": "This records that this invoice has been paid in full."
     }
   },
   "purchaseChain": {
@@ -1869,7 +1865,6 @@
     "saveDraft": "Save draft",
     "issue": "Issue",
     "issued": "Invoice issued",
-    "markSettled": "Mark settled",
     "createTaxInvoice": "Create Tax Invoice",
     "createReceipt": "Create receipt",
     "cancelReasonPlaceholder": "Cancellation reason",

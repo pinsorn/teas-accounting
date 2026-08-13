@@ -1,32 +1,55 @@
 import { test, expect } from '@playwright/test';
-import { login, pickCustomer } from './_helpers';
+import { login, pickCustomer, createAndPostTaxInvoice, detailDocNo, pickTaxInvoice } from './_helpers';
 
 // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล) end-to-end.
 // "ออกใบแจ้งหนี้" (Issue) creates the draft and allocates doc_no, landing on
-// the BN detail page with status=Issued. Then exercise the Mark-Settled path
-// to confirm the full lifecycle: Draft → Issued → Settled.
-test('billing note: create → issue → mark settled', async ({ page }) => {
+// the BN detail page with status=Issued.
+// R2/WP-7 (2026-08-12) — the manual "mark settled" button/endpoint is deleted; a
+// posted Receipt is now the ONLY way to Settled (I7). The default e2e company
+// (companyId 1) is VAT-registered, so the Invoice settles indirectly: it groups a
+// posted Tax Invoice, and paying that TI off in full auto-flips the (already-Issued)
+// Invoice to Settled — ReceiptService.cs:497-534 (Sprint 13i C6), the same mechanism
+// the "group multiple tax invoices" test below exercises for chip display only.
+test('billing note: create → issue → receipt → settled', async ({ page }) => {
+  test.setTimeout(60_000);
   await login(page);
 
-  await page.goto('/invoices/new');
+  // A standalone posted Tax Invoice to group into the Invoice (BillingNote).
+  await createAndPostTaxInvoice(page);
+  const tiDocNo = await detailDocNo(page, 'TI');
 
-  // Customer MODAL pick.
+  await page.goto('/invoices/new');
   await pickCustomer(page);
 
-  // One line via the shared LineItemsTable.
-  await page.getByLabel('รายละเอียด 1').fill('e2e billing note item');
-  await page.getByLabel('จำนวน 1').fill('3');
-  await page.getByLabel('ราคา/หน่วย 1').fill('1000');
+  // Group the just-posted TI and leave the line grid untouched — the BN then
+  // inherits the TI's totals exactly (server-side line auto-generation), so
+  // paying the TI off in full also pays off the BN.
+  await page.getByLabel('ใบกำกับภาษีที่รวม').click();
+  await page.locator('#taxinvoice-listbox')
+    .getByRole('button', { name: new RegExp(tiDocNo) }).first().click();
+  await expect(page.getByTestId('bn-ti-chips').locator('.badge')).toHaveCount(1);
 
-  // Issue → create + issue → BN detail, already Issued.
   await page.getByTestId('bn-issue').click();
   await page.waitForURL(/\/invoices\/\d+$/, { timeout: 15_000 });
+  const bnUrl = page.url();
   await expect(page.getByTestId('bn-status')).toContainText(/Issued|ออกแล้ว/, {
     timeout: 15_000,
   });
 
-  // Mark-Settled.
-  await page.getByTestId('bn-mark-settled').click();
+  // Settle the grouped Tax Invoice via a posted Receipt — the only remaining path
+  // to Settled now that the manual mark-settled button/endpoint is gone.
+  await page.goto('/receipts/new');
+  await pickCustomer(page);
+  await pickTaxInvoice(page, 1, tiDocNo);
+  await page.getByLabel('ยอดชำระ 1').fill('1070'); // 1000 + 7% VAT, matches createAndPostTaxInvoice
+  await page.getByRole('button', { name: /^บันทึกเอกสาร|Post$/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
+  await page.waitForURL(/\/receipts\/\d+$/, { timeout: 15_000 });
+
+  // Back on the Invoice — the receipt auto-flipped it to Settled.
+  await page.goto(bnUrl);
   await expect(page.getByTestId('bn-status')).toContainText(/Settled|ชำระครบแล้ว/, {
     timeout: 15_000,
   });

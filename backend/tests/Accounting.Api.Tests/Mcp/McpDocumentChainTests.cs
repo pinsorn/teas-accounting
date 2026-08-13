@@ -6,7 +6,6 @@ using Accounting.Application.Identity;
 using Accounting.Application.Purchase;
 using Accounting.Application.Sales;
 using Accounting.Domain.Common;
-using Accounting.Domain.Entities.Audit;
 using Accounting.Domain.Entities.Identity;
 using Accounting.Domain.Entities.Master;
 using Accounting.Domain.Entities.Sys;
@@ -521,11 +520,21 @@ public sealed class McpDocumentChainTests
             var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
             bnId = await bnSvc.CreateFromSalesOrderAsync(soId, default);
             await bnSvc.IssueAsync(bnId, default);
-            await bnSvc.MarkSettledAsync(bnId, default);   // simulate already-fully-collected
+        }
+        // R2/WP-7 (2026-08-12) — MarkSettledAsync is deleted; reach Settled through the
+        // REAL transition (a posted receipt covering the full amount), never a seeded state.
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var rcSvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            var rcId = await rcSvc.CreateDraftAsync(new CreateReceiptRequest(
+                today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
+                Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 6_000m, BillingNoteId: bnId)]),
+                default);
+            await rcSvc.PostAsync(rcId, default);   // BN flips to Settled here (ReceiptService.cs:560-579)
         }
         await using var s2 = sp.CreateAsyncScope();
-        var rcSvc = s2.ServiceProvider.GetRequiredService<IReceiptService>();
-        var act = () => rcSvc.CreateDraftAsync(new CreateReceiptRequest(
+        var rcSvc2 = s2.ServiceProvider.GetRequiredService<IReceiptService>();
+        var act = () => rcSvc2.CreateDraftAsync(new CreateReceiptRequest(
             today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
             Applications: [new ReceiptApplicationInput(TaxInvoiceId: null, AppliedAmount: 6_000m, BillingNoteId: bnId)]),
             default);
@@ -910,43 +919,6 @@ public sealed class McpDocumentChainTests
         fromBn.Should().NotBeNull();
         fromBn!.SalesOrder!.Id.Should().Be(soId);
         fromBn!.Quotation!.Id.Should().Be(qId);
-    }
-
-    // ── v1.20.1 HOTFIX (H3) — investigate: prod reported the web "ยืนยันชำระครบแล้ว"
-    // (MarkSettled) button on an Issued BN logging "Issued → Issued" without changing
-    // status. Reproduce against the fixture; document if it can't be reproduced. ──
-
-    [SkippableFact]
-    public async Task MarkSettled_on_an_issued_billing_note_flips_to_settled_h3_repro()
-    {
-        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
-        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
-        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
-        var today = Today(sp);
-        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "SERVICE", 500m, 0m);
-        long bnId;
-        await using (var s = sp.CreateAsyncScope())
-        {
-            var bnSvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
-            bnId = await bnSvc.CreateFromSalesOrderAsync(soId, default);
-            await bnSvc.IssueAsync(bnId, default);
-            await bnSvc.MarkSettledAsync(bnId, default);
-        }
-
-        await using var s2 = sp.CreateAsyncScope();
-        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
-        var bn = await db.BillingNotes.AsNoTracking().FirstAsync(b => b.BillingNoteId == bnId);
-        bn.Status.Should().Be(BillingNoteStatus.Settled);
-        bn.SettledAt.Should().NotBeNull();
-
-        // The prod report was of a LOGGED "Issued → Issued" transition — assert the actual
-        // activity row's metadata here, not just the resulting status.
-        var log = await db.Set<ActivityLog>().AsNoTracking()
-            .Where(a => a.EntityType == "BillingNote" && a.EntityId == bnId && a.ActivityType == "Settled")
-            .OrderByDescending(a => a.ActivityId).FirstAsync();
-        using var meta = JsonDocument.Parse(log.MetadataJson!);
-        meta.RootElement.GetProperty("fromStatus").GetString().Should().Be("Issued");
-        meta.RootElement.GetProperty("toStatus").GetString().Should().Be("Settled");
     }
 
     // ── D8 #9 — tenancy: get_sales_order/list_sales_orders scope to caller company ──

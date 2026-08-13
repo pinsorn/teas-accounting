@@ -496,8 +496,9 @@ public sealed partial class ReceiptService : IReceiptService
 
         // Sprint 13i C6 — auto-derive Billing Note settlement. Any Issued BN that
         // references one of the just-paid TIs flips to Settled once the sum paid
-        // across all its referenced TIs covers the BN total. Manual MarkSettled
-        // stays for admin override. Grouping is via the sales.billing_note_tax_invoices
+        // across all its referenced TIs covers the BN total. This IS the only path
+        // to Settled now — R2/WP-7 (2026-08-12) deleted the manual MarkSettled
+        // override. Grouping is via the sales.billing_note_tax_invoices
         // join table (Sprint 13i C7 — replaced the bigint[] column).
         var affectedBns = await _db.BillingNotes
             .Where(b => b.CompanyId == rc.CompanyId

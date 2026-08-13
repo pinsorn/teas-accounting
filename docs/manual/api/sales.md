@@ -72,7 +72,6 @@ Write gated by `sales.billing_note.manage`, read by `sales.billing_note.read`.
 - `DELETE /billing-notes/{id}` — delete. → `204`.
 - `POST /billing-notes/{id}/issue` — issue. → `204`.
 - `POST /billing-notes/{id}/cancel` — cancel. → `204`.
-- `POST /billing-notes/{id}/mark-settled` — mark settled. → `204`.
 - `POST /billing-notes/{id}/create-tax-invoice` — create a TI from the billing note. → `200`.
 - `GET /billing-notes` — list. **Auth:** `sales.billing_note.read`. → `200`.
 - `GET /billing-notes/{id}` — detail. **Auth:** `sales.billing_note.read`. → `200` / `404`.

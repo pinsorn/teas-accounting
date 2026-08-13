@@ -808,15 +808,6 @@ paths:
         '200': { description: Cancelled }
         '400': { $ref: '#/components/responses/BadRequest' }
 
-  /billing-notes/{id}/mark-settled:
-    post:
-      summary: บันทึกชำระแล้ว (ปกติ auto-derive จากใบเสร็จ; ปุ่ม manual override)
-      tags: [Billing Notes]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
-      responses:
-        '200': { description: Settled }
-
   /billing-notes/{id}/pdf:
     get:
       summary: PDF ใบแจ้งหนี้ (?copy=true สำเนา)

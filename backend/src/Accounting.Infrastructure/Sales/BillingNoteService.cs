@@ -16,8 +16,9 @@ namespace Accounting.Infrastructure.Sales;
 // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล).
 // Numbering MM-YYYY-BL-{BU}-NNNN on Issue. Draft-only edit + hard-delete (no doc_no
 // yet). Issued/Settled/Cancelled are read-only header. Settled is the terminal
-// "fully paid" state set by ReceiptService (Sprint 13i) — manual MarkSettled
-// endpoint shipped here for ckpt3.
+// "fully paid" state, set ONLY by ReceiptService (Sprint 13i) when a posted
+// receipt covers the total — R2/WP-7 (2026-08-12) deleted the manual MarkSettled
+// endpoint that used to flip Settled with no receipt and no ledger entry.
 // R1/C6 (WP-1) — a non-VAT company's Issue now accrues revenue+AR (its Invoice is the
 // only sales document, ม.86/4 blocks the Tax Invoice); IGlPostingService/IPeriodCloseService
 // added for that. VAT companies are unaffected — their BN groups already-accrued TIs.
@@ -354,19 +355,6 @@ public sealed class BillingNoteService(
         var fromCancel = bn.Status.ToString();
         bn.Status = BillingNoteStatus.Cancelled; bn.CancelledReason = reason;
         activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Cancelled", fromCancel, "Cancelled", note: reason);
-        await db.SaveChangesAsync(ct);
-    }
-
-    public async Task MarkSettledAsync(long id, CancellationToken ct)
-    {
-        Auth();
-        var bn = await LoadAsync(id, ct);
-        if (bn.Status != BillingNoteStatus.Issued)
-            throw new DomainException("billing_note.bad_status",
-                "Only an Issued billing note can be marked Settled.");
-        bn.Status = BillingNoteStatus.Settled;
-        bn.SettledAt = clock.UtcNow;
-        activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Settled", "Issued", "Settled");
         await db.SaveChangesAsync(ct);
     }
 

@@ -46,10 +46,6 @@ public static class BillingNoteEndpoints
             { await s.CancelAsync(id, b.Reason, ct); return Results.NoContent(); })
             .RequireAuthorization(managePol);
 
-        g.MapPost("/{id:long}/mark-settled", async (long id, IBillingNoteService s, CancellationToken ct) =>
-            { await s.MarkSettledAsync(id, ct); return Results.NoContent(); })
-            .RequireAuthorization(managePol);
-
         // cont.69 Phase 1 — Invoice → Tax Invoice (manual, VAT only). Throws
         // ti.non_vat_blocked (422) for a non-VAT company.
         g.MapPost("/{id:long}/create-tax-invoice", async (long id, ITaxInvoiceService s, CancellationToken ct) =>

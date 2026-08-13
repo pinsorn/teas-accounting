@@ -19,7 +19,8 @@ import { AttachmentsSection } from '@/components/attachments/AttachmentsSection'
 import { useConfirm } from '@/hooks/useConfirm';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 
-// Sprint 13h P6.2 — Billing Note detail. Draft → Issue/Delete. Issued → Cancel/MarkSettled.
+// Sprint 13h P6.2 — Billing Note detail. Draft → Issue/Delete. Issued → Cancel; Settled only
+// via a posted Receipt (R2/WP-7, 2026-08-12 — the manual MarkSettled button was deleted).
 
 export default function BillingNoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -41,10 +42,10 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const [cancelReason, setCancelReason] = useState('');
   const [showCancel, setShowCancel] = useState(false);
-  // S11 — issue/mark-settled had no confirm dialog (issue issues the doc number
-  // immediately, immutable numbering).
+  // S11 — issue had no confirm dialog (issue issues the doc number immediately,
+  // immutable numbering). R2/WP-7 removed the sibling mark-settled confirm along
+  // with the button itself.
   const [confirmIssue, setConfirmIssue] = useState(false);
-  const [confirmMarkSettled, setConfirmMarkSettled] = useState(false);
   const d = q.data;
 
   async function run(action: string, body?: unknown) {
@@ -107,9 +108,10 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
               </>
             )}
             {/* Non-VAT (ม.86/4): no Tax Invoice — the Invoice settles straight to a Receipt.
-                Available while Issued OR already marked settled (the Receipt is still the
-                payment document; "ยืนยันชำระครบแล้ว" must not strand the user). WHT is
-                auto-categorized server-side from the Invoice's service lines on /receipts/new. */}
+                Available while Issued OR already Settled (a Settled Invoice may still need
+                another Receipt: R2/WP-7 — the Receipt is the ONLY way to Settled now, so this
+                button must never strand a user here). WHT is auto-categorized server-side
+                from the Invoice's service lines on /receipts/new. */}
             {!vatMode && (d.status === 'Issued' || d.status === 'Settled') && (
               <button
                 data-testid="bn-create-receipt"
@@ -120,21 +122,16 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
               </button>
             )}
             {/* Phase 2a: Invoice → Tax Invoice. VAT only, while no TI issued yet. Stays
-                available after "ยืนยันชำระครบแล้ว" (Settled) — settling must not strand it. */}
+                available after Settled — settling via a Receipt (R2/WP-7) must not strand it. */}
             {vatMode && (d.status === 'Issued' || d.status === 'Settled') && (d.taxInvoices?.length ?? 0) === 0 && (
               <button data-testid="bn-create-ti" className="btn btn-primary btn-sm" disabled={createTi.isPending} onClick={createTaxInvoice}>
                 {t('createTaxInvoice')}
               </button>
             )}
             {d.status === 'Issued' && (
-              <>
-                <button data-testid="bn-mark-settled" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => setConfirmMarkSettled(true)}>
-                  {t('markSettled')}
-                </button>
-                <button data-testid="bn-cancel-toggle" className="btn btn-danger btn-sm" onClick={() => setShowCancel((v) => !v)}>
-                  {tc('cancel')}
-                </button>
-              </>
+              <button data-testid="bn-cancel-toggle" className="btn btn-danger btn-sm" onClick={() => setShowCancel((v) => !v)}>
+                {tc('cancel')}
+              </button>
             )}
           </>
         }
@@ -203,16 +200,6 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
         ]}
         onClose={() => setConfirmIssue(false)}
         onConfirm={async () => { await run('issue'); setConfirmIssue(false); }}
-      />
-      <ConfirmActionDialog
-        open={confirmMarkSettled}
-        busy={act.isPending}
-        title={tca('bnMarkSettled.title')}
-        warning={tca('bnMarkSettled.warning')}
-        party={d.customerName}
-        rows={[{ label: t('total'), value: d.totalAmount }]}
-        onClose={() => setConfirmMarkSettled(false)}
-        onConfirm={async () => { await run('mark-settled'); setConfirmMarkSettled(false); }}
       />
     </>
   );

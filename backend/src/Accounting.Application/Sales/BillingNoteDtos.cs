@@ -73,7 +73,6 @@ public interface IBillingNoteService
     Task DeleteDraftAsync(long id, CancellationToken ct);
     Task IssueAsync(long id, CancellationToken ct);
     Task CancelAsync(long id, string reason, CancellationToken ct);
-    Task MarkSettledAsync(long id, CancellationToken ct);
     // E1 — added optional date-range/customer/product filters (all null = unfiltered, prior behavior).
     Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct,
         DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null);
