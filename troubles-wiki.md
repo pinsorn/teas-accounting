@@ -1449,3 +1449,30 @@ losing the test DB costs nothing.
   file that lives under an app-router route group hits this identically.
 - **Seen:** 2026-08-13, R3/H1 — `frontend/app/(dashboard)/number-gaps/page.test.tsx`, the first-ever
   rendered-component test in this repo.
+
+## Probing a .NET assembly: string LITERALS are UTF-16, but method/type NAMES are UTF-8
+- **Symptom:** a deploy probe greps the shipped assembly for a method name with
+  `strings -a -el <dll> | grep -c Foo` and gets **0**, so the gate reports the code did not ship and
+  rolls the release back. The code is present and correct.
+- **Root cause:** the two live in different metadata heaps. String literals go in the **#US heap,
+  UTF-16LE** — which is why `-el` is required for error codes like `pp30.non_vat_blocked`. Method,
+  type and parameter **names** go in the **#Strings heap, UTF-8** — where `-el` finds nothing.
+  Measured on the box for `ResolveParentAsync`: `strings -a` → 1, `strings -a -el` → 0.
+- **Fix:** pick the encoding by what you are looking for. Literal (an error code, a route template,
+  a message) → `strings -a -el`. Identifier (a method, type or property name) → plain `strings -a`.
+  Always pair either with a CONTROL grep for something that must be present, so a zero cannot mean
+  "the grep itself failed".
+- **Seen:** 2026-08-14, v2.1.0 deploy — cost one unnecessary rollback, the second probe-caused
+  rollback in two releases. Both times the release was fine and the gate was wrong.
+
+## `applied_sql_scripts` lives in `sys`, not `public` — and the old deploy scripts got it wrong silently
+- **Symptom:** `SELECT count(*) FROM public.applied_sql_scripts` returns an **empty string**, not 0,
+  because the relation does not exist and psql prints the error to stderr while `-tAc` yields nothing.
+  A probe comparing that to `"1"` fails with a blank in the message: `FAIL sqlscript_634 count=`.
+- **Root cause:** the table is `sys.applied_sql_scripts` (columns `script_name`, `applied_at`). The
+  v1.28.0 and v2.0.0 deploy scripts both queried `public.` and printed `scripts=` blank — harmless
+  there because it was informational, invisible because nobody read it as a gate.
+- **Fix:** `sys.applied_sql_scripts`. General lesson: **an empty result is not zero.** A probe that
+  compares a captured value to a number must distinguish "the query said 0" from "the query failed",
+  or a broken query reads as a failed gate — or worse, as a passed one.
+- **Seen:** 2026-08-14, v2.1.0 deploy.

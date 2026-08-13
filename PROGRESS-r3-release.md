@@ -148,3 +148,43 @@ co5's 10 duplicates carry no such concern: it is a test playground already slate
 The resumed session **re-establishes what was already written before writing anything**: check trigger
 state first (`SELECT tgname, tgenabled FROM pg_trigger WHERE ...`), then re-run Q1 to see what is already
 gone. Do not re-run the delete blind — it is not idempotent against a partially-completed run.
+
+---
+
+# ✅ v2.1.0 IS LIVE — released and verified end to end (2026-08-14 ~01:45)
+
+API and FE both deployed. **10/10 API probes and 4/4 FE probes pass.**
+
+## Tier-4 browser leg — PASSED on the live site
+`/number-gaps` on co2 Repttown shows a **red** "พบเลขเอกสารซ้ำ — ต้องตรวจสอบทันที (1)" banner and a
+table row `sales.receipts | 07-2026-RC-LAB-0001 | copies 2 | branches 0, 2` — **no green compliant
+shield**. The API returns `hasDuplicates: true` with the branch ids that prove the two-channel
+mechanism. co7, which has no duplicates, still shows the green shield. Footer reads `TEAS · v2.1.0`.
+That is exactly what WP-3b existed for: the control now sees a live breach instead of asserting
+compliance over it. Screenshot: `Z:\temp\claude-chrome-screenshots-0OSZqs\screenshot-1786646944394-1.jpg`
+
+## Two probe bugs cost one rollback — both mine, both now in troubles-wiki
+The first attempt rolled back on three FAILs, **none of which were code**:
+1. `strings -a -el` on a method NAME. Literals live in the UTF-16LE #US heap; identifiers live in the
+   UTF-8 #Strings heap. Measured: `ResolveParentAsync` utf8=1, utf16=0.
+2. `public.applied_sql_scripts` does not exist — it is `sys.`. The query errored and yielded an empty
+   string, which the probe compared against `"1"` and failed with a blank: `count=`. **An empty result
+   is not zero**, and the v1.28.0/v2.0.0 scripts have carried the same wrong schema all along, unnoticed
+   because it was informational there.
+3. Verified afterwards that `634` and `635` had in fact applied cleanly at 01:41:35 during that very boot.
+
+This is the second probe-caused rollback in two releases. Both times the release was fine and the gate
+was wrong. The auto-rollback did its job and nothing was damaged either time — but a gate that cannot
+tell success from failure is worse than no gate, because it looks like verification.
+
+## What shipped
+`18f6fcc` F1 ภ.พ.36 payment detection · `0381d60` H4 attachment download/delete guard ·
+`ca820f5` H1 company-wide numbering + reconcile + duplicate detection.
+
+## Still open, unchanged by this release
+- **WP-4 (the unique indexes)** — cannot ship while the 11 duplicates exist. Backup is taken
+  (`~/backups/h1-dupes/`, full dump + all-columns CSVs). Ham authorised the cleanup; the runbook and
+  its two non-obvious risks are recorded above.
+- The 500 family · conversion routes checking the wrong scope · the year-close deadlock · the
+  year=3000 bound.
+- CPA: E2 (employee-paid overseas service — researched, likely DOES keep the company liable) and E3.
