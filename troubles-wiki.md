@@ -1285,3 +1285,17 @@ losing the test DB costs nothing.
   `mv .next .next.old && mkdir -p .next && cp -a .next.old/cache .next/cache`. Rollback is unaffected
   (`.next.old` keeps its own copy) and the webpack build is much faster too.
 - **Seen:** 2026-08-13, v2.0.0 FE deploy — one failed build, cleanly auto-restored.
+
+## `git add -f -A <gitignored-dir>` stages that directory's ENTIRE history of build artifacts
+- **Symptom:** `git add -f -A publish/` intended to force-add two small scripts inside a gitignored
+  directory. It staged **14,730 files including .dll binaries** (~188k insertions), the command timed
+  out mid-run, and the commit landed anyway. Nothing was pushed, but it was one command away.
+- **Root cause:** `-A` means "everything under this path", and `-f` removes the very protection that
+  normally keeps a build-output directory out of the index. The two flags together are additive in the
+  worst way: the ignore rule that made the directory safe to accumulate junk in is the one being
+  overridden.
+- **Fix:** when force-adding inside an ignored directory, **name the exact files** —
+  `git add -f publish/v2.0.0/deploy-api.sh publish/v2.0.0/deploy-fe.sh` — never `-A` on the directory.
+  Recovery if it lands: `git reset --mixed HEAD~1` (never `--hard`; the working tree is fine, only the
+  index was wrong), then re-add by name and check `git diff --cached --name-status` before committing.
+- **Seen:** 2026-08-13, v2.0.0 release prep.

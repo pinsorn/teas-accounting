@@ -356,3 +356,23 @@ unverified is only the last mile through a live session.
    button's `data-testid` and the i18n key — artifacts that exist only while the feature does.
 3. `next build` re-fetched Noto Sans Thai and got rate-limited, because renaming `.next` away took
    332 MB of font/webpack cache with it. The cache is now carried forward before the build.
+
+## Self-retro — what orchestration got wrong this round
+1. **A spec's blocking pre-check asked the wrong question.** WP-2's pre-check demanded "grep every path
+   that can settle a VendorInvoice", the worker correctly answered "only PaymentVoucher writes
+   SettledAmount", and both were right — but ม.83/6 keys on *payment*, which a manual journal entry
+   performs without touching that column. The gap was in the question, not the answer. Folded into
+   `opus-designer` and pushed to minions-assemble.
+2. **The dead end (F2) was a composition failure across two of MY releases** — R1/WP-5's pay-date floor
+   plus R2/WP-4's filing guard. Each was reviewed carefully in isolation and neither is wrong. It was
+   caught only because the Tier-2 dispatch explicitly named "can a legitimate company now be permanently
+   unable to produce something it is legally required to produce" as lens 2. That naming is the
+   practice that worked; keep doing it rather than trusting a generic "review this diff".
+3. **I wrote a deploy probe that could not distinguish success from failure**, and it rolled back a
+   healthy release. A gate that always returns the same answer is worse than no gate, because it reads
+   as verification. The fix (probe the artifact, pair with a control) is in `troubles-wiki.md`.
+4. **`git add -f -A` on a gitignored directory** staged 14,730 files including binaries. Recovered with
+   a mixed reset before anything was pushed. Wiki entry added.
+
+Nothing here needs a CLAUDE.md change: #1 and #3 are agent/template and wiki material respectively, #2
+confirms an existing practice rather than contradicting it, and #4 is a tooling footgun.
