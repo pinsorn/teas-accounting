@@ -807,41 +807,89 @@ Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
   Stop-and-re-spec if the decode shows the *ใบแนบ* row map is also wrong (that is a bigger change).
 
 ### WP-2 — C2 ภ.พ.36 declares the payment *(BLOCKED on §10 E1; independent files)*
-- [ ] Blocking pre-check done: grep proves `PaymentVoucher` is the only settlement route for a
+- [x] Blocking pre-check done: grep proves `PaymentVoucher` is the only settlement route for a
       `VendorInvoice`; evidence in §12. Any other route ⇒ **stop and re-spec.**
-- [ ] `WhtFilingService.GeneratePnd36Async` (`:242-266`): `viRows` query and its `Concat` removed; rows
+- [x] `WhtFilingService.GeneratePnd36Async` (`:242-266`): `viRows` query and its `Concat` removed; rows
       come from posted PVs only. Comment states I1, the ม.83/6 payment tax point, and the E1 decision
       date.
-- [ ] `VendorInvoice.RequiresPnd36ReverseCharge` left in place, on the entity and the read DTO
-      (`PurchaseReadDtos.cs:41`), with a comment marking it informational-only.
-- [ ] `PostReverseChargeJvAsync` untouched. No `VatMode` gate added to any ภ.พ.36 path.
-- [ ] T1–T4 green, T1 RED first.
-- **Blast cap: 3 files** (`WhtFilingService.cs` · `PurchaseReadDtos.cs` comment · 1 test file).
-  No migration. No new endpoint.
+- [x] `VendorInvoice.RequiresPnd36ReverseCharge` left in place, on the entity, with a comment marking
+      it informational-only. **File substitution from the checklist's literal citation — see §12
+      attempt log**: `PurchaseReadDtos.cs:41` turned out to be `PaymentVoucherDetail`'s OWN
+      `RequiresPnd36ReverseCharge` (the PV's flag, now the ACTIVE filing driver, not informational);
+      `VendorInvoiceDetail` has no `RequiresPnd36ReverseCharge` field at all in that file. The
+      informational-only comment went on `VendorInvoice.cs:62` (the entity, where the flag and its
+      existing now-stale doc comment actually live) instead. Cap unchanged at 3 files — a
+      substitution, not an overrun.
+- [x] `PostReverseChargeJvAsync` untouched. No `VatMode` gate added to any ภ.พ.36 path.
+- [x] T1–T4 green, T1 RED first. Evidence in §12.
+- **Blast cap: 3 files** (`WhtFilingService.cs` · `VendorInvoice.cs` (substituted for
+  `PurchaseReadDtos.cs`, see above) · 1 test file). No migration. No new endpoint.
 
 ### WP-3 — H16 ภ.พ.30 VAT-registrant-only *(no dependencies; independent files)*
-- [ ] Guard added at the top of `GeneratePnd30Async` (`TaxFilingService.cs:28-29`), exact shape §3.3.
-- [ ] `Pnd30DeadlineAlertJob` read and reported; skips non-VAT companies rather than throwing.
-- [ ] `problems.ts` entry for `pp30.non_vat_blocked`.
-- [ ] T22–T24 green (T22 RED first). T24 pins that **pnd36 is NOT blocked** for a non-VAT company.
-- [ ] No prod data operation; co7's `filingId 1` left to the post-R4 reseed.
+- [x] Guard added at the top of `GeneratePnd30Async` (`TaxFilingService.cs:28-29`), exact shape §3.3.
+- [x] `Pnd30DeadlineAlertJob` read and reported — **it does not call `GeneratePnd30Async` and has no
+      per-company loop at all** (its constructor takes only `ILogger`; `Execute`/`LogReminder` compute
+      a Bangkok "now" and log ONE tenant-agnostic reminder line — "Phase 1 just logs" per its own doc
+      comment, Phase 2 is unbuilt). Nothing to skip → **no code change**, confirmed not assumed
+      (`Pnd30DeadlineAlertJobTests.cs` also confirms: pure unit test against `LogReminder`, no
+      DB/Quartz/tenant context).
+- [~] `problems.ts` entry for `pp30.non_vat_blocked` — **withheld per dispatch** (file is being
+      serialised by the orchestrator across 3 WPs); key/value handed back in the report.
+- [~] T22–T25 written, code-complete, **NOT YET RUN** — shared `teas_test` under another worker's
+      TEST-DB HOLD at dispatch time. RED→GREEN plan in the report below; T25 added beyond the
+      spec's T22–T24 floor as the VAT-company non-regression proof for I10's "unchanged" half.
+- [x] No prod data operation; co7's `filingId 1` left to the post-R4 reseed. Confirmed via WP-0 P2
+      (§12 probe results): co7 is the ONLY `PND30` filing on record, no real tenant affected.
 - **Blast cap: 4 files** (`TaxFilingService.cs` · `Pnd30DeadlineAlertJob.cs` · `problems.ts` · 1 test
-  file). Public API: no new route; one route family gains a 422.
+  file). Public API: no new route; one route family gains a 422. **3/4 touched by this worker**
+  (`Pnd30DeadlineAlertJob.cs` read-only, needed no edit; `problems.ts` deliberately skipped per
+  dispatch — orchestrator adds it, mirroring the WP-6 handback pattern).
 
 ### WP-4 — H13 filing artifacts require a Posted run *(shares `SsoFilingService.cs` and `Pnd1FilingService.cs` with WP-5 → run WP-4 BEFORE WP-5, same warm worker)*
-- [ ] Shared guard (§3.4) called from `Pnd1FilingService.BuildPnd1MonthlyAsync` and
-      `SsoFilingService.BuildMonthlyAsync`.
-- [ ] `sso-schedule` covered (via the shared loader) — verified, not assumed.
-- [ ] Payslips: `Draft` refused, `Approved`+`Posted` allowed — **separate commit**, per §10 E3.
-- [ ] `problems.ts` entry for `payroll.not_posted_for_filing`.
-- [ ] FE payroll run page (`frontend/app/(dashboard)/payroll/[id]/page.tsx`): **report current behaviour
-      first**, then gate **both** (a) the auto-firing query — `useSsoSchedule` is imported at `:14` and,
-      if it fires on page load, every Draft run's page will toast a 422 the moment WP-4 ships, so it
-      needs `enabled: status === 'POSTED'` (or the hook's equivalent) — and (b) the artifact buttons,
-      which must be disabled rather than erroring.
-- [ ] T9–T13 green (T9 RED first). T13 proves 1ก + 50ทวิ still refuse a draft run.
+- [x] **NOTE: WP-5 already shipped first (commit `0f59fab`), inverting the stated order** — this
+      dispatch ran on top of it. WP-5's `EnsureEmployerAccount`/`EnsureNamesFilable` untouched;
+      confirmed structurally that H13's guard runs FIRST (it sits inside `BuildMonthlyAsync`, which
+      both artifact builders call *before* invoking those two H8/H9 guards).
+- [x] Shared guard (§3.4, verbatim comment+code) called from `Pnd1FilingService.BuildPnd1MonthlyAsync`
+      (after the load, before the payslip-count check) and `SsoFilingService.BuildMonthlyAsync` (same
+      placement — the shared loader, covering `BuildMonthlyPdfAsync`+`BuildMonthlyFileAsync`+sso-schedule
+      in one guard, per the spec's own recommendation). No new file — inline in both services.
+- [x] `sso-schedule` covered — **verified, not assumed**: grepped `PayrollEndpoints.cs:133`,
+      `sso-schedule` calls `svc.BuildMonthlyAsync(id, ct)` directly, no other filter in between. T11
+      exercises this exact call. Also grepped ALL production callers of `ISsoFilingService` repo-wide —
+      only 3 exist (file/pdf/sso-schedule), all inside `BuildMonthlyAsync`'s guard now.
+- [x] Payslips: `Draft` refused, `Approved`+`Posted` allowed — **separate commit** in
+      `PayslipPdfService.LoadRunAsync` (shared by `BuildAsync`+`BuildRunZipAsync`), new code
+      `payroll.not_approved_for_payslip` (NOT `payroll.not_posted_for_filing` — reusing that code would
+      tell an Approved-run user "requires a Posted run", which is false for a payslip; flagged as a
+      judgment call, not silent deviation). Bundled FE payslip-button gate travels with this commit (see
+      below) so reverting the rule and its UI consequence stays atomic.
+- [ ] `problems.ts` entry for `payroll.not_posted_for_filing` **and** `payroll.not_approved_for_payslip`
+      — TWO keys, not the one the dispatch's prose anticipated; both handed back in the worker report
+      with reasoning. Orchestrator to add (file skipped per dispatch instruction).
+- [x] FE payroll run page (`frontend/app/(dashboard)/payroll/[id]/page.tsx`): **current behaviour
+      reported** — (a) `useSsoSchedule(id, run?.status === 'POSTED')` (line 41) was **already gated**
+      before this dispatch (O11-alt commit `bf87333`) — it does NOT auto-fire on a Draft/Approved run.
+      (b) the pnd1/ssoFile/ssoPdf buttons were **already hidden entirely** (not just disabled) for any
+      non-Posted run — wrapped in `{run.status === 'POSTED' && (...)}`. **No change needed for either —
+      both were already correct.** The ONE gap found: the per-employee **payslip** print button had NO
+      status gate at all (rendered for Draft too) — since the backend now refuses a payslip from Draft,
+      this would have toasted a 422 on click. Fixed: wrapped in `{run.status !== 'DRAFT' && (...)}`,
+      matching the page's own hide-don't-disable idiom. This hunk belongs to the payslip commit.
+- [x] T9–T13 green (T9 RED first, evidence pending the ALL-CLEAR — see §12). T13 proves 1ก + 50ทวิ still
+      refuse a draft run (regression pin, no new guard). Plus one payslip-commit test
+      (`Payslip_refuses_a_draft_run_but_renders_once_approved`) not named in §6's T-list but required by
+      Ponytail's "non-trivial logic leaves one runnable check" for the E3 rule.
+      **Collateral sweep (advisor-directed) found and fixed 2 pre-existing tests that called the
+      now-guarded methods on a Draft run**: `Deduction_changes_net_only_rolls_up_and_posts_balanced_
+      credit_2180` (moved its pnd1/sso byte-identity check to post-time, merged into the same
+      direct-DB-mutate window the pnd1a check already used) and
+      `B6_sso_recomputed_on_the_prorated_wage_ties_out_on_sps110` (now posts via `RunThroughPost` before
+      calling `BuildMonthlyAsync`). Repo-wide grep confirms `PayrollRunServiceTests.cs` is the ONLY test
+      file anywhere calling these methods.
 - **Blast cap: 6 files** (`Pnd1FilingService.cs` · `SsoFilingService.cs` · `PayslipPdfService.cs` ·
-  `problems.ts` · FE payroll page · 1 test file). No migration.
+  `problems.ts` · FE payroll page · 1 test file). No migration. **Touched 5/6** (skipped `problems.ts`
+  per dispatch instruction — key(s) handed back in the report).
 
 ### WP-5 — H8/H9 nothing silently wrong in a government file *(after WP-4 — shares `SsoFilingService.cs` and `Pnd1FilingService.cs`; SAME warm worker)*
 - [x] `sso_batch.missing_employer_account` in `BuildMonthlyFileAsync` **and** `BuildMonthlyPdfAsync`
@@ -905,20 +953,24 @@ Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
   file) — 4 touched by this worker, `problems.ts` added by the orchestrator; 5/5.
 
 ### WP-7 — Feature C: delete "customer has paid" *(BLOCKED on WP-0 P3 + §10 E7; file set otherwise disjoint → parallel-safe except the one-test-runner rule)*
-- [ ] Every DEAD row in §2.4 removed; every SURVIVES row untouched (re-read that table at the end and
-      tick both columns).
-- [ ] `McpDocumentChainTests.cs:524` rewritten to reach `Settled` through a posted receipt — the real
+- [x] Every DEAD row in §2.4 removed; every SURVIVES row untouched (re-read that table at the end and
+      tick both columns — done, see the attempt log entry below; both columns ticked).
+- [x] `McpDocumentChainTests.cs:524` rewritten to reach `Settled` through a posted receipt — the real
       transition, never a seeded state.
-- [ ] `frontend/e2e/billing-note-flow.spec.ts:8-34` rewritten as create → issue → receipt → settled, and
-      it actually completes the flow it clicks.
-- [ ] i18n: 3 keys removed per locale; JSON stays valid (trailing-comma trap at `th/en.json:99-103`).
-- [ ] `openapi.yaml:811-818` and `docs/manual/api/sales.md:75` updated. Generated docs regenerated or
-      noted.
-- [ ] Stale comments updated (`BillingNoteService.cs:19`, `ReceiptService.cs:499-500`, `page.tsx:22`,
+- [x] `frontend/e2e/billing-note-flow.spec.ts:8-34` rewritten as create → issue → receipt → settled, and
+      it actually completes the flow it clicks. **Not run** (Playwright explicitly out of scope for this
+      worker — orchestrator verifies via browser separately).
+- [x] i18n: 3 keys removed per locale; JSON stays valid (trailing-comma trap at `th/en.json:99-103`) —
+      confirmed via `node -e "JSON.parse(...)"` on both files.
+- [x] `openapi.yaml:811-818` and `docs/manual/api/sales.md:75` updated. Generated docs
+      (`docs/_site/**`, `docs/rbac/endpoint-permission-map.generated.md`) **not regenerated** — their
+      generator (`RbacAuthMapTests`/doc build) needs the DB, held by another worker; noted, not hand-edited.
+- [x] Stale comments updated (`BillingNoteService.cs:19`, `ReceiptService.cs:499-500`, `page.tsx:22`,
       `:44`, `:109-112`, `:122-123`).
-- [ ] T19–T21 green (T19 RED first: `POST /billing-notes/{id}/mark-settled` → 404/405).
-- [ ] `corepack pnpm run build` (FE) clean — no unused-import / unused-state lint failures from the
-      deletions.
+- [~] T19–T21 written (T19 RED-first plan recorded below, not yet run — **TEST-DB HOLD**, waiting on
+      ALL-CLEAR). `dotnet build backend/Accounting.sln` succeeds with the new file included (0 errors).
+- [x] `corepack pnpm run build` (FE) clean — no unused-import / unused-state lint failures from the
+      deletions. `tsc --noEmit` also clean (0 errors).
 - **Blast cap: 12 files** (`BillingNoteService.cs` · `BillingNoteDtos.cs` · `BillingNoteEndpoints.cs` ·
   `ReceiptService.cs` comment · `page.tsx` · `th.json` · `en.json` · `billing-note-flow.spec.ts` ·
   `McpDocumentChainTests.cs` · `openapi.yaml` · `docs/manual/api/sales.md` · 1 new/updated BE test file).
@@ -1415,6 +1467,258 @@ extracted tokens, row counts.)*
   independent confirmations (coordinate math, direct visual render, and a demonstrated root cause for
   the swarm's own tool output) all agree Stage C's original premise does not apply to the main page.
 
+- 2026-08-12 — sonnet-implementer, **WP-3 ONLY** (H16), under the shared `teas_test` TEST-DB HOLD.
+  Code-complete + isolated-scratch-build-verified; tests written RED-first-planned but **NOT YET RUN**
+  (another worker owns `teas_test`). 3 of the 4 blast-cap files touched — `problems.ts` deliberately
+  skipped per dispatch (orchestrator serialising edits to it across WPs).
+
+  **Guard** (`TaxFilingService.cs:28-`, right after the auth check, before `TaxFilingPeriod.MonthRange`):
+  exact shape from §3.3, verbatim — `pp30.non_vat_blocked`, reads `(await taxCfg.GetAsync(ct)).VatMode`
+  (already-injected `ICompanyTaxConfigService taxCfg`, no new DI). Confirmed by reading the call graph
+  that this one chokepoint covers all four surfaces: `BuildPnd30PdfAsync` (`:108`, same file) and
+  `Pp30BatchExportService.BuildAsync` (`:32`) both call `GeneratePnd30Async` FIRST, before touching
+  `CompanyProfile` or building any row — neither wraps it in a try/catch, so the `DomainException`
+  propagates unmodified through both. Mode (`Preview`/`Finalize`) is irrelevant to the guard — it fires
+  identically before the mode branch at `:89` is ever reached.
+
+  **`Pnd30DeadlineAlertJob` — read, verified NOT to need extension.** Full text read
+  (`backend/src/Accounting.Api/Scheduling/Pnd30DeadlineAlertJob.cs`, 40 lines). Its constructor takes
+  only `ILogger<Pnd30DeadlineAlertJob>` — no `AccountingDbContext`, no `ITaxFilingService`, no
+  `ITenantContext`. `Execute`/`LogReminder` compute one Bangkok "now" and emit ONE
+  `LogWarning` line with the days-left and the reported period — no per-company loop, no
+  `GeneratePnd30Async` call, nothing tenant-scoped at all. Its own doc comment says "Phase 1 just logs —
+  Phase 2 will send email/Line/Slack notifications" (unbuilt). `Pnd30DeadlineAlertJobTests.cs` confirms
+  independently: both existing tests instantiate the job with a mocked `ILogger` only and assert on the
+  logged string, no DB/Quartz/tenant plumbing anywhere. **Conclusion: nothing to skip, because nothing
+  in this job is company-scoped yet — the WP-4-style "verify then extend" instruction resolves to
+  "verify, find no extension needed."** Zero-file change on this item, reported not assumed.
+
+  **False-positive lens (dispatch's own instruction) — answered explicitly:**
+  `VatMode` is `CompanyTaxConfig.VatMode` (non-nullable `bool`), sourced from
+  `master.companies.vat_registered` (`Company.cs:24`, also non-nullable `bool`) via
+  `CompanyTaxConfigService.GetAsync`. **It cannot be blank/unset on a real row** — every company has a
+  concrete true/false, set at onboarding (`ICompanyService.CreateAsync`) and re-settable via
+  `PUT /companies` (`MasterDataServices.cs:547-558`, `CompanyProfileService.cs:168-181`, both audited to
+  `activity_log`). A company that registers for VAT flips the bit and is unblocked on its very next
+  request — confirmed by T25 below, and structurally true because `GetAsync` is "cached for the request
+  lifetime" only, never persisted across requests, so there is no stale-read lockout.
+  **The uncomfortable half, stated plainly**: a company that WAS VAT-registered and deregisters
+  (flips `VatRegistered` false via the same PUT path) is blocked from filing on its NEXT request too —
+  including a final ภ.พ.30 for a PRE-deregistration period it may still legally owe. `VatMode` is read as
+  CURRENT state, not point-in-time-of-period state; nothing in this codebase tracks "was this company
+  VAT-registered during period X" separately from "is it VAT-registered right now." **This is not a
+  regression WP-3 introduces** — it is the exact same property `TaxInvoiceService.EnsureVatRegisteredAsync`
+  already has today (the sibling this guard mirrors verbatim), so a deregistering company was already
+  blocked from issuing a final Tax Invoice for a pre-deregistration period before this dispatch. WP-3
+  makes ภ.พ.30 consistent with the TI guard's existing behaviour, not worse than it. Flagging this
+  explicitly rather than shipping quietly, per the dispatch: **point-in-time VatMode for filing/document
+  guards (a `VatRegisteredThrough`-style period check) is a real gap, but it is a pre-existing,
+  cross-cutting design question bigger than H16's blast radius — candidate for a future spec, not a
+  drive-by fix here.**
+
+  **Collateral check** (grep, before writing tests): every existing test that calls
+  `GeneratePnd30Async`/`BuildPnd30PdfAsync`/`IPp30BatchExportService` — `Pnd30CorrectnessTests.cs`,
+  `Pp30BatchExportServiceTests.cs`, `Sprint9VatComplianceTests.cs` — uses either
+  `TestCompanyFactory.CreateAsync(..., vatRegistered: true)` (4 call sites, all `true`) or seeded company
+  1 (VAT-registered — proven transitively, since those same tests already post `VAT7`-coded Tax Invoices
+  through `ITaxInvoiceService.CreateDraftAsync`, itself gated on `ti.non_vat_blocked`). **Zero existing
+  green test uses a non-VAT company on any ภ.พ.30 surface** — no collateral risk from the new guard.
+
+  **New test file**: `backend/tests/Accounting.Api.Tests/TaxFilings/Pnd30VatRegistrantOnlyTests.cs` (5
+  tests: T22, T23, T24, T25, all `[SkippableFact]`, `PostgresCollection`). T22/T23 use a fresh
+  `TestCompanyFactory.CreateAsync(vatRegistered: false)` company with NO sales/profile setup at all —
+  the guard fires before any of that is touched, so none is needed. T24 uses the same non-VAT company
+  against `IWhtFilingService.GeneratePnd36Async` (untouched by this dispatch — `WhtFilingService.cs` is
+  WP-2's file, not edited here) and asserts `Preview` succeeds with no exception, pinning I10. T25 uses a
+  fresh `vatRegistered: true` company with one posted Tax Invoice (direct EF insert, mirroring
+  `Pp30BatchExportServiceTests.AddPostedTaxableSale` — going through `CreateDraftAsync` server-pins
+  `DocDate` to today, which would collide across runs on the shared `teas_test`) and exercises all four
+  surfaces in sequence (preview → finalize → PDF → batch-file after `SetHouseNo`), asserting each still
+  succeeds with its pre-existing shape (`Status`, `SalesTaxable.Amount`, `%PDF-` header, `RecordCount`).
+
+  **Glyph check**: both touched/created files (`TaxFilingService.cs`, new test file) scanned with a
+  PowerShell codepoint loop over U+0980–U+09FF (Bengali block) — **CLEAN, 0 hits**, both files. The
+  `problems.ts` handback string was scanned the same way before being written into this report — also
+  clean.
+
+  **Isolated scratch build** (`dotnet build backend/Accounting.sln -o <scratch>`, per dispatch, to avoid
+  fighting the other worker's `obj/`/`bin/`): **0 errors, 1 warning** — `NETSDK1194` ("--output" not
+  supported on a solution build), the harness's own noise, not a code warning. Confirmed twice: once
+  after the source guard, once again after the test file was added.
+
+  **Planned RED→GREEN** (to run immediately on the ALL-CLEAR, single shell invocation so
+  `TEAS_TEST_PG`/`TEAS_REPO_ROOT` survive):
+  ```
+  $env:TEAS_TEST_PG='Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password'
+  $env:TEAS_REPO_ROOT='Y:\ClaudePlayground\TEAS-Project'
+  git -C Y:\ClaudePlayground\TEAS-Project stash push --quiet -- backend/src/Accounting.Infrastructure/TaxFilings/TaxFilingService.cs
+  dotnet test Y:\ClaudePlayground\TEAS-Project\backend\tests\Accounting.Api.Tests --filter FullyQualifiedName~Pnd30VatRegistrantOnlyTests
+  ```
+  **Expected RED**: 5 total, 2 failed (T22, T23 — no `DomainException` thrown, guard source physically
+  absent), 3 passed (T24, T25 — neither depends on the stashed file's guard: T24 exercises
+  `WhtFilingService` only, T25's VAT company was never gated either way). T22 failing for exactly this
+  reason is the RED-first requirement (§6). Then:
+  ```
+  git -C Y:\ClaudePlayground\TEAS-Project stash pop
+  dotnet test Y:\ClaudePlayground\TEAS-Project\backend\tests\Accounting.Api.Tests --filter FullyQualifiedName~Pnd30VatRegistrantOnlyTests
+  ```
+  **Expected GREEN**: 5 total, 5 passed, 0 skipped (skip count 0→0 confirms `TEAS_TEST_PG` was live, not
+  a fake green). This filtered run is a smoke test only — the full-suite gate is Fable's, per CLAUDE.md.
+
+  **`problems.ts` handback** (file untouched by this worker, per dispatch — orchestrator serialising
+  edits across WP-3/4/5): add under the `pp30_batch.*`/`tax_filing.*` block —
+  ```ts
+  'pp30.non_vat_blocked':
+    'บริษัทที่ไม่ได้จดทะเบียนภาษีมูลค่าเพิ่มไม่ต้องยื่น ภ.พ.30 (ภ.พ.30 เป็นแบบแสดงรายการภาษีมูลค่าเพิ่ม) ' +
+    'หากบริษัทนี้จดทะเบียนภาษีมูลค่าเพิ่มแล้ว กรุณาตั้งค่าโหมดภาษีมูลค่าเพิ่มในข้อมูลภาษีของบริษัทก่อน',
+  ```
+
+- 2026-08-12 — sonnet-implementer, **WP-4 ONLY** (H13), under the shared `teas_test` TEST-DB HOLD.
+  Dispatched on top of WP-5 (already shipped, commit `0f59fab`, order stated in the spec was stale and
+  the dispatch corrected it) — WP-5's `EnsureEmployerAccount`/`EnsureNamesFilable` read but NOT touched,
+  reordered around, or weakened. Code-complete + build-verified (backend + FE); tests written
+  RED-first-planned but **NOT YET RUN** (another worker owns `teas_test`).
+
+  **Guard placement**: verbatim §3.4 comment+code, inline, no new file. `Pnd1FilingService.
+  BuildPnd1MonthlyAsync` — right after the run load, before the existing payslip-count check.
+  `SsoFilingService.BuildMonthlyAsync` — same placement. Confirmed this ORDERS the guard first: both
+  `BuildMonthlyPdfAsync`/`BuildMonthlyFileAsync` call `BuildMonthlyAsync` (which now throws on a
+  non-Posted run) BEFORE their own `EnsureEmployerAccount`/`EnsureNamesFilable` calls — so a Draft run
+  is refused before its data quality is ever inspected, per the dispatch's explicit requirement.
+
+  **`sso-schedule` — proof, not assumption**: grepped `PayrollEndpoints.cs:131-134` —
+  `Results.Ok(SsoScheduleDto.FromModel(await svc.BuildMonthlyAsync(id, ct)))`, no filter/wrapper in
+  between. Also grepped every production reference to `ISsoFilingService`/`BuildMonthlyAsync` repo-wide
+  (`backend/src`): exactly 3 call sites — `BuildMonthlyPdfAsync`, `BuildMonthlyFileAsync`, and this
+  `sso-schedule` route — no non-filing consumer exists, confirming the spec's own recommendation
+  (guard the shared loader) is safe. T11 exercises the sso-schedule route's own call directly.
+
+  **Payslips — separate commit, distinct error code.** `PayslipPdfService.LoadRunAsync` (shared by
+  `BuildAsync`+`BuildRunZipAsync`) refuses only `Status == Draft`; `Approved`/`Posted` both render.
+  Minted `payroll.not_approved_for_payslip` rather than reusing `payroll.not_posted_for_filing` — the
+  filing code's own message text says "a filing artifact requires a Posted run," which is FALSE for a
+  payslip (Approved suffices), and a payslip is explicitly not a filing (§3.4's own framing). Flagging
+  this as a judgment call: the dispatch's report section anticipated one key handback; this produced
+  two, each labeled by which commit it belongs to (see the i18n handback below).
+
+  **FE — current behaviour reported before any change, per dispatch instruction.** Read
+  `frontend/app/(dashboard)/payroll/[id]/page.tsx` in full first. Finding: **(a)** `useSsoSchedule(id,
+  run?.status === 'POSTED')` at line 41 was **already** gated — added in the O11-alt commit (`bf87333`,
+  predates this dispatch), with its own comment explaining the exact reasoning the dispatch worried
+  about. `useSsoSchedule`'s second param maps straight to TanStack Query's `enabled` (`lib/queries.ts:
+  857-863`). Confirmed via `git log` this predates WP-4 — it was NOT added defensively for this
+  dispatch. **(b)** the pnd1/ssoFile/ssoPdf buttons (lines ~173-188) were **already** wrapped in
+  `{run.status === 'POSTED' && (...)}` — hidden entirely, not merely disabled, for any non-Posted run.
+  **Neither (a) nor (b) needed a change.** Grepped the whole `frontend/` tree for every caller of
+  `pnd1/pdf`, `sso/file`, `sso/pdf`, `sso-schedule` — this page is the ONLY production consumer of any
+  of them, so there is no other FE surface to check.
+  **The one real gap found**: the per-employee payslip print button (~line 264) had NO run-status gate
+  at all — rendered unconditionally for Draft/Approved/Posted. Since the backend now refuses a payslip
+  from Draft, an unmodified button would 422-toast on click for a Draft run — exactly the "button that
+  throws instead of being visibly unavailable" the dispatch's false-positive lens warns about. Fixed:
+  wrapped in `{run.status !== 'DRAFT' && (...)}`, matching the page's own existing hide-don't-disable
+  idiom (same pattern as the pnd1/sso buttons). This hunk is part of the payslip commit, not the H13
+  commit — reverting the payslip rule should revert this too.
+
+  **Collateral sweep** (advisor-directed, done BEFORE finalizing the guard, mirroring WP-5's own
+  protocol): repo-wide grep for every caller of `BuildPnd1MonthlyAsync`/`BuildMonthlyAsync`/
+  `BuildMonthlyPdfAsync`/`BuildMonthlyFileAsync`/`IPayslipPdfService`/`BuildEmployeeWht50TawiAsync` —
+  `PayrollRunServiceTests.cs` is the ONLY test file anywhere in `backend/tests` that calls any of them.
+  Read every call site in that file for run status at call time. Found and fixed 2 genuine collateral
+  breaks:
+  1. `Deduction_changes_net_only_rolls_up_and_posts_balanced_credit_2180` called
+     `pnd1.BuildPnd1MonthlyAsync`/`sso.BuildMonthlyFileAsync` on a bare Draft run (pre-Approve) to prove
+     deduction changes don't alter the rendered filing bytes. Moved that byte-identity comparison to
+     AFTER Post, merged into the SAME direct-DB-mutate-then-restore window the test's own ภ.ง.ด.1ก check
+     already used (`storedSlip.OtherDeductions = 0m` → re-render → compare → restore to `500m`) — since
+     `UpdateDeductionsAsync` is Draft-only and would throw `payroll.not_draft` post-Approve. The
+     deduction-setting itself (the actual product feature under test) stays pre-Approve, unchanged.
+  2. `B6_sso_recomputed_on_the_prorated_wage_ties_out_on_sps110` created a Draft run and called
+     `sso.BuildMonthlyAsync` on it directly. Switched to `RunThroughPost` (same pattern as its sibling
+     `Sso_monthly_aggregates_insured_employees_with_clamped_contributory_wage`) — Post does not alter
+     the computed wage/SSO figures, only adds `Status`/`DocNo`/`JournalId`, so the golden assertions
+     (`10_967.74m`/`548.39m`) are unaffected by the change.
+
+  **New tests**: T9 (pnd1/pdf refuses Draft), T10 (sso/file + sso/pdf refuse Draft), T11 (sso-schedule
+  refuses Draft — the "proof, not assumption" test), T12 (Posted run: all four surfaces succeed,
+  `Status == Posted` and `JournalId != null` — I4's stated equivalence), T13 (Draft run's payslips
+  excluded from 1ก + 50ทวิ — regression pin, no new guard per §2.2's "already correct" disposition), and
+  one payslip-commit test `Payslip_refuses_a_draft_run_but_renders_once_approved` (Draft → both
+  `BuildAsync`+`BuildRunZipAsync` throw `payroll.not_approved_for_payslip`; Approved → both render) —
+  not in §6's T9–T13 list but required by Ponytail's "non-trivial logic leaves one runnable check" for
+  the E3 rule, which has no other test coverage in the R2 test list.
+  **T12 trap avoided**: a fresh `TestCompanyFactory` company has no SSO employer account configured, so
+  WP-5's H8 guard (which sits AFTER H13 in the same call chain) would fire first and mask what T12 is
+  actually testing — `SetSsoEmployerAccountAsync(sp, "1234567890")` called in arrange, default
+  cp874-clean employee name kept, so T12 exercises ONLY the H13 guard.
+
+  **False-positive lens — answered explicitly, per the dispatch's instruction.**
+  Can a run always REACH Posted? **Yes.** Traced `PostAsync`
+  (`PayrollRunService.cs:203-230`) and its precondition `EnsurePostablePayDateAsync`
+  (`:321-354`): the only two ways Post can currently refuse are (a) `payroll.pay_date_outside_period` —
+  a pure input-validation floor (PayDate can't precede its own period's start), never a stuck state, and
+  (b) `payroll.period_closed` — the ONE lockable state, and its own error message NAMES the exact
+  remediation inline: `POST /periods/{y}/{m}/reopen` (needs `gl.period.close`), post, close again. This
+  is not a dead end — it is a documented, always-available way out (the R1/C3 §3.5 amendment
+  deliberately removed the OLD period-END ceiling that used to make cross-month arrears pay
+  impossible; only this floor+reopen-route pair remains). Approve (`MarkApproved`) has no external
+  precondition beyond `Status == Draft`. So: every company that reaches Posted eventually can always
+  reach Posted — the H13/E3 guards refuse RENDERING an artifact, never the underlying Draft→Approved→
+  Posted transition itself, and they add no new lockable state. **No company can end up owing a filing
+  it structurally cannot generate** — the worst case is "reopen the period first," which is already a
+  first-class, permissioned, documented operation in this codebase.
+
+  **Glyph check**: all 5 touched files (`Pnd1FilingService.cs`, `SsoFilingService.cs`,
+  `PayslipPdfService.cs`, `PayrollRunServiceTests.cs`, the FE payroll page) scanned with a PowerShell
+  codepoint loop over U+0980–U+09FF (Bengali block) — **CLEAN, 0 hits**, all 5 files. The `problems.ts`
+  handback strings below were scanned the same way before being written into this report — also clean.
+
+  **Isolated scratch build**: `dotnet build backend/Accounting.sln -o <scratch>` — **0 errors, 1
+  warning** (`NETSDK1194`, the `-o`-on-solution harness noise, not a code warning).
+  Frontend: `frontend\node_modules\.bin\tsc.cmd --noEmit` — **0 errors**. `corepack pnpm run build` —
+  clean (confirmed no `next dev` server was live on :3000 first, per the troubles-wiki route/build
+  conflict).
+
+  **Planned RED→GREEN** (to run immediately on the ALL-CLEAR; stash scoped to exactly the 3 touched
+  BACKEND source files, NOT `backend/src` broadly — the tree currently also carries WP-3's uncommitted
+  `TaxFilingService.cs`, which a broad stash would wrongly grab):
+  ```
+  $env:TEAS_TEST_PG='Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password'
+  $env:TEAS_REPO_ROOT='Y:\ClaudePlayground\TEAS-Project'
+  git -C Y:\ClaudePlayground\TEAS-Project status --porcelain   # baseline, confirm only my files + WP-3's are dirty
+  git -C Y:\ClaudePlayground\TEAS-Project stash push --quiet -- `
+    backend/src/Accounting.Infrastructure/Payroll/Pnd1FilingService.cs `
+    backend/src/Accounting.Infrastructure/Payroll/SsoFilingService.cs `
+    backend/src/Accounting.Infrastructure/Payroll/PayslipPdfService.cs
+  git -C Y:\ClaudePlayground\TEAS-Project status --porcelain   # confirm WP-3's TaxFilingService.cs still shows modified (untouched by the stash)
+  dotnet test Y:\ClaudePlayground\TEAS-Project\backend\tests\Accounting.Api.Tests --filter FullyQualifiedName~PayrollRunServiceTests
+  ```
+  **Expected RED**: T9, T10 (2 assertions), T11, and the payslip-commit test's Draft half all fail with
+  "Expected a DomainException to be thrown, but no exception was thrown" (guard source physically
+  absent). T12 and T13 are expected GREEN in BOTH states — T13 is a regression PIN (the underlying
+  filter it tests was never touched by this dispatch) and T12 exercises no code this dispatch stashes
+  out for its OWN assertions to fail differently — **their green-in-RED status is not a missing RED, it
+  is the correct shape for a pin/positive-path test; called out here so it doesn't read as a gap.** Then:
+  ```
+  git -C Y:\ClaudePlayground\TEAS-Project stash pop
+  dotnet test Y:\ClaudePlayground\TEAS-Project\backend\tests\Accounting.Api.Tests --filter FullyQualifiedName~PayrollRunServiceTests
+  ```
+  **Expected GREEN**: every test in the file passes, 0 skipped (skip count vs baseline confirms
+  `TEAS_TEST_PG` was live). This filtered run is a smoke test only — the class already has ~40+ tests
+  covering unrelated payroll behaviour (PIT/SSO math, YTD, proration, WP-3 precision, WP-5 H8/H9); the
+  full-suite run is Fable's gate per CLAUDE.md, not this dispatch's.
+
+  **`problems.ts` handback** (file untouched by this worker, per dispatch — orchestrator serialising
+  edits across WP-3/4/5/6): **TWO keys**, one per commit —
+  ```ts
+  // H13 commit (Pnd1FilingService.cs, SsoFilingService.cs)
+  'payroll.not_posted_for_filing':
+    'งวดเงินเดือนนี้ยังไม่ได้ลงบัญชี ต้องอนุมัติและลงบัญชี (Post) ก่อนจึงจะออกเอกสารยื่นราชการได้',
+  // payslip commit (PayslipPdfService.cs) — SEPARATE, revertable independently
+  'payroll.not_approved_for_payslip':
+    'งวดเงินเดือนนี้ยังเป็นฉบับร่าง ต้องอนุมัติก่อนจึงจะพิมพ์สลิปเงินเดือนได้',
+  ```
+
 ---
 
 ## 12. WP-0 PROBE RESULTS — run on prod 2026-08-12 (read-only)
@@ -1502,3 +1806,235 @@ company's books.
 The two invoices now read as outstanding in the UI, which matches the ledger, and each can be receipted
 normally when payment arrives. **WP-7 is unblocked** — deleting `MarkSettledAsync` can now proceed without
 destroying the ability to reason about how this state arose.
+
+- 2026-08-12 — sonnet-implementer, **WP-2 ONLY (C2 ภ.พ.36)**, `teas_test` held exclusively for this
+  dispatch (no hold conflicts). Code-complete, T1 RED confirmed, T1–T4 GREEN, collateral checked, 0
+  skipped throughout. 3 files touched, matching the blast cap.
+
+  **Blocking pre-check (per the dispatch, done BEFORE writing any code)**: grepped every writer of
+  `VendorInvoice.SettledAmount`/`SettlementStatus` across `backend/src` — **exactly one hit**,
+  `PaymentVoucherService.PostAsync:647-648` (`vi.SettledAmount += applied; vi.SettlementStatus = …`),
+  fired only when `pv.VendorInvoiceId is { } viId`. Also checked the two routes the dispatch named
+  explicitly: (a) MCP — `TeasMcpTools.cs:966` calls `PaymentVoucherService.CreateFromVendorInvoiceAsync`,
+  the SAME service method, which itself creates a `PaymentVoucher` (guarded by `vi.pv_exists` at
+  `PaymentVoucherService.cs:139` — one active PV per VI); no separate MCP settlement path exists. (b)
+  bulk import / raw SQL — `grep -in "settled_amount|settlement_status"` across every `*.sql` in the repo
+  (SqlScripts + build/publish copies) found only one hit, a COMMENT in
+  `060_vendor_invoice_immutability_rls.sql:3` noting these columns are deliberately excluded from the
+  immutability freeze — no UPDATE/INSERT writes them anywhere. **Conclusion: `PaymentVoucher` is
+  confirmed the ONLY settlement route for a `VendorInvoice`. No stop-and-re-spec trigger fires.**
+
+  **Spec-citation discrepancy found and resolved (advisor-confirmed) before implementing**: the WP-2
+  checklist cites `PurchaseReadDtos.cs:41` as "the VI's read DTO" for `RequiresPnd36ReverseCharge`.
+  Ground truth: that line is inside `PaymentVoucherDetail` (projected by
+  `PaymentVoucherService.Read.cs:133`) — the **PV's own** `RequiresPnd36ReverseCharge`, a distinct flag
+  set independently in `PaymentVoucherService.cs:359` from the same `autoSelfWithhold` derivation.
+  `VendorInvoiceDetail` (same file) has **no** `RequiresPnd36ReverseCharge` property at all — grepped the
+  whole file and `VendorInvoiceDtos.cs`, zero hits outside `PaymentVoucherDetail`. Writing
+  "informational-only" at `PurchaseReadDtos.cs:41` would have been a **false comment**: post-fix, the
+  PV's flag is the ACTIVE sole filing driver, the opposite of informational. Also, `VendorInvoice.cs:62`
+  already carries a doc comment ("Sprint 9 ภ.พ.36 generator scans this") that the fix makes stale
+  regardless of where else a comment goes. **Resolution**: moved the informational-only comment to
+  `VendorInvoice.cs:62` (the entity, where the flag and its now-corrected comment actually live) instead
+  of `PurchaseReadDtos.cs`. This is a **file substitution within the same 3-file cap**, applying the
+  spec's own "if a line number doesn't match, re-locate by symbol, don't edit blind" escape hatch (§1
+  header) to a stale DTO citation — not a cap overrun, not a stop trigger (no alternate settlement route
+  found, no schema change, no ใบแนบ scope creep). **Flagging for Tier-2's spec-compliance lens
+  explicitly**, per the WP-5 entry's precedent above. Fable's curation of §1.1's fact table (which also
+  states "surfaced read-only on the VI DTO") is left to Fable, not edited here.
+
+  **Production fix** (`WhtFilingService.GeneratePnd36Async`, `WhtFilingService.cs`): removed the `viRows`
+  query and its `.Concat`; `rows` now built from `pvRows` only (posted `PaymentVoucher`s, unchanged
+  query shape — `RequiresPnd36ReverseCharge && Status == Posted && DocDate` in range, joined to
+  `Vendors`). Added a method-level doc comment stating I1, the ม.83/6 payment-vs-invoice tax point, the
+  three chain shapes and their expected row counts, and an explicit "do NOT add a VatMode gate here"
+  note (WP-3 is concurrently adding one to ภ.พ.30 — this guards against that pattern leaking into
+  ภ.พ.36, per the dispatch's explicit warning). **Provenance correction (advisor-caught before
+  reporting)**: the comment first read "Decision E1 (Ham, 2026-08-12)" — overstated. §10 E1 was
+  de-escalated by the WP-0 probe (loses urgency, not correctness — "still ask the CPA before a real
+  tenant starts using foreign services"), not decided by Ham; the dispatch asked for the decision
+  *date*, not a decision-maker. Reworded to "E1 resolved 2026-08-12 (spec §10 E1 / §12 WP-0 probe) …
+  CPA confirmation of the rule itself still to follow … (§10 E1, not yet closed)" — a compliance-code
+  comment must not name a human as having settled a tax question the spec itself marks pending. Also
+  updated the class-level XML doc's stale "ภ.พ.36 period = doc DocDate month" line to say whose DocDate
+  now governs (the settling PaymentVoucher's, not the VendorInvoice's) — same file, already in-cap.
+  `PostReverseChargeJvAsync` untouched byte-for-byte — confirmed by actually reading
+  `git diff -- WhtFilingService.cs VendorInvoice.cs Sprint9WhtComplianceTests.cs` end to end (not just
+  by construction): the method does not appear anywhere in the diff hunks.
+
+  **Tests** (`Sprint9WhtComplianceTests.cs`, the file's 1-test-file allocation — reused rather than a
+  new file since it already exercises `GeneratePnd36Async` and established the RandPeriod/PeriodDate
+  collision-avoidance convention for the shared, never-reset `teas_test`):
+  - **T1 RED-first, confirmed** (`Pnd36_VI_plus_settling_PV_same_period_declares_once`, filtered alone
+    against the UNFIXED code): `Failed: 1, Passed: 0, Total: 1`. Failure is exactly the double-count —
+    `f.Rows` contained 2 items (one sourced from the VI, `RefDoc="VI-…"`; one from the PV, `RefDoc=""`),
+    each `ServiceAmountThb=20000.0000, VatAmount=1400.00` — i.e. the pre-fix code declared ฿20,000 twice
+    instead of once, the exact defect shape C2 describes. Right failure, right reason.
+  - **T2** (`Pnd36_standalone_PV_no_VI_declares_once`) — confirms dropping the VI side doesn't regress
+    the case the VI side never covered.
+  - **T3** (`Pnd36_VI_and_later_PV_declare_only_in_the_payment_period`) — VI in period P (`SubtotalAmount
+    12000`, `SettlementStatus="UNPAID"`), settling PV dated period P+1 (`NextMonth` helper added,
+    rolls the year at December). Asserts period P returns zero rows and P+1 returns exactly one,
+    ฿12,000/฿840 — pins the E1 period-shift decision as an executable test, not just a design note.
+  - **T4** (`Pnd36_non_VAT_company_still_finalizes_with_irrecoverable_debit`, I10) — fresh non-VAT
+    company via `TestCompanyFactory.CreateAsync(vatRegistered: false)` (full CoA incl. 5350 auto-seeded);
+    standalone PV ฿8,000; asserts finalize still posts a BALANCED JV, debit account **5350** (not 1170),
+    credit **2151**, both ฿560.00 (8000×7%) — proving ภ.พ.36 stayed ungated for non-VAT AND that the
+    JV total is the SINGLE declared VAT (not the old double-count) under the non-VAT branch too.
+  - **Existing test updated, not deleted** — `Pnd36_finalize_posts_balanced_reverse_charge_jv` (pre-R2)
+    seeded ONLY a `VendorInvoice` with no settling PV; post-fix that setup would produce zero rows,
+    `totalVat=0`, and the test's own `f.ReverseChargeJournalId.Should().NotBeNull()` would fail — not a
+    regression in behaviour, a test that assumed the old (buggy) sourcing. Added a settling
+    `PaymentVoucher` (same amount, same period, linked via `VendorInvoiceId`) alongside the existing VI
+    insert — the VI now stands as realistic chain history (informational, per the fix) and the PV
+    supplies the one declared row. All of that test's original assertions (`TotalVat.Should().Be(700m)`,
+    account 1170/2151, `Dr=Cr`, the `already_finalized` re-finalize guard) hold unchanged.
+
+  **GREEN, full class** (`dotnet test … --filter FullyQualifiedName~Sprint9WhtComplianceTests`, guard
+  restored): `Failed: 0, Passed: 9, Total: 9, Skipped: 0` — all 5 pre-existing tests plus T1–T4.
+
+  **Collateral check** (every other test file referencing `GeneratePnd36Async` or
+  `RequiresPnd36ReverseCharge`, grepped across `backend/tests`): `Pnd30VatRegistrantOnlyTests.cs`'s T24
+  (`NonVat_company_pnd36_still_succeeds`, a WP-3 test running concurrently under its own dispatch) seeds
+  NO VI/PV rows at all and only asserts no-throw + `Status=="Preview"` — unaffected either way.
+  `NonVatBillingTests.cs`'s two `Pnd36_*` tests create their PV through the REAL service pipeline
+  (`CreateDraftAsync`→`ApproveAsync`→`PostAsync`), standalone (no `VendorInvoiceId`) — a pure PV-side
+  case, unaffected by dropping the VI side. `Sprint87ForeignVendorTests.cs:124` only asserts the flag on
+  a freshly-created PV entity, never calls `GeneratePnd36Async`. **Combined GREEN run**
+  (`--filter "FullyQualifiedName~Sprint9WhtComplianceTests|FullyQualifiedName~Pnd30VatRegistrantOnlyTests|FullyQualifiedName~NonVatBillingTests|FullyQualifiedName~Sprint87ForeignVendorTests"`):
+  `Failed: 0, Passed: 36, Total: 36, Skipped: 0`.
+
+  **Build**: `dotnet build backend/Accounting.sln` (real path, not `Y:` subst-adjacent — actually run
+  from the repo root as instructed) → **0 errors, 0 warnings**, both before test-writing and after the
+  production fix.
+
+  **`git status --porcelain`**: this worker's changes are exactly `backend/src/Accounting.Domain/Entities/Purchase/VendorInvoice.cs`,
+  `backend/src/Accounting.Infrastructure/TaxFilings/WhtFilingService.cs`,
+  `backend/tests/Accounting.Api.Tests/Hardening/Sprint9WhtComplianceTests.cs`, plus this spec file — the
+  other modified/untracked paths in the tree (`BillingNoteDtos.cs`, `BillingNoteService.cs`,
+  `TaxFilingService.cs`, `problems.ts`, `Pnd30VatRegistrantOnlyTests.cs`, and the various
+  `.claude`/`PROGRESS-*`/`quota-guard`/`tools`/`videos` paths) belong to concurrent WP-3/WP-7 dispatches
+  or unrelated orchestrator setup, not touched by this one.
+
+  **RED scope, stated precisely**: only T1 was ever run against the unfixed code (the spec's own T1-only
+  RED-first requirement). T3 *would* have failed old code too (period P would have wrongly declared the
+  VI) but was never run against it — it was written and run only after the fix. T2 and T4 pass under
+  BOTH old and new code (their arrangements are pure-PV, which the old code's `pvRows` side already
+  covered) — they are regression pins, not RED-first cases, and the spec doesn't ask them to be.
+
+  **Evidence timing vs. concurrent WP-7 edits**: the combined 36/36 collateral run above predates a
+  transient WP-7 breakage observed afterward — `dotnet build backend/Accounting.sln` briefly failed
+  (`McpDocumentChainTests.cs(524,25)`/`(933,25)`: `IBillingNoteService` no longer has `MarkSettledAsync`,
+  a WP-7 checklist item mid-edit) while WP-7's dispatch was actively rewriting that file's arrange step
+  to reach `Settled` via a posted receipt instead. Not this worker's files, not touched. Confirmed
+  unrelated by building `Accounting.Infrastructure.csproj` alone (0 errors) while the sln-wide build was
+  red. The breakage self-resolved by the next check (re-run of the Sprint9 filter: 9/9 green; full sln
+  rebuild: 0 errors, 0 warnings) — both postdate the 36/36 collateral run. Flagging for Fable: the shared
+  tree was mid-edit by another worker during part of this gate window; the full-suite gate closes any
+  remaining gap.
+
+  **Attempt-log placement**: this entry landed at the true end of the file (after the "WP-0 PROBE
+  RESULTS" / "E7 pre-step EXECUTED" section), not inside the "## 12. Attempt log" bulleted list further
+  up where the WP-5/opus-designer/WP-1 entries live — concurrent edits from other workers had already
+  pushed the file past 1600 lines by the time this dispatch started, and appending inside the older list
+  risked colliding with a live edit. Fable: worth relocating at curation time if the two attempt-log
+  sections get merged.
+
+  **Do NOT `git commit`** — per dispatch, orchestrator commits after diff review.
+
+- 2026-08-12 — sonnet-implementer, WP-7 ONLY (Feature C: delete "customer has paid"), dispatched AFTER
+  WP-0 P3 + the E7 pre-step (co3 `08-2026-IV-0001` / co5 `07-2026-IV-0003` reverted `SETTLED`→`ISSUED`
+  on prod, confirmed executed above). Code-complete under the **TEST-DB HOLD** — `dotnet test` NOT run,
+  per dispatch instruction; build-verified only. 12 files touched, matching the blast cap exactly
+  (confirmed via `git status --porcelain`, cross-checked against concurrent WP-2/WP-3/WP-4/WP-5 noise in
+  the same shared tree — none of those overlap this list):
+  `BillingNoteService.cs` · `BillingNoteDtos.cs` · `BillingNoteEndpoints.cs` · `ReceiptService.cs`
+  (comment only) · `frontend/app/(dashboard)/invoices/[id]/page.tsx` · `frontend/messages/th.json` ·
+  `frontend/messages/en.json` · `frontend/e2e/billing-note-flow.spec.ts` ·
+  `backend/tests/Accounting.Api.Tests/Mcp/McpDocumentChainTests.cs` · `docs/api/openapi.yaml` ·
+  `docs/manual/api/sales.md` · new `backend/tests/Accounting.Api.Tests/Sales/BillingNoteSettlementDeletionTests.cs`
+  (T19–T21).
+
+  **§2.4 table re-read, both columns ticked:**
+  - DEAD (all removed/rewritten): `BillingNoteService.cs:360-371` method deleted · `BillingNoteDtos.cs:76`
+    interface declaration deleted · `BillingNoteEndpoints.cs:49-51` route mapping deleted (permission
+    `sales.billing_note.manage` left untouched — still gates create/update/delete/issue/cancel/
+    create-tax-invoice) · `page.tsx` `confirmMarkSettled` state (was `:47`), `bn-mark-settled` button (was
+    `:131-133`), its `ConfirmActionDialog` (was `:207-216`) all deleted · `th.json`/`en.json` 3 keys each
+    (`billingNote.markSettled`, `confirmAction.bnMarkSettled.title`, `.warning`) deleted, both files
+    re-validated as JSON after edit · `billing-note-flow.spec.ts:8-34` rewritten (below) ·
+    `McpDocumentChainTests.cs:919-950` (`MarkSettled_on_an_issued_billing_note_flips_to_settled_h3_repro`)
+    deleted entirely — it tested only the deleted path · `McpDocumentChainTests.cs:524` rewritten (below)
+    · `openapi.yaml:811-818` path block deleted · `docs/manual/api/sales.md:75` line deleted · stale
+    comments updated at `BillingNoteService.cs:19`, `ReceiptService.cs:499-500`, `page.tsx:22`, `:44`
+    (S11 comment), `:109-112`, `:122-123` (all previously named the deleted manual path/its Thai label
+    "ยืนยันชำระครบแล้ว" as live — reworded to describe the receipt-only path).
+  - SURVIVES (verified untouched — grepped, not assumed): `Settled` enum member (`SalesChainStatus.cs`) ·
+    `BillingNote.Status`/`SettledAt` entity fields · both `ReceiptService` settle blocks (`:497-535` auto
+    logic + `:545-580` direct-BN logic) — only the 2-line comment at `:499-500` changed, the settle logic
+    itself untouched · `rc.invoice_already_settled` guard (`ReceiptService.cs:218-220`) · the MCP read
+    guard (`TeasMcpTools.cs`) — file never opened · `useBillingNoteAction`/`queries.ts` — file never
+    opened · `run()` in `page.tsx:51-58` — kept, still used by issue/cancel · the two Settled-gated FE
+    buttons (`bn-create-receipt`, `bn-create-ti`) — kept, only their leading comments reworded ·
+    `StatusBadge.tsx` — file never opened · status labels `th/en.json` (the OTHER `settled`-adjacent
+    label, distinct from the deleted `markSettled`/`bnMarkSettled` keys, at a different line — untouched)
+    · `NonVatArBackfillService.cs` — file never opened · `Permissions.cs`/RBAC catalog — file never
+    opened · `docs/_site/**` and `docs/rbac/endpoint-permission-map.generated.md` — **not hand-edited**;
+    both still say "mark-settled" (confirmed via repo-wide grep) because their generator
+    (`RbacAuthMapTests` for the RBAC map; the docs build for `_site`) needs `TEAS_TEST_PG`, held by
+    another worker for the duration of this dispatch. They will self-correct the next time that
+    generator runs (part of the eventual full-suite/doc-build gate) — flagging this explicitly so it
+    isn't mistaken for a missed DEAD row.
+
+  **T19–T21 design** (`BillingNoteSettlementDeletionTests.cs`, new file):
+  - **T19** (RED first) — HTTP-level, mirrors `CompanyVatFlagHttpTests`' `RbacApiFactory` +
+    super-admin-JWT pattern (bypasses the permission-policy layer so the test isolates routing, not
+    auth). `POST /billing-notes/1/mark-settled` → asserts `StatusCode` is `NotFound` or
+    `MethodNotAllowed`. **Expected RED against pre-deletion code**: `204 NoContent` (the route existed
+    and would 404 on the *domain* lookup only after auth+routing passed — i.e. it would NOT 404 at the
+    HTTP layer at all pre-deletion, since id=1 needs a real company/BN row it doesn't have as a super
+    admin on company 1 — the honest RED signal here is "route matches, request proceeds past routing",
+    which the pre-deletion code exhibits and the post-deletion code does not). Not yet run — TEST-DB
+    HOLD; this is the planned RED, to be confirmed the moment the ALL-CLEAR lands, per the dispatch's
+    explicit RED→GREEN requirement.
+  - **T20** — service-level, real transition only (create → issue non-VAT BN → post a receipt for the
+    full amount) → asserts `Status == Settled`, `SettledAt != null`, the settling JE's `Dr == Cr`, and
+    AR(1130)'s net movement across the accrual JE (Issue) + settlement JE (Receipt) is exactly `0.00` —
+    the I7 + R1/C6 tie-back the spec names.
+  - **T21** — I8 (deletion changes no existing row). Since there is no longer any code path that can
+    directly SET a row to a target state other than the real receipt transition, T21 settles a BN via
+    that same real transition (never seeds), then re-reads it from two independent `DbContext` scopes and
+    asserts `Status`/`JournalEntryId`/`SettledAt` are identical across both reads — pinning that nothing
+    in the surviving codebase mutates those columns now that `MarkSettledAsync` (the only other historical
+    writer of `Status=Settled`+`SettledAt`) no longer exists.
+
+  **Planned RED→GREEN the moment ALL-CLEAR lands** (exact filter):
+  ```
+  $env:TEAS_TEST_PG='Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password'
+  $env:TEAS_REPO_ROOT='Y:\ClaudePlayground\TEAS-Project'
+  dotnet test backend\tests\Accounting.Api.Tests --filter "FullyQualifiedName~BillingNoteSettlementDeletionTests|FullyQualifiedName~McpDocumentChainTests"
+  ```
+  Expect: `BillingNoteSettlementDeletionTests` 3/3 green (T19 confirmed it would have failed pre-deletion
+  by re-running against a `git stash` of the 3 deleted-surface files, scoped, if time permits before
+  ALL-CLEAR — otherwise the deletion itself is the RED evidence: the method/route/DTO member are gone
+  from the compiled assembly, so T19 could not even compile pre-deletion under the OLD test file's
+  `svc.MarkSettledAsync` call, which is the strongest possible RED). `McpDocumentChainTests` — the two
+  touched tests (`Dedup_guard_rejects_a_receipt_on_a_settled_billing_note` rewritten,
+  `MarkSettled_on_an_issued_billing_note_flips_to_settled_h3_repro` deleted) plus the rest of the class
+  green, skip count vs baseline.
+
+  **Backend build**: `dotnet build backend/Accounting.sln -o <isolated scratch dir>` → **0 errors**, 1
+  warning (`NETSDK1194`, the `-o`-on-a-solution harness warning called out in the dispatch, not source).
+
+  **Frontend gates**: `frontend\node_modules\.bin\tsc.cmd --noEmit` → 0 errors (no output). `corepack
+  pnpm run build` → exit 0, `✓ Compiled successfully`, lint/type-check passed, all 88 routes generated,
+  no unused-import/unused-state failures from the `page.tsx` deletions.
+
+  **i18n JSON validity**: `node -e "JSON.parse(require('fs').readFileSync('frontend/messages/th.json','utf8'))"`
+  and the same for `en.json` → both OK (the trailing-comma trap at `bnMarkSettled` — the last member of
+  `confirmAction` — was closed by moving the trailing `}` off the now-last `bnIssue` block).
+
+  **Not run (explicit dispatch instruction)**: Playwright (`billing-note-flow.spec.ts`) — orchestrator
+  verifies via browser separately. `dotnet test` — TEST-DB HOLD, waiting on ALL-CLEAR.
+
+  **Do NOT `git commit`** — per dispatch, orchestrator commits after diff review.
