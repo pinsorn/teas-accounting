@@ -79,7 +79,8 @@ public interface IPayrollRunService
     /// <summary>Approved → Posted: assign the PR doc number + post the balanced GL JV. Immutable after.</summary>
     Task PostAsync(long id, CancellationToken ct);
     Task PayAsync(long id, PayPayrollRunRequest req, CancellationToken ct);
-    /// <summary>Delete a DRAFT run (never a posted one).</summary>
+    /// <summary>Delete a Draft run, or an Approved run that was never Posted (JournalId is null —
+    /// no ledger behind it, so deletion is safe). Never a Posted/Paid run.</summary>
     Task DeleteDraftAsync(long id, CancellationToken ct);
     Task<IReadOnlyList<PayrollRunListItem>> ListAsync(CancellationToken ct);
     Task<PayrollRunDetail?> GetAsync(long id, CancellationToken ct);
@@ -100,7 +101,21 @@ public sealed class CreatePayrollRunValidator : AbstractValidator<CreatePayrollR
     {
         RuleFor(x => x.PeriodYearMonth)
             .Must(PayrollRun.IsValidPeriod).WithMessage("validation.period");
+
+        // R2 Tier-2 F2 — mirrors the floor PayrollRunService.EnsurePostablePayDateAsync enforces at
+        // Post, so a run that validates here can never be refused by that same rule later. Without
+        // this, a typo'd PayDate (wrong month) sailed through Create + Approve and then got stuck:
+        // Post refused it forever, and there was no delete/un-approve/replace path either. No upper
+        // bound on purpose — arrears pay (e.g. a December run paid in January) is legitimate; a prior
+        // release removed a period-END ceiling for exactly that reason (§3.5, commit 97ace1c).
+        RuleFor(x => x.PayDate)
+            .Must((req, payDate) => !PayrollRun.IsValidPeriod(req.PeriodYearMonth) ||
+                payDate >= PeriodStart(req.PeriodYearMonth))
+            .WithMessage("validation.payDateBeforePeriod");
     }
+
+    private static DateOnly PeriodStart(string period) =>
+        new(int.Parse(period[..4]), int.Parse(period[4..]), 1);
 }
 
 public sealed class UpdatePayrollDeductionsValidator : AbstractValidator<UpdatePayrollDeductionsRequest>

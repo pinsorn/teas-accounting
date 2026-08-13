@@ -158,6 +158,8 @@ const TH: Record<string, string> = {
 
   // payroll.*
   'payroll.duplicate_period': 'มีรอบจ่ายของงวดนี้อยู่แล้ว',
+  'payroll.not_draft':
+    'ลบได้เฉพาะรอบจ่ายที่ยังเป็นฉบับร่าง หรือรอบที่อนุมัติแล้วแต่ยังไม่ได้ลงบัญชี (Post)',
   'payroll.bank_required': 'กรุณาเลือกบัญชีธนาคารสำหรับจ่ายเงินเดือน',
   'payroll.bank_not_found': 'ไม่พบบัญชีธนาคารที่เลือกหรือบัญชีถูกปิดใช้งาน',
 

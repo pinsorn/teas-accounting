@@ -140,7 +140,11 @@ export default function PayrollRunDetailPage() {
                   }}>{t('pay')}</button>
               </PermissionGate>
             )}
-            {run.status === 'DRAFT' && (
+            {/* R2 Tier-2 F2 — an APPROVED run that was never Posted has no ledger behind it, so the
+                API now allows deleting it. That exit exists so a run stuck by a bad pay date (Post
+                refuses it forever, and there is no un-approve) can be removed and its period reused.
+                The button has to follow the API or the exit is unreachable for a real user. */}
+            {(run.status === 'DRAFT' || (run.status === 'APPROVED' && run.journalId == null)) && (
               <PermissionGate scope="payroll.run.manage">
                 <button data-testid="pr-delete" className="btn btn-ghost btn-sm text-error gap-1" disabled={busy}
                   onClick={() => act(async () => { await del.mutateAsync(id); router.push('/payroll'); }, tc('delete'), t('deleteConfirm'), true)}>

@@ -1743,4 +1743,62 @@ public sealed class PayrollRunServiceTests
         await recloseScope.ServiceProvider.GetRequiredService<IPeriodCloseService>()
             .CloseAsync(backMonth.Year, backMonth.Month, "T20 re-close", default);
     }
+
+    // R2 Tier-2 F2 — the dead end itself. Before the fix, CreatePayrollRunValidator only checked
+    // PeriodYearMonth; a typo'd PayDate (wrong month) sailed through Create, got Approved, then Post
+    // refused it FOREVER (payroll.pay_date_outside_period) with no delete/un-approve/replace path.
+    // This pins the fix at the boundary where it belongs: the validator the Create endpoint actually
+    // runs (PayrollEndpoints.cs:37) — CreateDraftAsync itself must stay unguarded on this (T19(a)
+    // deliberately builds the same bad state THROUGH the service to prove Post's own floor fires).
+    [Fact]
+    public void CreatePayrollRunValidator_refuses_pay_date_before_period_start()
+    {
+        var validator = new CreatePayrollRunValidator();
+        var req = new CreatePayrollRunRequest("202605", new DateOnly(2026, 4, 25), null);   // one day
+        var result = validator.Validate(req);                                              // before June
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreatePayrollRunRequest.PayDate));
+    }
+
+    // Arrears pay must still validate at creation — no ceiling. Mirrors T19(d)'s December-period/
+    // January-PayDate case, just at the validator boundary instead of the live service.
+    [Fact]
+    public void CreatePayrollRunValidator_accepts_arrears_pay_date_in_the_following_month()
+    {
+        var validator = new CreatePayrollRunValidator();
+        var req = new CreatePayrollRunRequest("202512", new DateOnly(2026, 1, 5), null);
+        validator.Validate(req).IsValid.Should().BeTrue();
+    }
+
+    [SkippableFact]
+    public async Task Approved_never_posted_run_can_be_deleted_and_its_period_reused()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = await FreshPeriodAsync(sp, 5);
+        var year = int.Parse(period[..4]);
+        await AddEmployee(sp, 22_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPayrollRunService>();
+
+        // Reproduce the stuck run EXACTLY as it happens for real: through the service (which the
+        // validator does not gate), so a typo'd PayDate before the period reaches Approved with a
+        // null JournalId — never Posted.
+        var badPayDate = new DateOnly(year, 4, 25);   // before period 5 (May) starts
+        var runId = await svc.CreateDraftAsync(new CreatePayrollRunRequest(period, badPayDate, null), default);
+        await svc.ApproveAsync(runId, default);
+        var stuck = (await svc.GetAsync(runId, default))!;
+        stuck.Status.Should().Be("APPROVED");
+        stuck.JournalId.Should().BeNull();
+
+        await svc.DeleteDraftAsync(runId, default);          // RED before the fix: payroll.not_draft
+        (await svc.GetAsync(runId, default)).Should().BeNull();
+
+        // duplicate_period has no status filter (AnyAsync on PeriodYearMonth alone) — proves the
+        // hard delete above is what clears it; no separate fix to duplicate_period was needed.
+        var replacementId = await svc.CreateDraftAsync(
+            new CreatePayrollRunRequest(period, new DateOnly(year, 5, 25), null), default);
+        replacementId.Should().BeGreaterThan(0);
+    }
 }

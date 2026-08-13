@@ -278,10 +278,17 @@ public sealed class PayrollRunService(
     public async Task DeleteDraftAsync(long id, CancellationToken ct)
     {
         var run = await LoadAsync(id, ct);
-        if (run.Status != DocumentStatus.Draft)
-            throw new DomainException("payroll.not_draft", "Only a draft run can be deleted.");
+        // R2 Tier-2 F2 — an Approved run that was NEVER Posted (JournalId null) has no ledger behind
+        // it, so deleting it is exactly as safe as deleting a Draft. This is the escape hatch for a
+        // run stuck by a bad PayDate (Post refuses it forever via pay_date_outside_period, and there
+        // is no un-approve): without it, that run — and its period — were permanently unfileable.
+        var deletable = run.Status == DocumentStatus.Draft ||
+            (run.Status == DocumentStatus.Approved && run.JournalId is null);
+        if (!deletable)
+            throw new DomainException("payroll.not_draft",
+                "Only a draft run, or an approved run that has not been posted yet, can be deleted.");
         activity.Record(EntityType, run.PayrollRunId, run.DocNo, run.CompanyId,
-            "Deleted", fromStatus: "Draft", module: Module);
+            "Deleted", fromStatus: run.Status.ToString(), module: Module);
         db.PayrollRuns.Remove(run);                 // payslips cascade; audit row persists (no FK)
         await db.SaveChangesAsync(ct);
     }
