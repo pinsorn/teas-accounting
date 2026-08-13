@@ -23,16 +23,14 @@
     (bad pay date → un-postable → un-deletable → un-replaceable) that this release itself sealed shut
     by making filings refuse an unposted run. Both fixed before shipping.
 
-- **🟡 ONE THING LEFT, AND IT NEEDS HAM: log in to https://teas.kazaki-rio.com again.**
-  The API restart during deploy invalidated the browser session (`No session`, refresh 401), and I
-  cannot log in myself. Once logged in I finish the Tier-4 leg — three checks, all read-only:
-  1. `/invoices/3` on co2 shows **สร้างใบเสร็จ** and **no ยืนยันชำระครบแล้ว** (it was there before the release —
-     baseline captured).
-  2. ภ.พ.30 on a non-VAT company refuses with `pp30.non_vat_blocked`.
-  3. A draft payroll run refuses to produce ภ.ง.ด.1 / สปส.1-10.
-  Server-side proof already in hand: version 2.0.0 live, **zero** `mark-settled` references in the
-  deployed assembly (with a control grep proving the check works), and the settled-invoice census
-  unchanged on both real tenants (co2=3, co3=1) before and after.
+- **✅ Tier-4 live acceptance COMPLETE — every R2 guard verified against production, authenticated.**
+  `mark-settled` 404s and left the invoice `Issued` untouched · the ยืนยันชำระครบแล้ว button is gone from
+  the rendered page · a non-VAT company gets **422 `pp30.non_vat_blocked`** on the exact ภ.พ.30 PDF call
+  the swarm exploited · a Draft payroll run is refused ภ.ง.ด.1, สปส.1-10 **and** the on-screen schedule with
+  `payroll.not_posted_for_filing` · year 9999 gives 422 instead of a 500 · and the payroll pay-date trap
+  is refused at creation. The Draft run needed for the payroll leg was made on co7 (test playground) and
+  deleted after; co7 verified back to its original four POSTED runs. **No real tenant was written to.**
+  R2 is verified end to end: tests → CI → Tier-2 → artifact-on-prod → live behaviour.
 
 - **🔴 STILL BLOCKED ON HAM — the RD PDF templates (E6/E8).** ภ.พ.36, ภ.ง.ด.2 and the ส่วนที่ 2
   official PDFs. No file, no form filler; nothing else in R2 depends on them.
