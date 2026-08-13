@@ -1211,14 +1211,76 @@ losing the test DB costs nothing.
   is a question about the **AP subledger**, and ม.83/6 attaches to **payment**, which is the broader event.
   The question asked and the question that mattered were not the same one. When a rule keys on a real-world
   event, enumerate the ways that EVENT can happen, not the ways one column gets written.
-- **Fix:** not yet decided — it is a tax/product call, deliberately not a drive-by patch. Blocking manual
-  JVs against AP would create its own dead end (write-offs and opening balances legitimately post there).
-  Candidates: a detection report for `requires_pnd36reverse_charge` invoices still UNPAID while their AP has
-  cleared; a warning rather than a refusal on manual JV lines hitting a control account; or accepting it as
-  a CPA-signed documented gap.
+- **Fix:** shipped (specs/fix-pnd36-payment-detection.md, F1) — **detect, surface, require an explicit
+  acknowledgement, never refuse.** `WhtFilingService.DetectUnreconciledAsync` computes, per filing month,
+  `Σ(debits to 2110 posted this month) − Σ(PaymentVoucherApplication.AppliedAmount for PVs posted this
+  month)`. A positive remainder is an AP debit no posted PV explains. Preview always shows it (blocks (a)
+  informational — outstanding unpaid reverse-charge invoices; (b) warning — the unexplained amount + the
+  candidate journal entries). Finalize throws `pnd36.unreconciled_not_acknowledged` unless the filer ticks
+  a checkbox and re-finalizes with `acknowledge=true`, which stamps `AcknowledgedByUserId`/`AcknowledgedAt`
+  into the immutable filing record — same user, same `tax.filing.finalize` permission, no new permission,
+  always a one-click exit (I4). A second, non-blocking advisory fires AT SOURCE
+  (`JournalService.CreateAndPostManualAsync`/`PostAsync`, code `pnd36.ap_cleared_outside_pv`) when a posted
+  line debits AP and the company has an outstanding reverse-charge invoice — a warning toast, never a
+  blocking modal. **What this guarantees exactly (I1):** every baht debited to AP in month M is either
+  explained by a posted PV in M, or surfaced + acknowledged. **What it does NOT guarantee:** the return is
+  complete — a payment that never touches AP (`Dr 5xxx expense / Cr bank`, no invoice) or an employee's
+  personally-paid-then-reimbursed overseas purchase are structurally invisible to any AP-based detector;
+  see the two entries below. No blocklist was added — one was explicitly rejected by design (§3.0); it
+  would manufacture the exact dead-end class `cb2e362` already had to remediate (write-offs/opening
+  balances/reclassifications legitimately debit AP by JV).
 - **Seen:** 2026-08-13, Tier-2 release review of R2 (finding F1). **Live exposure zero at the time** —
   probed prod directly: foreign reverse-charge invoices exist only on co5 (4, one of them POSTED+UNPAID),
   neither real tenant has any, and ภ.พ.36 has never been finalized for any company.
+
+## L1 — ภ.พ.36's filing period follows the PaymentVoucher's POSTING day, not the day the money left
+- **Symptom:** pay a foreign provider 30 June, post the Payment Voucher 3 July → the ฿ is declared in
+  July's ภ.พ.36 (due 7 August) instead of June's (due 7 July). One month late; เงินเพิ่ม 1.5%/month accrues
+  statutorily. v2.0.0 made this strictly worse: before `1e46a35` the period followed the VendorInvoice's
+  `DocDate`, which at least was user-settable at draft time.
+- **Root cause:** `PaymentVoucherService.cs:496-498` re-pins `pv.DocDate = pv.PostingDate =
+  _clock.TodayInBangkok()` at **POST**, not merely at draft (`:181`). ภ.พ.36 correctly sources its period
+  from the PV's `DocDate` (ม.83/6's tax point is payment) — but that `DocDate` is not the real payment day,
+  it is whatever day the voucher happened to be posted.
+- **Fix:** NOT this spec (specs/fix-pnd36-payment-detection.md §11 — deliberately out of scope, §8.4). The
+  correct fix is one date, not two: let the user date the PV on the day the money actually left, which is
+  Feature B (`specs/doc-lifecycle-cancel-reissue-backdate.md` §2, Ham-binding backdating-inside-open-period
+  rule). **Feature B as originally written does NOT fix this** — its removal list covers
+  `PaymentVoucherService.cs:143,181` (draft-create) and the VI/PO re-pin-on-edit, but never named the
+  POST-time re-pin at `:496-498`. F1 amended Feature B's spec to add it; that amendment must ship WITH
+  Feature B, or ภ.พ.36's period stays wrong even after Feature B lands. `Pnd36Row.PaymentDate` (F1 §3.4)
+  gives the filer L1 VISIBILITY now (which day each declared payment is bucketed on) — that is not a fix,
+  just lets a wrong-month payment be spotted.
+- **Rejected alternative:** a separate "actual payment date" column on PaymentVoucher, read only by
+  ภ.พ.36. Rejected — it would create a permanent, silent divergence between the GL date and the tax date
+  with nothing reconciling them, the same shape as the defect F1 exists to close.
+- **Seen:** 2026-08-13, F1 design (specs/fix-pnd36-payment-detection.md §1.7/§11). Live exposure zero —
+  ภ.พ.36 has never been finalized for any company (§1.9).
+
+## ภ.พ.36 payments that never touch Accounts Payable are structurally invisible to any AP-based detector
+- **Symptom:** a foreign-service payment made via `Dr 5xxx expense / Cr 1120 bank` (no VendorInvoice, no
+  AP line at all) or via an employee's personal card later reimbursed through an expense claim never
+  appears on ภ.พ.36, and F1's AP-reconciliation detector (above) cannot see it — there is no AP debit to
+  compare against a PV.
+- **Root cause:** F1's detector (specs/fix-pnd36-payment-detection.md §3.3) is built entirely on the AP
+  control account (2110); it is exact and netting-proof for anything that DOES touch AP, but by
+  construction cannot see money that never does. `ExpenseClaimService`'s `IsAllowedClaimLineAccount`
+  (`:72`) structurally blocks an expense-claim line from ever hitting 2110 (a `Liability`), so an employee
+  reimbursement is invisible on BOTH sides.
+- **Open CPA question (§10 E2), researched not resolved:** does ม.83/6 attach when an employee personally
+  pays the overseas provider and is reimbursed — i.e. is the employee or the company the ผู้จ่ายเงิน?
+  ป.104/2544 ข้อ 3 identifies the duty-bearer as "ผู้รับบริการในราชอาณาจักร" (the recipient of the service
+  in Thailand), and practitioner guidance is consistent that the company files when it bears the cost and
+  uses the service in Thailand — suggesting the reimbursement leg is สำรองจ่าย (an advance) and ม.83/6 still
+  attached at the moment the overseas provider was paid. **No source addresses this exact intermediary
+  shape head-on and no ข้อหารือ was found — this is research, not a ruling.** Treat it as a known
+  UNCOVERED liability, not a harmless edge, until a CPA or an RD ข้อหารือ closes it.
+- **Fix:** out of scope for F1 by design. An expense claim carries its own category and lines, so a future
+  round (R4 candidate) could flag foreign-service claims from the claim's own data instead of from AP —
+  framed as closing a real gap, not polishing an edge case. The `Dr 5xxx/Cr bank` shape (no claim, no
+  invoice) has no analogous data trail at all and may remain permanently undetectable in-app.
+- **Seen:** 2026-08-13, F1 design (specs/fix-pnd36-payment-detection.md §2 C6/C7, §8, §10 E2). Live
+  exposure zero — ภ.พ.36 has never been finalized for any company (§1.9).
 
 ## A payroll run with a pay date before its own period start can never be posted, deleted, or replaced
 - **Symptom:** a run created with e.g. period `202605` and pay date `2026-04-25` (a one-character
@@ -1341,3 +1403,17 @@ losing the test DB costs nothing.
   expense claim carries its own category and lines.
 - **Seen:** 2026-08-13, researched at Ham's request while adjudicating that spec's escalation E2.
   Sources: rd.go.th/5207.html (ม.83/6), rd.go.th/3549.html (ป.104/2544).
+
+## Editing backend source while a `dotnet test` run is in flight locks the DLL and fails the next build
+- **Symptom:** `dotnet build` fails with `MSB3027 / MSB3021 — Could not copy Accounting.Infrastructure.dll …
+  The file is locked by: "testhost (NNNNN)"`, exceeded retry count of 10. Nothing is wrong with the code.
+- **Root cause:** the test host holds the output assemblies for the whole run (13 minutes on this repo).
+  Any build that wants to refresh `bin/Debug/net10.0` collides with it.
+- **The worse half, which is easy to miss:** the in-flight suite is testing the code as it was when the
+  run STARTED. An edit made mid-run is not covered by the green result it eventually prints — and that
+  green result looks exactly like a passing gate for the edited code.
+- **Fix:** decide the source is frozen for the duration of a suite run. If an edit cannot wait, let the
+  run finish (or kill it), then rebuild and **re-run at least the affected filter** so the gate actually
+  covers the edit. Do not read the in-flight run's result as covering anything edited after it started.
+- **Seen:** 2026-08-13, R3/F1 — Fable rewrote a DomainException message to be Thai-first while the
+  consolidated suite was running, then tried to rebuild. Cost one wasted suite run.
