@@ -1299,3 +1299,25 @@ losing the test DB costs nothing.
   Recovery if it lands: `git reset --mixed HEAD~1` (never `--hard`; the working tree is fine, only the
   index was wrong), then re-add by name and check `git diff --cached --name-status` before committing.
 - **Seen:** 2026-08-13, v2.0.0 release prep.
+
+## ภ.พ.36 is filed for the month the PaymentVoucher was POSTED, not the month the money left
+- **Symptom:** a company pays an overseas service provider on 30 June and enters/posts the payment
+  voucher on 3 July. The ม.83/6 reverse-charge liability appears on **July's** ภ.พ.36 (due 7 August)
+  instead of June's (due 7 July). One month late, with เงินเพิ่ม 1.5%/month accruing. Nothing warns.
+- **Root cause:** `PaymentVoucherService.cs:496-498` re-pins `DocDate`/`PostingDate` to
+  `_clock.TodayInBangkok()` **at POST** — not only at draft-create (`:143,181`, which is the line most
+  people find). `WhtFilingService.cs:267` then buckets the return on that same `DocDate`. The re-pin is
+  deliberate and cites ม.78: it stops a stale draft minting a document number in a month whose sequence
+  has moved on, and the 50ทวิ `CertDate` follows it. **Two different tax points are sharing one date
+  field** — ม.78 wants the document's own date, ม.83/6 wants the day the money moved.
+- **Made worse by v2.0.0** (`1e46a35`): before it, ภ.พ.36 sourced rows from the VendorInvoice, whose
+  `DocDate` a user CAN set, so late entry could still land in the right month. Sourcing from the
+  voucher — correct on the tax point — removed the only user-settable date in the chain.
+- **No test will catch it:** `Sprint9WhtComplianceTests` T3 asserts the current behaviour, and invariant
+  I1 only ever promised "declared in exactly one period", never "the right one".
+- **Fix:** belongs to the doc-lifecycle Feature B (settable document date), whose spec was amended
+  2026-08-13 to include the POST-time re-pin — it had listed only the draft-create pins. The design must
+  say which date the document NUMBER derives from once `DocDate` is user-settable; that is the real
+  question, and a separate "actual payment date" column is the wrong answer (it recreates a silent
+  GL-vs-tax divergence).
+- **Seen:** 2026-08-13, R2 Tier-2 review finding L1, traced in `specs/fix-pnd36-payment-detection.md` §1.7.

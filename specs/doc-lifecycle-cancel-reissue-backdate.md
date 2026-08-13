@@ -18,6 +18,7 @@ Status: **DRAFT, needs Fable/Opus design review + Ham's answers to §6 before an
 |---|---|---|
 | **Neither TaxInvoice nor Receipt has any cancel/void path.** Only BillingNote, Quotation, PaymentVoucher and PurchaseOrder have `CancelAsync`. | `BillingNoteService.cs:320`, `QuotationChainServices.cs:249`, `PaymentVoucherService.cs:427`, `PurchaseOrderService.cs:199` | Feature A is **new construction** on the two documents that matter most legally, not a relaxation of an existing guard. |
 | **`DocDate` is server-pinned to `clock.TodayInBangkok()` everywhere**, and *re-pinned on edit* on VI and PO. | `BillingNoteService.cs:61,107,173` · `VendorInvoiceService.cs:68,292` · `PurchaseOrderService.cs:52,136` · `PaymentVoucherService.cs:143,181` · `JournalService.cs:50` | Feature B removes the pin. Note `VI:292` and `PO:136` carry a deliberate "§10 — re-pin on edit" rule that a previous round asked for; Feature B **reverses a past decision** and must say so out loud. |
+| ⚠️ **AMENDED 2026-08-13 — the PaymentVoucher is re-pinned a SECOND time, at POST**, not only at draft-create. This row was missing and its absence would have left the bug below unfixed. | `PaymentVoucherService.cs:496-498` (`postDate = _clock.TodayInBangkok(); pv.DocDate = postDate; pv.PostingDate = postDate;`) | **In scope for Feature B, but it is NOT a simple deletion — it is a genuine conflict of two tax points, and the design must resolve it explicitly.** The re-pin is deliberate: its own comment cites §4.3 / **ม.78** so that a draft created last month and posted today lands in *this* month's period bucket and PV/WT number sequence, and the 50ทวิ `CertDate` follows it. But ภ.พ.36's tax point is **ม.83/6 — the PAYMENT**, and `WhtFilingService.cs:267` filters the reverse-charge return on this same `DocDate`. Net effect today: pay an overseas provider 30 June, post the voucher 3 July, and the liability is declared on **July's** return (due 7 August) instead of June's (due 7 July) — one month late, with เงินเพิ่ม 1.5%/month accruing. v2.0.0 made this strictly worse: before `1e46a35` the period followed the VendorInvoice's `DocDate`, which a user could set. Surfaced by the R2 Tier-2 review (L1) and traced in `specs/fix-pnd36-payment-detection.md` §1.7 / §11. **Do not "fix" it by adding a separate actual-payment-date column** — that recreates the silent GL-vs-tax divergence the F1 spec exists to close. |
 | **The document number is derived FROM `DocDate`** — `SubPrefixNumberAsync("IV", bn.BusinessUnitId, bn.DocDate, …)` — and numbers are monthly (`07-2026-IV-0001`). | `BillingNoteService.IssueAsync` | **This is the trap in Feature B.** Backdating into a previous month makes the allocator mint a number in *that* month's sequence, appended after numbers already issued there — i.e. chronologically out of order. |
 | **`MarkSettledAsync` exists** and is reachable from the UI. | service `BillingNoteService.cs:333` · endpoint `BillingNoteEndpoints.cs:50` · FE button `bn-mark-settled` in `invoices/[id]/page.tsx:131` + its confirm dialog | Feature C deletes exactly this. |
 | Real settlement already flows from the receipt. | `BillingNoteService.cs:18` comment, `ReceiptService.cs:477` | Feature C removes a second, weaker path — it does not have to build the real one. |
@@ -107,6 +108,26 @@ implementation.** They are listed again in §6.
 
 `DocDate` becomes a caller-supplied, editable field **while the document is a draft**, on every document
 type. Once issued/posted it is frozen. The "re-pin to today on edit" rule (`VI:292`, `PO:136`) is removed.
+
+⚠️ **AMENDED 2026-08-13 — the PaymentVoucher's POST-time re-pin (`PaymentVoucherService.cs:496-498`) is
+also in scope, and it is the hard part of this feature.** "Frozen once posted" is not enough on its own:
+today Post *overwrites* whatever `DocDate` the draft carried, so a user who correctly backdates a
+voucher to the day they actually paid an overseas provider still has that date replaced at Post. Every
+downstream consumer then reads the posting day — including ภ.พ.36 (`WhtFilingService.cs:267`), whose
+tax point is **ม.83/6, the payment**. Pay 30 June, post 3 July → declared on July's return, one month
+late, เงินเพิ่ม 1.5%/month.
+
+The re-pin is not an oversight, which is why this must be designed rather than deleted. Its comment
+cites **ม.78** and it exists so a stale draft cannot mint a document number in a month whose sequence
+has moved on, and so the 50ทวิ `CertDate` follows the post. Removing it naively re-opens the
+out-of-order numbering trap this spec already identifies as its own headline risk (§0, the
+`SubPrefixNumberAsync` row).
+
+So the design must state, explicitly, **which date the document number is derived from once `DocDate`
+is user-settable** — they no longer have to be the same date, and pretending they do is what forces
+the conflict. Do NOT resolve this by adding a separate "actual payment date" column: that recreates
+the silent GL-versus-tax divergence that `specs/fix-pnd36-payment-detection.md` exists to close. One
+date, one meaning, with the numbering derived from whichever date the design nominates.
 
 ### 2.2 The bounds — this is where the design lives
 
