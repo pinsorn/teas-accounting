@@ -235,3 +235,52 @@ The co2 report now returns `duplicates: 0, gaps: 0`.
 ## WP-4 is now UNBLOCKED
 Zero duplicates means the unique indexes can ship without the migration meeting a row it cannot index.
 That is the next release, on its own.
+
+---
+
+# WP-4 (unique indexes) — code-complete, Tier-2 APPROVED, one test fix in flight
+
+## Tier-2 sharpened the risk I had understated
+I had been calling a failed migration "the release becomes permanently un-deployable". Tier-2 read
+`Program.cs:441` and corrected it: `DbInitializer.InitializeAsync` is awaited **unguarded, before
+`app.Run()`**. So a `CREATE UNIQUE INDEX` that raises `23505` means **the API never starts and
+restart-loops — a production outage**, not merely a blocked release. The schema itself is safe (the
+migration transaction rolls back atomically); the service is not. Rollback path is redeploying the
+previous artifacts, NOT `Down()`, because the app will not be up to run it.
+
+**Four preconditions at deploy time, now conditions of the approval:**
+1. Confirm WP-1 + SqlScript `634` are actually live on prod — the "no new duplicates can be minted"
+   argument rests entirely on the allocator being company-wide. **(Verified: v2.1.0 is live and its
+   deploy probe asserted `sqlscript_634_applied`.)**
+2. Re-run Q0 **then** Q1 immediately before deploy — not the 10:20 run. Q0 first, always: under the app
+   role Q1 reads clean regardless.
+3. Preflight the DROP targets — `DropIndex` emits no `IF EXISTS`, so a name mismatch is the same outage
+   through a different door. Expect exactly the seven `%branch_id_doc_no` names.
+4. DB backup taken.
+
+## What Fable verified independently
+Ran the **index's own predicate** against prod on all seven tables: **0 violations each**. The migration
+will build. Tables hold tens of rows, and migrations run before the host serves, so the drop/create
+window is not reachable by a concurrent write.
+
+Tier-2 also produced better evidence than the implementer's for the seam I was most worried about:
+`ix_journal_entries_company_id_doc_no` is a **shape-identical partial unique index**, and
+`NumberedDocumentWriter`'s self-heal has been healing collisions on it in production since July. So
+Postgres demonstrably reports a name containing `doc_no` for exactly this index shape.
+
+## The two failing tests are the index doing its job
+Full suite over WP-4: **1207 / 2 / 14**. Both failures are `NumberGapReportDuplicatesTests`, and both die
+at the *fixture*: `23505 … "ix_tax_invoices_company_id_doc_no"`. Those WP-3 tests seed a duplicate so the
+detection report has something to find — and **all fifteen doc-carrying tables now carry a UNIQUE index
+on `(company_id, doc_no)`** (verified against the live DB), so no such row can be inserted anywhere.
+
+That reframes the report: post-WP-4 it is defence-in-depth for a duplicate that **predates** the index or
+appears if one is ever dropped. The fixture must therefore build that condition the only way it can now
+exist — with the constraint temporarily absent, inside a transaction that is **rolled back**, since
+Postgres DDL is transactional and a crash still restores the index. Dispatched with an explicit
+instruction not to "fix" it by deleting the tests or weakening them, because that would silently remove
+the only coverage proving the control can detect anything.
+
+Also folded in Tier-2's fix-later: T7's drift setup never asserts rows-affected, so a WHERE that matched
+nothing would leave the counter untouched, let the next post allocate naturally, and pass **green with
+the self-heal never exercised**.
