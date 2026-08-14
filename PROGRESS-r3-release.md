@@ -352,3 +352,28 @@ deleted — every document survived.
 
 Queue: H2 finishes → ALL-CLEAR H3 → consolidated suite → per-WP diff read + commits → Tier-2 →
 release v2.3.0.
+
+---
+
+# ✅ v2.2.1 LIVE (2026-08-14 ~15:30) — H2 + H3 shipped
+
+| commit | what |
+|---|---|
+| `eb795e7` | **H2** — a lost double-post race on journals / tax invoices / receipts returns **409**, not a raw 500. Root cause deeper than the report: the Version token exists but MarkPosted never increments it, so what actually stops the race is each entity's DB immutability trigger — the 500 was that trigger's raise going uncaught. Also: the >5MB upload turned out already fixed (real 26MB HTTP round-trip → clean 413; the swarm's live 500 was likely a proxy limit), and of the "phantom bankAccountId" family only ExpenseClaim.PayAsync had a live bug. |
+| `91e5147` | **H3** — all five create-from/convert routes now require the TARGET's create permission in addition to the source's. The seeded-role analysis was the finding: SALES_STAFF holds every source permission but was never granted tax-invoice create, and its own seed comment scopes it to "Quotation, Sales Order" — the tightening IS the fix, no workflow broke. The polymorphic SO→invoice route (target depends on VAT mode) carries a dynamic in-handler check mirroring H4's ParentGuard. |
+
+Suite **1226/0/14** (+17, all new tests). Deploy: binary-only (no migration, no SqlScript); precondition 3
+was inverted for this shape — assert the seven v2.2.0 indexes are PRESENT rather than the old ones
+droppable. The stale check aborted the first attempt correctly (fail-closed, as designed) and was fixed.
+
+## Fable's diff-review judgment worth recording
+H2 relaxed the race-loser assertion to `BeOneOf(locked_mismatch, not_draft)`. Accepted after personal
+inspection: the relaxation is on *which error the loser sees* (legitimately timing-dependent, with
+precedent in the ExpenseClaim/FixedAsset race tests), NOT on the outcome — every test still pins that
+the winner's document ends Posted exactly once, undisturbed ("the winner must win").
+
+## R3 remaining (nothing blocked)
+- The year-close deadlock (H10) and the year=3000 bound — undesigned.
+- Follow-ups queued: MCP `create_invoice_draft` may carry H3's gap on the API-key surface · FE may still
+  render convert buttons that now 403 for SALES_STAFF · CI never runs vitest · `626`'s unguarded casts.
+- CPA: E2, E3.
