@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.1](https://github.com/pinsorn/teas-accounting/compare/v2.2.0...v2.2.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **api:** a lost double-post race now returns 409, not a raw 500 ([eb795e7](https://github.com/pinsorn/teas-accounting/commit/eb795e7ed20d504a9602698e5584ecd772202e4e))
+* **security:** converting a document now requires permission to create the target, not just read the source ([91e5147](https://github.com/pinsorn/teas-accounting/commit/91e5147083fa334c5c4124094d6f84d839d0b8aa))
+
 ## [2.2.0](https://github.com/pinsorn/teas-accounting/compare/v2.1.0...v2.2.0) (2026-08-14)
 
 
