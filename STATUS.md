@@ -1,6 +1,27 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ v2.2.0 LIVE (2026-08-14) — the duplicate document-number bug class is CLOSED, both halves.**
+  Seven unique indexes moved to `(company_id, doc_no)`, so the database itself now refuses a second
+  document with the same number. v2.1.0 had stopped the allocator from minting one and added detection;
+  this is the structural guarantee behind it.
+  - **All 11 production duplicates were renumbered, not deleted** — every document survived. The later
+    of each pair moved to the next free number in its own space and its journal entry's `reference` and
+    `description` moved with it, because the number is denormalised there and renaming the document
+    alone would have left the ledger pointing at a number that no longer identified it. co2 Repttown's
+    two receipts (฿3,000 and ฿18,000) are both intact, now `…-0001` and `…-0003`.
+  - Deployed with four preconditions gating the swap. That mattered more than usual: `DbInitializer`
+    runs unguarded before `app.Run()`, so a `CREATE UNIQUE INDEX` raising 23505 would not merely block
+    the release — the API would never start and would restart-loop.
+  - Every new index name still contains `doc_no`, which is load-bearing: the numbering retry heals a
+    collision by matching the constraint name for that substring.
+
+- **🟢 Nothing is blocked and nothing is waiting on a decision.** R3's next items are undesigned rather
+  than stuck: the 500 family · conversion routes checking the wrong scope · the year-close deadlock ·
+  the year=3000 bound. Two CPA questions remain open (E2, E3) and neither blocks code.
+  One worth scheduling: **CI never runs vitest**, so the compliance-control test that keeps the
+  number-gaps page from showing a green shield over a live breach has no automated enforcement.
+
 - **✅ v2.1.0 LIVE (2026-08-14) — R3 round one.** API + FE deployed, 10/10 API probes and 4/4 FE
   probes, Tier-4 verified in the browser on the live site.
   - `18f6fcc` **F1** — ภ.พ.36 surfaces foreign-service payments it would otherwise miss. Clearing a
