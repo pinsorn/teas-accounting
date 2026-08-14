@@ -486,11 +486,35 @@ An invariant without a test is a wish; each row above names one.
 - [x] **Infra note:** this is the FIRST rendered-component vitest test in the repo (only `.test.ts` pure-logic tests existed before, despite `@testing-library/react`/`jest-dom` already being installed). Required two small additions to make already-declared tooling usable: `jsdom` devDependency (`frontend/package.json` + lockfile) and `esbuild: { jsx: 'automatic' }` in `vitest.config.ts` (esbuild's default classic JSX mode needs `React` in scope; Next's own SWC compiler already targets the automatic runtime, so this avoids touching page source just to satisfy the test transform). Both scoped as narrowly as possible; see report SKIPPED/SIMPLIFIED for the blast-radius note.
 
 ### WP-4 — the unique indexes *(SEPARATE RELEASE — gated on WP-0 + §7)*
-- [ ] **Gate: §6 probe returns zero duplicate rows for the seven tables, or Ham has chosen the grandfather route and supplied the row ids.** Paste the evidence here before starting.
-- [ ] Change 7 EF configurations (§1.2) to `(CompanyId, DocNo)`, keeping `HasFilter("doc_no IS NOT NULL")`.
-- [ ] **No `HasDatabaseName` that drops the `doc_no` substring** (§3.6, T7).
-- [ ] `dotnet ef migrations add` — one migration; review the generated SQL is drop-then-create per table.
-- [ ] Done-criterion: migration applies on a fresh `teas_test`; T1/T2/T7 green.
+- [x] **Gate: §6 probe returns zero duplicate rows for the seven tables, or Ham has chosen the grandfather
+      route and supplied the row ids.** ✅ **UNBLOCKED 2026-08-14.** Ham chose "เปลี่ยนเลข" (renumber, not
+      grandfather) — see `PROGRESS-r3-release.md` "DUPLICATE CLEANUP DONE" (~10:20). Every one of the 11
+      prod duplicates (co2 receipt + 10 co5 rows across tax_invoices/receipts/vendor_invoices/
+      tax_adjustment_notes) was renumbered — the LATER of each pair moved to the next free number in its
+      own `(company, prefix, sub, year, month)` space, its JE's `reference`/`description` moved with it,
+      sequence counters lifted so nothing collides again. Nothing was deleted. Q1 (§6, the same 15-table
+      union) re-run afterward returns **0 rows**, with Q0's blindness control (`current_user=postgres`,
+      `ti_rows=48`) passing first so the zero is real. No implementer action needed to re-run the prod
+      probe — it is Ham's, already done and recorded.
+- [x] Changed 7 EF configurations (§1.2) to `(CompanyId, DocNo)`, keeping `HasFilter("doc_no IS NOT NULL")`:
+      `TaxInvoiceConfiguration.cs`, `TaxAdjustmentNoteConfiguration.cs`, `ReceiptConfiguration.cs`,
+      `VendorInvoiceConfiguration.cs`, `PaymentVoucherConfiguration.cs`, `ExpenseClaimConfiguration.cs`,
+      `FixedAssetConfiguration.cs`. Only the `HasIndex` tuple changed (dropped `BranchId`); the
+      `.IsUnique().HasFilter("doc_no IS NOT NULL")` chain is untouched on every one.
+- [x] **No `HasDatabaseName` that drops the `doc_no` substring** (§3.6, T7). None of the 7 configs sets
+      an explicit `HasDatabaseName` — EF's snake-case convention names all 7
+      `ix_<table>_company_id_doc_no`, confirmed by reading the generated migration SQL (all 7 contain
+      `doc_no`) and by T7's direct `pg_indexes` assertion (green).
+- [x] `dotnet ef migrations add H1_CompanyWideDocNoUniqueIndexes` — **one** migration
+      (`20260814041822_H1_CompanyWideDocNoUniqueIndexes.cs` + `.Designer.cs` + `AccountingDbContextModelSnapshot.cs`).
+      Reviewed: exactly 7 `DropIndex` + 7 `CreateIndex` pairs (one drop-then-create per table), nothing
+      else rode along. `dotnet ef migrations has-pending-model-changes` confirms "No changes" after.
+- [x] Done-criterion: migration applies cleanly on a **fresh** `teas_test` (reset to empty via
+      `backend/tools/ResetTeasTest`, fixture rebuilds InitialCreate → this migration with zero rows —
+      confirmed twice); T1/T2/T7 green. T2 and T7 additionally confirmed **RED for the right reason**
+      before the migration (T2: cross-branch duplicate insert silently succeeded under the old
+      branch-scoped index; T7: 0/7 expected index names found) by temporarily hiding the new migration
+      files and re-running against a fresh pre-WP-4 schema, then restored and re-confirmed GREEN.
 
 ---
 
@@ -843,6 +867,37 @@ acceptance rather than the pre-acceptance budget.)*
     vitest 15 files/67 tests · brace scan 634 → 0 (both before and after the buckets-CTE addition) ·
     Bengali-codepoint scan on the troubles-wiki addition → 0 (the one pre-existing hit elsewhere in the
     file is unrelated, a self-referential example inside the R8 entry, not touched this round).
+- 2026-08-14 implementer (Sonnet), **WP-4 implemented — separate release, gate unblocked by Ham's
+  renumbering (PROGRESS-r3-release.md).** 7 EF configs changed to `(CompanyId, DocNo)`; one migration
+  `H1_CompanyWideDocNoUniqueIndexes` (`.cs`/`.Designer.cs`/`ModelSnapshot.cs`); one new test file
+  `NumberSequenceUniqueIndexTests.cs` (T2, T7). 11 physical files total, under the §12 Release-2 cap of
+  12 (used 1 of the "up to 2 test files" slots).
+  - **The shared `teas_test` choked on the migration** the first time it was applied — `CREATE UNIQUE
+    INDEX` on `sales.tax_invoices` failed 23505 against legacy duplicate rows accumulated across years of
+    test history (pre-dating WP-1, the exact class of risk §3.6 describes for prod, just reproduced
+    locally on the long-lived shared test DB). Reset `teas_test` to empty via `backend/tools/
+    ResetTeasTest` (drop+recreate, already existed in-repo) so the fixture rebuilds InitialCreate through
+    the new migration on zero rows — this IS the "fresh teas_test" verification the WP-4 checklist asks
+    for, not a workaround for it.
+  - **RED→GREEN discipline applied to both new tests**, not just written-then-green: temporarily moved
+    the two new migration files out of the project, reset `teas_test` again, rebuilt, and re-ran — T2
+    failed because the old branch-scoped index silently accepted the cross-branch duplicate (no exception
+    thrown, the exact live co2 defect); T7 failed because 0/7 expected index names existed yet. Restored
+    the migration files, reset `teas_test` a third time, rebuilt, reran — both green. This also
+    double-confirms the migration applies cleanly on a fresh DB (proven twice, not once).
+  - Gates: `dotnet build backend/Accounting.sln` 0/0 · `dotnet ef migrations has-pending-model-changes` →
+    "No changes" · G2 filter (`NumberSequence|Numbering|Sprint1Hardening`) 27/27, 0 skipped (baseline was
+    25/0 before WP-4) · `grep -rn "NextAsync("` → every hit still 5 arguments, no regression from WP-1.
+  - Generated SQL reviewed by hand: exactly 7 `DropIndex` + 7 `CreateIndex` pairs, one per table, nothing
+    else in the migration. Every new index name confirmed to contain `doc_no`
+    (`ix_tax_invoices_company_id_doc_no`, `ix_tax_adjustment_notes_company_id_doc_no`,
+    `ix_receipts_company_id_doc_no`, `ix_vendor_invoices_company_id_doc_no`,
+    `ix_payment_vouchers_company_id_doc_no`, `ix_expense_claims_company_id_doc_no`,
+    `ix_fixed_assets_company_id_doc_no`). `dotnet ef migrations script <prev> H1_CompanyWideDocNoUniqueIndexes`
+    confirms the actual SQL is 7×`DROP INDEX` + 7×`CREATE UNIQUE INDEX ... WHERE doc_no IS NOT NULL`
+    inside one transaction, plus the `sys.__ef_migrations` bookkeeping row — nothing else.
+  - Not touched: `frontend/lib/i18n/problems.ts`, prod, the numbering allocator (WP-1, already shipped),
+    `AttachmentEndpoints.cs`. No pre-check added that refuses a would-be-duplicate post (§3 forbids it).
 
 ---
 
@@ -903,3 +958,31 @@ tenant and will not be cleared by the R4 wipe, which only covers co5/co6/co7.
   migrations run before SqlScripts and a failed migration is not recorded, so it would retry on every
   boot and make the release permanently un-deployable. The co2 row must be resolved first, or the index
   must carry an explicit exclusion for it.
+
+## WP-4 GATE EVIDENCE — pre-flight run against PRODUCTION by Fable, 2026-08-14
+
+The gate asks for proof the probe returns zero duplicates for the seven tables before the index ships.
+Run with the **exact predicate the index uses** — `(company_id, doc_no) … WHERE doc_no IS NOT NULL` —
+rather than the broader Q1, so the answer is about this migration and nothing else:
+
+| table | violations |
+|---|---|
+| `sales.tax_invoices` | **0** |
+| `sales.tax_adjustment_notes` | **0** |
+| `sales.receipts` | **0** |
+| `purchase.vendor_invoices` | **0** |
+| `purchase.payment_vouchers` | **0** |
+| `expense.expense_claims` | **0** |
+| `fixedasset.fixed_assets` | **0** |
+
+**The migration will build on production.** This is the check that matters, because a `CREATE UNIQUE
+INDEX` that raises `23505` leaves the release permanently un-deployable — EF migrations run before
+SqlScripts and a failed migration is not recorded, so it retries on every boot.
+
+Lock duration is a non-issue here: every one of the seven tables holds tens of rows, and the migration
+runs at API startup before the host serves traffic, so the window where the old index is dropped and the
+new one is not yet built is not reachable by a concurrent write.
+
+Note the earlier `23505` the implementer hit was on the shared `teas_test`, which had accumulated years
+of legacy pre-WP-1 duplicates — it is evidence about that DB, not about prod, and it was resolved by
+resetting the test DB (which doubled as the fresh-DB verification the checklist asks for).
