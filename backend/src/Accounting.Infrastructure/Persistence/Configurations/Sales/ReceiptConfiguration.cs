@@ -63,7 +63,9 @@ internal sealed class ReceiptConfiguration : IEntityTypeConfiguration<Receipt>
             t.HasCheckConstraint("ck_receipts_wht_nonneg", "wht_amount >= 0");
         });
 
-        b.HasIndex(r => new { r.CompanyId, r.BranchId, r.DocNo }).IsUnique().HasFilter("doc_no IS NOT NULL");
+        // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-4 — company-wide, matching the WP-1 sequence
+        // scope. Keep `doc_no` in the generated name; NumberedDocumentWriter's retry matches on it (F6).
+        b.HasIndex(r => new { r.CompanyId, r.DocNo }).IsUnique().HasFilter("doc_no IS NOT NULL");
         b.HasIndex(r => new { r.CustomerId, r.DocDate });
         b.HasIndex(r => new { r.CompanyId, r.BusinessUnitId }).HasFilter("business_unit_id IS NOT NULL");
     }

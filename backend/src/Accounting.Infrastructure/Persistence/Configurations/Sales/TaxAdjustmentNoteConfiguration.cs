@@ -59,7 +59,9 @@ internal sealed class TaxAdjustmentNoteConfiguration : IEntityTypeConfiguration<
             t.HasCheckConstraint("ck_note_tax_point", "doc_date = tax_point_date");
         });
 
-        b.HasIndex(n => new { n.CompanyId, n.BranchId, n.DocNo }).IsUnique().HasFilter("doc_no IS NOT NULL");
+        // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-4 — company-wide, matching the WP-1 sequence
+        // scope. Keep `doc_no` in the generated name; NumberedDocumentWriter's retry matches on it (F6).
+        b.HasIndex(n => new { n.CompanyId, n.DocNo }).IsUnique().HasFilter("doc_no IS NOT NULL");
         b.HasIndex(n => n.OriginalTaxInvoiceId);
     }
 }

@@ -96,7 +96,12 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
             t.HasCheckConstraint("ck_ti_tax_point", "doc_date = tax_point_date");
         });
 
-        b.HasIndex(t => new { t.CompanyId, t.BranchId, t.DocNo }).IsUnique().HasFilter("doc_no IS NOT NULL");
+        // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-4 — company-wide, not per-branch: after WP-1
+        // the number sequence itself is company-wide, so the uniqueness constraint must match or a
+        // cross-branch collision is silently accepted instead of caught. Keep `doc_no` in the generated
+        // name (`ix_tax_invoices_company_id_doc_no`) — NumberedDocumentWriter.IsDocNoCollision matches
+        // on that substring (F6); do not add a HasDatabaseName that drops it.
+        b.HasIndex(t => new { t.CompanyId, t.DocNo }).IsUnique().HasFilter("doc_no IS NOT NULL");
         b.HasIndex(t => new { t.CompanyId, t.DocDate });
         b.HasIndex(t => new { t.CustomerId, t.DocDate });
         // ponytail: compound (company_id, status, doc_date) replaces the bare (status, doc_date)

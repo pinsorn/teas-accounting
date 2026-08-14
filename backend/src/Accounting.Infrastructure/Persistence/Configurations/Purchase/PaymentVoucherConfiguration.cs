@@ -80,7 +80,9 @@ internal sealed class PaymentVoucherConfiguration : IEntityTypeConfiguration<Pay
         // cont.77 — the ck_pv_sod CHECK (approved_by <> created_by) is dropped: approval is
         // now permission-based only and the creator may approve their own PV (Ham 2026-05-30).
 
-        b.HasIndex(p => new { p.CompanyId, p.BranchId, p.DocNo })
+        // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-4 — company-wide, matching the WP-1 sequence
+        // scope. Keep `doc_no` in the generated name; NumberedDocumentWriter's retry matches on it (F6).
+        b.HasIndex(p => new { p.CompanyId, p.DocNo })
             .IsUnique().HasFilter("doc_no IS NOT NULL");
         b.HasIndex(p => new { p.CompanyId, p.DocDate });
         b.HasIndex(p => new { p.VendorId, p.DocDate });

@@ -81,7 +81,9 @@ internal sealed class FixedAssetConfiguration : IEntityTypeConfiguration<Account
                 "salvage_value >= 0 AND salvage_value <= cost");
         });
 
-        b.HasIndex(x => new { x.CompanyId, x.BranchId, x.DocNo })
+        // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-4 — company-wide, matching the WP-1 sequence
+        // scope. Keep `doc_no` in the generated name; NumberedDocumentWriter's retry matches on it (F6).
+        b.HasIndex(x => new { x.CompanyId, x.DocNo })
             .IsUnique().HasFilter("doc_no IS NOT NULL");
         b.HasIndex(x => new { x.CompanyId, x.Status });
         b.HasIndex(x => new { x.CompanyId, x.AcquireDate });

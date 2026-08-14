@@ -986,3 +986,39 @@ new one is not yet built is not reachable by a concurrent write.
 Note the earlier `23505` the implementer hit was on the shared `teas_test`, which had accumulated years
 of legacy pre-WP-1 duplicates — it is evidence about that DB, not about prod, and it was resolved by
 resetting the test DB (which doubled as the fresh-DB verification the checklist asks for).
+
+## R3/H1 — post-WP-4 test remediation, 2026-08-14
+
+WP-4's new `(company_id, doc_no)` unique index made T9/T10
+(`NumberGapReportDuplicatesTests.cs`) fail at the fixture stage — both seed a duplicate directly via EF,
+which the new index now refuses with `23505`. **Fixed by making the fixture model what the duplicate
+report defends against post-WP-4** (a duplicate that predates the index, or one that appears if the index
+is ever dropped/disabled, or data loaded out of band): `BEGIN` → `DROP INDEX
+sales.ix_tax_invoices_company_id_doc_no` → seed the duplicate → run the report → assert → `ROLLBACK`, all
+on the **same `AccountingDbContext`/connection** (the report is constructed directly —
+`new NumberGapReportService(db, tenant)` — instead of resolved from a fresh DI scope, because a fresh
+scope opens its own connection and would not see the still-uncommitted rows). Verified this holds before
+committing to it: `NumberGapReportService.GetGapsAsync` queries via `_db.Database.SqlQueryRaw`, which
+bypasses EF's `HasQueryFilter` entirely (that filter only applies to `DbSet<T>` LINQ, not raw SQL), so the
+service's only tenant boundary is the explicit `company_id = {0}` in its SQL string — meaning both the
+company-A and company-B halves of `Duplicate_report_is_tenant_scoped` can run inside the SAME
+transaction, on the same connection, just constructed with a different `ITenantContext`/`StubTenant`, and
+still exercise real tenant isolation (the row is genuinely present and uncommitted for both checks, not
+gone-for-everyone after rollback — that would have made the "company B sees nothing" assertion trivially
+true regardless of whether scoping works). Confirmed the whole suite of Postgres-backed test classes
+shares one xUnit collection (`PostgresCollection`, no parallelization), so `DROP INDEX`'s
+table-wide `ACCESS EXCLUSIVE` lock for the transaction's lifetime cannot block or be blocked by another
+test.
+
+Also fixed the Tier-2 fix-later item in `NumberSequenceUniqueIndexTests.cs` (T7): the drift-setup
+`ExecuteSqlRawAsync` UPDATE never asserted rows-affected, so a WHERE that matched zero rows would leave
+the self-heal retry silently unexercised while the test stayed green. Now asserts `rowsUpdated == 1`.
+
+- [x] `NumberGapReportDuplicatesTests.cs` — both tests green: `Duplicate_report_is_tenant_scoped`,
+      `Duplicate_report_surfaces_what_number_gaps_missed`.
+- [x] `NumberSequenceUniqueIndexTests.cs` — T7 hardened (rows-affected assertion added), both tests
+      (T2, T7) still green.
+- [x] `dotnet build backend/Accounting.sln` — 0 errors.
+- [x] Post-run check: `SELECT indexname FROM pg_indexes WHERE indexname LIKE '%company_id_doc_no'` on
+      `teas_test` → 15 rows (all seven WP-4 tables present, incl. `ix_tax_invoices_company_id_doc_no`) —
+      proof the rollback left no trace.

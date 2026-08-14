@@ -59,7 +59,9 @@ internal sealed class VendorInvoiceConfiguration : IEntityTypeConfiguration<Vend
                 "settled_amount >= 0 AND settled_amount <= total_amount + 0.01");
         });
 
-        b.HasIndex(v => new { v.CompanyId, v.BranchId, v.DocNo })
+        // H1 (specs/fix-duplicate-tax-doc-numbers.md) WP-4 — company-wide, matching the WP-1 sequence
+        // scope. Keep `doc_no` in the generated name; NumberedDocumentWriter's retry matches on it (F6).
+        b.HasIndex(v => new { v.CompanyId, v.DocNo })
             .IsUnique().HasFilter("doc_no IS NOT NULL");
         b.HasIndex(v => new { v.CompanyId, v.DocDate });
         b.HasIndex(v => new { v.VendorId, v.DocDate });
