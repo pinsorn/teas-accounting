@@ -284,3 +284,50 @@ the only coverage proving the control can detect anything.
 Also folded in Tier-2's fix-later: T7's drift setup never asserts rows-affected, so a WHERE that matched
 nothing would leave the counter untouched, let the next post allocate naturally, and pass **green with
 the self-heal never exercised**.
+
+---
+
+# ✅ v2.2.0 LIVE — duplicate document numbers are now structurally impossible (2026-08-14 ~12:37)
+
+Deployed with the four Tier-2 preconditions gating the swap, so a problem aborts **before** the binary
+moves rather than being discovered after the API fails to start:
+
+| precondition | result |
+|---|---|
+| 4 — DB backup | `DB_BACKUP_OK` 360,477 bytes |
+| 1 — the company-wide allocator is live (SqlScript 634 applied) | `PRECOND1_OK` |
+| 2 — blindness control **then** the duplicate probe | control saw 48 tax invoices; **duplicates=0** measured with the index's own predicate |
+| 3 — the seven DROP targets exist (`DropIndex` has no `IF EXISTS`) | `PRECOND3_OK old_indexes=7` |
+
+Post-deploy probes, all pass: pm2 online with **restarts=1** (a climbing count would mean the migration
+was failing every boot) · version 2.2.0 · 7 new unique indexes present · 0 branch-scoped indexes remain ·
+every `doc_no` index is UNIQUE · public login 200.
+
+## An overclaim I caught in myself
+I then tried to prove the index bites by inserting a duplicate on prod inside a rolled-back transaction.
+**It did not prove anything** — the insert failed on `customer_id NOT NULL` before ever reaching the
+unique index, because I had not supplied every column. Recording it because the failure output looked
+superficially like success ("ERROR ... ROLLBACK") and could be mistaken for the proof it is not.
+
+The actual evidence is: the seven indexes verified `UNIQUE` on prod with the correct predicate, plus
+**T2**, which empirically inserts the exact cross-branch shape against a real Postgres and asserts the
+throw. That test went red before the migration precisely because the old index *accepted* it.
+
+## Where R3 stands
+| release | what |
+|---|---|
+| v2.1.0 | F1 ภ.พ.36 payment detection · H4 attachment guard · H1 allocator + reconcile + detection |
+| **v2.2.0** | H1 WP-4 — the seven unique indexes |
+
+**The duplicate-number bug class is closed on both halves**: behaviourally (one counter per company) and
+structurally (the database refuses a second one). All 11 historical duplicates were renumbered, not
+deleted — every document survived.
+
+## Still open, unchanged
+- R3 remainder, not designed: the 500 family · conversion routes checking the wrong scope · the
+  year-close deadlock · the year=3000 bound.
+- CPA: E2 (employee-paid overseas service — researched, likely DOES keep the company liable) · E3.
+- Fix-later carried from reviews: the duplicates-vs-gaps `docType` predicate mismatch · `jsdom@30`'s Node
+  floor vs `engines: >=20` · **CI never runs vitest**, so the compliance-control test has no automated
+  enforcement · `626` carries the same unguarded `::int` overflow and all-NULL-bucket exposure that `634`
+  was hardened against.
