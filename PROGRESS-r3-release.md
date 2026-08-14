@@ -188,3 +188,50 @@ tell success from failure is worse than no gate, because it looks like verificat
 - The 500 family · conversion routes checking the wrong scope · the year-close deadlock · the
   year=3000 bound.
 - CPA: E2 (employee-paid overseas service — researched, likely DOES keep the company liable) and E3.
+
+---
+
+# ✅ DUPLICATE CLEANUP DONE — renumbered, not deleted (2026-08-14 ~10:20). Ham chose "เปลี่ยนเลข".
+
+**All 11 duplicates resolved. Every document preserved — nothing was deleted.**
+Q1 across all 15 doc-carrying tables now returns **0 rows**, with Q0's blindness control passing first
+(`postgres`, 48 tax-invoice rows visible) so the zero is real and not RLS blindness.
+
+## What was done
+Each duplicate pair kept the EARLIER document's number; the later one was renumbered to the next free
+number in its own `(company, prefix, sub, year, month)` space, and its journal entry's `reference` and
+`description` were updated to match. The sequence counters were lifted so the next allocation cannot
+land on a renumbered document.
+
+| company | table | id | was | now | JE |
+|---|---|---|---|---|---|
+| **co2 (live)** | receipts | 21 | `07-2026-RC-LAB-0001` | **`07-2026-RC-LAB-0003`** | 103 |
+| co5 | tax_invoices | 11–14 | `TI-0001..0004` | `TI-0026..0029` | 68, 70, 71, 74 |
+| co5 | receipts | 10, 11 | `RC-0001, RC-0002` | `RC-0017, RC-0018` | 69, 72 |
+| co5 | vendor_invoices | 11–13 | `VI-0001..0003` | `VI-0008..0010` | 73, 92, 112 |
+| co5 | tax_adjustment_notes | 5 | `CN-0001` | `CN-0002` | 232 |
+
+co2 afterwards: receipt 3 = `0001` ฿3,000 · receipt 21 = `0003` ฿18,000 · receipt 22 = `0002` ฿7,200.
+Both transactions intact, and no numbering gap (0001/0002/0003 are contiguous).
+The co2 report now returns `duplicates: 0, gaps: 0`.
+
+## How it was made safe
+- **The doc_no lives in more places than the document.** `gl.journal_entries.reference` AND
+  `.description` carry a copy — found by sweeping every column named `doc_no`/`reference`/etc. Renaming
+  the document alone would have left the ledger pointing at a number that no longer identifies it.
+  `gl.journal_lines.reference` was checked and holds none.
+- **Immutability triggers really do block this** — confirmed by a dry run inside a rolled-back
+  transaction: `fn_enforce_receipt_immutability` raises "Cannot modify critical fields of posted
+  Receipt". So the triggers had to come off.
+- **Everything ran in ONE transaction per company**: disable → update → re-enable → commit. A failure
+  anywhere rolls back the `ALTER TABLE` too, so the triggers can never be left off — which is exactly
+  why this waited for a fresh quota window instead of running at 89%.
+- **A collision guard raised before any write.** There is no unique index yet (that is WP-4), so a
+  target number that was already in use would have silently minted a NEW duplicate rather than failing.
+  A `DO` block asserted all ten targets were free and would have aborted the transaction.
+- Trigger state verified `O` on all five tables after each commit.
+- Backup taken beforehand: `~/backups/h1-dupes/` (full dump + all-columns CSVs of every affected row).
+
+## WP-4 is now UNBLOCKED
+Zero duplicates means the unique indexes can ship without the migration meeting a row it cannot index.
+That is the next release, on its own.
