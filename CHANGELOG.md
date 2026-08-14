@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.2.0](https://github.com/pinsorn/teas-accounting/compare/v2.1.0...v2.2.0) (2026-08-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **db:** make duplicate document numbers structurally impossible
+
+### Features
+
+* **db:** make duplicate document numbers structurally impossible ([36fb7e1](https://github.com/pinsorn/teas-accounting/commit/36fb7e165b0a448de585483cd522ea6cf518b943))
+
+
+### Miscellaneous Chores
+
+* release as 2.2.0, not 3.0.0 ([a18831b](https://github.com/pinsorn/teas-accounting/commit/a18831b1df4e9ccc9201c3a6c881a4bb0ad2d019))
+
 ## [2.1.0](https://github.com/pinsorn/teas-accounting/compare/v2.0.0...v2.1.0) (2026-08-13)
 
 
