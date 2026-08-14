@@ -1,5 +1,6 @@
 using Accounting.Api.Authorization;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Identity;
 using Accounting.Application.Sales;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,19 @@ public static class SalesChainEndpoints
         var soRead   = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.SalesOrderRead;
         var doManage = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.DeliveryOrderManage;
         var doRead   = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.DeliveryOrderRead;
+        // R3/H3 — every create-from/convert route below authorized on the SOURCE document's
+        // permission only, letting a source-manage holder mint a TARGET document (tax invoice /
+        // billing note / sales order) they hold no create permission for. Fix: require the
+        // target's create permission IN ADDITION TO the source (AND, not OR). Where the target
+        // is statically known, stack a second perm: policy on RequireAuthorization — multiple
+        // AuthorizeData on one endpoint AND together in ASP.NET Core (the exact mechanism the
+        // "no group-level RequireAuthorization" comment above already relies on for read/manage
+        // isolation). create-invoice on /sales-orders is the one exception — its target flips
+        // between tax invoice and billing note by company VAT mode, so it can't be a static
+        // policy; it's checked dynamically in the handler, mirroring AttachmentEndpoints
+        // .ParentGuard's IPermissionLookup-based pattern.
+        var tiCreatePol = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceCreate;
+        var bnManagePol = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.BillingNoteManage;
 
         // ── Quotations ──────────────────────────────────────────────────────
         var q = app.MapGroup("/quotations").WithTags("Quotations");
@@ -53,7 +67,8 @@ public static class SalesChainEndpoints
             IQuotationService s, CancellationToken ct) =>
             { await s.CancelAsync(id, b.Reason, ct); return Results.NoContent(); }).RequireAuthorization(qManage);
         q.MapPost("/{id:long}/convert-to-so", async (long id, IQuotationService s, CancellationToken ct) =>
-            Results.Ok(new { sales_order_id = await s.ConvertToSalesOrderAsync(id, ct) })).RequireAuthorization(qManage);
+            Results.Ok(new { sales_order_id = await s.ConvertToSalesOrderAsync(id, ct) }))
+            .RequireAuthorization(qManage, soManage);
         q.MapGet("/", async ([FromQuery] string? status, IQuotationService s, CancellationToken ct) =>
             Results.Ok(await s.ListAsync(status, ct))).RequireAuthorization(qRead);
         q.MapGet("/{id:long}", async (long id, IQuotationService s, CancellationToken ct) =>
@@ -97,9 +112,20 @@ public static class SalesChainEndpoints
         // polymorphism exactly — same reused service methods, one FK response field set.
         so.MapPost("/{id:long}/create-invoice", async (long id,
             IBillingNoteService bnSvc, ITaxInvoiceService tiSvc, ICompanyTaxConfigService taxCfg,
-            CancellationToken ct) =>
+            ITenantContext tenant, IPermissionLookup perms, CancellationToken ct) =>
         {
             var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+            // R3/H3 — the TARGET permission depends on which doc type this VAT mode actually
+            // creates below; checked dynamically (source soManage stays the static policy).
+            var targetPerm = vatMode ? Permissions.Sales.TaxInvoiceCreate : Permissions.Sales.BillingNoteManage;
+            if (!tenant.IsSuperAdmin)
+            {
+                var (_, granted) = await perms.LoadAsync(tenant.UserId ?? 0, tenant.CompanyId, ct);
+                if (!granted.Contains(targetPerm))
+                    return Results.Problem(title: "Forbidden",
+                        detail: $"'{targetPerm}' required to create this document.",
+                        statusCode: StatusCodes.Status403Forbidden);
+            }
             return vatMode
                 ? Results.Ok(new { tax_invoice_id = await tiSvc.CreateFromSalesOrderAsync(id, ct), billing_note_id = (long?)null })
                 : Results.Ok(new { billing_note_id = await bnSvc.CreateFromSalesOrderAsync(id, ct), tax_invoice_id = (long?)null });
@@ -129,10 +155,12 @@ public static class SalesChainEndpoints
         d0.MapPost("/{id:long}/mark-delivered", async (long id, IDeliveryOrderService s, CancellationToken ct) =>
             { await s.MarkDeliveredAsync(id, ct); return Results.NoContent(); }).RequireAuthorization(doManage);
         d0.MapPost("/{id:long}/create-ti", async (long id, IDeliveryOrderService s, CancellationToken ct) =>
-            Results.Ok(new { tax_invoice_id = await s.CreateTaxInvoiceAsync(id, ct) })).RequireAuthorization(doManage);
+            Results.Ok(new { tax_invoice_id = await s.CreateTaxInvoiceAsync(id, ct) }))
+            .RequireAuthorization(doManage, tiCreatePol);
         // cont.69 Phase 1 — DO → Invoice (ใบแจ้งหนี้), manual.
         d0.MapPost("/{id:long}/create-invoice", async (long id, IBillingNoteService s, CancellationToken ct) =>
-            Results.Ok(new { billing_note_id = await s.CreateFromDeliveryOrderAsync(id, ct) })).RequireAuthorization(doManage);
+            Results.Ok(new { billing_note_id = await s.CreateFromDeliveryOrderAsync(id, ct) }))
+            .RequireAuthorization(doManage, bnManagePol);
         d0.MapGet("/", async ([FromQuery] string? status, IDeliveryOrderService s, CancellationToken ct) =>
             Results.Ok(await s.ListAsync(status, ct))).RequireAuthorization(doRead);
         d0.MapGet("/{id:long}", async (long id, IDeliveryOrderService s, CancellationToken ct) =>

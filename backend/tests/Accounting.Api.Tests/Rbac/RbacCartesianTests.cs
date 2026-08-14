@@ -98,6 +98,16 @@ public sealed class RbacCartesianTests
     private static readonly HashSet<string> RequiresRealDbUser =
     [
         "POST /auth/refresh",
+        // R3/H3 — create-invoice's TARGET permission (TaxInvoiceCreate vs BillingNoteManage,
+        // chosen by company VAT mode) is enforced dynamically via IPermissionLookup.LoadAsync
+        // (mirrors AttachmentEndpoints.ParentGuard) — a LIVE sys.user_roles/role_permissions DB
+        // read keyed on the caller's real UserId, NOT the JWT's Permissions claims. This
+        // harness's synthetic per-role tokens (UserId = 990_000 + hash(role)) have no backing
+        // sys.users row for ANY role, so LoadAsync always returns empty grants here and the
+        // dynamic check always 403s — even for a role that holds the target permission for
+        // real. The static soManage gate (source) is still asserted normally on the deny side.
+        // Covered instead by SalesChainConversionAuthorizationTests (real users/roles).
+        "POST /sales-orders/{id:long}/create-invoice",
     ];
 
     private static JwtTokenIssuer Issuer() => new(new StaticOptionsMonitor<JwtOptions>(new JwtOptions
@@ -168,9 +178,16 @@ public sealed class RbacCartesianTests
 
             foreach (var ep in targets)
             {
+                // R3/H3 — AuthKind.Perm now sometimes carries 2 stacked perm: policies (source +
+                // target), which the real ASP.NET Core pipeline ANDs (every AuthorizeData on an
+                // endpoint must pass). Perm therefore means ALL listed permissions are required;
+                // every pre-existing Perm endpoint lists exactly one, so .All() is a no-op change
+                // for them. Assertion (CN/DN, PayrollFiling curated OR-sets) is unaffected — it
+                // still means ANY of the listed permissions suffices.
                 var expectAllow = role.IsSuperAdmin
                     || ep.Kind == AuthKind.AuthnOnly
-                    || ep.Permissions.Any(p => role.Permissions.Contains(p));
+                    || (ep.Kind == AuthKind.Perm && ep.Permissions.All(p => role.Permissions.Contains(p)))
+                    || (ep.Kind == AuthKind.Assertion && ep.Permissions.Any(p => role.Permissions.Contains(p)));
 
                 if (expectAllow && SkipAllowMutation.Contains(ep.Key))
                     continue;   // committing mutation — don't execute the handler in allow-mode

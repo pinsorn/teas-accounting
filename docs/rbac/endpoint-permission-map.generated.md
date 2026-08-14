@@ -97,7 +97,7 @@
 | PUT | `/billing-notes/{id:long}` | Perm | sales.billing_note.manage |
 | GET | `/billing-notes/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/billing-notes/{id:long}/cancel` | Perm | sales.billing_note.manage |
-| POST | `/billing-notes/{id:long}/create-tax-invoice` | Perm | sales.billing_note.manage |
+| POST | `/billing-notes/{id:long}/create-tax-invoice` | Perm | sales.billing_note.manage / sales.tax_invoice.create |
 | POST | `/billing-notes/{id:long}/issue` | Perm | sales.billing_note.manage |
 | POST | `/billing-notes/{id:long}/mark-printed` | Perm | sales.billing_note.read |
 | GET | `/billing-notes/{id:long}/paper` | Perm | sales.billing_note.read |
@@ -135,8 +135,8 @@
 | POST | `/delivery-orders/` | Perm | sales.delivery_order.manage |
 | GET | `/delivery-orders/{id:long}` | Perm | sales.delivery_order.read |
 | GET | `/delivery-orders/{id:long}/activity` | Perm | report.audit.read |
-| POST | `/delivery-orders/{id:long}/create-invoice` | Perm | sales.delivery_order.manage |
-| POST | `/delivery-orders/{id:long}/create-ti` | Perm | sales.delivery_order.manage |
+| POST | `/delivery-orders/{id:long}/create-invoice` | Perm | sales.delivery_order.manage / sales.billing_note.manage |
+| POST | `/delivery-orders/{id:long}/create-ti` | Perm | sales.delivery_order.manage / sales.tax_invoice.create |
 | POST | `/delivery-orders/{id:long}/issue` | Perm | sales.delivery_order.manage |
 | POST | `/delivery-orders/{id:long}/mark-delivered` | Perm | sales.delivery_order.manage |
 | POST | `/delivery-orders/{id:long}/mark-printed` | Perm | sales.delivery_order.manage |
@@ -253,7 +253,7 @@
 | POST | `/quotations/{id:long}/accept` | Perm | sales.quotation.manage |
 | GET | `/quotations/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/quotations/{id:long}/cancel` | Perm | sales.quotation.manage |
-| POST | `/quotations/{id:long}/convert-to-so` | Perm | sales.quotation.manage |
+| POST | `/quotations/{id:long}/convert-to-so` | Perm | sales.quotation.manage / sales.sales_order.manage |
 | POST | `/quotations/{id:long}/mark-printed` | Perm | sales.quotation.manage |
 | GET | `/quotations/{id:long}/paper` | Perm | sales.quotation.read |
 | GET | `/quotations/{id:long}/pdf` | Perm | sales.quotation.read |

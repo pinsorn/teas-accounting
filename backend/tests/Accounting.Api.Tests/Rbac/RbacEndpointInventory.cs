@@ -26,7 +26,9 @@ public enum AuthKind
     Unprotected,
 }
 
-/// <param name="Permissions">For Perm: the single required perm. For Assertion: the OR-set. Else empty.</param>
+/// <param name="Permissions">For Perm: the required permission(s) — ALL must be held (AND); most
+/// endpoints list exactly one, but R3/H3's conversion routes stack a second perm: policy for the
+/// target document. For Assertion: the OR-set (ANY suffices). Else empty.</param>
 public sealed record EndpointAuth(
     string Method,
     string Route,

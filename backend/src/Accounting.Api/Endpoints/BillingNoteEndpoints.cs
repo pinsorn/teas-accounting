@@ -12,6 +12,12 @@ public static class BillingNoteEndpoints
     {
         var readPol   = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.BillingNoteRead;
         var managePol = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.BillingNoteManage;
+        // R3/H3 — create-tax-invoice mints a ใบกำกับภาษี off the SOURCE (billing-note manage)
+        // permission alone today; the caller must ALSO hold the TARGET document's create
+        // permission. Stacking a second perm: policy on RequireAuthorization ANDs the two
+        // (ASP.NET Core merges every AuthorizeData on an endpoint — see the group+route-level
+        // AND note in SalesChainEndpoints.cs), same mechanism, no new combinator invented.
+        var tiCreatePol = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceCreate;
 
         var g = app.MapGroup("/billing-notes").WithTags("Billing Notes");
 
@@ -50,7 +56,7 @@ public static class BillingNoteEndpoints
         // ti.non_vat_blocked (422) for a non-VAT company.
         g.MapPost("/{id:long}/create-tax-invoice", async (long id, ITaxInvoiceService s, CancellationToken ct) =>
             Results.Ok(new { tax_invoice_id = await s.CreateFromBillingNoteAsync(id, ct) }))
-            .RequireAuthorization(managePol);
+            .RequireAuthorization(managePol, tiCreatePol);
 
         g.MapGet("/", async ([FromQuery] string? status, IBillingNoteService s, CancellationToken ct) =>
             Results.Ok(await s.ListAsync(status, ct)))
