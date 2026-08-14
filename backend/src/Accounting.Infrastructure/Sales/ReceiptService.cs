@@ -9,6 +9,7 @@ using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -403,11 +404,40 @@ public sealed partial class ReceiptService : IReceiptService
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// R3/H2 — thin wrapper so a concurrent double-post race maps to a clean 409 instead of a
+    /// raw 500. Receipt.Version is never incremented by MarkPosted (unlike PaymentVoucher
+    /// post-WP-B), so EF's own optimistic-concurrency check never actually diverges between two
+    /// racing writers — what stops the loser from corrupting the winner's already-committed row
+    /// is sales.fn_enforce_receipt_immutability (570_receipt_immutability_rls.sql), which raises
+    /// a raw 23514 check_violation when the loser's UPDATE tries to change doc_no/amounts on a
+    /// row that is now POSTED. Also covers the (currently unreachable, since Version is inert
+    /// here) case of a genuine DbUpdateConcurrencyException, mirroring the PV pattern.
+    /// </summary>
     public async Task<ReceiptPostedResult> PostAsync(long receiptId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
+        try
+        {
+            return await PostCoreAsync(receiptId, ct);
+        }
+        catch (Exception ex) when (ex is DbUpdateConcurrencyException || IsPostedRaceViolation(ex))
+        {
+            throw new DomainException("rc.locked_mismatch",
+                "This receipt was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>sales.fn_enforce_receipt_immutability / gl.trg_je_immutable / ..ti_immutability
+    /// all RAISE EXCEPTION with ERRCODE 'check_violation' (23514) when a second writer's UPDATE
+    /// tries to touch a critical field on a row another writer already flipped to Posted.</summary>
+    private static bool IsPostedRaceViolation(Exception ex) =>
+        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" } };
+
+    private async Task<ReceiptPostedResult> PostCoreAsync(long receiptId, CancellationToken ct)
+    {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var rc = await _db.Receipts

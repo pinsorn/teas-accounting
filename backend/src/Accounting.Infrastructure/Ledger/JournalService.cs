@@ -8,6 +8,7 @@ using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Accounting.Infrastructure.Ledger;
 
@@ -83,11 +84,40 @@ public sealed class JournalService : IJournalService
         return entity.JournalId;
     }
 
+    /// <summary>
+    /// R3/H2 — thin wrapper so a concurrent double-post race maps to a clean 409 instead of a
+    /// raw 500. JournalEntry.Version is never incremented by MarkPosted (unlike PaymentVoucher
+    /// post-WP-B), so EF's own optimistic-concurrency check never actually diverges between two
+    /// racing writers — what stops the loser from corrupting the winner's already-committed row
+    /// is gl.trg_je_immutable (020_journal_immutability.sql), which raises a raw 23514
+    /// check_violation when the loser's UPDATE tries to change doc_no/status on a row that is
+    /// now POSTED. Also covers the (currently unreachable, since Version is inert here) case of
+    /// a genuine DbUpdateConcurrencyException, mirroring the PV pattern.
+    /// </summary>
     public async Task<JournalPostedResult> PostAsync(long journalId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
 
+        try
+        {
+            return await PostCoreAsync(journalId, ct);
+        }
+        catch (Exception ex) when (ex is DbUpdateConcurrencyException || IsPostedRaceViolation(ex))
+        {
+            throw new DomainException("je.locked_mismatch",
+                "This journal entry was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>gl.trg_je_immutable / sales.fn_enforce_ti_immutability / .._receipt_immutability
+    /// all RAISE EXCEPTION with ERRCODE 'check_violation' (23514) when a second writer's UPDATE
+    /// tries to touch a critical field on a row another writer already flipped to Posted.</summary>
+    private static bool IsPostedRaceViolation(Exception ex) =>
+        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" } };
+
+    private async Task<JournalPostedResult> PostCoreAsync(long journalId, CancellationToken ct)
+    {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var entry = await _db.JournalEntries

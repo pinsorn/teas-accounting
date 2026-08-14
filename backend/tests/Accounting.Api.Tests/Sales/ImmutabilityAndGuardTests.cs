@@ -84,6 +84,125 @@ public sealed class ImmutabilityAndGuardTests
         return (tiId, total);
     }
 
+    // Build a DRAFT Tax Invoice (DO → BN → TI), stopping short of Post — for the race test below.
+    private static async Task<long> DraftTiAsync(ServiceProvider sp, long custId, string desc)
+    {
+        long doId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var dosvc = s.ServiceProvider.GetRequiredService<IDeliveryOrderService>();
+            doId = await dosvc.CreateDraftAsync(new CreateDeliveryOrderRequest(
+                new DateOnly(2026, 5, 18), custId, null, IsCombinedWithTi: false, null, null,
+                [new DeliveryLineInput(null, null, desc, 1m, "ชิ้น", 1000m, 0m, 1, "VAT7", 0.07m)]),
+                default);
+            await dosvc.IssueAsync(doId, default);
+        }
+
+        long bnId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var bnsvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            bnId = await bnsvc.CreateFromDeliveryOrderAsync(doId, default);
+            await bnsvc.IssueAsync(bnId, default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var tisvc = s2.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+        return await tisvc.CreateFromBillingNoteAsync(bnId, default);
+    }
+
+    // ── R3/H2 — concurrent double-post race ────────────────────────────────────────────────
+    // Two callers race /tax-invoices/{id}/post on the SAME draft. TaxInvoice.Version is never
+    // incremented by MarkPosted, so EF's own optimistic-concurrency check never diverges
+    // between the two writers — what actually stops the loser from corrupting the winner's
+    // already-committed row is sales.fn_enforce_ti_immutability (583_...v2.sql), which raises a
+    // raw 23514 check_violation. Unwrapped, that surfaces as a raw DbUpdateException — a 500.
+    [SkippableFact]
+    public async Task Concurrent_double_post_race_posts_exactly_once_and_the_loser_gets_a_clean_409()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var custId = await CustomerIdAsync(sp);
+        var tiId = await DraftTiAsync(sp, custId, "รายการทดสอบ race " + Guid.NewGuid().ToString("N")[..8]);
+
+        async Task<(bool Ok, Exception? Ex)> TryPost()
+        {
+            await using var s = sp.CreateAsyncScope();
+            var tisvc = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            try { await tisvc.PostAsync(tiId, default); return (true, null); }
+            catch (Exception ex) { return (false, ex); }
+        }
+
+        var results = await Task.WhenAll(Task.Run(TryPost), Task.Run(TryPost));
+        results.Count(r => r.Ok).Should().Be(1, "a double-post race must post exactly once — never two winners");
+        var loserEx = results.Single(r => !r.Ok).Ex!;
+        loserEx.Should().BeOfType<DomainException>(
+            "the loser must surface a clean domain error, not a raw unmapped DB exception (500)");
+        // Mirrors ExpenseClaimServiceTests.Double_pay_race — the loser hits EITHER the
+        // immutability-race translation (its fresh-load overlapped the winner's in-flight write)
+        // OR the ordinary ti.not_draft status guard (its fresh-load already observed the
+        // winner's committed row). Both are a correct rejection; which fires is a timing accident.
+        ((DomainException)loserEx).Code.Should().BeOneOf("ti.locked_mismatch", "ti.not_draft");
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var ti = await db2.TaxInvoices.AsNoTracking().SingleAsync(t => t.TaxInvoiceId == tiId);
+        ti.Status.Should().Be(DocumentStatus.Posted, "the winner must win — undisturbed by the loser");
+        ti.DocNo.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // ── R3/H2 — concurrent double-post race (Receipt) ──────────────────────────────────────
+    // Two callers race /receipts/{id}/post on the SAME draft. Receipt.Version is never
+    // incremented by MarkPosted, so EF's own optimistic-concurrency check never diverges
+    // between the two writers — what actually stops the loser from corrupting the winner's
+    // already-committed row is sales.fn_enforce_receipt_immutability
+    // (570_receipt_immutability_rls.sql), which raises a raw 23514 check_violation. Unwrapped,
+    // that surfaces as a raw DbUpdateException — a 500.
+    [SkippableFact]
+    public async Task Receipt_concurrent_double_post_race_posts_exactly_once_and_the_loser_gets_a_clean_409()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var custId = await CustomerIdAsync(sp);
+        var (tiId, total) = await PostedTiAsync(sp, custId);
+
+        long rcId;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var rsvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            rcId = await rsvc.CreateDraftAsync(new CreateReceiptRequest(
+                DateOnly.FromDateTime(DateTime.UtcNow), custId, PaymentMethod.Transfer,
+                null, null, null, "THB", 1m, null,
+                [new ReceiptApplicationInput(tiId, total, null, null)]),
+                default);
+        }
+
+        async Task<(bool Ok, Exception? Ex)> TryPost()
+        {
+            await using var s = sp.CreateAsyncScope();
+            var rsvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            try { await rsvc.PostAsync(rcId, default); return (true, null); }
+            catch (Exception ex) { return (false, ex); }
+        }
+
+        var results = await Task.WhenAll(Task.Run(TryPost), Task.Run(TryPost));
+        results.Count(r => r.Ok).Should().Be(1, "a double-post race must post exactly once — never two winners");
+        var loserEx = results.Single(r => !r.Ok).Ex!;
+        loserEx.Should().BeOfType<DomainException>(
+            "the loser must surface a clean domain error, not a raw unmapped DB exception (500)");
+        // Mirrors ExpenseClaimServiceTests.Double_pay_race — the loser hits EITHER the
+        // immutability-race translation (its fresh-load overlapped the winner's in-flight write)
+        // OR the ordinary rc.not_draft status guard (its fresh-load already observed the
+        // winner's committed row). Both are a correct rejection; which fires is a timing accident.
+        ((DomainException)loserEx).Code.Should().BeOneOf("rc.locked_mismatch", "rc.not_draft");
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var rc = await db2.Receipts.AsNoTracking().SingleAsync(r => r.ReceiptId == rcId);
+        rc.Status.Should().Be(DocumentStatus.Posted, "the winner must win — undisturbed by the loser");
+        rc.DocNo.Should().NotBeNullOrWhiteSpace();
+    }
+
     // ── 09-M3: posted TI cannot be re-posted (§4.2 / CLAUDE.md §4.2) ──────────
     [SkippableFact]
     public async Task PostedTaxInvoice_cannot_be_posted_again()

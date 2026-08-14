@@ -11,6 +11,7 @@ using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -478,10 +479,40 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// R3/H2 — thin wrapper so a concurrent double-post race maps to a clean 409 instead of a
+    /// raw 500. TaxInvoice.Version is never incremented by MarkPosted (unlike PaymentVoucher
+    /// post-WP-B), so EF's own optimistic-concurrency check never actually diverges between two
+    /// racing writers — what stops the loser from corrupting the winner's already-committed row
+    /// is sales.fn_enforce_ti_immutability (583_tax_invoice_header_immutable_v2.sql), which
+    /// raises a raw 23514 check_violation when the loser's UPDATE tries to change doc_no/status
+    /// on a row that is now POSTED. Also covers the (currently unreachable, since Version is
+    /// inert here) case of a genuine DbUpdateConcurrencyException, mirroring the PV pattern.
+    /// </summary>
     public async Task<TaxInvoicePostedResult> PostAsync(long taxInvoiceId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
+
+        try
+        {
+            return await PostCoreAsync(taxInvoiceId, ct);
+        }
+        catch (Exception ex) when (ex is DbUpdateConcurrencyException || IsPostedRaceViolation(ex))
+        {
+            throw new DomainException("ti.locked_mismatch",
+                "This tax invoice was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>sales.fn_enforce_ti_immutability / gl.trg_je_immutable / ..receipt_immutability
+    /// all RAISE EXCEPTION with ERRCODE 'check_violation' (23514) when a second writer's UPDATE
+    /// tries to touch a critical field on a row another writer already flipped to Posted.</summary>
+    private static bool IsPostedRaceViolation(Exception ex) =>
+        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" } };
+
+    private async Task<TaxInvoicePostedResult> PostCoreAsync(long taxInvoiceId, CancellationToken ct)
+    {
         // Defense: a draft TI may survive a VAT→non-VAT config switch; it must not post.
         await EnsureVatRegisteredAsync(ct);
 

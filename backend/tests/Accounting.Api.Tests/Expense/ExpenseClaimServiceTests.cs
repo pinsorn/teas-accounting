@@ -196,6 +196,42 @@ public sealed class ExpenseClaimServiceTests
             .Which.DebitAmount.Should().Be(300m);
     }
 
+    // ── R3/H2 — paying with a nonexistent bankAccountId must not raw-500 ────────────────
+    // PayAsync's own AllocateAndSaveAsync persists claim.BankAccountId (via MarkPaid) BEFORE
+    // GlPostingService.PostExpenseClaimAsync ever runs its own clean
+    // gl.ec_bank_account_not_found check — and ExpenseClaimConfiguration.cs has a real FK
+    // (HasForeignKey(x => x.BankAccountId)) on expense_claims.bank_account_id, so a bogus id
+    // hits a raw Postgres 23503 foreign_key_violation at THAT earlier save, unmapped, before the
+    // later clean check is ever reached.
+    [SkippableFact]
+    public async Task Pay_with_a_nonexistent_bank_account_id_is_rejected_cleanly_not_a_raw_500()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var employeeId = await SeedEmployeeAsync(sp, co.CompanyId);
+        var (catId, _) = await SeedCategoryAsync(sp, co.CompanyId, "6160", "ทดสอบบัญชีธนาคารไม่มีอยู่จริง");
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IExpenseClaimService>();
+        var id = await svc.CreateDraftAsync(
+            Req(employeeId, [new ExpenseClaimLineInput(catId, null, "x", Today, 100m, null, 0m, true)]),
+            default);
+        await svc.SubmitAsync(id, default);
+        await svc.ApproveAsync(id, default);
+
+        const int nonexistentBankAccountId = 999_999_999;
+        var act = () => svc.PayAsync(id, new PayExpenseClaimRequest("TRANSFER", nonexistentBankAccountId), default);
+        (await act.Should().ThrowAsync<DomainException>(
+            "a nonexistent bank account must surface a clean domain error, not a raw FK-violation 500"))
+            .Which.Code.Should().Be("expense_claim.bank_account_not_found");
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var claim = await db.ExpenseClaims.AsNoTracking().FirstAsync(c => c.ExpenseClaimId == id);
+        claim.Status.Should().Be(ExpenseClaimStatus.Approved, "a refused pay must not leave the claim half-paid");
+        claim.DocNo.Should().BeNull("no EX number may be consumed by a refused pay");
+    }
+
     // ── State transitions (§6) ──────────────────────────────────────────────────────
 
     [SkippableFact]

@@ -765,4 +765,63 @@ public sealed class ManualJournalTests
             posted.DocNo.Should().NotBeNullOrWhiteSpace("a valid draft must still post cleanly after R2b's new gates");
         }
     }
+
+    // ── R3/H2 — concurrent double-post race ─────────────────────────────────────────────
+    // Two callers race /journals/{id}/post on the SAME draft. JournalEntry.Version is never
+    // incremented by MarkPosted (unlike PaymentVoucher post-WP-B), so EF's own optimistic-
+    // concurrency WHERE clause never diverges between the two writers — what actually stops
+    // the loser from corrupting the winner's already-committed row is
+    // gl.trg_je_immutable (020_journal_immutability.sql), which RAISEs a raw 23514
+    // check_violation when the loser's UPDATE tries to change doc_no/status on a row that is
+    // now POSTED. Unwrapped, that surfaces as a raw DbUpdateException/PostgresException — a
+    // 500. PostAsync must translate it into a clean 409 without disturbing the winner.
+
+    [SkippableFact]
+    public async Task Concurrent_double_post_race_posts_exactly_once_and_the_loser_gets_a_clean_409()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await NewCompanyAsync();
+        await using var spDisposable = sp;
+
+        long draftId;
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var bank = await AccountId(db, "1120");
+            var loan = await AccountId(db, "2190");
+            var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+            draftId = await svc.CreateDraftAsync(new CreateJournalRequest(
+                Today, Today, "Race " + Guid.NewGuid().ToString("N")[..8], null, "THB", 1m,
+                [
+                    new JournalLineInput(bank, 1m, 0m, null, null, null),
+                    new JournalLineInput(loan, 0m, 1m, null, null, null),
+                ]), default);
+        }
+
+        async Task<(bool Ok, Exception? Ex)> TryPost()
+        {
+            await using var scope = sp.CreateAsyncScope();
+            var svc = scope.ServiceProvider.GetRequiredService<IJournalService>();
+            try { await svc.PostAsync(draftId, default); return (true, null); }
+            catch (Exception ex) { return (false, ex); }
+        }
+
+        var results = await Task.WhenAll(Task.Run(TryPost), Task.Run(TryPost));
+        results.Count(r => r.Ok).Should().Be(1, "a double-post race must post exactly once — never two winners");
+        var loserEx = results.Single(r => !r.Ok).Ex!;
+        loserEx.Should().BeOfType<DomainException>(
+            "the loser must surface a clean domain error, not a raw unmapped DB exception (500)");
+        // Mirrors ExpenseClaimServiceTests.Double_pay_race_posts_exactly_one_journal_entry — the
+        // loser hits EITHER the immutability-race translation (its fresh-load happened WHILE the
+        // winner's write was in flight) OR the ordinary je.not_draft status guard (its fresh-load
+        // already observed the winner's committed Posted row). Both are a correct rejection;
+        // which one fires is a timing accident, not something the caller controls.
+        ((DomainException)loserEx).Code.Should().BeOneOf("je.locked_mismatch", "je.not_draft");
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var entry = await db2.JournalEntries.AsNoTracking().SingleAsync(j => j.JournalId == draftId);
+        entry.Status.Should().Be(DocumentStatus.Posted, "the winner must win — undisturbed by the loser");
+        entry.DocNo.Should().NotBeNullOrWhiteSpace();
+    }
 }

@@ -610,4 +610,83 @@ public sealed class AttachmentDownloadDeleteGuardTests : IDisposable
         ((int)resp.StatusCode).Should().Be(204,
             "the uploader may delete their own file even without sys.attachment.delete — unchanged by this fix");
     }
+
+    // ═══════════════ R3/H2 — upload size limit (verify-in-source, do not touch guard logic) ═══
+    // AttachmentEndpoints.cs:72-74 already checks file.Length against FileStorage:MaxFileSizeMb
+    // (25 in appsettings.Development.json) and returns 413 BEFORE any DB/parent-guard work. The
+    // VERDICT reported the advertised 25MB limit unreachable (>5MB already 500s) — verify via a
+    // real HTTP round-trip through the actual Minimal API route (RbacApiFactory/TestServer) which
+    // one of these two outcomes: (a) a file just over the 25MB app-level limit gets a clean 413,
+    // and (b) a file comfortably over 5MB but under 25MB uploads successfully — proving the
+    // >5MB-fails behaviour is not reproducible from this application's own source.
+
+    private static string SuperAdminToken(long userId, int companyId) =>
+        new JwtTokenIssuer(new StaticOptionsMonitor<JwtOptions>(new JwtOptions
+        {
+            Issuer = RbacApiFactory.JwtIssuer, Audience = RbacApiFactory.JwtAudience,
+            SigningKey = RbacApiFactory.JwtSigningKey, AccessTokenMinutes = 60,
+        })).Issue(new TokenClaims(
+            UserId: userId, Username: $"attsz-{userId}", CompanyId: companyId, BranchId: 1,
+            IsSuperAdmin: true, Roles: [], Permissions: [])).Token;
+
+    private static MultipartFormDataContent BuildUploadForm(
+        byte[] bytes, long parentId, string fileName = "big.pdf")
+    {
+        var fileContent = new ByteArrayContent(bytes);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        return new MultipartFormDataContent
+        {
+            { fileContent, "file", fileName },
+            { new StringContent("TAX_INVOICE"), "parent_type" },
+            { new StringContent(parentId.ToString()), "parent_id" },
+            { new StringContent("OTHER"), "category" },
+            { new StringContent("size-limit test upload"), "description" },
+        };
+    }
+
+    [SkippableFact]
+    public async Task Upload_over_the_configured_limit_returns_a_clean_413_not_a_raw_500()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await PostTaxInvoiceAsync(co.CompanyId, co.CustomerId);
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString, storageRoot: _root);
+        using var client = factory.CreateClient();
+        var token = SuperAdminToken(1, co.CompanyId);
+
+        // 26MB — just over the 25MB FileStorage:MaxFileSizeMb configured in appsettings.Development.json.
+        var oversized = new byte[26 * 1024 * 1024];
+        using var form = BuildUploadForm(oversized, tiId);
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/attachments") { Content = form };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var resp = await client.SendAsync(req);
+        ((int)resp.StatusCode).Should().Be(413,
+            "a file over the configured limit must get a clean 413, never an unmapped 500");
+    }
+
+    [SkippableFact]
+    public async Task Upload_of_a_6mb_file_well_under_the_25mb_limit_succeeds()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await PostTaxInvoiceAsync(co.CompanyId, co.CustomerId);
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString, storageRoot: _root);
+        using var client = factory.CreateClient();
+        var token = SuperAdminToken(1, co.CompanyId);
+
+        // 6MB — well over the VERDICT's reported >5MB failure threshold, well under the
+        // advertised 25MB limit.
+        var sixMb = new byte[6 * 1024 * 1024];
+        using var form = BuildUploadForm(sixMb, tiId);
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/attachments") { Content = form };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var resp = await client.SendAsync(req);
+        var body = await resp.Content.ReadAsStringAsync();
+        ((int)resp.StatusCode).Should().Be(201, "a 6MB file is well within the advertised 25MB limit and " +
+            $"must upload cleanly. Response: {body}");
+    }
 }

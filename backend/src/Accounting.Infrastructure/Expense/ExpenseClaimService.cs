@@ -270,6 +270,16 @@ public sealed class ExpenseClaimService(
         if (method == "TRANSFER" && req.BankAccountId is null)
             throw new DomainException("expense_claim.bank_account_required",
                 "TRANSFER payment requires a bankAccountId.");
+        // R3/H2 — a nonexistent bankAccountId must be a clean domain error, not a raw 500.
+        // expense_claims.bank_account_id carries a real FK (ExpenseClaimConfiguration.cs) and
+        // MarkPaid's own SaveChanges (inside AllocateAndSaveAsync below) is the FIRST write that
+        // touches it — long before GlPostingService.PostExpenseClaimAsync's own clean
+        // gl.ec_bank_account_not_found check ever runs. Checked here, at the one seam PayAsync
+        // funnels through, before that FK-violating save happens.
+        if (method == "TRANSFER" &&
+            !await db.BankAccounts.AnyAsync(b => b.BankAccountId == req.BankAccountId!.Value, ct))
+            throw new DomainException("expense_claim.bank_account_not_found",
+                $"Bank account {req.BankAccountId} not found.");
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
