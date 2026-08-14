@@ -331,3 +331,24 @@ deleted — every document survived.
   floor vs `engines: >=20` · **CI never runs vitest**, so the compliance-control test has no automated
   enforcement · `626` carries the same unguarded `::int` overflow and all-NULL-bucket exposure that `634`
   was hardened against.
+
+---
+
+# R3 wave 3 — H2 + H3 in flight (2026-08-14 ~13:00)
+
+- **H2 (double-post 500 family)** — implementing, OWNS the test DB. Journals/tax-invoices/receipts post
+  races surface as raw 500s; PV/ExpenseClaim/FixedAsset already carry the house wrap→409 pattern.
+  Also re-checking the 5MB-upload 413 and phantom-bankAccountId cases, which H4 may have fixed already.
+- **H3 (conversion routes check the wrong scope)** — **code-complete, under TEST-DB HOLD**, waiting for
+  the ALL-CLEAR after H2 releases. 5 routes now require source AND target permission; the SO→invoice
+  polymorphic route gets a dynamic check (target type depends on VAT mode) mirroring H4's ParentGuard.
+  **Seeded-role verdict: not a false positive — SALES_STAFF holds every source permission but was never
+  granted `sales.tax_invoice.create`, and its own seed comment scopes it to "Quotation, Sales Order".
+  The tightening IS the fix.** No seed change made; Ham decides if SALES_STAFF should convert.
+  RED plan is stash-based and asserts `Expected 403, but found 200` — the real exploit, not a 404 mask.
+- Follow-ups queued from H3's report: `TeasMcpTools.create_invoice_draft` may carry the same
+  source/target gap on the MCP auth surface (separate namespace, not covered by this WP); the FE may
+  still render convert buttons for SALES_STAFF that now 403.
+
+Queue: H2 finishes → ALL-CLEAR H3 → consolidated suite → per-WP diff read + commits → Tier-2 →
+release v2.3.0.
