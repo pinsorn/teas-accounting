@@ -1,0 +1,81 @@
+# Coolify Docker Compose deployment of the TEAS api + web services. Postgres
+# is a separate Coolify-managed resource, not defined here — this compose
+# must be connected to Coolify's predefined network (a toggle on the compose
+# resource in the UI) or `api`/`web` cannot resolve the Postgres container
+# by name.
+#
+# `api` is intentionally NOT given a SERVICE_FQDN_* var — it must stay off the
+# public internet. The frontend is a BFF (app/api/proxy/[...path], app/api/auth/*)
+# and reaches `api` over the internal compose network only, so the JWT stays in
+# an httpOnly cookie (see frontend/next.config.ts comment).
+#
+# Values below (${TEAS_*}) are supplied as Coolify environment variables on
+# this resource and reach the containers via Coolify's ${VAR} interpolation
+# into this compose file at deploy time. No secret value is stored in the repo.
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 900m
+    expose:
+      - "8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      FileStorage__StorageRoot: /data/attachments
+      DataProtection__KeyPath: /data/dataprotection
+      # ConnectionStrings__Postgres must point at a non-superuser, NOBYPASSRLS
+      # role. Coolify's one-click Postgres hands out a superuser by default,
+      # and a superuser connection silently bypasses this app's tenant RLS —
+      # every company's data becomes visible to every tenant, no error logged.
+      ConnectionStrings__Postgres: ${TEAS_DB_CONNECTION}
+      Jwt__SigningKey: ${TEAS_JWT_SIGNING_KEY}
+      Jwt__Issuer: ${TEAS_JWT_ISSUER}
+      Jwt__Audience: ${TEAS_JWT_AUDIENCE}
+      Mfa__MfaAesKeyBase64: ${TEAS_MFA_AES_KEY_B64}
+      App__BaseUrl: ${TEAS_PUBLIC_URL}
+      Frontend__Origin: ${TEAS_PUBLIC_URL}
+      # Oauth__SigningCertPath/EncryptionCertPath/CertPassword are REQUIRED in
+      # Production: the API hard-fails at startup if unset rather than fall
+      # back to ephemeral OAuth keys, which would invalidate every issued
+      # token on every restart. The two .pfx files are PKCS#12 certs placed
+      # on the api_certs volume (mounted below); only the password is a
+      # Coolify secret. Regenerating the certs invalidates every token
+      # already issued.
+      Oauth__SigningCertPath: /data/certs/oauth-signing.pfx
+      Oauth__EncryptionCertPath: /data/certs/oauth-encryption.pfx
+      Oauth__CertPassword: ${TEAS_OAUTH_CERT_PASSWORD}
+      # Any optional Smtp__*/ETax__*/RdApi vars are set the same ${}-interpolated way.
+    volumes:
+      - api_attachments:/data/attachments
+      - api_dataprotection:/data/dataprotection
+      # api_certs holds the two required PKCS#12 OAuth certs (see the Oauth__*
+      # env vars above) — not optional, and must survive redeploys.
+      - api_certs:/data/certs
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 700m
+    depends_on:
+      - api
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      BACKEND_API_URL: http://api:8080
+      # SERVICE_FQDN_WEB_3000 is Coolify's "magic" env var: leaving it declared
+      # with no value here signals Coolify to allocate the public domain and
+      # wire the Traefik labels for this service/port automatically.
+      SERVICE_FQDN_WEB_3000:
+      PUBLIC_BASE_URL: ${TEAS_PUBLIC_URL}
+
+volumes:
+  api_attachments:
+  api_dataprotection:
+  api_certs:

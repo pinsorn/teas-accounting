@@ -21,8 +21,10 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_RUNNING_IN_CONTAINER=true \
     TZ=Asia/Bangkok
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tzdata fonts-thai-tlwg \
+    tzdata fonts-thai-tlwg curl \
     && rm -rf /var/lib/apt/lists/*
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "Accounting.Api.dll"]

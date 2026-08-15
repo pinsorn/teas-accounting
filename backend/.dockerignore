@@ -1,0 +1,15 @@
+node_modules
+.next
+bin
+obj
+.git
+e2e
+screenshots
+manual
+test-results
+playwright-report
+**/bin
+**/obj
+*.md
+.env
+.env.*
