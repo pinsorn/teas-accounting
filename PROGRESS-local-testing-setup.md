@@ -47,3 +47,9 @@ companies on boot; co-numbering follows whatever this DB accumulated — do not 
 ## Quota discipline note for the new session
 This session ended around 76% of the 5-hour pool. Insurance protocol (PROGRESS + checkpoint +
 ScheduleWakeup at 85%+) stands.
+
+## 2026-08-14 ~18:00 checkpoint — nothing started yet
+Next session opened at 95% of the 5-hour pool (7-day at 70%) BEFORE any stack work began.
+Paused immediately per protocol; wakeup chain scheduled until the 5-hour window resets
+(~21:50 local). **Resume = Step 1 above, from the top — no work is in flight, nothing
+to re-verify.**

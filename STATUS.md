@@ -1,6 +1,38 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **🔵 LOCAL STACK IS UP AND HAS BEEN HARD-TESTED (2026-08-15 night).** Postgres 18 (`S:\Program Files\
+  PostgreSQL\18`) + API :5080 + FE :3000, seeded fresh. Full run, evidence and repro steps:
+  `PROGRESS-local-hard-test.md`; boot recipe in memory `local-stack-boot-recipe`.
+  - **🔴 F5 SECURITY — an API key can mint a Tax Invoice it has no scope for.** MCP
+    `create_invoice_draft` is gated only by `sales.billing_note.manage` but mints a **Tax Invoice** on a
+    VAT-registered company. Exploited live with a key that lacked `sales.tax_invoice.create`. Worse than
+    a stray draft: tax invoices have **no DELETE route at all**, so the draft cannot be removed, and it
+    then blocks month close (`period.draft_present`) and year close. Only exit is to post it.
+  - **F2 — raw 500s + leaked .NET exception text** on `/reports/pnd30`, the three VAT registers
+    (`month=13`/`0`) and `/tax-filings/cit/*` (`year=9999/99999/0/-1`). Same shape WP-6 fixed for
+    ภ.ง.ด.50/51; these services were missed.
+  - **F1** — a fresh install that enables demo data on a *later* boot gets tenants with **no roles**;
+    only super-admins can log in. Seed-ordering fragility in `510`, matters for the server migration.
+  - **F6** — the five convert buttons render without checking the target-create permission (backend
+    correctly 403s). **F7** — the year-close interlock is real but monthly reopen works, so H10 is not
+    the deadlock it was described as; the design should start from what co5 actually hits.
+  - **Held under attack:** cross-company isolation (404, no existence leak) · H4 attachment
+    authorisation (auditor 403, co3 404) · posted-document immutability (405) · H1 numbering
+    (branch bound to 0, unique indexes present, no gaps/dupes) · the money path (Dr/Cr balanced).
+  - Fixes specced in `specs/fix-local-hard-test-findings.md`; WP-1 (security) in flight, WP-2 queued.
+  - ⚠️ RLS is **not** exercised locally — both PG roles are BYPASSRLS. Give the new server a
+    non-bypassing app role and re-run this pass there.
+- **🔴 TEAS PROD INTENTIONALLY DOWN (2026-08-14 evening) — server crisis, migration pending.**
+  The OVH VPS hit 96% disk + RAM exhaustion and crash-looped; recovered via rescue mode (freed ~21G,
+  disk now 65%, RAM 4.6G free). Ham decided **TEAS moves to a new server** — teas-api + teas-web were
+  removed from pm2 autostart (backup: `dump.pm2.teas-bak`) and the site returns Cloudflare 521 until
+  the migration. n8n / MT5 bot / OneDrive / openclaw also disabled or deleted. Full state + restore
+  steps: memory `teas-prod-disabled-server-crisis`. Next TEAS work item: **plan the server migration**.
+  **Until the new server is live, ALL TEAS testing runs on LOCAL** (localhost API + FE + local PG) —
+  no Tier-4 live-prod leg, no prod probes; anything that previously targeted teas.kazaki-rio.com
+  points at the local stack instead.
+
 - **✅ v2.2.0 LIVE (2026-08-14) — the duplicate document-number bug class is CLOSED, both halves.**
   Seven unique indexes moved to `(company_id, doc_no)`, so the database itself now refuses a second
   document with the same number. v2.1.0 had stopped the allocator from minting one and added detection;
