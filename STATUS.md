@@ -20,7 +20,17 @@
   - **Held under attack:** cross-company isolation (404, no existence leak) · H4 attachment
     authorisation (auditor 403, co3 404) · posted-document immutability (405) · H1 numbering
     (branch bound to 0, unique indexes present, no gaps/dupes) · the money path (Dr/Cr balanced).
-  - Fixes specced in `specs/fix-local-hard-test-findings.md`; WP-1 (security) in flight, WP-2 queued.
+  - **✅ F5 and F2 are FIXED and committed (`4988e52`), not just reported.** Tier-2 Opus review on the
+    security fix: APPROVE-WITH-NITS, nit applied. Full suite **1233/0/14 skipped** + Domain 188/188,
+    and both fixes replayed live against a restarted stack — the original exploit key now gets
+    `[mcp.forbidden]` and mints nothing; every listed 500 is a typed 422; `year=3000` still 200.
+    Not deployed: there is no server to deploy to until the migration.
+  - **Release note when this ships:** any existing MCP key on a VAT-registered company scoped
+    `sales.billing_note.manage` without `sales.tax_invoice.create` will start being refused on
+    `create_invoice_draft`. That is the fix working, but those keys need re-scoping.
+  - Still open from this run: **F1** (seed ordering), **F6** (convert buttons unguarded in the FE),
+    **F4** (a missing required query parameter returns 500 instead of 400), and the backlog note that
+    `create_receipt_draft` reads a tax invoice under only `sales.receipt.create`.
   - ⚠️ RLS is **not** exercised locally — both PG roles are BYPASSRLS. Give the new server a
     non-bypassing app role and re-run this pass there.
 - **🔴 TEAS PROD INTENTIONALLY DOWN (2026-08-14 evening) — server crisis, migration pending.**

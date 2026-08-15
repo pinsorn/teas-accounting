@@ -1476,3 +1476,33 @@ losing the test DB costs nothing.
   compares a captured value to a number must distinguish "the query said 0" from "the query failed",
   or a broken query reads as a failed gate — or worse, as a passed one.
 - **Seen:** 2026-08-14, v2.1.0 deploy.
+
+## A green suite can be evidence a security hole is OPEN, not closed
+- **Symptom:** nothing fails. The MCP tool `create_invoice_draft` let an API key scoped only
+  `sales.billing_note.manage` mint a **Tax Invoice** on a VAT-registered company, and the suite was
+  green through every release that shipped it.
+- **Root cause:** the existing test `Mcp_create_invoice_draft_is_polymorphic_and_wraps_the_delivery_required_guard`
+  minted its VAT-company key **without** `sales.tax_invoice.create`, then asserted the call succeeds and
+  returns a `tax-invoices` link. The test encoded the vulnerable behaviour as the expected behaviour, so
+  the suite could only ever have failed if someone FIXED the bug.
+- **Fix:** when a permission fix makes an existing test fail, do not reach for the test first — ask
+  which of the two is wrong. Here the test was, and adding the missing scope was correct (it keeps
+  exercising the delivery-required guard it actually targets, while a new dedicated test covers the
+  refusal). Any such edit must be called out explicitly in the report, because "I changed a test so it
+  passes" and "the test asserted a bug" look identical in a diff.
+- **General lesson:** a test suite cannot report a hole it was written around. That is the argument for
+  a live adversarial pass — mint a deliberately narrow credential and try to exceed it — against a
+  running system, which is how this was found (2026-08-15). Fixed in `4988e52`.
+
+## `year * 100 + month` silently aliases to a DIFFERENT valid period
+- **Symptom:** a VAT report called with an out-of-band month returns **200 with the wrong month's
+  figures** instead of an error. `year=2026&month=-88` → `2026*100 + (-88)` = `202512` → a perfectly
+  valid yyyymm → December 2025's data, reported as August 2026's.
+- **Root cause:** `year*100+month` is only a faithful yyyymm encoding for a month in `1..12`. Reusing a
+  shared `MonthRange(int period)` guard by composing the period this way validates the *composed* value,
+  not the caller's input.
+- **Fix:** round-trip after decoding — assert the decoded `(year, month)` equals the input, and reject
+  otherwise (`VatReportService.MonthRange`). Without it, hardening a raw 500 into a typed 422 would have
+  converted a loud failure into a silent wrong answer, which on a tax report is worse than the crash.
+- **Seen:** 2026-08-16, found while fixing the 500 family. The defect report did not mention this case;
+  the implementer noticed the encoding hazard while reusing the guard.
