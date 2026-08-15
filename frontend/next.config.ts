@@ -5,6 +5,7 @@ import createNextIntlPlugin from 'next-intl/plugin';
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   reactStrictMode: true,
   // Next 15.5: `typedRoutes` graduated from `experimental` to a stable
   // top-level option.
