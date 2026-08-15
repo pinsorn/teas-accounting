@@ -5,6 +5,7 @@ using Accounting.Domain.Common;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Tax;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.TaxFilings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Tax;
@@ -37,6 +38,10 @@ public sealed class CitYearDataService(
     /// <summary>Fiscal-year bounds from Company.FiscalYearStartMonth (mirrors Pnd51FilingService).</summary>
     private async Task<(DateOnly Start, DateOnly End)> FiscalBoundsAsync(int fiscalYear, CancellationToken ct)
     {
+        // WP-2 (2026-08-16) — an out-of-range fiscalYear used to hit `new DateOnly(fiscalYear, ...)`
+        // below unguarded, leaking an ArgumentOutOfRangeException as a raw 500. Reuse the same
+        // guard ProportionalInputVatService's MonthRange sibling already uses (same error code).
+        TaxFilingPeriod.EnsureYear(fiscalYear);
         var c = await db.Companies.AsNoTracking()
             .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("company.not_found", "Company not found.");
@@ -194,6 +199,9 @@ public sealed class CitYearDataService(
     public async Task<CitProfileDto> ProfileAsync(int fiscalYear, CancellationToken ct)
     {
         EnsureAuth();
+        // WP-2 (2026-08-16) — ProfileAsync builds its own `start`/`end` DateOnly inline (does not
+        // go through FiscalBoundsAsync above), so it needs its own guard for the same defect.
+        TaxFilingPeriod.EnsureYear(fiscalYear);
         var c = await db.Companies.AsNoTracking()
             .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct)
             ?? throw new DomainException("company.not_found", "Company not found.");

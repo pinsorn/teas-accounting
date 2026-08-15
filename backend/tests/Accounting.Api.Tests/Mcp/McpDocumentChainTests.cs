@@ -344,8 +344,13 @@ public sealed class McpDocumentChainTests
         var goodsSoId = await QuotationToPostedSoAsync(vatSp, vatCo.CustomerId, today, "GOOD", 12_000m, 0.07m);
         var serviceSoId = await QuotationToPostedSoAsync(vatSp, vatCo.CustomerId, today, "SERVICE", 8_000m, 0.07m);
 
+        // WP-1 (specs/fix-local-hard-test-findings.md) — the VAT branch now also requires
+        // sales.tax_invoice.create (the document it actually mints); this key must hold it or
+        // the "ok" assertion below would hit the new permission guard instead of the guard
+        // this test targets.
         var key = await MintMcpKeyAsync(vatCo.CompanyId, vatCo.BranchId,
-            ["sales.sales_order.manage", "sales.delivery_order.manage", "sales.billing_note.manage"]);
+            ["sales.sales_order.manage", "sales.delivery_order.manage", "sales.billing_note.manage",
+             "sales.tax_invoice.create"]);
         await using var factory = new McpApiFactory(_fx.ConnectionString);
         using var http = factory.CreateClient();
         http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
@@ -365,6 +370,98 @@ public sealed class McpDocumentChainTests
         var okJson = JsonDocument.Parse(ok.Content.OfType<TextContentBlock>().Single().Text);
         okJson.RootElement.GetProperty("id").GetInt64().Should().BeGreaterThan(0);
         okJson.RootElement.GetProperty("approvalLinkMarkdown").GetString().Should().Contain("tax-invoices");
+    }
+
+    // ── WP-1 (specs/fix-local-hard-test-findings.md) — create_invoice_draft's VAT branch
+    // mints a Tax Invoice but was gated only on billing_note.manage; a key scoped to
+    // billing_note.manage (and NOT tax_invoice.create) could mint a Tax Invoice it had no
+    // permission to create (proven exploit in PROGRESS-local-hard-test.md F5). ──
+
+    [SkippableFact]
+    public async Task Mcp_create_invoice_draft_vat_branch_refuses_billing_note_manage_without_tax_invoice_create()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "GOOD", 10_000m, 0.07m);
+        var doId = await CreateAndIssueDoFromSoAsync(sp, soId, today);
+
+        // Exact scope set from the proven exploit: billing_note.manage + sales_order.manage +
+        // billing_note.read, deliberately WITHOUT tax_invoice.create.
+        var key = await MintMcpKeyAsync(co.CompanyId, co.BranchId,
+            ["sales.billing_note.manage", "sales.sales_order.manage", "sales.billing_note.read"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var result = await client.CallToolAsync("create_invoice_draft",
+            new Dictionary<string, object?> { ["deliveryOrderId"] = doId, ["salesOrderId"] = null });
+
+        result.IsError.Should().BeTrue();
+        var text = result.Content.OfType<TextContentBlock>().Single().Text;
+        text.Should().Contain("sales.tax_invoice.create");
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.TaxInvoices.CountAsync(t => t.DeliveryOrderId == doId)).Should().Be(0,
+            "the refused call must not have minted a Tax Invoice the key had no permission to create");
+    }
+
+    [SkippableFact]
+    public async Task Mcp_create_invoice_draft_non_vat_branch_still_succeeds_for_billing_note_manage_only()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        // Regression guard (catches an over-broad fix): the SAME principal that must be refused
+        // on a VAT company must still succeed on a non-VAT one, where billing_note.manage IS the
+        // correct and complete gate (this branch never mints a Tax Invoice).
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: false);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "GOOD", 10_000m, 0m);
+        var doId = await CreateAndIssueDoFromSoAsync(sp, soId, today);
+
+        var key = await MintMcpKeyAsync(co.CompanyId, co.BranchId,
+            ["sales.billing_note.manage", "sales.sales_order.manage", "sales.billing_note.read"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var result = await client.CallToolAsync("create_invoice_draft",
+            new Dictionary<string, object?> { ["deliveryOrderId"] = doId, ["salesOrderId"] = null });
+
+        result.IsError.Should().NotBe(true);
+        var json = JsonDocument.Parse(result.Content.OfType<TextContentBlock>().Single().Text);
+        json.RootElement.GetProperty("id").GetInt64().Should().BeGreaterThan(0);
+        json.RootElement.GetProperty("approvalLinkMarkdown").GetString().Should().Contain("invoices");
+    }
+
+    [SkippableFact]
+    public async Task Mcp_create_invoice_draft_vat_branch_succeeds_when_key_also_holds_tax_invoice_create()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        var today = Today(sp);
+        var soId = await QuotationToPostedSoAsync(sp, co.CustomerId, today, "GOOD", 10_000m, 0.07m);
+        var doId = await CreateAndIssueDoFromSoAsync(sp, soId, today);
+
+        var key = await MintMcpKeyAsync(co.CompanyId, co.BranchId,
+            ["sales.billing_note.manage", "sales.sales_order.manage", "sales.tax_invoice.create"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var result = await client.CallToolAsync("create_invoice_draft",
+            new Dictionary<string, object?> { ["deliveryOrderId"] = doId, ["salesOrderId"] = null });
+
+        result.IsError.Should().NotBe(true);
+        var json = JsonDocument.Parse(result.Content.OfType<TextContentBlock>().Single().Text);
+        json.RootElement.GetProperty("id").GetInt64().Should().BeGreaterThan(0);
+        json.RootElement.GetProperty("approvalLinkMarkdown").GetString().Should().Contain("tax-invoices");
     }
 
     // ── D8 #5 — standalone receipt (no invoiceId) stays byte-identical — pins D3(d) ──

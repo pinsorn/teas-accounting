@@ -1,6 +1,8 @@
 using Accounting.Application.Reports;
+using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Persistence;
+using Accounting.Infrastructure.TaxFilings;
 using Microsoft.EntityFrameworkCore;
 
 namespace Accounting.Infrastructure.Reports;
@@ -88,7 +90,18 @@ public sealed class VatReportService : IVatReportService
             NetVatRefundable: net < 0 ? -net : 0m);
     }
 
-    private static (DateOnly from, DateOnly to) MonthRange(int year, int month) =>
-        (new DateOnly(year, month, 1),
-         new DateOnly(year, month, DateTime.DaysInMonth(year, month)));
+    // WP-2 (2026-08-16) — bad year/month used to construct DateOnly directly and leak an
+    // unmapped ArgumentOutOfRangeException as a raw 500. Reuse TaxFilingPeriod's guard (same
+    // error code, no new validation helper) instead of re-deriving the range literals here.
+    // Round-trip the decomposed (y,m) against the input: year*100+month is only a faithful
+    // yyyymm encoding for month in [1,12] — an out-of-band month (e.g. -88 or 112) can alias
+    // to a DIFFERENT, in-range period and silently return the wrong month's data with a 200.
+    private static (DateOnly from, DateOnly to) MonthRange(int year, int month)
+    {
+        var range = TaxFilingPeriod.MonthRange(year * 100 + month);
+        if (range.from.Year != year || range.from.Month != month)
+            throw new DomainException("tax_filing.bad_period",
+                $"Year '{year}' Month '{month}' must describe a valid calendar month.");
+        return range;
+    }
 }

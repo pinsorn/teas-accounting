@@ -62,6 +62,44 @@ Scoped up front so it does not sprawl. Regression the shipped R3 fixes, then att
       would bypass the routing ladder on a known footgun.
 - [ ] General break-it: authz walking (ids across companies), validation edges, money invariants.
 
+## Live verification of the fixes (2026-08-16, against the restarted local stack)
+Both fixes were replayed against a running API, not just proven by tests. The API-key used for the WP-1
+replay is **the same key from the original exploit**, unchanged.
+
+**WP-1 — the exploit is closed.**
+
+| Call | Before | After |
+|---|---|---|
+| `create_invoice_draft(deliveryOrderId)` with a key lacking `sales.tax_invoice.create` | `{"id":2,…}` — a draft Tax Invoice | **`[mcp.forbidden] 'sales.tax_invoice.create' required to create this document.`** |
+| `create_tax_invoice_draft` (control) | denied | denied, unchanged |
+| `sales.tax_invoices` row count | grew | **unchanged at 2** — the guard runs before the mint, it does not roll back after |
+
+**WP-2 — every 500 is now a typed 422, and the loose year window is intact.**
+
+| Call | Before | After |
+|---|---|---|
+| `/reports/pnd30?year=2026&month=13` and `&month=0` | 500 + .NET text | **422 `tax_filing.bad_period`** |
+| `/reports/vat-register?year=2026&month=13` | 500 | **422 `tax_filing.bad_period`** |
+| `/reports/pnd30?year=2026&month=-88` (the aliasing case) | would have returned **200 with December 2025's data** | **422** |
+| `/tax-filings/cit/profile?year=` 9999 / 99999 / 0 / -1 | 500 | **422 `tax_filing.bad_year`** |
+| `/tax-filings/cit/profile?year=3000` (trap 1) | 200 | **200 — unchanged, as required** |
+| `/reports/pnd30?year=2026&month=8` (normal) | 200 | 200, same figures |
+
+The `month=-88` row is worth calling out: it was **not** in my defect report. The implementer noticed
+that `year*100 + month` is only a faithful yyyymm encoding for a month in 1..12, so an out-of-band month
+can alias onto a *different valid* period — `2026 * 100 + (-88) = 202512` — and would have returned
+December 2025's VAT figures under a 200. Reusing the shared guard without a round-trip check would have
+converted a loud 500 into a silent wrong answer, which on a VAT report is worse. They added the
+round-trip check and a test for it unprompted.
+
+**F4's separate identity is confirmed.** `/reports/output-vat-register?year=2026&month=13` still returns
+500, with detail `"Required parameter …"` — a *missing-parameter binding* failure, exactly as the
+correction above predicted, and deliberately out of WP-2's scope. Called correctly, the same route
+behaves: `?period=202608` → 200 with real rows, `?period=202613` → 422 `tax_filing.bad_period`.
+
+**Gates:** full suite **1233 passed / 0 failed / 14 skipped** (Api.Tests) + **188/188** (Domain).
+The skip count matches the recorded baseline exactly, so the run is not a `TEAS_TEST_PG` fake-green.
+
 ## Known limitation of this environment — RLS is NOT exercised locally
 Both Postgres roles on this server (`postgres` and `accounting`) carry **`rolbypassrls = t`**, so every
 row-level-security policy is skipped for the application's own connection. The policies exist and look
@@ -166,7 +204,43 @@ the company unable to close that period. Neither is an acceptable choice to hand
 minted depends on the company's VAT mode. Do NOT simply add `TaxInvoiceCreate` to the attribute: that
 would break the non-VAT branch, where the tool legitimately mints a billing note.
 
+**Fixed and reviewed (2026-08-16).** Implemented per `specs/fix-local-hard-test-findings.md` WP-1 and
+reviewed by a fresh Opus reviewer at Tier 2: **APPROVE-WITH-NITS**, no finding with a constructible
+failure scenario. Two things the review established that are worth keeping:
+
+- The mirror the spec asked for would have been **wrong**, and the implementer was right to deviate.
+  `SalesChainEndpoints` resolves grants through `IPermissionLookup.LoadAsync(tenant.UserId, …)`, but
+  `AmbientTenantContext.UserId` (`:59-61`) reads only `NameIdentifier`/`sub`, and
+  `ApiKeyAuthentication.cs:49-64` emits neither — so for every API key it is null, and a literal port
+  would have queried user 0 and denied *every* key, including properly scoped ones. Re-running the
+  tool's own `mcpperm:` policy through `IAuthorizationService` lands on the same `PermissionHandler`
+  that the static `[Authorize]` attributes use, which reads the key's scopes CSV. Correct for both
+  principal kinds.
+- The fix also covers the **OAuth Bearer** transport, not just `X-Api-Key`: `McpPrincipalFactory.cs:44`
+  puts the same scopes CSV on a Bearer principal, and `McpBearerClaimsTransform.cs:29-38` rejects any
+  Bearer principal that is not an api-key principal, so both land in the same branch.
+
+**Two follow-ups the review surfaced, neither blocking:**
+
+- **Release note (N2):** this is a behaviour change for keys already in the field. Any existing MCP key
+  on a VAT-registered company scoped `sales.billing_note.manage` without `sales.tax_invoice.create` now
+  gets `[mcp.forbidden]` on a call that previously returned a draft. That is the point of the fix, but
+  those keys need re-scoping and the release note must say so.
+- **Backlog (N3):** `create_receipt_draft` (`TeasMcpTools.cs:509-521`) reads a tax invoice's status and
+  amounts in settlement mode while gated only on `sales.receipt.create`, with no `sales.tax_invoice.read`.
+  A *read* under a neighbouring scope, not a mint under the wrong one, and the document it creates always
+  matches its policy — pre-existing, lesser, worth a look but not this release.
+
 **Cleanup state:** the draft Tax Invoice id=2 was left in place on co1 as evidence.
+
+**Why the test suite could never have caught this.** While fixing it, the implementer found that the
+existing test `Mcp_create_invoice_draft_is_polymorphic_and_wraps_the_delivery_required_guard` minted its
+VAT-company key with `billing_note.manage` / `sales_order.manage` / `delivery_order.manage` and **not**
+`tax_invoice.create`, then asserted the call succeeds and returns a `tax-invoices` link. The suite was
+therefore *asserting the vulnerable behaviour as correct* — a green run was evidence the hole was open,
+not closed. The fix required editing that test to add the missing scope so it keeps exercising the guard
+it actually targets. This is the kind of defect a test suite structurally cannot report, and it is the
+argument for exactly this sort of live adversarial pass against a running system.
 
 ### F2 — the VAT report endpoints return a raw 500 (and leak the .NET exception text) for month 13 or 0
 **Severity: medium. Same defect class v2.0.0's WP-6 fixed for ภ.ง.ด.50/51 — this service was missed.**
@@ -177,9 +251,21 @@ Verified live against localhost as an authenticated user:
 |---|---|
 | `GET /reports/pnd30?year=2026&month=13` | **500** `internal_error` — `"Year, Month, and Day parameters describe an un-representable DateTime."` |
 | `GET /reports/pnd30?year=2026&month=0` | **500**, same message |
-| `GET /reports/output-vat-register?year=2026&month=13` | **500** |
-| `GET /reports/input-vat-register?year=2026&month=13` | **500** |
 | `GET /reports/vat-register?year=2026&month=13` | **500** |
+| `GET /reports/output-vat-register?year=2026&month=13` | **500 — but for a different reason, see the correction below** |
+| `GET /reports/input-vat-register?year=2026&month=13` | **500 — same** |
+
+> **Correction (2026-08-16), found while implementing the fix.** The last two rows do not belong to this
+> defect. `input-vat-register` and `output-vat-register` bind a single required `[FromQuery] int period`
+> (yyyymm), not `year`/`month` — `TaxFilingEndpoints.cs:273-281` — so my probe omitted a required
+> parameter and the 500 I recorded was ASP.NET's *missing-parameter* failure, not the `DateOnly` crash.
+> `OutputVatRegisterAsync` has in fact validated its period since commit `ce1f6fe`
+> (`TaxFilingService.cs:177` calls `TaxFilingPeriod.MonthRange`), and `InputVatRegisterAsync` builds no
+> `DateOnly` at all. The genuine instances of *this* defect are `/reports/pnd30` and
+> `/reports/vat-register`, which do take `year`/`month` (`ReportEndpoints.cs:33-42`).
+>
+> The missing-parameter 500 is real but is **F4's class** — a binding failure surfacing as 500 instead of
+> 400 — and is recorded there, not here. Verified live after the fix; see the verification section.
 
 **Root cause.** There are two `MonthRange` helpers and only one of them validates:
 

@@ -94,6 +94,46 @@ follow its shape, including how it obtains the grants.
 - A test proving the VAT branch still succeeds for a principal that does hold `tax_invoice.create`.
 - Report the test names and their output. Do not run the full suite — Fable runs it.
 
+### WP-1 attempt log
+- **[x] DONE** (2026-08-16, sonnet-implementer). Fixed `CreateInvoiceDraftAsync` in
+  `backend/src/Accounting.Api/Mcp/TeasMcpTools.cs` to runtime-check `sales.tax_invoice.create`
+  on the VAT branch. Deviated from the letter of "mirror SalesChainEndpoints.cs" on ONE point,
+  deliberately, because of trap 2: `IPermissionLookup.LoadAsync(tenant.UserId ?? 0, ...)` queries
+  `sys.role_permissions` by `ITenantContext.UserId`, which `AmbientTenantContext` (and
+  `ApiKeyAuthenticationHandler`, which never emits `ClaimTypes.NameIdentifier`/`sub`) leaves
+  **null for every API-key/MCP caller**. Reusing that pattern verbatim would have queried
+  `UserId == 0`, returning zero grants for every key — silently denying every VAT-branch MCP
+  call (including one holding `tax_invoice.create`), which would have failed gate 3. Instead
+  the fix re-runs the tool's own `mcpperm:sales.tax_invoice.create` policy via
+  `IAuthorizationService.AuthorizeAsync(HttpContext.User, null, TaxInvoiceCreate)` — this invokes
+  `PermissionHandler` directly (the exact same handler the static `[Authorize]` attributes use),
+  which reads the key's `Scopes` claim for API keys and `Permission` claims (+ super-admin
+  bypass, never granted to keys) for JWT users. Confirmed empirically: all 4 tests below passed,
+  including the "key with `tax_invoice.create` succeeds" case, which a literal `IPermissionLookup`
+  port would have failed.
+  - Also updated the pre-existing test `Mcp_create_invoice_draft_is_polymorphic_and_wraps_the_delivery_required_guard`
+    (`backend/tests/Accounting.Api.Tests/Mcp/McpDocumentChainTests.cs`) — its VAT-company key
+    previously held only `billing_note.manage`/`sales_order.manage`/`delivery_order.manage` and
+    relied on the pre-fix vulnerable behaviour to succeed; added `sales.tax_invoice.create` to
+    keep testing the guard it actually targets (delivery-required), not the permission bug this
+    WP closes.
+  - Gates: `dotnet build` (Api + Tests) 0 warnings/0 errors. Targeted run
+    `--filter "FullyQualifiedName~McpDocumentChainTests.Mcp_create_invoice_draft"` →
+    **4 Passed, 0 Failed, 0 Skipped** (confirms `TEAS_TEST_PG` applied — no skip-count jump).
+- **[x] Tier-2 review N1 applied** (2026-08-16). APPROVE-WITH-NITS; reviewer independently
+  confirmed the `IPermissionLookup` deviation above was correct. Nit N1: replaced the
+  `IHttpContextAccessor httpContextAccessor` param + `httpContextAccessor.HttpContext!.User`
+  (null-forgiving) with a directly constructor-injected `ClaimsPrincipal user` param, matching
+  the existing `CompanySwitchService` precedent and the scoped `ClaimsPrincipal` DI registration
+  at `Program.cs:127-129` (`IHttpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal(...)`
+  anonymous fallback). Removes a `NullReferenceException` failure mode that depended on
+  `Program.cs`'s `WithHttpTransport(o => o.Stateless = true)` staying true; the guard now fails
+  closed (deny) instead of throwing if that transport setting ever changes. No other change —
+  policy constant, guard position, tests, `create_billing_note_draft` all untouched per
+  instruction. Re-ran gates: `dotnet build` (Api, Tests, full `Accounting.sln`) 0 warnings/0
+  errors; targeted `McpDocumentChainTests.Mcp_create_invoice_draft*` → **4 Passed, 0 Failed, 0
+  Skipped** (TEAS_TEST_PG confirmed applied, no fake-green).
+
 ---
 
 ## WP-2 — stop returning raw 500s (and leaking .NET exception text) for out-of-range period input
@@ -159,6 +199,49 @@ places — call the existing guards.
   month (VAT reports) and an out-of-range year (CIT), and one asserting `year=3000` still returns 200 on
   a CIT endpoint — that last one is the regression guard for trap 1.
 - Report test names and output. Do not run the full suite.
+
+### WP-2 attempt log
+- **[x] DONE** (2026-08-16, sonnet-implementer). Fixed both cited files:
+  - `VatReportService.MonthRange(year, month)` now delegates to `TaxFilingPeriod.MonthRange(year *
+    100 + month)` instead of constructing `DateOnly` directly, reusing `tax_filing.bad_period` (no
+    new code/helper). Added a round-trip check (`range.from.Year != year || range.from.Month !=
+    month`) — advisor-caught gap: `year*100+month` is only a faithful yyyymm encoding for `month` in
+    [1,12]; an out-of-band month like `-88` or `112` aliases to a DIFFERENT, in-range period (e.g.
+    `year=2026,month=-88` → period 202512 → silently returns December 2025's data with 200) instead
+    of failing. Covered by a dedicated test.
+  - `CitYearDataService`: added `TaxFilingPeriod.EnsureYear(fiscalYear)` as the first line of BOTH
+    `FiscalBoundsAsync` (covers `ComputeYearAsync` → `POST /cit/years/{year}/compute`, and
+    `ExpenseByAccountAsync`) and `ProfileAsync` (covers `GET /cit/profile?year=` — it does NOT call
+    `FiscalBoundsAsync`, it duplicates the same `DateOnly` construction inline, so it needed its own
+    guard call per trap 3).
+  - Did **not** touch the accepted year window (trap 1) — `EnsureYear` unchanged; `year=3000` still
+    200s (tested).
+  - Did **not** add a third validation helper or copy range literals (trap 2) — both fixes call the
+    pre-existing `TaxFilingPeriod.MonthRange`/`EnsureYear` and preserve their exact error codes.
+  - **Noticed, not fixed** (outside this WP's cited files — flagging per the dispatch's report
+    channel, not fixing): the defect's repro-URL list includes `GET /reports/output-vat-register` and
+    `GET /reports/input-vat-register` with `?year=2026&month=13`, but those two routes bind a single
+    `[FromQuery] int period` (yyyymm), not `year`/`month` — so that exact query string can't reach the
+    DateOnly construction the way described. Reading the code: `OutputVatRegisterAsync`
+    (`TaxFilingService.cs:177`) already calls `TaxFilingPeriod.MonthRange(period)` — confirmed via
+    `git log -S "TaxFilingPeriod.MonthRange" -- .../TaxFilingService.cs` that this guard is in the
+    Phase-1-baseline commit `ce1f6fe`, i.e. it predates this spec entirely — so a bad `period` there
+    already 422s, not 500s. `InputVatRegisterAsync` (same file, :156) does no `DateOnly` construction
+    at all (filters `VendorInvoices` by `VatClaimPeriod == period`), so a garbage period there
+    returns 200 with an empty register, not a 500. Neither matches the "raw 500 leaking exception
+    text" defect shape this WP closes; the repro-list entries for these two URLs look like a
+    transcription mismatch (possibly against `/reports/vat-register`, which IS fixed). Confirmed with
+    advisor before proceeding — did not touch `TaxFilingService.cs` (not cited in the defect, and
+    blast-radius cap is 4 files for WP-2).
+  - Gates: `dotnet build` (full solution) 0 warnings/0 errors. New file
+    `backend/tests/Accounting.Api.Tests/Reports/PeriodValidation422Tests.cs` (HTTP-level, mirrors
+    `GeneralLedgerEndpointTests.cs` — `RbacApiFactory` + super-admin JWT). Targeted run
+    `--filter "FullyQualifiedName~PeriodValidation422Tests"` with `TEAS_TEST_PG` set inline →
+    **4 Passed, 0 Failed, 0 Skipped**. RED-first verified: temporarily `git stash`-reverted both
+    source files and re-ran the same filter → **3 Failed with literal `HttpStatusCode.InternalServerError
+    {value: 500}`** (the exact pre-fix defect) on the three 422 tests, while the `year=3000` guard
+    test passed both before and after (green-first by design, since it asserts pre-existing correct
+    behaviour). Then `git stash pop` restored the fix and re-ran → 4/4 green again.
 
 ---
 

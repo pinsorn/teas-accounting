@@ -701,6 +701,8 @@ public sealed class TeasMcpTools
         ITaxInvoiceService tiSvc,
         ICompanyTaxConfigService taxCfg,
         IOptions<AppOptions> app,
+        IAuthorizationService authz,
+        System.Security.Claims.ClaimsPrincipal user,
         CancellationToken ct)
     {
         if ((deliveryOrderId is null) == (salesOrderId is null))
@@ -708,6 +710,30 @@ public sealed class TeasMcpTools
                 "Exactly one of deliveryOrderId or salesOrderId must be set.");
 
         var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+        // WP-1 (specs/fix-local-hard-test-findings.md) — the VAT branch below mints a TAX
+        // INVOICE, not a billing note, so the caller must ADDITIONALLY hold tax_invoice.create.
+        // The static [Authorize(Policy = BillingNoteManage)] above can't express this: which
+        // document actually gets minted is only known at runtime (company VAT mode) — see
+        // SalesChainEndpoints.cs create-invoice for the same shape on the REST twin. UNLIKE that
+        // endpoint, this re-runs the tool's OWN "mcpperm:" policy via IAuthorizationService
+        // instead of IPermissionLookup: IPermissionLookup.LoadAsync queries role permissions by
+        // ITenantContext.UserId, which is null for every API-key/MCP caller (no human user), so
+        // it would silently deny (or on a differently-shaped bug, silently allow) every key —
+        // the exact surface this exploit uses. Re-running the policy reuses PermissionHandler
+        // itself, so it reads the key's Scopes claim for API keys and the Permission claims (with
+        // super-admin bypass, never granted to keys) for JWT users — correct for both.
+        // Tier-2 review N1: ClaimsPrincipal is constructor-injected (not IHttpContextAccessor +
+        // HttpContext!) — same DI registration CompanySwitchService already relies on
+        // (Program.cs), scoped from IHttpContextAccessor with a `?? new ClaimsPrincipal(...)`
+        // anonymous fallback. Fails CLOSED on a null HttpContext instead of throwing NRE, so this
+        // guard keeps working even if the MCP transport ever stops being Stateless.
+        if (vatMode)
+        {
+            var authResult = await authz.AuthorizeAsync(user, resource: null, TaxInvoiceCreate);
+            if (!authResult.Succeeded)
+                throw new McpE2Exception("mcp.forbidden",
+                    "'sales.tax_invoice.create' required to create this document.");
+        }
         long id = (vatMode, deliveryOrderId, salesOrderId) switch
         {
             (true, { } doId, null)  => await tiSvc.CreateFromDeliveryOrderAsync(doId, ct),
