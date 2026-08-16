@@ -251,6 +251,21 @@ to its last branch: *"Standard output VAT code (or any unclassified taxable code
 configured rate"*, returning 7%. So the one thing the user is allowed to choose is the one thing the
 server throws away, and the hardcoded phantom code decides the tax instead.
 
+**Both phantom codes confirmed across every tenant.** A query for `VAT0` and `V7` in `tax.tax_codes`
+returns **nothing for any company** — neither code exists in any master. Cross-checking every distinct
+code actually stored on document lines against its own company's master:
+
+| Document | Company | Stored code | Rate | In that company's master? |
+|---|---|---|---|---|
+| Tax invoice | 1 (VAT) | `V7` | 0.070000 | **no** |
+| Tax invoice | 1 (VAT) | `VAT7` | 0.070000 | yes |
+| Billing note | 3 (non-VAT) | `VAT0` | 0.000000 | **no** |
+
+The non-VAT company stores a phantom too, and there it is harmless: `Resolve` short-circuits at
+`if (!vatMode) return (type, 0m, "VAT0")` before any lookup, so the rate is 0 regardless. The identical
+orphan on a VAT-registered company falls through to the standard rate instead. Same defect, opposite
+consequence, decided entirely by which branch runs first.
+
 **Reach.** The same rate-only dropdown with a hardcoded code appears on the quotation, sales-order,
 invoice and tax-invoice forms — a designer sweep counted five origin forms hardcoding `taxCodeId: 1`.
 Separately, the eight genuine exempt codes seeded for every company (พืชผลทางการเกษตร, สัตว์มีชีวิต, ปุ๋ย,
