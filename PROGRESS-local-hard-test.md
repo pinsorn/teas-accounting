@@ -100,6 +100,49 @@ behaves: `?period=202608` → 200 with real rows, `?period=202613` → 422 `tax_
 **Gates:** full suite **1233 passed / 0 failed / 14 skipped** (Api.Tests) + **188/188** (Domain).
 The skip count matches the recorded baseline exactly, so the run is not a `TEAS_TEST_PG` fake-green.
 
+### F8 — 🔴 MONEY: converting a Sales Order to a Delivery Order loses the discount, the tax code, and the link back to the order
+**Severity: high (overbilling + a dead safety guard + a VAT-rate error). Found by the UX swarm, root cause traced and confirmed in the database by Fable.**
+
+**What was observed.** Sales order `08-2026-SO-0003` line 2 was 2 × ฿1,250.00 less **15%** = ฿2,125.00.
+Clicking สร้างใบส่งของ produced delivery order `08-2026-DO-0003` whose line 2 reads ฿2,500.00 — the
+discount is simply gone. Confirmed straight from the tables, not from the screen:
+
+| | qty | unit price | discount_percent | line_amount | tax_amount |
+|---|---|---|---|---|---|
+| `sales_order_lines` line 2 | 2 | 1,250.00 | **15.00** | **2,125.00** | 148.75 |
+| `delivery_order_lines` line 2 | 2 | 1,250.00 | **0.00** | **2,500.00** | 175.00 |
+
+The document total is overstated by ฿401.25 (฿375.00 of net plus ฿26.25 of VAT that is not owed), and a
+delivery order cannot be edited once issued, so the chain is permanently inconsistent.
+
+**Two further consequences the swarm did not see, found by reading the rows.**
+
+- `delivery_order_lines.sales_order_line_id` is **NULL on every line** (checked on DO-0002 and DO-0003),
+  so `sales_order_lines.delivered_quantity` stays **0.0000** even after a full delivery. The
+  over-delivery guard in `SalesOrderDeliveryServices.cs:226-233` is inside
+  `if (l.SalesOrderLineId is { } solId)`, so it **never executes**: a user can raise unlimited delivery
+  orders against one sales order, each for the full quantity, and `do.over_delivered` can never fire.
+- The tax code is hardcoded to `VAT7`. `SalesLineBackstop.Resolve` deliberately ignores the requested
+  *rate* and derives it from the *code* — so overwriting the code overwrites the rate. A line the user
+  entered as **"0% (ยกเว้น/ส่งออก)"**, which the line editor offers, comes back charged at 7% on the
+  delivery order.
+
+**Root cause — the API shape, not a careless frontend.** `createDelivery()` in
+`frontend/app/(dashboard)/sales-orders/[id]/page.tsx:56-77` sends `salesOrderLineId: null`,
+`discountPercent: 0`, `taxCodeId: 1`, `taxCode: vatMode ? 'VAT7' : 'VAT0'`. That is not laziness: the
+sales-order detail endpoint hands the frontend a `ChainLineDto` (`frontend/lib/types.ts:1061-1065`)
+containing only `lineNo, productId, productCode, descriptionTh, quantity, uomText, unitPrice, lineAmount,
+taxAmount, totalAmount`. There is **no `lineId`, no `discountPercent`, no `taxCode`** in it — the
+frontend hardcodes those three values because it is never told them. The receiving service is correct:
+`CreateDeliveryOrderAsync` honours `DiscountPercent`, links `SalesOrderLineId`, and enforces the
+over-delivery guard whenever the request actually carries them.
+
+**Why this needs a design, not a patch.** `ChainLineDto` is the shared line shape across the document
+chain, so widening it touches every mapper that produces one and every consumer that reads one, and the
+same "thin DTO → frontend invents values on convert" pattern may exist on the other conversion paths
+(quotation→SO, DO→TI, billing note→TI, PO→VI). Fixing only the sales-order screen would leave siblings
+broken. Routing: Opus design first.
+
 ## Known limitation of this environment — RLS is NOT exercised locally
 Both Postgres roles on this server (`postgres` and `accounting`) carry **`rolbypassrls = t`**, so every
 row-level-security policy is skipped for the application's own connection. The policies exist and look
