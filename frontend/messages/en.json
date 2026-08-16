@@ -1717,7 +1717,8 @@
     "draftPreview": "(Draft)",
     "selectCustomer": "Select a customer",
     "noAccessTitle": "Access denied",
-    "noAccessBody": "This page requires the {perm} permission — please contact your administrator."
+    "noAccessBody": "This page requires the {perm} permission — please contact your administrator.",
+    "noPermissionTooltip": "You need the {perm} permission to do this — please contact your administrator."
   },
   "toast": {
     "validationFailed": "Please complete all required fields",

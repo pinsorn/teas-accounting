@@ -17,6 +17,7 @@ import { useSalesOrder, usePostSalesOrder, useCreateDeliveryOrder, useCreateInvo
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
+import { useScopeState } from '@/components/PermissionGate';
 
 export default function SalesOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -37,6 +38,11 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
   // so the DO must not be VAT-coded nor combined with a TI. (Backend re-derives this
   // too; this keeps the request honest.)
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // F6 — mirrors SalesChainEndpoints.cs:114-127 exactly: a VAT-registered company
+  // creates a Tax Invoice from this button (needs sales.tax_invoice.create); a
+  // non-VAT one creates an Invoice/billing note instead (needs sales.billing_note.manage).
+  const createInvoiceScope = vatMode ? 'sales.tax_invoice.create' : 'sales.billing_note.manage';
+  const canCreateInvoice = useScopeState(createInvoiceScope);
   // S11 — post issues the doc number immediately with no confirm step.
   const [confirmPost, setConfirmPost] = useState(false);
   const d = q.data;
@@ -115,9 +121,19 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
                   {t('createDo')}
                 </button>
               ) : (
-                <button data-testid="so-create-invoice" className="btn btn-primary btn-sm" disabled={makeInvoice.isPending} onClick={createInvoiceDirect}>
-                  {t('createInvoice')}
-                </button>
+                <span
+                  className={!canCreateInvoice.pending && !canCreateInvoice.allowed ? 'tooltip' : undefined}
+                  data-tip={!canCreateInvoice.pending && !canCreateInvoice.allowed ? tc('noPermissionTooltip', { perm: createInvoiceScope }) : undefined}
+                >
+                  <button
+                    data-testid="so-create-invoice"
+                    className="btn btn-primary btn-sm"
+                    disabled={makeInvoice.isPending || canCreateInvoice.pending || !canCreateInvoice.allowed}
+                    onClick={createInvoiceDirect}
+                  >
+                    {t('createInvoice')}
+                  </button>
+                </span>
               )
             )}
           </>

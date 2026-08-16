@@ -18,6 +18,7 @@ import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useConfirm } from '@/hooks/useConfirm';
 import { PrintMenu } from '@/components/ui/PrintMenu';
+import { useScopeState } from '@/components/PermissionGate';
 
 // Sprint 13h P6.2 — Billing Note detail. Draft → Issue/Delete. Issued → Cancel; Settled only
 // via a posted Receipt (R2/WP-7, 2026-08-12 — the manual MarkSettled button was deleted).
@@ -40,6 +41,8 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
   const paper = usePaperDoc('billing-notes', bnId);
   // ม.86/4 — only a VAT-registered company issues a Tax Invoice from the Invoice.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // F6 — this button creates a Tax Invoice, so it needs sales.tax_invoice.create.
+  const canCreateTi = useScopeState('sales.tax_invoice.create');
   const [cancelReason, setCancelReason] = useState('');
   const [showCancel, setShowCancel] = useState(false);
   // S11 — issue had no confirm dialog (issue issues the doc number immediately,
@@ -126,9 +129,19 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
             {/* Phase 2a: Invoice → Tax Invoice. VAT only, while no TI issued yet. Stays
                 available after Settled — settling via a Receipt (R2/WP-7) must not strand it. */}
             {vatMode && (d.status === 'Issued' || d.status === 'Settled') && (d.taxInvoices?.length ?? 0) === 0 && (
-              <button data-testid="bn-create-ti" className="btn btn-primary btn-sm" disabled={createTi.isPending} onClick={createTaxInvoice}>
-                {t('createTaxInvoice')}
-              </button>
+              <span
+                className={!canCreateTi.pending && !canCreateTi.allowed ? 'tooltip' : undefined}
+                data-tip={!canCreateTi.pending && !canCreateTi.allowed ? tc('noPermissionTooltip', { perm: 'sales.tax_invoice.create' }) : undefined}
+              >
+                <button
+                  data-testid="bn-create-ti"
+                  className="btn btn-primary btn-sm"
+                  disabled={createTi.isPending || canCreateTi.pending || !canCreateTi.allowed}
+                  onClick={createTaxInvoice}
+                >
+                  {t('createTaxInvoice')}
+                </button>
+              </span>
             )}
             {d.status === 'Issued' && (
               <button data-testid="bn-cancel-toggle" className="btn btn-danger btn-sm" onClick={() => setShowCancel((v) => !v)}>

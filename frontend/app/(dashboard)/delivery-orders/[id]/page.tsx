@@ -13,6 +13,7 @@ import { useDeliveryOrder, useDeliveryOrderAction, useCreateInvoiceFromDeliveryO
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
+import { useScopeState } from '@/components/PermissionGate';
 
 export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -30,6 +31,9 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
   const paper = usePaperDoc('delivery-orders', doId);
   // ม.86/4 — a non-VAT company issues no Tax Invoice, so hide the DO→TI action.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
+  // F6 — two independent convert targets, two independent permission checks.
+  const canCreateTi = useScopeState('sales.tax_invoice.create');
+  const canCreateInvoiceFromDo = useScopeState('sales.billing_note.manage');
   const d = q.data;
 
   async function run(action: string) {
@@ -71,16 +75,36 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
               </button>
             )}
             {vatMode && d.status === 'Delivered' && !d.isCombinedWithTi && d.taxInvoiceId == null && (
-              <button data-testid="do-create-ti" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('create-ti')}>
-                {t('createTi')}
-              </button>
+              <span
+                className={!canCreateTi.pending && !canCreateTi.allowed ? 'tooltip' : undefined}
+                data-tip={!canCreateTi.pending && !canCreateTi.allowed ? tc('noPermissionTooltip', { perm: 'sales.tax_invoice.create' }) : undefined}
+              >
+                <button
+                  data-testid="do-create-ti"
+                  className="btn btn-primary btn-sm"
+                  disabled={act.isPending || canCreateTi.pending || !canCreateTi.allowed}
+                  onClick={() => run('create-ti')}
+                >
+                  {t('createTi')}
+                </button>
+              </span>
             )}
             {/* Phase 2a new flow: DO → Invoice (ใบแจ้งหนี้). Shown for an issued/
                 delivered DO that has no Invoice yet. */}
             {(d.status === 'Delivered' || d.status === 'Issued') && d.billingNoteId == null && (
-              <button data-testid="do-create-invoice" className="btn btn-primary btn-sm" disabled={createInvoice.isPending} onClick={createInvoiceFromDo}>
-                {t('createInvoice')}
-              </button>
+              <span
+                className={!canCreateInvoiceFromDo.pending && !canCreateInvoiceFromDo.allowed ? 'tooltip' : undefined}
+                data-tip={!canCreateInvoiceFromDo.pending && !canCreateInvoiceFromDo.allowed ? tc('noPermissionTooltip', { perm: 'sales.billing_note.manage' }) : undefined}
+              >
+                <button
+                  data-testid="do-create-invoice"
+                  className="btn btn-primary btn-sm"
+                  disabled={createInvoice.isPending || canCreateInvoiceFromDo.pending || !canCreateInvoiceFromDo.allowed}
+                  onClick={createInvoiceFromDo}
+                >
+                  {t('createInvoice')}
+                </button>
+              </span>
             )}
           </>
         }

@@ -19,7 +19,7 @@ import { useQuotation, useQuotationAction, useDeleteQuotation, useCompanyProfile
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useConfirm } from '@/hooks/useConfirm';
-import { useHasScope } from '@/components/PermissionGate';
+import { useHasScope, useScopeState } from '@/components/PermissionGate';
 
 export default function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -40,6 +40,9 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   // ม.86/4 — non-VAT companies cannot issue a Tax Invoice from an accepted quote.
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   const hasScope = useHasScope();
+  // F6 — the target of the convert action is the Sales Order, so the button needs
+  // sales.sales_order.manage (not a quotation scope) to match the backend 403.
+  const canConvertToSo = useScopeState('sales.sales_order.manage');
   const [isApproveAction, setIsApproveAction] = useState(false);
   // S11 — send/accept/reject had no confirm dialog (send issues the doc number
   // immediately, immutable numbering). Mirrors the WP3.6 purchase-side pattern.
@@ -160,9 +163,19 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
               </>
             )}
             {d.status === 'Accepted' && d.convertedToSoId == null && (
-              <button data-testid="q-convert" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => run('convert-to-so')}>
-                {t('convertToSo')}
-              </button>
+              <span
+                className={!canConvertToSo.pending && !canConvertToSo.allowed ? 'tooltip' : undefined}
+                data-tip={!canConvertToSo.pending && !canConvertToSo.allowed ? tc('noPermissionTooltip', { perm: 'sales.sales_order.manage' }) : undefined}
+              >
+                <button
+                  data-testid="q-convert"
+                  className="btn btn-primary btn-sm"
+                  disabled={act.isPending || canConvertToSo.pending || !canConvertToSo.allowed}
+                  onClick={() => run('convert-to-so')}
+                >
+                  {t('convertToSo')}
+                </button>
+              </span>
             )}
             {d.status === 'Accepted' && vatMode && (
               <Link data-testid="q-create-ti" href={`/tax-invoices/new?fromQuotationId=${d.quotationId}`} className="btn btn-primary btn-sm">

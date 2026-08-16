@@ -320,7 +320,30 @@ The frontend half never asks. I checked the four detail pages myself: `sales-ord
 but not for `q-convert`. Every convert button is gated on document status alone. A user without the
 target-create grant is therefore offered a button whose only possible outcome is an error toast.
 
-**Honest limit on what I reproduced.** I could not make the button *appear* for a user who would then be
+**FIXED (2026-08-16) — Ham chose disabled-with-a-reason over hiding.** All five buttons now render,
+disabled, wrapped in a tooltip naming the permission the backend will demand. Verified in the browser on
+the running stack, in both directions:
+
+- As `rbac_sales_staff` on an Issued invoice, `bn-create-ti` renders **disabled** with the tooltip
+  *"ต้องมีสิทธิ์ sales.tax_invoice.create จึงจะทำรายการนี้ได้ — กรุณาติดต่อผู้ดูแลระบบ"*, while the
+  neighbouring ยกเลิก button stays live. Screenshot captured.
+- The same user's `do-create-invoice` — a permission they **do** hold — renders enabled with no tooltip,
+  so the gate does not over-block.
+- As the super-admin `admin`, `bn-create-ti` renders enabled with no tooltip, matching the backend's
+  super-admin bypass.
+
+This deliberately diverges from the "hide, not disable" convention in `PermissionGate.tsx:6-8`. The
+reasoning is recorded in that file: hiding was security-by-absence, which was never real security, and
+since `91e5147` the backend hard-403s — so the only thing hiding achieved was teaching the user nothing.
+Every other call site keeps the hide behaviour.
+
+Two implementation traps worth remembering, both confirmed live rather than assumed: a `disabled` button
+gets `pointer-events: none` in Chromium and never fires hover, so the tooltip must live on a wrapping
+element; and `useHasScope` collapses "still loading" and "denied" into the same `false`, which would
+flash a false "you lack permission" on every page load — hence the new `useScopeState` companion hook
+returning `{allowed, pending}`.
+
+**Honest limit on what I originally reproduced.** I could not make the button *appear* for a user who would then be
 refused, because document state hid it in both fixtures: `do-create-ti` additionally requires
 `status === 'Delivered' && !isCombinedWithTi && taxInvoiceId == null`, and my delivery order came back
 `isCombinedWithTi: true`; `so-create-invoice` only renders for a service-only sales order, and co1 seeds
