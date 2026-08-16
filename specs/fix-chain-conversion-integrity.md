@@ -4,6 +4,25 @@
 > Evidence: `PROGRESS-local-hard-test.md` F8 / F8b / F13 + the ledger-audit section.
 > **Living document.** The implementer ticks the checklist in §5 and appends to the attempt log.
 
+## DECISIONS — settled by Ham, 2026-08-16. The escalations below are no longer open.
+
+1. **F14 — the lying 0% option: build the real tax-code picker.** Do not simply delete the
+   "0% (ยกเว้น/ส่งออก)" option. Expose the company's own tax codes (`GET /tax-codes` over the existing
+   `ITaxCodeService`) and let the line editor pick a real one. Deleting the option would leave a bookshop,
+   a school or a clinic unable to issue a correct document at all — the eight seeded exempt codes and the
+   two zero-rated export codes are currently unreachable from the UI. This is an additional package in
+   the frontend pass, not a separate project.
+
+2. **The existing `V7` rows: leave them, and ship a detection query.** No data repair. ภ.พ.30 already
+   buckets them correctly through `SalesCategorizer`'s `TaxRate > 0` fallback, nothing reads the stored
+   id, and repairing would mean disabling `trg_ti_lines_immutable` on posted tax documents. The general
+   ledger currently ties out exactly and must not move. Provide a query that lists document lines whose
+   `tax_code` is absent from their own company's master, so the residue is visible rather than silent.
+
+Confirmed independently before these were decided: `VAT0` and `V7` appear in **no** company's
+`tax.tax_codes` master. Stored lines carry `V7` at 7% on the VAT company and `VAT0` at 0% on the non-VAT
+one — the same orphan, harmless on non-VAT only because `Resolve` short-circuits before the lookup.
+
 ## 0. Headline
 
 Two browser screens rebuild a create-request from a line DTO that does not carry the values they
