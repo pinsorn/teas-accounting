@@ -23,8 +23,84 @@ Nothing here is deployed — there is no server to deploy to until the migration
 | F4 | A missing required query parameter returns 500 instead of 400 | low | open | **F** |
 | — | `create_receipt_draft` reads a tax invoice under only `receipt.create` | low | open | **F** |
 
-Non-VAT company (co3) results are appended at the end of this file when that pass reports; any findings
-from it join the table above before work starts.
+### 🔺 Non-VAT pass landed, and it UPGRADES Unit A — the wrong number DOES reach the ledger
+
+The earlier write-up said the F8 discount error "never reached the GL" because delivery orders have no
+`journal_entry_id`. **That was true of the delivery order and false of the chain.** On the non-VAT company
+the same conversion dropped a 10% line discount (฿800 → ฿720 became ฿800), inflating the document from
+฿1,719.99 to **฿1,799.99**, and the error then flowed DO → ใบแจ้งหนี้ → ใบเสร็จรับเงิน into journal
+`08-2026-JV-0001`: **Dr ลูกหนี้การค้า 1,799.99 / Cr รายได้จากการขาย 1,799.99**. Balanced, no VAT touched —
+and ฿80.00 higher than what the customer accepted on the quotation.
+
+The VAT company's books stayed clean only because the swarm agent happened to notice the inflated figure
+and corrected it in the still-editable invoice draft before it reached the tax invoice. That was a human
+catching it, not a structural guard. **Unit A is therefore a live money defect that posts, not a
+document-layer cosmetic issue, and its priority moves above Unit B.**
+
+### Non-VAT guards — all hold, and this is worth keeping
+- **Tax invoices are blocked server-side, not just hidden.** `/tax-invoices` and `/tax-invoices/new` show a
+  clean ม.86/4 refusal, and a direct POST with a full valid payload still returns **422
+  `ti.non_vat_blocked`**. Defense in depth, confirmed by going around the UI.
+- **ภ.พ.30 is not offered at all** on the filings page — nothing to click, rather than a button that errors.
+- **Withholding tax still works.** The 50 ทวิ income-type dropdown and the WHT fields are live on a
+  non-VAT company, correctly treating WHT as income tax rather than something tied to VAT registration.
+- **Labels are right** (ใบส่งของ / ใบแจ้งหนี้, never ใบกำกับภาษี) and **no tax code is written at all** —
+  lines carry `taxCode: null`, which is cleaner than the VAT company's phantom `V7` (F13).
+
+### A new company created through the UI proves the real tenant path is sound
+Company **id 4, "NV-ร้านนอนแวต2 เดโม"** was created through the Super Admin screen, so it went through
+`CompanyService.CreateAsync`. It came up with **30 chart-of-accounts rows and all 11 system roles** —
+the same shape as co3. That is the counterpart to **F1**: companies created through the app get their
+roles, and only the raw-SQL seed path does not. Two new low-severity UX findings came with it: the
+create-company form reports only *"Request validation failed (1 field(s))"* with no field named when the
+tax-ID checksum fails, and turning จด VAT off leaves the VAT rate, VAT registration date and ภ.พ.30 filing
+mode fields fully editable.
+
+**Unfinished, and cheap to finish:** company 4 has no customers yet, so posting one sale there (and then
+checking its stored tax code and its ใบกำกับภาษี refusal) was not completed. Roughly ten tool calls, and
+nothing depends on it — co3 already answered the same questions.
+
+---
+
+## ⏸ CHECKPOINT — 2026-08-16, paused at the 5-hour quota cliff
+
+**Quota at pause: 5-hour 95% (resets ~1786865400 epoch, roughly 2.7 hours out), 7-day 84%.**
+The pause is because of the **5-hour** pool, which is the one carrying the 85% gate.
+
+**Corrected rule (Ham, 2026-08-16): the 85% gate is on the SESSION / 5-hour pool. The 7-day pool may run
+to 95%.** An earlier note here and in memory had this backwards and would have stopped a resume at 7-day
+85% for no reason. On resume, read the **5-hour** figure: below 85%, carry on; at or above it, checkpoint
+and pause again. The 7-day figure only matters as it approaches 95%.
+
+### State — everything is committed, nothing is in the working tree
+Commits this round: `4988e52` (security + 500 family), `edcf9af` (convert buttons), `a32d682` (this plan),
+plus the finding write-ups `d742929` `be2ea79` `5aac414` `e3e14a0` `4c1ed0a` and status `4a2de4c`.
+Working tree clean at pause.
+
+### One thing was in flight
+A sonnet agent was testing the **non-VAT** path: first company 3 (ร้านนอนแวต เดโม), then — added mid-run at
+Ham's request — **creating a brand-new non-VAT company through the UI** and re-running the decisive checks
+there, because a company created through `CompanyService.CreateAsync` takes the real tenant path while co3
+was inserted by a raw SQL seed, so any difference between them is itself a finding.
+
+A subagent cannot be paused, only finished or killed, and a killed one loses its findings entirely — so it
+was left running. **If its report arrived, fold the findings into the table at the top of this file before
+starting any fix.** If the session ended first, that pass is simply lost and needs re-running; nothing else
+depends on it, and it does not block Unit B or D.
+
+What it was asked to check on the new company: whether it gets a usable chart of accounts, tax codes and
+roles compared to co3; whether it can be worked in; one simple sale posted end to end with VAT 0.00
+throughout; **what tax code its lines store and whether that code exists in its own master** (the VAT
+company writes `V7`, which does not — finding F13); and whether the ใบกำกับภาษี route is refused.
+
+### Resume, in order
+1. Read the 7-day quota. At ≥85%, stop — see above.
+2. If the non-VAT report landed, fold it into the findings table.
+3. Start at **Unit B** (the payment-voucher preview — one line, one file, a wrong number on the screen an
+   accountant approves payments from). Then **Unit D**, then design **Unit A**.
+4. The local stack may no longer be running. Restart it with the recipe in memory
+   `local-stack-boot-recipe` — the two env overrides matter, and the database must be seeded in one boot
+   or every tenant ends up with no roles.
 
 ---
 
