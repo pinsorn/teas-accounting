@@ -64,8 +64,15 @@ nothing depends on it — co3 already answered the same questions.
 
 ## ⏸ CHECKPOINT — 2026-08-16, paused at the 5-hour quota cliff
 
-**Quota at pause: 5-hour 95% (resets ~1786865400 epoch, roughly 2.7 hours out), 7-day 84%.**
-The pause is because of the **5-hour** pool, which is the one carrying the 85% gate.
+**Quota at the latest pause (2026-08-16, second checkpoint): 5-hour 99%, 7-day 85%.**
+The 5-hour window resets around epoch **1786865400**. The pause is because of the **5-hour** pool, which
+is the one carrying the 85% gate. A wakeup is chained; the stack (API :5080, FE :3000) was still up and
+the working tree was clean, with everything committed through `a6d8d20`. No work is in flight — the
+non-VAT agent reported before the cliff and its findings are already folded in above.
+
+**Start with Unit A, not Unit B** — the non-VAT pass showed the lost discount reaching the ledger, so it
+outranks everything else. Unit A needs an Opus design first; Unit B is a one-line fix worth taking as a
+quick win while that design is being written.
 
 **Corrected rule (Ham, 2026-08-16): the 85% gate is on the SESSION / 5-hour pool. The 7-day pool may run
 to 95%.** An earlier note here and in memory had this backwards and would have stopped a resume at 7-day
