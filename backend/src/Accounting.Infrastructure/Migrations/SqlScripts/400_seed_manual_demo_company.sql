@@ -39,6 +39,22 @@ VALUES (
     TRUE, now(), TRUE)
 ON CONFLICT (company_id) DO NOTHING;
 
+-- Self-heal (Unit D / F1, specs/fix-company-roles-seed-ordering.md half b) — mirrors 120's guard
+-- verbatim (see its comment for the full rationale). No-ops on a normal fresh install (400 < 510
+-- numerically, function not defined yet); fires immediately when this script applies on a LATER
+-- boot after 510 was already recorded applied. IMPORTANT: firing here means step 10 below (the
+-- sys.user_roles INSERT) can see per-company role rows for OTHER companies too (e.g. company 1,
+-- seeded earlier in this same boot) — its JOIN is scoped to company_id = 2 for exactly that
+-- reason, see the comment there.
+DO $do$
+BEGIN
+    IF to_regprocedure('sys.seed_company_roles(integer)') IS NOT NULL THEN
+        PERFORM set_config('app.bypass_rls', 'true', true);
+        PERFORM sys.seed_company_roles(2);
+    END IF;
+END
+$do$;
+
 INSERT INTO master.branches (
     branch_id, company_id, branch_code, name_th, name_en,
     is_head_office, is_active)
@@ -210,6 +226,14 @@ ON CONFLICT (user_id) DO NOTHING;
 --   demo-admin      → SUPER_ADMIN
 --   demo-accountant → ACCOUNTANT + AR_CLERK + AP_CLERK
 --   demo-approver   → APPROVER + CHIEF_ACCOUNTANT
+-- The JOIN is scoped to (company 2 OR the global SUPER_ADMIN row) — same idiom as
+-- 550_seed_rbac_e2e_users.sql. On a normal fresh install (400 runs before 510) sys.roles holds
+-- only the global non-super catalogue at this point, so `r.company_id IS NULL` is what actually
+-- matches (unambiguous — 510's later step 5 remaps these to the per-company copy). On a LATER
+-- boot where the self-heal above already fired, sys.roles can ALSO hold another company's
+-- per-company rows (e.g. company 1) with the SAME role_code — without this filter the join
+-- would match both and misassign demo-accountant/demo-approver to company 1's role_id while
+-- stamping company_id = 2 on the row.
 INSERT INTO sys.user_roles (user_id, role_id, company_id, branch_id, valid_from)
 SELECT u.uid, r.role_id, 2, 2, DATE '2026-01-01'
 FROM (VALUES
@@ -218,6 +242,7 @@ FROM (VALUES
     (2003, 'APPROVER'),   (2003, 'CHIEF_ACCOUNTANT')
 ) AS u(uid, role_code)
 JOIN sys.roles r ON r.role_code = u.role_code
+    AND (r.company_id = 2 OR (u.role_code = 'SUPER_ADMIN' AND r.company_id IS NULL))
 ON CONFLICT DO NOTHING;
 
 -- 11. Accounting periods: previous month CLOSED + current month OPEN -----

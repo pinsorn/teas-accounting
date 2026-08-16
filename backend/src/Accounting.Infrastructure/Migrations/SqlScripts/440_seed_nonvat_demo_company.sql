@@ -25,6 +25,19 @@ VALUES (
     TRUE, now(), FALSE)
 ON CONFLICT (company_id) DO NOTHING;
 
+-- Self-heal (Unit D / F1, specs/fix-company-roles-seed-ordering.md half b) — mirrors 120's guard
+-- verbatim (see its comment for the full rationale). No-ops on a normal fresh install (440 < 510
+-- numerically, function not defined yet); fires immediately when this script applies on a LATER
+-- boot after 510 was already recorded applied.
+DO $do$
+BEGIN
+    IF to_regprocedure('sys.seed_company_roles(integer)') IS NOT NULL THEN
+        PERFORM set_config('app.bypass_rls', 'true', true);
+        PERFORM sys.seed_company_roles(3);
+    END IF;
+END
+$do$;
+
 INSERT INTO master.branches (
     branch_id, company_id, branch_code, name_th, name_en,
     is_head_office, is_active)
