@@ -143,6 +143,59 @@ same "thin DTO → frontend invents values on convert" pattern may exist on the 
 (quotation→SO, DO→TI, billing note→TI, PO→VI). Fixing only the sales-order screen would leave siblings
 broken. Routing: Opus design first.
 
+### F9 — the payment-voucher preview overstates what will leave the bank, by exactly the withholding tax
+**Severity: medium (display only — the saved document and the ledger are correct). One line, one file.**
+
+Creating a payment voucher for a service invoice with 3% withholding (10,000.00 + 700.00 VAT, WHT 300.00),
+the right-hand **LIVE PREVIEW** — the panel styled to look like the printed voucher — showed
+**Grand Total ฿11,000.00** and **จ่ายสุทธิ ฿10,700.00**. The form's own totals box, on the same screen a few
+centimetres away, showed the correct ฿10,700.00 and ฿10,400.00. Two panels disagreeing by exactly the WHT
+amount, with the more official-looking one wrong: an accountant who reads the preview before approving a
+transfer believes ฿10,700 is leaving the bank when ฿10,400 will.
+
+**The renderer is right and the caller is wrong.** `PaperFoot.tsx:34-39` documents the contract, and it is
+the opposite of what the page assumes: when `summary.wht` is set, **`summary.total` is the NET**
+(จ่ายสุทธิ), and Grand is derived as `total + wht`. The comment even records that this was inverted once
+before and that `PaperFootPlan.cs` is the single source of truth, pinned by `PaperFoot.test.ts` against a
+shared backend fixture. `payment-vouchers/new/page.tsx:319` passes `total: subtotal + vat` — the *grand*
+total — so the renderer faithfully computes Grand = 10,700 + 300 = 11,000 and Net = 10,700.
+
+**The correct value is already sitting on the same page.** Line 187 computes
+`const net = selfWithhold ? subtotal + vat : subtotal + vat - wht`, which is exactly the net the contract
+wants in all three cases (no WHT, normal WHT, self-withhold — where `wht` is passed as null and the vendor
+is paid in full). Passing `net` satisfies the contract without any new arithmetic.
+
+**Scope is one file.** Of the ten screens that hand a `summary` to the paper renderer, the payment-voucher
+create page is the only one that passes a `wht` alongside a `total`, so no sibling shares the defect. The
+receipt create page passes no `wht` at all (`receipts/new/page.tsx:382`), which means a receipt with
+withholding simply omits the WHT row rather than showing a wrong number — a lesser, separate gap worth
+noting but not this defect.
+
+### F10 — a 50 ทวิ certificate is issued with an all-zero payer tax ID and no warning
+The WHT certificate auto-generated from the payment voucher (`08-2026-WT-0001`) computes correctly —
+แบบ ภ.ง.ด.53, income type 8 ค่าบริการ, ฿10,000.00 × 3.00% = ฿300.00, and it correctly picks the
+juristic-person form because the vendor is นิติบุคคล. But the ผู้หักภาษี block prints Demo Company's own
+tax ID as **`0-0000-00000-00-0 · สาขา 00000`**, because the company profile has no tax ID configured, and
+the document is marked บันทึกแล้ว with no warning.
+
+A 50 ทวิ with an all-zeros payer identity cannot substantiate the vendor's withholding credit, so the
+system silently produces a document that fails its legal purpose. The empty profile is demo data, not a
+defect; the defect is that issuance proceeds silently. This is the same shape as the v2.0.0 WP-3/WP-5
+guards, which refuse to produce a filing when the identity behind it is unusable — that precedent argues
+this should refuse or at least warn rather than print zeros.
+
+### Two more UX findings from the swarm, lower severity
+- **Validation errors hide the real reason.** Saving a customer with a tax ID that fails its checksum
+  shows only a red `เกิดข้อผิดพลาด` toast with no field highlighted, while the API returned the precise
+  `{"field":"taxId","messages":["Invalid Thai Tax ID (13 digits + checksum)."]}`. On the vendor form the
+  first submit shows only `เลขผู้เสียภาษีต้องมี 13 หลัก` — *must have 13 digits* — on an input that
+  plainly has 13 digits; the real checksum message appears only on a second submit. An accountant copying
+  a tax ID off a business card is told to recount digits when the digits are fine.
+- **A tax note is injected into an issued document the preparer never saw.** Quotation `08-2026-QT-0001`
+  printed `หมายเหตุ: ลูกค้านิติบุคคลหัก ณ ที่จ่าย 3% เฉพาะส่วนบริการ` although the create form's หมายเหตุ box was
+  left empty. Wording with tax consequences goes out under the company's name without the preparer being
+  able to see or edit it while drafting, and the guidance does not apply to every transaction.
+
 ## Known limitation of this environment — RLS is NOT exercised locally
 Both Postgres roles on this server (`postgres` and `accounting`) carry **`rolbypassrls = t`**, so every
 row-level-security policy is skipped for the application's own connection. The policies exist and look
