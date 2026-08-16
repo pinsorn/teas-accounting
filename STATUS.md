@@ -38,6 +38,40 @@
     `sales.receipt.create`.
   - ⚠️ RLS is **not** exercised locally — both PG roles are BYPASSRLS. Give the new server a
     non-bypassing app role and re-run this pass there.
+
+- **🔵 UI/UX + ACCOUNTING SWARM (2026-08-16) — the books tie out; the documents do not always.**
+  Four sonnet agents: two walked the sales and purchase cycles through the real UI, then an auditor
+  reconciled the actual ledger and a code sweep mapped every conversion path. Full evidence in
+  `PROGRESS-local-hard-test.md`.
+  - **✅ The accounting is correct.** All 8 posted journals balance with header matching lines; trial
+    balance 32,724.12 = 32,724.12 and the API ties to an independent SQL sum; AR and AP subledgers
+    reconcile to their control accounts with **difference 0.0000**; VAT rounds correctly on both
+    deliberately fractional cases (69.9993→70.00, 23.3331→23.33); nothing double-posts across the
+    ใบแจ้งหนี้/ใบกำกับภาษี pair; a credit note against an already-settled invoice correctly drives the
+    customer to −356.66; WHT is 300.00 on the **pre-VAT** base, and AP clears to exactly zero.
+  - **🔴 F8 / F8b — converting a document loses the line discount.** Sales order → delivery order
+    overstated a document by ฿401.25 (confirmed in the tables), and the same defect exists on
+    quotation → tax invoice, where the result is **immutable and legally numbered**. Root cause is the
+    API shape: `ChainLineDto` carries no `lineId`, no `discountPercent`, no `taxCode`, so the convert
+    screen has nothing truthful to send. Two further consequences: `sales_order_line_id` is NULL on every
+    delivery-order line, so `delivered_quantity` never moves and the over-delivery guard **can never
+    fire**; and the hardcoded tax code overrides an exempt line into standard 7%.
+    Ten of twelve paths are clean, and `create_delivery_order_draft` already builds the same request
+    correctly from the tracked entity — that is the pattern to standardise on.
+    **The error never reached the GL** — `delivery_orders` has no `journal_entry_id` column at all.
+  - **🔴 F13 — tax invoices store a tax code that does not exist.** `/tax-invoices/new` hardcodes
+    `taxCode: 'V7'`; the company's master has `VAT7`. Live data confirms one orphan code, on a row whose
+    `tax_code_id = 1` *is* VAT7 — the row disagrees with itself. Lookup then falls through to
+    "unclassified taxable" at the standard rate, which is how an exempt line loses its exemption.
+  - **F9** the payment-voucher preview overstates Grand Total and Net by exactly the WHT (one line, one
+    file — the correct net is already computed on that page). **F10** a 50 ทวิ is issued with an
+    all-zero payer tax ID and no warning. **F11** the tax-invoice header discount rollup stays zero.
+    **F12** the profit-loss endpoint defaults to excluding untagged activity and returns all zeros,
+    while both shipped callers pass true.
+  - **Nothing fixed this round — deliberately.** The 7-day quota reached 82%, and F8/F8b/F13 are
+    footgun-zone (money, tax, a shared DTO across the whole chain) so they need an Opus design rather
+    than a quick patch. Suggested order next session: **F9** (one line, contained) → **F13** (wrong tax
+    code on a legal document) → **F8/F8b** (design first) → F10 → F11/F12.
 - **🔴 TEAS PROD INTENTIONALLY DOWN (2026-08-14 evening) — server crisis, migration pending.**
   The OVH VPS hit 96% disk + RAM exhaustion and crash-looped; recovered via rescue mode (freed ~21G,
   disk now 65%, RAM 4.6G free). Ham decided **TEAS moves to a new server** — teas-api + teas-web were
