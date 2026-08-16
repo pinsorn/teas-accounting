@@ -224,6 +224,43 @@ from the tracked `SalesOrder.Lines` entity and carries `DiscountPercent`, `TaxCo
 the designer the answer is to source the lines from the record rather than to thicken the DTO and trust
 the client to echo it back.
 
+### F14 — 🔴 the screen says 0% VAT and the stored tax invoice says 7% — they disagree on the same document
+**Severity: highest of this round. Reproduced end to end by Fable, from the UI to the table.**
+
+On company 1 (VAT-registered) I created a tax invoice through `/tax-invoices/new`, one line,
+`1 × ฿1,000.00`, and set the line's rate dropdown to the option the UI itself offers:
+**"0% (ยกเว้น/ส่งออก)"**. The screen agreed: subtotal ฿1,000.00, **VAT ฿0.00**, total **฿1,000.00**.
+I saved the draft and read the row back:
+
+```
+tax_invoice_id 4 | DRAFT | "F14 TEST ยกเว้น VAT"
+line_amount 1000.0000 | tax_code V7 | tax_rate 0.070000 | tax_amount 70.0000 | total_amount 1070.0000
+```
+
+**The customer is quoted ฿1,000.00 with no VAT and the document records ฿1,070.00 with ฿70.00 of output
+VAT.** The stored figures are the ones that print, that feed ภ.พ.30, and that post to the ledger. This is
+not "the wrong rate is charged" — it is the screen and the tax document stating different amounts for the
+same sale.
+
+**Mechanism, and why F13 is its root.** The line editor's dropdown sets only the *rate*
+(`option "0% (ยกเว้น/ส่งออก)" value="0"`). The page sends the rate alongside a hardcoded
+`taxCode: 'V7'`. `SalesLineBackstop.Resolve` **deliberately ignores a client-supplied rate** and derives
+it from the code — correct design, since a client must not be able to choose what VAT it charges. It then
+looks `V7` up in the company's tax-code master, finds nothing (the real code is `VAT7`), and falls through
+to its last branch: *"Standard output VAT code (or any unclassified taxable code) — the company's
+configured rate"*, returning 7%. So the one thing the user is allowed to choose is the one thing the
+server throws away, and the hardcoded phantom code decides the tax instead.
+
+**Reach.** The same rate-only dropdown with a hardcoded code appears on the quotation, sales-order,
+invoice and tax-invoice forms — a designer sweep counted five origin forms hardcoding `taxCodeId: 1`.
+Separately, the eight genuine exempt codes seeded for every company (พืชผลทางการเกษตร, สัตว์มีชีวิต, ปุ๋ย,
+อาหารสัตว์, ยาเคมีสัตว์/พืช, หนังสือ นิตยสาร, การศึกษา, การแพทย์) and the two zero-rated export codes are
+**unreachable from the UI at all** — there is no tax-code picker and no endpoint to feed one. A bookshop,
+a school or a clinic cannot issue a correct document through this interface today.
+
+**Artifact:** draft tax invoice id 4 was left on co1 — tax invoices have no delete route (see F5), so it
+cannot be removed and it will block a period close until that changes.
+
 ### F13 — tax invoices are being written with a tax code that does not exist in the company's master
 **Confirmed in live data, not inferred.**
 

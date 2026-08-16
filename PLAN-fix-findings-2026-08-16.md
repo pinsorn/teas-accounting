@@ -12,6 +12,7 @@ Nothing here is deployed — there is no server to deploy to until the migration
 | F5 | MCP api key could mint a Tax Invoice it had no scope for | 🔴 security | **fixed** `4988e52` | — |
 | F2 | Raw 500s + leaked .NET text on VAT reports and CIT year endpoints | medium | **fixed** `4988e52` | — |
 | F6 | Convert buttons rendered without the permission the backend demands | low-med | **fixed** `edcf9af` | — |
+| **F14** | **Screen says 0% VAT, stored tax invoice says 7% — ฿1,000 quoted, ฿1,070 recorded** | **🔴🔴 highest** | **open** | **A (Package 2)** |
 | F8 | SO→DO conversion drops discount, tax code, and the order-line link | 🔴 money/tax/control | open | **A** |
 | F8b | Quotation→Tax Invoice drops the discount onto an immutable document | 🔴 money/tax | open | **A** |
 | F13 | Tax invoices store tax code `V7`, which is not in the company's master | 🔴 tax/data | open | **A** |
