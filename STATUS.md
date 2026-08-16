@@ -28,9 +28,14 @@
   - **Release note when this ships:** any existing MCP key on a VAT-registered company scoped
     `sales.billing_note.manage` without `sales.tax_invoice.create` will start being refused on
     `create_invoice_draft`. That is the fix working, but those keys need re-scoping.
-  - Still open from this run: **F1** (seed ordering), **F6** (convert buttons unguarded in the FE),
-    **F4** (a missing required query parameter returns 500 instead of 400), and the backlog note that
-    `create_receipt_draft` reads a tax invoice under only `sales.receipt.create`.
+  - **✅ F6 FIXED (`edcf9af`)** — the five convert buttons now render **disabled with a tooltip naming
+    the permission**, per Ham's call (disable, not hide — the exception is recorded in
+    `PermissionGate.tsx`). Browser-verified both ways: disabled with the Thai tooltip for a SALES_STAFF
+    user, enabled with no tooltip for a super-admin, and a permission the same user *does* hold stays
+    enabled.
+  - Still open from this run: **F1** (seed ordering), **F4** (a missing required query parameter returns
+    500 instead of 400), and the backlog note that `create_receipt_draft` reads a tax invoice under only
+    `sales.receipt.create`.
   - ⚠️ RLS is **not** exercised locally — both PG roles are BYPASSRLS. Give the new server a
     non-bypassing app role and re-run this pass there.
 - **🔴 TEAS PROD INTENTIONALLY DOWN (2026-08-14 evening) — server crisis, migration pending.**
