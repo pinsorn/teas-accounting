@@ -179,6 +179,27 @@ fixture, so add a case for the caller rather than re-deriving the rule. Trap: `P
 single source of truth and the comment records that this contract was inverted once before — do not
 "fix" the renderer to match the caller.
 
+### Attempt log
+**2026-08-16, Sonnet worker — [x] done, gates green, live-verified, not committed.**
+- Changed `frontend/app/(dashboard)/payment-vouchers/new/page.tsx:319`: `total: subtotal + vat` →
+  `total: net` (the value already computed at line 187). `wht` field untouched.
+- Added 3 cases to `frontend/components/paper/PaperFoot.test.ts` (new `describe` block, existing
+  fixture-driven block untouched) asserting `computeFootTotals` against the summary shape the page now
+  produces, for all three WHT states.
+- Gates: `npx tsc --noEmit` in `frontend/` → 0 errors. `npx vitest run components/paper/PaperFoot.test.ts`
+  → 7/7 passed (4 fixture cases + 3 new).
+- Live-verified on the local stack (Demo Company, vendor PUR-บริษัท ทดสอบจัดซื้อ จำกัด, ค่าบริการ
+  10,000.00 + VAT 700.00, WHT type "ค่าบริการ (3%)"): preview panel and the form's own totals box now
+  agree in all three states —
+  - **Normal WHT (before → after):** Grand ฿11,000.00 → **฿10,700.00**; Net ฿10,700.00 →
+    **฿10,400.00**. Matches the form's totals box (฿10,700.00 / ฿10,400.00) exactly.
+  - **No WHT:** Grand ฿10,700.00 → **unchanged ฿10,700.00** (single-row display, no regression).
+  - **Self-withhold:** Grand ฿10,700.00 → **unchanged ฿10,700.00** (single-row display; form's own
+    box shows จ่ายสุทธิ ฿10,700.00 + remit note ฿309.28, no regression).
+- Did not touch `saveDraft`/the POST payload, `PaperFoot.tsx`, or `PaperFootPlan.cs`. Nothing saved or
+  posted during verification (preview-only interaction).
+- Not committed — per dispatch, Fable reviews the diff and commits.
+
 ---
 
 ## Unit C — the 50 ทวิ with no payer identity (F10)

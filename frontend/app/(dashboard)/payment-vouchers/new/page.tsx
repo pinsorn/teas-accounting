@@ -316,7 +316,12 @@ function PvForm() {
               subtotal,
               beforeVat: subtotal,
               vat,
-              total: subtotal + vat,
+              // F9 (PLAN-fix-findings-2026-08-16.md Unit B) — PaperFoot.tsx / PaperFootPlan.cs
+              // contract: when `wht` is set, `total` is the NET (จ่ายสุทธิ), and Grand is
+              // derived as total + wht. `net` (line 187) already computes exactly that value
+              // in all three states (no WHT, normal WHT, self-withhold); `subtotal + vat` was
+              // the GRAND total, which double-counted the WHT that PaperFoot also adds back.
+              total: net,
               // Self-withhold pays the vendor in full — the absorbed WHT is never a
               // deduction on the voucher (shown as a remit note in extraMetaBlock).
               wht: hasWht && !selfWithhold ? wht : null,
