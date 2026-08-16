@@ -196,6 +196,54 @@ this should refuse or at least warn rather than print zeros.
   left empty. Wording with tax consequences goes out under the company's name without the preparer being
   able to see or edit it while drafting, and the guidance does not apply to every transaction.
 
+### F8b — the same defect on a second path, and this one lands on an immutable tax document
+A sweep of all twelve conversion paths found **exactly one other broken case**, and it is worse than F8.
+
+`/tax-invoices/new?fromQuotationId=…` — reachable in one click from the `q-create-ti` button on any
+accepted quotation (`quotations/[id]/page.tsx:181`). The prefill at
+`tax-invoices/new/page.tsx:92-110` maps only `descriptionTh, quantity, unitPrice, uomText` and a hardcoded
+`taxRate: 0.07`; it never sets `discountPercent`, `productId` or `taxCode`. `saveDraft` (:139-151) then
+sends `discountPercent: l.discountPercent ?? 0` — always 0 — plus `taxCodeId: 1, taxCode: 'V7'`.
+
+So a quotation line carrying a discount produces a **tax invoice** without it. Unlike the delivery order
+in F8, a posted tax invoice is immutable and legally numbered: the only correction is a credit note and a
+reissue. That same prefill already lost `uomText` once before — the comment at :101-103 records the
+earlier fix — so this is the second field to go missing from the same mapping.
+
+**Ten of the twelve paths are clean, and the reason matters for the fix.** Every clean path is clean for
+one of two structural reasons: it sends **no client line payload at all** (quotation→SO, SO→invoice,
+DO→TI, DO→invoice, billing note→TI — all no-body POSTs where the server copies from the tracked entity),
+or the request is **amount-based** so an already-discounted `lineAmount` carries through with nothing to
+recompute (vendor invoice, payment voucher, receipt applications). The purchase side additionally derives
+a missing VAT rate properly instead of assuming one (`lib/po-line-vat.ts:6-18`).
+
+**There is already a correct implementation of the exact broken request in this repo.** The MCP tool
+`create_delivery_order_draft` (`TeasMcpTools.cs:655-691`) builds the *same* `CreateDeliveryOrderRequest`
+from the tracked `SalesOrder.Lines` entity and carries `DiscountPercent`, `TaxCodeId`, `TaxCode`,
+`TaxRate` and `ProductType` faithfully. Two callers, one request type, one of them right — which tells
+the designer the answer is to source the lines from the record rather than to thicken the DTO and trust
+the client to echo it back.
+
+### F13 — tax invoices are being written with a tax code that does not exist in the company's master
+**Confirmed in live data, not inferred.**
+
+`sales.tax_invoice_lines` for `08-2026-TI-0001` stores `tax_code = 'V7'`. Company 1's tax-code master
+contains no such code — it has `VAT7` (id 1), two zero-rated export codes, and eight genuine exempt codes
+(พืชผลทางการเกษตร, สัตว์มีชีวิต, ปุ๋ย, อาหารสัตว์, ยาเคมีสัตว์/พืช, หนังสือ นิตยสาร, การศึกษา, การแพทย์). A query for
+tax codes on tax-invoice lines that are absent from the master returns exactly one row: **`V7`**.
+
+The same row stores `tax_code_id = 1`, and id 1 *is* `VAT7` — so the row's own code string and code id
+disagree with each other. The orphan comes from `/tax-invoices/new`, which hardcodes `taxCode: 'V7'`
+(`:148`), while tax invoices created server-side from another document correctly carry `VAT7` (TI-0002).
+
+Two consequences. First, VAT reporting keys on the code: `SalesLineBackstop.Resolve` looks the code up in
+the company's tax-code flags and, finding nothing, falls through to "unclassified taxable" and charges the
+standard rate — which is precisely how an exempt line would lose its exemption. Those exempt codes are not
+theoretical for a Thai SME: books, education and medical services are ordinary businesses. Second, the
+stored code cannot be joined back to the master, so anything grouping a VAT register or a ภ.พ.30 by code
+is working with a value that has no definition behind it. (The current register total does still tie to
+account 2151, so nothing is being dropped *today* — but it ties by amount, not by code.)
+
 ## Ledger audit — the books tie out
 An independent auditor pulled the actual journal entries for company 1 and reconciled them against the
 documents the swarm created through the UI. **Verdict: the books tie out.** This is the result Ham asked
