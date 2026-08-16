@@ -27,6 +27,13 @@ public interface ITaxInvoiceService
     /// Stamps <c>SalesOrderId</c>.</summary>
     Task<long> CreateFromSalesOrderAsync(long salesOrderId, CancellationToken ct);
 
+    /// <summary>F8b (specs/fix-chain-conversion-integrity.md) — Accepted Quotation → DRAFT Tax
+    /// Invoice, server-side. Lines are copied from the tracked Quotation entity (discount,
+    /// tax-code pair, product link and all), so the browser can no longer drop a discount onto
+    /// a legally-numbered immutable document. Funnels through the VAT chokepoint
+    /// (ti.non_vat_blocked for non-VAT). Stamps QuotationId via the request record.</summary>
+    Task<long> CreateFromQuotationAsync(long quotationId, CancellationToken ct);
+
     /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit: replaces header + delete-and-
     /// recreates ALL lines, recomputing totals server-side (client Lines only; never trust a
     /// client total). Throws <c>ti.cannot_edit_after_post</c> once the TI has left Draft.

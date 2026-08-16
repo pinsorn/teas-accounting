@@ -15,7 +15,7 @@ import { BusinessUnitBadge } from '@/components/ui/BusinessUnitBadge';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useQuotation, useQuotationAction, useDeleteQuotation, useCompanyProfile, usePaperDoc, useSystemInfo } from '@/lib/queries';
+import { useQuotation, useQuotationAction, useDeleteQuotation, useCompanyProfile, usePaperDoc, useSystemInfo, useCreateTaxInvoiceFromQuotation } from '@/lib/queries';
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -32,6 +32,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   const q = useQuotation(qid);
   const act = useQuotationAction();
   const del = useDeleteQuotation();
+  const makeTi = useCreateTaxInvoiceFromQuotation();
   const confirm = useConfirm();
   // cont.121 — paper preview data comes from the canonical /paper DTO (screen ==
   // print); the company profile stays ONLY as the logo source (not in the DTO).
@@ -43,6 +44,12 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   // F6 — the target of the convert action is the Sales Order, so the button needs
   // sales.sales_order.manage (not a quotation scope) to match the backend 403.
   const canConvertToSo = useScopeState('sales.sales_order.manage');
+  // F8b/WP-4 — mirrors q-convert exactly: gates on the TARGET permission only
+  // (sales.tax_invoice.create), even though the route ALSO requires qManage server-side
+  // (R3/H3 — same precedent as q-convert, which gates on sales_order.manage only and
+  // not quotation.manage too). A quotation.read + tax_invoice.create user sees an enabled
+  // button and can get a 403 — pre-existing precedent, not a new F6 gap.
+  const canCreateTi = useScopeState('sales.tax_invoice.create');
   const [isApproveAction, setIsApproveAction] = useState(false);
   // S11 — send/accept/reject had no confirm dialog (send issues the doc number
   // immediately, immutable numbering). Mirrors the WP3.6 purchase-side pattern.
@@ -72,6 +79,18 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   async function cancelQuotation() {
     if (!(await confirm({ description: t('cancelConfirm'), variant: 'destructive' }))) return;
     await run('cancel', { reason: t('cancelReason') });
+  }
+
+  // F8b (specs/fix-chain-conversion-integrity.md) — server-side conversion: no line payload,
+  // no prefilled create form. Lands directly on the created draft TI (mirrors q-convert).
+  async function createTaxInvoice() {
+    try {
+      const r = await makeTi.mutateAsync(qid);
+      toast.success(tc('save'));
+      router.push(`/tax-invoices/${r.tax_invoice_id}`);
+    } catch (e) {
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+    }
   }
 
   async function deleteDraft() {
@@ -178,9 +197,19 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
               </span>
             )}
             {d.status === 'Accepted' && vatMode && (
-              <Link data-testid="q-create-ti" href={`/tax-invoices/new?fromQuotationId=${d.quotationId}`} className="btn btn-primary btn-sm">
-                {t('createTaxInvoice')}
-              </Link>
+              <span
+                className={!canCreateTi.pending && !canCreateTi.allowed ? 'tooltip' : undefined}
+                data-tip={!canCreateTi.pending && !canCreateTi.allowed ? tc('noPermissionTooltip', { perm: 'sales.tax_invoice.create' }) : undefined}
+              >
+                <button
+                  data-testid="q-create-ti"
+                  className="btn btn-primary btn-sm"
+                  disabled={makeTi.isPending || canCreateTi.pending || !canCreateTi.allowed}
+                  onClick={createTaxInvoice}
+                >
+                  {t('createTaxInvoice')}
+                </button>
+              </span>
             )}
             {canCancel && (
               <button data-testid="q-cancel" className="btn btn-danger btn-sm" disabled={act.isPending} onClick={cancelQuotation}>

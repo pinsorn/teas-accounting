@@ -207,6 +207,46 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         return tiId;
     }
 
+    // F8b (specs/fix-chain-conversion-integrity.md) — Quotation → Tax Invoice, server-side,
+    // DRAFT-ONLY. Exact structural clone of CreateFromSalesOrderAsync above, sourcing lines
+    // from the Quotation instead. VAT chokepoint blocks non-VAT companies up-front (a
+    // Quotation is not VAT-gated, so this is the first check that can reject it).
+    public async Task<long> CreateFromQuotationAsync(long quotationId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        await EnsureVatRegisteredAsync(ct);
+
+        var q = await _db.Quotations.AsNoTracking().Include(x => x.Lines)
+            .Where(x => x.CompanyId == _tenant.CompanyId)
+            .FirstOrDefaultAsync(x => x.QuotationId == quotationId, ct)
+            ?? throw new DomainException("quotation.not_found", $"Quotation {quotationId} not found.");
+        if (q.Status != QuotationStatus.Accepted)
+            throw new DomainException("quotation.not_accepted",
+                "Quotation must be Accepted before creating a Tax Invoice.");
+
+        var lines = q.Lines.OrderBy(l => l.LineNo).Select(l => new TaxInvoiceLineInput(
+            l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity, 1, l.UomText,
+            l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate,
+            l.ProductType)).ToList();
+
+        // §4.6 / ม.80 — chain-copy: the Quotation's lines were already rate-derived at their
+        // own origin builder; inherit those rates, do NOT re-derive (deriveLineTax:false) —
+        // matches all three existing chain-copy siblings above.
+        var tiId = await CreateDraftCoreAsync(new CreateTaxInvoiceRequest(
+            q.DocDate, q.CustomerId, false, q.CurrencyCode, q.ExchangeRate,
+            q.Notes, null, null, lines, q.BusinessUnitId, QuotationId: q.QuotationId),
+            deriveLineTax: false, ct);
+
+        // QuotationId is already set via the request record above — no post-hoc stamp needed
+        // (unlike the BillingNote/DeliveryOrder links, CreateTaxInvoiceRequest carries it directly).
+        var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId,
+            "CreatedFromQuotation", note: $"จากใบเสนอราคา {q.DocNo ?? q.QuotationId.ToString()}");
+        await _db.SaveChangesAsync(ct);
+        return tiId;
+    }
+
     // Public/request-fed entry point — DERIVES the per-line VAT rate from company master
     // data (§4.6 / ม.80). The DO→TI and Invoice→TI chain-copy paths call CreateDraftCoreAsync
     // with deriveLineTax:false so an already-normalized source rate is inherited, not re-derived.
@@ -372,12 +412,20 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             var vatRate = (await _taxCfg.GetAsync(ct)).VatRate;
             var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(
                 _db, srcLines.Select(l => l.TaxCode), ct);
+            // vatMode is always true on this path — EnsureVatRegisteredAsync already ran in
+            // CreateDraftCoreAsync above — so the tenant always needs (and, per ladder step 4,
+            // always safely falls back without) a standard output code. Loaded ONCE per request,
+            // outside the per-line Select (trap §9.4).
+            var standardOutput = await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(_db, ct);
             srcLines = srcLines.Select(l =>
             {
-                var (_, rate, code) = SalesLineBackstop.Resolve(
+                var (_, rate, code, codeId) = SalesLineBackstop.Resolve(
                     vatMode: true, vatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
-                    productTypes: EmptyProductTypes, taxCodeFlags);
-                return l with { TaxRate = rate, TaxCode = code };
+                    productTypes: EmptyProductTypes, taxCodeFlags, standardOutput);
+                // fix-chain-conversion-integrity trap §9.5 — TaxCodeId MUST be rewritten here too:
+                // BuildLine (below) reads input.TaxCodeId verbatim, so omitting it here would
+                // silently discard the resolved id and leave the tax-invoice path (F13) broken.
+                return l with { TaxRate = rate, TaxCode = code, TaxCodeId = codeId };
             }).ToList();
         }
 
@@ -626,6 +674,19 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             total = net + vat;
         }
 
+        // fix-chain-conversion-integrity WP-5 — input.TaxCodeId/TaxCode are now nullable
+        // (TaxInvoiceDtos.cs), but TaxInvoiceLine's columns stay NOT NULL (no migration, §11).
+        // In practice these are NEVER null here: the deriveLineTax:true path always rewrites
+        // both via SalesLineBackstop.Resolve before BuildLine runs (RebuildLinesAndTotalsAsync
+        // above), and deriveLineTax:false chain-copy paths build the input from an already-
+        // non-null source entity. Tier-2 nit (2026-08-16): resolve the fallback pair TOGETHER,
+        // not field-by-field — two independent `??`s could in principle land a mismatched pair
+        // (id 0 with a real code, or a real id with "VAT7") if only one side were ever null.
+        // Mirrors Resolve's own ladder step 4 (tenant with no tax-code master) exactly.
+        var (taxCodeId, taxCode) = input.TaxCodeId is { } presentId && input.TaxCode is { } presentCode
+            ? (presentId, presentCode)
+            : (SalesLineBackstop.SYNTHETIC_TAX_CODE_ID, "VAT7");
+
         return new TaxInvoiceLine
         {
             LineNo          = lineNo,
@@ -640,8 +701,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             DiscountPercent = input.DiscountPercent,
             DiscountAmount  = gross - afterDisc,
             LineAmount      = net,
-            TaxCodeId       = input.TaxCodeId,
-            TaxCode         = input.TaxCode,
+            TaxCodeId       = taxCodeId,
+            TaxCode         = taxCode,
             TaxRate         = input.TaxRate,
             TaxAmount       = vat,
             TotalAmount     = total,

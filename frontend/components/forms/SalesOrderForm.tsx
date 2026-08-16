@@ -31,6 +31,10 @@ const lineSchema = z.object({
   productCode: z.string().nullable().optional(),
   uomText: z.string().optional(),
   discountPercent: z.number().optional(),
+  // fix-chain-conversion-integrity (F14) — kept in the schema so zod doesn't strip the
+  // picker's selection before submit (mirrors productId/productCode above).
+  taxCode: z.string().nullable().optional(),
+  taxCodeId: z.number().nullable().optional(),
 });
 const schema = z.object({
   customerId: z.number().int().positive(),
@@ -96,6 +100,11 @@ export function SalesOrderForm({ edit }: { edit?: SalesOrderDetail } = {}) {
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 
+  // Tier-2 finding (2026-08-16) — this used to drop discountPercent/taxCode/taxCodeId on
+  // reload (ChainLineDto didn't carry them), so an edited draft silently lost its discount
+  // (F8 redux) and its tax code (F14 redux) on save. taxRate stays a reverse-derived
+  // DISPLAY fallback for legacy rows with no stored code; the stored code/id are preferred
+  // whenever present (they always are now — ChainLineDto's fields are non-optional).
   const toLine = (l: SalesOrderDetail['lines'][number]): LineItem => ({
     descriptionTh: l.descriptionTh,
     quantity: l.quantity,
@@ -104,6 +113,9 @@ export function SalesOrderForm({ edit }: { edit?: SalesOrderDetail } = {}) {
     productId: l.productId,
     productCode: l.productCode,
     uomText: l.uomText,
+    discountPercent: l.discountPercent,
+    taxCode: l.taxCode,
+    taxCodeId: l.taxCodeId,
   });
 
   const {
@@ -158,8 +170,10 @@ export function SalesOrderForm({ edit }: { edit?: SalesOrderDetail } = {}) {
         uomText: l.uomText?.trim() || 'หน่วย',
         unitPrice: l.unitPrice,
         discountPercent: l.discountPercent ?? 0,
-        taxCodeId: 1,
-        taxCode: vatMode && l.taxRate > 0 ? 'VAT7' : 'VAT0',
+        // fix-chain-conversion-integrity (F14/WP-5) — the line editor's real tax-code
+        // picker sets these; null (untouched line) lets the server resolve the pair.
+        taxCodeId: l.taxCodeId ?? null,
+        taxCode: l.taxCode ?? null,
         taxRate: vatMode ? l.taxRate : 0,
       })),
     };

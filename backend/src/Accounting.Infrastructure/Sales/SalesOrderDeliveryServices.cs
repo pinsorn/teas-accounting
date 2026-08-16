@@ -53,18 +53,19 @@ public sealed class SalesOrderService(
         var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+        var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
+            var (prodType, taxRate, taxCode, taxCodeId) =
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             so.Lines.Add(new SalesOrderLine
             {
                 LineNo = n++, ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxCodeId = taxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             so.SubtotalAmount += net; so.VatAmount += vat; so.TotalAmount += total;
@@ -121,18 +122,19 @@ public sealed class SalesOrderService(
         var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+        var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
+            var (prodType, taxRate, taxCode, taxCodeId) =
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             so.Lines.Add(new SalesOrderLine
             {
                 LineNo = n++, ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxCodeId = taxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             so.SubtotalAmount += net; so.VatAmount += vat; so.TotalAmount += total;
@@ -192,6 +194,7 @@ public sealed class SalesOrderService(
         var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+        var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
 
         var dord = new DeliveryOrder
         {
@@ -208,9 +211,9 @@ public sealed class SalesOrderService(
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (prodType, taxRate, taxCode) = SalesLineBackstop.Resolve(
+            var (prodType, taxRate, taxCode, taxCodeId) = SalesLineBackstop.Resolve(
                 cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
-                productTypes, taxCodeFlags);
+                productTypes, taxCodeFlags, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             dord.Lines.Add(new DeliveryOrderLine
             {
@@ -218,7 +221,7 @@ public sealed class SalesOrderService(
                 ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxCodeId = taxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             dord.SubtotalAmount += net; dord.VatAmount += vat; dord.TotalAmount += total;
@@ -257,6 +260,32 @@ public sealed class SalesOrderService(
         return dord.DeliveryOrderId;
     }
 
+    // F8 (specs/fix-chain-conversion-integrity.md) — the ONLY correct way to convert a Sales
+    // Order to a Delivery Order: lines are copied from the TRACKED SalesOrder entity, never
+    // invented by the caller, closing the hole where a browser rebuild dropped DiscountPercent/
+    // TaxCodeId/SalesOrderLineId. AsNoTracking is fine here — CreateDeliveryOrderAsync re-loads
+    // the SO TRACKED and does the DeliveredQuantity writes itself, so this load is read-only.
+    public async Task<long> CreateFullDeliveryOrderAsync(
+        long salesOrderId, bool isCombinedWithTi, DateOnly? docDate, CancellationToken ct)
+    {
+        Auth();
+        var so = await db.SalesOrders.AsNoTracking().Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.SalesOrderId == salesOrderId, ct)
+            ?? throw new DomainException("so.not_found", $"Sales Order {salesOrderId} not found.");
+
+        var req = new CreateDeliveryOrderRequest(
+            DocDate: docDate ?? clock.TodayInBangkok(),
+            CustomerId: so.CustomerId, BusinessUnitId: so.BusinessUnitId,
+            IsCombinedWithTi: isCombinedWithTi, Notes: null, FromSalesOrderId: so.SalesOrderId,
+            Lines: so.Lines.OrderBy(l => l.LineNo).Select(l => new DeliveryLineInput(
+                SalesOrderLineId: l.LineId, ProductId: l.ProductId, DescriptionTh: l.DescriptionTh,
+                Quantity: l.Quantity, UomText: l.UomText, UnitPrice: l.UnitPrice,
+                DiscountPercent: l.DiscountPercent, TaxCodeId: l.TaxCodeId, TaxCode: l.TaxCode,
+                TaxRate: l.TaxRate, ProductType: l.ProductType)).ToList());
+
+        return await CreateDeliveryOrderAsync(salesOrderId, req, ct);
+    }
+
     public async Task<IReadOnlyList<SalesOrderListItem>> ListAsync(string? status, CancellationToken ct)
     {
         Auth();
@@ -281,7 +310,8 @@ public sealed class SalesOrderService(
             so.SubtotalAmount, so.VatAmount, so.TotalAmount, so.QuotationId,
             so.Lines.OrderBy(l => l.LineNo).Select(l => new ChainLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
+                l.DiscountPercent, l.TaxCode, l.TaxCodeId)).ToList(),
             // mcp-document-chain (D4) — GOOD/EXEMPT_GOOD lines are physical; a Delivery Order
             // is mandatory before invoicing. EXEMPT_GOOD counts as a good (still a physical thing).
             DeliveryRequired: so.Lines.Any(l => l.ProductType is "GOOD" or "EXEMPT_GOOD"));
@@ -321,6 +351,7 @@ public sealed class DeliveryOrderService(
         var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+        var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
 
         var dord = new DeliveryOrder
         {
@@ -335,9 +366,9 @@ public sealed class DeliveryOrderService(
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (prodType, taxRate, taxCode) = SalesLineBackstop.Resolve(
+            var (prodType, taxRate, taxCode, taxCodeId) = SalesLineBackstop.Resolve(
                 cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
-                productTypes, taxCodeFlags);
+                productTypes, taxCodeFlags, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             dord.Lines.Add(new DeliveryOrderLine
             {
@@ -345,7 +376,7 @@ public sealed class DeliveryOrderService(
                 ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxCodeId = taxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             dord.SubtotalAmount += net; dord.VatAmount += vat; dord.TotalAmount += total;
@@ -475,7 +506,8 @@ public sealed class DeliveryOrderService(
             d.TaxInvoiceId, d.SalesOrderId, d.SubtotalAmount, d.VatAmount, d.TotalAmount,
             d.Lines.OrderBy(l => l.LineNo).Select(l => new ChainLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
+                l.DiscountPercent, l.TaxCode, l.TaxCodeId)).ToList(),
             billingNoteId);
     }
 }

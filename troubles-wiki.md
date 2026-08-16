@@ -1506,3 +1506,30 @@ losing the test DB costs nothing.
   converted a loud failure into a silent wrong answer, which on a tax report is worse than the crash.
 - **Seen:** 2026-08-16, found while fixing the 500 family. The defect report did not mention this case;
   the implementer noticed the encoding hazard while reusing the guard.
+
+## `dotnet test` against an isolated `-o` build directory: `PostgresFixture` throws `DirectoryNotFoundException` for `SqlScripts`
+- **Symptom:** every `[SkippableFact]` in the run fails (not skips) with
+  `System.IO.DirectoryNotFoundException: Could not find a part of the path '...\SqlScripts'`, even
+  though `TEAS_TEST_PG` is set correctly and the build itself succeeded with 0 errors.
+- **Root cause:** `PostgresFixture.InitializeAsync()` (`Fixtures/PostgresFixture.cs:123-124`) locates
+  the SQL bootstrap scripts with a HARDCODED relative walk — `Path.Combine(AppContext.BaseDirectory,
+  "..","..","..","..","..", "src", "Accounting.Infrastructure", "Migrations", "SqlScripts")` — five
+  `".."` up from the test assembly's own folder. That only resolves correctly when the build output
+  sits at the STANDARD depth `backend/tests/Accounting.Api.Tests/bin/<Config>/<TFM>/` (5 segments
+  under `backend`). `TEAS_REPO_ROOT` does NOT help here — that env var is read only by
+  `Rbac/RbacTestPaths.cs` for RBAC tests, a completely separate mechanism; `PostgresFixture` never
+  reads it. Building to an arbitrary isolated `-o` directory (e.g. a scratchpad path on another drive,
+  to dodge the locked `Accounting.Api.dll` per the entry above) changes that depth, so the 5-`".."`
+  walk lands somewhere nonsensical (e.g. `Z:\temp\src\...`) and every DB-backed test fails at fixture
+  init, before your own diff's logic ever runs.
+- **Fix:** when you must build away from the default bin/ (locked `Accounting.Api.dll`), pick an `-o`
+  path that PRESERVES the same depth under the test project, e.g.
+  `dotnet build backend/tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj -o
+  backend/tests/Accounting.Api.Tests/bin/isorun/net10.0` (`bin/<anything>/net10.0` is the same 3
+  segments as `bin/Debug/net10.0`) — this still avoids the locked `Accounting.Api/bin/Debug/net10.0/`
+  entirely (it's a different project's bin folder) while keeping `PostgresFixture`'s relative walk
+  correct. Then run `dotnet test <that-dir>/Accounting.Api.Tests.dll --filter ...` as usual.
+- **Seen:** 2026-08-16, `specs/fix-chain-conversion-integrity.md` WP-1..3 — a build to
+  `Z:\temp\claude\...\scratchpad\build-out2` produced a clean 0-warning build, but every new
+  `[SkippableFact]` failed (not skipped) with the DirectoryNotFoundException above until rebuilt under
+  `backend/tests/Accounting.Api.Tests/bin/isorun/net10.0`.

@@ -11,8 +11,11 @@ public sealed record ChainLineInput(
     string UomText,
     decimal UnitPrice,
     decimal DiscountPercent,
-    int    TaxCodeId,
-    string TaxCode,
+    // fix-chain-conversion-integrity WP-5 — nullable, mirrors TaxInvoiceLineInput. Every
+    // request-fed origin builder already assigns the RESOLVED id/code from
+    // SalesLineBackstop.Resolve, never this field verbatim, so widening is source-compatible.
+    int?   TaxCodeId,
+    string? TaxCode,
     decimal TaxRate,
     string? ProductType = null);  // Sprint 13h P7 — snapshot from picker
 
@@ -57,15 +60,28 @@ public sealed record DeliveryLineInput(
     string UomText,
     decimal UnitPrice,
     decimal DiscountPercent,
-    int    TaxCodeId,
-    string TaxCode,
+    // fix-chain-conversion-integrity WP-5 — nullable, mirrors ChainLineInput/TaxInvoiceLineInput.
+    int?   TaxCodeId,
+    string? TaxCode,
     decimal TaxRate,
     string? ProductType = null);  // Sprint 13h P7
 
+// fix-chain-conversion-integrity — Tier-2 finding (2026-08-16): widened to carry
+// DiscountPercent/TaxCode/TaxCodeId. §3.0 Decision 1 ("do not widen ChainLineDto") is
+// REVERSED for this read-side DTO. That decision was about a CONVERSION echoing a
+// client-supplied line back — closed structurally by WP-2/WP-3's server-side conversions,
+// which send no line payload at all. This is the EDIT path (QuotationForm/SalesOrderForm/
+// BillingNoteForm's toLine): its entire job is to round-trip a stored line faithfully, and
+// without these three fields an edited draft silently lost its discount (F8 redux) and its
+// tax code (F14 redux) on save. All three are REQUIRED (no default) — every one of the four
+// producers (Quotation/SalesOrder/DeliveryOrder/BillingNote GetAsync) must supply them from
+// the tracked line entity; a defaulted/optional field would let a producer forget and
+// silently reproduce the bug this change exists to fix.
 public sealed record ChainLineDto(
     int LineNo, long? ProductId, string? ProductCode, string DescriptionTh,
     decimal Quantity, string UomText, decimal UnitPrice, decimal LineAmount,
-    decimal TaxAmount, decimal TotalAmount);
+    decimal TaxAmount, decimal TotalAmount,
+    decimal DiscountPercent, string TaxCode, int TaxCodeId);
 
 public sealed record QuotationListItem(
     long QuotationId, string? DocNo, string Status, DateOnly DocDate,
@@ -145,6 +161,14 @@ public interface ISalesOrderService
     Task UpdateDraftAsync(long id, CreateSalesOrderRequest req, CancellationToken ct);
     Task PostAsync(long id, CancellationToken ct);
     Task<long> CreateDeliveryOrderAsync(long salesOrderId, CreateDeliveryOrderRequest req, CancellationToken ct);
+    /// <summary>F8 (specs/fix-chain-conversion-integrity.md) — Full-quantity Delivery Order
+    /// built from the tracked SalesOrder entity — the ONLY correct way to convert, and the
+    /// single source of the SO→DO line mapping. The browser and the MCP tool both call this;
+    /// neither builds the request itself (the drift between two hand-written copies of this
+    /// mapping is finding F8). <paramref name="docDate"/> null ⇒ today (Asia/Bangkok); the MCP
+    /// tool passes the SO's own DocDate to stay byte-identical to its pre-refactor behaviour.</summary>
+    Task<long> CreateFullDeliveryOrderAsync(
+        long salesOrderId, bool isCombinedWithTi, DateOnly? docDate, CancellationToken ct);
     Task<IReadOnlyList<SalesOrderListItem>> ListAsync(string? status, CancellationToken ct);
     Task<SalesOrderDetail?> GetAsync(long id, CancellationToken ct);
 }

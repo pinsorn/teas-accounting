@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,7 +13,7 @@ import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
-import { useCreateTaxInvoice, usePostTaxInvoice, useCompanyBuSetting, useQuotation, useCompanyProfile, useSystemInfo, useMePermissions } from '@/lib/queries';
+import { useCreateTaxInvoice, usePostTaxInvoice, useCompanyBuSetting, useCompanyProfile, useSystemInfo, useMePermissions } from '@/lib/queries';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { bangkokToday, formatTHB } from '@/lib/utils';
 import { onInvalidSubmit, scrollToFirstError } from '@/lib/forms';
@@ -36,6 +36,11 @@ const lineSchema = z.object({
   discountPercent: z.number().min(0).max(100).optional(),
   productId: z.number().nullable().optional(),
   productCode: z.string().nullable().optional(),
+  // fix-chain-conversion-integrity (F14) — kept in the schema so zod doesn't strip the
+  // picker's selection before submit (mirrors productId/productCode above). null = user
+  // hasn't picked a real tax code; the server resolves it.
+  taxCode: z.string().nullable().optional(),
+  taxCodeId: z.number().nullable().optional(),
 });
 const schema = z.object({
   customerId: z.number().int().positive(),
@@ -68,46 +73,15 @@ export default function CreateTaxInvoicePage() {
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 
-  // Sprint 13h P6.1 — Path B: hydrate from an Accepted Quotation.
-  const searchParams = useSearchParams();
-  const fromQuotationId = (() => {
-    const raw = searchParams.get('fromQuotationId');
-    const n = raw ? Number(raw) : NaN;
-    return Number.isFinite(n) && n > 0 ? n : null;
-  })();
-  const quotation = useQuotation(fromQuotationId ?? 0);
-
   const {
     control,
     handleSubmit,
     watch,
-    reset,
     formState: { isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { customerId: 0, lines: [{ ...EMPTY_LINE }] },
   });
-
-  // Prefill once Q arrives. Run once per quotation id by gating on data presence.
-  useEffect(() => {
-    if (!fromQuotationId || !quotation.data) return;
-    const q = quotation.data;
-    reset({
-      customerId: q.customerId,
-      lines: q.lines.map((l) => ({
-        descriptionTh: l.descriptionTh,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        // F-3 (2026-07-19 usage drive) — หน่วยนับ was dropped here: the form field stayed
-        // unset, so saveDraft's `l.uomText || 'หน่วย'` fallback always fired even when the
-        // quotation had a real unit ("ชิ้น"), and the posted TI printed "หน่วย".
-        uomText: l.uomText,
-        taxRate: 0.07,    // BU default; product type wiring lands in P7
-      })),
-    });
-    setCustomerLabel(q.customerName);
-    if (q.businessUnitId != null) setBusinessUnitId(q.businessUnitId);
-  }, [fromQuotationId, quotation.data, reset]);
 
   const lines = watch('lines');
   const customerId = watch('customerId');
@@ -129,7 +103,10 @@ export default function CreateTaxInvoicePage() {
         docDate,
         customerId: v.customerId,
         businessUnitId,
-        quotationId: fromQuotationId,   // Sprint 13h P6.1 — persists the Q reverse-link
+        // F8b (specs/fix-chain-conversion-integrity.md) — Q→TI is now a server-side
+        // conversion (q-create-ti on the quotation detail page); this form is pure
+        // hand-entry and never carries a quotation link.
+        quotationId: null,
         isTaxInclusive: false,
         currencyCode: 'THB',
         exchangeRate: 1,
@@ -145,8 +122,10 @@ export default function CreateTaxInvoicePage() {
           uomText: l.uomText || 'หน่วย',
           unitPrice: l.unitPrice,
           discountPercent: l.discountPercent ?? 0,
-          taxCodeId: 1,
-          taxCode: 'V7',
+          // fix-chain-conversion-integrity (F14/WP-5) — the line editor's real tax-code
+          // picker sets these; null (untouched line) lets the server resolve the pair.
+          taxCodeId: l.taxCodeId ?? null,
+          taxCode: l.taxCode ?? null,
           taxRate: l.taxRate,
         })),
       });

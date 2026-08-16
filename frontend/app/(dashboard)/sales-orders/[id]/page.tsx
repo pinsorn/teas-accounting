@@ -53,23 +53,13 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
     finally { setConfirmPost(false); }
   }
 
+  // F8 (specs/fix-chain-conversion-integrity.md) — server-side full conversion: no line
+  // payload is built here at all. The lines (discount, tax-code pair, SO-line link) are
+  // copied server-side from the tracked SalesOrder, so this can no longer invent them.
   async function createDelivery() {
     if (!d) return;
     try {
-      const r = await makeDo.mutateAsync({
-        soId,
-        req: {
-          docDate: new Date().toISOString().slice(0, 10),
-          customerId: d.customerId, businessUnitId: d.businessUnitId,
-          isCombinedWithTi: vatMode, notes: null, fromSalesOrderId: soId,
-          lines: d.lines.map((l) => ({
-            salesOrderLineId: null, productId: l.productId,
-            descriptionTh: l.descriptionTh, quantity: l.quantity,
-            uomText: l.uomText, unitPrice: l.unitPrice, discountPercent: 0,
-            taxCodeId: 1, taxCode: vatMode ? 'VAT7' : 'VAT0', taxRate: vatMode ? 0.07 : 0,
-          })),
-        },
-      }) as { delivery_order_id: number };
+      const r = await makeDo.mutateAsync({ soId, combineTi: vatMode });
       toast.success(tc('save'));
       router.push(`/delivery-orders/${r.delivery_order_id}`);
     } catch (e) {

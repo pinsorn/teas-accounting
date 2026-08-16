@@ -204,7 +204,21 @@ Widening/redefining this seam requires every writer AND every reader to have a d
 
 ### 3.0 The two decisions that shape everything
 
-**Decision 1 — server-side conversion, not a thicker `ChainLineDto`. ACCEPTED.**
+**Decision 1 — server-side conversion, not a thicker `ChainLineDto`. ACCEPTED, then PARTIALLY
+REVERSED 2026-08-16 (Tier-2 Opus REJECT, Fable-approved).** The reversal is narrow and does not
+touch the reasoning below: it still holds for the **conversion** paths. What it missed is a SECOND,
+unrelated consumer of the same DTO — the **edit** path (`QuotationForm`/`SalesOrderForm`/
+`BillingNoteForm`'s `toLine`, which hydrates `GetAsync`'s `ChainLineDto` back into the create form
+on "reopen draft to fix a typo"). `ChainLineDto` never carried `discountPercent`/`taxCode`/
+`taxCodeId`, so an edited draft silently dropped its discount (F8, again) and its tax code (F14,
+again) on save — the DTO wasn't read-only in practice, it was round-tripped. WP-2/WP-3's server-side
+conversions close the conversion-echo vector this decision was written to stop (a conversion sends
+no line payload at all now), so widening the READ side for the edit path is not a regression to the
+rejected design — it's a different consumer with a different job (round-trip a stored line
+faithfully, not receive an unverified one). `ChainLineDto` gained the three fields as REQUIRED
+(no default) positional members; all four producers (`Quotation`/`SalesOrder`/`DeliveryOrder`/
+`BillingNote` `GetAsync`) were updated. See the attempt log for the fix and its tests.
+
 Both broken paths become no-body POSTs whose lines are built from the tracked source entity, exactly
 like the ten clean siblings and exactly like `create_delivery_order_draft`. Widening `ChainLineDto`
 would hand the client the right numbers and trust it to echo them; the next prefill that forgets a
@@ -486,40 +500,42 @@ constructor that feeds a now-nullable input field back into an entity.
 ## 5. Requirements checklist
 
 ### WP-1 — resolver writes a matched tax-code pair *(no dependency; do this first)*
-- [ ] `SalesLineBackstop.cs`: `TaxCodeFlags` gains `int TaxCodeId`; `LoadTaxCodeFlagsAsync` selects it.
-- [ ] `SalesLineBackstop.cs`: add `LoadStandardOutputTaxCodeAsync` per §3.1 (deterministic ordering; returns `null`, never throws, when the tenant has no master).
-- [ ] `SalesLineBackstop.cs`: `Resolve` returns `(ProductType, TaxRate, TaxCode, TaxCodeId)` implementing the four-step ladder in §3.1 verbatim, with a `SYNTHETIC_TAX_CODE_ID = 0` named constant and an XML-doc comment stating what 0 means.
-- [ ] Update all 9 call sites (§2.1) to destructure the 4-tuple, load the standard output code once per request, and assign the resolved id.
-- [ ] `TaxInvoiceService.cs:375-381`: the `l with { … }` rewrite also sets `TaxCodeId`.
-- [ ] Done when: `dotnet build` clean, and T4/T5/T8 pass.
+- [x] `SalesLineBackstop.cs`: `TaxCodeFlags` gains `int TaxCodeId`; `LoadTaxCodeFlagsAsync` selects it. Also gained `string Code` (not in the spec's shape sketch, but required by trap §9.2 — a case-insensitive `TryGetValue` cannot return the matched key's own casing, so the value must carry it; confirmed with opus-advisor before implementing).
+- [x] `SalesLineBackstop.cs`: added `LoadStandardOutputTaxCodeAsync` per §3.1 (deterministic ordering via `Code == "VAT7" ? 0 : 1` then `TaxCodeId asc`; returns `null`, never throws, when the tenant has no master).
+- [x] `SalesLineBackstop.cs`: `Resolve` returns `(ProductType, TaxRate, TaxCode, TaxCodeId)` implementing the four-step ladder in §3.1 verbatim, with `SYNTHETIC_TAX_CODE_ID = 0` named constant + XML-doc comment.
+- [x] Updated all 8 grep-verified call sites (§2.1's row 1 is `Resolve` itself, not a call site — confirmed with advisor) to destructure the 4-tuple, load the standard output code once per request (conditionally: `cfg.VatMode ? await LoadStandardOutputTaxCodeAsync(...) : null`, skipping the query on non-VAT builders), and assign the resolved id.
+- [x] `TaxInvoiceService.cs` `RebuildLinesAndTotalsAsync`'s `deriveLineTax` block: the `l with { … }` rewrite also sets `TaxCodeId = codeId`.
+- [x] Done when: `dotnet build` clean (0 warnings/0 errors), and T4/T5/T8 pass — evidence: `dotnet test .../Accounting.Api.Tests.dll --filter "FullyQualifiedName~TaxCodePairIntegrityTests"` → 3/3 passed, 0 skipped.
 
 ### WP-2 — SO→DO server-side conversion *(depends on WP-1 only for the tuple shape)*
-- [ ] `ISalesOrderService.CreateFullDeliveryOrderAsync` declared (`SalesChainDtos.cs`).
-- [ ] Implemented in `SalesOrderDeliveryServices.cs` per §3.2, carrying all of `SalesOrderLineId`, `ProductId`, `DiscountPercent`, `TaxCodeId`, `TaxCode`, `TaxRate`, `ProductType`.
-- [ ] `TeasMcpTools.cs:657-691` refactored to call it; the `mcp.do_exists` guard stays at the tool layer; `McpDocumentChainTests` green **without edits**.
-- [ ] Route `POST /sales-orders/{id}/delivery-orders/full` added with `RequireAuthorization(soManage, doManage)`.
-- [ ] The existing body-taking route is left byte-identical.
-- [ ] Done when: T1, T2, T6 pass.
+- [x] `ISalesOrderService.CreateFullDeliveryOrderAsync(long salesOrderId, bool isCombinedWithTi, DateOnly? docDate, CancellationToken ct)` declared (`SalesChainDtos.cs`). No default param values (interface default-param resolution is call-site-type-dependent — every caller in this repo passes CancellationToken explicitly, so this stays consistent); the MCP tool passes `so.DocDate`, the browser route passes `null`.
+- [x] Implemented in `SalesOrderDeliveryServices.cs` per §3.2, carrying all of `SalesOrderLineId`, `ProductId`, `DiscountPercent`, `TaxCodeId`, `TaxCode`, `TaxRate`, `ProductType`. Delegates to the existing `CreateDeliveryOrderAsync` for the actual write (so `so.not_posted`/`do.over_delivered`/auto-close/DeliveredQuantity all stay in the ONE place).
+- [x] `TeasMcpTools.cs` `CreateDeliveryOrderDraftAsync` refactored to call it; the `mcp.do_exists` guard (+ the `so.DocNo`/`not_found` lookup) stays at the tool layer, now `AsNoTracking()` without `.Include(Lines)` since line-building moved to the shared method; `McpDocumentChainTests` green **without edits**.
+- [x] Route `POST /sales-orders/{id}/delivery-orders/full` added with `RequireAuthorization(soManage, doManage)`.
+- [x] The existing body-taking route (`POST /sales-orders/{id}/delivery-orders`) is left byte-identical — diff touches only the line immediately after it.
+- [x] Done when: T1, T2, T6 pass — evidence below.
 
 ### WP-3 — Quotation→TI server-side conversion
-- [ ] `ITaxInvoiceService.CreateFromQuotationAsync` declared (`ITaxInvoiceService.cs`).
-- [ ] Implemented in `TaxInvoiceService.cs` per §3.3, `deriveLineTax: false`, `QuotationId` passed in the request record, activity `"CreatedFromQuotation"`.
-- [ ] Route `POST /quotations/{id}/create-tax-invoice` with `RequireAuthorization(qManage, tiCreatePol)`.
-- [ ] Done when: T3 passes.
+- [x] `ITaxInvoiceService.CreateFromQuotationAsync(long quotationId, CancellationToken ct)` declared (`ITaxInvoiceService.cs`).
+- [x] Implemented in `TaxInvoiceService.cs` per §3.3 (structural clone of `CreateFromSalesOrderAsync`), `deriveLineTax: false`, `QuotationId` passed in the request record (no post-hoc stamp needed — unlike BillingNote/DeliveryOrder), activity `"CreatedFromQuotation"`.
+- [x] Route `POST /quotations/{id}/create-tax-invoice` with `RequireAuthorization(qManage, tiCreatePol)`.
+- [x] Done when: T3 passes — evidence below.
 
 ### WP-4 — frontend rewiring *(depends on WP-2 + WP-3 routes existing)*
-- [ ] `lib/queries.ts`: `useCreateDeliveryOrder` → no-body `/full`; new `useCreateTaxInvoiceFromQuotation`.
-- [ ] `sales-orders/[id]/page.tsx`: `createDelivery()` sends no lines.
-- [ ] `quotations/[id]/page.tsx:181`: `q-create-ti` becomes a scope-gated action button (F6 parity), `data-testid` preserved. **Gate on the TARGET perm only (`sales.tax_invoice.create`), even though the route requires `qManage` AND `tiCreatePol`** — a `quotation.read + tax_invoice.create` user will see an enabled button and get a 403. That is the existing `q-convert` precedent verbatim (it gates on `sales.sales_order.manage` only). Noted here so a Tier-2 reviewer does not file it as a fresh F6.
-- [ ] `tax-invoices/new/page.tsx`: prefill block + `useQuotation` import removed; `quotationId: null`; `taxCodeId: null`; `taxCode: null`.
-- [ ] `lib/types.ts`: TI create line type allows `taxCodeId: number | null` / `taxCode: string | null`. `ChainLineDto` untouched.
-- [ ] `e2e/tax-invoice-from-quotation.spec.ts` rewritten for the button flow.
-- [ ] Done when: `npx tsc --noEmit` clean (**never `next build` while `next dev` is live** — troubles-wiki:783).
+- [x] `lib/queries.ts`: `useCreateDeliveryOrder` → no-body `/full`; new `useCreateTaxInvoiceFromQuotation`.
+- [x] `sales-orders/[id]/page.tsx`: `createDelivery()` sends no lines.
+- [x] `quotations/[id]/page.tsx:181`: `q-create-ti` becomes a scope-gated action button (F6 parity), `data-testid` preserved. **Gate on the TARGET perm only (`sales.tax_invoice.create`), even though the route requires `qManage` AND `tiCreatePol`** — a `quotation.read + tax_invoice.create` user will see an enabled button and get a 403. That is the existing `q-convert` precedent verbatim (it gates on `sales.sales_order.manage` only). Noted here so a Tier-2 reviewer does not file it as a fresh F6.
+- [x] `tax-invoices/new/page.tsx`: prefill block + `useQuotation` import removed; `quotationId: null`; `taxCodeId: null`; `taxCode: null`.
+- [x] `lib/types.ts`: TI create line type allows `taxCodeId: number | null` / `taxCode: string | null`. `ChainLineDto` untouched.
+- [x] `e2e/tax-invoice-from-quotation.spec.ts` rewritten for the button flow.
+- [x] Done when: `npx tsc --noEmit` clean (**never `next build` while `next dev` is live** — troubles-wiki:783). Evidence: 0 errors.
+- [x] **Additional package folded in (DECISIONS block item 1, Ham 2026-08-16): the real tax-code picker (F14/§10.4 Option B).** New `GET /tax-codes` (`MasterEndpoints.cs`, any-authenticated, mirrors `GET /wht-types/`) + `useTaxCodes()` hook + `LineItemsTable.tsx`'s sale-side (`purpose==='sale'`) VAT column rewired from the rate-only 7%/0% dropdown to a real picker over the company's 11 Output tax codes (labelled by the master's own `NameTh`). Wired through to `QuotationForm.tsx`, `SalesOrderForm.tsx`, `BillingNoteForm.tsx` and `tax-invoices/new/page.tsx`'s payload builders (was `taxCodeId: 1, taxCode: vatMode && rate>0 ? 'VAT7' : 'VAT0'` — the exact F14 hardcode in all four; now `l.taxCodeId ?? null, l.taxCode ?? null`). `RbacAuthMapTests.cs`'s `ExpectedAuthnOnly` updated for the new route (67/67 green). Product-locked lines, PurchaseOrderForm and DeliveryOrderForm deliberately untouched (see report).
 
 ### WP-5 — nullable inputs + validator *(do together with WP-4; a mismatch 422s every TI)*
-- [ ] `TaxInvoiceLineInput`, `ChainLineInput`, `DeliveryLineInput`: `TaxCodeId` → `int?`, `TaxCode` → `string?`.
-- [ ] `CreateTaxInvoiceValidator`: drop `NotEmpty()` from the `TaxCode` rule, keep `MaximumLength(20)`.
-- [ ] Done when: `dotnet build` clean with **zero** call-site edits needed in `TeasMcpTools.cs` mappings or in `backend/tests`.
+- [x] `TaxInvoiceLineInput`, `ChainLineInput`, `DeliveryLineInput`: `TaxCodeId` → `int?`, `TaxCode` → `string?`.
+- [x] `CreateTaxInvoiceValidator`: drop `NotEmpty()` from the `TaxCode` rule, keep `MaximumLength(20)`.
+- [x] Done when: `dotnet build` clean with **zero** call-site edits needed in `TeasMcpTools.cs` mappings or in `backend/tests`. Evidence: `dotnet build backend/Accounting.sln -o .../bin/isorun/net10.0` → 0 Errors (1 pre-existing NETSDK1194 `-o`-on-`.sln` tooling warning, not a code warning). `git diff --stat` on `TeasMcpTools.cs` shows only WP-2's earlier refactor, nothing from WP-5. `BuildLine` (`TaxInvoiceService.cs:691-692`) needed the `?? SYNTHETIC_TAX_CODE_ID` / `?? "VAT7"` fallback pair (trap, spec-named) — the only compile-breaking site found by grepping every `input.TaxCodeId`/`input.TaxCode` read across `backend/src`.
+- [x] TDD evidence (trap §9.6, the exact validator line): `TaxCodePairIntegrityTests.Validator_accepts_a_request_with_no_tax_code` — RED with `NotEmpty()` still in place (`FluentAssertions: Expected IsValid to be True, but found False`), GREEN after removing it. `…Null_request_code_resolves_to_the_companys_own_standard_output_code` proves the same for the full `CreateDraftAsync` path (stored `TaxCode == "VAT7"`, `TaxCodeId == company's own row`, never 1).
 
 ### WP-6 — documentation *(no code)*
 - [ ] Append the F14 entry (§10.4) to `troubles-wiki.md` under a symptom line an engineer would actually search for.
@@ -833,3 +849,204 @@ Expected file budget: 10 backend source · 5 frontend · ~4 test · 1 wiki · th
   `taxCodeId: 1` hardcode across six origin forms and a previously unrecorded defect (F14, §10.4);
   design reshaped so the server-side resolution makes four of those six forms inert rather than
   requiring edits, keeping the cap at 22.
+- 2026-08-16 sonnet-implementer: **WP-1, WP-2, WP-3 DONE.** WP-4/WP-5 and `frontend/` untouched
+  (out of this dispatch's scope). 9 backend source files + 2 new test files (11 total, well inside
+  the 22-file cap for the full unit). No migration, no existing test edited.
+  - **Trap 1 (`BuildLine` nullable widening)** — N/A this dispatch: WP-5 (nullable
+    `TaxCodeId`/`TaxCode` widening) is explicitly out of scope, so `TaxInvoiceLineInput.TaxCodeId`
+    stays non-nullable `int`; `BuildLine` (`TaxInvoiceService.cs:643`) compiles unchanged. The
+    `?? SYNTHETIC_TAX_CODE_ID` resolution the spec names for WP-5 is documented here for whoever
+    picks that up next.
+  - **Trap 2 (`TaxCodeId` dropped in the `l with {…}` rewrite)** — explicitly fixed:
+    `RebuildLinesAndTotalsAsync`'s `deriveLineTax` block now does
+    `l with { TaxRate = rate, TaxCode = code, TaxCodeId = codeId }`. Proven by
+    `TaxCodePairIntegrityTests.Unknown_request_code_resolves_to_the_companys_own_standard_output_code`
+    (F13's own regression test, on the direct-TI request-fed path) and
+    `Exempt_code_keeps_its_code_and_id_and_zero_rate` — both green.
+  - **Trap 3 (`McpDocumentChainTests` needing edits)** — not touched. `git status` confirms zero
+    changes to that file (or `Sprint10ChainTests.cs`/`ImmutabilityAndGuardTests.cs`/
+    `TaxInvoiceRateDerivationTests.cs`). Full `~Mcp` namespace run: **188/188 passed, 0 skipped**
+    (5m17s) — not just the one class named in T6, the whole MCP surface, confirming the
+    `CreateDeliveryOrderDraftAsync` refactor (WP-2) didn't drift any MCP behaviour.
+  - **Deviation from the spec's literal shape (flagged, not silent):** `TaxCodeFlags` gained a
+    `Code` field in addition to the spec-listed `TaxCodeId` — required by trap §9.2 ("store the
+    master row's casing, not the caller's"): a case-insensitive `Dictionary.TryGetValue` cannot
+    return the matched key's own casing, only the value, so the value has to carry it. Confirmed
+    with opus-advisor before implementing; `SalesLineBackstop` is `internal`, so this is a
+    private-shape change with zero external callers.
+  - **New footgun found and logged to `troubles-wiki.md`:** building the test project to an
+    isolated `-o` directory (the standard trick for the locked `Accounting.Api.dll`) broke
+    `PostgresFixture`'s hardcoded relative walk to `Migrations/SqlScripts`, making every DB test
+    fail (not skip) with `DirectoryNotFoundException` — nothing to do with the actual code change.
+    Fixed by building to `backend/tests/Accounting.Api.Tests/bin/isorun/net10.0` (same path depth
+    as the default `bin/Debug/net10.0`, so the fixture's relative walk still lands on
+    `backend/src/...`), which also still avoids the locked file.
+  - **Evidence:**
+    - `dotnet build backend/tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj -o <isolated>`
+      → 0 Warning(s), 0 Error(s).
+    - `dotnet build backend/Accounting.sln -o <isolated>` → 0 Error(s), 1 warning (NETSDK1194,
+      pre-existing tooling noise from `-o` on a `.sln`, not a code warning — confirmed absent from
+      the project-level build).
+    - `--filter "FullyQualifiedName~ChainConversionIntegrityTests|FullyQualifiedName~TaxCodePairIntegrityTests"`
+      → **6/6 passed, 0 skipped** (T1, T2, T3, T4, T5, T8).
+    - `--filter "FullyQualifiedName~McpDocumentChainTests|FullyQualifiedName~TaxInvoiceRateDerivationTests|FullyQualifiedName~Sprint10ChainTests|FullyQualifiedName~ImmutabilityAndGuardTests"`
+      → **45/45 passed, 0 skipped** (T6 + T7, unedited).
+    - `--filter "FullyQualifiedName~Sales"` (G2) → **127/127 passed, 0 skipped**.
+    - `--filter "FullyQualifiedName~Rbac"` (G3) → **67/67 passed, 0 skipped** — the two new routes'
+      explicit permission policies needed no `ExpectedAuthnOnly` allowlist change.
+    - `--filter "FullyQualifiedName~Mcp"` (full namespace, extra safety net beyond T6's one class)
+      → **188/188 passed, 0 skipped**.
+  - **Outside scope, noticed, not fixed:** none beyond what §8/§10 already name. Full diff reviewed
+    against the blast-radius cap and the "no existing test edited" stop-trigger before reporting —
+    neither tripped.
+- 2026-08-16 sonnet-implementer: **WP-4 + WP-5 DONE**, plus the tax-code picker (Ham's DECISIONS
+  block item 1, folded into this pass per dispatch). 16 files touched (5 backend + 11 frontend),
+  0 new/edited existing tests beyond WP-5's own two additions, no migration, no existing test edited.
+  - **Trap 1 (leaving `NotEmpty()` on `TaxCode`)** — caught by TDD before it ever shipped: the
+    advisor flagged that the existing DB-backed tests in this file call `ITaxInvoiceService`
+    directly (service layer), bypassing the endpoint's FluentValidation entirely, so they can never
+    observe a validator regression. Added a plain `[Fact]` unit test
+    (`Validator_accepts_a_request_with_no_tax_code`, mirrors `BatchAComplianceTests`' own
+    `new CreateTaxInvoiceValidator().Validate(req)` pattern) — RED with `NotEmpty()` in place,
+    GREEN after removing it. This is the only test in the suite that actually exercises the
+    validator line trap §9.6 warns about.
+  - **Landmine caught pre-write by advisor, not post-hoc:** the initial plan was to read the
+    picker's selection into each form's payload via `(l as LineItem).taxCode` (mirroring
+    `BillingNoteForm`'s existing `productType` cast). The advisor caught that `zodResolver`
+    returns zod-**parsed** values to `handleSubmit`, and zod strips undeclared object keys by
+    default — proven by the codebase's own comment on `BillingNoteForm`'s `productType` field
+    ("Kept in the schema so zod doesn't strip..."). A cast without a matching schema field would
+    have silently discarded every picker selection (`undefined` → `?? null` → server default →
+    picker becomes cosmetic, exactly the bug class this spec exists to kill, and none of the
+    named gates would have caught it — tsc passes on a cast, backend tests don't touch the FE,
+    no live browser this dispatch). Fixed by declaring `taxCode`/`taxCodeId` as
+    `z.string().nullable().optional()` / `z.number().nullable().optional()` in all four
+    lineSchemas (Quotation, SalesOrder, BillingNote, TI-new) instead of casting.
+  - **Trap 2/3 (rate-as-authority; non-VAT/purchase must keep behaving)** — the picker sends the
+    CODE as authority (`taxCode`/`taxCodeId`); `taxRate` is set from the picked code's own master
+    rate purely for the client-side running-total display (`lineTotal()`), and the server still
+    ignores any client `taxRate` unconditionally (`SalesLineBackstop.Resolve`, untouched). The
+    picker renders only when `purpose==='sale'` AND `showVat` is true — a non-VAT company never
+    sees the VAT/tax-code column at all (pre-existing `showVat` gate, untouched), and
+    `PurchaseOrderForm` (`purpose='purchase'`) keeps the exact old 7%/0% rate-only dropdown,
+    verified by `git diff --stat` showing zero changes to `PurchaseOrderForm.tsx`.
+  - **New backend surface:** `GET /tax-codes` (`MasterEndpoints.cs`, proxies the existing
+    `ITaxCodeService.ListAsync` verbatim, ~10 lines) gated `.RequireAuthorization()` with no
+    specific permission — mirrors the in-repo `GET /wht-types/` precedent exactly ("any
+    authenticated user, the Receipt form dropdown needs it") and the `/system/vat-threshold-status`
+    precedent in `Program.cs`. Per `troubles-wiki.md`'s authn-only-endpoint footgun, added
+    `"GET /tax-codes"` to `RbacAuthMapTests.ExpectedAuthnOnly` — confirmed necessary (a first run
+    without it would have failed `Generate_endpoint_permission_map_and_flag_unprotected_endpoints`,
+    not re-triggered here since the entry was added before the first RBAC run of this session).
+  - **Deviation from the DECISIONS block's literal WP-4 text, flagged not silent:** §3.5 point 3
+    said `tax-invoices/new`'s line map becomes `taxCodeId: null, taxCode: null` unconditionally —
+    written before Ham's picker decision existed. With the picker now live on that exact screen
+    (`purpose="sale"`), the line map instead passes through `l.taxCodeId ?? null` / `l.taxCode ??
+    null` (the picker's selection when present, else null — behaviourally identical to the spec's
+    literal instruction for an untouched line, since the picker's own default display state is
+    already null until the user picks something).
+  - **Evidence:**
+    - `dotnet build backend/Accounting.sln -o backend/tests/Accounting.Api.Tests/bin/isorun/net10.0`
+      → 0 Errors (1 pre-existing NETSDK1194 warning, not code, confirmed by the WP-1..3 worker too).
+    - `--filter "FullyQualifiedName~TaxCodePairIntegrityTests|FullyQualifiedName~ChainConversionIntegrityTests"`
+      → **8/8 passed, 0 skipped** (T1-T5, T8 + the two new WP-5 tests).
+    - `--filter "FullyQualifiedName~Sales"` (G2) → **129/129 passed, 0 skipped** (127 baseline + 2 new).
+    - `--filter "FullyQualifiedName~Rbac"` (G3) → **67/67 passed, 0 skipped**, 3m23s.
+    - `cd frontend && npx tsc --noEmit` (G4) → **0 errors**, exit code 0, after every edit round.
+    - `grep -rn "ম"` over every file touched this session → 0 matches.
+    - i18n key counts: **th 2025 / en 2025** (unchanged — zero new UI strings needed; the picker's
+      option labels come from the master's own `NameTh`, and the one new placeholder reuses the
+      existing `common.loading` key already used this way across the app).
+  - **Live browser smoke: not run this dispatch, by design, not by omission.** The dispatch states
+    the API on :5080 is the pre-change build; both new routes (`/full`, `/create-tax-invoice`) AND
+    `GET /tax-codes` (also new) 404 there until Fable restarts the stack. A browser test right now
+    would show the picker failing to load codes — not representative of the shipped behaviour.
+    Fable's live re-run (§7.3) is the first point this can be verified end-to-end; V1-V6 there
+    should now also implicitly cover the picker (V5's manual-TI-form check exercises it).
+  - **Statement — what the line editor now offers (report also carries this):**
+    - **VAT-registered company, sale-side** (Quotation/SalesOrder/BillingNote/TI-new,
+      non-product-locked lines): a real `<select>` of the company's 11 Output tax codes
+      (VAT7 standard + 2 zero-rated export/service-abroad + 8 exempt categories), each option
+      labelled by the master's own Thai name and rate, defaulting visually to the standard
+      7% code until the user picks otherwise. Product-locked lines are unchanged (a badge
+      showing the product's rate; no code picker — pre-existing, out of scope, see report).
+    - **Non-VAT company:** no VAT/tax-code column at all (unchanged `showVat` gate) — the picker
+      cannot apply and is never offered, satisfying trap §3.
+    - **Purchase side** (`PurchaseOrderForm`): byte-identical old 7%/0% rate-only dropdown —
+      untouched file, confirmed by `git diff --stat`.
+  - **Outside scope, noticed, not fixed:** (1) product-locked lines never carry a real tax code
+    (pre-existing — `Product.DefaultOutputTaxCodeId` has no reader, named in §10.4 Option A as a
+    separate follow-up); an EXEMPT_GOOD/EXEMPT_SERVICE product-locked line still resolves to the
+    server's standard-output fallback at full rate, byte-identical to today's behaviour, not a
+    regression. (2) `DeliveryOrderForm.tsx` doesn't use `LineItemsTable` at all — its hardcoded
+    `taxCodeId:1, taxCode:'VAT0'` stays inert (server overrides), untouched, confirmed by
+    `git diff --stat`. (3) Minor incidental cleanup: `BillingNoteForm.tsx`'s payload builder read
+    `productType` via `(l as {productType?: string | null}).productType` even though `productType`
+    was already declared in that file's own `lineSchema` — the cast was redundant, not a bug (the
+    field was never actually stripped). Simplified to `l.productType` on the same line I was
+    already rewriting for `taxCode`/`taxCodeId`; zero behaviour change, confirmed by `tsc --noEmit`.
+- 2026-08-16 sonnet-implementer: **Tier-2 Opus REJECT fix — the EDIT path, F8/F14 through a
+  different door.** Fable relayed a confirmed-correct finding: `toLine` in `QuotationForm.tsx`,
+  `SalesOrderForm.tsx`, `BillingNoteForm.tsx` hydrates an edit form from `ChainLineDto`, which
+  never carried `discountPercent`/`taxCode`/`taxCodeId` — so reopening a draft to fix a typo and
+  saving it unchanged silently dropped the discount and the tax code. **§3.0 Decision 1 amended
+  in place** (see above) — the "do not widen `ChainLineDto`" call is reversed for this DTO only;
+  the reasoning it was built on (stop a conversion echoing an unverified client line) is untouched
+  and still governs the conversion paths, which still send no line payload.
+  - **Backend (5 files):** `SalesChainDtos.cs` — `ChainLineDto` gains `decimal DiscountPercent,
+    string TaxCode, int TaxCodeId` as REQUIRED positional members (no default — a producer that
+    forgot to populate one would silently reproduce the bug, exactly the failure mode named in the
+    finding). All 4 producers updated to project them straight off the tracked line entity:
+    `QuotationChainServices.cs:343`, `SalesOrderDeliveryServices.cs:311` (SO) and `:506` (DO),
+    `BillingNoteService.cs:453`. Grepped every `ChainLineDto` reference in `backend/src`/
+    `backend/tests` first (excluding compiled `.dll`s) — confirmed exactly these 4 constructors +
+    4 type-only usages in `SalesChainDtos.cs`/`BillingNoteDtos.cs`, nothing else to update.
+  - **Frontend (4 files):** `lib/types.ts` — `ChainLineDto` interface widened to match. `toLine` in
+    all three forms now maps `discountPercent: l.discountPercent, taxCode: l.taxCode, taxCodeId:
+    l.taxCodeId` alongside the existing fields; `taxRate`'s reverse-derivation
+    (`taxAmount/lineAmount`) is kept as the DISPLAY fallback (per instruction point 3) — it's
+    consistent by construction with the now-always-present stored code (an exempt code's
+    `taxAmount` is 0, so the reverse-derived rate is 0 too; nothing to reconcile). Grepped every
+    frontend `ChainLineDto` reference — confirmed no other object-literal construction exists (it's
+    only ever server-produced JSON), so no other frontend file needed touching.
+  - **Reviewer nit 1 (LineItemsTable's default-code pick vs the server's rule) — fixed.**
+    `useTaxCodes()`/`GET /tax-codes` returns rows sorted alphabetically by `Code`
+    (`TaxCodeService.ListAsync`'s own `.OrderBy(c => c.Code)`), so the old
+    `outputCodes.find(taxable)` picked the first ALPHABETICAL taxable code, which can differ from
+    the server's own default (`LoadStandardOutputTaxCodeAsync`: `Code=="VAT7"` first, else lowest
+    `TaxCodeId`) on a tenant with two taxable output codes. `standardCode` now mirrors that exact
+    ladder client-side. Same rate either way today (single-taxable-code tenants, the only ones
+    seeded) — this only changes which CODE the picker shows selected on a hypothetical
+    two-taxable-code tenant, never the money.
+  - **Reviewer nit 2 (`BuildLine`'s two independent `??` fallbacks) — fixed.** Replaced the
+    field-by-field `input.TaxCodeId ?? SYNTHETIC_TAX_CODE_ID` / `input.TaxCode ?? "VAT7"` with one
+    pattern-matched pair (`input.TaxCodeId is {} id && input.TaxCode is {} code ? (id, code) :
+    (SYNTHETIC_TAX_CODE_ID, "VAT7")`) so the fallback can never land a mismatched pair like
+    `(0, 'EXEMPT-BOOK')`. Confirmed unreachable today (same reasoning as before — deriveLineTax:true
+    always rewrites both together via `l with {...}`, deriveLineTax:false chain-copy paths build
+    from an already-matched entity) — this closes the theoretical gap the reviewer flagged, not an
+    observed bug.
+  - **New tests — TDD-shaped, not create-only (the exact gap the reviewer named):**
+    `ChainConversionIntegrityTests.Quotation_edit_round_trip_preserves_an_exempt_tax_code` and
+    `…_preserves_a_line_discount` both: create a draft quotation line (EXEMPT-BOOK code / 15%
+    discount respectively) → `GetAsync` → build an `UpdateDraftAsync` request from EXACTLY the
+    returned `ChainLineDto`'s own fields (the real shape `toLine` + the form's payload map now
+    produce, byte-for-byte) → `UpdateDraftAsync` → `GetAsync` again → assert code/id/rate/amount
+    (or discount/lineAmount/total) are byte-identical to before the no-op edit. A create-only test
+    (T3, which never reopens the draft) could not have caught this — these do.
+  - **Not touched, per instruction:** `SalesLineBackstop.Resolve` (unchanged — confirmed no rate
+    moves on any branch, same money invariant as WP-1); the ten clean conversion paths; no line
+    payload re-added to any conversion route.
+  - **Evidence:**
+    - `dotnet build backend/Accounting.sln -o backend/tests/Accounting.Api.Tests/bin/isorun/net10.0`
+      → 0 Errors (1 pre-existing NETSDK1194 warning, not code).
+    - `--filter "FullyQualifiedName~ChainConversionIntegrityTests"` → **5/5 passed, 0 skipped**
+      (3 original + 2 new edit-round-trip tests).
+    - `--filter "FullyQualifiedName~Sales"` (G2) → **131/131 passed, 0 skipped** (129 + 2 new).
+    - RBAC/MCP not re-run this round — zero changes to any endpoint/authorization file or to
+      `TeasMcpTools.cs` (confirmed by `git diff --stat` and a `ChainLineDto` grep over
+      `TeasMcpTools.cs` returning no hits); the prior green runs (Rbac 67/67, Mcp 188/188) stand.
+    - `cd frontend && npx tsc --noEmit` → **0 errors**.
+    - `grep -rn "ম"` over every file touched this round → 0 matches.
+    - i18n: **th 2025 / en 2025** — unchanged (`git diff --stat` on both message files empty; no
+      new UI strings, only code-comment/doc-comment changes).

@@ -12,8 +12,12 @@ public sealed record TaxInvoiceLineInput(
     string UomText,
     decimal UnitPrice,
     decimal DiscountPercent,
-    int    TaxCodeId,
-    string TaxCode,
+    // fix-chain-conversion-integrity WP-5 — nullable: the frontend no longer invents a
+    // taxCodeId/taxCode (was hardcoded 1/'V7'). Null means "let the server resolve it"
+    // (SalesLineBackstop.Resolve ladder step 3). Source-compatible widening — every
+    // existing positional caller (MCP mappings, tests, e2e fixtures) still compiles.
+    int?   TaxCodeId,
+    string? TaxCode,
     decimal TaxRate,
     string? ProductType = null);  // Sprint 13h P7 — Product master snapshot
 
@@ -134,7 +138,11 @@ public sealed class CreateTaxInvoiceValidator : AbstractValidator<CreateTaxInvoi
             l.RuleFor(x => x.DescriptionTh).NotEmpty().MaximumLength(500);
             l.RuleFor(x => x.Quantity).GreaterThan(0);
             l.RuleFor(x => x.UnitPrice).GreaterThanOrEqualTo(0);
-            l.RuleFor(x => x.TaxCode).NotEmpty().MaximumLength(20);
+            // fix-chain-conversion-integrity WP-5, trap §9.6 — NotEmpty() removed: the frontend
+            // now sends null when the user hasn't picked a real tax code (was: hardcoded
+            // taxCodeId:1/taxCode:'V7'). SalesLineBackstop.Resolve already treats null/blank as
+            // "no code supplied" (ladder step 3), so this must not 422.
+            l.RuleFor(x => x.TaxCode).MaximumLength(20);
             l.RuleFor(x => x.UomText).NotEmpty().MaximumLength(50);
             l.RuleFor(x => x.TaxRate).GreaterThanOrEqualTo(0).LessThanOrEqualTo(1m);
         });

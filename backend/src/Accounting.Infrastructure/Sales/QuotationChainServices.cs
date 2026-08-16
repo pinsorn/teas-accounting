@@ -87,18 +87,19 @@ public sealed class QuotationService(
         var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+        var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
+            var (prodType, taxRate, taxCode, taxCodeId) =
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             q.Lines.Add(new QuotationLine
             {
                 LineNo = n++, ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxCodeId = taxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;
@@ -159,18 +160,19 @@ public sealed class QuotationService(
         var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, req.Lines.Select(x => x.ProductId), ct);
         var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, req.Lines.Select(x => x.TaxCode), ct);
+        var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
         int n = 1;
         foreach (var l in req.Lines)
         {
-            var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
+            var (prodType, taxRate, taxCode, taxCodeId) =
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             q.Lines.Add(new QuotationLine
             {
                 LineNo = n++, ProductId = l.ProductId, ProductType = prodType, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxCodeId = taxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;
@@ -340,7 +342,8 @@ public sealed class QuotationService(
             q.ConvertedToSoId, q.Notes,
             q.Lines.OrderBy(l => l.LineNo).Select(l => new ChainLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
+                l.DiscountPercent, l.TaxCode, l.TaxCodeId)).ToList(),
             q.CreatedViaApiKeyName);
     }
 

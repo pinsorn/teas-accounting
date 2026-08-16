@@ -452,7 +452,8 @@ public sealed class BillingNoteService(
             bn.Notes,
             bn.Lines.OrderBy(l => l.LineNo).Select(l => new ChainLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount)).ToList(),
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
+                l.DiscountPercent, l.TaxCode, l.TaxCodeId)).ToList(),
             bn.JournalEntryId);
     }
 
@@ -464,11 +465,12 @@ public sealed class BillingNoteService(
         var cfg = await taxCfg.GetAsync(ct);
         var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, lines.Select(l => l.ProductId), ct);
         var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, lines.Select(l => l.TaxCode), ct);
+        var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
         int n = 1;
         foreach (var l in lines)
         {
-            var (prodType, taxRate, taxCode) =
-                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags);
+            var (prodType, taxRate, taxCode, taxCodeId) =
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             bn.Lines.Add(new BillingNoteLine
             {
@@ -476,7 +478,7 @@ public sealed class BillingNoteService(
                 TaxInvoiceId = l.TaxInvoiceId, DescriptionTh = l.DescriptionTh,
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, LineAmount = net,
-                TaxCodeId = l.TaxCodeId, TaxCode = taxCode, TaxRate = taxRate,
+                TaxCodeId = taxCodeId, TaxCode = taxCode, TaxRate = taxRate,
                 TaxAmount = vat, TotalAmount = total,
             });
             bn.SubtotalAmount += net; bn.VatAmount += vat; bn.TotalAmount += total;

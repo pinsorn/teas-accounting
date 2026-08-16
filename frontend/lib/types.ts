@@ -389,8 +389,10 @@ export interface CreateTaxInvoiceLineInput {
   uomText: string;
   unitPrice: number;
   discountPercent: number;
-  taxCodeId: number;
-  taxCode: string;
+  // fix-chain-conversion-integrity WP-4/5 — nullable: the browser no longer invents a
+  // tax-code pair (was hardcoded taxCodeId:1/taxCode:'V7'). null = let the server resolve it.
+  taxCodeId: number | null;
+  taxCode: string | null;
   taxRate: number;
 }
 export interface CreateTaxInvoiceRequest {
@@ -421,6 +423,13 @@ export interface WhtTypeListItem {
   whtTypeId: number; code: string; nameTh: string; nameEn: string | null;
   rate: number; formType: string; incomeTypeCode: string;
   effectiveFrom: string; effectiveTo: string | null; isActive: boolean;
+}
+// fix-chain-conversion-integrity (F14) — the company's own tax.tax_codes master, fed to the
+// sale-side line editor's real tax-code picker (GET /tax-codes). direction is 'Output' | 'Input';
+// category is 'TAXABLE' | 'EXEMPT' | 'ZERO_RATED'.
+export interface TaxCodeListItem {
+  taxCodeId: number; code: string; nameTh: string; rate: number;
+  taxType: string; direction: string; category: string;
 }
 // Sprint (multi-category WHT, 2026-05-22) — one suggested withholding category.
 export interface WhtCategorySuggestion {
@@ -1058,10 +1067,15 @@ export interface ProductDetail {
 // cont.81 — line-item picker filter context: which side of the ledger.
 export type ProductPurpose = 'sale' | 'purchase';
 // Sprint 10 Part B — Q→SO→DO chain
+// Tier-2 finding (2026-08-16) — widened to carry discountPercent/taxCode/taxCodeId so the
+// edit forms (QuotationForm/SalesOrderForm/BillingNoteForm's `toLine`) can round-trip a
+// stored line faithfully. §3.0 Decision 1 ("do not widen ChainLineDto") is reversed for
+// this read-side DTO only — see fix-chain-conversion-integrity.md's attempt log.
 export interface ChainLineDto {
   lineNo: number; productId: number | null; productCode: string | null;
   descriptionTh: string; quantity: number; uomText: string;
   unitPrice: number; lineAmount: number; taxAmount: number; totalAmount: number;
+  discountPercent: number; taxCode: string; taxCodeId: number;
 }
 export interface QuotationListItem {
   quotationId: number; docNo: string | null; status: string; docDate: string;
@@ -1132,7 +1146,8 @@ export interface BillingLineInput {
   productId: number | null; taxInvoiceId: number | null;
   descriptionTh: string; quantity: number; uomText: string;
   unitPrice: number; discountPercent: number;
-  taxCodeId: number; taxCode: string; taxRate: number;
+  // fix-chain-conversion-integrity WP-4/5 — nullable, mirrors ChainLineInput.
+  taxCodeId: number | null; taxCode: string | null; taxRate: number;
   productType: string | null;
 }
 export interface CreateBillingNoteRequest {
@@ -1544,7 +1559,8 @@ export interface UpdateProductRequest {
 export interface ChainLineInput {
   productId?: number | null; descriptionTh: string;
   quantity: number; uomText: string; unitPrice: number; discountPercent: number;
-  taxCodeId: number; taxCode: string; taxRate: number; productType?: string | null;
+  // fix-chain-conversion-integrity WP-4/5 — nullable, mirrors CreateTaxInvoiceLineInput.
+  taxCodeId: number | null; taxCode: string | null; taxRate: number; productType?: string | null;
 }
 export interface CreateQuotationRequest {
   docDate: string; validUntilDate: string; customerId: number;
@@ -1566,7 +1582,8 @@ export interface DeliveryLineInput {
   salesOrderLineId?: number | null; productId?: number | null;
   descriptionTh: string; quantity: number; uomText: string;
   unitPrice: number; discountPercent: number;
-  taxCodeId: number; taxCode: string; taxRate: number; productType?: string | null;
+  // fix-chain-conversion-integrity WP-4/5 — nullable, mirrors ChainLineInput.
+  taxCodeId: number | null; taxCode: string | null; taxRate: number; productType?: string | null;
 }
 export interface CreateDeliveryOrderRequest {
   docDate: string; customerId: number; businessUnitId?: number | null;

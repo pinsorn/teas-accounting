@@ -39,6 +39,7 @@ import type {
   WhtCertificateListItem,
   WhtCertificateDetail,
   WhtTypeListItem,
+  TaxCodeListItem,
   WhtBaseSuggestion,
   WhtReceivableRegister,
   WhtReceivableAging,
@@ -424,6 +425,17 @@ export function useExpenseCategories() {
   return useQuery({
     queryKey: ['expense-categories'],
     queryFn: () => apiGet<ExpenseCategoryLite[]>('expense-categories'),
+  });
+}
+
+// fix-chain-conversion-integrity (F14) — the sale-side line editor's real tax-code picker.
+// `enabled` defaults true; LineItemsTable passes false on the purchase side (unchanged
+// rate-only dropdown there) so the request isn't fired where it won't be used.
+export function useTaxCodes(enabled = true) {
+  return useQuery({
+    queryKey: ['tax-codes'],
+    queryFn: () => apiGet<TaxCodeListItem[]>('tax-codes'),
+    enabled,
   });
 }
 
@@ -1748,11 +1760,16 @@ export function useCreateDeliveryOrderDraft() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['delivery-orders'] }),
   });
 }
+// F8 (specs/fix-chain-conversion-integrity.md WP-2/4) — server-side full conversion: the
+// browser sends NO line payload, so a discount/tax-code/line-link can no longer be invented
+// client-side. Replaces the old body-taking POST for the browser's "create DO from SO" flow;
+// the body-taking route stays for partial delivery / API callers (useCreateDeliveryOrderDraft).
 export function useCreateDeliveryOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { soId: number; req: CreateDeliveryOrderRequest }) =>
-      apiPost<{ delivery_order_id: number }>(`sales-orders/${v.soId}/delivery-orders`, v.req),
+    mutationFn: (v: { soId: number; combineTi: boolean }) =>
+      apiPost<{ delivery_order_id: number }>(
+        `sales-orders/${v.soId}/delivery-orders/full?combineTi=${v.combineTi}`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['delivery-orders'] }),
   });
 }
@@ -1805,6 +1822,21 @@ export function useCreateInvoiceFromSalesOrder() {
       qc.invalidateQueries({ queryKey: ['sales-order', id] });
       qc.invalidateQueries({ queryKey: ['billing-notes'] });
       qc.invalidateQueries({ queryKey: ['tax-invoices'] });
+    },
+  });
+}
+
+// F8b (specs/fix-chain-conversion-integrity.md WP-3/4) — Accepted Quotation → DRAFT Tax
+// Invoice, server-side (was: a prefill form that dropped the discount, F8b). Lines are
+// copied from the tracked Quotation entity, no client line payload.
+export function useCreateTaxInvoiceFromQuotation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiPost<{ tax_invoice_id: number }>(`quotations/${id}/create-tax-invoice`),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ['tax-invoices'] });
+      qc.invalidateQueries({ queryKey: ['quotation', id] });
     },
   });
 }

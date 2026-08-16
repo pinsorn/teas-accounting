@@ -21,8 +21,16 @@ namespace Accounting.Infrastructure.Sales;
 /// </summary>
 internal static class SalesLineBackstop
 {
-    /// <summary>Classification flags of a per-company VAT tax code (tax.tax_codes).</summary>
-    public readonly record struct TaxCodeFlags(bool IsExempt, bool IsZeroRated);
+    /// <summary>fix-chain-conversion-integrity (F13/§3.1) — sentinel <c>tax_code_id</c> meaning
+    /// "no master row backs this line's code" (non-VAT synthetic pair, or a tenant with no
+    /// tax-code master at all). The column is NOT NULL with no FK (F1.16), so 0 — never a real
+    /// identity value — is the honest, always-valid placeholder.</summary>
+    public const int SYNTHETIC_TAX_CODE_ID = 0;
+
+    /// <summary>Classification + identity of a per-company VAT tax code (tax.tax_codes).
+    /// <c>Code</c> carries the MASTER ROW's casing (the lookup is case-insensitive; a matched
+    /// line must store the master's casing, not whatever casing the caller sent — trap §9.2).</summary>
+    public readonly record struct TaxCodeFlags(int TaxCodeId, string Code, bool IsExempt, bool IsZeroRated);
 
     /// <summary>The seeded standard output VAT code (ม.80) — used as the code for a VAT line
     /// whose request carried no tax code, so the label matches the charged rate.</summary>
@@ -60,37 +68,68 @@ internal static class SalesLineBackstop
             return new Dictionary<string, TaxCodeFlags>(StringComparer.OrdinalIgnoreCase);
         var rows = await db.TaxCodes.AsNoTracking()
             .Where(c => codes.Contains(c.Code))
-            .Select(c => new { c.Code, c.IsExempt, c.IsZeroRated })
+            .Select(c => new { c.Code, c.TaxCodeId, c.IsExempt, c.IsZeroRated })
             .ToListAsync(ct);
         return rows
             .GroupBy(r => r.Code, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 g => g.Key,
-                g => new TaxCodeFlags(g.First().IsExempt, g.First().IsZeroRated),
+                // g.Key IS the master row's own casing (grouped from db.TaxCodes.Code) —
+                // storing it (not the caller's casing) is what trap §9.2 requires.
+                g => new TaxCodeFlags(g.First().TaxCodeId, g.Key, g.First().IsExempt, g.First().IsZeroRated),
                 StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>fix-chain-conversion-integrity (§3.1) — the tenant's own standard output VAT
+    /// code (ม.80), used as the ladder's fallback (step 3) when a request either supplies no
+    /// code or supplies one absent from this company's master (F13 — the "V7"/"VAT0" orphans).
+    /// NEVER throws: returns null when the tenant has no tax-code master at all (raw-SQL-seeded
+    /// companies — memory seed-cos-bypass-createasync-taxcodes), so ladder step 4 can fall back
+    /// to today's hardcoded "VAT7" byte-for-byte. Deterministic pick: "VAT7" first if present,
+    /// else the lowest id — so two calls in the same request never disagree.</summary>
+    public static async Task<(int TaxCodeId, string Code)?> LoadStandardOutputTaxCodeAsync(
+        AccountingDbContext db, CancellationToken ct)
+    {
+        var row = await db.TaxCodes.AsNoTracking()
+            .Where(c => c.IsActive && c.Direction == Domain.Enums.TaxDirection.Output
+                && !c.IsExempt && !c.IsZeroRated)
+            .OrderBy(c => c.Code == StandardOutputVatCode ? 0 : 1)
+            .ThenBy(c => c.TaxCodeId)
+            .Select(c => new { c.TaxCodeId, c.Code })
+            .FirstOrDefaultAsync(ct);
+        return row is null ? null : (row.TaxCodeId, row.Code);
+    }
+
     /// <summary>
-    /// Effective (productType, taxRate, taxCode) for a line after all guards.
+    /// Effective (productType, taxRate, taxCode, taxCodeId) for a line after all guards.
     /// Call before <c>ChainMath.Line</c> so the VAT amount is computed from the DERIVED rate.
     ///
     /// ม.80 / §4.6 — for a VAT-registered company the per-line VAT RATE is company master data,
-    /// NOT caller input. The caller's <paramref name="requestedRate"/> is IGNORED; the rate is
-    /// derived from the line's tax-code classification:
-    ///   • non-VAT company           → rate 0, code VAT0 (ม.86 — unchanged);
-    ///   • exempt (ม.81) code         → rate 0, code kept;
-    ///   • zero-rated (ม.80/1) code   → rate 0, code kept;
-    ///   • standard output VAT code   → rate = company <paramref name="companyVatRate"/>;
-    ///   • null/empty code            → rate = company VatRate with the standard output code
-    ///                                   <see cref="StandardOutputVatCode"/> (ม.80). A VAT-charged
-    ///                                   line must never carry the VAT0 label, so we do NOT fall
-    ///                                   back to "VAT0" here (that would be a 7%-rated VAT0 line).
+    /// NOT caller input. The caller's <paramref name="requestedRate"/> is IGNORED (trap §9.1).
+    ///
+    /// fix-chain-conversion-integrity (§3.1) — the resolution ladder, exact, in order:
+    ///   1. non-VAT company                          → (type, 0, "VAT0", SYNTHETIC_TAX_CODE_ID).
+    ///   2. code supplied AND found in this company's
+    ///      master                                    → (type, 0 if exempt/zero-rated else
+    ///      companyVatRate, matchedRow.Code, matchedRow.TaxCodeId) — the MASTER's casing, not
+    ///      the caller's (trap §9.2).
+    ///   3. code null/blank, OR supplied but NOT found
+    ///      (F13 — "V7", a foreign tenant's code, a typo) → the company's standard output code:
+    ///      (type, companyVatRate, standardOutput.Code, standardOutput.TaxCodeId).
+    ///   4. standard output code not found (tenant has
+    ///      no tax-code master at all)                 → (type, companyVatRate, "VAT7",
+    ///      SYNTHETIC_TAX_CODE_ID) — byte-for-byte today's code, sentinel id (trap §9.3).
+    ///
+    /// Money invariant: TaxRate is identical to today's for every input — only TaxCode/TaxCodeId
+    /// change. <paramref name="standardOutput"/> must be loaded ONCE per request, never inside
+    /// the per-line loop (trap §9.4).
     /// </summary>
-    public static (string ProductType, decimal TaxRate, string TaxCode) Resolve(
+    public static (string ProductType, decimal TaxRate, string TaxCode, int TaxCodeId) Resolve(
         bool vatMode, decimal companyVatRate, long? productId, string? requestedType,
         decimal requestedRate, string? taxCode,
         IReadOnlyDictionary<long, string> productTypes,
-        IReadOnlyDictionary<string, TaxCodeFlags> taxCodeFlags)
+        IReadOnlyDictionary<string, TaxCodeFlags> taxCodeFlags,
+        (int TaxCodeId, string Code)? standardOutput)
     {
         var type = productId is { } id && productTypes.TryGetValue(id, out var t)
             ? t
@@ -98,20 +137,20 @@ internal static class SalesLineBackstop
 
         // ม.86 / §4.6 — a non-VAT company never carries VAT on any line.
         if (!vatMode)
-            return (type, 0m, "VAT0");
+            return (type, 0m, "VAT0", SYNTHETIC_TAX_CODE_ID);
 
-        // ม.80 / §4.6 — VAT company: DERIVE the rate from master data, ignore requestedRate.
-        if (string.IsNullOrWhiteSpace(taxCode))
-            // No code supplied — default VAT: standard output code + the company's rate, so the
-            // label matches the charged rate (never a 7%-rated "VAT0" line).
-            return (type, companyVatRate, StandardOutputVatCode);
+        // Step 2 — code supplied and found in THIS company's master (case-insensitive lookup).
+        if (!string.IsNullOrWhiteSpace(taxCode) && taxCodeFlags.TryGetValue(taxCode, out var flags))
+        {
+            var rate = (flags.IsExempt || flags.IsZeroRated) ? 0m : companyVatRate;
+            return (type, rate, flags.Code, flags.TaxCodeId);
+        }
 
-        if (taxCodeFlags.TryGetValue(taxCode, out var flags) && (flags.IsExempt || flags.IsZeroRated))
-            // Exempt (ม.81) or zero-rated (ม.80/1) output — no VAT, keep the code.
-            return (type, 0m, taxCode);
-
-        // Standard output VAT code (or any unclassified taxable code) — the company's configured rate.
-        return (type, companyVatRate, taxCode);
+        // Steps 3–4 — no code, or an orphan code: the company's own standard output code, or
+        // (tenant has no tax-code master) the byte-for-byte legacy fallback with the sentinel id.
+        return standardOutput is { } so
+            ? (type, companyVatRate, so.Code, so.TaxCodeId)
+            : (type, companyVatRate, StandardOutputVatCode, SYNTHETIC_TAX_CODE_ID);
     }
 
     // Mirror of the Product entity's value-converter string form (ProductConfiguration).

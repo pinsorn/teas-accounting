@@ -662,12 +662,16 @@ public sealed class TeasMcpTools
         IOptions<AppOptions> app,
         CancellationToken ct)
     {
-        // Full-qty MCP wrapper (D1) — builds the request from ALL SO lines; the reused service
-        // method enforces SO-Posted. "No active DO for this SO" (D5) is enforced HERE (not in
+        // Full-qty MCP wrapper (D1) — "No active DO for this SO" (D5) is enforced HERE (not in
         // the shared service) because that method is ALSO the existing partial-delivery path
         // (multiple DOs per SO, covering different lines/quantities) — a shared-layer guard
         // would have broken that still-supported flow.
-        var so = await db.SalesOrders.AsNoTracking().Include(x => x.Lines)
+        // F8 (specs/fix-chain-conversion-integrity.md) — line building now goes through the
+        // SAME shared service method the browser's POST .../delivery-orders/full route calls
+        // (CreateFullDeliveryOrderAsync), so the two callers can never drift again (that drift
+        // was finding F8). Only the DocDate needs to be read here (so.DocDate, preserving this
+        // tool's byte-identical pre-refactor behaviour) — the shared method reloads the lines.
+        var so = await db.SalesOrders.AsNoTracking()
             .Where(x => x.CompanyId == tenant.CompanyId)
             .FirstOrDefaultAsync(x => x.SalesOrderId == salesOrderId, ct)
             ?? throw new McpE2Exception("mcp.not_found", $"Sales Order {salesOrderId} not found.");
@@ -676,16 +680,7 @@ public sealed class TeasMcpTools
             throw new McpE2Exception("mcp.do_exists",
                 $"Sales Order {salesOrderId} already has a Delivery Order — call get_document_status(delivery-order, ...) instead of creating another.");
 
-        var req = new CreateDeliveryOrderRequest(
-            DocDate: so.DocDate, CustomerId: so.CustomerId, BusinessUnitId: so.BusinessUnitId,
-            IsCombinedWithTi: false, Notes: null, FromSalesOrderId: so.SalesOrderId,
-            Lines: so.Lines.OrderBy(l => l.LineNo).Select(l => new DeliveryLineInput(
-                SalesOrderLineId: l.LineId, ProductId: l.ProductId, DescriptionTh: l.DescriptionTh,
-                Quantity: l.Quantity, UomText: l.UomText, UnitPrice: l.UnitPrice,
-                DiscountPercent: l.DiscountPercent, TaxCodeId: l.TaxCodeId, TaxCode: l.TaxCode,
-                TaxRate: l.TaxRate, ProductType: l.ProductType)).ToList());
-
-        var id = await svc.CreateDeliveryOrderAsync(salesOrderId, req, ct);
+        var id = await svc.CreateFullDeliveryOrderAsync(salesOrderId, isCombinedWithTi: false, so.DocDate, ct);
         return new DraftCreated(id, ApprovalUrl(app.Value, "delivery-orders", id),
             ApprovalLinkMarkdown(app.Value, "delivery-orders", id));
     }

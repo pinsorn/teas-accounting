@@ -8,12 +8,12 @@
 | Kind | Count |
 |---|---:|
 | Anonymous | 8 |
-| AuthnOnly | 16 |
-| Perm | 295 |
+| AuthnOnly | 17 |
+| Perm | 297 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **358** |
+| **TOTAL** | **361** |
 
 ## Routes
 
@@ -254,6 +254,7 @@
 | GET | `/quotations/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/quotations/{id:long}/cancel` | Perm | sales.quotation.manage |
 | POST | `/quotations/{id:long}/convert-to-so` | Perm | sales.quotation.manage / sales.sales_order.manage |
+| POST | `/quotations/{id:long}/create-tax-invoice` | Perm | sales.quotation.manage / sales.tax_invoice.create |
 | POST | `/quotations/{id:long}/mark-printed` | Perm | sales.quotation.manage |
 | GET | `/quotations/{id:long}/paper` | Perm | sales.quotation.read |
 | GET | `/quotations/{id:long}/pdf` | Perm | sales.quotation.read |
@@ -300,6 +301,7 @@
 | GET | `/sales-orders/{id:long}/activity` | Perm | report.audit.read |
 | POST | `/sales-orders/{id:long}/create-invoice` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/{id:long}/delivery-orders` | Perm | sales.sales_order.manage |
+| POST | `/sales-orders/{id:long}/delivery-orders/full` | Perm | sales.sales_order.manage / sales.delivery_order.manage |
 | POST | `/sales-orders/{id:long}/mark-printed` | Perm | sales.sales_order.manage |
 | GET | `/sales-orders/{id:long}/paper` | Perm | sales.sales_order.read |
 | GET | `/sales-orders/{id:long}/pdf` | Perm | sales.sales_order.read |
@@ -316,6 +318,7 @@
 | GET | `/tax-adjustment-notes/{id:long}/paper` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | GET | `/tax-adjustment-notes/{id:long}/pdf` | Assertion | sales.credit_note.read / sales.debit_note.read / sales.credit_note.create / sales.debit_note.create / sales.credit_note.post / sales.debit_note.post |
 | POST | `/tax-adjustment-notes/{id:long}/post` | Assertion | sales.credit_note.post / sales.debit_note.post |
+| GET | `/tax-codes` | AuthnOnly | — |
 | GET | `/tax-filings` | Perm | tax.filing.read |
 | GET | `/tax-filings/cit/adjustments` | Perm | tax.filing.preview |
 | POST | `/tax-filings/cit/adjustments` | Perm | tax.filing.finalize |

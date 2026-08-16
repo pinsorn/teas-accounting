@@ -69,6 +69,12 @@ public static class SalesChainEndpoints
         q.MapPost("/{id:long}/convert-to-so", async (long id, IQuotationService s, CancellationToken ct) =>
             Results.Ok(new { sales_order_id = await s.ConvertToSalesOrderAsync(id, ct) }))
             .RequireAuthorization(qManage, soManage);
+        // F8b (specs/fix-chain-conversion-integrity.md) — Q → Tax Invoice, server-side (was: a
+        // prefill form that dropped the discount).
+        // R3/H3 — source quotation manage AND target tax-invoice create.
+        q.MapPost("/{id:long}/create-tax-invoice", async (long id, ITaxInvoiceService s, CancellationToken ct) =>
+            Results.Ok(new { tax_invoice_id = await s.CreateFromQuotationAsync(id, ct) }))
+            .RequireAuthorization(qManage, tiCreatePol);
         q.MapGet("/", async ([FromQuery] string? status, IQuotationService s, CancellationToken ct) =>
             Results.Ok(await s.ListAsync(status, ct))).RequireAuthorization(qRead);
         q.MapGet("/{id:long}", async (long id, IQuotationService s, CancellationToken ct) =>
@@ -107,6 +113,17 @@ public static class SalesChainEndpoints
             [FromBody] CreateDeliveryOrderRequest req, ISalesOrderService s, CancellationToken ct) =>
             Results.Ok(new { delivery_order_id = await s.CreateDeliveryOrderAsync(id, req, ct) }))
             .RequireAuthorization(soManage);
+        // F8 (specs/fix-chain-conversion-integrity.md) — server-side full conversion. The
+        // browser sends NO line payload: the lines are copied from the tracked SO, so a
+        // discount/tax-code/line-link can no longer be invented client-side.
+        // R3/H3 — source manage AND target manage (multiple policies AND together).
+        so.MapPost("/{id:long}/delivery-orders/full", async (long id, bool? combineTi,
+            ISalesOrderService s, ICompanyTaxConfigService taxCfg, CancellationToken ct) =>
+        {
+            var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+            var combined = (combineTi ?? true) && vatMode;   // service re-derives this too
+            return Results.Ok(new { delivery_order_id = await s.CreateFullDeliveryOrderAsync(id, combined, null, ct) });
+        }).RequireAuthorization(soManage, doManage);
         // mcp-document-chain (D9) — SO → Invoice, direct (service-only skip-DO path, §A2).
         // Polymorphic by company VAT mode (CRUX-1), mirroring create_invoice_draft's MCP-side
         // polymorphism exactly — same reused service methods, one FK response field set.

@@ -69,6 +69,10 @@ public sealed class RbacAuthMapTests
         // InstanceSetupEndpoints; the Cartesian test treats it as handler-gated authn-only.
         "POST /system/setup/instance-keys",
         "GET /system/vat-threshold-status",
+        // fix-chain-conversion-integrity (F14) — read-only reference master needed by the
+        // sale-side line editor's tax-code picker. No dedicated read permission exists for
+        // tax codes; mirrors "GET /wht-types/" immediately below (any authenticated user).
+        "GET /tax-codes",
         "GET /wht-types/",
         "GET /wht-types/{id:int}",
     ];

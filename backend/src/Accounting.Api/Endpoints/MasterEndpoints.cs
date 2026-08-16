@@ -20,6 +20,7 @@ public static class MasterEndpoints
         MapCompanies(app);
         MapDocumentPrefixes(app);
         MapExpenseCategories(app);
+        MapTaxCodes(app);
         return app;
     }
 
@@ -180,5 +181,21 @@ public static class MasterEndpoints
 
         g.MapGet("/", async (IExpenseCategoryService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)))
             .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sys.ExpenseCatRead);
+    }
+
+    // ------------------------- Tax Codes (read-only) -------------------------
+    // fix-chain-conversion-integrity (F14, Ham's decision 1) — the sale-side line editor's
+    // real tax-code picker needs the company's own tax.tax_codes master (was: a rate-only
+    // dropdown whose "0%" option was a phantom code, F1.12/F1.13). No dedicated read
+    // permission exists for tax codes (mirrors WhtTypeEndpoints.cs's GET /wht-types/: "any
+    // authenticated user, the Receipt form dropdown needs it") — any signed-in tenant user may
+    // read their own company's reference master, exactly the /system/vat-threshold-status
+    // precedent in Program.cs.
+    private static void MapTaxCodes(IEndpointRouteBuilder app)
+    {
+        app.MapGet("/tax-codes", async (ITaxCodeService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(ct)))
+            .WithTags("Tax Codes")
+            .RequireAuthorization();
     }
 }

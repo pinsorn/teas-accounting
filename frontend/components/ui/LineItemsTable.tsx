@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { AmountInput } from './AmountInput';
 import { ProductPicker, taxRateForProductType } from '@/components/forms/ProductPicker';
 import { formatTHB } from '@/lib/utils';
-import { useSystemInfo } from '@/lib/queries';
+import { useSystemInfo, useTaxCodes } from '@/lib/queries';
 import type { ProductTypeStr, ProductPurpose } from '@/lib/types';
 
 // component-patterns.md §8 — editable rows, add/remove, auto-recalc total per row.
@@ -24,6 +24,11 @@ export interface LineItem {
   productType?: ProductTypeStr;
   uomText?: string;
   discountPercent?: number;
+  // fix-chain-conversion-integrity (F14, Ham's decision 1) — set by the real tax-code
+  // picker (purpose='sale' only, below). null = not explicitly picked; the server
+  // resolves it to the company's standard output code, same as today's implicit default.
+  taxCode?: string | null;
+  taxCodeId?: number | null;
 }
 
 export const EMPTY_LINE: LineItem = {
@@ -36,6 +41,8 @@ export const EMPTY_LINE: LineItem = {
   productType: 'GOOD',
   uomText: 'หน่วย',
   discountPercent: 0,
+  taxCode: null,
+  taxCodeId: null,
 };
 
 // Thai VAT: the standard rate (zero-rated 0% always available). The standard
@@ -84,6 +91,7 @@ export function LineItemsTable({
 }) {
   const t = useTranslations('ti.form');
   const tq = useTranslations('quotation');
+  const tc = useTranslations('common');
   const sys = useSystemInfo().data;
   const stdRate = sys?.vatRate ?? FALLBACK_VAT;
   const options = vatOptions(stdRate);
@@ -93,6 +101,22 @@ export function LineItemsTable({
   // hidden until /system/info actually resolves, so the column never flashes in
   // for a non-VAT company then disappears.
   const showVat = (sys?.vatMode ?? false) && vatEnabled;
+  // fix-chain-conversion-integrity (F14) — the real tax-code picker, sale-side only
+  // (purchase keeps the old rate-only dropdown unchanged — out of Unit A scope). Direction
+  // filters to output codes: a sale can only charge output VAT, never claim input VAT.
+  const taxCodes = useTaxCodes(purpose === 'sale').data;
+  const outputCodes = (taxCodes ?? []).filter((c) => c.direction === 'Output');
+  // Tier-2 nit (2026-08-16) — mirror the SERVER's own default pick exactly
+  // (SalesLineBackstop.LoadStandardOutputTaxCodeAsync: Code=="VAT7" first, else lowest
+  // TaxCodeId), not a naive "first taxable code in the /tax-codes list" — the list is
+  // sorted alphabetically by Code server-side (TaxCodeService.ListAsync), so on a tenant
+  // with two taxable output codes the old logic could display a code that isn't the one
+  // an untouched line would actually be stored under.
+  const taxableOutputCodes = outputCodes.filter((c) => c.category === 'TAXABLE');
+  const standardCode = (
+    taxableOutputCodes.find((c) => c.code === 'VAT7')
+    ?? [...taxableOutputCodes].sort((a, b) => a.taxCodeId - b.taxCodeId)[0]
+  )?.code ?? 'VAT7';
 
   const set = (i: number, patch: Partial<LineItem>) =>
     onChange(value.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -139,6 +163,12 @@ export function LineItemsTable({
                           productType: p.productType,
                           descriptionTh: p.nameTh,
                           taxRate: taxRateForProductType(p.productType),
+                          // fix-chain-conversion-integrity (F14) — a product lock drives the
+                          // rate a different way (taxRateForProductType); drop any tax code
+                          // manually picked before switching to a product so a stale
+                          // exempt/zero-rated code never survives under a mismatched rate.
+                          taxCode: null,
+                          taxCodeId: null,
                           ...(p.defaultUnitPrice != null
                             ? { unitPrice: p.defaultUnitPrice }
                             : {}),
@@ -204,6 +234,35 @@ export function LineItemsTable({
                     >
                       {Math.round(l.taxRate * 100)}%
                     </span>
+                  ) : purpose === 'sale' ? (
+                    // fix-chain-conversion-integrity (F14) — the real tax-code picker: the
+                    // company's own tax.tax_codes master (output codes), replacing the
+                    // rate-only 7%/0% dropdown whose "0%" option was a phantom code that
+                    // silently charged 7% (SalesLineBackstop resolves the RATE from the
+                    // CODE — trap §9.1/§9.2 — never from a client-supplied rate).
+                    outputCodes.length > 0 ? (
+                      <select
+                        className="select select-bordered select-sm w-full"
+                        value={l.taxCode ?? standardCode}
+                        onChange={(e) => {
+                          const picked = outputCodes.find((c) => c.code === e.target.value);
+                          if (picked) {
+                            set(i, { taxCode: picked.code, taxCodeId: picked.taxCodeId, taxRate: picked.rate });
+                          }
+                        }}
+                        aria-label={`${t('taxRate')} ${i + 1}`}
+                      >
+                        {outputCodes.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.nameTh} ({Math.round(c.rate * 100)}%)
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select className="select select-bordered select-sm w-full" disabled aria-label={`${t('taxRate')} ${i + 1}`}>
+                        <option>{tc('loading')}</option>
+                      </select>
+                    )
                   ) : (
                     <select
                       className="select select-bordered select-sm w-full"
