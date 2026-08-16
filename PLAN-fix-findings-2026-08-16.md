@@ -4,8 +4,13 @@ One consolidated plan so the whole batch can be fixed in one pass instead of fin
 Evidence for every item is in `PROGRESS-local-hard-test.md`; this file is the *fix* view: what changes,
 in what order, who does it, and what would make each one wrong.
 
-**Status of the round: 13 findings. 3 already fixed and shipped. 10 open.**
-Nothing here is deployed — there is no server to deploy to until the migration.
+**Status of the round: 14 findings. 9 fixed, 5 open** — F10, F11, F12, F4 and the
+`create_receipt_draft` scope note. Nothing here is deployed; there is no server to deploy to until the
+migration.
+
+Every fix in this round was verified against the running stack by reading the tables, not the screen,
+and the ledger was re-checked afterwards: trial balance 32,724.12 on both sides, every journal header
+agreeing with its own lines, and no new document carrying a tax code absent from its company's master.
 
 | # | What | Severity | State | Fix unit |
 |---|---|---|---|---|
@@ -13,12 +18,12 @@ Nothing here is deployed — there is no server to deploy to until the migration
 | F2 | Raw 500s + leaked .NET text on VAT reports and CIT year endpoints | medium | **fixed** `4988e52` | — |
 | F6 | Convert buttons rendered without the permission the backend demands | low-med | **fixed** `edcf9af` | — |
 | **F14** | **Screen says 0% VAT, stored tax invoice says 7% — ฿1,000 quoted, ฿1,070 recorded** | **🔴🔴 highest** | **open** | **A (Package 2)** |
-| F8 | SO→DO conversion drops discount, tax code, and the order-line link | 🔴 money/tax/control | open | **A** |
-| F8b | Quotation→Tax Invoice drops the discount onto an immutable document | 🔴 money/tax | open | **A** |
-| F13 | Tax invoices store tax code `V7`, which is not in the company's master | 🔴 tax/data | open | **A** |
-| F9 | Payment-voucher preview overstates Grand Total and Net by the WHT | medium | open | **B** |
+| F8 | SO→DO conversion drops discount, tax code, and the order-line link | 🔴 money/tax/control | **fixed** `1a13eb1` | — |
+| F8b | Quotation→Tax Invoice drops the discount onto an immutable document | 🔴 money/tax | **fixed** `1a13eb1` | — |
+| F13 | Tax invoices store tax code `V7`, which is not in the company's master | 🔴 tax/data | **fixed** `1a13eb1` | — |
+| F9 | Payment-voucher preview overstates Grand Total and Net by the WHT | medium | **fixed** `6fbad63` | — |
 | F10 | 50 ทวิ issued with an all-zero payer tax ID, no warning | medium | open | **C** |
-| F1 | A later demo-seed boot leaves tenants with no roles at all | medium | open | **D** |
+| F1 | A later demo-seed boot leaves tenants with no roles at all | medium | **fixed** `c2d9249` | — |
 | F11 | Tax-invoice header discount rollup stays zero | low | open | **E** |
 | F12 | `/reports/profit-loss` defaults to excluding untagged activity → all zeros | low | open | **E** |
 | F4 | A missing required query parameter returns 500 instead of 400 | low | open | **F** |
