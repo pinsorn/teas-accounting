@@ -28,14 +28,50 @@
   - **Release note when this ships:** any existing MCP key on a VAT-registered company scoped
     `sales.billing_note.manage` without `sales.tax_invoice.create` will start being refused on
     `create_invoice_draft`. That is the fix working, but those keys need re-scoping.
+  - **✅ UNIT A CLOSED (`1a13eb1`) — the document chain no longer loses money or mis-taxes a line.**
+    F8, F8b, F13 and F14 were one root cause: `ChainLineDto` carried no `lineId`, no `discountPercent`
+    and no `taxCode`, so the two convert screens invented them. Both conversions are now **server-side**
+    (built from the tracked entity, like the ten paths that were already correct), the server resolves a
+    **matched** `(tax_code, tax_code_id)` pair from the caller's own master and never throws, and the
+    rate-only dropdown is replaced by a **real tax-code picker** over the new `GET /tax-codes` — which
+    finally exposes the eight exempt categories and two zero-rated export codes every company is seeded
+    with and the UI could never reach.
+    - Verified live by reading the tables: an exempt line now stores `EXEMPT-BOOK` with a matching id at
+      0% and a total equal to what the screen showed (was `V7` at 7%, ฿70 the customer was never quoted);
+      the same sales order converts with `discount_percent 15.00` and `line_amount 2,125.00`,
+      `sales_order_line_id` populated, and **`delivered_quantity` moving for the first time** — the
+      over-delivery guard had never once executed.
+    - **No amount moved.** Ledger re-checked after: 32,724.12 on both sides, every journal header
+      agreeing with its lines, no new document carrying a code absent from its own master.
+    - **Tier-2 REJECTed the first cut and was right.** The edit forms hydrated from the same thin DTO,
+      so reopening a draft and saving it unchanged reset the discount and the tax code — the same bug
+      through a different door, **with the suite green at 1241/0/14**, because the tests covered create
+      and not edit. `ChainLineDto` was widened after all; that design decision predated both the picker
+      and the conversions becoming payload-free, so the objection it rested on no longer applied.
+    - Gates: suite **1243/0/14 skipped**, Domain 188/188, tsc 0.
+  - **✅ F1 FIXED (`c2d9249`)** — a company seeded by raw SQL after script 510 no longer ends up with no
+    roles. Prevention in the demo seeds (guarded so a fresh single boot still works, since they run
+    before 510 defines the function) plus script 636 to repair an already-broken database. Proven by
+    replaying the real two-boot toggle on throwaway databases and logging in as a non-super-admin.
+  - **✅ F9 FIXED (`6fbad63`)** — the payment-voucher preview no longer overstates what leaves the bank.
   - **✅ F6 FIXED (`edcf9af`)** — the five convert buttons now render **disabled with a tooltip naming
     the permission**, per Ham's call (disable, not hide — the exception is recorded in
     `PermissionGate.tsx`). Browser-verified both ways: disabled with the Thai tooltip for a SALES_STAFF
     user, enabled with no tooltip for a super-admin, and a permission the same user *does* hold stays
     enabled.
-  - Still open from this run: **F1** (seed ordering), **F4** (a missing required query parameter returns
-    500 instead of 400), and the backlog note that `create_receipt_draft` reads a tax invoice under only
-    `sales.receipt.create`.
+  - **Still open, all small and none touching money or tax:** **F10** (a 50 ทวิ issued with an all-zero
+    payer tax ID — needs Ham's call on refuse-versus-warn), **F11** (the tax-invoice header discount
+    rollup stays zero), **F12** (`/reports/profit-loss` defaults to excluding untagged activity, while
+    both shipped callers pass `true`), **F4** (a missing required query parameter returns 500 instead of
+    400), and the note that `create_receipt_draft` reads a tax invoice under only `sales.receipt.create`.
+    Fix plan with routing and traps per unit: `PLAN-fix-findings-2026-08-16.md`.
+  - **Never tested this round, and worth a second swarm:** payroll (ภ.ง.ด.1, สปส.1-10, payslips), bank
+    reconciliation, fixed assets and depreciation, expense claims, and co2 — the tenant with the richest
+    master data. Fourteen findings came out of the sales and purchase chains alone, five of them money
+    or tax, none of which the 1,243-test suite caught.
+  - **The local stack is DOWN** (both background servers were stopped). Restart per memory
+    `local-stack-boot-recipe` — the two env overrides matter, and the database must be seeded in one
+    boot or every tenant ends up with no roles.
   - ⚠️ RLS is **not** exercised locally — both PG roles are BYPASSRLS. Give the new server a
     non-bypassing app role and re-run this pass there.
 
