@@ -196,6 +196,55 @@ this should refuse or at least warn rather than print zeros.
   left empty. Wording with tax consequences goes out under the company's name without the preparer being
   able to see or edit it while drafting, and the guidance does not apply to every transaction.
 
+## Ledger audit — the books tie out
+An independent auditor pulled the actual journal entries for company 1 and reconciled them against the
+documents the swarm created through the UI. **Verdict: the books tie out.** This is the result Ham asked
+for, so the evidence matters as much as the verdict:
+
+- **All 8 posted journal entries balance**, and each header's `total_debit`/`total_credit` equals the sum
+  of its own lines. A header disagreeing with its lines would have been severe even if both sides balanced;
+  none did.
+- **Trial balance 32,724.12 debit = 32,724.12 credit**, and the API's figure reconciles to an independent
+  SQL sum of `gl.journal_lines` to the satang.
+- **Subledgers reconcile to their control accounts with difference 0.0000** on both sides — AR
+  1,783.34 and AP 0.00, cross-checked against the control-account balances computed from the ledger.
+- **VAT rounds correctly on both deliberately fractional cases**: 999.99 × 7% = 69.9993 → stored 70.00,
+  and 333.33 × 7% = 23.3331 → stored 23.33. The output-VAT register total (335.42) equals account 2151's
+  balance exactly; input VAT (770.00) equals account 1170's.
+- **Nothing posts twice.** This system issues both a ใบแจ้งหนี้ and a ใบกำกับภาษี for the same sale, so a
+  double count was the obvious risk. `billing_notes.journal_entry_id` is NULL for both invoices and no
+  journal references an `IV-*`, `DO-*`, `SO-*` or `QT-*` number — revenue and AR are recognised exactly
+  once, by the tax invoice.
+- **The credit note behaves correctly against an already-settled invoice.** Posted after the receipt had
+  cleared AR, it drives that customer's balance to **−356.66**, a refund owed — not a silent zeroing and
+  not an error. The AR aging report and the customer statement both show it and still reconcile.
+- **The WHT payable account holds exactly 300.00**, matching the certificate, on a base of the pre-VAT
+  10,000.00 rather than 10,700.00.
+- **The F8 discount error never reached the books.** Not merely absent — *structurally impossible*:
+  `sales.delivery_orders` has no `journal_entry_id` column at all, and no journal entry references
+  `08-2026-DO-0003`. The overstatement is contained to the document layer.
+
+### F11 — the tax invoice's header discount field stays zero while its line carries the discount
+`sales.tax_invoices` for TI-0002 stores `subtotal_amount = 3,124.99` (already net of the line discount),
+`discount_amount = 0.0000`, `taxable_amount = 3,124.99` — while line 2 carries `discount_percent = 15.00`
+and `discount_amount = 375.00`. Every downstream total is correct, so this is not an arithmetic error;
+the risk is that anything reading the header rollup (a printed document, an export, a report, a future
+integration) reports a discount of zero on a document that gave one. Worth deciding deliberately: either
+populate the rollup or document that the header field is unused.
+
+### F12 — the profit-and-loss endpoint returns zeros by default, disagreeing with every shipped caller
+`GET /reports/profit-loss?from=2026-08-01&to=2026-08-31` returns `revenue 0, expense 0, netProfit 0` for a
+period whose trial balance shows 32,724.12 of movement, because journal lines carry no business unit and
+the endpoint excludes untagged activity unless `includeUnspecified=true`.
+
+Severity is limited by who actually calls it: the P&L screen defaults its toggle to **true**
+(`reports/profit-loss/page.tsx:21`), and the MCP tool defaults to **true**
+(`TeasMcpTools.cs:1077`, whose own description says the report "covers ALL revenue/expense unless you
+explicitly exclude untagged docs"). So no shipped consumer hits the trap — but the raw endpoint's default
+contradicts both of them, and any new integration written against the documented API gets a report showing
+no profit and no loss on a company that traded. The cheap fix is to flip the endpoint default to match its
+two consumers.
+
 ## Known limitation of this environment — RLS is NOT exercised locally
 Both Postgres roles on this server (`postgres` and `accounting`) carry **`rolbypassrls = t`**, so every
 row-level-security policy is skipped for the application's own connection. The policies exist and look
