@@ -8,7 +8,9 @@ touch them again.
 - [x] DESIGN (Opus, 2026-08-18) — §Design-N1 / §Design-N2 / §Design-N3 / §Test plan /
       §Implementation order appended below. **Fable must read §Conflicts / Deviations first (3 items need
       ratification) and the §N2.5 pre-check must return zero rows before any migration is added.**
-- [ ] IMPLEMENT (Sonnet, from approved design)
+- [x] IMPLEMENT (Sonnet, from approved design) — 2026-08-18. All 5 implementation-order steps
+      done; §N2.5 pre-check zero rows; build 0/0; tsc clean; 45/45 filtered tests green; RED
+      confirmed for the fix-dependent N1/N3/N2 tests via targeted git-stash. See attempt log.
 - [ ] REVIEW (Opus, same dispatch as implement)
 - [ ] Full suite + commit (Fable)
 
@@ -98,6 +100,21 @@ case-SENSITIVE SQL. `exempt-book` → no row → dictionary empty → ladder ste
 
 ## Attempt log
 
+**2026-08-18 — Opus Tier-2 review: APPROVE-WITH-NITS.** All five lenses PASS; every design trap
+honoured; M1–M6 verified against control flow. Nits, Fable's disposition:
+- NIT-1 (Rule D ponytail marker sits in the Resolve XML doc comment, not beside the step-3 body) —
+  ACCEPTED as residue; greppable and behaviourally enforced by
+  `Taxable_product_is_unaffected_by_the_exempt_ladder`. Fix the placement in the next dispatch that
+  touches SalesLineBackstop.cs; do not open a dispatch for it alone.
+- NIT-2 (ToScreamingSnake whitespace realignment, diff noise) — ACCEPTED; not worth a dispatch.
+- NIT-3 (stdRate not in the PV VI-prefill effect deps; wrong base only in the narrow
+  system-info-cold + vatRate≠7% window; strictly better than the old hardcoded 0.07) — ACCEPTED as
+  documented residue.
+- Reviewer handoff: §N2.5's per-target-DB duplicate pre-check + post-restart unique-index probe
+  MUST go into the deploy runbook (migration runs at API startup; duplicates = prod crash-loop).
+  Step-5 ladder ("EXEMPT" synthetic) and Quotation-path VAT-company clamp have no direct test —
+  accepted gaps, logged here.
+
 **2026-08-18 — Opus design pass.** §Design-N1 / §Design-N2 / §Design-N3 / §Test plan /
 §Implementation order / §Conflicts / Deviations appended below. No source file touched, no test run.
 Blast cap raised 10 → 15 in the header (enumerated list in §Implementation order).
@@ -129,6 +146,90 @@ design; Opus reviews the diff before commit.
 
 **Not logged as a fourth defect** — `taxRateForProductType`'s hardcoded `0.07`
 (`ProductPicker.tsx:27-29`) is fixed in-scope by §N1.4.
+
+**2026-08-18 — Sonnet implementation.** All 5 §Implementation-order steps done exactly as
+designed; no deviation from the design's mechanics. 15 files touched (at the revised cap, not
+exceeding it) — the 15th is a forced consequence of the `taxRateForProductType` signature change
+mandated by §N1.4 (see "Forced deviation" below), not a scope expansion.
+
+- Step 1 — `SalesLineBackstop.cs` rewritten per §N1.1/§N1.3: `ProductTaxDefaults` record struct,
+  `TaxCodeMaster` class (`ByCode`/`ActiveOutputById`/`ExemptOutputFallback`), `LoadProductDefaultsAsync`,
+  `LoadTaxCodeMasterAsync` (no `Where`, `OrderBy(TaxCodeId)` before `GroupBy`), `Resolve` ladder
+  steps 2b/2c/3/4/5 added, `ExemptOutputVatCode = "EXEMPT"` const, the `// ponytail: Rule D
+  (deferred…)` marker inserted with NO branch written. Class/`Resolve` doc comments rewritten to
+  §N1.1 verbatim.
+- Step 2 — call sites: `QuotationChainServices.cs` (2), `SalesOrderDeliveryServices.cs` (4),
+  `BillingNoteService.cs` (1) renamed mechanically. `TaxInvoiceService.cs`: (a) N1 — inline
+  `_db.Products` block replaced by one `LoadProductDefaultsAsync` call reused for both the
+  ProductType override and the `Resolve` argument; `EmptyProductTypes` deleted; tax-code loader
+  renamed. (b) N2 — `EnsureQuotationNotInvoicedAsync` added; called at G1 (`CreateDraftCoreAsync`,
+  right after `EnsureVatRegisteredAsync`), G2 (`UpdateDraftAsync`, right before
+  `ti.QuotationId = req.QuotationId`), G3 (`PostCoreAsync`, right after the `ti` row loads);
+  `IsQuotationInvoiceUniqueViolation` + its catch clause added FIRST in `PostAsync`'s wrapper.
+- Step 3 — frontend: `ProductPicker.tsx` `taxRateForProductType(t, stdRate)`;
+  `LineItemsTable.tsx:165` passes `stdRate`.
+- Step 4 — §N2.5 pre-check run FIRST (see below, zero rows both queries) — then
+  `TaxInvoiceConfiguration.cs:77` → `.IsUnique()` + status-filtered predicate with the §N2.4
+  comment; `DomainExceptionMiddleware.cs` `.already_invoiced` → 409 clause added;
+  `dotnet ef migrations add QuotationSingleInvoice` run from the real repo path
+  (`Y:\ClaudePlayground\TEAS-Project\backend`) — generated migration matched §N2.4's shape
+  EXACTLY, zero hand-edits needed; Designer.cs/ModelSnapshot.cs generated, unedited.
+- Step 5 — new test files: `ExemptProductTaxResolutionTests.cs` (13 tests, T-N1 + T-N3),
+  `QuotationSingleInvoiceTests.cs` (8 tests, T-N2 incl. the API-level 409 test).
+
+**§N2.5 pre-check (BYPASSRLS role `accounting`, `rolbypassrls=t` confirmed):**
+count-probe `SELECT count(*) FROM sales.tax_invoices` → 2418 rows (session not RLS-filtered).
+Duplicate-POSTED-TI query → 0 rows. Wider informational query (any status, >1 TI/quotation) →
+0 rows. Proceeded to migration per design.
+
+**Forced deviation — not in the spec's 14-file list, required to keep `tsc` green.**
+`frontend/app/(dashboard)/payment-vouchers/new/page.tsx` calls `taxRateForProductType(productType)`
+directly (twice — VI-prefill effect + `lineVat`), independent of `LineItemsTable`. §N1.4 changes
+the function's signature to require `stdRate: number` with no default, which is a compile-breaking
+change for every caller, not just the two files the design enumerated. Fixed by adding a local
+`stdRate = useSystemInfo().data?.vatRate ?? 0.07` (mirrors `LineItemsTable`'s own `FALLBACK_VAT`
+pattern) and passing it through both call sites. This is the 15th file — the cap is hit exactly,
+not exceeded. Reported per "report, don't improvise."
+
+**RED-then-GREEN evidence (git-stash technique — spec's own tests, no test file edited):**
+`git stash push` on the 5 interdependent backend service files (`SalesLineBackstop.cs`,
+`QuotationChainServices.cs`, `SalesOrderDeliveryServices.cs`, `BillingNoteService.cs`,
+`TaxInvoiceService.cs`) reverted the ladder/guard logic to pre-fix while the two new test files
+stayed as written. Rebuilt clean (0/0 — public signatures unaffected), ran the 21 new tests:
+**13 failed / 8 passed** — every failure was a fix-dependent assertion (exempt-product rate,
+mixed-case lookup, `quotation.already_invoiced` never thrown, 409 never returned); every pass was
+a byte-identical/unaffected-path pinning test (`Taxable_product_is_unaffected_by_the_exempt_ladder`,
+`Free_text_line_claiming_exempt_type_still_charges_vat`,
+`Exempt_product_on_a_non_vat_company_stays_on_the_VAT0_sentinel`,
+`Exact_case_code_still_resolves_unchanged`, `Exempt_product_honours_an_exempt_code_the_caller_supplied`
+[step-2 code-supplied-and-found was already unconditional pre-fix], the two "not blocked" N2 tests,
+and `Update_draft_can_re_save_its_own_quotation_link`). Bonus evidence: `A_draft_cannot_be_posted_once_a_sibling_was_posted`
+failed with a RAW `Npgsql.PostgresException 23505` on `ix_tax_invoices_quotation_id` — proof the
+DB-level backstop (the migration, already applied to `teas_test`) was live even before the C#
+guard/catch existed, exactly the layered-defense the design intended. `git stash pop` restored the
+fix cleanly; rebuild 0/0; re-ran the same 21 (now green) + the 4 must-stay-green classes = **45/45
+passed, 0 failed, 0 skipped**.
+
+**Evidence — gates, verbatim counts:**
+1. `dotnet build Accounting.sln` (real path, not subst) → **0 Warning(s), 0 Error(s)**.
+2. `npx tsc --noEmit` (frontend/) → clean, no output.
+3. Filtered run, per class: `TaxCodePairIntegrityTests` 5/5, `TaxInvoiceRateDerivationTests` 7/7,
+   `ChainConversionIntegrityTests` 5/5, `NonVatBillingTests` 7/7 (all four **byte-for-byte
+   untouched, unedited**), `ExemptProductTaxResolutionTests` 13/13 (new), `QuotationSingleInvoiceTests`
+   8/8 (new). Combined: **45 passed, 0 failed, 0 skipped**.
+4. Post-migration DB check: `SELECT indexdef FROM pg_indexes WHERE indexname=
+   'ix_tax_invoices_quotation_id'` → `CREATE UNIQUE INDEX ... WHERE ((quotation_id IS NOT NULL)
+   AND ((status)::text = 'POSTED'::text))` — confirms the index actually landed on `teas_test`,
+   not just that the migration file looks right.
+
+Full suite (1255/0/14 + 188 baseline) intentionally NOT run — Fable runs it per the dispatch.
+
+**New footgun for troubles-wiki.md (candidate, Fable to triage):** targeted `git stash push --
+<paths>` on a subset of interdependent files is a fast, no-test-file-edit way to get RED evidence
+for an already-implemented fix, PROVIDED every file in the subset is mutually consistent when
+reverted together (here: all 5 files share the old `SalesLineBackstop` API surface). Reverting a
+strict subset that leaves a caller referencing a renamed/added method breaks the build instead of
+producing a clean RED.
 
 (append here)
 

@@ -162,7 +162,7 @@ export function LineItemsTable({
                           productCode: p.productCode,
                           productType: p.productType,
                           descriptionTh: p.nameTh,
-                          taxRate: taxRateForProductType(p.productType),
+                          taxRate: taxRateForProductType(p.productType, stdRate),
                           // fix-chain-conversion-integrity (F14) — a product lock drives the
                           // rate a different way (taxRateForProductType); drop any tax code
                           // manually picked before switching to a product so a stale

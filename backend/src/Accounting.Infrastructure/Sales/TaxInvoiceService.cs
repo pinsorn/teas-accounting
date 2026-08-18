@@ -26,11 +26,6 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
 {
     private const string TiPrefix = "TI";
 
-    // ProductType is already snapshotted onto srcLines before rate derivation, so the
-    // backstop's product-type map is intentionally empty there (it falls back to the line's type).
-    private static readonly IReadOnlyDictionary<long, string> EmptyProductTypes =
-        new Dictionary<long, string>();
-
     private readonly AccountingDbContext     _db;
     private readonly ITenantContext          _tenant;
     private readonly IClock                  _clock;
@@ -79,6 +74,26 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             throw new DomainException("ti.non_vat_blocked",
                 "VAT-not-registered companies cannot issue Tax Invoices (ม.86/4). " +
                 "Use a delivery note / receipt instead.");
+    }
+
+    /// <summary>N2 — ม.86/4: at most ONE POSTED Tax Invoice may be issued against a Quotation.
+    /// Drafts do not block (a TI has no delete/void path — N.12 — so a stray draft would trap the
+    /// quotation forever). <paramref name="excludeTaxInvoiceId"/> lets the poster/updater ignore
+    /// its own row. NEVER counts Draft rows: the guarded event is legal issuance, not linkage.</summary>
+    private async Task EnsureQuotationNotInvoicedAsync(
+        long? quotationId, long? excludeTaxInvoiceId, CancellationToken ct)
+    {
+        if (quotationId is not { } qid) return;
+        var blocking = await _db.TaxInvoices.AsNoTracking()
+            .Where(t => t.QuotationId == qid
+                     && t.Status == Domain.Enums.DocumentStatus.Posted
+                     && (excludeTaxInvoiceId == null || t.TaxInvoiceId != excludeTaxInvoiceId))
+            .Select(t => new { t.TaxInvoiceId, t.DocNo })
+            .FirstOrDefaultAsync(ct);
+        if (blocking is null) return;
+        throw new DomainException("quotation.already_invoiced",
+            $"Quotation {qid} has already been invoiced by Tax Invoice " +
+            $"{blocking.DocNo ?? blocking.TaxInvoiceId.ToString()}.");
     }
 
     // cont.69 Phase 1 — Invoice (BillingNote) → Tax Invoice, manual, VAT only. The
@@ -259,6 +274,9 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
         await EnsureVatRegisteredAsync(ct);
+        // N2 (G1) — covers both CreateFromQuotationAsync (C1) and a plain POST /tax-invoices
+        // carrying quotationId (C2): both funnel through this chokepoint.
+        await EnsureQuotationNotInvoicedAsync(req.QuotationId, null, ct);
 
         // Sprint 14 P7 — per-key BU lock (auto-fill / mismatch). Company-level
         // requires_business_unit still runs below on the resolved value.
@@ -381,24 +399,17 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         var needType = reqLines
             .Where(l => l.ProductId is not null)
             .Select(l => l.ProductId!.Value).Distinct().ToList();
+        // N1 — LoadProductDefaultsAsync replaces the old inline _db.Products query + duplicated
+        // enum→string switch. The result is reused TWICE below: for the ProductType override
+        // here (still runs on the deriveLineTax:false / chain-copy path too — unchanged
+        // semantics) and, further down, as the productDefaults argument to Resolve().
+        var productDefaults = await SalesLineBackstop.LoadProductDefaultsAsync(
+            _db, reqLines.Select(l => l.ProductId), ct);
         if (needType.Count > 0)
         {
-            var prods = await _db.Products.AsNoTracking()
-                .Where(p => needType.Contains(p.ProductId))
-                .Select(p => new { p.ProductId, p.ProductType })
-                .ToListAsync(ct);
-            // Line ProductType uses the UPPER_SNAKE convention IsService() expects;
-            // the Product master stores a PascalCase enum → map it.
-            var ptypes = prods.ToDictionary(p => p.ProductId, p => p.ProductType switch
-            {
-                Domain.Enums.ProductType.Service        => "SERVICE",
-                Domain.Enums.ProductType.ExemptService  => "EXEMPT_SERVICE",
-                Domain.Enums.ProductType.ExemptGood     => "EXEMPT_GOOD",
-                _                                       => "GOOD",
-            });
             srcLines = reqLines.Select(l =>
-                l.ProductId is { } pid && ptypes.TryGetValue(pid, out var pt)
-                    ? l with { ProductType = pt }   // master overrides caller input (authoritative)
+                l.ProductId is { } pid && productDefaults.TryGetValue(pid, out var pd)
+                    ? l with { ProductType = pd.ProductType }   // master overrides caller input (authoritative)
                     : l).ToList();
         }
 
@@ -412,10 +423,9 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         if (deriveLineTax)
         {
             var vatRate = (await _taxCfg.GetAsync(ct)).VatRate;
-            var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(
-                _db, srcLines.Select(l => l.TaxCode), ct);
+            var taxCodes = await SalesLineBackstop.LoadTaxCodeMasterAsync(_db, ct);
             // vatMode is always true on this path — EnsureVatRegisteredAsync already ran in
-            // CreateDraftCoreAsync above — so the tenant always needs (and, per ladder step 4,
+            // CreateDraftCoreAsync above — so the tenant always needs (and, per ladder step 6,
             // always safely falls back without) a standard output code. Loaded ONCE per request,
             // outside the per-line Select (trap §9.4).
             var standardOutput = await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(_db, ct);
@@ -423,7 +433,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             {
                 var (_, rate, code, codeId) = SalesLineBackstop.Resolve(
                     vatMode: true, vatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode,
-                    productTypes: EmptyProductTypes, taxCodeFlags, standardOutput);
+                    productDefaults: productDefaults, taxCodes, standardOutput);
                 // fix-chain-conversion-integrity trap §9.5 — TaxCodeId MUST be rewritten here too:
                 // BuildLine (below) reads input.TaxCodeId verbatim, so omitting it here would
                 // silently discard the resolved id and leave the tax-invoice path (F13) broken.
@@ -508,6 +518,9 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         ti.PaymentTerms    = req.PaymentTerms;
         ti.Notes           = req.Notes;
         ti.BusinessUnitId  = req.BusinessUnitId;
+        // N2 (G2) — covers a draft re-link (MCP update_tax_invoice_draft, C3); exclude this
+        // TI's own id so an ordinary re-save of its own existing link is not self-blocked.
+        await EnsureQuotationNotInvoicedAsync(req.QuotationId, taxInvoiceId, ct);
         ti.QuotationId     = req.QuotationId;
         // DocDate/TaxPointDate intentionally untouched here — server-controlled (D3.1).
 
@@ -549,6 +562,11 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         {
             return await PostCoreAsync(taxInvoiceId, ct);
         }
+        catch (Exception ex) when (IsQuotationInvoiceUniqueViolation(ex))
+        {
+            throw new DomainException("quotation.already_invoiced",
+                "This quotation was invoiced by another tax invoice moments ago. Reload and try again.");
+        }
         catch (Exception ex) when (ex is DbUpdateConcurrencyException || IsPostedRaceViolation(ex))
         {
             throw new DomainException("ti.locked_mismatch",
@@ -562,6 +580,13 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     private static bool IsPostedRaceViolation(Exception ex) =>
         ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" } };
 
+    /// <summary>N2 — 23505 on ix_tax_invoices_quotation_id ONLY. Constraint-name-scoped so the
+    /// doc_no collision retry (CRIT-1, NumberedDocumentWriter.IsDocNoCollision) is never masked:
+    /// that path also raises 23505 and MUST keep its own bounded-retry handling.</summary>
+    private static bool IsQuotationInvoiceUniqueViolation(Exception ex) =>
+        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23505" } pg }
+        && pg.ConstraintName == "ix_tax_invoices_quotation_id";
+
     private async Task<TaxInvoicePostedResult> PostCoreAsync(long taxInvoiceId, CancellationToken ct)
     {
         // Defense: a draft TI may survive a VAT→non-VAT config switch; it must not post.
@@ -573,6 +598,11 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             .Include(t => t.Lines)
             .FirstOrDefaultAsync(t => t.TaxInvoiceId == taxInvoiceId, ct)
             ?? throw new DomainException("ti.not_found", $"Tax Invoice {taxInvoiceId} not found.");
+
+        // N2 (G3) — the moment of legal issuance. Status == Posted in the predicate already
+        // excludes this still-Draft row, but pass the exclude id anyway so the guard stays
+        // correct if the predicate ever widens.
+        await EnsureQuotationNotInvoicedAsync(ti.QuotationId, ti.TaxInvoiceId, ct);
 
         // §4.3 / ม.78 / ม.86/4(7) — the tax-point (issue) date is the POST date, not the
         // stale draft-creation date. Re-pin to server today in Asia/Bangkok so a draft created

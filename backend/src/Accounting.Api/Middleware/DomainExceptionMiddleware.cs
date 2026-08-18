@@ -34,7 +34,8 @@ public sealed class DomainExceptionMiddleware
         if (Ends(".scope_required")) return StatusCodes.Status403Forbidden;
         if (Ends(".not_found")) return StatusCodes.Status404NotFound;
         if (Ends(".locked_mismatch") || Ends(".body_mismatch")
-            || Ends(".cross_bu_not_allowed_for_this_key")) return StatusCodes.Status409Conflict;
+            || Ends(".cross_bu_not_allowed_for_this_key")
+            || Ends(".already_invoiced")) return StatusCodes.Status409Conflict;
         if (code == "tenant.cross_tenant_access") return StatusCodes.Status404NotFound;
         return StatusCodes.Status422UnprocessableEntity;
     }

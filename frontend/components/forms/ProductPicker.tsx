@@ -23,9 +23,11 @@ export interface ProductPick {
   defaultUomText: string | null;
 }
 
-/** EXEMPT_* products carry no output VAT (ม.81); everything else is 7%. */
-export function taxRateForProductType(t: ProductTypeStr): number {
-  return t === 'EXEMPT_GOOD' || t === 'EXEMPT_SERVICE' ? 0 : 0.07;
+/** EXEMPT_* products carry no output VAT (ม.81); everything else is the company's
+ * configured rate (stdRate — never a literal, so a company whose VatRate ≠ 7% still
+ * matches what the server (SalesLineBackstop) will actually store). */
+export function taxRateForProductType(t: ProductTypeStr, stdRate: number): number {
+  return t === 'EXEMPT_GOOD' || t === 'EXEMPT_SERVICE' ? 0 : stdRate;
 }
 
 export function ProductPicker({

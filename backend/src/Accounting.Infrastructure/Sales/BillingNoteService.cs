@@ -463,14 +463,14 @@ public sealed class BillingNoteService(
     {
         // §4.6 / ม.80 — VAT rate + tax-code classification come from company master data.
         var cfg = await taxCfg.GetAsync(ct);
-        var productTypes = await SalesLineBackstop.LoadProductTypesAsync(db, lines.Select(l => l.ProductId), ct);
-        var taxCodeFlags = await SalesLineBackstop.LoadTaxCodeFlagsAsync(db, lines.Select(l => l.TaxCode), ct);
+        var productDefaults = await SalesLineBackstop.LoadProductDefaultsAsync(db, lines.Select(l => l.ProductId), ct);
+        var taxCodes = await SalesLineBackstop.LoadTaxCodeMasterAsync(db, ct);
         var standardOutput = cfg.VatMode ? await SalesLineBackstop.LoadStandardOutputTaxCodeAsync(db, ct) : null;
         int n = 1;
         foreach (var l in lines)
         {
             var (prodType, taxRate, taxCode, taxCodeId) =
-                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productTypes, taxCodeFlags, standardOutput);
+                SalesLineBackstop.Resolve(cfg.VatMode, cfg.VatRate, l.ProductId, l.ProductType, l.TaxRate, l.TaxCode, productDefaults, taxCodes, standardOutput);
             var (net, vat, total) = ChainMath.Line(l.Quantity, l.UnitPrice, l.DiscountPercent, taxRate);
             bn.Lines.Add(new BillingNoteLine
             {

@@ -55,6 +55,9 @@ function PvForm() {
   // (source of truth on the BE; FE mirror only), same §4.6 sys.vatMode hook the VI/expense-claim
   // forms already use. Defaults true until /system/info resolves.
   const companyVatRegistered = useSystemInfo().data?.vatMode ?? true;
+  // N1 (specs/fix-review-n-findings-2026-08-17.md §N1.4) — taxRateForProductType now takes
+  // the company's configured rate instead of hardcoding 7%; mirrors LineItemsTable's stdRate.
+  const stdRate = useSystemInfo().data?.vatRate ?? 0.07;
 
   const [vendorId, setVendorId] = useState<number | null>(null);
   const [vendorLabel, setVendorLabel] = useState('');
@@ -139,7 +142,7 @@ function PvForm() {
     // V1-F1 — use the same dual-flag ม.82/5 predicate as `vendorVat` below (not the
     // single-flag vendor.vatRegistered), else a foreign vendor without Thai VAT-D gets a
     // rate the form will never actually apply, landing short of `outstanding`.
-    const rate = vendorVat ? taxRateForProductType(productType) : 0;
+    const rate = vendorVat ? taxRateForProductType(productType, stdRate) : 0;
     const baseAmount = derivePvPrefillBase(outstanding, rate);
     setRows([{
       ...emptyRow(1),
@@ -170,7 +173,7 @@ function PvForm() {
 
   // VAT is derived, never typed: 0 if the vendor isn't VAT-registered (ม.82/5) or the
   // product is VAT-exempt (ม.81); otherwise the standard rate for that product type.
-  const lineVat = (r: Row): number => (vendorVat ? taxRateForProductType(r.productType) : 0);
+  const lineVat = (r: Row): number => (vendorVat ? taxRateForProductType(r.productType, stdRate) : 0);
   const subtotal = rows.reduce((s, r) => s + r.amount, 0);
   // Round per line (2dp) to mirror the BE's per-line VatAmount so the preview total matches.
   const vat = rows.reduce((s, r) => s + Math.round(r.amount * lineVat(r) * 100) / 100, 0);

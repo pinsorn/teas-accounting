@@ -74,7 +74,13 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
         // Sprint 13h P6.1 — optional FK to the originating Quotation.
         b.HasOne<Quotation>().WithMany().HasForeignKey(t => t.QuotationId)
             .OnDelete(DeleteBehavior.Restrict);
-        b.HasIndex(t => t.QuotationId).HasFilter("quotation_id IS NOT NULL");
+        // N2 — ม.86/4: at most one POSTED Tax Invoice per Quotation. The status arm is load-bearing,
+        // not an optimisation: a TI has no delete/cancel/void path (spec §N2.1), so an all-status
+        // unique index would let one abandoned DRAFT consume a quotation's only conversion forever.
+        // Status is stored UPPERCASE by the value converter above (:45-50). Name unchanged so the
+        // generated ix_tax_invoices_quotation_id stays the constraint name the 23505 handler matches.
+        b.HasIndex(t => t.QuotationId).IsUnique()
+            .HasFilter("quotation_id IS NOT NULL AND status = 'POSTED'");
 
         // cont.69 Phase 1 — optional FK to the source Invoice (BillingNote) the TI was created from.
         b.HasOne<BillingNote>().WithMany().HasForeignKey(t => t.BillingNoteId)
