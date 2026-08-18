@@ -35,7 +35,7 @@ co2 `demo-*` = `Demo@1234`. Companies local: 1=Demo (VAT), 2=แมนนวล 
 | 2 | Bank reconciliation (KBiz CSV, tie to satang, dup import) | sonnet | pending |
 | 3 | Fixed assets + depreciation (proration, double-run, disposal) | sonnet | pending |
 | 4 | Expense claims (spec-vs-reality first, SoD, VAT/WHT, GL) | sonnet | pending |
-| 5 | co2 READ-ONLY tie-out + master integrity + report cross-check | sonnet | 🔄 in-flight 22:1x |
+| 5 | co2 READ-ONLY tie-out + master integrity + report cross-check | sonnet | ✅ 22:25 — verdict N/A (co2 empty), 1×🟡 5×⚪ |
 | 6 | Round-1 leftovers (co4 sale, N1/N2 live re-verify) | small dispatch in a free co1 slot | pending |
 
 **Session constraint:** no browser tools this session → all legs test via API + psql (plan's "go around
@@ -50,6 +50,23 @@ whichever co1 slot is free.
 ## Findings
 
 (appended per leg; severity per round-1 scale, 🔴 money/tax/security → low)
+
+### Leg 5 — company 2 integrity sweep (read-only) — ✅ walked, verdict N/A
+**Fable-verified** (SQL re-run): journals exist only for co1 (8) and co3 (2); company 2 has ZERO
+transactional documents ever (0 TIs, 0 journals, audit log empty save the probe's own
+company_switch) while master data is rich (5 customers, 5 vendors, 10 products, 28 COA, 12 tax
+codes). Local "company 2 = แมนนวล เดโม" is NOT prod co2 — the plan's "production-shaped volume"
+premise does not hold on this stack.
+
+- **L5-1 🟡** Leg-5 core checks (real-volume tie-out, report-vs-SQL cross-check, ภ.พ.30 bucketing
+  on real docs) are NOT EXECUTABLE locally — co2 empty. Needs prod-shaped data (post-migration
+  server) or a walkthrough-seeded co2. N1-M5-on-real-data stays OPEN this round.
+- L5-2 ⚪ pass: all report endpoints degrade gracefully on the empty company (no 500s; TB balanced:true).
+- L5-3 ⚪ pass: master FK integrity clean, tax-code master well-formed (12 codes, exempt/zero flags exclusive).
+- L5-4 ⚪ needs-write-repro: co2 products all have NULL default_output_tax_code_id → N1 ladder
+  step 4 (company-lowest-id exempt fallback → EXEMPT-AGRI) never exercised on a posted doc.
+- L5-5 ⚪ needs-write-repro: SalesCategorizer bucketing unverifiable on real co2 lines (none exist).
+- L5-6 ⚪ methodology pass: same tie-out SQL on co1 ties out (Dr=Cr=32,724.12, header-line diff 0).
 
 ## Resume order (if session dies)
 1. Read this file + PLAN-testing-swarm-r2.md.
