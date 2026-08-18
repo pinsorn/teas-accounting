@@ -1,6 +1,17 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ 2026-08-18 — HARD-TEST ROUND CLOSED: all 14 findings fixed.** The last five landed today in
+  three commits: `2b82dde` (F11 header discount rollup + F12 P&L default — plus a review-caught paper
+  bug: the printed footer needed a GROSS subtotal once the discount became real), `65a5419` (F10 —
+  Ham decided REFUSE: PV post throws `wht.payer_tax_id_missing` on a blank/all-zero company tax ID,
+  no demo exemption; seed 637 repairs the demo company's all-zero tax ID to `0105000000012`),
+  `25a9b8a` (F4 binding failures → typed 400 in both middleware branches + `create_receipt_draft`
+  settlement now demands `sales.tax_invoice.read`, F5's mechanism). Final gates: suite
+  **1255/0/14 skipped** + Domain 188/188, every fix RED-then-GREEN or collateral-swept
+  (70/70 purchase-area classes after seed 637). Stack still DOWN — nothing deployed; release notes
+  recorded at the top of PLAN-fix-findings-2026-08-16.md (two MCP key re-scopes + seed 637's
+  prod effect).
 - **🔵 LOCAL STACK IS UP AND HAS BEEN HARD-TESTED (2026-08-15 night).** Postgres 18 (`S:\Program Files\
   PostgreSQL\18`) + API :5080 + FE :3000, seeded fresh. Full run, evidence and repro steps:
   `PROGRESS-local-hard-test.md`; boot recipe in memory `local-stack-boot-recipe`.

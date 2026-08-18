@@ -4,9 +4,12 @@ One consolidated plan so the whole batch can be fixed in one pass instead of fin
 Evidence for every item is in `PROGRESS-local-hard-test.md`; this file is the *fix* view: what changes,
 in what order, who does it, and what would make each one wrong.
 
-**Status of the round: 14 findings. 9 fixed, 5 open** — F10, F11, F12, F4 and the
-`create_receipt_draft` scope note. Nothing here is deployed; there is no server to deploy to until the
-migration.
+**Status of the round: 14 findings. ALL 14 FIXED (2026-08-18).** Nothing here is deployed; there is
+no server to deploy to until the migration. Release notes to carry: (1) MCP keys scoped
+`sales.billing_note.manage` without `sales.tax_invoice.create` get refused on `create_invoice_draft`
+(F5 — re-scope them); (2) keys using `create_receipt_draft` settlement now also need
+`sales.tax_invoice.read`; (3) seed script 637 runs at first startup and repairs any company still
+carrying the all-zero tax ID to the dummy `0105000000012`.
 
 Every fix in this round was verified against the running stack by reading the tables, not the screen,
 and the ledger was re-checked afterwards: trial balance 32,724.12 on both sides, every journal header
@@ -17,17 +20,17 @@ agreeing with its own lines, and no new document carrying a tax code absent from
 | F5 | MCP api key could mint a Tax Invoice it had no scope for | 🔴 security | **fixed** `4988e52` | — |
 | F2 | Raw 500s + leaked .NET text on VAT reports and CIT year endpoints | medium | **fixed** `4988e52` | — |
 | F6 | Convert buttons rendered without the permission the backend demands | low-med | **fixed** `edcf9af` | — |
-| **F14** | **Screen says 0% VAT, stored tax invoice says 7% — ฿1,000 quoted, ฿1,070 recorded** | **🔴🔴 highest** | **open** | **A (Package 2)** |
+| F14 | Screen says 0% VAT, stored tax invoice says 7% — ฿1,000 quoted, ฿1,070 recorded | 🔴🔴 highest | **fixed** `1a13eb1` | — |
 | F8 | SO→DO conversion drops discount, tax code, and the order-line link | 🔴 money/tax/control | **fixed** `1a13eb1` | — |
 | F8b | Quotation→Tax Invoice drops the discount onto an immutable document | 🔴 money/tax | **fixed** `1a13eb1` | — |
 | F13 | Tax invoices store tax code `V7`, which is not in the company's master | 🔴 tax/data | **fixed** `1a13eb1` | — |
 | F9 | Payment-voucher preview overstates Grand Total and Net by the WHT | medium | **fixed** `6fbad63` | — |
-| F10 | 50 ทวิ issued with an all-zero payer tax ID, no warning | medium | open | **C** |
+| F10 | 50 ทวิ issued with an all-zero payer tax ID, no warning | medium | **fixed** `65a5419` | — |
 | F1 | A later demo-seed boot leaves tenants with no roles at all | medium | **fixed** `c2d9249` | — |
-| F11 | Tax-invoice header discount rollup stays zero | low | open | **E** |
-| F12 | `/reports/profit-loss` defaults to excluding untagged activity → all zeros | low | open | **E** |
-| F4 | A missing required query parameter returns 500 instead of 400 | low | open | **F** |
-| — | `create_receipt_draft` reads a tax invoice under only `receipt.create` | low | open | **F** |
+| F11 | Tax-invoice header discount rollup stays zero | low | **fixed** `2b82dde` | — |
+| F12 | `/reports/profit-loss` defaults to excluding untagged activity → all zeros | low | **fixed** `2b82dde` | — |
+| F4 | A missing required query parameter returns 500 instead of 400 | low | **fixed** `25a9b8a` | — |
+| — | `create_receipt_draft` reads a tax invoice under only `receipt.create` | low | **fixed** `25a9b8a` | — |
 
 ### 🔺 Non-VAT pass landed, and it UPGRADES Unit A — the wrong number DOES reach the ledger
 
@@ -246,15 +249,54 @@ Both are "the number is right but the report can mislead", and both are one-line
 
 **Routing: Sonnet, one dispatch for both.**
 
+**Done (2026-08-18):** F11 — populated the header rollup (`DiscountAmount = lines.Sum(l => l.DiscountAmount)`)
+in both `CreateDraftCoreAsync` and `UpdateDraftAsync`, `backend/src/Accounting.Infrastructure/Sales/TaxInvoiceService.cs:342,522`.
+Checked siblings (quotation/sales-order/billing-note): none of them assign their own header
+`DiscountAmount` field either (grep confirmed), so per the "roll up tax invoices only" fallback,
+siblings were left untouched. Posted rows are immutable and untouched — no data migration.
+F12 — flipped the endpoint default `includeUnspecified ?? false` → `?? true`,
+`backend/src/Accounting.Api/Endpoints/ReportEndpoints.cs:95`. Tests:
+`backend/tests/Accounting.Api.Tests/Reports/ProfitLossDefaultTests.cs`,
+`backend/tests/Accounting.Api.Tests/Sales/TaxInvoiceDiscountRollupTests.cs` (4 tests, all
+RED-then-GREEN verified against the pre-fix code). Filtered regression (Reports/TaxInvoice/Mcp
+report+chain areas): 161 passed / 0 failed / 0 skipped.
+
+**Follow-up (2026-08-18, coordinator review):** F11's real discount rollup exposed a second,
+pre-existing bug — `TaxInvoiceService.Read.cs`'s PaperSummary mapping passed `d.SubtotalAmount`
+(NET-of-discount) as `PaperFootPlan`'s Subtotal arg, but `PaperFootPlan.Build`'s printed-row
+contract is `Subtotal(GROSS) - Discount = BeforeVat`. Before F11 the header discount was always 0
+so the contradiction was invisible; after F11 a discounted TI printed a self-contradictory summary
+(Subtotal / real Discount / BeforeVat that didn't reconcile). Fixed by passing GROSS subtotal
+(`d.SubtotalAmount + d.DiscountAmount`) into `PaperSummary`,
+`backend/src/Accounting.Infrastructure/Sales/TaxInvoiceService.Read.cs:155-162`. Confirmed the FE
+TI detail page needs no mirror change — it consumes the same backend `/paper` DTO verbatim
+(`usePaperDoc` → `paperDtoToProps` passes `dto.summary` through, no FE recomputation), so this one
+backend fix covers both the PDF and the on-screen preview. `PaperFootPlan.cs`/`PaperFoot.tsx`/the
+stored header rollup were left untouched. Test added:
+`TaxInvoiceDiscountRollupTests.Paper_summary_prints_gross_subtotal_so_discount_math_is_consistent`
+(RED-then-GREEN verified). Filtered gate (`TaxInvoiceDiscountRollupTests`, 3 tests): 3 passed / 0
+failed / 0 skipped. Broader regression (Reports/TaxInvoice/DocSignature/Paper/Mcp areas, 192
+tests): 192 passed / 0 failed / 0 skipped.
+
 ---
 
 ## Unit F — the small contract gaps
-- **F4**: a malformed or missing required query parameter surfaces as 500 from model binding rather than
+- **[x] F4**: a malformed or missing required query parameter surfaces as 500 from model binding rather than
   400. Framework-level; needs a decision about a global binding-error handler, so it is a design question
-  rather than a patch.
-- **`create_receipt_draft`** reads a tax invoice's status and amounts in settlement mode while gated only
+  rather than a patch. Fixed: `DomainExceptionMiddleware.cs` now catches `BadHttpRequestException`
+  separately (both the `/api/v1` and root/BFF branches), returning `ex.StatusCode` (400) with a fixed safe
+  generic message — never `ex.Message`, which embeds .NET type names (e.g. `Int32 month`). Tests:
+  `backend/tests/Accounting.Api.Tests/Hardening/BadHttpRequestBindingTests.cs` (BFF missing/malformed on
+  `/reports/vat-register`, v1 malformed on `/api/v1/customers?page=abc`).
+- **[x] `create_receipt_draft`** reads a tax invoice's status and amounts in settlement mode while gated only
   on `sales.receipt.create`, with no `sales.tax_invoice.read`. A read under a neighbouring scope, not a
   mint under the wrong one, and the document it creates always matches its policy — lowest priority.
+  Fixed: mirrors the F5/WP-1 mechanism (commit 4988e52) — the VAT-mode settlement branch in
+  `TeasMcpTools.CreateReceiptDraftAsync` re-runs the `mcpperm:sales.tax_invoice.read` policy via
+  `IAuthorizationService` + injected `ClaimsPrincipal`, throwing `McpE2Exception("mcp.forbidden", ...)` if
+  the caller's key/JWT doesn't hold it. Tests added to `McpWriteExpansionTests.cs`
+  (`Mcp_create_receipt_draft_settlement_mode_refuses_receipt_create_without_tax_invoice_read` /
+  `..._succeeds_when_key_also_holds_tax_invoice_read`).
 
 ---
 
