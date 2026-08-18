@@ -92,7 +92,7 @@ public static class ReportEndpoints
             [FromQuery] int? businessUnitId, [FromQuery] bool? includeUnspecified,
             IFinancialReportService svc, CancellationToken ct) =>
                 Results.Ok(await svc.ProfitLossAsync(
-                    from, to, businessUnitId, includeUnspecified ?? false, ct)))
+                    from, to, businessUnitId, includeUnspecified ?? true, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Report.ProfitLoss);
 
         group.MapGet("/sales-summary", async (

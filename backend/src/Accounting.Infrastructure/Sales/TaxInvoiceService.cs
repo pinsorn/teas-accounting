@@ -339,7 +339,9 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             ExchangeRate = req.ExchangeRate,
             IsTaxInclusive = req.IsTaxInclusive,
             SubtotalAmount   = subtotal,
-            DiscountAmount   = 0m,
+            // F11 — header rollup = sum of line DiscountAmount (each already 2dp-rounded in
+            // BuildLine); was hardcoded 0m even when lines carried real discounts.
+            DiscountAmount   = lines.Sum(l => l.DiscountAmount),
             TaxableAmount    = taxable,
             NonTaxableAmount = nontaxable,
             TaxAmount        = vatAmount,
@@ -517,7 +519,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             await RebuildLinesAndTotalsAsync(req.Lines, req.IsTaxInclusive, deriveLineTax: true, ct);
         foreach (var l in lines) ti.Lines.Add(l);
         ti.SubtotalAmount   = subtotal;
-        ti.DiscountAmount   = 0m;
+        // F11 — same rollup as create (mirrors CreateDraftCoreAsync); was hardcoded 0m here too.
+        ti.DiscountAmount   = lines.Sum(l => l.DiscountAmount);
         ti.TaxableAmount    = taxable;
         ti.NonTaxableAmount = nontaxable;
         ti.TaxAmount        = vatAmount;

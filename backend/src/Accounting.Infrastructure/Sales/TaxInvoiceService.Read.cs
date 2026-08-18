@@ -153,7 +153,13 @@ public sealed partial class TaxInvoiceService
             Items: d.Lines.OrderBy(l => l.LineNo).Select(l => new PaperLine(
                 l.DescriptionTh, null, l.Quantity, l.UomText, l.UnitPrice, null, l.LineAmount)).ToList(),
             Summary: new PaperSummary(
-                d.SubtotalAmount, d.DiscountAmount > 0m ? d.DiscountAmount : null,
+                // F11 follow-up (2026-08-18) - PaperFootPlan contract: Subtotal(GROSS) minus
+                // Discount = BeforeVat. SubtotalAmount is NET-of-discount (sum of line.LineAmount),
+                // so with the real discount rollup now populated, printing it as-is made
+                // Subtotal/Discount/BeforeVat arithmetically inconsistent on the printed
+                // document. Pass GROSS subtotal here (+0 is a no-op when there is no discount);
+                // BeforeVat below stays d.TaxableAmount.
+                d.SubtotalAmount + d.DiscountAmount, d.DiscountAmount > 0m ? d.DiscountAmount : null,
                 // L1 fix (review 2026-07-04): thread the company's real VAT rate (percent-
                 // normalized) instead of null, so the printed "%" label matches when vat_rate != 7%
                 // (the VAT amount itself, d.TaxAmount above, was already correct — label only).
