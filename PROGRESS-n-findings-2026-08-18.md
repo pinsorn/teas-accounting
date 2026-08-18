@@ -1,4 +1,4 @@
-# PROGRESS — N1/N2/N3 fix (ChatGPT review 2026-08-17) — checkpoint 2026-08-18, quota 85%
+# PROGRESS (CLOSED 047fe95 — see bottom) — N1/N2/N3 fix (ChatGPT review 2026-08-17) — checkpoint 2026-08-18, quota 85%
 
 ## Done (committed)
 - Morning batch: ALL 14 hard-test findings closed — `2b82dde` (E: F11+F12+paper), `65a5419`
@@ -40,3 +40,10 @@ FE diffs — clean.
 ## Quota state at checkpoint
 5-hour 85% (~97 min to reset), 7-day OK. In-flight Opus review continues; no NEW Claude dispatches
 until reset. Wakeup chained.
+
+## CLOSED — 2026-08-18, quota 93%
+N1/N2/N3 committed `047fe95`: Tier-2 APPROVE-WITH-NITS (nits accepted, recorded in spec), full
+suite 1276/0/14 + Domain 188/188. Nothing in flight. Remaining follow-ups live in the SPEC, not
+here: NIT-1 marker placement (next SalesLineBackstop dispatch), deploy-runbook duplicate pre-check
+(server migration project), F-N4.2 + sibling races (logged out-of-scope). Next project item:
+second testing swarm (payroll, bank rec, fixed assets, expense claims, co2) — start on fresh quota.
