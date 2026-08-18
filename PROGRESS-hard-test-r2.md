@@ -38,9 +38,14 @@ co2 `demo-*` = `Demo@1234`. Companies local: 1=Demo (VAT), 2=แมนนวล 
 | 5 | co2 READ-ONLY tie-out + master integrity + report cross-check | sonnet | ✅ 22:25 — verdict N/A (co2 empty), 1×🟡 5×⚪ |
 | 6 | Round-1 leftovers (co4 sale, N1/N2 live re-verify) | small dispatch in a free co1 slot | pending |
 
-**Session constraint:** no browser tools this session → all legs test via API + psql (plan's "go around
-the UI too" path). FE-render-only assertions (e.g. N1 "screen shows 0%") are recorded as
-"not verifiable this round — needs browser session" rather than skipped silently.
+**Browser directive (Ham, 22:3x):** ตรวจผ่าน browser, don't test by raw API. Claude-in-Chrome
+extension is a separate client not reachable from this Claude Code session (ToolSearch swept twice —
+no browser tools), so workers drive the REAL FE on a real Chromium via **Playwright 1.60**
+(frontend/e2e has helpers + idiom specs). Throwaway specs `frontend/e2e/r2-legN-*.spec.ts`, never
+committed, cleaned up at consolidation. Direct-API probes remain ONLY for guard checks that are
+explicitly about bypassing the UI (plan method #5). DB verification via psql read-only unchanged.
+Leg 1 redirected mid-flight at 22:3x; Leg 5 completed pre-directive (read-only sweep, API+SQL —
+its findings stand but co2 was empty anyway).
 Workers write findings to scratchpad `findings-legN.md`; Fable DB-verifies then appends here
 (avoids concurrent-append clobber on this file).
 
