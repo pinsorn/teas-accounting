@@ -1077,4 +1077,78 @@ public sealed class McpWriteExpansionTests
         posted.Status.Should().Be(Accounting.Domain.Enums.DocumentStatus.Posted);
         posted.Lines.Should().ContainSingle();
     }
+
+    // ── F5 mirror (PLAN-fix-findings-2026-08-16.md Unit F) — create_receipt_draft's
+    // settlement-mode branch reads a Tax Invoice's status/amounts but was gated only on
+    // sales.receipt.create; a key without sales.tax_invoice.read could still read that
+    // invoice's data through the receipt tool. Same shape as WP-1's create_invoice_draft fix
+    // (commit 4988e52). ──
+
+    [SkippableFact]
+    public async Task Mcp_create_receipt_draft_settlement_mode_refuses_receipt_create_without_tax_invoice_read()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["sales.receipt.create"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var today = new SystemClock().TodayInBangkok();
+        var request = new
+        {
+            docDate = today, customerId = co.CustomerId, paymentMethod = "Cash",
+            chequeNo = (string?)null, chequeDate = (DateOnly?)null, bankAccountId = (long?)null,
+            currencyCode = "THB", exchangeRate = 1m, notes = (string?)null, invoiceId = tiId,
+        };
+        var result = await client.CallToolAsync("create_receipt_draft",
+            new Dictionary<string, object?> { ["request"] = request });
+
+        result.IsError.Should().BeTrue();
+        var text = result.Content.OfType<TextContentBlock>().Single().Text;
+        text.Should().Contain("sales.tax_invoice.read");
+
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.Receipts.CountAsync(r => r.CustomerId == co.CustomerId)).Should().Be(0,
+            "the refused call must not have minted a receipt against a tax invoice the key had no permission to read");
+    }
+
+    [SkippableFact]
+    public async Task Mcp_create_receipt_draft_settlement_mode_succeeds_when_key_also_holds_tax_invoice_read()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["sales.receipt.create", "sales.tax_invoice.read"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var today = new SystemClock().TodayInBangkok();
+        var request = new
+        {
+            docDate = today, customerId = co.CustomerId, paymentMethod = "Cash",
+            chequeNo = (string?)null, chequeDate = (DateOnly?)null, bankAccountId = (long?)null,
+            currencyCode = "THB", exchangeRate = 1m, notes = (string?)null, invoiceId = tiId,
+        };
+        var result = await client.CallToolAsync("create_receipt_draft",
+            new Dictionary<string, object?> { ["request"] = request });
+
+        result.IsError.Should().NotBe(true);
+        var json = JsonDocument.Parse(result.Content.OfType<TextContentBlock>().Single().Text);
+        json.RootElement.GetProperty("id").GetInt64().Should().BeGreaterThan(0);
+
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.Receipts.CountAsync(r => r.CustomerId == co.CustomerId)).Should().Be(1,
+            "the authorized call must have minted the settlement draft receipt");
+    }
 }

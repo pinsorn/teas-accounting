@@ -57,6 +57,16 @@ public sealed class DomainExceptionMiddleware
         {
             await ErrorEnvelope.WriteAsync(ctx, StatusFor(ex.Code), ex.Code, ex.Message);
         }
+        // F4 — minimal-API model binding (missing/malformed query or route parameter) throws
+        // BadHttpRequestException BEFORE the handler runs; without this catch it fell through to
+        // the generic 500 below. ex.Message embeds .NET type names (e.g. "Int32 month") which
+        // F2 already ruled unsafe to leak, so a fixed generic message is used instead — never
+        // ex.Message. ex.StatusCode defaults to 400 but is honoured rather than hardcoded.
+        catch (BadHttpRequestException ex) when (IsV1(ctx))
+        {
+            await ErrorEnvelope.WriteAsync(ctx, ex.StatusCode, "validation_error",
+                "A required or malformed query/route parameter was rejected.");
+        }
         catch (Exception ex) when (IsV1(ctx))
         {
             // Dev surfaces the inner cause (e.g. the Npgsql constraint name);
@@ -101,6 +111,22 @@ public sealed class DomainExceptionMiddleware
                 title  = ex.Code,
                 status = ctx.Response.StatusCode,
                 detail = ex.Message,
+            };
+            await JsonSerializer.SerializeAsync(
+                ctx.Response.Body, payload, (JsonSerializerOptions?)null, ctx.RequestAborted);
+        }
+        // F4 — root/BFF mirror of the v1 BadHttpRequestException branch above (same trigger,
+        // same safe-generic-message rule); RFC-7807 shape to match this half of the file.
+        catch (BadHttpRequestException ex)
+        {
+            ctx.Response.StatusCode = ex.StatusCode;
+            ctx.Response.ContentType = "application/problem+json";
+            var payload = new
+            {
+                type   = "urn:teas:error:validation_error",
+                title  = "validation_error",
+                status = ex.StatusCode,
+                detail = "A required or malformed query/route parameter was rejected.",
             };
             await JsonSerializer.SerializeAsync(
                 ctx.Response.Body, payload, (JsonSerializerOptions?)null, ctx.RequestAborted);

@@ -486,6 +486,8 @@ public sealed class TeasMcpTools
         AccountingDbContext db,
         IValidator<CreateReceiptRequest> validator,
         IOptions<AppOptions> app,
+        IAuthorizationService authz,
+        System.Security.Claims.ClaimsPrincipal user,
         CancellationToken ct)
     {
         await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
@@ -506,6 +508,18 @@ public sealed class TeasMcpTools
             var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
             if (vatMode)
             {
+                // F5 mirror (PLAN-fix-findings-2026-08-16.md Unit F, same shape as WP-1 in
+                // create_invoice_draft above) — this branch reads a TAX INVOICE's status and
+                // amounts, so the caller must ADDITIONALLY hold sales.tax_invoice.read; the
+                // static [Authorize(Policy = ReceiptCreate)] above can't express this because
+                // which document family gets read is only known at runtime (company VAT mode +
+                // whether invoiceId was supplied). Same IAuthorizationService re-run, same
+                // fail-closed ClaimsPrincipal DI (Program.cs).
+                var authResult = await authz.AuthorizeAsync(user, resource: null, TaxInvoiceRead);
+                if (!authResult.Succeeded)
+                    throw new McpE2Exception("mcp.forbidden",
+                        "'sales.tax_invoice.read' required to settle a receipt against a tax invoice.");
+
                 var ti = await db.TaxInvoices.AsNoTracking()
                     .Where(t => t.TaxInvoiceId == invoiceId)
                     .Select(t => new { t.Status, t.TotalAmount, t.AmountPaid })
