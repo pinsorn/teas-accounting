@@ -31,7 +31,7 @@ co2 `demo-*` = `Demo@1234`. Companies local: 1=Demo (VAT), 2=แมนนวล 
 
 | Leg | Scope | Worker | State |
 |---|---|---|---|
-| 1 | Payroll (WHT ภ.ง.ด.1/1ก, สปส., GL, closed-period) | sonnet | 🔄 in-flight 22:1x |
+| 1 | Payroll (WHT ภ.ง.ด.1/1ก, สปส., GL, closed-period) | sonnet | ✅ 23:0x — 1×🔴 (L1-1), rest PASS w/ evidence |
 | 2 | Bank reconciliation (KBiz CSV, tie to satang, dup import) | sonnet | pending |
 | 3 | Fixed assets + depreciation (proration, double-run, disposal) | sonnet | pending |
 | 4 | Expense claims (spec-vs-reality first, SoD, VAT/WHT, GL) | sonnet | pending |
@@ -55,6 +55,29 @@ whichever co1 slot is free.
 ## Findings
 
 (appended per leg; severity per round-1 scale, 🔴 money/tax/security → low)
+
+### Leg 1 — Payroll — ✅ walked browser-first (Playwright), ledger tie-out green
+Full detail: `scratchpad/findings-leg1.md` (295 lines, 14 screenshots, rendered ภ.ง.ด.1 PDF).
+
+- **L1-1 🔴 CONFIRMED BY FABLE** (SQL + source read): seed 637 repaired `master.companies.tax_id`
+  (→ `0105000000012`) but NOT `master.company_profile.tax_id` (still `0000000000000`), and all three
+  filing services resolve `EmployerTaxId: prof?.TaxId ?? c?.TaxId ?? ""`
+  (Pnd1FilingService.cs:71,113; SsoFilingService.cs:69) — profile wins, so the ACTUAL rendered
+  ภ.ง.ด.1 PDF carries `0-0000-00000-00-0` as the taxpayer ID. A real RD filing would go out
+  fictitious. Fix shape: repair seed to cover company_profile + consider an F10-style refuse guard
+  in the filing services themselves (all-zero payer ID must refuse, per the PV precedent).
+- PASS highlights (all DB/PDF/audit-verified): PIT hand-checked exact on 3 bracket scenarios incl.
+  YTD carry-forward · SSO cap correctly ฿17,500/฿875 under current law (plan's 15,000/750 was a
+  stale assumption, NOT a bug) · O8 mid-month proration exact · O10 deduction ฿5,000 → `Cr 2180`
+  exact, Dr=Cr 367,600.81 · edit-door idempotent (audit-log proven) · closed/future period refuses
+  typed + bilingual · `sso_batch.missing_employer_account` fires live (422) · RBAC 403/401 sweep
+  clean incl. tax-officer OR-gate both directions · 8 malformed probes all typed 400/404, zero raw
+  500s · blank employee national ID impossible at creation.
+- ⚪ tooling note for other legs: Thai text via inline `curl -d` corrupts to `?` on this
+  Windows/Git-Bash bridge — use file-based payloads (documented in findings-leg1.md; NOT a server bug).
+- Test data left in co1 (via UI/API per house rule): employees 3–14, payroll runs 2 (202607
+  Posted+Paid), 3 (202608 Posted), 4 (202609 Approved).
+- Throwaway spec moved out of the tree → scratchpad (`r2-leg1-payroll-cycle.spec.ts`); repo clean.
 
 ### Leg 5 — company 2 integrity sweep (read-only) — ✅ walked, verdict N/A
 **Fable-verified** (SQL re-run): journals exist only for co1 (8) and co3 (2); company 2 has ZERO
