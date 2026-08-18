@@ -1,0 +1,41 @@
+-- F10 (PLAN-fix-findings-2026-08-16.md, Unit C) — Ham's decision: PaymentVoucherService now
+-- REFUSES to generate a 50 ทวิ (withholding certificate) when the company's own Tax ID is
+-- missing/blank/all-zero, with NO demo-tenant exemption (see WhtPayerTaxIdGuardTests.cs). That
+-- surfaced a live instance of the bug in the shared fixture data itself: company 1 ("Demo
+-- Company") in every existing teas_test/accounting_dev database was created with
+-- tax_id = '0000000000000' (13 zero digits) and never had it filled in. Ham's own framing of the
+-- decision is F10's remedy: the demo company must get a real profile, same as any tenant would.
+--
+-- This is a repair of PRE-EXISTING data (this defect predates this script and predates F10 —
+-- company 1 was created this way by 120_seed_demo_company.sql/CreateAsync's TaxId argument years
+-- ago), not a change to the seed scripts that create companies. It is scoped to the LITERAL
+-- all-zero value, not to company_id = 1, so it is:
+--   * company-agnostic (SYSTEM-script contract, see DbInitializer.DemoScripts doc comment) — it
+--     repairs WHATEVER company (if any) currently holds the placeholder, not a hardcoded id;
+--   * a no-op by construction on any database (prod included) where no company was ever created
+--     with this placeholder, or where it was already fixed — the WHERE clause matches nothing;
+--   * safe under master.companies' UNIQUE index ix_companies_tax_id: at most one row can ever
+--     hold '0000000000000' at a time, so this UPDATE can affect at most one row.
+--
+-- Dummy value 0105000000012 — chosen to "look clearly fictional" (leading 0105, the real DBD
+-- juristic-person prefix pattern, followed by all zeros) while satisfying
+-- master.companies' own CHECK ck_companies_tax_id (13 numeric digits) AND the application's Thai
+-- Tax ID mod-11 checksum (Accounting.Domain.ValueObjects.ThaiTaxId.IsValidChecksum) — verified by
+-- running that EXACT algorithm (not derived from memory) against this literal value:
+--   sum = Σ digit[i]*(13-i) for i=0..11 on "010500000001" = 64; check = (11 - 64%11) % 10 = 2.
+--   "0105000000012"[12] == '2' ✓. Confirmed unused by any existing row in teas_test/accounting_dev
+--   (SELECT ... WHERE tax_id = '0105000000012' → 0 rows, both databases, checked before writing
+--   this script).
+--
+-- RLS: master.companies has relrowsecurity = false (verified via pg_class) — no
+-- SET LOCAL app.bypass_rls bypass needed, unlike sibling scripts touching G1/G3 tables.
+--
+-- Idempotent: the WHERE clause only ever matches the literal placeholder; once repaired, a
+-- second run (or replay on an already-fixed database) matches zero rows.
+--
+-- NB: NEVER put curly braces anywhere in this file — DbInitializer runs it through
+-- ExecuteSqlRawAsync, which treats brace characters as string.Format placeholders and fails at boot.
+
+UPDATE master.companies
+SET tax_id = '0105000000012'
+WHERE tax_id = '0000000000000';

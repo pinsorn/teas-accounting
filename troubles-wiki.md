@@ -1533,3 +1533,29 @@ losing the test DB costs nothing.
   `Z:\temp\claude\...\scratchpad\build-out2` produced a clean 0-warning build, but every new
   `[SkippableFact]` failed (not skipped) with the DirectoryNotFoundException above until rebuilt under
   `backend/tests/Accounting.Api.Tests/bin/isorun/net10.0`.
+
+## New numbered SqlScript fails EVERY test at fixture init: a regex quantifier in a COMMENT, not the SQL itself
+- **Symptom:** every `[SkippableFact]` across an entire filtered run fails (not skips) with
+  `System.FormatException: Index (zero based) must be greater than or equal to zero and less than the
+  size of the argument list.`, stack trace bottoming out in
+  `Microsoft.EntityFrameworkCore.Storage.Internal.RawSqlCommandBuilder.Build` called from
+  `PostgresFixture.InitializeAsync()` — happens even though the script's actual SQL statement has no
+  braces anywhere and `TEAS_TEST_PG`/the build are both fine.
+- **Root cause:** `PostgresFixture`/`DbInitializer` apply every `*.sql` file via
+  `db.Database.ExecuteSqlRawAsync(sql)` with no parameters — EF Core still runs the string through
+  `string.Format`-style composite-format parsing, so ANY `{`/`}` pair anywhere in the FILE (SQL body
+  OR a `--` comment) is parsed as a placeholder like `{13}`. A doc-comment citing a Postgres CHECK
+  constraint's regex verbatim, e.g. `CHECK ck_companies_tax_id ('^[0-9]{13}$')`, is exactly the kind of
+  text a careful comment writes to be precise — and it kills every DB-backed test in the run, not just
+  the ones the new script touches, because `PostgresFixture.InitializeAsync()` applies ALL unapplied
+  scripts in lexical order before any test body runs.
+- **Fix:** describe the constraint in prose instead of pasting the regex — `CHECK ck_companies_tax_id
+  (13 numeric digits)`. Before adding any new `SqlScripts/*.sql` file, `grep -n '[{}]'` the whole file
+  (not just the executable statements) and remove every match, comments included. The existing
+  "NEVER put curly braces anywhere in this file" warning already carried by scripts like 610/615/617/
+  620/636 is correct but easy to satisfy for the SQL body while still missing a brace hiding in prose.
+- **Seen:** 2026-08-18, `637_repair_all_zero_company_tax_id.sql` (F10 seed fix,
+  `PLAN-fix-findings-2026-08-16.md` Unit C) — `PurchaseAuditTests`/`PurchaseCompletenessTests`/
+  `PurchasePdfTests` all failed at `PostgresFixture.InitializeAsync()` on first run after adding the
+  script; root cause was a `{13}` regex quantifier in an explanatory comment, not the `UPDATE`
+  statement itself.

@@ -525,6 +525,19 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
             var company = await _db.Companies
                     .Include(c => c.Branches)
                     .FirstAsync(c => c.CompanyId == pv.CompanyId, ct);
+            // F10 — a 50 ทวิ printed with the payer's Tax ID blank or "0-0000-00000-00-0"
+            // (an unfilled company profile) is useless to the vendor: they cannot substantiate
+            // the credit with it. Mirrors WP-3/WP-5's refuse-outright shape (SsoFilingService's
+            // EnsureEmployerAccount / Pp30BatchExportService's missing_address guard) — refuse
+            // the whole PV post (same TX as the certificate, so nothing commits half-done)
+            // rather than emit a document nobody can use. Checked once per post, before any
+            // certificate is built, so it applies to every income-type group below.
+            if (!IsUsablePayerTaxId(company.TaxId))
+                throw new DomainException("wht.payer_tax_id_missing",
+                    "ยังไม่ได้กรอกเลขประจำตัวผู้เสียภาษีของบริษัทในข้อมูลบริษัท — ต้องกรอกให้ครบก่อนจึงจะออก" +
+                    "หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ) ได้ " +
+                    "[Company Tax ID is missing on the company profile. Set it before a " +
+                    "withholding tax certificate (50 ทวิ) can be issued.]");
             var branch = company.Branches.FirstOrDefault(b => b.BranchId == pv.BranchId)
                          ?? company.Branches.First(b => b.IsHeadOffice);
             var formType = pv.VendorType == CustomerType.Individual
@@ -663,5 +676,15 @@ public sealed partial class PaymentVoucherService : IPaymentVoucherService
         return new PaymentVoucherPostedResult(
             pv.PaymentVoucherId, pvNo.Value, now,
             pv.TotalPaid, pv.VatAmount, pv.WhtAmount, certId, certNo);
+    }
+
+    // F10 — "unusable" = blank/whitespace, or every digit is '0' (the
+    // "0-0000-00000-00-0" symptom). Deliberately NOT a full ThaiTaxId checksum
+    // check (13 digits + mod-11) — the finding is about a NEVER-FILLED-IN profile,
+    // not about rejecting an otherwise-valid-shaped id with a typo.
+    private static bool IsUsablePayerTaxId(string? taxId)
+    {
+        var digits = (taxId ?? "").Where(char.IsDigit);
+        return digits.Any(d => d != '0');
     }
 }

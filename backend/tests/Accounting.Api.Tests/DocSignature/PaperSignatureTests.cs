@@ -636,9 +636,14 @@ public sealed class PaperSignatureTests : IDisposable
     // the PRE-restructure renderer was separately verified by a throwaway git-HEAD probe (see
     // attempt log): identical except for the newly-appended "หน้า 1 / 1" page-footer (§C3).
     // Already includes that footer (normalized), so this constant is compared AS-IS.
+    // F10 seed-fix (637_repair_all_zero_company_tax_id.sql) — company 1's tax_id changed from
+    // the all-zero placeholder "0000000000000" to the dummy "0105000000012", so the printed
+    // tax-id substring below was updated from "0-0000-00000-00-0" to "0-1050-00000-01-2"
+    // (Pdf.PaperFormat.TaxId's dash grouping of the new value). This is a DATA change, not a
+    // styling change — every other character in this constant is untouched.
     private const string T9PreChangeNormalizedText =
         "Demo Company (เดโม)1 อาคารเดโม ชน 1 ถนนสาทร แขวงทงมหาเมฆ ทงมหาเมฆ เขตสาทร กรงเทพมหานคร 10120" +
-        "เลขประจาตวผเสยภาษ: 0-0000-00000-00-0 · สาขา 00000ใบกากบภาษTAX INVOICE—ลกคา / Customer" +
+        "เลขประจาตวผเสยภาษ: 0-1050-00000-01-2 · สาขา 00000ใบกากบภาษTAX INVOICE—ลกคา / Customer" +
         "ลกคาทดสอบ จากด99 ถ.ทดสอบ กรงเทพฯ 10110เลขประจาตวผเสยภาษ: 0-1055-56123-45-3สาขา: 00000" +
         "วนท / DateDD/MM/YYYY#รายการ / Descriptionจานวนหนวยราคา/หนวยจานวนเงน1T9 baseline probe line1" +
         "หนวย1,000.001,000.00มลคากอนหกสวนลดSubtotal1,000.00มลคากอนภาษBefore VAT1,000.00" +
