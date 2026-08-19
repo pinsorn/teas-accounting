@@ -6,15 +6,15 @@ needs prod-shaped data).
 ## Board
 | Unit | What | Worker | State |
 |---|---|---|---|
-| C1 | U9: PO TaxCodeId laundering (backend, U2 pattern) + McpScopes narrow to employee.lookup + seed-640 direct-grant-arm test | sonnet (test-runner slot) | 🔄 |
-| C2 | FA Dispose/WriteOff modals role=dialog + PO form drop hardcoded taxCodeId:1 + back-dated-claim info note at pay (FE only) | sonnet | 🔄 |
-| C3 | e2e suite debt: pickCustomer ambiguity, PV confirm-dialog specs, TenantIsolation fixture hygiene; + verify one Thai toast renders live (e14468f) | sonnet | 🔄 |
-| C4 | Depreciation first-month proration + final-month plug — DESIGN (money formula, ม.65 ทวิ analysis; Ham greenlit the change) | opus-designer | 🔄 |
+| C1 | U9 + McpScopes + 640-arm | sonnet | ✅ 1f9a2ab (263/263) |
+| C2 | FE trio | sonnet | ✅ a1e9ff3 |
+| C3 | e2e debt + Thai toast live check | sonnet | ✅ c288712 (+ found seed-181 bug → C11) |
+| C4 | Proration DESIGN | opus | ✅ ratified a9353b6 |
 | C5 | minions-assemble sync: fold general lessons into templates (read-only sub-dispatch rule; blocked-file-write fallback; dir-add sweeps untracked) | sonnet | ✅ pushed `9b3f940` |
 | C6 | Spec backlog triage sweep | Explore | ✅ 48 DEAD·8 OBS·9 ALIVE → specs/TRIAGE-backlog-2026-08-19.md; spot-check 4/4 |
-| C9 | Mark 56 DEAD/OBSOLETE items in spec files + 2 troubles-wiki entries (from triage evidence) | haiku | pending (after C1 frees attention) |
+| C9 | Backlog stamping ×2 passes | haiku+sonnet | ✅ 74998e9 + 05fe73f |
 | C10 | MIGRATION-CUTOVER-CHECKLIST.md consolidation | Fable | ✅ |
-| C7 | C4's design → implement + tests | sonnet after C1 frees slot | pending |
+| C7 | Proration implement | sonnet | ✅ 528cf72 (Tier-2 APPROVE-WITH-NITS) |
 | C8 | Final: re-wipe accounting_dev (C3's e2e runs repollute it), fresh boot probe, STATUS/PROGRESS close | Fable | pending |
 
 ## Parked for Ham
@@ -29,3 +29,10 @@ needs prod-shaped data).
 
 ## Resume
 Read this board; continue from first non-✅. Boot cmd + creds in PROGRESS-hard-test-r2.md.
+
+## Final gate (2026-08-19 ~20:0x): FULL SUITE GREEN
+Domain 188/188 · Api 1318/1332 (0 failed, 14 diag-gated skips = baseline) — includes C1/C3/C7/C11.
+| C11 | seed-181 FORCE-RLS no-op → 181 patched + 641 reconcile | sonnet | ✅ f53ed0e (RED→GREEN, replay-idempotent) |
+Remaining: C8 only — wipe accounting_dev (backup exists), ONE boot on rebuilt binaries (seeds
+638–641), probes MUST include ap_clerk + sales_staff logins (the C11 regression) and user_roles
+count, then STATUS/PROGRESS close. If session dies: run C8 per this note.
