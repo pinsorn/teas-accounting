@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -92,6 +93,13 @@ export default function FixedAssetDetailPage() {
         subtitle={d.docNo ?? d.name}
         actions={
           <div className="flex gap-2">
+            {d.status === 'Draft' && (
+              <PermissionGate scope="fixedasset.manage">
+                <Link data-testid="fa-edit" href={`/fixed-assets/${id}/edit`} className="btn btn-secondary btn-sm gap-1">
+                  <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
+                </Link>
+              </PermissionGate>
+            )}
             {d.status === 'Draft' && (
               <PermissionGate scope="fixedasset.manage">
                 <button className="btn btn-primary btn-sm" disabled={activate.isPending} onClick={doActivate}>

@@ -194,7 +194,7 @@ function SuggestModal({
   }
 
   return (
-    <div className="modal modal-open">
+    <div className="modal modal-open" role="dialog" aria-modal="true">
       <div className="modal-box">
         <h3 className="mb-3 text-lg font-bold">{t('suggest')}</h3>
         {q.isLoading && <p className="text-sm text-base-content/50">{tc('loading')}</p>}
@@ -249,7 +249,7 @@ function JournalModal({
   }
 
   return (
-    <div className="modal modal-open">
+    <div className="modal modal-open" role="dialog" aria-modal="true">
       <div className="modal-box">
         <h3 className="mb-3 text-lg font-bold">{t('postJournal')}</h3>
         <div className="flex flex-col gap-3">
