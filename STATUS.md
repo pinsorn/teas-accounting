@@ -10,9 +10,11 @@
   non-VAT companies 100% blocked from creating billing notes (non-nullable TaxCodeId DTO);
   billing-note lines accept tax codes absent from company master (no FK — F13 shape returns);
   bank-rec closing balance nondeterministic on tied PeriodEnd; oversized import field → raw 500.
-  N1/N2 (047fe95) verified live PASS both doors. Local stack UP (API :5080 / FE :3000); co1 full
-  of R2 test debris (fine for dev, wipe before demos); local co2 confirmed EMPTY → real-volume
-  tie-out deferred to post-migration prod-shaped data.
+  N1/N2 (047fe95) verified live PASS both doors. Round-close battery: TB balanced co1/co3,
+  header=lines clean, F13 sweep found 5 violation rows on round-1-era POSTED/SETTLED co3 docs
+  (escalates U2). Evidence durable in `findings-r2/`. Local stack UP (API :5080 / FE :3000); co1
+  full of R2 test debris (fine for dev, wipe before demos); local co2 confirmed EMPTY →
+  real-volume tie-out deferred to post-migration prod-shaped data.
 - **✅ 2026-08-18 — HARD-TEST ROUND CLOSED: all 14 findings fixed.** The last five landed today in
   three commits: `2b82dde` (F11 header discount rollup + F12 P&L default — plus a review-caught paper
   bug: the printed footer needed a GROSS subtotal once the discount became real), `65a5419` (F10 —
