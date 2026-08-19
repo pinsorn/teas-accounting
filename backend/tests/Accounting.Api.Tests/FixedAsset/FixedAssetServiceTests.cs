@@ -431,6 +431,62 @@ public sealed class FixedAssetServiceTests
         asset.WriteoffReason.Should().Be("เสียหายจากอุบัติเหตุ");
     }
 
+    // ── L3-9 (fix-r2 PLAN-fix-findings-r2.md U5) — disposal date must not precede
+    // acquire/depreciation-start (findings-r2/findings-leg3.md) ────────────────────────
+
+    [SkippableFact]
+    public async Task Dispose_refuses_when_disposal_date_is_before_acquire_date()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        // Acquired NEXT month so "a disposal date before acquisition" still lands in the
+        // OPEN current-real-month period (period.EnsureOpenAsync's implicit default-open
+        // rule) — exercises the date-order guard without touching period state at all.
+        var acquireDate = Today.AddMonths(1);
+        var assetId = await CreateActiveAssetAsync(sp, "รถยนต์ L3-9a", acquireDate, 50000.00m, 0m, 60, acquireDate);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var act = () => svc.DisposeAsync(assetId, new DisposeFixedAssetRequest(Today, 0m, null, null), default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("fixed_asset.disposal_date_invalid");
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var asset = await db.FixedAssets.AsNoTracking().FirstAsync(a => a.FixedAssetId == assetId);
+        asset.Status.Should().Be(FixedAssetStatus.Active, "a refused disposal must not mutate the asset (L3-9 — the bug let it post 200 + a real JE)");
+    }
+
+    [SkippableFact]
+    public async Task Dispose_refuses_when_disposal_date_is_before_depreciation_start_date()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var acquireDate = Today;
+        var depStart = Today.AddMonths(1);   // AcquireDate OK, but before DepreciationStartDate.
+        var assetId = await CreateActiveAssetAsync(sp, "รถยนต์ L3-9b", acquireDate, 50000.00m, 0m, 60, depStart);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var act = () => svc.DisposeAsync(assetId, new DisposeFixedAssetRequest(Today, 0m, null, null), default);
+
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("fixed_asset.disposal_date_invalid");
+    }
+
+    [SkippableFact]
+    public async Task Dispose_succeeds_when_disposal_date_equals_acquire_date()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var assetId = await CreateActiveAssetAsync(sp, "รถยนต์ L3-9c", Today, 50000.00m, 0m, 60, Today);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var result = await svc.DisposeAsync(assetId, new DisposeFixedAssetRequest(Today, 0m, null, null), default);
+
+        result.Status.Should().Be(nameof(FixedAssetStatus.Disposed),
+            "disposal_date == acquire_date is the inclusive boundary, not refused");
+    }
+
     // ── 10.8 — year-end interplay (FA-C) ────────────────────────────────────────────
 
     [SkippableFact]

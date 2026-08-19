@@ -247,6 +247,20 @@ public sealed class FixedAssetService(
             throw new DomainException("fixed_asset.not_active",
                 $"Cannot {(writeOffReason is null ? "dispose" : "write off")} a fixed asset in status {asset.Status}.");
 
+        // L3-9 (PLAN-fix-findings-r2.md U5) — a disposal/write-off dated before the asset's own
+        // AcquireDate or DepreciationStartDate is a data-integrity gap (the asset's own register
+        // row says it did not exist yet, or had not started depreciating yet, on that date); the
+        // original bug posted a real balanced JE for exactly this case (findings-r2/findings-leg3.md
+        // L3-9). Same-day (== ) is the inclusive boundary, not refused.
+        if (date < asset.AcquireDate)
+            throw new DomainException("fixed_asset.disposal_date_invalid",
+                $"{(writeOffReason is null ? "Disposal" : "Write-off")} date {date:yyyy-MM-dd} cannot be before " +
+                $"the asset's acquisition date {asset.AcquireDate:yyyy-MM-dd}.");
+        if (date < asset.DepreciationStartDate)
+            throw new DomainException("fixed_asset.disposal_date_invalid",
+                $"{(writeOffReason is null ? "Disposal" : "Write-off")} date {date:yyyy-MM-dd} cannot be before " +
+                $"the asset's depreciation start date {asset.DepreciationStartDate:yyyy-MM-dd}.");
+
         // FA-F — reads the asset's CURRENT accumulated depreciation; no auto catch-up run.
         var nbv = asset.Cost - asset.AccumulatedDepreciation;
         var gainLoss = proceeds - nbv;
