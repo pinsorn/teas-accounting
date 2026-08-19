@@ -34,7 +34,7 @@ co2 `demo-*` = `Demo@1234`. Companies local: 1=Demo (VAT), 2=แมนนวล 
 | 1 | Payroll (WHT ภ.ง.ด.1/1ก, สปส., GL, closed-period) | sonnet | ✅ 23:0x — 1×🔴 (L1-1), rest PASS w/ evidence |
 | 2 | Bank reconciliation (KBiz CSV, tie to satang, dup import) | sonnet | ✅ 09:3x — 2×🔴 1×🟠 1×🟡 |
 | 3 | Fixed assets + depreciation (proration, double-run, disposal) | sonnet | ✅ 10:2x — 0×🔴 1×🟠 1×🟡 2×⚪; money math exact |
-| 4 | Expense claims (spec-vs-reality first, SoD, VAT/WHT, GL) | sonnet | pending |
+| 4 | Expense claims (spec-vs-reality first, SoD, VAT/WHT, GL) | sonnet | ✅ 11:0x — 1×🟠 1×🟡, GL worked-example exact |
 | 5 | co2 READ-ONLY tie-out + master integrity + report cross-check | sonnet | ✅ 22:25 — verdict N/A (co2 empty), 1×🟡 5×⚪ |
 | 6 | Round-1 leftovers (co4 sale, N1/N2 live re-verify) | sonnet | ✅ 23:1x — 1×🔴 1×🟡 +1×🔴 Fable; N1/N2 live PASS (worker died at report step post-work; findings file complete) |
 
@@ -78,6 +78,25 @@ Full detail: `scratchpad/findings-leg1.md` (295 lines, 14 screenshots, rendered 
 - Test data left in co1 (via UI/API per house rule): employees 3–14, payroll runs 2 (202607
   Posted+Paid), 3 (202608 Posted), 4 (202609 Approved).
 - Throwaway spec moved out of the tree → scratchpad (`r2-leg1-payroll-cycle.spec.ts`); repo clean.
+
+### Leg 4 — Expense claims — ✅ walked browser-first (worker returned findings in-report; harness blocked its file write)
+- Spec-vs-reality: `specs/expense-claims.md` §5 FE items marked [ ] are STALE — full FE surface
+  exists (all pages + hooks); source hardening through 2026-08-14 never logged back to the spec.
+- **L4-1 🟠 CONFIRMED BY FABLE** (source): whole `/employees` group requires
+  `master.employee.manage` (EmployeeEndpoints.cs — deliberate, payroll-sensitive per seed 440
+  comment) → ACCOUNTANT, the spec's designated claim submitter, gets 403 on the employee list and
+  the create form is unusable (picker empty, canSave needs employeeId). Fails closed — workflow
+  bug, not a hole. Fix must be a NAME-ONLY lookup surface, not a naive read split (DTO carries
+  payroll data).
+- L4-2 ⚪ SoD permission-only BY DESIGN (matches PV's dropped ck_pv_sod ruling) — chief_accountant
+  self-approve 200, deliberate.
+- L4-6 ⚪ GL exact worked-example match: `08-2026-EX-0001` → JE 76, Dr 5200 ×3 + Dr 1170 70.00
+  (recoverable line only), Cr 1120 1,784.00, Dr=Cr; ENT/VEHI categories default non-recoverable
+  (ม.82/5-consistent).
+- L4-3/4/5 ⚪ PASS: 9 malformed probes all typed (403 before 404 — no existence leak), permission
+  gates real (403 behind hidden buttons), edit door idempotent.
+- **L4-7 🟡**: closed-period pay guard code-verified only (no closed period available to probe).
+- Test data left in co1: expense claims 1–11, JE 76.
 
 ### Leg 3 — Fixed assets + depreciation — ✅ walked browser-first, money math exact
 Full detail: `scratchpad/findings-leg3.md`. All 10 checklist items covered. Depreciation (incl.

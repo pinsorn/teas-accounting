@@ -1,6 +1,18 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ 2026-08-19 — TESTING SWARM ROUND 2 COMPLETE: all 6 legs walked, 5×🔴 4×🟠 5×🟡 found,
+  fix-plan drafted.** Overnight autonomous run per PLAN-testing-swarm-r2.md, browser-first
+  (Playwright driving the real FE — Ham's directive; Claude-in-Chrome unreachable from Claude Code).
+  Board + verified findings: `PROGRESS-hard-test-r2.md`. Fix-plan (drafted, NOT started —
+  awaiting Ham's go): `PLAN-fix-findings-r2.md` — headline reds: ภ.ง.ด.1 PDF renders payer tax ID
+  0000000000000 (seed 637 repaired the wrong table's twin — company_profile.tax_id still zero);
+  non-VAT companies 100% blocked from creating billing notes (non-nullable TaxCodeId DTO);
+  billing-note lines accept tax codes absent from company master (no FK — F13 shape returns);
+  bank-rec closing balance nondeterministic on tied PeriodEnd; oversized import field → raw 500.
+  N1/N2 (047fe95) verified live PASS both doors. Local stack UP (API :5080 / FE :3000); co1 full
+  of R2 test debris (fine for dev, wipe before demos); local co2 confirmed EMPTY → real-volume
+  tie-out deferred to post-migration prod-shaped data.
 - **✅ 2026-08-18 — HARD-TEST ROUND CLOSED: all 14 findings fixed.** The last five landed today in
   three commits: `2b82dde` (F11 header discount rollup + F12 P&L default — plus a review-caught paper
   bug: the printed footer needed a GROSS subtotal once the discount became real), `65a5419` (F10 —
