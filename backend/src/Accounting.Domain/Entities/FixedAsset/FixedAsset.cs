@@ -36,11 +36,20 @@ public class FixedAsset : ITenantOwned, IAuditable, IConcurrencyVersioned
     /// <summary>= Cost - SalvageValue. Recomputed on every Draft edit; frozen at Activate.</summary>
     public decimal DepreciableBase { get; set; }
     /// <summary>= round(DepreciableBase / UsefulLifeMonths, 2). Recomputed on every Draft edit;
-    /// frozen at Activate. The final scheduled month's charge is a plug, not this value
-    /// (specs/fixed-assets.md §3.1 step 4) — this is the STEADY-STATE monthly charge only.</summary>
+    /// frozen at Activate. The final UNIT's charge is a plug bounded to at most one unit, not
+    /// this value (specs/fixed-assets.md §3.1/§3.2) — this is the STEADY-STATE monthly charge
+    /// only; the first unit is prorated by days (§3.1).</summary>
     public decimal MonthlyAmount { get; set; }
 
     public DateOnly DepreciationStartDate { get; set; }
+
+    /// <summary>Units (months of useful life) already charged to this asset. Fractional when the
+    /// first unit was day-prorated (§3.1). NULL = not yet recorded by this feature — derived at
+    /// run time from the count of posted <see cref="DepreciationRunLine"/> rows, where every
+    /// legacy line is one full unit by definition (no proration existed before this feature).
+    /// Never edited by hand (specs/fixed-assets.md §3.4 — no migration backfill; RLS would
+    /// silently no-op it in prod).</summary>
+    public decimal? MonthsDepreciated { get; set; }
 
     /// <summary>Frozen at Activate; editable while Draft. Defaulted from GlAccountsOptions.</summary>
     public long AssetCostAccountId  { get; set; }
@@ -153,4 +162,12 @@ public class FixedAsset : ITenantOwned, IAuditable, IConcurrencyVersioned
         Status = FixedAssetStatus.Cancelled;
         Version++;
     }
+
+    /// <summary>§3.1 — ป.รัษฎากร ม.65 ทวิ(2) + พ.ร.ฎ.145 ม.4: the acquisition period is depreciated
+    /// ตามส่วนเฉลี่ยแห่งระยะเวลาที่ได้ทรัพย์สินนั้นมา, by DAYS, counting the start day itself.
+    /// 4 dp because months_depreciated is numeric(9,4) — the stored units and the charged units must
+    /// be the SAME number, or the schedule and the ledger drift.</summary>
+    public static decimal FirstMonthFraction(DateOnly start) =>
+        Math.Round((decimal)(DateTime.DaysInMonth(start.Year, start.Month) - start.Day + 1)
+                   / DateTime.DaysInMonth(start.Year, start.Month), 4, MidpointRounding.AwayFromZero);
 }

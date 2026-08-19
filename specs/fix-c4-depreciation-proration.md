@@ -474,9 +474,24 @@ which is why the three existing money tests must pass untouched.
 
 ### WP-4 — tests (RED first: write T1–T5, watch them fail, then implement — or, if implementing
 first, `git stash` the src change once and prove they go RED)
-- [ ] T1–T5 added to `backend/tests/Accounting.Api.Tests/FixedAsset/FixedAssetServiceTests.cs`
-      (§6). Done when: the 5 new tests pass AND lines 84 / 131 / 493 pass **with no edits to their
-      assertions** (a reworded `because:` string is the only permitted change).
+- [x] T1–T5 added to `backend/tests/Accounting.Api.Tests/FixedAsset/FixedAssetServiceTests.cs`
+      (§6), plus the `FirstFutureMonthWithDays` determinism helper. `git diff --numstat` on the
+      test file: **220 insertions / 0 deletions** — purely additive, so lines 84/131/493's
+      assertions (and even their `because:` strings) are byte-for-byte unchanged (not even the
+      permitted reword was used).
+      RED proof: `git stash push -- backend/src/Accounting.Infrastructure/FixedAsset/
+      FixedAssetService.cs` (reverts ONLY the engine to the old calendar-plug code; entity/DTO
+      additions stay, compile clean) → isolated build → ran T1/T2/T3 → **all 3 FAIL** for the
+      right reason: T1 "Expected 1209.72... found 1388.8900" (no proration), T2 "Expected
+      1041.67... found 2083.3300" (no proration), **T3 (the L3-3 discriminator) "Expected
+      33.33M, but found 66.6700M"** — the old engine's calendar plug dumps the whole remaining
+      balance into the calendar-scheduled final month exactly as the spec's "before" narrative
+      describes. `git stash pop` restored the fix → isolated rebuild → full FixedAsset filtered
+      suite: **47 passed, 0 failed, 0 skipped** (26 in FixedAssetServiceTests including all 5 new
+      + all 3 untouched regression tests + the pre-existing 18; 2 in FixedAssetPermissionTests;
+      19 in McpBankExpenseFixedAssetTests, also substring-matched by the filter, unaffected
+      bonus confirmation). Done: all 5 new tests pass AND lines 84/131/493 pass with zero
+      assertion edits.
 
 ---
 

@@ -43,6 +43,16 @@ public sealed class FixedAssetServiceTests
     private static IEnumerable<(int Year, int Month)> MonthRange(DateOnly start, int count) =>
         Enumerable.Range(0, count).Select(i => start.AddMonths(i)).Select(d => (d.Year, d.Month));
 
+    /// <summary>C4 (specs/fix-c4-depreciation-proration.md §6) — FOOTGUN 5 keeps dates
+    /// today/future, but the day-proration worked examples need a KNOWN month length; pick the
+    /// first qualifying future month with that day count.</summary>
+    private static DateOnly FirstFutureMonthWithDays(int days, int day)
+    {
+        var d = new DateOnly(Today.Year, Today.Month, 1);
+        while (DateTime.DaysInMonth(d.Year, d.Month) != days) d = d.AddMonths(1);
+        return new DateOnly(d.Year, d.Month, day);
+    }
+
     /// <summary>Direct-seed Open AccountingPeriod rows (mirrors YearEndClosingTests /
     /// Sprint6VatRegisterTests) — PeriodCloseService.IsOpenAsync's default-fallback rule only
     /// treats the CURRENT real month as open when no row exists, so multi-month depreciation
@@ -164,6 +174,216 @@ public sealed class FixedAssetServiceTests
         var afterFull = await svc.GenerateDepreciationAsync(y25, m25, default);
         afterFull.AssetCount.Should().Be(0);
         afterFull.DepreciationRunId.Should().BeNull();
+    }
+
+    // ── 10.1c-g — C4 (specs/fix-c4-depreciation-proration.md §6): units-indexed schedule +
+    // day-prorated first charge, replacing the calendar-plug (T1–T5) ──────────────────
+
+    [SkippableFact]
+    public async Task Depreciation_prorates_the_first_month_by_days_and_still_ties_out_to_the_satang()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var start = FirstFutureMonthWithDays(31, 5); // §3.5(a): daysHeld = 31-5+1 = 27, f = 0.8710
+        var allMonths = MonthRange(start, 38).ToList();
+        await OpenPeriodsAsync(sp, co.CompanyId, allMonths);
+
+        var assetId = await CreateActiveAssetAsync(sp, "เครื่องจักร T1", start, 50000.00m, 0m, 36, start);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var depExpenseAcct = await AccountIdByCode(db, co.CompanyId, "5450");
+        var accumAcct = await AccountIdByCode(db, co.CompanyId, "1690");
+
+        for (var i = 0; i < 37; i++)
+        {
+            var (y, m) = allMonths[i];
+            var result = await svc.GenerateDepreciationAsync(y, m, default);
+            result.AssetCount.Should().Be(1);
+            result.JournalEntryId.Should().NotBeNull();
+
+            var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+                .FirstAsync(j => j.JournalId == result.JournalEntryId);
+            var dr = je.Lines.Single(l => l.AccountId == depExpenseAcct).DebitAmount;
+            var cr = je.Lines.Single(l => l.AccountId == accumAcct).CreditAmount;
+            dr.Should().Be(cr);
+
+            if (i == 0) dr.Should().Be(1209.72m, "charge #1 is the day-prorated first unit (27/31 days, §3.5a)");
+            else if (i < 36) dr.Should().Be(1388.89m, $"charge {i + 1} is a normal steady-state whole unit");
+            else dr.Should().Be(179.13m, "charge #37 is the units-final charge absorbing the rounding drift");
+        }
+
+        var final = await db.FixedAssets.AsNoTracking().FirstAsync(a => a.FixedAssetId == assetId);
+        final.AccumulatedDepreciation.Should().Be(50000.00m, "I1 — sum-to-exact with a day-prorated first unit");
+
+        var lineCount = await db.DepreciationRunLines.AsNoTracking().CountAsync(l => l.FixedAssetId == assetId);
+        lineCount.Should().Be(37, "one line per run: the prorated first unit + 35 steady units + the units-final charge");
+
+        var (y38, m38) = allMonths[37];
+        var afterFull = await svc.GenerateDepreciationAsync(y38, m38, default);
+        afterFull.AssetCount.Should().Be(0);
+        afterFull.DepreciationRunId.Should().BeNull();
+    }
+
+    [SkippableFact]
+    public async Task Prorated_asset_with_rounded_down_monthly_closes_exactly_on_the_last_unit()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var start = FirstFutureMonthWithDays(30, 16); // §3.5(b): daysHeld = 30-16+1 = 15, f = 0.5000
+        var allMonths = MonthRange(start, 25).ToList();
+        await OpenPeriodsAsync(sp, co.CompanyId, allMonths);
+
+        var assetId = await CreateActiveAssetAsync(sp, "เครื่องจักร T2", start, 50000.00m, 0m, 24, start);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var depExpenseAcct = await AccountIdByCode(db, co.CompanyId, "5450");
+        var accumAcct = await AccountIdByCode(db, co.CompanyId, "1690");
+
+        for (var i = 0; i < 25; i++)
+        {
+            var (y, m) = allMonths[i];
+            var result = await svc.GenerateDepreciationAsync(y, m, default);
+            var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+                .FirstAsync(j => j.JournalId == result.JournalEntryId);
+            var dr = je.Lines.Single(l => l.AccountId == depExpenseAcct).DebitAmount;
+            je.Lines.Single(l => l.AccountId == accumAcct).CreditAmount.Should().Be(dr);
+
+            if (i == 0) dr.Should().Be(1041.67m, "charge #1 is the day-prorated first unit (15/30 days, §3.5b)");
+            else if (i < 24) dr.Should().Be(2083.33m, $"charge {i + 1} is the rounded-DOWN steady-state whole unit");
+            else dr.Should().Be(1041.74m, "charge #25 is the units-final charge closing the undershoot exactly");
+        }
+
+        var final = await db.FixedAssets.AsNoTracking().FirstAsync(a => a.FixedAssetId == assetId);
+        final.AccumulatedDepreciation.Should().Be(50000.00m, "I1 — sum-to-exact in the undershoot direction too");
+
+        var lineCount = await db.DepreciationRunLines.AsNoTracking().CountAsync(l => l.FixedAssetId == assetId);
+        lineCount.Should().Be(25);
+    }
+
+    [SkippableFact]
+    public async Task Skipped_month_is_not_absorbed_by_the_final_charge()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var start = new DateOnly(Today.Year, Today.Month, 1); // day 1 -> f = 1.0000, §3.5(c)
+        var allMonths = MonthRange(start, 5).ToList();
+        await OpenPeriodsAsync(sp, co.CompanyId, allMonths);
+
+        var assetId = await CreateActiveAssetAsync(sp, "เครื่องจักร T3", start, 100.00m, 0m, 3, start);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var depExpenseAcct = await AccountIdByCode(db, co.CompanyId, "5450");
+        var accumAcct = await AccountIdByCode(db, co.CompanyId, "1690");
+
+        // Month 1 (the start month) is deliberately NEVER run — the L3-3 shape (a start month
+        // backdated into an already-closed period, whose run then never happens).
+        var expected = new[] { 33.33m, 33.33m, 33.34m };
+        for (var i = 0; i < 3; i++)
+        {
+            var (y, m) = allMonths[i + 1]; // runs 2, 3, 4
+            var result = await svc.GenerateDepreciationAsync(y, m, default);
+            var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+                .FirstAsync(j => j.JournalId == result.JournalEntryId);
+            var dr = je.Lines.Single(l => l.AccountId == depExpenseAcct).DebitAmount;
+            je.Lines.Single(l => l.AccountId == accumAcct).CreditAmount.Should().Be(dr);
+            dr.Should().Be(expected[i]);
+            if (i == 2)
+                dr.Should().NotBe(66.67m,
+                    "L3-3 — a skipped month must never be absorbed into the final charge; the " +
+                    "units-indexed schedule slides one calendar month later instead");
+        }
+
+        var final = await db.FixedAssets.AsNoTracking().FirstAsync(a => a.FixedAssetId == assetId);
+        final.AccumulatedDepreciation.Should().Be(100.00m, "I1 — sum-to-exact even with a skipped month");
+
+        var lineCount = await db.DepreciationRunLines.AsNoTracking().CountAsync(l => l.FixedAssetId == assetId);
+        lineCount.Should().Be(3, "one line per actual run — the skipped month produced none and absorbed none");
+
+        var (y5, m5) = allMonths[4];
+        var afterFull = await svc.GenerateDepreciationAsync(y5, m5, default);
+        afterFull.AssetCount.Should().Be(0);
+        afterFull.DepreciationRunId.Should().BeNull();
+    }
+
+    [SkippableFact]
+    public async Task Legacy_asset_with_null_months_depreciated_resolves_units_from_its_posted_lines()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var start = new DateOnly(Today.Year, Today.Month, 1);
+        var allMonths = MonthRange(start, 3).ToList();
+        await OpenPeriodsAsync(sp, co.CompanyId, allMonths);
+
+        var assetId = await CreateActiveAssetAsync(sp, "เครื่องจักร T4", start, 100.00m, 0m, 3, start);
+
+        await using (var s1 = sp.CreateAsyncScope())
+        {
+            var svc1 = s1.ServiceProvider.GetRequiredService<IFixedAssetService>();
+            await svc1.GenerateDepreciationAsync(allMonths[0].Year, allMonths[0].Month, default);
+            await svc1.GenerateDepreciationAsync(allMonths[1].Year, allMonths[1].Month, default);
+        }
+
+        await using (var s2 = sp.CreateAsyncScope())
+        {
+            var db2 = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var asset = await db2.FixedAssets.FirstAsync(a => a.FixedAssetId == assetId);
+            asset.AccumulatedDepreciation.Should().Be(66.66m, "2 months at 33.33 each");
+            asset.MonthsDepreciated = null; // simulate a row created before this feature (grandfather case)
+            await db2.SaveChangesAsync();
+        }
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var depExpenseAcct = await AccountIdByCode(db, co.CompanyId, "5450");
+
+        var result = await svc.GenerateDepreciationAsync(allMonths[2].Year, allMonths[2].Month, default);
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .FirstAsync(j => j.JournalId == result.JournalEntryId);
+        je.Lines.Single(l => l.AccountId == depExpenseAcct).DebitAmount.Should().Be(33.34m,
+            "units resolved to 2 from the posted-line count -> this charge is the final unit");
+
+        var final = await db.FixedAssets.AsNoTracking().FirstAsync(a => a.FixedAssetId == assetId);
+        final.AccumulatedDepreciation.Should().Be(100.00m, "I2 — grandfathering never breaks sum-to-exact");
+        final.MonthsDepreciated.Should().Be(3m, "the engine re-derives and re-stores units once it resolves them");
+
+        var lineCount = await db.DepreciationRunLines.AsNoTracking().CountAsync(l => l.FixedAssetId == assetId);
+        lineCount.Should().Be(3);
+    }
+
+    [SkippableFact]
+    public async Task Tiny_asset_whose_prorated_first_charge_rounds_to_zero_still_produces_a_line()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp) = await SetupAsync();
+        var start = FirstFutureMonthWithDays(31, 20); // §3.5: f = 12/31 = 0.3871, 0.01 x 0.3871 = 0.0039 -> floors to 0
+        await OpenPeriodsAsync(sp, co.CompanyId, new[] { (start.Year, start.Month) });
+
+        var assetId = await CreateActiveAssetAsync(sp, "สินทรัพย์จิ๋ว T5", start, 0.36m, 0m, 36, start);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IFixedAssetService>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var depExpenseAcct = await AccountIdByCode(db, co.CompanyId, "5450");
+
+        var result = await svc.GenerateDepreciationAsync(start.Year, start.Month, default);
+        result.AssetCount.Should().Be(1, "I4 — a floored-to-0.01 charge still yields a run row");
+        result.DepreciationRunId.Should().NotBeNull();
+
+        var je = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .FirstAsync(j => j.JournalId == result.JournalEntryId);
+        je.Lines.Single(l => l.AccountId == depExpenseAcct).DebitAmount.Should().Be(0.01m,
+            "the true prorated charge (0.0039) rounds to 0.00 and is floored to the satang (I4)");
+
+        var periodSvc = s.ServiceProvider.GetRequiredService<IPeriodCloseService>();
+        var closeResult = await periodSvc.CloseAsync(start.Year, start.Month, "T5 close", default);
+        closeResult.Year.Should().Be(start.Year, "I4's exit: the floored charge produced a run row, so period-close is never trapped");
     }
 
     // ── 10.2 — FA-A double-book guard ───────────────────────────────────────────────

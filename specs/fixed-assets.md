@@ -351,8 +351,9 @@ Design notes:
      (idempotent; no new JE). (Belt-and-braces with the unique index.)
   3. `BeginTransactionAsync`. Load eligible assets: `Status == Active` AND
      `DepreciationStartDate <= runDate` AND `accumulated_depreciation < depreciable_base`.
-  4. **(Superseded by `specs/fix-c4-depreciation-proration.md` §3.1/§3.2 — units-indexed
-     schedule, not the calendar plug below; kept here for history.)** Per asset:
+  4. **(CURRENT algorithm — the units-indexed schedule from
+     `specs/fix-c4-depreciation-proration.md` §3.1/§3.2, restated below. The OLD calendar-plug
+     rule it replaced lives under "Historical rationale" further down.)** Per asset:
      `remaining = depreciable_base − accumulated_depreciation`; `life = useful_life_months`;
      `unitsBefore = MonthsDepreciated ?? (posted run-line count for legacy NULL rows)`;
      `delta = min(unitsBefore == 0 ? FirstMonthFraction(depreciation_start_date) : 1,

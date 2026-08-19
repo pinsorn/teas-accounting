@@ -31,6 +31,9 @@ internal sealed class FixedAssetConfiguration : IEntityTypeConfiguration<Account
         b.Property(x => x.DepreciableBase).HasPrecision(19, 4).HasDefaultValue(0m);
         b.Property(x => x.MonthlyAmount).HasPrecision(19, 4).HasDefaultValue(0m);
         b.Property(x => x.AccumulatedDepreciation).HasPrecision(19, 4).HasDefaultValue(0m);
+        // NULL is meaningful (legacy row, units derived from posted lines at run time) — no
+        // HasDefaultValue here; a DB default would destroy that discriminator (§3.4).
+        b.Property(x => x.MonthsDepreciated).HasPrecision(9, 4);
         b.Property(x => x.DisposalProceeds).HasPrecision(19, 4);
         b.Property(x => x.DisposalVatAmount).HasPrecision(19, 4);
         b.Property(x => x.DisposalGainLoss).HasPrecision(19, 4);

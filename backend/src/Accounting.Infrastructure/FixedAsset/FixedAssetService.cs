@@ -300,12 +300,6 @@ public sealed class FixedAssetService(
 
     // ── Depreciation engine (§3) — GETS FABLE LINE-BY-LINE REVIEW ───────────────────
 
-    private static (int Year, int Month) AddMonths(DateOnly start, int monthsToAdd)
-    {
-        var total = start.Year * 12 + (start.Month - 1) + monthsToAdd;
-        return (total / 12, total % 12 + 1);
-    }
-
     public async Task<DepreciationRunResult> GenerateDepreciationAsync(int year, int month, CancellationToken ct)
     {
         Auth();
@@ -335,6 +329,19 @@ public sealed class FixedAssetService(
             .OrderBy(a => a.FixedAssetId)
             .ToListAsync(ct);
 
+        // §3.2 grandfather resolve — legacy rows (MonthsDepreciated NULL, predating this
+        // feature) derive their units-charged from their posted run-line count. Self-healing:
+        // after an asset's first post-deploy charge MonthsDepreciated is non-null, so this list
+        // (and the query below) empties out for it.
+        var legacyIds = assets.Where(a => a.MonthsDepreciated is null).Select(a => a.FixedAssetId).ToList();
+        var priorLineCounts = legacyIds.Count == 0
+            ? new Dictionary<long, decimal>()
+            : await db.DepreciationRunLines.AsNoTracking()
+                .Where(l => legacyIds.Contains(l.FixedAssetId))
+                .GroupBy(l => l.FixedAssetId)
+                .Select(g => new { g.Key, N = (decimal)g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.N, ct);
+
         var runLines = new List<Domain.Entities.FixedAsset.DepreciationRunLine>();
         var byExpenseAcct = new Dictionary<long, decimal>();
         var byAccumAcct = new Dictionary<long, decimal>();
@@ -343,16 +350,39 @@ public sealed class FixedAssetService(
         foreach (var asset in assets)
         {
             var remaining = asset.DepreciableBase - asset.AccumulatedDepreciation;
-            var (finalYear, finalMonth) = AddMonths(asset.DepreciationStartDate, asset.UsefulLifeMonths - 1);
-            // Fable review 2026-07-10 (§3.1 step 4) — the final SCHEDULED month is plugged with
-            // `remaining` regardless of rounding direction: min() alone only guards the OVERSHOOT
-            // case (rounded-up monthly); an UNDERSHOOT monthly (rounded down, e.g. 50000/24 =
-            // 2083.33) would otherwise dribble 0.08 into month 25. Plugging the final month closes
-            // both directions; min() still guards every earlier month (FA-B holds either way).
-            var isFinalScheduledMonth = year > finalYear || (year == finalYear && month >= finalMonth);
-            var charge = isFinalScheduledMonth ? remaining : Math.Min(asset.MonthlyAmount, remaining);
+            var life = (decimal)asset.UsefulLifeMonths;
+
+            // Units of LIFE already charged to this asset. NULL = a row that predates this feature
+            // (or predates its own first charge) -> derive from its posted run-line count, where
+            // every legacy line is one full month by definition (no proration existed). See §3.4 —
+            // this is why the migration needs no DML (RLS would have silently no-op'd a backfill
+            // in prod).
+            var unitsBefore = asset.MonthsDepreciated ?? priorLineCounts.GetValueOrDefault(asset.FixedAssetId, 0m);
+
+            // First charge is day-prorated (§3.1); every later charge is one whole month; the
+            // last one is trimmed so the total is EXACTLY `life` units — that trim is what
+            // replaces the old calendar plug, and it can never absorb a skipped month because it
+            // is bounded by one unit.
+            var delta = Math.Min(unitsBefore == 0m
+                    ? Domain.Entities.FixedAsset.FixedAsset.FirstMonthFraction(asset.DepreciationStartDate)
+                    : 1m,
+                life - unitsBefore);
+            var unitsAfter = unitsBefore + delta;
+
+            // The FINAL charge is the remaining balance -> sum-to-exact holds by construction, in
+            // BOTH rounding directions, with no dribble month and no multi-month lump.
+            var charge = unitsAfter >= life
+                ? remaining
+                : Math.Round(asset.MonthlyAmount * delta, 2, MidpointRounding.AwayFromZero);
+
+            // I4 — an eligible asset must never produce a 0.00 charge: a run with no lines creates
+            // no run row, and PeriodCloseService's hook would then refuse to close that month
+            // forever (no in-app exit). Self-correcting: the final charge absorbs the satang.
+            if (charge < 0.01m && remaining >= 0.01m) charge = 0.01m;
+            charge = Math.Min(charge, remaining);
             if (charge <= 0m) continue;
 
+            asset.MonthsDepreciated = unitsAfter;
             asset.AccumulatedDepreciation += charge;
             asset.Version++;
             total += charge;
@@ -496,7 +526,7 @@ public sealed class FixedAssetService(
             asset.AccumulatedDepreciation, asset.Cost - asset.AccumulatedDepreciation, asset.Status.ToString(),
             asset.DisposalDate, asset.DisposalProceeds, asset.DisposalVatAmount, asset.DisposalGainLoss,
             asset.DisposalBuyerName, asset.DisposalJournalEntryId, asset.WriteoffReason, asset.Notes,
-            asset.BusinessUnitId, asset.Version, runLines);
+            asset.BusinessUnitId, asset.Version, runLines, asset.MonthsDepreciated);
     }
 
     // ── Reports (§7) — query-only, no posting ───────────────────────────────────────

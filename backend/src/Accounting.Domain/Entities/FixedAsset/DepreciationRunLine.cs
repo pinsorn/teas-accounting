@@ -15,8 +15,10 @@ public class DepreciationRunLine : ITenantOwned
     public int  CompanyId { get; set; }
     public long FixedAssetId { get; set; }
 
-    /// <summary>This month's charge for this asset (= min(monthly, remaining), or the
-    /// final-scheduled-month plug — specs/fixed-assets.md §3.1 step 4).</summary>
+    /// <summary>This charge for this asset — a day-prorated first unit, a steady-state whole
+    /// unit (= MonthlyAmount), or the units-final charge (= remaining balance, bounded to at
+    /// most one unit) that closes the asset's life exactly (specs/fixed-assets.md §3.1/§3.2).
+    /// </summary>
     public decimal Amount { get; set; }
     /// <summary>Asset.AccumulatedDepreciation snapshot immediately AFTER this charge.</summary>
     public decimal AccumulatedAfter { get; set; }

@@ -59,7 +59,7 @@ public sealed record FixedAssetDetail(
     DateOnly? DisposalDate, decimal? DisposalProceeds, decimal? DisposalVatAmount,
     decimal? DisposalGainLoss, string? DisposalBuyerName, long? DisposalJournalEntryId,
     string? WriteoffReason, string? Notes, int? BusinessUnitId, long Version,
-    IReadOnlyList<DepreciationRunLineDetail> RunLines);
+    IReadOnlyList<DepreciationRunLineDetail> RunLines, decimal? MonthsDepreciated = null);
 
 /// <summary>DepreciationRunId/JournalEntryId are null when the month had zero eligible assets
 /// (nothing to charge) — GenerateDepreciationAsync no-ops rather than posting an empty/
