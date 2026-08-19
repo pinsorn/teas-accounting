@@ -33,7 +33,7 @@ co2 `demo-*` = `Demo@1234`. Companies local: 1=Demo (VAT), 2=แมนนวล 
 |---|---|---|---|
 | 1 | Payroll (WHT ภ.ง.ด.1/1ก, สปส., GL, closed-period) | sonnet | ✅ 23:0x — 1×🔴 (L1-1), rest PASS w/ evidence |
 | 2 | Bank reconciliation (KBiz CSV, tie to satang, dup import) | sonnet | ✅ 09:3x — 2×🔴 1×🟠 1×🟡 |
-| 3 | Fixed assets + depreciation (proration, double-run, disposal) | sonnet | pending |
+| 3 | Fixed assets + depreciation (proration, double-run, disposal) | sonnet | ✅ 10:2x — 0×🔴 1×🟠 1×🟡 2×⚪; money math exact |
 | 4 | Expense claims (spec-vs-reality first, SoD, VAT/WHT, GL) | sonnet | pending |
 | 5 | co2 READ-ONLY tie-out + master integrity + report cross-check | sonnet | ✅ 22:25 — verdict N/A (co2 empty), 1×🟡 5×⚪ |
 | 6 | Round-1 leftovers (co4 sale, N1/N2 live re-verify) | sonnet | ✅ 23:1x — 1×🔴 1×🟡 +1×🔴 Fable; N1/N2 live PASS (worker died at report step post-work; findings file complete) |
@@ -78,6 +78,23 @@ Full detail: `scratchpad/findings-leg1.md` (295 lines, 14 screenshots, rendered 
 - Test data left in co1 (via UI/API per house rule): employees 3–14, payroll runs 2 (202607
   Posted+Paid), 3 (202608 Posted), 4 (202609 Approved).
 - Throwaway spec moved out of the tree → scratchpad (`r2-leg1-payroll-cycle.spec.ts`); repo clean.
+
+### Leg 3 — Fixed assets + depreciation — ✅ walked browser-first, money math exact
+Full detail: `scratchpad/findings-leg3.md`. All 10 checklist items covered. Depreciation (incl.
+final-month plug), disposal gain/loss, idempotent re-runs (same journalEntryId), closed-period
+refusals (`period.closed` 422), year-close probe (`year.periods_not_closed` 422), RBAC 403s,
+malformed 400s — all hand-computed/verified to the satang. Both co1 periods still OPEN after run.
+
+- **L3-9 🟠 CONFIRMED BY FABLE** (DB): no validation that disposal date ≥ acquire date — asset
+  `R2L3-F-DateOrderProbe` sits in `fixedasset.fixed_assets` with acquire 2026-08-10, disposal
+  2026-07-15, status DISPOSED; the dispose modal accepted it (200) and posted a balanced JE dated
+  before the asset existed. GL now carries a July loss for an August asset.
+- **L3-12 🟡**: `PUT /fixed-assets/{id}` works but NO edit UI exists for Draft assets.
+- **L3-2/L3-3 ⚪ design notes**: no first-month proration (full month regardless of acquire day);
+  final scheduled month is a plug absorbing skipped months — run-line count ≠ elapsed months.
+- ⚪ caveat: FA month-close hook (`period.depreciation_required`) verified by source read only —
+  live repro short-circuited by co1 draft-TI debris from earlier legs.
+- Test data left in co1: 6 assets `R2L3-*`, 2 depreciation runs, JEs 71–75.
 
 ### Leg 2 — Bank reconciliation — ✅ walked browser-first (10/10 throwaway tests green)
 Full detail: `scratchpad/findings-leg2.md`. Reconciled-vs-GL ties to the satang (Postgres
