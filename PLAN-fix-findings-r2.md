@@ -1,6 +1,7 @@
 # PLAN — fix findings from Testing Swarm Round 2 (drafted 2026-08-19; fixing is a SEPARATE batch)
 
-Source: `PROGRESS-hard-test-r2.md` + per-leg findings files (scratchpad `findings-leg{1,2,3,6}.md`).
+Source: `PROGRESS-hard-test-r2.md` + per-leg findings files in **`findings-r2/`** (leg files 1–6 +
+`artifacts/`: screenshots, the rendered ภ.ง.ด.1 PDF, throwaway Playwright specs).
 Round 2 walked payroll, bank rec, fixed assets, expense claims, co2 (empty → N/A), and round-1
 leftovers **browser-first** (Playwright driving the real FE per Ham's directive), every number
 DB-verified, every accepted finding personally re-verified by Fable in source and/or Postgres.
@@ -22,7 +23,7 @@ DB-verified, every accepted finding personally re-verified by Fable in source an
 | L6-3 | 🟡 | FE error UX | Typed domain errors swallowed to generic "เกิดข้อผิดพลาด": broken `e.detail` catch instead of existing `problemToast` — **22 files** (list in findings-leg6.md); makes L6-1's 400 silent too |
 | L2-1 | 🟡 | FE a11y | 3 bank-rec modals lack `role="dialog"` |
 | L3-12 | 🟡 | Fixed assets | `PUT /fixed-assets/{id}` works but no Draft-asset edit UI exists |
-| L4-7 | 🟡 | Expense claims | Closed-period pay guard code-verified only (`PayAsync`→`EnsureOpenAsync`) — no live repro possible without closing a period |
+| L4-7 | ⚪ | Expense claims | RESOLVED by Fable live probe: pay-guard keys on PAYMENT date (current month auto-opens) — April-dated claim 12 paid fine, JE 77 dated 2026-08-19. Refusal unreachable unless CURRENT month closed. New ⚪: back-dated claims silently book into today's period (cash-basis defensible; surface it?) |
 | L5-1 | 🟡 | Environment | Local co2 has ZERO transactions → real-volume tie-out / report cross-check / ภ.พ.30-on-real-data NOT RUN this round; needs prod-shaped data (post-server-migration) |
 
 Design notes (not defects, Ham may still want them): L3-2 no first-month proration; L3-3 final-month
@@ -50,6 +51,14 @@ VAT0); dev has evidence row billing_note_id=4 (co4, DRAFT, bogus code 0/'VAT0') 
 delete-vs-keep in the migration story; prod may hold similar rows — migration must survey first;
 money invariant stated AS an invariant (totals unchanged for existing docs; non-VAT docs carry
 0 VAT always), per the 2026-07-25 lesson.
+**ESCALATION (Fable round-close battery):** the violation is NOT only the new probe row — co3's
+SETTLED billing note `08-2026-IV-0001` (BN 3) and ACCEPTED quotation `08-2026-QT-0001` (QT 2) store
+`tax_code_id=1` = **co1's VAT7** while their denormalized string says 'VAT0' (rate/amount 0, money
+unharmed) — round-1-era rows, so the unvalidated write path predates this round and has already
+reached POSTED/SETTLED documents. The migration survey must match BOTH (id absent from company
+master) AND (stored id ↔ stored string disagreement), and the design must rule on remediation for
+posted rows (immutable docs — likely a repair migration fixing the id to the company's own
+matching-code row, never touching amounts).
 
 ### U3 — L2-2 (+L2-3 scope decision) bank-rec determinism 🔴
 Secondary sort `ThenByDescending(statement_import_id)` (or imported_at) at

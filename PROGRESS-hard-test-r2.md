@@ -187,6 +187,45 @@ premise does not hold on this stack.
 - L5-5 ⚪ needs-write-repro: SalesCategorizer bucketing unverifiable on real co2 lines (none exist).
 - L5-6 ⚪ methodology pass: same tie-out SQL on co1 ties out (Dr=Cr=32,724.12, header-line diff 0).
 
+## Round close — Fable's own tie-out battery (2026-08-19, post-all-legs)
+Run AFTER every leg finished posting (Leg 5's early co1 tie-out predates legs 1/6/2/3/4):
+- **Trial balance: GREEN.** co1 Dr=Cr=1,336,252.66 (diff 0.0000); co3 Dr=Cr=3,599.98 (diff 0.0000)
+  over POSTED journals.
+- **Header=lines: GREEN.** 0 mismatches across all companies (sum of journal_lines vs header totals).
+- **F13 sweep (tax code present in own company's master): 5 VIOLATION ROWS — escalates L6-4.**
+  Beyond the known probe row (BN 4, co4, id 0): **co3's SETTLED billing note `08-2026-IV-0001`
+  (billing_note_id=3, 2 lines) and co3's ACCEPTED quotation `08-2026-QT-0001` (quotation_id=2,
+  2 lines) store `tax_code_id=1` — which is co1's VAT7** — while their denormalized string column
+  says 'VAT0' and rate/amount are 0. Money outcome unharmed (0 VAT computed), but the stored id
+  points at another company's 7% code: any report resolving via id would misclassify, and the
+  id↔string mismatch means the write path stored an id it never validated. These are round-1-era
+  documents → the defect predates this round and lives on POSTED/SETTLED rows. U2's migration
+  survey MUST match on both (id not in company master) AND (id↔string disagreement).
+- **L4-7 RESOLVED (live probe by Fable):** created claim 12 dated 2026-04-15 → submit → approve →
+  pay all 200; JE 77 posted **dated 2026-08-19** (payment day). The pay-guard keys on PAYMENT date
+  (current month auto-opens), NOT the claim date — so a closed-period refusal is unreachable unless
+  the CURRENT month is closed. No contradiction with Leg 3: depreciation keys on its TARGET month
+  (April → typed refusal), expense-claim pay keys on today. ⚪ note for Ham: a back-dated claim
+  (April) silently books its expense into August GL — defensible cash-basis-at-payment, but nothing
+  surfaces the divergence.
+- Evidence + all per-leg findings now DURABLE in-repo: `findings-r2/` (leg files 1–6 + artifacts:
+  screenshots, the rendered ภ.ง.ด.1 PDF with the all-zero tax ID, throwaway specs). Scratchpad no
+  longer load-bearing.
+- Extra debris from the battery: claim 12 (PAID), JE 77 (co1).
+
+## Self-retro (Fable, round close)
+- **What went wrong in orchestration:** (1) Leg-5 dispatch assumed the plan's "co2 =
+  production-shaped volume" premise without a 30-second pre-check (`SELECT count(*)`) — one query
+  would have retargeted the leg before spending 127k worker tokens. Pre-flight data-existence checks
+  belong in dispatch prep for any "test on real data" leg. (2) Two workers hit the harness block on
+  scratchpad file writes; future dispatches say "if a report-file write is blocked, return FULL
+  findings in the final report text" (general lesson → fold to minions-assemble at next sync).
+  (3) Browser-first should have been asked about at kickoff — Ham had to correct mid-flight; the
+  capability review listed no browser tools but didn't surface Playwright-in-repo as the
+  UI-testing route. (4) What went right: findings-only contract + Fable re-verification caught a
+  worker misread (BN3 'VAT0' string hid a VAT7 id) and the round-close battery found posted-row
+  violations every leg missed.
+
 ## Resume order (if session dies)
 1. Read this file + PLAN-testing-swarm-r2.md.
 2. Check stack: API :5080 `/system/info`, FE :3000; reboot per command above if down.

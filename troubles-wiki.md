@@ -1559,3 +1559,11 @@ losing the test DB costs nothing.
   `PurchasePdfTests` all failed at `PostgresFixture.InitializeAsync()` on first run after adding the
   script; root cause was a `{13}` regex quantifier in an explanatory comment, not the `UPDATE`
   statement itself.
+
+## Thai text corrupts to `?` in inline curl -d on the Windows/Git-Bash bridge (2026-08-19, swarm r2)
+- Symptom: API rejects or stores `?????` when a JSON payload with Thai text is passed inline via
+  `curl -d '{"nameTh":"ไทย..."}'` from the Bash tool on this Windows host. Looks like a server
+  encoding bug; is not.
+- Root cause: the Windows→Git-Bash argv bridge mangles non-ASCII in inline arguments.
+- Fix: write the payload to a file (UTF-8) and pass `curl -d @payload.json`. Server verified clean
+  when payloads are file-based (Leg-1 re-test, findings-r2/findings-leg1.md).
