@@ -761,3 +761,37 @@ Hitting the cap = stop and re-spec. Never a silent overrun.
   not fixed (outside blast radius / not a frontend/customer-picker unit).
   Killed the API process afterward (PID resolved via `Get-NetTCPConnection -LocalPort 5080`) —
   confirmed port 5080 unreachable again, releasing `bin/` for later workers.
+- 2026-08-19 sonnet-implementer (post-full-suite fixup, coordinator-directed, not part of the
+  original 8-file blast list — a pre-existing CONSUMER test, per §2's own consumer-sweep
+  contract, so in scope to fix as a WP-2 follow-through, not a new unit): full-suite run caught
+  `BillingNoteGenerateLinesO2bTests.Update_with_two_linked_tax_invoices_and_no_manual_lines_generates_two_lines_and_exact_sums`
+  asserting the PRE-U2 verbatim-copy behavior (`generated.TaxCodeId.Should().Be(7)`).
+  `SeedTaxInvoiceAsync`'s default `taxCodeId: 7` was never a row of the dynamically-created test
+  company's own master (its ids are EF-assigned, never a small literal like 7) — the assertion
+  only ever passed because `ApplyTaxInvoiceLinesAsync` used to copy the id blindly. The default
+  `taxCode` ("VAT7", since `vat != 0m` for this test's amounts) IS in the company's own master,
+  so `SanitizeInheritedTaxCode` correctly launders it via rule (b) to the company's own VAT7 id —
+  exactly the co3 shape this unit exists to fix, now exercised incidentally by an unrelated test.
+  Grepped the whole file for `TaxCodeId` — confirmed this is the ONLY assertion on it (line 121);
+  no sibling assertion needed the same fix. Verdict on "which shape the test intends": the test's
+  own name/purpose is about line-generation/sum-tying, not tax-code-identity — `taxCodeId: 7` was
+  an arbitrary placeholder, so the correct fix is to assert the LAUNDERED id looked up from the
+  company's own master (mirrors T4/T6's pattern), not to change the seed to an id that IS in the
+  master (that would silently stop exercising the laundering path this fix touches).
+  Change: added a `MasterTaxCodeIdAsync(sp, companyId, code)` helper (mirrors
+  `TaxCodePairIntegrityTests.cs`'s own) and replaced the hardcoded `.Be(7)` with
+  `.Be(await MasterTaxCodeIdAsync(sp, c.CompanyId, "VAT7"))`.
+  Evidence: `dotnet build` → 0 Warning(s), 0 Error(s). `--filter
+  "FullyQualifiedName~BillingNoteGenerateLinesO2b|FullyQualifiedName~TaxCodePairIntegrity"` →
+  **Passed! Failed: 0, Passed: 16, Skipped: 0, Total: 16, Duration: 5 s.**
+  `TenantIsolationTests.Customer_from_company_A_is_invisible_to_company_B` flake (reported by the
+  coordinator, investigated, NOT fixed — outside this file/unit): that test inserts
+  `master.companies` rows with an EXPLICIT random id (`Random.Shared.Next(500_000, 699_999)`,
+  ~200k-value range) and never cleans them up. Read-only probe on `teas_test`:
+  `SELECT count(*) FROM master.companies WHERE company_id BETWEEN 500000 AND 699999` → **8,801**
+  leftover rows already occupy that range from the test's own accumulated prior runs — a
+  self-collision risk (~4.4%/run) intrinsic to that test's own fixture hygiene. None of this
+  unit's tests (`TaxCodePairIntegrityTests`, `SalesLineTaxCodeRepairRlsTests`,
+  `BillingNoteGenerateLinesO2bTests`) write `master.companies` with an explicit/random id or
+  touch that id range — they all go through `TestCompanyFactory.CreateAsync`'s small
+  sequential-id space. No shared-fixture collision with U2 found; not this unit's file to fix.

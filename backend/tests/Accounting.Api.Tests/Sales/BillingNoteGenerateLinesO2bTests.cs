@@ -89,6 +89,18 @@ public sealed class BillingNoteGenerateLinesO2bTests
             .SingleAsync(b => b.BillingNoteId == id);
     }
 
+    // fix-r2-u2 (WP-2) — SanitizeInheritedTaxCode launders an inherited tax_code_id that is not
+    // a row of the document's own company (§3.2 rule b: recovered by the code string). Looks up
+    // the EXPECTED post-launder id from the company's own master rather than hardcoding it, so
+    // this stays correct regardless of which id the auto-increment sequence assigns per run.
+    private static async Task<int> MasterTaxCodeIdAsync(ServiceProvider sp, int companyId, string code)
+    {
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        return await db.TaxCodes.Where(x => x.CompanyId == companyId && x.Code == code)
+            .Select(x => x.TaxCodeId).SingleAsync();
+    }
+
     [SkippableFact]
     public async Task Update_with_two_linked_tax_invoices_and_no_manual_lines_generates_two_lines_and_exact_sums()
     {
@@ -118,7 +130,18 @@ public sealed class BillingNoteGenerateLinesO2bTests
         generated.DescriptionTh.Should().StartWith("ใบกำกับภาษี TI-O2B-")
             .And.EndWith("ลงวันที่ 20/07/2026");
         generated.UomText.Should().Be("ฉบับ");
-        generated.TaxCodeId.Should().Be(7);
+        // Pre-U2 this asserted the seeded id (7) survived VERBATIM — that encoded the defect
+        // this unit closes. SeedTaxInvoiceAsync's default taxCodeId=7 is not a row of this
+        // dynamically-created company's own master (its ids are EF-assigned, never 7) — it only
+        // ever "worked" because ApplyTaxInvoiceLinesAsync used to copy the id blindly.
+        // SanitizeInheritedTaxCode now launders it (rule b) to this company's own VAT7 row,
+        // matched by the inherited CODE STRING ("VAT7", which the default DOES carry) — the
+        // exact co3 shape from the spec's live evidence (specs/fix-r2-u2-billing-tax-integrity.md
+        // §1.4). Assert against the real master row, not a hardcoded id.
+        var expectedTaxCodeId = await MasterTaxCodeIdAsync(sp, c.CompanyId, "VAT7");
+        generated.TaxCodeId.Should().Be(expectedTaxCodeId,
+            "the inherited id (7) is foreign to this company — SanitizeInheritedTaxCode recovers " +
+            "it via the code string to this company's own VAT7 master row");
         generated.TaxCode.Should().Be("VAT7");
         generated.TaxRate.Should().Be(0.07m);
     }
