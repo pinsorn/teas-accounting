@@ -492,6 +492,26 @@ for historical context only.
   (PID confirmed as `testhost`, NOT stale). Isolated `-o` build + direct-DLL `vstest` run on a pure
   `EmployeeSalaryPrecisionTests` (no DB) proved RED→GREEN cleanly with zero interference — 65-83ms
   wall time, no Postgres connection opened, shared `bin/` never touched.
+- **Fix confirmed for `PostgresFixture`-backed `[SkippableFact]`s too, when the lock owner must
+  NOT be killed** (2026-08-19, `specs/fix-c1-backend-cleanup.md` item 1 — a live `Accounting.Api.exe`
+  another worker's Playwright run depended on, explicitly off-limits). The
+  `DirectoryNotFoundException` failure mode above comes from `-o` changing the OUTPUT NESTING
+  DEPTH, not from `-o` itself — `PostgresFixture`'s SqlScripts climb
+  (`AppContext.BaseDirectory` + 5×`".."` + `src/Accounting.Infrastructure/Migrations/SqlScripts`)
+  only needs THAT depth preserved. Pass `-o` as a SIBLING leaf folder one level under the test
+  project's own `bin/Debug/`, e.g. from `backend/`:
+  `dotnet build tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj --no-restore -o
+  tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated` (any leaf name works, `net10.0-isolated`
+  here) — same 5-level climb as the normal `bin/Debug/net10.0/` lands back on `backend/`, so
+  `PostgresFixture.InitializeAsync` resolves `SqlScripts/` correctly AND the build never touches
+  the locked `Accounting.Api/bin/Debug/net10.0/` (MSBuild flattens the whole project-reference
+  graph's final DLLs straight into the `-o` dir, confirmed via the build log's
+  `ProjectX -> .../net10.0-isolated/ProjectX.dll` lines — none pointed at `Accounting.Api\bin\`).
+  Then run tests directly against the isolated DLL:
+  `dotnet test tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated/Accounting.Api.Tests.dll
+  --filter "..."`. Zero interference with the live `Accounting.Api.exe` or any concurrent
+  Postgres session; rerun the `-o` build before every test invocation (stale-DLL false-greens
+  are the failure mode of this workflow, same as any prebuilt-artifact test run).
 
 ## Posted-document "immutability" trigger doesn't fire on a header-only field edit (Receipt trigger 570, or any `fn_enforce_*_immutability`-style trigger)
 - **Root cause:** `fn_enforce_receipt_immutability()` (`SqlScripts/570_receipt_immutability_rls.sql`) —
@@ -1586,3 +1606,36 @@ losing the test DB costs nothing.
 - Root cause: the Windows→Git-Bash argv bridge mangles non-ASCII in inline arguments.
 - Fix: write the payload to a file (UTF-8) and pass `curl -d @payload.json`. Server verified clean
   when payloads are file-based (Leg-1 re-test, findings-r2/findings-leg1.md).
+
+## Fresh reseed: `ap_clerk`/`sales_staff` login 401s `auth.no_company_assignment` (RLS-seed footgun in 181_seed_demo_pv_users.sql)
+- Symptom: on a freshly-reseeded `accounting_dev`, logging in as `ap_clerk` or `sales_staff`
+  (both used by `payment-voucher-non-super-rbac.spec.ts` and siblings) 401s with
+  `auth.no_company_assignment`, even though `sys.applied_sql_scripts` shows
+  `181_seed_demo_pv_users.sql` as applied and `sys.users` has both accounts active.
+- Root cause: same class as the existing "RLS masked by superuser tests" entry, but here it bit
+  the SEED itself, not a test. `181_seed_demo_pv_users.sql`'s `INSERT INTO sys.user_roles (...)
+  SELECT 3, r.role_id, 1, 1, ... FROM sys.roles r WHERE r.role_code = 'AP_CLERK' AND
+  r.company_id = 1` runs with NO `app.company_id`/`app.bypass_rls` session GUC set (SqlScripts
+  execute with no session/tenant context by design). `sys.roles` carries FORCE ROW LEVEL
+  SECURITY with a `company_isolation` policy requiring `company_id IS NULL OR company_id =
+  current_setting('app.company_id') OR app.bypass_rls` — with neither set, the SELECT silently
+  matched 0 rows, so the `user_roles` INSERT inserted nothing (no error, `ON CONFLICT DO
+  NOTHING` on an empty SELECT is a no-op). The Settings→Users admin UI can't be used to fix this
+  by hand either: `useRbacUsers(companyId)` returns its list by joining THROUGH `sys.user_roles`,
+  so a user with zero rows there never appears in ANY company's user list — dead end.
+- Confirmed via `psql`: `SELECT rolbypassrls FROM pg_roles WHERE rolname='accounting'` → `t` —
+  every ad-hoc psql query during diagnosis saw the roles fine because the interactive connection
+  role bypasses RLS; the SEED SCRIPT's own execution context does not carry that bypass.
+- Fix (for whoever touches `181_seed_demo_pv_users.sql`): wrap its `INSERT ... SELECT` in
+  `SELECT set_config('app.bypass_rls', 'true', true);` (LOCAL, auto-reverts) before the insert,
+  matching the pattern other RLS-aware SqlScripts already use — or seed `user_roles` with a
+  literal `role_id` (already known/static) instead of a `SELECT ... FROM sys.roles` subquery.
+- Workaround (no backend file access, e.g. an e2e-only worker): call the app's OWN admin API
+  directly — `PUT /admin/rbac/users/{id}/roles` with `{roleIds:[roleId], companyId:1}` as
+  `admin` — instead of a raw SQL INSERT. This goes through the app's real authorization/tenant
+  context and is idempotent-safe, unlike hand-editing `sys.user_roles`. `AP_CLERK`=role_id 17,
+  `SALES_STAFF`=role_id 18 for company 1 (confirm via `SELECT role_id, role_code FROM sys.roles
+  WHERE company_id=1` — ids can differ on a rebuilt DB).
+- Seen: 2026-08-19, C3 e2e debt cleanup (`specs/fix-c3-e2e-debt.md`) — cost ~30 min of dead-end
+  diagnosis (login timeout → wrong first guess it was a UI hang, then the Settings UI dead-end)
+  before the RLS force-policy + no-session-context combination was confirmed.

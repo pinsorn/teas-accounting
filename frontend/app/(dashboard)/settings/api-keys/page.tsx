@@ -41,7 +41,7 @@ const ALL_SCOPES = [
   // fixed assets (read+draft) + employees (master lookup). Mirrors McpScopes.All.
   'bank.account.read', 'bank.report.read',
   'expense.claim.read', 'expense.claim.create',
-  'master.employee.manage',
+  'master.employee.lookup',
   'fixedasset.read', 'fixedasset.manage',
   // mcp-document-chain (D7) — Tier-2 R3 fix: was pre-selected by MCP_DEFAULT_SCOPES below but
   // missing here, so a user who deselected it could never re-pick it. Mirrors McpScopes.All.
@@ -82,7 +82,7 @@ const MCP_DEFAULT_SCOPES = [
   // fixed assets (read+draft) + employees (master lookup). Mirrors McpScopes.All.
   'bank.account.read', 'bank.report.read',
   'expense.claim.read', 'expense.claim.create',
-  'master.employee.manage',
+  'master.employee.lookup',
   'fixedasset.read', 'fixedasset.manage',
   // mcp-document-chain (D7) — Sales Order tools. Mirrors McpScopes.All.
   'sales.sales_order.manage',

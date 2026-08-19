@@ -47,7 +47,14 @@ public static class McpScopes
         // be unreachable even for a user who holds the RBAC permission).
         "bank.account.read", "bank.report.read",
         "expense.claim.read", "expense.claim.create",
-        "master.employee.manage",
+        // fix-c1-backend-cleanup item 2 (r2 Tier-2 N3) — was master.employee.manage (full CRUD),
+        // over-broad for what list_employees actually does: an active-only, name+code+id-only
+        // read (no payroll PII). Narrowed to master.employee.lookup, the U6 permission built
+        // exactly for this "resolve an employeeId before drafting" read. An already-issued key
+        // holding the OLD master.employee.manage grant keeps working — TeasMcpTools.list_employees
+        // is gated on the OR-fallback policy PermissionPolicyProvider.McpEmployeeLookupOrManagePolicy,
+        // not the bare mcpperm: single-scope prefix.
+        "master.employee.lookup",
         "fixedasset.read", "fixedasset.manage",
         // mcp-document-chain (D7) — Sales Order tools (create_sales_order_draft, get_sales_order,
         // list_sales_orders). NEW const; identity-mapped to Permissions.Sales.SalesOrderManage

@@ -66,6 +66,7 @@ public sealed class PurchaseOrderService(
             // M4 (MCP) — stamp the key name when created by an API-key principal (agent). Null for JWT.
             CreatedViaApiKeyName = tenant.ApiKeyName,
         };
+        req = req with { Lines = await ResolveTaxCodesAsync(req.Lines, ct) };
         Fill(po, req);
         db.PurchaseOrders.Add(po);
         await db.SaveChangesAsync(ct);
@@ -73,6 +74,74 @@ public sealed class PurchaseOrderService(
             "Created", toStatus: "Draft", module: "purchase");
         await db.SaveChangesAsync(ct);
         return po.PurchaseOrderId;
+    }
+
+    /// <summary>specs/fix-c1-backend-cleanup.md item 1 (U9) — PurchaseOrderLine.TaxCodeId was
+    /// written verbatim from the request with no validation at all (the last verbatim-id
+    /// writer left in the codebase — see fix-r2-u2-billing-tax-integrity.md §8). Unlike the
+    /// sales chain, a PO line is always REQUEST-fed at the point of origin (no immutable
+    /// upstream to launder from), and PO lines have no ExpenseCategory to inherit a default
+    /// from (unlike VendorInvoiceService.BuildLinesAsync) — so this is a small, PO-local
+    /// resolver, not a reuse of SalesLineBackstop:
+    ///   • an id is supplied            → must be an ACTIVE row of the caller's own company's
+    ///                                     master (mirrors bu.invalid), else REJECT typed
+    ///                                     "po.tax_code_invalid" — never store a foreign id.
+    ///   • id null, TaxRate &gt; 0       → the line actually charges VAT (the FE already
+    ///                                     encodes the vendor's VAT status into TaxRate:
+    ///                                     `taxRate: vendorVat ? l.taxRate : 0`). Resolve the
+    ///                                     TaxCode string against this company's own master
+    ///                                     (case-insensitive); if it does not match, fall back
+    ///                                     to the company's own standard PURCHASE (input) VAT
+    ///                                     code ("VAT-IN7" preferred, else lowest id Input+
+    ///                                     Active code). No input code at all → never throw,
+    ///                                     leave the pair as sent (mirrors SalesLineBackstop's
+    ///                                     "no master at all" invariant).
+    ///   • id null, TaxRate == 0        → leave the pair as sent (null); nothing is charged.
+    /// Money invariant: TaxRate/ChainMath.Line are untouched — this only ever resolves the
+    /// reference pair, never the rate.</summary>
+    private async Task<IReadOnlyList<PurchaseOrderLineInput>> ResolveTaxCodesAsync(
+        IReadOnlyList<PurchaseOrderLineInput> lines, CancellationToken ct)
+    {
+        var master = await db.TaxCodes.AsNoTracking()
+            .Select(t => new { t.TaxCodeId, t.Code, t.Direction, t.IsActive })
+            .ToListAsync(ct);
+        var byId = master.ToDictionary(t => t.TaxCodeId);
+        var byCode = master
+            .OrderBy(t => t.TaxCodeId)
+            .GroupBy(t => t.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var standardInput = master
+            .Where(t => t.IsActive && t.Direction == TaxDirection.Input)
+            .OrderBy(t => t.Code == "VAT-IN7" ? 0 : 1).ThenBy(t => t.TaxCodeId)
+            .FirstOrDefault();
+
+        var result = new List<PurchaseOrderLineInput>(lines.Count);
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var l = lines[i];
+            if (l.TaxCodeId is { } id)
+            {
+                if (!byId.TryGetValue(id, out var row) || !row.IsActive)
+                    throw new DomainException("po.tax_code_invalid",
+                        $"Line {i + 1}: tax code {id} not found or inactive for this company.");
+                result.Add(l);
+                continue;
+            }
+            if (l.TaxRate > 0m)
+            {
+                if (!string.IsNullOrWhiteSpace(l.TaxCode) && byCode.TryGetValue(l.TaxCode, out var matched))
+                    result.Add(l with { TaxCodeId = matched.TaxCodeId, TaxCode = matched.Code });
+                else if (standardInput is not null)
+                    result.Add(l with { TaxCodeId = standardInput.TaxCodeId, TaxCode = standardInput.Code });
+                else
+                    result.Add(l);
+            }
+            else
+            {
+                result.Add(l);
+            }
+        }
+        return result;
     }
 
     private static void Fill(PurchaseOrder po, CreatePurchaseOrderRequest req)
@@ -117,6 +186,7 @@ public sealed class PurchaseOrderService(
         po.BusinessUnitId = req.BusinessUnitId; po.CurrencyCode = req.CurrencyCode;
         po.ExchangeRate = req.ExchangeRate; po.Notes = req.Notes;
         po.InternalNotes = req.InternalNotes;
+        req = req with { Lines = await ResolveTaxCodesAsync(req.Lines, ct) };
         Fill(po, req);
         await db.SaveChangesAsync(ct);
     }

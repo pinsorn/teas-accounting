@@ -62,8 +62,14 @@ public sealed class PurchaseOrderCloseTests
     // Amount=1000/VatRate=0.07 (total 1070) matches the PO total exactly for the
     // >=95% auto-close scenario.
     private static CreatePurchaseOrderRequest PoReq(long vendorId) =>
+        // fix-c1-backend-cleanup item 1 (U9) — TaxCodeId was hardcoded 1, a foreign id on
+        // every company here (each test seeds its own FRESH TestCompanyFactory company, whose
+        // own tax_code_id=1 is never this company's row) — the exact F13-class bug the new
+        // PurchaseOrderService.ResolveTaxCodesAsync guard now (correctly) rejects. Null lets
+        // the backend resolve it against this company's own "VAT7" row, mirroring the FE fix
+        // in PurchaseOrderForm.tsx (commit a1e9ff3).
         new(TodayBkk, null, vendorId, null, "THB", 1m, null, null,
-            [new PurchaseOrderLineInput(null, "สินค้า", 10m, "ชิ้น", 100m, 0m, 1, "VAT7", 0.07m, null)]);
+            [new PurchaseOrderLineInput(null, "สินค้า", 10m, "ชิ้น", 100m, 0m, null, "VAT7", 0.07m, null)]);
 
     private static CreateVendorInvoiceRequest ViReq(long vendorId, int categoryId, long? purchaseOrderId) =>
         new(DocDate: TodayBkk, VendorId: vendorId, VendorTaxInvoiceNo: "VTI-" + TestIds.Suffix()[..6],

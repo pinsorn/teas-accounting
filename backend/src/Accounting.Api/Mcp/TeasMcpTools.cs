@@ -301,10 +301,11 @@ public sealed class TeasMcpTools
     // mcp-expansion-v2 — expense claims (read + draft). Grants already exist (SqlScript 617).
     private const string ExpenseClaimRead      = Pfx + "expense.claim.read";
     private const string ExpenseClaimCreate    = Pfx + "expense.claim.create";
-    // mcp-expansion-v2 — employees (master data). No separate .read scope in the catalog (same
-    // no-granular-read situation as vendors — the whole /employees group is gated by the single
-    // master.employee.manage code), so list_employees reuses it (mirrors VendorManage above).
-    private const string EmployeeManage        = Pfx + "master.employee.manage";
+    // mcp-expansion-v2 — employees (master data). fix-c1-backend-cleanup item 2 — was gated on
+    // master.employee.manage (full CRUD); narrowed to the OR-fallback policy so a NEW key only
+    // ever needs the purpose-built master.employee.lookup scope while an already-issued key
+    // holding the OLD manage scope keeps working (PermissionPolicyProvider.McpEmployeeLookupOrManagePolicy).
+    private const string EmployeeLookupOrManage = PermissionPolicyProvider.McpEmployeeLookupOrManagePolicy;
     // mcp-expansion-v2 — fixed assets (read + draft). Grants already exist (SqlScript 620).
     private const string FixedAssetRead        = Pfx + "fixedasset.read";
     private const string FixedAssetManage      = Pfx + "fixedasset.manage";
@@ -1899,7 +1900,7 @@ public sealed class TeasMcpTools
     // REQUIRED prerequisite for create_expense_claim_draft (E2/E3-style require-list pattern):
     // no MCP tool created an employee before this, so only a read/list tool is added here.
 
-    [McpServerTool(Name = "list_employees"), Authorize(Policy = EmployeeManage)]
+    [McpServerTool(Name = "list_employees"), Authorize(Policy = EmployeeLookupOrManage)]
     [Description("List employees for the caller's company (id, code, Thai name, active flag only — payroll fields like salary/national id are not exposed). Use to resolve an employeeId before calling create_expense_claim_draft.")]
     public static async Task<IReadOnlyList<EmployeeOption>> ListEmployeesAsync(
         IEmployeeService svc,

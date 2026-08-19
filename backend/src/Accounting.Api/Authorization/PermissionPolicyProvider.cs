@@ -23,6 +23,14 @@ public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
     /// a policy's schemes, so a shared prefix would silently open /api/v1 to Bearer).</summary>
     public const string McpPolicyPrefix = "mcpperm:";
 
+    /// <summary>fix-c1-backend-cleanup item 2 — NAMED policy (not the dynamic McpPolicyPrefix
+    /// above, which is single-permission-exact-match only, see PermissionHandler). Back-compat
+    /// fallback for the master.employee.manage → master.employee.lookup MCP scope narrowing:
+    /// succeeds for EITHER permission, so an already-issued API key still holding the OLD
+    /// broader "manage" grant keeps calling list_employees without a 403, while a NEW key only
+    /// ever needs to request the narrower "lookup" scope.</summary>
+    public const string McpEmployeeLookupOrManagePolicy = "mcp.employee.lookup_or_manage";
+
     private readonly DefaultAuthorizationPolicyProvider _fallback;
 
     public PermissionPolicyProvider(IOptions<AuthorizationOptions> options) =>
@@ -72,11 +80,24 @@ public sealed class PermissionPolicyProvider : IAuthorizationPolicyProvider
 
 public static class PermissionAuthorizationExtensions
 {
+    // RequireAssertion (not a second IAuthorizationRequirement/Handler pair) because this is a
+    // one-off two-permission OR, not a general mechanism — the McpScopes.cs comment on
+    // report.read notes deliberately NOT building an OR-of-perms system for the catalog; this
+    // reuses PermissionHandler's own exact-match rule via its static HasPermission, evaluated twice.
     public static IServiceCollection AddPermissionAuthorization(this IServiceCollection services)
     {
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
-        services.AddAuthorization();
+        services.AddAuthorization(options => options.AddPolicy(
+            PermissionPolicyProvider.McpEmployeeLookupOrManagePolicy,
+            policy => policy
+                .AddAuthenticationSchemes(
+                    ApiKeyAuthenticationHandler.SchemeName,
+                    OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(ctx =>
+                    PermissionHandler.HasPermission(ctx.User, Permissions.Master.EmployeeLookup) ||
+                    PermissionHandler.HasPermission(ctx.User, Permissions.Master.EmployeeManage))));
         return services;
     }
 }

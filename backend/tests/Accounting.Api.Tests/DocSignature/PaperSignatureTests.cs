@@ -455,9 +455,13 @@ public sealed class PaperSignatureTests : IDisposable
             await db.SaveChangesAsync();
 
             var posvc = s.ServiceProvider.GetRequiredService<IPurchaseOrderService>();
+            // fix-c1-backend-cleanup item 1 (U9) — TaxCodeId was hardcoded 1, a foreign id on
+            // this freshly-seeded company (own tax_code_id=1 belongs to whichever company was
+            // created first in the test run, never reliably this one). Null lets the backend
+            // resolve it against this company's own "VAT7" row (PurchaseOrderService.ResolveTaxCodesAsync).
             poId = await posvc.CreateDraftAsync(new CreatePurchaseOrderRequest(
                 Today, Today.AddDays(30), v.VendorId, null, "THB", 1m, "T5 PO", null,
-                [new PurchaseOrderLineInput(null, "T5 PO line", 5m, "ชิ้น", 200m, 0m, 1, "VAT7", 0.07m, null)]),
+                [new PurchaseOrderLineInput(null, "T5 PO line", 5m, "ชิ้น", 200m, 0m, null, "VAT7", 0.07m, null)]),
                 default);
             (await posvc.BuildPaperAsync(poId, default)).Signatures.Should().BeNull();
             await posvc.ApproveAsync(poId, default);

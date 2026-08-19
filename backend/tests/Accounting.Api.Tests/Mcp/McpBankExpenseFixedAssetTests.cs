@@ -38,7 +38,10 @@ public sealed class McpBankExpenseFixedAssetTests
     [
         "bank.account.read", "bank.report.read",
         "expense.claim.read", "expense.claim.create",
-        "master.employee.manage",
+        // fix-c1-backend-cleanup item 2 — narrowed to the U6 lookup scope; list_employees
+        // accepts EITHER this or the legacy master.employee.manage (see the two dedicated
+        // tests below).
+        "master.employee.lookup",
         "fixedasset.read", "fixedasset.manage",
     ];
 
@@ -226,6 +229,9 @@ public sealed class McpBankExpenseFixedAssetTests
     }
 
     // ══════════════════════ employees (master-data lookup) ══════════════════════
+    // fix-c1-backend-cleanup item 2 — list_employees was gated on master.employee.manage
+    // (over-broad); narrowed to master.employee.lookup, with an OR-fallback so an
+    // already-issued key still holding the OLD manage scope keeps working.
 
     [SkippableFact]
     public async Task Employee_list_employees_returns_active_only_by_default()
@@ -240,7 +246,8 @@ public sealed class McpBankExpenseFixedAssetTests
             var svc = scope.ServiceProvider.GetRequiredService<IEmployeeService>();
             await svc.DeactivateAsync(inactiveId, default);
         }
-        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["master.employee.manage"]);
+        // Narrowed scope — proves list_employees works under lookup-only (item 2's primary ask).
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["master.employee.lookup"]);
         await using var factory = new McpApiFactory(_fx.ConnectionString);
         using var http = factory.CreateClient();
         http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
@@ -261,6 +268,43 @@ public sealed class McpBankExpenseFixedAssetTests
         // Payroll PII must not leak through this projection.
         ResultRoot(allResult).EnumerateArray().First().TryGetProperty("nationalId", out _).Should().BeFalse();
         ResultRoot(allResult).EnumerateArray().First().TryGetProperty("baseSalary", out _).Should().BeFalse();
+    }
+
+    [SkippableFact]
+    public async Task Employee_list_employees_still_works_with_the_legacy_manage_scope_only()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await SeedEmployeeAsync(co.CompanyId, co.BranchId);
+        // A key minted BEFORE the narrowing (only the OLD, broader scope, no lookup) must not
+        // be broken by it — PermissionPolicyProvider.McpEmployeeLookupOrManagePolicy's fallback.
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["master.employee.manage"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var result = await client.CallToolAsync("list_employees", new Dictionary<string, object?>());
+        result.IsError.Should().NotBe(true,
+            "an already-issued key holding the old master.employee.manage scope must keep working");
+    }
+
+    [SkippableFact]
+    public async Task Employee_list_employees_is_denied_without_either_scope()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await SeedEmployeeAsync(co.CompanyId, co.BranchId);
+        // Neither master.employee.lookup nor master.employee.manage — proves the narrowing
+        // actually enforces, not just documents.
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, ["expense.claim.read"]);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+
+        var act = async () => await client.CallToolAsync("list_employees", new Dictionary<string, object?>());
+        await act.Should().ThrowAsync<Exception>();
     }
 
     // ══════════════════════ expense claims (read + draft) ══════════════════════
