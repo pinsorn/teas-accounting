@@ -21,6 +21,7 @@ import { SectionCard } from '@/components/create/SectionCard';
 import { PartySelectBox } from '@/components/create/PartySelectBox';
 import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
 import { LivePreviewPane } from '@/components/create/LivePreviewPane';
+import { problemToast } from '@/lib/api';
 
 const lineSchema = z.object({
   descriptionTh: z.string().min(1),
@@ -185,7 +186,7 @@ export function SalesOrderForm({ edit }: { edit?: SalesOrderDetail } = {}) {
       const res = (await create.mutateAsync(payload)) as { sales_order_id: number };
       return res.sales_order_id;
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
       return null;
     }
   }
@@ -205,7 +206,7 @@ export function SalesOrderForm({ edit }: { edit?: SalesOrderDetail } = {}) {
       toast.success(t('confirmed'));
       router.push('/sales-orders');
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }, invalid);
 

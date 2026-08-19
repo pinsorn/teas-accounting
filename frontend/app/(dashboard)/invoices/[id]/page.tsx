@@ -19,6 +19,7 @@ import { AttachmentsSection } from '@/components/attachments/AttachmentsSection'
 import { useConfirm } from '@/hooks/useConfirm';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { useScopeState } from '@/components/PermissionGate';
+import { problemToast } from '@/lib/api';
 
 // Sprint 13h P6.2 — Billing Note detail. Draft → Issue/Delete. Issued → Cancel; Settled only
 // via a posted Receipt (R2/WP-7, 2026-08-12 — the manual MarkSettled button was deleted).
@@ -56,7 +57,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
       await act.mutateAsync({ id: bnId, action, body });
       toast.success(tc('save'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -66,7 +67,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
       router.push(`/tax-invoices/${res.tax_invoice_id}`);
     } catch (e) {
       // 422 ti.non_vat_blocked (or other) → surface the detail.
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -77,7 +78,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
       toast.success(tc('save'));
       window.location.href = '/invoices';
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

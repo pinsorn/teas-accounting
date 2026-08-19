@@ -11,7 +11,7 @@ import {
   useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo, useUpdateCompanyInfo,
   useUploadCompanyStamp,
 } from '@/lib/queries';
-import { apiGet, apiPut } from '@/lib/api';
+import { problemToast,  apiGet, apiPut } from '@/lib/api';
 import { resolveAttachmentUrl } from '@/lib/company-logo';
 import type {
   CompanyDto, CompanyProfile, DefaultDocNotes, LegalEntityType, UpdateCompanyProfileSoftRequest,
@@ -79,7 +79,7 @@ export default function CompanyProfilePage() {
       setForm((f) => ({ ...f, logoUrl: res.logoUrl }));
       toast.success(t('saved'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -91,7 +91,7 @@ export default function CompanyProfilePage() {
       await stamp.mutateAsync(file);
       toast.success(t('saved'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -133,7 +133,7 @@ export default function CompanyProfilePage() {
       await save.mutateAsync(payload);
       toast.success(t('saved'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -491,7 +491,7 @@ function EditCompanyInfo({ profile }: { profile: CompanyProfile }) {
       toast.success(t('saved'));
       setConfirming(false); setOpen(false); setF(null);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -665,7 +665,7 @@ function PaidUpCapitalCard({ profile }: { profile: CompanyProfile }) {
       setRow({ ...row, paidUpCapital: parsed });
       toast.success(t('paidUpCapitalSaved'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     } finally {
       setSaving(false);
     }

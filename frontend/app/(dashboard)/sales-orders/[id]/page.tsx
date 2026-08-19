@@ -18,6 +18,7 @@ import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { useScopeState } from '@/components/PermissionGate';
+import { problemToast } from '@/lib/api';
 
 export default function SalesOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -49,7 +50,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
 
   async function doPost() {
     try { await post.mutateAsync(soId); toast.success(tc('save')); }
-    catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+    catch (e) { problemToast(e, tc('error')); }
     finally { setConfirmPost(false); }
   }
 
@@ -63,7 +64,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
       toast.success(tc('save'));
       router.push(`/delivery-orders/${r.delivery_order_id}`);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -75,7 +76,7 @@ export default function SalesOrderDetailPage({ params }: { params: Promise<{ id:
       toast.success(tc('save'));
       router.push(r.tax_invoice_id != null ? `/tax-invoices/${r.tax_invoice_id}` : `/invoices/${r.billing_note_id}`);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

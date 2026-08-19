@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useCreateBankAccount, useGlAccounts, useMePermissions } from '@/lib/queries';
+import { problemToast } from '@/lib/api';
 
 // Bank reconciliation (specs/bank-reconciliation.md B1.11) — bank-account create form.
 // glCashAccountId left blank ⇒ BE defaults to the company's 1120 account (D6).
@@ -56,7 +57,7 @@ export default function NewBankAccountPage() {
       toast.success(tc('save'));
       router.push('/bank-accounts');
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

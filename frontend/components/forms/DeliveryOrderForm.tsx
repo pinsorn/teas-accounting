@@ -22,6 +22,7 @@ import { DocumentCreateLayout } from '@/components/create/DocumentCreateLayout';
 import { SectionCard } from '@/components/create/SectionCard';
 import { PartySelectBox } from '@/components/create/PartySelectBox';
 import { LivePreviewPane } from '@/components/create/LivePreviewPane';
+import { problemToast } from '@/lib/api';
 
 interface DoLine {
   descriptionTh: string;
@@ -118,7 +119,7 @@ export function DeliveryOrderForm() {
       })) as { delivery_order_id: number };
       return res.delivery_order_id;
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
       return null;
     }
   }
@@ -141,7 +142,7 @@ export function DeliveryOrderForm() {
       toast.success(t('issued'));
       router.push('/delivery-orders');
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   };
 

@@ -7,6 +7,7 @@ import { useCreateProduct } from '@/lib/queries';
 import type { ProductTypeStr, ProductPurpose } from '@/lib/types';
 import { WhtTypeSelect } from '@/components/ui/WhtTypeSelect';
 import type { ProductPick } from '@/components/forms/ProductPicker';
+import { problemToast } from '@/lib/api';
 
 // Sprint (line product/service typing) — inline "create new product/service"
 // from a line table. Product-master driven: pick type → goods/service; a SERVICE
@@ -94,7 +95,7 @@ export function ProductQuickCreateModal({
       toast.success(tc('save'));
       onClose();
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

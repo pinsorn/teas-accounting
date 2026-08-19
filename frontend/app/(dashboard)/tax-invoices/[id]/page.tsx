@@ -19,6 +19,7 @@ import { useTaxInvoice, useSystemInfo, usePostTaxInvoice, usePaperDoc } from '@/
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
+import { problemToast } from '@/lib/api';
 
 export default function TaxInvoiceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -154,7 +155,7 @@ export default function TaxInvoiceDetailPage() {
             await post.mutateAsync(id);
             toast.success(tc('posted'));
           } catch (e) {
-            toast.error((e as { detail?: string })?.detail ?? tc('error'));
+            problemToast(e, tc('error'));
           } finally {
             setConfirmPost(false);
           }

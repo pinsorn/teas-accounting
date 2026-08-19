@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatementImportSection } from '@/components/bank/StatementImportSection';
 import { useBankAccount, useUpdateBankAccount, useGlAccounts } from '@/lib/queries';
+import { problemToast } from '@/lib/api';
 
 // Bank reconciliation (specs/bank-reconciliation.md B1.11) — bank-account create-edit form
 // (view + edit combined; bankCode/accountNo are immutable post-create per UpdateBankAccountRequest).
@@ -70,7 +71,7 @@ export default function BankAccountEditPage({ params }: { params: Promise<{ id: 
       toast.success(tc('save'));
       router.push('/bank-accounts');
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { useSetReceiptWhtCert } from '@/lib/queries';
 import { formatDate } from '@/lib/utils';
+import { problemToast } from '@/lib/api';
 
 // Sprint 13j-FE — 50ทวิ status + late entry on the receipt detail page.
 // A receipt with WHT but no cert number shows "ขาดใบทวิ 50" + a form to add
@@ -37,7 +38,7 @@ export function ReceiptWhtCertSection({
       await save.mutateAsync({ certNo: no.trim(), certDate: date || null });
       toast.success(tw('certSaved'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tw('certError'));
+      problemToast(e, tw('certError'));
     }
   }
 

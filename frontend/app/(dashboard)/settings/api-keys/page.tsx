@@ -14,6 +14,7 @@ import { formatDate } from '@/lib/utils';
 import { useConfirm } from '@/hooks/useConfirm';
 import { QueryState } from '@/components/states/QueryState';
 import { PermissionGate } from '@/components/PermissionGate';
+import { problemToast } from '@/lib/api';
 
 const SCOPE = 'sys.api_key.manage';
 
@@ -170,19 +171,19 @@ export default function ApiKeysSettingsPage() {
       resetForm();
       setSecret(res); // show plaintext ONCE
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
   async function doRotate(id: number) {
     try { setSecret(await rotate.mutateAsync(id)); setSecretKind('integration'); }
-    catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+    catch (e) { problemToast(e, tc('error')); }
   }
 
   async function doRevoke(id: number) {
     if (!(await confirm({ description: t('revokeConfirm'), variant: 'destructive' }))) return;
     try { await revoke.mutateAsync(id); toast.success(t('revoked')); }
-    catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+    catch (e) { problemToast(e, tc('error')); }
   }
 
   function copy(v: string) {

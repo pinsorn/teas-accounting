@@ -20,7 +20,6 @@ import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useHasScope, useScopeState } from '@/components/PermissionGate';
-import { problemToast } from '@/lib/api';
 
 export default function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -73,7 +72,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
         router.push(`/sales-orders/${so}`);
       }
     } catch (e) {
-      problemToast(e, tc('error'));
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
     }
   }
 
@@ -90,7 +89,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
       toast.success(tc('save'));
       router.push(`/tax-invoices/${r.tax_invoice_id}`);
     } catch (e) {
-      problemToast(e, tc('error'));
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
     }
   }
 
@@ -101,7 +100,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
       toast.success(tc('deleted'));
       router.push('/quotations');
     } catch (e) {
-      problemToast(e, tc('error'));
+      toast.error((e as { detail?: string })?.detail ?? tc('error'));
     }
   }
 

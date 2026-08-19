@@ -14,6 +14,7 @@ import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { useScopeState } from '@/components/PermissionGate';
+import { problemToast } from '@/lib/api';
 
 export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -38,7 +39,7 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
 
   async function run(action: string) {
     try { await act.mutateAsync({ id: doId, action }); toast.success(tc('save')); }
-    catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+    catch (e) { problemToast(e, tc('error')); }
   }
 
   async function createInvoiceFromDo() {
@@ -46,7 +47,7 @@ export default function DeliveryOrderDetailPage({ params }: { params: Promise<{ 
       const res = await createInvoice.mutateAsync(doId);
       router.push(`/invoices/${res.billing_note_id}`);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

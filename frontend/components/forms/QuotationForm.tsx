@@ -21,6 +21,7 @@ import { SectionCard } from '@/components/create/SectionCard';
 import { PartySelectBox } from '@/components/create/PartySelectBox';
 import { TotalsSummaryBox, type TotalRow } from '@/components/create/TotalsSummaryBox';
 import { LivePreviewPane } from '@/components/create/LivePreviewPane';
+import { problemToast } from '@/lib/api';
 
 const lineSchema = z.object({
   descriptionTh: z.string().min(1),
@@ -196,7 +197,7 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
       const res = (await create.mutateAsync(payload)) as { quotation_id: number };
       return res.quotation_id;
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
       return null;
     }
   }
@@ -220,7 +221,7 @@ export function QuotationForm({ edit }: { edit?: QuotationDetail } = {}) {
       toast.success(t('issued'));
       router.push(`/quotations/${id}`);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }, invalid);
 

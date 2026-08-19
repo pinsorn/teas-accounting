@@ -10,6 +10,7 @@ import { useCustomer, useUpdateCustomer } from '@/lib/queries';
 import { formatTaxId, formatTHB } from '@/lib/utils';
 import { useConfirm } from '@/hooks/useConfirm';
 import type { ReactNode } from 'react';
+import { problemToast } from '@/lib/api';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -50,7 +51,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       });
       toast.success(tc('save'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

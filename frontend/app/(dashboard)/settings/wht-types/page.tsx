@@ -15,6 +15,7 @@ import {
 import type { WhtTypeListItem } from '@/lib/types';
 import { QueryState } from '@/components/states/QueryState';
 import { PermissionGate } from '@/components/PermissionGate';
+import { problemToast } from '@/lib/api';
 
 const SCOPE = 'tax.wht_type.manage';
 
@@ -146,7 +147,7 @@ export default function WhtTypesSettingsPage() {
       toast.success(t('save'));
       setEdit(null);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -159,7 +160,7 @@ export default function WhtTypesSettingsPage() {
       toast.success(t('changeRate'));
       setRateChange(null); setNewRate(''); setEffFrom('');
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

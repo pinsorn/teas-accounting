@@ -18,6 +18,7 @@ import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useHasScope } from '@/components/PermissionGate';
 import { AgentPendingBadge } from '@/components/ui/AgentPendingBadge';
+import { problemToast } from '@/lib/api';
 
 export default function ReceiptDetailPage() {
   const id = Number(useParams<{ id: string }>().id);
@@ -47,7 +48,7 @@ export default function ReceiptDetailPage() {
       await post.mutateAsync(id);
       toast.success(tc('posted'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

@@ -23,6 +23,7 @@ import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import { useHasScope } from '@/components/PermissionGate';
 import { useConfirm } from '@/hooks/useConfirm';
 import { toast } from 'sonner';
+import { problemToast } from '@/lib/api';
 
 type Kind = 'Credit' | 'Debit';
 const cfg = (k: Kind) =>
@@ -155,7 +156,7 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
       await post.mutateAsync(id);
       toast.success(tc('posted'));
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -166,7 +167,7 @@ export function AdjustmentNoteDetailView({ kind }: { kind: Kind }) {
       toast.success(tc('deleted'));
       router.push(c.base);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

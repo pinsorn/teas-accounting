@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useCreateCustomer, useUpdateCustomer } from '@/lib/queries';
 import type { CustomerDetail } from '@/lib/types';
 import type { ReactNode } from 'react';
+import { problemToast } from '@/lib/api';
 
 // Sprint 13j-FE — Customer create/edit form (sales master). VAT-registered ⇒
 // Tax ID + branch code required (ม.86/4 #3). In edit mode `customerCode` +
@@ -143,7 +144,7 @@ export function CustomerForm({ edit }: { edit?: CustomerDetail } = {}) {
         router.push('/customers');
       }
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 

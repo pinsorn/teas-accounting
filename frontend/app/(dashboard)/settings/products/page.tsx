@@ -11,7 +11,7 @@ import {
   useProducts, useCreateProduct, useUpdateProduct, useDeactivateProduct,
   useBusinessUnits,
 } from '@/lib/queries';
-import { apiGet } from '@/lib/api';
+import { problemToast,  apiGet } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 import type { ProductTypeStr, ProductDetail, ProductListItem } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -126,7 +126,7 @@ export default function ProductsSettingsPage() {
                 onClick={async () => {
                   if (!(await confirm({ description: t('deactivateConfirm'), variant: 'destructive' }))) return;
                   try { await deactivate.mutateAsync(p.productId); toast.success(tc('save')); }
-                  catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+                  catch (e) { problemToast(e, tc('error')); }
                 }}>
                 {tc('deactivate')}
               </button>
@@ -155,7 +155,7 @@ export default function ProductsSettingsPage() {
                       },
                     });
                     toast.success(tc('restore'));
-                  } catch (e) { toast.error((e as { detail?: string })?.detail ?? tc('error')); }
+                  } catch (e) { problemToast(e, tc('error')); }
                 }}>
                 ↺ {tc('restore')}
               </button>
@@ -182,7 +182,7 @@ export default function ProductsSettingsPage() {
         businessUnitId: d.businessUnitId ?? null,
       });
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
@@ -219,7 +219,7 @@ export default function ProductsSettingsPage() {
       toast.success(tc('save'));
       setEdit(null);
     } catch (e) {
-      toast.error((e as { detail?: string })?.detail ?? tc('error'));
+      problemToast(e, tc('error'));
     }
   }
 
