@@ -31,3 +31,28 @@ professional confirmation outstanding.)
 ## Prod-scoped OBSOLETE (host retired → concerns fold into migration project)
 S13 503s · Cloudflare 5xx pull · NPM certbot renewals · post-swarm co5 sanity ×2 · F9 CDP artifact ·
 superadmin optional guard test (invariant covered by D1/D2).
+
+---
+# Full per-item verdict table (C6 Explore output, verbatim evidence — C9 stamps from this)
+
+## expense-claims: both open items DEAD (duplicates of already-[x] lines at L481/L488; ExpenseClaimPermissionTests.cs:117)
+## fix-army-findings-2026-07-22: O4 DEAD (edit page exists, d877286) · O5 ALIVE (no pp36 PDF route; only pnd54 at TaxFilingEndpoints.cs:111) · O8 DEAD (SalaryProration.DaysEmployed, PayrollRunService.cs:89-92) · O10 DEAD (deductions endpoint + o10 spec 100% [x]) · O11 OBSOLETE (blocked by template 4d71841; superseded by on-screen alt bf87333) · G4 DEAD (PaymentVoucherNonVatCompanyTests.cs:100) · G5 DEAD (d877286) · O2a DEAD (bn-ti-chips, invoices/[id]/page.tsx:162) · O2b ALIVE (Ham decision — BN total vs linked TIs, options at L980-995)
+## fix-breakit-r1: apply-run of /admin/nonvat-ar-backfill ALIVE-BLOCKED (code+tests shipped, prod down) → cutover checklist §4
+## fix-breakit-r2: all 8 open items DEAD (WP-0 probes executed per §12 L1735/L841/L1786; problems.ts:156/:177/:179; Pnd30VatRegistrantOnlyTests + BillingNoteSettlementDeletionTests swept by full suite) · footnote E1 CPA sign-off ม.83/6 still outstanding (not a checkbox)
+## fix-chain-conversion-integrity: both ALIVE (docs) — F14 tax-code-picker wiki entry + no-browser-edit/delete-draft-TI wiki entry → C9 writes both
+## fix-cn-list-docno-draft-delete: CN#2 delete on co5 ALIVE-BLOCKED → cutover §4
+## fix-payroll-reports-findings-2026-07-16: R1 DEAD (global-error.tsx) · P1 DEAD (api.ts:195-209 throwFileResponseError) · P2+P4 DEAD (settings/employees/page.tsx:64-80) · P3 DEAD (th/en.json common.yes/no+report.total) · R2 DEAD (no dev-note strings left) · P7 DEAD (payroll/page.tsx:134 formatDateBE) · P8/P9 DEAD (aria-label + toast.success) · R10 ALIVE (low UX, never reproduced — stays open)
+## fix-review-findings-2026-07-04: both DEAD (stale dispatch marker followed by [x]; M12 closed by 585_audit_log_rls.sql)
+## fix-review-n-findings-2026-08-17: both DEAD (047fe95 + 2f8dad8; suite 1255/0/14)
+## fix-sales-ux-findings-2026-07-16: all 3 OBSOLETE (origin host retired — 503s/Cloudflare-5xx/certbot concerns fold into migration project)
+## fix-swarm-findings-all: both DEAD (628_seed_auditor_read_approver_grant.sql + AuditorReadApproverGrantTests, 5c49234)
+## fix-vat-round-findings: DEAD (7fed441; residual failures were documented DB-residue flakes; suite green since)
+## general-ledger: R1/R2/R3 DEAD (feature shipped a272d37, on main, CHANGELOG:446-447) · F9 OBSOLETE (CDP automation artifact, no code defect)
+## mcp-document-chain: pipeline DEAD (972dddb + 3b082ce) · Repttown E2E ALIVE-BLOCKED → cutover §3
+## mcp-error-surfacing: all 5 DEAD (list_tax_codes/wht_types/expense_categories/business_units registered in TeasMcpTools.cs:1203+; uomId doc note at :43-46)
+## mcp-expansion: all 3 DEAD (72c8509 on main, CHANGELOG:438-439)
+## payroll-deductions-o10: ZERO open items (board was stale)
+## superadmin-tenant-scope: optional guard test OBSOLETE (invariant covered by D1 grep + D2 0-policy check) · public-topology verify ALIVE-BLOCKED → cutover §3
+## uxswarm-multirole-co5: consolidation DEAD (swarm-findings/round4/ + fix-swarm-crit-numbering-rbac.md) · prod co5 sanity OBSOLETE→cutover · scripts cleanup DEAD (no swarm*.mjs)
+## uxswarm-round3-crit-verify: verify DEAD (round3/ committed; CRIT-1/2 → fix spec) · prod seq-drift OBSOLETE→cutover · cleanup DEAD
+## uxswarm-round5-finding-verify: both DEAD (round5/ committed; survivors → fix-swarm-round5-lows.md; no swarm5-*.mjs)
