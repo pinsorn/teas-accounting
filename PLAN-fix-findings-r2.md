@@ -1,4 +1,21 @@
-# PLAN — fix findings from Testing Swarm Round 2 (GO from Ham 2026-08-19 ~11:4x)
+# PLAN — fix findings from Testing Swarm Round 2 — ✅ BATCH CLOSED 2026-08-19 ~16:3x
+
+## RELEASE NOTES (batch complete; nothing deployed — prod still down for server migration)
+Commits, in landing order: `cd81bd0` U7 problemToast ×20 · `753f545` U1 filing payer-tax-ID refuse
++ seed 638 · `4393495` U2 billing-note tax integrity + seed 639 · `2fc3a2d` U8-docs ·
+`46e3a46` U8-FE (asset edit page + modal roles) · `a28718e` U3+U4 bank rec · `a711ae4` U5 disposal
+date · `1afae7c` U6 employee lookup + seed 640 · `6516c01` U10 five sibling filing guards ·
+`93dddad` O2b test contract fix · `e14468f` Thai toast mappings.
+Gates: Domain 188/188 · Api full suite green post-O2b (1316/1317 with the one pre-existing
+TenantIsolation self-collision flake, passes alone, documented) · Tier-2 Opus
+APPROVE-WITH-NITS ×2 (U1+U2, U6) · fresh-DB wipe+reseed boot clean (seeds 638/639/640 applied,
+tax IDs synced, logins green) · **live browser re-verify 6/6 PASS** (evidence:
+findings-r2/artifacts/ incl. the fresh ภ.ง.ด.1 PDF now rendering 0-1050-00000-01-2).
+DEPLOY REQUIREMENTS when the new server is up: §Deploy runbook additions below (638 pre-probe +
+widened class-B survey) + the standing §N2.5 pre-check in specs/fix-review-n-findings-2026-08-17.md.
+Follow-ups parked: U9 (PO verbatim TaxCodeId loaded gun) · McpScopes narrow to employee.lookup
+(Tier-2 N3) · seed-640 direct-grant arm coverage (N2) · FA detail Dispose/WriteOff modals
+role=dialog · e2e suite debt (pickCustomer ambiguity, PV confirm-dialog specs).
 
 **Ham's decisions:** start now · L2-3 IN SCOPE (delete-superseded-import endpoint, not deferred) ·
 co1 wipe: ORDERED, executed at END of batch (after RED-then-GREEN — the debris IS the repro data),

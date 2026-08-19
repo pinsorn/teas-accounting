@@ -1,4 +1,20 @@
-# PROGRESS — Fix batch R2 (2026-08-19, checkpoint at quota 93%)
+# PROGRESS — Fix batch R2 — ✅ CLOSED 2026-08-19 ~16:3x (release notes at top of PLAN-fix-findings-r2.md)
+
+## Self-retro (Fable, batch close)
+- Right calls: warm-worker chains (U1→50ทวิ→U10 one worker, 3 extensions zero re-derive) ·
+  personally verifying the U2 designer's premise-flips before ratifying (my own L6-4 probe-row
+  reading was wrong; verification caught it) · full-suite gate caught the O2b consumer test the
+  targeted filters missed · sequencing Ham's wipe to AFTER RED-then-GREEN preserved every repro.
+- Wrong calls, folded: (1) I guessed TEAS_TEST_PG instead of grepping troubles-wiki first — my own
+  rule, one wasted 5s run + noise; (2) `git add frontend` swept a worker's `.bak` into a commit —
+  dir-adds need an untracked-check first (memory exists for missed-adds, not over-adds — same
+  family); (3) worker's unscoped sub-dispatch (no subagent_type → general-purpose with full tools)
+  ran a duplicate 261k-token verification pass on the shared stack — TEMPLATE LESSON for minions
+  sync: exploration sub-dispatches must name a read-only agent type (Explore) or carry an explicit
+  no-writes rule; the shared-DB footgun applies to "research" dispatches too. (4) a28718e shipped a
+  stale generated RBAC doc — template lesson: backend route changes re-run RbacAuthMapTests
+  pre-commit.
+
 
 Plan: `PLAN-fix-findings-r2.md` (Ham GO ~11:4x; L2-3 in scope; co1 wipe at batch END).
 

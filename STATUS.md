@@ -1,6 +1,16 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ 2026-08-19 — R2 FIX BATCH CLOSED: all 11 units landed, live re-verify 6/6 PASS.**
+  Full ledger: release-notes block at top of PLAN-fix-findings-r2.md. Headlines fixed & verified
+  live: non-VAT companies can issue billing notes again · ภ.ง.ด.1 renders the real payer tax ID
+  (seed 638) + ALL filing artifacts refuse a placeholder ID (U1+U10, 9 call sites) · sales lines
+  can no longer carry another company's tax code (laundering + repair seed 639) · bank-rec closing
+  balance deterministic + typed import errors + superseded-import delete · disposal-date guard ·
+  ACCOUNTANT gets a name-only employee lookup (seed 640) · 24 screens show real error messages in
+  Thai. accounting_dev wiped+reseeded per Ham (backup: D:\teas-backups\accounting_dev_pre_r2fix_wipe.dump);
+  fresh-boot gate clean. Local stack UP (API :5080, FE :3000 fresh). NOT deployed — prod down
+  (server migration project); deploy pre-probes recorded in the plan.
 - **✅ 2026-08-19 — TESTING SWARM ROUND 2 COMPLETE: all 6 legs walked, 5×🔴 4×🟠 5×🟡 found,
   fix-plan drafted.** Overnight autonomous run per PLAN-testing-swarm-r2.md, browser-first
   (Playwright driving the real FE — Ham's directive; Claude-in-Chrome unreachable from Claude Code).
