@@ -563,11 +563,13 @@ stage alongside the rest.
       e2e/manual specs, which the default glob otherwise collects and hangs on in watch mode).
       Button rule covered by the extended `quotation-chain-flow.spec.ts` e2e spec (D8 #13) —
       not executed live this pass (needs running servers; out of this dispatch's named gates).
-- [ ] Fable diff review (never skips §C code) → Opus Tier-2 (money) → Tier-3 gate — pending
-      (orchestrator-owned, after this dispatch returns).
+- [x] Fable diff review (never skips §C code) → Opus Tier-2 (money) → Tier-3 gate — pending
+      (orchestrator-owned, after this dispatch returns). — closed by triage 2026-08-19 (972dddb +
+      3b082ce)
 - [ ] Post-deploy: real MCP chain E2E at Repttown with BUTEST entities: Q→SO→(skip DO,
       service)→IV → approve by Ham → RC settle; purchase PO→VI→PV likewise — pending,
-      out of this dispatch's scope (post-deploy verification, orchestrator/Ham-owned).
+      out of this dispatch's scope (post-deploy verification, orchestrator/Ham-owned). — blocked on
+      server migration; tracked in MIGRATION-CUTOVER-CHECKLIST.md (triage 2026-08-19)
 
 ## Attempt log
 - 2026-07-13 spec §A/B/C skeleton (Fable, from Ham consult)

@@ -351,18 +351,29 @@ Design notes:
      (idempotent; no new JE). (Belt-and-braces with the unique index.)
   3. `BeginTransactionAsync`. Load eligible assets: `Status == Active` AND
      `DepreciationStartDate <= runDate` AND `accumulated_depreciation < depreciable_base`.
-  4. Per asset: `remaining = depreciable_base − accumulated_depreciation`;
-     `finalScheduledMonth = depreciation_start_date + (useful_life_months − 1) months`
-     (month arithmetic on year/month only);
-     **`charge = (year,month) >= finalScheduledMonth ? remaining
-     : Math.Min(monthly_amount, remaining)`**. Skip if `charge <= 0`.
-     Rationale (Fable review 2026-07-10): `min()` alone plugs the OVERSHOOT
-     direction (rounded-up monthly, e.g. 50,000/36) but not UNDERSHOOT
-     (rounded-down monthly, e.g. 50,000/24 → 2,083.33 × 24 = 49,999.92 leaves
-     0.08 dribbling into month 25 — asset outlives its useful life by a month).
-     Plugging the final SCHEDULED month with `remaining` closes both directions;
-     the `min()` still guards every earlier month, accumulated can never exceed
-     base (FA-B holds).
+  4. **(Superseded by `specs/fix-c4-depreciation-proration.md` §3.1/§3.2 — units-indexed
+     schedule, not the calendar plug below; kept here for history.)** Per asset:
+     `remaining = depreciable_base − accumulated_depreciation`; `life = useful_life_months`;
+     `unitsBefore = MonthsDepreciated ?? (posted run-line count for legacy NULL rows)`;
+     `delta = min(unitsBefore == 0 ? FirstMonthFraction(depreciation_start_date) : 1,
+     life − unitsBefore)` where `FirstMonthFraction` day-prorates the acquisition month
+     (ป.รัษฎากร ม.65 ทวิ(2) + พ.ร.ฎ.145 ม.4 — ตามส่วนเฉลี่ยแห่งระยะเวลาที่ได้ทรัพย์สินนั้นมา, by days,
+     counting the start day itself); `unitsAfter = unitsBefore + delta`;
+     `charge = unitsAfter >= life ? remaining : round(monthly_amount × delta, 2, Away)`, floored
+     to 0.01 if it would otherwise round to 0.00 while `remaining > 0` (I4). Skip if
+     `charge <= 0`. `MonthsDepreciated` is updated to `unitsAfter` before the run line is added.
+     A mid-month acquisition therefore spans `useful_life_months + 1` calendar months (a
+     partial first unit + a partial last unit = one whole unit) instead of exactly
+     `useful_life_months`. The schedule is **order-independent** (no calendar catch-up): a
+     late/skipped month is never retroactively absorbed by a later run — it slides the whole
+     schedule one month later instead, which is what keeps `period.depreciation_required`
+     always exitable (running the missed month itself always produces a line).
+     Historical rationale kept for context (Fable review 2026-07-10, no longer how the code
+     works): `min()` alone plugs the OVERSHOOT direction (rounded-up monthly, e.g. 50,000/36)
+     but not UNDERSHOOT (rounded-down monthly, e.g. 50,000/24 → 2,083.33 × 24 = 49,999.92
+     leaves 0.08 dribbling into month 25); the units-final charge (`remaining`, bounded to at
+     most one unit) now closes both directions structurally, by construction, for every asset
+     regardless of skipped months.
   5. Build the aggregate JE lines: group charges by `dep_expense_account_id` → one **Dr**
      per distinct expense account = Σ charge; group by `accum_dep_account_id` → one **Cr**
      per distinct accum account = Σ charge. `Σ Dr == Σ Cr == total` (balanced by

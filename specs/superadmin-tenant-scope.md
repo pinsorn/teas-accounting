@@ -302,8 +302,9 @@ Family B (lower regression risk; RbacAdminService needs bypass regardless).
       and by grep (D1 below): no remaining C# `set_config`/`current_setting` on it outside old
       SqlScripts' historical text. (`app.bypass_rls` is never session-pinned or reset — LOCAL-only,
       auto-reverting — so the finally-reset need not clear it.)
-- [ ] Optional guard test: SKIPPED — the spec marks it optional, and D2's DB-level check + the
-      exhaustive source grep (D1) already cover the same invariant empirically.
+- [x] Optional guard test: SKIPPED — the spec marks it optional, and D2's DB-level check + the
+      exhaustive source grep (D1) already cover the same invariant empirically. — OBSOLETE per
+      triage 2026-08-19 (invariant covered by D1 grep + D2 0-policy check)
 
 ## D5 — Letterhead symptom
 - [x] No dedicated code change. With correct scoping, fetching company A's document while
@@ -366,7 +367,8 @@ Family B (lower regression risk; RbacAdminService needs bypass regardless).
       prod switches Repttown(2) ↔ พงศ์สันต์(3) → quotations/customers/dashboard DIFFER; open a
       company-2 document while on company-3 → 404 + correct letterhead; company-switch,
       OAuth MCP grant, and an RBAC cross-company edit all still succeed; an API-key call and the
-      e-Tax retry tick still work.
+      e-Tax retry tick still work. — blocked on server migration; tracked in
+      MIGRATION-CUTOVER-CHECKLIST.md (triage 2026-08-19)
 
 ---
 

@@ -68,6 +68,9 @@ raw i18n keys, tenant leaks, UX pain — per role.
   super) จดให้ละเอียด. Probe: ข้ามบริษัท (company switcher ควรมีแค่ co5).
 
 ## Consolidation (Fable)
-- [ ] 10 findings files รวม → REPORT-uxswarm-co5.md, dedupe, triage CRIT/HIGH → fix arc ถัดไป
-- [ ] Post-swarm sanity (Fable): TB Dr=Cr, ภ.พ.30 สอดคล้องเอกสารใหม่, ไม่มีเอกสารบริษัทอื่นแปลกปลอม
-- [ ] cleanup: ลบ swarm scripts ค้าง (ถ้า agent ลืมลบ)
+- [x] 10 findings files รวม → REPORT-uxswarm-co5.md, dedupe, triage CRIT/HIGH → fix arc ถัดไป —
+      closed by triage 2026-08-19 (swarm-findings/round4/ + fix-swarm-crit-numbering-rbac.md)
+- [x] Post-swarm sanity (Fable): TB Dr=Cr, ภ.พ.30 สอดคล้องเอกสารใหม่, ไม่มีเอกสารบริษัทอื่นแปลกปลอม —
+      OBSOLETE per triage 2026-08-19 (host retired; concerns fold into migration project)
+- [x] cleanup: ลบ swarm scripts ค้าง (ถ้า agent ลืมลบ) — closed by triage 2026-08-19 (no swarm*.mjs
+      found in repo)

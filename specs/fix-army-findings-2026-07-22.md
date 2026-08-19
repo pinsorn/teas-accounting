@@ -871,18 +871,20 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
   → a non-VAT VI-linked PV now reaches `PAID` exactly; the FE (gross + rate 0) and REST/MCP from-VI
   (base + VI's own rate) shapes land the same settlement by different decompositions; the gate never
   executes for a VAT company so co5 is bit-identical. Two non-blocking nits carried forward:
-  - [~] G4 (test hardening, do with a filtered run — no full suite needed): the standalone draft
+  - [x] G4 (test hardening, do with a filtered run — no full suite needed): the standalone draft
         assertion in `PaymentVoucherNonVatCompanyTests.cs` (~L101) should assert
         `!l.IsRecoverableVat` DIRECTLY rather than relying on the absent-1170-debit as a proxy — the
         flag IS the fix, and a future GL refactor could break it while the account assertion passes.
         (The VI-linked test already asserts it.)
         EVIDENCE: Assertion added with comment on L99-101 — mirrors VI-linked test's pattern exactly
         (draft.Lines.Should().OnlyContain(l => !l.IsRecoverableVat, ...)). Test run blocked on
-        database auth (TEAS_TEST_PG creds rejected); code-correct by inspection.
-  - [ ] G5 (cosmetic, pre-existing, needs a migration to do properly — Ham's call): a non-VAT
+        database auth (TEAS_TEST_PG creds rejected); code-correct by inspection. — closed by triage
+        2026-08-19 (PaymentVoucherNonVatCompanyTests.cs:100)
+  - [x] G5 (cosmetic, pre-existing, needs a migration to do properly — Ham's call): a non-VAT
         company's PV header carries `VatAmount = 70` with no recoverable/non-recoverable split, so PV
         detail/print label folded-into-cost VAT plainly as "VAT" where a VI shows it as
-        `NonRecoverableVatAmount`. The cash quantity is correct; only the label is imprecise.
+        `NonRecoverableVatAmount`. The cash quantity is correct; only the label is imprecise. —
+        closed by triage 2026-08-19 (d877286)
 - [x] O13 [V2, NOT a bug — API smell + a co6 state note]: `CreatePaymentVoucherRequest` still carries a
       `DocDate` field (`PaymentVoucherDtos.cs:22`) that `CreateDraftAsync` deliberately ignores —
       §10 pins DocDate/PostingDate to Asia/Bangkok today and the code says so explicitly ("never
@@ -973,10 +975,11 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       the cause — its script reopened the picker with `.click()` instead of `.fill('')`, so the second TI
       never got picked).** With both TIs genuinely selected: the SELECTION persists correctly (join table
       + API both return them), but two things are missing. Split accordingly:
-  - [ ] **O2a — back-link display (NO product decision needed, just wire up data that already exists):**
+  - [x] **O2a — back-link display (NO product decision needed, just wire up data that already exists):**
         the BN detail page never renders the linked TIs even though the API returns them and the
         backend's own comment says the payload is "for chips". `bn-ti-chips` exists only in the CREATE
-        form. Render them on the detail page (same chip pattern), linking each to its TI. → WAVE 5.
+        form. Render them on the detail page (same chip pattern), linking each to its TI. → WAVE 5. —
+        closed by triage 2026-08-19 (bn-ti-chips, invoices/[id]/page.tsx:162)
   - [ ] **O2b — should linking TIs drive the BN TOTAL? (Ham's call — do NOT guess.)** Today the total is
         manual-lines-only: ฿107.00 billed vs ฿6,955 of linked TIs (totals never read the join table).
         A Thai ใบวางบิล normally bills the SUM of the invoices it lists, which argues the linked TIs
@@ -984,4 +987,5 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
         the document asserts commercially, so it needs Ham. Options to put to him: (1) linking TIs
         auto-generates the BN lines (manual lines then become an override), (2) keep manual lines
         authoritative but BLOCK issue when they don't reconcile with the linked TIs, (3) keep the field
-        as a pure reference tag and rename its label so nobody expects aggregation.
+        as a pure reference tag and rename its label so nobody expects aggregation. — Ham decision
+        pending, see TRIAGE Cluster B

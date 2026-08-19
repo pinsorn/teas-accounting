@@ -67,23 +67,28 @@ Implementation constraints:
 
 ### 2. Three read-only resolver tools (pattern: `list_gl_accounts`, TeasMcpTools.cs:776)
 
-- [ ] `list_tax_codes` — active tax codes for the caller's company: id, code, nameTh,
+- [x] `list_tax_codes` — active tax codes for the caller's company: id, code, nameTh,
       rate, plus whatever direction/kind field the entity has. Picker for
-      `taxCodeId` on all draft-create line inputs.
-- [ ] `list_wht_types` — active WHT types: whtTypeId, code, nameTh, incomeTypeCode,
-      formType, rate. Picker for `whtTypeId` (payment voucher lines, vendor invoice).
-- [ ] `list_expense_categories` — active expense categories: categoryId, code, nameTh,
+      `taxCodeId` on all draft-create line inputs. — closed by triage 2026-08-19 (registered,
+      TeasMcpTools.cs:1204)
+- [x] `list_wht_types` — active WHT types: whtTypeId, code, nameTh, incomeTypeCode,
+      formType, rate. Picker for `whtTypeId` (payment voucher lines, vendor invoice). — closed by
+      triage 2026-08-19 (registered, TeasMcpTools.cs:1211)
+- [x] `list_expense_categories` — active expense categories: categoryId, code, nameTh,
       nameEn, defaultExpenseAccountId, defaultTaxCodeId, defaultWhtTypeId, isCapex,
-      isCogs. Picker for `expenseCategoryId`.
-- [ ] `list_business_units` — active business units (`master.business_units`): id, code,
+      isCogs. Picker for `expenseCategoryId`. — closed by triage 2026-08-19 (registered,
+      TeasMcpTools.cs:1218)
+- [x] `list_business_units` — active business units (`master.business_units`): id, code,
       name. Picker for `businessUnitId`. ADDED 2026-07-12 after the sweep: company 2
       REQUIRES a business unit on every draft ("Business Unit is required for this
-      company") yet no tool exposes them — agents cannot draft anything without guessing.
-- [ ] `uomId` note (NOT a new tool): there is no UOM master table — doc lines store a
+      company") yet no tool exposes them — agents cannot draft anything without guessing. —
+      closed by triage 2026-08-19 (registered, TeasMcpTools.cs:1225)
+- [x] `uomId` note (NOT a new tool): there is no UOM master table — doc lines store a
       loose `uom_id` int with no FK plus free-text `uom_text`; products carry only
       `default_uom_text`. Fix by DOCUMENTATION: update the `[Description]` on every
       MCP line-input `UomId`/`UomText` to say uomId has no master list (pass 1 unless
-      known; uomText is the human-facing unit). Do NOT invent a uoms table.
+      known; uomText is the human-facing unit). Do NOT invent a uoms table. — closed by triage
+      2026-08-19 (doc note present, TeasMcpTools.cs:43-46)
 
 Rules:
 - Company-scoped via the same automatic RLS/global-filter tenancy as every other tool.

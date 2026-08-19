@@ -92,7 +92,7 @@ Evidence: swarm-findings/audit01.md (HIGH #3, MED business_unit, MED cit).
   NOBYPASSRLS). This resolves the ambiguity, the mission premise, AND the BU console spam in one go.
   Do NOT grant any write/finalize. Audit whether other read-only-ish roles share the BU-read gap and
   fix in the same script.
-- [~] Backend done: `SqlScripts/628_seed_auditor_read_approver_grant.sql` grants AUDITOR 8 read-only
+- [x] Backend done: `SqlScripts/628_seed_auditor_read_approver_grant.sql` grants AUDITOR 8 read-only
       codes (verified against Permissions.cs + each endpoint's actual RequireAuthorization — NOT the
       finding's placeholder names): `purchase.purchase_order.read` (also covers /reports/ap-aging +
       /reports/outstanding-po — same `read` policy, no separate report.* code exists),
@@ -117,6 +117,8 @@ Evidence: swarm-findings/audit01.md (HIGH #3, MED business_unit, MED cit).
       AP_CLERK, SALES_STAFF, PURCHASING_STAFF, WAREHOUSE_STAFF, TAX_OFFICER, APPROVER — none hold
       `master.business_unit.manage` today, confirmed via seed grep).
       Remaining: live FE verification (audit01 account, co5) — BACKEND-ONLY dispatch, not run here.
+      — closed by triage 2026-08-19 (628_seed_auditor_read_approver_grant.sql +
+      AuditorReadApproverGrantTests, 5c49234)
 - Backend seed + test. Sonnet; Fable reviews grant scope (read-only, no write leak).
 
 ## WP3 — reports UX correctness/clarity (HIGH-2 + MED ×3)
@@ -178,7 +180,7 @@ Evidence: swarm-findings/appr01.md.
   fix it so pending drafts actually surface. Minimum viable: the existing widget shows the real
   pending count/list for an Approver. A full new inbox page is NOT required (Ponytail) unless the
   widget can't be made to work — if so, note it and ship the widget fix.
-- [~] Backend done, grant-only, merged into WP2's script: endpoint's actual gate (`ReportEndpoints.cs`
+- [x] Backend done, grant-only, merged into WP2's script: endpoint's actual gate (`ReportEndpoints.cs`
       `/reports/pending-agent-approvals`) is `Permissions.Sales.TaxInvoiceRead` =
       `sales.tax_invoice.read` — NOT a dedicated approvals-read perm (no such code exists). APPROVER
       was the only PO/PV-approving role missing it (`COMPANY_ADMIN`/`CHIEF_ACCOUNTANT` already hold
@@ -197,6 +199,8 @@ Evidence: swarm-findings/appr01.md.
       out-of-scope per this spec's own Ponytail note (no new inbox page) — flagging for Ham/product,
       not building it here. No FE change made (BACKEND ONLY dispatch).
       Remaining: live FE verification (appr01 account) — BACKEND-ONLY dispatch, not run here.
+      — closed by triage 2026-08-19 (628_seed_auditor_read_approver_grant.sql +
+      AuditorReadApproverGrantTests, 5c49234)
 - Backend perm (+ maybe query) + FE widget. Sonnet; if grant-only, merge into WP2.
 
 ## WP5 — MED/LOW misc

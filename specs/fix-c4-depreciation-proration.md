@@ -466,11 +466,11 @@ which is why the three existing money tests must pass untouched.
       and no other caller broke.
 
 ### WP-3 — docs (same PR, no code impact)
-- [ ] `FixedAsset.cs:38-40` `MonthlyAmount` comment + `DepreciationRunLine.cs:18-19` `Amount`
-      comment — replace the "final scheduled month plug" wording with the units-final rule.
-- [ ] `specs/fixed-assets.md` §3.1 step 4 — restate the algorithm as §3.1/§3.2 here (day proration
-      on the first unit, units-final charge, no calendar plug), and record that an asset acquired
-      mid-month spans `L + 1` calendar months.
+- [x] `FixedAsset.cs:38-40` `MonthlyAmount` comment + `DepreciationRunLine.cs:18-19` `Amount`
+      comment — replaced the "final scheduled month plug" wording with the units-final rule.
+- [x] `specs/fixed-assets.md` §3.1 step 4 — restated the algorithm (day proration on the first
+      unit, units-final charge, no calendar plug; old text kept as marked-superseded history),
+      and recorded that a mid-month acquisition spans `L + 1` calendar months.
 
 ### WP-4 — tests (RED first: write T1–T5, watch them fail, then implement — or, if implementing
 first, `git stash` the src change once and prove they go RED)

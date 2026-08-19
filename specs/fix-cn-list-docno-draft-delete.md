@@ -35,7 +35,8 @@ Source: REPORT-vat-dummy-test.md residual nits (2026-07-19 eyeball pass). Ham: "
       `toast.success(tc('deleted'))` → `router.push(c.base)`. Live-verified (see Gates).
 - [~] Cleanup: after deploy, delete the test draft CN #2 (฿535) on co5 via the new
       button — explicitly NOT the worker's step per spec (Fable/browser, post-deploy
-      on PROD). Not touched.
+      on PROD). Not touched. — blocked on server migration; tracked in
+      MIGRATION-CUTOVER-CHECKLIST.md (triage 2026-08-19)
 
 ## Gates
 - [x] tsc --noEmit + next build pass — both clean, 0 errors (frontend/, full route

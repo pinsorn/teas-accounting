@@ -750,14 +750,17 @@ is what Ham reads for §10 E7.
 Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
 
 ### WP-0 — pre-flight prod probes *(read-only; no dependencies; blocks WP-2 and WP-7)*
-- [ ] P1 C2 history: flagged posted VIs and PVs per company per period + every `PND36` filing with its
-      over-declared amount. Results appended to §12. → §10 E1/E2
-- [ ] P2 H16 history: every `PND30` filing joined to `VatMode`. Escalate immediately if a real tenant
-      appears.
-- [ ] P3 Feature C: `SETTLED` BNs with posted-receipt coverage < total, with `journal_entry_id` and the
-      activity-note fingerprint; ฿ AR overstatement per company. Results appended to §12. → §10 E7
-- [ ] All three reported as **row counts + rows**, never exit codes. Confirm the `status` literal with
-      `SELECT DISTINCT status` before the `WHERE`.
+- [x] P1 C2 history: flagged posted VIs and PVs per company per period + every `PND36` filing with its
+      over-declared amount. Results appended to §12. → §10 E1/E2 — closed by triage 2026-08-19
+      (WP-0 probes executed and reported, spec §12 L1726-1745)
+- [x] P2 H16 history: every `PND30` filing joined to `VatMode`. Escalate immediately if a real tenant
+      appears. — closed by triage 2026-08-19 (WP-0 probes executed and reported, spec §12 L1726-1745)
+- [x] P3 Feature C: `SETTLED` BNs with posted-receipt coverage < total, with `journal_entry_id` and the
+      activity-note fingerprint; ฿ AR overstatement per company. Results appended to §12. → §10 E7 —
+      closed by triage 2026-08-19 (WP-0 probe run + E7 pre-step executed on prod, spec §12 L1747-1809)
+- [x] All three reported as **row counts + rows**, never exit codes. Confirm the `status` literal with
+      `SELECT DISTINCT status` before the `WHERE`. — closed by triage 2026-08-19 (WP-0 probes executed
+      per §12 L1726/L1747/L1786)
 - **Blast cap: 0 source files.** SQL is read-only. Any write = stop and re-spec.
 
 ### WP-1 — C4 ภ.ง.ด.1 / 1ก row placement *(no dependencies; contains a BLOCKING human checkpoint — start it FIRST)*
@@ -833,11 +836,13 @@ Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
       comment, Phase 2 is unbuilt). Nothing to skip → **no code change**, confirmed not assumed
       (`Pnd30DeadlineAlertJobTests.cs` also confirms: pure unit test against `LogReminder`, no
       DB/Quartz/tenant context).
-- [~] `problems.ts` entry for `pp30.non_vat_blocked` — **withheld per dispatch** (file is being
-      serialised by the orchestrator across 3 WPs); key/value handed back in the report.
-- [~] T22–T25 written, code-complete, **NOT YET RUN** — shared `teas_test` under another worker's
+- [x] `problems.ts` entry for `pp30.non_vat_blocked` — **withheld per dispatch** (file is being
+      serialised by the orchestrator across 3 WPs); key/value handed back in the report. — closed by
+      triage 2026-08-19 (key present, frontend/lib/i18n/problems.ts:156)
+- [x] T22–T25 written, code-complete, **NOT YET RUN** — shared `teas_test` under another worker's
       TEST-DB HOLD at dispatch time. RED→GREEN plan in the report below; T25 added beyond the
-      spec's T22–T24 floor as the VAT-company non-regression proof for I10's "unchanged" half.
+      spec's T22–T24 floor as the VAT-company non-regression proof for I10's "unchanged" half. —
+      closed by triage 2026-08-19 (Pnd30VatRegistrantOnlyTests.cs swept green by full suite)
 - [x] No prod data operation; co7's `filingId 1` left to the post-R4 reseed. Confirmed via WP-0 P2
       (§12 probe results): co7 is the ONLY `PND30` filing on record, no real tenant affected.
 - **Blast cap: 4 files** (`TaxFilingService.cs` · `Pnd30DeadlineAlertJob.cs` · `problems.ts` · 1 test
@@ -864,9 +869,10 @@ Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
       tell an Approved-run user "requires a Posted run", which is false for a payslip; flagged as a
       judgment call, not silent deviation). Bundled FE payslip-button gate travels with this commit (see
       below) so reverting the rule and its UI consequence stays atomic.
-- [ ] `problems.ts` entry for `payroll.not_posted_for_filing` **and** `payroll.not_approved_for_payslip`
+- [x] `problems.ts` entry for `payroll.not_posted_for_filing` **and** `payroll.not_approved_for_payslip`
       — TWO keys, not the one the dispatch's prose anticipated; both handed back in the worker report
-      with reasoning. Orchestrator to add (file skipped per dispatch instruction).
+      with reasoning. Orchestrator to add (file skipped per dispatch instruction). — closed by triage
+      2026-08-19 (both keys present, frontend/lib/i18n/problems.ts:177-179)
 - [x] FE payroll run page (`frontend/app/(dashboard)/payroll/[id]/page.tsx`): **current behaviour
       reported** — (a) `useSsoSchedule(id, run?.status === 'POSTED')` (line 41) was **already gated**
       before this dispatch (O11-alt commit `bf87333`) — it does NOT auto-fire on a Draft/Approved run.
@@ -967,8 +973,9 @@ Marks: `[ ]` not started · `[~]` partial + note · `[x]` done + evidence.
       generator (`RbacAuthMapTests`/doc build) needs the DB, held by another worker; noted, not hand-edited.
 - [x] Stale comments updated (`BillingNoteService.cs:19`, `ReceiptService.cs:499-500`, `page.tsx:22`,
       `:44`, `:109-112`, `:122-123`).
-- [~] T19–T21 written (T19 RED-first plan recorded below, not yet run — **TEST-DB HOLD**, waiting on
+- [x] T19–T21 written (T19 RED-first plan recorded below, not yet run — **TEST-DB HOLD**, waiting on
       ALL-CLEAR). `dotnet build backend/Accounting.sln` succeeds with the new file included (0 errors).
+      — closed by triage 2026-08-19 (BillingNoteSettlementDeletionTests.cs swept green by full suite)
 - [x] `corepack pnpm run build` (FE) clean — no unused-import / unused-state lint failures from the
       deletions. `tsc --noEmit` also clean (0 errors).
 - **Blast cap: 12 files** (`BillingNoteService.cs` · `BillingNoteDtos.cs` · `BillingNoteEndpoints.cs` ·

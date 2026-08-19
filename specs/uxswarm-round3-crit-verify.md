@@ -53,8 +53,11 @@ A3 appr, A4 ap, A5 ar, A6 audit, A7 chief, A8 admin, A9 purch, B1 tax).
 - **admin01**: new master data (P00x/C00x/V00x); company switcher = co5 only (else CRITICAL).
 
 ## Consolidation (Fable)
-- [ ] 10 round3 files → verdict: BOTH CRITs closed? (all numbering writes 2xx + ภ.พ.30 opens).
-      If any CRIT reappears → new fix arc BEFORE declaring done.
-- [ ] Post-swarm sanity: TB Dr=Cr, ภ.พ.30 consistent, no cross-tenant docs, prod seq-drift delta≥0
-      for the buckets the swarm hit (SSH spot-check), zero 500 in pm2 log for the window.
-- [ ] cleanup leftover frontend/swarm3-*.mjs. Commit round3 evidence + REPORT.
+- [x] 10 round3 files → verdict: BOTH CRITs closed? (all numbering writes 2xx + ภ.พ.30 opens).
+      If any CRIT reappears → new fix arc BEFORE declaring done. — closed by triage 2026-08-19
+      (round3/ committed; CRIT-1/2 → fix-swarm-crit-numbering-rbac.md)
+- [x] Post-swarm sanity: TB Dr=Cr, ภ.พ.30 consistent, no cross-tenant docs, prod seq-drift delta≥0
+      for the buckets the swarm hit (SSH spot-check), zero 500 in pm2 log for the window. —
+      OBSOLETE per triage 2026-08-19 (host retired; concerns fold into migration project)
+- [x] cleanup leftover frontend/swarm3-*.mjs. Commit round3 evidence + REPORT. — closed by triage
+      2026-08-19 (no swarm3-*.mjs found in repo)

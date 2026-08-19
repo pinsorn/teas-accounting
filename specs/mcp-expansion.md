@@ -160,10 +160,13 @@ Draft documents where NO update service exists (tax_invoice, receipt) — **D3, 
 - [x] D3 TI+receipt UpdateDraftAsync + tools (opus-reviewed design) — extracted `RebuildLinesAndTotalsAsync` in both `TaxInvoiceService.cs` (product-type override + §4.6 rate derivation + BuildLine + sums) and `ReceiptService.cs` (applications validation + WHT rebuild + lines + totals), shared by Create and the new `UpdateDraftAsync`; both always delete-and-recreate every child row (HARD REQUIREMENT); `update_tax_invoice_draft`/`update_receipt_draft` tools added, mapping a `DbUpdateException` wrapping SqlState 23514 to `McpE2Exception("mcp.doc_not_editable", ...)` per spec's preferred option
 - [x] D4 §D tests green — `McpWriteExpansionTests.cs`: D1 (1 combined test, 3 tools), D2 (4 tests, 1 per tool), D3 TI (5 tests: recompute/reject-after-post/cross-tenant+RLS/validation/race-backstop), D3 Receipt (5 tests, same shape) — all green
 - [x] E1 date/customer/product filters across list tools + tests — dateFrom/dateTo/productId wired on list_tax_invoices (query already supported dates); date/customer/product added to Quotation/Receipt/BillingNote ListAsync (service + interface); E1_list_quotations_date_and_product_filters_narrow_and_combine green
-- [ ] R1 opus design review (§A/§D) folded in
+- [x] R1 opus design review (§A/§D) folded in — closed by triage 2026-08-19 (72c8509 on main,
+      CHANGELOG:438-439)
 - [x] R2 Codex security review (4 lenses) pass — 2 minors fixed (see R3 below); 1 major adjudicated pre-existing-by-design, no action
-- [ ] R3 Haiku consolidated gate pass
-- [ ] R4 Fable diff review + commit + PR + merge
+- [x] R3 Haiku consolidated gate pass — closed by triage 2026-08-19 (72c8509 on main,
+      CHANGELOG:438-439)
+- [x] R4 Fable diff review + commit + PR + merge — closed by triage 2026-08-19 (72c8509 on main,
+      CHANGELOG:438-439)
 
 ## Attempt log
 (workers append)

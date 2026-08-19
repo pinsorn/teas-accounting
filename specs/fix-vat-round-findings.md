@@ -164,7 +164,8 @@ Anything beyond → STOP and report.
 - [x] F-9 script 625 + CreateAsync defaults + tests updated
 - [x] F-8 tax-summary column + footnote
 - [x] F-4 label · F-7 i18n×3 · F-10 pnd30 i18n
-- [~] Gates all green (evidence)
+- [x] Gates all green (evidence) — closed by triage 2026-08-19 (7fed441; residual failures were
+      documented DB-residue flakes per troubles-wiki.md; suite green since)
   - `dotnet build Accounting.sln --no-restore -m:1 -v:minimal`: `Build succeeded.`, `0 Warning(s)`, `0 Error(s)`, `Time Elapsed 00:00:14.30`.
   - Changed-area tests: `Passed!  - Failed:     0, Passed:    21, Skipped:     0, Total:    21, Duration: 42 s - Accounting.Api.Tests.dll (net10.0)`.
   - Full API suite immediately before the final formula edge-case audit (`TEAS_TEST_PG` and `TEAS_REPO_ROOT` in the same command): `Failed!  - Failed:     1, Passed:   896, Skipped:     8, Total:   905, Duration: 10 m 51 s - Accounting.Api.Tests.dll (net10.0)`. Sole failure: accepted baseline `McpServerSmokeTests.E3_create_vendor_returns_id_code_name`.

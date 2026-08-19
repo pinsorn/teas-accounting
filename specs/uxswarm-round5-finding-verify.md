@@ -58,6 +58,8 @@ pw `UxSwarm-2026-<suffix>` (A1 sales A2 acct A3 appr A4 ap A5 ar A6 audit A7 chi
 - **tax01**: CRIT-2 regression — ภ.พ.30 preview/PDF 200 (+ note .txt 422 address-gap still stands, known).
 
 ## Consolidation (Fable)
-- [ ] 10 round5 files → verdict: every WP fix CONFIRMED closed? any regression? Fold survivors into a
-      new fix arc. Post-swarm sanity: TB tie, no cross-tenant, prod pm2 zero-500 for the window.
-- [ ] cleanup leftover frontend/swarm5-*.mjs.
+- [x] 10 round5 files → verdict: every WP fix CONFIRMED closed? any regression? Fold survivors into a
+      new fix arc. Post-swarm sanity: TB tie, no cross-tenant, prod pm2 zero-500 for the window. —
+      closed by triage 2026-08-19 (round5/ committed; survivors → fix-swarm-round5-lows.md)
+- [x] cleanup leftover frontend/swarm5-*.mjs. — closed by triage 2026-08-19 (no swarm5-*.mjs found
+      in repo)
