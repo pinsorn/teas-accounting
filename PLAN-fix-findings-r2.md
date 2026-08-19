@@ -1,4 +1,14 @@
-# PLAN — fix findings from Testing Swarm Round 2 (drafted 2026-08-19; fixing is a SEPARATE batch)
+# PLAN — fix findings from Testing Swarm Round 2 (GO from Ham 2026-08-19 ~11:4x)
+
+**Ham's decisions:** start now · L2-3 IN SCOPE (delete-superseded-import endpoint, not deferred) ·
+co1 wipe: ORDERED, executed at END of batch (after RED-then-GREEN — the debris IS the repro data),
+as drop+reseed accounting_dev with pg_dump backup first; doubles as the fresh-boot migration gate.
+
+**Execution waves:** W1: U2 design (Opus) ∥ U1 (Sonnet, test-runner slot) ∥ U7 (Haiku, FE-only).
+W2: U3+U4 one warm Sonnet (bank area) → U5+U6 Sonnet (U6 from Fable mini-spec). W3: U2 implement
+(Sonnet from approved spec) + Opus review. Then: Tier-3 consolidated gate, Fable full suite + full
+diff, Tier-2 on U1/U2/U6, commits per unit, wipe+reseed, live browser re-verify of headline fixes.
+ONE test-running worker at a time (shared teas_test).
 
 Source: `PROGRESS-hard-test-r2.md` + per-leg findings files in **`findings-r2/`** (leg files 1–6 +
 `artifacts/`: screenshots, the rendered ภ.ง.ด.1 PDF, throwaway Playwright specs).
