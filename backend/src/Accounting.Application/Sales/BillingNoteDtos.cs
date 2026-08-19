@@ -13,8 +13,15 @@ public sealed record BillingLineInput(
     string UomText,
     decimal UnitPrice,
     decimal DiscountPercent,
-    int    TaxCodeId,
-    string TaxCode,
+    // fix-r2-u2 (L6-1) — nullable, mirroring ChainLineInput/DeliveryLineInput/
+    // TaxInvoiceLineInput (SalesChainDtos.cs:17,64; TaxInvoiceDtos.cs:19). This record was
+    // missed by fix-chain-conversion-integrity WP-5. ApplyLinesAsync never reads TaxCodeId:
+    // the stored pair always comes from SalesLineBackstop.Resolve, so widening is
+    // source-compatible AND semantically a no-op. Non-nullable int made System.Text.Json
+    // throw on the FE's own "taxCodeId": null, which minimal-API binding surfaces as a
+    // generic 400 — locking every non-VAT company out of its only revenue document.
+    int?   TaxCodeId,
+    string? TaxCode,
     decimal TaxRate,
     string? ProductType = null);
 

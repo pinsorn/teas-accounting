@@ -471,42 +471,62 @@ three reasons, in order of force:
 ## 5. Requirements checklist
 
 ### WP-1 — DTO widening (no dependencies; parallel-safe with WP-3)
-- [ ] `backend/src/Accounting.Application/Sales/BillingNoteDtos.cs:16-17` — `int TaxCodeId` →
+- [x] `backend/src/Accounting.Application/Sales/BillingNoteDtos.cs:16-17` — `int TaxCodeId` →
       `int? TaxCodeId`, `string TaxCode` → `string? TaxCode`, with the §3.1 comment.
       Done-criterion: `dotnet build` clean with **zero** other source files edited, and the
-      13 test call sites in §2 compile untouched.
-- [ ] Write **T1** (§6) and confirm it is **RED before** the edit and **GREEN after**. Paste
-      both outputs into the attempt log.
+      13 test call sites in §2 compile untouched. VERIFIED: `dotnet build backend/Accounting.sln`
+      → 0 Warning(s), 0 Error(s); only BillingNoteDtos.cs changed for this WP.
+- [x] Write **T1** (§6) and confirm it is **RED before** the edit and **GREEN after**. Paste
+      both outputs into the attempt log. DONE — see attempt log.
 
 ### WP-2 — inherited-id laundering (depends on nothing; shares no file with WP-1/WP-3)
-- [ ] `backend/src/Accounting.Infrastructure/Sales/SalesLineBackstop.cs` — add `AllById` to
+- [x] `backend/src/Accounting.Infrastructure/Sales/SalesLineBackstop.cs` — add `AllById` to
       `TaxCodeMaster` (+ its population in `LoadTaxCodeMasterAsync`) and the
       `SanitizeInheritedTaxCode` helper, verbatim per §3.2(a).
       **Done-criterion: `git diff` shows ZERO changed lines inside `Resolve`.**
-- [ ] `backend/src/Accounting.Infrastructure/Sales/BillingNoteService.cs` — load the master once
+      VERIFIED: `git diff -- SalesLineBackstop.cs | grep -c '^[-+].*Resolve('` → 0.
+- [x] `backend/src/Accounting.Infrastructure/Sales/BillingNoteService.cs` — load the master once
       per method and apply the helper at lines 138, 202, 516 per §3.2(b). Done-criterion: the
       diff changes exactly three `TaxCodeId =` expressions plus three `LoadTaxCodeMasterAsync`
-      lines; no amount, rate, code-string or line-pick expression is touched.
-- [ ] Write **T4** and confirm RED-then-GREEN.
+      lines; no amount, rate, code-string or line-pick expression is touched. VERIFIED by manual
+      diff read — exactly that shape, nothing else touched.
+- [x] Write **T4** and confirm RED-then-GREEN. DONE — see attempt log. Also reran
+      `ExemptProductTaxResolutionTests` (I4 regression guard): 13/13 passed, 0 skipped.
 
 ### WP-3 — repair migration (depends on nothing; must NOT run concurrently with any other test-running dispatch — shared `teas_test`)
-- [ ] Create `backend/src/Accounting.Infrastructure/Migrations/SqlScripts/639_repair_foreign_tax_code_id_on_sales_lines.sql`
+- [x] Create `backend/src/Accounting.Infrastructure/Migrations/SqlScripts/639_repair_foreign_tax_code_id_on_sales_lines.sql`
       per §3.3. Done-criterion: `grep -c '[{}]' 639_*.sql` → **0**; file contains no INSERT, no
-      DELETE, no DDL, and updates exactly one column.
-- [ ] Write **T6** (script-under-RLS test) modelled on
+      DELETE, no DDL, and updates exactly one column. VERIFIED: curly count 0, INSERT count 0,
+      DELETE count 0, DDL count 0, 4 `SET tax_code_id` statements (one per table), no other
+      column assigned.
+- [x] Write **T6** (script-under-RLS test) modelled on
       `backend/tests/Accounting.Api.Tests/Persistence/ExpenseCategoryBackfillRlsTests.cs`.
-      Done-criterion: RED with the repair body commented out, GREEN with it live.
-- [ ] Record the pre-repair survey output of `accounting_dev` (§1.4) and the post-repair output
+      Done-criterion: RED with the repair body commented out, GREEN with it live. DONE — see
+      attempt log.
+- [x] Record the pre-repair survey output of `accounting_dev` (§1.4) and the post-repair output
       in the attempt log. Expected after: 0 class-A rows in the four tables; class B unchanged
-      at 2 rows in `tax_invoice_lines`.
+      at 2 rows in `tax_invoice_lines`. DONE — pre-repair matched §1.4 exactly (8 rows, 2/table);
+      post-repair P1-P5 all match expectations, see attempt log.
 
 ### WP-4 — regression + UI gate
-- [ ] Add **T2, T3, T5, T7** to
+- [x] Add **T2, T3, T5, T7** to
       `backend/tests/Accounting.Api.Tests/Sales/TaxCodePairIntegrityTests.cs` (extend; do not
       create a new class — it already carries the F13 charter and both DB and non-DB facts).
-- [ ] **T9** — run the two existing permanent e2e specs. Do **not** author a throwaway spec.
-- [ ] Do not open any file under `frontend/`. Done-criterion: `git status` shows no
-      `frontend/` path.
+      DONE — T2/T3/T5 written; T7 = existing `NonVatBillingTests`/`NonVatArAccrualTests` reran
+      unmodified (10/10 + covered by the §7 filter run), all green.
+- [x] **T9** — run the two existing permanent e2e specs. Do **not** author a throwaway spec.
+      `non-vat-mode-pdf.spec.ts` (primary, the exact L6-1 repro) — **PASSED** (45.8s), confirming
+      I6 end-to-end on the real UI. `billing-note-flow.spec.ts` — 1/4 passed; the other 3 fail in
+      the SHARED `pickCustomer()` helper before any BN/tax-code code path runs, on a strict-mode
+      violation: the customer search "ลูกค้าทดสอบ" now matches 2 buttons because
+      `accounting_dev.master.customers` has a pre-existing row (`customer_id=9`, "บริษัท SALES
+      ลูกค้าทดสอบ จำกัด", `created_at=-infinity` — a raw-SQL/seed artifact, not created by this
+      diff or this session) whose name contains both search terms. Confirmed unrelated to this
+      unit: this diff never writes `master.customers`; the failure point is the customer picker,
+      before line/tax-code assertions. Reported per spec instruction ("report what you observe,
+      do not assume") — not fixed (out of blast radius).
+- [x] Do not open any file under `frontend/`. Done-criterion: `git status` shows no
+      `frontend/` path. VERIFIED (see §7 gate evidence below).
 
 ## 6. Test list
 
@@ -653,3 +673,91 @@ Hitting the cap = stop and re-spec. Never a silent overrun.
   `grep -rn "new TaxCodeMaster" backend --include=*.cs` (excluding obj/bin) → **exactly one hit,
   `SalesLineBackstop.cs:121`**, already inside the blast list, so adding the `required AllById`
   member breaks no file outside the cap. Blast cap stays **8**.
+- 2026-08-19 sonnet-implementer: full implementation, WP-1 through WP-4, T1-T9. Environment note:
+  `TEAS_TEST_PG` needed the CURRENT dev creds (`Host=localhost;Port=5432;Database=teas_test;
+  Username=accounting;Password=accounting_dev_password`) — found in
+  `backend/src/Accounting.Api/appsettings.Development.json`; an earlier guess using an ancient
+  password (matching memory `teas-test-pg-env-per-shell`'s warning) 28P01'd.
+
+  **WP-1 (T1).** Widened `BillingLineInput.TaxCodeId`/`TaxCode` in
+  `backend/src/Accounting.Application/Sales/BillingNoteDtos.cs:16-17` per §3.1, comment verbatim.
+  `dotnet build` after: 0 Warning(s), 0 Error(s), only this file changed. T1
+  (`TaxCodePairIntegrityTests.Billing_line_with_null_tax_code_pair_deserializes`) written as a
+  `Action`-wrapped deserialize + `NotThrow<JsonException>` assertion (so the test SOURCE compiles
+  unchanged on both sides of the DTO edit — a direct `.TaxCodeId.Should().BeNull()` would not
+  compile pre-fix, since `NumericAssertions<int>` has no `BeNull()`; that would be a compile-RED,
+  not the runtime-RED the spec specifies).
+  RED (pre-fix): `System.Text.Json.JsonException: The JSON value could not be converted to
+  Accounting.Application.Sales.BillingLineInput. Path: $.lines[0].taxCodeId ... Cannot get the
+  value of a token type 'Null' as a number.` — exactly §1.1's defect.
+  GREEN (post-fix, after adding the `TaxCodeId`/`TaxCode` `.BeNull()` assertions, now compiling):
+  `Passed! - Failed: 0, Passed: 1, Skipped: 0, Total: 1, Duration: 55 ms`.
+
+  **WP-2 (T4).** Added `TaxCodeMaster.AllById` + population in `LoadTaxCodeMasterAsync`, and
+  `SanitizeInheritedTaxCode` to `SalesLineBackstop.cs`, verbatim per §3.2(a).
+  `git diff -- SalesLineBackstop.cs | grep -c '^[-+].*Resolve('` → **0** (confirmed both by grep
+  and manual diff read). Applied the helper at `BillingNoteService.cs` lines 138/202/516 (one
+  `LoadTaxCodeMasterAsync` + one `SanitizeInheritedTaxCode` call per site); diff confirmed to
+  change exactly those 3 `TaxCodeId =` expressions + 3 loader lines, nothing else.
+  T4 (`Billing_note_from_tax_invoice_launders_a_foreign_tax_code_id`, both rule-(b) and rule-(c)
+  cases in one method: DRAFT TI → raw-SQL rewrite BOTH columns → post → group into BN).
+  RED (pre-fix): `Expected snapB.TaxCodeId to be 91237 ... but found 91249` (the verbatim-copied
+  foreign id — SanitizeInheritedTaxCode not yet wired in).
+  GREEN (post-fix): `Passed! - Failed: 0, Passed: 1, Skipped: 0, Total: 1, Duration: 1 s`.
+  Regression check: `ExemptProductTaxResolutionTests` (I4 guard) — 13/13 passed, 0 skipped.
+
+  **WP-3 (T6).** Wrote `639_repair_foreign_tax_code_id_on_sales_lines.sql` per §3.3 (per-company
+  `set_config` loop, 4 identical UPDATE statements for quotation/sales_order/delivery_order/
+  billing_note lines, `m.company_id = h.company_id` / `t.company_id = h.company_id` predicates
+  kept load-bearing). First draft had ONE curly-brace violation in a comment
+  (`sales.{quotations,sales_orders,...}`) — caught by the grep gate immediately, reworded to a
+  slash-separated list. Final: `grep -c '[{}]'` → 0; 0 INSERT; 0 DELETE; 0 DDL; exactly 4
+  `SET tax_code_id` statements, no other column assigned.
+  T6 (`SalesLineTaxCodeRepairRlsTests.Script639_repairs_foreign_tax_code_id_under_RLS_per_company_loop`)
+  written mirroring `ExpenseCategoryBackfillRlsTests.cs` exactly (two companies to source a real
+  foreign id; BN with 2 lines seeded via the service then raw-SQL-corrupted on BOTH columns per
+  line, one per rule branch; GRANT + `SET ROLE pg_database_owner` + real script file read +
+  `CommandTimeout=300` + `RESET ROLE` in `finally`).
+  RED (repair body swapped for `SELECT 1;`, header comments + brace-gate preserved):
+  `Expected reader.GetInt32(1) to be 91441 ... but found 91453` (rule-a foreign id unrepaired).
+  Restored the live script; GREEN: `Passed! - Failed: 0, Passed: 1, Skipped: 0, Total: 1,
+  Duration: 5 s` (real per-company loop over ~629 `teas_test` companies × 4 statements, under
+  `pg_database_owner`, RLS-bound).
+
+  **WP-4 (T2/T3/T5/T7/T9).** Added T2 (`Non_vat_company_billing_note_line_stores_the_synthetic_pair`),
+  T3 (`Bogus_request_tax_code_id_is_never_stored`), T5 (`Repair_script_changes_only_tax_code_id` —
+  full-row + header snapshot before/after, asserts only `tax_code_id` differs) to
+  `TaxCodePairIntegrityTests.cs`. T7: reran `NonVatBillingTests`/`NonVatArAccrualTests`
+  unmodified — 10/10 passed (NonVatArAccrual, run separately since §7's own filter string omits
+  it despite T7's prose naming it — followed the literal §7 command as authoritative, then ran
+  this as an extra safety check).
+  §7's own targeted filter (`TaxCodePairIntegrity|SalesLineTaxCodeRepairRls|
+  ExemptProductTaxResolution|NonVatBilling|ChainConversionIntegrity`): **Passed! - Failed: 0,
+  Passed: 36, Skipped: 0, Total: 36, Duration: 11 s.** `git status --short frontend/` → empty.
+
+  T9: built (clean), all backend tests green, booted the API with the exact specified command.
+  Boot log confirmed 638 then 639 applied and COMMITTED cleanly (no exception), app reached
+  `Now listening on: http://localhost:5080` / `Application started`.
+  Pre-repair P1 probe (before boot) matched §1.4 exactly: 8 rows, 2 each across
+  quotation_lines/sales_order_lines/delivery_order_lines/billing_note_lines.
+  Post-repair probes (after the one boot that applied 639):
+  - **P1** (class A, all 4 tables): **0 rows** — fully repaired.
+  - **P2** (BN header totals): `1: 1000.0000/70.0000/1070.0000`, `2: 3124.9900/218.7500/3343.7400`,
+    `3: 1799.9900/0.0000/1799.9900` (matches the spec's stated expectation exactly),
+    `4: 100.0000/0.0000/100.0000` — no header total moved.
+  - **P3** (co4 BN4 sentinel line): `(0, 'VAT0')` — untouched, as required.
+  - **P4** (class-B residue report): 2 rows, both `tax_invoice_lines`, company 1, code `'V7'`
+    vs master `'VAT7'` — unchanged, exactly the expected 2-row survey.
+  - **P5** (`sys.applied_sql_scripts`): 1 row, `639_repair_foreign_tax_code_id_on_sales_lines.sql`,
+    `applied_at = 2026-08-19 11:39:28.061043+07`.
+  Playwright T9: `non-vat-mode-pdf.spec.ts` (primary, the exact L6-1 repro) — **1 passed (45.8s)**.
+  `billing-note-flow.spec.ts` — 1/4 passed; the other 3 fail inside the shared `pickCustomer()`
+  helper (strict-mode: 2 buttons match the search "ลูกค้าทดสอบ") BEFORE any BN/tax-code code path
+  runs. Root-caused via a read-only query: `master.customers` in `accounting_dev` carries a
+  pre-existing row (`customer_id=9`, name `"บริษัท SALES ลูกค้าทดสอบ จำกัด"`, `created_at
+  = -infinity` — a raw-SQL/seed artifact predating this session) whose name contains both search
+  terms. Confirmed unrelated to this diff: nothing in WP-1/2/3/4 writes `master.customers`, and
+  the failure point is upstream of any line/tax-code assertion. Reported per spec instruction,
+  not fixed (outside blast radius / not a frontend/customer-picker unit).
+  Killed the API process afterward (PID resolved via `Get-NetTCPConnection -LocalPort 5080`) —
+  confirmed port 5080 unreachable again, releasing `bin/` for later workers.

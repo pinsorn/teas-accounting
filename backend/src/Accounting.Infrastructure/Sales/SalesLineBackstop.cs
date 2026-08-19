@@ -55,6 +55,11 @@ internal static class SalesLineBackstop
         /// ม.81 fallback (ladder step 4): lowest TaxCodeId among Direction==Output && IsActive && IsExempt.
         /// null when the tenant has no exempt output code at all → ladder step 5.
         public required TaxCodeFlags? ExemptOutputFallback { get; init; }
+        /// fix-r2-u2 (L6-4) — EVERY tax code of this company keyed by id, unfiltered by
+        /// Direction/IsActive (ActiveOutputById is Output+Active only, so it would wrongly
+        /// reject a legitimately inherited input/inactive code). Used ONLY by
+        /// SanitizeInheritedTaxCode; Resolve does not read it.
+        public required IReadOnlyDictionary<int, TaxCodeFlags> AllById { get; init; }
     }
 
     /// <summary>The seeded standard output VAT code (ม.80) — used as the code for a VAT line
@@ -118,11 +123,19 @@ internal static class SalesLineBackstop
             .Select(f => (TaxCodeFlags?)f)
             .FirstOrDefault();
 
+        // fix-r2-u2 (L6-4) — every code of this company, unfiltered, keyed by id. Built from the
+        // same rows list already loaded above (no extra round-trip).
+        var allById = rows
+            .OrderBy(r => r.TaxCodeId)
+            .ToDictionary(r => r.TaxCodeId,
+                r => new TaxCodeFlags(r.TaxCodeId, r.Code, r.IsExempt, r.IsZeroRated));
+
         return new TaxCodeMaster
         {
             ByCode = byCode,
             ActiveOutputById = activeOutput,
             ExemptOutputFallback = exemptFallback,
+            AllById = allById,
         };
     }
 
@@ -248,6 +261,30 @@ internal static class SalesLineBackstop
         return standardOutput is { } so
             ? (type, companyVatRate, so.Code, so.TaxCodeId)
             : (type, companyVatRate, StandardOutputVatCode, SYNTHETIC_TAX_CODE_ID);
+    }
+
+    /// <summary>fix-r2-u2 (L6-4) — chain-copy laundering. A line COPIED FORWARD from a source
+    /// document inherits its (tax_code_id, tax_code) pair verbatim. Rows written before the
+    /// F13/N1 ladder can carry ANOTHER COMPANY'S tax_code_id (proved: co3's chain stored co1's
+    /// VAT7 id behind the string 'VAT0'), and sales.tax_invoice_lines cannot be repaired by a
+    /// migration (posted-line immutability trigger, SqlScripts/582). So the copy launders the
+    /// id — it never refuses, so no document can be stranded:
+    ///   (a) id is a real row of THIS company's master  → keep it;
+    ///   (b) else the inherited CODE STRING matches this company's master (case-insensitive)
+    ///       → use that master row's id;
+    ///   (c) else                                       → SYNTHETIC_TAX_CODE_ID.
+    /// The inherited CODE STRING is never rewritten (money and the printed document label are
+    /// untouched — only the id moves). NB this can mint a pair the ladder itself never emits,
+    /// e.g. (0, "V7"): the synthetic-pair contract widens from the three documented pairs to
+    /// "sentinel id + whatever string the source line carried" on laundered copies. Rate and
+    /// amounts are ALWAYS inherited verbatim by the caller — this helper touches neither.</summary>
+    public static int SanitizeInheritedTaxCode(int inheritedId, string? inheritedCode, TaxCodeMaster master)
+    {
+        if (inheritedId != SYNTHETIC_TAX_CODE_ID && master.AllById.ContainsKey(inheritedId))
+            return inheritedId;
+        if (!string.IsNullOrWhiteSpace(inheritedCode) && master.ByCode.TryGetValue(inheritedCode, out var byCode))
+            return byCode.TaxCodeId;
+        return SYNTHETIC_TAX_CODE_ID;
     }
 
     // Mirror of the Product entity's value-converter string form (ProductConfiguration).

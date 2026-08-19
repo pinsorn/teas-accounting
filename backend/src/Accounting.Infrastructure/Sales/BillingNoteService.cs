@@ -125,6 +125,8 @@ public sealed class BillingNoteService(
             CurrencyCode = dord.CurrencyCode, ExchangeRate = dord.ExchangeRate,
             Notes = dord.Notes,
         };
+        // fix-r2-u2 (L6-4/§3.2) — loaded ONCE before the loop (trap §9.4), never inside it.
+        var taxCodes = await SalesLineBackstop.LoadTaxCodeMasterAsync(db, ct);
         int n = 1;
         foreach (var l in dord.Lines.OrderBy(l => l.LineNo))
         {
@@ -135,7 +137,8 @@ public sealed class BillingNoteService(
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, DiscountAmount = l.DiscountAmount,
                 LineAmount = l.LineAmount,
-                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxCodeId = SalesLineBackstop.SanitizeInheritedTaxCode(l.TaxCodeId, l.TaxCode, taxCodes),
+                TaxCode = l.TaxCode, TaxRate = l.TaxRate,
                 TaxAmount = l.TaxAmount, TotalAmount = l.TotalAmount,
             });
             bn.SubtotalAmount += l.LineAmount; bn.VatAmount += l.TaxAmount; bn.TotalAmount += l.TotalAmount;
@@ -189,6 +192,8 @@ public sealed class BillingNoteService(
             SalesOrderId = so.SalesOrderId,
             CurrencyCode = so.CurrencyCode, ExchangeRate = so.ExchangeRate,
         };
+        // fix-r2-u2 (L6-4/§3.2) — loaded ONCE before the loop (trap §9.4), never inside it.
+        var taxCodes = await SalesLineBackstop.LoadTaxCodeMasterAsync(db, ct);
         int n = 1;
         foreach (var l in so.Lines.OrderBy(l => l.LineNo))
         {
@@ -199,7 +204,8 @@ public sealed class BillingNoteService(
                 Quantity = l.Quantity, UomText = l.UomText, UnitPrice = l.UnitPrice,
                 DiscountPercent = l.DiscountPercent, DiscountAmount = l.DiscountAmount,
                 LineAmount = l.LineAmount,
-                TaxCodeId = l.TaxCodeId, TaxCode = l.TaxCode, TaxRate = l.TaxRate,
+                TaxCodeId = SalesLineBackstop.SanitizeInheritedTaxCode(l.TaxCodeId, l.TaxCode, taxCodes),
+                TaxCode = l.TaxCode, TaxRate = l.TaxRate,
                 TaxAmount = l.TaxAmount, TotalAmount = l.TotalAmount,
             });
             bn.SubtotalAmount += l.LineAmount; bn.VatAmount += l.TaxAmount; bn.TotalAmount += l.TotalAmount;
@@ -494,6 +500,10 @@ public sealed class BillingNoteService(
             .Where(t => t.CompanyId == tenant.CompanyId && linkedIds.Contains(t.TaxInvoiceId))
             .ToDictionaryAsync(t => t.TaxInvoiceId, ct);
 
+        // fix-r2-u2 (L6-4/§3.2) — loaded ONCE before the loop (trap §9.4), never inside it.
+        // sales.tax_invoice_lines cannot be repaired by 639 (immutability trigger), so this is
+        // the copy that MUST launder.
+        var taxCodes = await SalesLineBackstop.LoadTaxCodeMasterAsync(db, ct);
         int n = 1;
         foreach (var link in links)
         {
@@ -513,7 +523,7 @@ public sealed class BillingNoteService(
                 UomText = "ฉบับ",
                 UnitPrice = ti.SubtotalAmount,
                 LineAmount = ti.SubtotalAmount,
-                TaxCodeId = sourceLine.TaxCodeId,
+                TaxCodeId = SalesLineBackstop.SanitizeInheritedTaxCode(sourceLine.TaxCodeId, sourceLine.TaxCode, taxCodes),
                 TaxCode = sourceLine.TaxCode,
                 TaxRate = sourceLine.TaxRate,
                 TaxAmount = ti.TaxAmount,
