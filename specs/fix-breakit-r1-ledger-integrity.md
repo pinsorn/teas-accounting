@@ -836,7 +836,7 @@ Each is a money statement, not a field value. `T#` = the test in §6 that proves
 - [x] Preview response per §3.2.5: per fiscal year `outstandingTotal` / `creditSide` / `invoiceCount` + the invoice list. **This output is handed to the company's accountant** — make it readable, not just machine-parseable. Evidence: `NonVatArBackfillResult.ByFiscalYear`.
 - [x] Tests T8–T11 green. Evidence: `NonVatArBackfillTests.cs` 6/6 (T8, T9, T10, T11, VAT refusal, missing-account error), 0 skipped.
 - [x] `RbacAuthMapTests` / `RbacCartesianTests` green with `TEAS_REPO_ROOT` set (a new endpoint always disturbs these). Allowlist entries added (`ExpectedAuthnOnly` + `HandlerGatedAuthnOnly`, claims-only gate). Evidence: 4/4 passed, 4m22s.
-- [ ] **The apply run on Repttown is NOT part of this dispatch.** Ship the code; Fable runs the operation per §7's Tier-4 checklist. (Not run — code-only, as instructed.)
+- [~] **The apply run on Repttown is NOT part of this dispatch.** Ship the code; Fable runs the operation per §7's Tier-4 checklist. (Not run — code-only, as instructed.) — blocked on server migration; tracked in MIGRATION-CUTOVER-CHECKLIST.md (triage 2026-08-19)
 
 **Blast cap:** max **8** source files + **2** test files. 0 migrations, 0 SqlScripts. New public endpoint: **1**.
 **Dropped by the redesign:** the fiscal-year hard stop and its `backfill.fiscal_year_closed` blocker are

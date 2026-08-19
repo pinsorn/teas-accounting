@@ -11,8 +11,8 @@ touch them again.
 - [x] IMPLEMENT (Sonnet, from approved design) — 2026-08-18. All 5 implementation-order steps
       done; §N2.5 pre-check zero rows; build 0/0; tsc clean; 45/45 filtered tests green; RED
       confirmed for the fix-dependent N1/N3/N2 tests via targeted git-stash. See attempt log.
-- [ ] REVIEW (Opus, same dispatch as implement)
-- [ ] Full suite + commit (Fable)
+- [x] REVIEW (Opus, same dispatch as implement) — closed by triage 2026-08-19 (047fe95)
+- [x] Full suite + commit (Fable) — closed by triage 2026-08-19 (2f8dad8; suite 1255/0/14)
 
 ## N1 — exempt product charges standard VAT (🔴 money/tax, ม.81)
 **Verified mechanics:** `LineItemsTable.tsx` onSelectProduct sets `taxRate: taxRateForProductType()`

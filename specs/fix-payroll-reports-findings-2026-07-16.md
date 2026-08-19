@@ -7,14 +7,14 @@ manual after. Execution grouped W1/W2/W3 per PROGRESS-payroll-reports-uxtest.md 
 
 ## Checklist (ordered by impact — see report §ข้อเสนอลำดับ fix)
 
-- [ ] R1 global-error boundary: app/global-error.tsx (หรือ error.tsx ชั้น dashboard) ภาษาไทย +
-      ปุ่ม "โหลดใหม่" + ChunkLoadError auto-retry (reload once on chunk fail)
-- [ ] P1 openPdf/downloadFile (lib/api.ts:171,181): อ่าน problem+json body ก่อนโยน,
-      fallback ข้อความไทยตาม status; ห้าม toast ว่าง
-- [ ] P2+P4 employees modal: re-seed form เมื่อ refetch เสร็จ (key by dataUpdatedAt) หรือ
-      seed หลัง fetch จบเท่านั้น + spinner บนปุ่มดินสอ + error toast เมื่อ detail fetch fail
-- [ ] P3 i18n: เพิ่ม common.yes/common.no (th+en) | R3: เพิ่ม report.total (th+en)
-- [ ] R2 ลบ dev note ("deferred to Phase 2 ... plan.md") ออกจากหน้า P&L
+- [x] R1 global-error boundary: app/global-error.tsx (หรือ error.tsx ชั้น dashboard) ภาษาไทย +
+      ปุ่ม "โหลดใหม่" + ChunkLoadError auto-retry (reload once on chunk fail) — closed by triage 2026-08-19 (global-error.tsx)
+- [x] P1 openPdf/downloadFile (lib/api.ts:171,181): อ่าน problem+json body ก่อนโยน,
+      fallback ข้อความไทยตาม status; ห้าม toast ว่าง — closed by triage 2026-08-19 (api.ts:195-209 throwFileResponseError)
+- [x] P2+P4 employees modal: re-seed form เมื่อ refetch เสร็จ (key by dataUpdatedAt) หรือ
+      seed หลัง fetch จบเท่านั้น + spinner บนปุ่มดินสอ + error toast เมื่อ detail fetch fail — closed by triage 2026-08-19 (settings/employees/page.tsx:64-80)
+- [x] P3 i18n: เพิ่ม common.yes/common.no (th+en) | R3: เพิ่ม report.total (th+en) — closed by triage 2026-08-19 (th/en.json common.yes/no+report.total)
+- [x] R2 ลบ dev note ("deferred to Phase 2 ... plan.md") ออกจากหน้า P&L — closed by triage 2026-08-19 (no dev-note strings left)
 - [x] P5 payroll run: แถวพนักงานเงินได้ 0 → badge เตือน + ลิงก์ ตั้งค่า→พนักงาน;
       (option) confirm ก่อน อนุมัติ ถ้า totalNet = 0 — DONE (W2, 2026-07-17): badge-warning
       "ยังไม่ได้ตั้งเงินเดือน" per zero-gross row (Link → /settings/employees) + alert-warning
@@ -26,8 +26,8 @@ manual after. Execution grouped W1/W2/W3 per PROGRESS-payroll-reports-uxtest.md 
       hover:bg-base-200) opens DaisyUI modal using already-fetched PayslipDto fields (grossTaxable,
       grossNonTaxable, pitWithheld, ssoEmployee, ssoEmployer if >0, netPay) + static ม.50(1)
       explainer note. No new API calls. พิมพ์/50ทวิ per-row buttons still work (stopPropagation added).
-- [ ] P7 BE hint วันที่จ่าย (payroll modal) — pattern เดียวกับ QT form (WP-C เดิม)
-- [ ] P8 aria-label ปุ่มดินสอ | P9 destructive confirm สีแดง + toast copy "สร้างรอบจ่ายแล้ว"
+- [x] P7 BE hint วันที่จ่าย (payroll modal) — pattern เดียวกับ QT form (WP-C เดิม) — closed by triage 2026-08-19 (payroll/page.tsx:134 formatDateBE)
+- [x] P8 aria-label ปุ่มดินสอ | P9 destructive confirm สีแดง + toast copy "สร้างรอบจ่ายแล้ว" — closed by triage 2026-08-19 (aria-label + toast.success)
 - [x] R4 date format: ตารางรายงานทุกหน้าใช้ Thai BE เหมือน GL (vendor-ledger ยัง ISO) —
       DONE (W3, 2026-07-17): vendor-ledger + customer-statement now render `formatDate(l.docDate)`
       (same `lib/utils.ts` Thai-BE `Intl.DateTimeFormat` helper GL/bank-recon already use), was

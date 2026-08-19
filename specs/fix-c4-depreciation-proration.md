@@ -434,31 +434,36 @@ which is why the three existing money tests must pass untouched.
 ## 5. Requirements checklist
 
 ### WP-1 — schema (do FIRST; everything else compiles against it)
-- [ ] `backend/src/Accounting.Domain/Entities/FixedAsset/FixedAsset.cs` — add
-      `public decimal? MonthsDepreciated { get; set; }` + XML comment per §3.4; add
-      `public static decimal FirstMonthFraction(DateOnly start)` per §3.2. **Do not touch
-      `Activate`.** Done when: builds, no other member changed.
-- [ ] `backend/src/Accounting.Infrastructure/Persistence/Configurations/FixedAsset/FixedAssetConfiguration.cs`
-      — `b.Property(x => x.MonthsDepreciated).HasPrecision(9, 4);` (no default value).
-- [ ] Migration `FixedAssetMonthsDepreciated` (`dotnet ef migrations add FixedAssetMonthsDepreciated
-      -p backend/src/Accounting.Infrastructure -s backend/src/Accounting.Api`) — **verify the
-      generated `Up()` is AddColumn-only; if it contains any `Sql(` / `UpdateData`, delete that
-      line** (§3.4 RLS). Done when: `Up`/`Down` are one `AddColumn`/`DropColumn` and the snapshot
-      is regenerated. **Once `dotnet test` has applied it, never `ef migrations remove` + re-add
-      (troubles-wiki:210) — hand-edit instead.**
+- [x] `backend/src/Accounting.Domain/Entities/FixedAsset/FixedAsset.cs` — added
+      `public decimal? MonthsDepreciated { get; set; }` + XML comment per §3.4; added
+      `public static decimal FirstMonthFraction(DateOnly start)` per §3.2. `Activate` untouched.
+      Done: builds clean (isolated `-o` build, 0 warnings/0 errors — see gate evidence below).
+- [x] `backend/src/Accounting.Infrastructure/Persistence/Configurations/FixedAsset/FixedAssetConfiguration.cs`
+      — `b.Property(x => x.MonthsDepreciated).HasPrecision(9, 4);` added (no default value).
+- [x] Migration `FixedAssetMonthsDepreciated` — live API on :5080 locks `Accounting.Api`'s bin,
+      so generated via `dotnet ef migrations add FixedAssetMonthsDepreciated -p
+      backend/src/Accounting.Infrastructure -s backend/src/Accounting.Infrastructure` (the
+      repo's `AccountingDbContextFactory : IDesignTimeDbContextFactory` was built for exactly
+      this — bypasses the Api host build entirely). Verified `Up()` is ONE
+      `AddColumn<decimal>("months_depreciated", schema:"fixedasset", table:"fixed_assets",
+      type:"numeric(9,4)", nullable:true)`, `Down()` is one `DropColumn` — no `Sql(`/`UpdateData`
+      anywhere. Snapshot regenerated (`AccountingDbContextModelSnapshot.cs` now carries
+      `MonthsDepreciated` / `months_depreciated`). Files:
+      `20260819125540_FixedAssetMonthsDepreciated.cs` /
+      `20260819125540_FixedAssetMonthsDepreciated.Designer.cs`.
 
 ### WP-2 — engine (depends on WP-1)
-- [ ] `backend/src/Accounting.Infrastructure/FixedAsset/FixedAssetService.cs` — add the
-      `priorLineCounts` grouped query after the eligible-asset load; replace `:345-353` with the
-      §3.2 fragment; set `asset.MonthsDepreciated = unitsAfter` before the run line is added;
-      **delete `AddMonths` (:303-307)** once it has no callers. Done when: no reference to
-      `isFinalScheduledMonth` or `AddMonths` remains in the file.
-- [ ] Same file — `GetDetailAsync`'s projection passes `asset.MonthsDepreciated` into the DTO.
-- [ ] `backend/src/Accounting.Application/FixedAsset/FixedAssetDtos.cs` — append
-      `decimal? MonthsDepreciated = null` as the **LAST** positional member of `FixedAssetDetail`
-      (positional record: a trailing parameter WITHOUT a default would break every construction
-      site; the only site is `GetDetailAsync`, updated in this same WP, and the compiler flags
-      any other).
+- [x] `backend/src/Accounting.Infrastructure/FixedAsset/FixedAssetService.cs` — added the
+      `priorLineCounts` grouped query after the eligible-asset load; replaced the calendar-plug
+      block with the §3.2 fragment verbatim; `asset.MonthsDepreciated = unitsAfter` set before the
+      run line is added; **deleted `AddMonths`** (had no other callers). `grep -n
+      "isFinalScheduledMonth\|AddMonths"` on the file → zero matches.
+- [x] Same file — `GetDetailAsync`'s projection now passes `asset.MonthsDepreciated` as the trailing
+      positional arg into `FixedAssetDetail`.
+- [x] `backend/src/Accounting.Application/FixedAsset/FixedAssetDtos.cs` — appended
+      `decimal? MonthsDepreciated = null` as the LAST positional member of `FixedAssetDetail`.
+      Isolated build (0 errors/0 warnings) confirms `GetDetailAsync` is the only construction site
+      and no other caller broke.
 
 ### WP-3 — docs (same PR, no code impact)
 - [ ] `FixedAsset.cs:38-40` `MonthlyAmount` comment + `DepreciationRunLine.cs:18-19` `Amount`

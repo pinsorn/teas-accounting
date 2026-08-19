@@ -31,8 +31,8 @@ ever for this vhost; teas-web/teas-api logs silent/no errors; the exact write se
 appears at origin ONCE each with 200/204. Conclusion: first attempts died at the
 **Cloudflare edge** (origin never saw them), browser showed 503, FE retry reached
 origin and applied → "503-but-applied".
-- [ ] HAM ACTION: pull Cloudflare dashboard Analytics/Logs 5xx for teas.kazaki-rio.com
-      2026-07-16 13:02–13:12 ICT to confirm edge-side cause (health check/PoP/rule).
+- [x] HAM ACTION: pull Cloudflare dashboard Analytics/Logs 5xx for teas.kazaki-rio.com
+      2026-07-16 13:02–13:12 ICT to confirm edge-side cause (health check/PoP/rule). — OBSOLETE per triage 2026-08-19 (origin host retired → concerns fold into migration project)
 - [x] S13a (FE hardening, ship regardless): app/api/proxy/[...path]/route.ts fetch has
       NO timeout → add AbortSignal.timeout(~30s) + distinct "not confirmed, retry"
       error surface on abort. DONE 2026-07-16 (WP-B) — added `signal:
@@ -61,8 +61,8 @@ origin and applied → "503-but-applied".
       target status) and assert: 2nd call throws, DocNo/status unchanged, exactly 1
       activity-log entry (Quotation send/accept, SO post, BN issue) or exactly 1 JE by
       `Reference` (Receipt post) — `SalesUxFixesWpATests.cs`.
-- [ ] Separate note for Ham (unrelated but real): NPM certbot hourly renewals for
-      npm-1/9/11/23 are failing on Let's Encrypt rate limits (not teas's cert).
+- [x] Separate note for Ham (unrelated but real): NPM certbot hourly renewals for
+      npm-1/9/11/23 are failing on Let's Encrypt rate limits (not teas's cert). — OBSOLETE per triage 2026-08-19 (NPM certbot concerns fold into migration project)
 - Do NOT touch nginx timeouts/buffering — zero evidence pointing there.
 
 ## S11 — no confirm dialog on QT ส่ง (issues doc number!), QT ตอบรับ, SO post, INV ออก [x]

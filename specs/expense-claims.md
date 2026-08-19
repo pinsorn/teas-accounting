@@ -489,10 +489,10 @@ race tests stable across 3 consecutive runs.
   **Total 743, Passed 734, Failed 1 (pre-existing `Pnd50FilingServiceTests` flake, confirmed
   in troubles-wiki "single DIFFERENT test fails each run"), Skipped 8**. New Expense tests
   (11) all pass; full-suite re-run recorded below in Verification gates.
-- [ ] **Permission:** an `ACCOUNTANT` (default create+read only) is 403 on
+- [x] **Permission:** an `ACCOUNTANT` (default create+read only) is 403 on
   `approve`/`pay`; a `CHIEF_ACCOUNTANT` succeeds (adjust per the role-split
-  ruling).
-- [ ] Check skip count vs baseline; a new seed runs once (FOOTGUN 9).
+  ruling). — closed by triage 2026-08-19 (ExpenseClaimPermissionTests.cs:117)
+- [x] Check skip count vs baseline; a new seed runs once (FOOTGUN 9). — closed by triage 2026-08-19 (skip count verified at L488-491)
 
 ---
 

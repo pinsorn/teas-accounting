@@ -90,7 +90,7 @@ L7 (Thai comments — Haiku, optional).
 ## Spec-log (living checklist)
 
 ### H3 — PUT validation wiring
-- [ ] Dispatched Sonnet 2026-07-04.
+- [x] Dispatched Sonnet 2026-07-04. — closed by triage 2026-08-19 (stale dispatch marker followed by [x])
 - [x] Done 2026-07-04. Audited all 25 `MapPut` in `Accounting.Api/Endpoints/*` against
   existing `AbstractValidator<T>` classes. 4 genuine gaps fixed (sibling `CreateXValidator`
   existed to mirror, or the `UpdateXValidator` existed but was dead/unwired):

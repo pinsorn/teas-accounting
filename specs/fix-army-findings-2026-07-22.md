@@ -481,8 +481,8 @@ WP-A (backend money, dotnet) ∥ WP-D (FE-only nits, tsc) allowed parallel; WP-B
       `PrintMenu` component; direct endpoint probe also 200/application-pdf. Not a real
       user-facing break — no Ham confirmation needed, close as swarm-script artifact. See
       `swarm-findings/army/O2-O3-verify.md`.
-- [ ] O4 [B-ec item 4]: expense-claim EDIT for Draft/Rejected = UNBUILT (backend PUT wired, zero
-      FE). Build or drop? Ham's call.
+- [x] O4 [B-ec item 4]: expense-claim EDIT for Draft/Rejected = UNBUILT (backend PUT wired, zero
+      FE). Build or drop? Ham's call. — closed by triage 2026-08-19 (edit page exists, d877286)
 - [ ] O5 [B-rc]: ภ.พ.36 has no PDF export (pnd54-only route). Build parity or accept? Ham's call.
 - [x] O6 **CLOSED 2026-07-25 — NO CODE CHANGE NEEDED.** Research (AGY + Fable review:
       `swarm-findings/army/O6-research-50twi-pnd53-seq.md`) found the field is an administrative
@@ -799,12 +799,12 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
   filing grant still 403s; COMPANY_ADMIN/CHIEF_ACCOUNTANT unchanged.
 
 ## OPEN — payroll feature gaps (Ham's scope call, NOT dispatched)
-- [ ] O8 [B2-pr F1] **no day-based salary proration** for a mid-month hire or a mid-month leaver —
+- [x] O8 [B2-pr F1] **no day-based salary proration** for a mid-month hire or a mid-month leaver —
       both got a full month's salary + full PIT in the live run and in the printed ภ.ง.ด.1/1ก
       (PRB01 hired 07-15, PRC01 terminated 07-10, identical to the full-month control). Code comment
       says "regular salary only" ⇒ UNBUILT by design, not a crash. For a Thai payroll product this is
       the biggest functional gap the army found. Build proration? (needs a rule decision: calendar
-      days vs working days, and how PIT/SSO follow.)
+      days vs working days, and how PIT/SSO follow.) — closed by triage 2026-08-19 (SalaryProration.DaysEmployed, PayrollRunService.cs:89-92)
 - [x] O9 [B2-pr F1b] **no termination/end-date field** anywhere in the employee UI (the leg had to
       PUT it via the API). Pairs with O8 — proration is unimplementable from the UI without it.
       **DONE 2026-07-25 (Wave 1, Sonnet), FE-only — CHECKED FIRST, backend already fully wired:**
@@ -824,17 +824,17 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
       all (confirmed via glob) — this is net-new coverage, not a modification.
       GATES: full backend suite 955/8/963 (+11 vs 944/8 baseline, 0 failed); `tsc --noEmit` 0
       errors; `next build` clean, `/settings/employees` route generated.
-- [ ] O10 [B2-pr F2] **no negative adjustment / deduction mechanism** in payroll at all
-      (`OtherDeductions` is a dead schema stub) — an overpayment clawback has no path.
+- [x] O10 [B2-pr F2] **no negative adjustment / deduction mechanism** in payroll at all
+      (`OtherDeductions` is a dead schema stub) — an overpayment clawback has no path. — closed by triage 2026-08-19 (deductions endpoint + o10 spec 100% [x])
 
 ## OPEN — สปส.1-10 (SSO) filing readiness (Wave C2 vision, 2026-07-25)
-- [ ] O11 [C2]: **สปส.1-10 ส่วนที่ 2 (per-employee schedule) is UNBUILT** — the printed form's 10
+- [x] O11 [C2]: **สปส.1-10 ส่วนที่ 2 (per-employee schedule) is UNBUILT** — the printed form's 10
       employee rows are entirely blank (verified by Fable in the PDF text extraction: page 1 carries
       real summary figures 200,000 wages / 3,500+3,500 = 7,000 contributions, page 2 has only
       dot-leaders). `Sps110FormFiller.cs`'s own doc comment says v1 fills ส่วนที่ 1 only — so this is
       by-design v1 scope, NOT a defect. But the form as printed is **not submittable** (SSO requires
       the per-employee schedule), so ภ.ง.ด.1/1ก are filing-ready while สปส.1-10 is not. Build ส่วนที่ 2?
-      Ham's scope call.
+      Ham's scope call. — OBSOLETE per triage 2026-08-19 (blocked by template 4d71841; superseded by on-screen alt bf87333)
 - [x] O12 [C2]: `เลขที่บัญชี` (10-digit SSO employer registration number) prints blank because there
       is nowhere to store it — the filler reads `m.EmployerAccountNo` and the comment says "blank
       stays blank (not submittable)". Needs a company-settings field before any สปส.1-10 can be filed,

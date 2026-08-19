@@ -538,8 +538,8 @@ constructor that feeds a now-nullable input field back into an entity.
 - [x] TDD evidence (trap §9.6, the exact validator line): `TaxCodePairIntegrityTests.Validator_accepts_a_request_with_no_tax_code` — RED with `NotEmpty()` still in place (`FluentAssertions: Expected IsValid to be True, but found False`), GREEN after removing it. `…Null_request_code_resolves_to_the_companys_own_standard_output_code` proves the same for the full `CreateDraftAsync` path (stored `TaxCode == "VAT7"`, `TaxCodeId == company's own row`, never 1).
 
 ### WP-6 — documentation *(no code)*
-- [ ] Append the F14 entry (§10.4) to `troubles-wiki.md` under a symptom line an engineer would actually search for.
-- [ ] Append the "no browser edit/delete for a draft TI" note (E4) to `troubles-wiki.md`.
+- [x] Append the F14 entry (§10.4) to `troubles-wiki.md` under a symptom line an engineer would actually search for. — wiki entry added, triage 2026-08-19
+- [x] Append the "no browser edit/delete for a draft TI" note (E4) to `troubles-wiki.md`. — wiki entry added, triage 2026-08-19
 
 **Parallel safety:** WP-1/2/3/5 are all backend and share `SalesOrderDeliveryServices.cs` and
 `SalesChainEndpoints.cs` — **run them as one sequential worker.** WP-4 is frontend-only (no DB, no
