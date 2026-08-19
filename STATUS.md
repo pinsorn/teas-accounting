@@ -1,6 +1,20 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ 2026-08-19 — CLEANUP BATCH CLOSED (Ham: "ทำทั้งหมดยกเว้น server migration").** 11 units:
+  C1 PO tax-code resolver (last verbatim-id writer closed) + MCP employee scope narrowed +
+  seed-640 arm test · C2 FE trio (FA modal a11y, PO/DO hardcoded taxCodeId gone, back-dated-claim
+  pay note) · C3 e2e suite repaired (6 specs + pickCustomer + TenantIsolation leak) · C4/C7
+  **depreciation redesigned**: day-prorated first month per ม.65ทวิ(2)/พรฎ.145 + units-indexed
+  schedule (skipped months never silently absorbed; Opus design ratified + Tier-2 APPROVE) ·
+  C5 lessons pushed to minions-assemble `9b3f940` · C6/C9 backlog triage: 
+  48 stamped-closed, 8 obsolete, 9 alive (4 blocked-on-migration → MIGRATION-CUTOVER-CHECKLIST.md;
+  O2b/O5/E1 = Ham decisions; R10 low) · C10 cutover checklist · **C11 seed-181 FORCE-RLS bug
+  found+fixed** (ap_clerk/sales_staff had ZERO roles on every fresh install; 181 patched + seed 641
+  reconcile). Final gates: full suite Domain 188/188 + Api 1318/1332 (0 fail, 14 baseline skips);
+  fresh wipe+boot with rebuilt binaries — all user classes login 200, user_roles 30, 0 documents.
+  Board: PROGRESS-cleanup-2026-08-19.md. Stack UP (API :5080 new build, FE :3000). Prod-blocked
+  work lives in MIGRATION-CUTOVER-CHECKLIST.md.
 - **✅ 2026-08-19 — R2 FIX BATCH CLOSED: all 11 units landed, live re-verify 6/6 PASS.**
   Full ledger: release-notes block at top of PLAN-fix-findings-r2.md. Headlines fixed & verified
   live: non-VAT companies can issue billing notes again · ภ.ง.ด.1 renders the real payer tax ID
