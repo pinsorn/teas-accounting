@@ -467,6 +467,25 @@ for historical context only.
   `[Fact]`s — anything DB-backed, e.g. `[SkippableFact]`s needing `PostgresFixture`, still needs an
   explicit all-clear from whoever owns the DB-touching run, since Postgres itself — not just the
   build output — is the shared resource).
+  **Second, independent reason a `[SkippableFact]` under `PostgresFixture` breaks on an isolated
+  `-o` build, even WITH an all-clear:** `PostgresFixture.InitializeAsync` (Fixtures/
+  PostgresFixture.cs:123-124) locates `SqlScripts/` via a hardcoded
+  `Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Accounting.
+  Infrastructure", "Migrations", "SqlScripts")` climb, which assumes the standard `bin/Debug/
+  net10.0/` nesting depth under the normal project tree. A non-standard `-o <dir>` output breaks
+  that assumption and throws `DirectoryNotFoundException` resolving to a bogus path (e.g.
+  `-o Z:\temp\...\u1-build` resolved to `Z:\temp\src\Accounting.Infrastructure\...`, five levels
+  up landing past `Z:\temp\` entirely) — before any Postgres connection is even attempted. **Fix:**
+  for `PostgresFixture`-backed tests, don't fight the isolated-`-o` workaround at all — first
+  confirm the lock owner is genuinely stale (`Get-Process -Id <N>`; a testhost, or an
+  hours-old `Accounting.Api.exe` dev-server with no evidence of concurrent use, is stale) and kill
+  it, then build/test against the normal shared `bin/`. Reserve the isolated-`-o` build for
+  non-DB `[Fact]`s only, exactly as originally scoped above.
+- **Seen (this sub-variant):** 2026-08-19, `specs/fix-r2-u1-filing-payer-taxid.md` (U1, L1-1
+  payer-tax-ID filing fix) — tried the isolated-`-o` workaround first (assuming a live
+  `Accounting.Api.exe` might be a concurrent FE worker's dev server), hit the
+  `DirectoryNotFoundException` above, then confirmed via `Get-Process` the PID was ~13h stale
+  (started previous session, no concurrent test-runner evidence) and killed it instead.
 - **Seen (this variant):** 2026-08-12, `specs/fix-breakit-r1-ledger-integrity.md` WP-3 FIX A/B round
   — Fable's full-suite Tier-1 gate was live against `teas_test` while dispatching a same-round
   follow-up fix; `dotnet build backend/Accounting.sln` failed MSB3027/MSB3021 on every project DLL
