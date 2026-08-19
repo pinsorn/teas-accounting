@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 17 |
-| Perm | 297 |
+| Perm | 299 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **361** |
+| **TOTAL** | **363** |
 
 ## Routes
 
@@ -79,6 +79,7 @@
 | POST | `/bank-accounts/` | Perm | bank.account.manage |
 | GET | `/bank-accounts/{bankAccountId:int}/imports/` | Perm | bank.statement.import |
 | POST | `/bank-accounts/{bankAccountId:int}/imports/` | Perm | bank.statement.import |
+| DELETE | `/bank-accounts/{bankAccountId:int}/imports/{importId:long}` | Perm | bank.statement.import |
 | GET | `/bank-accounts/{bankAccountId:int}/imports/{importId:long}/lines` | Perm | bank.statement.import |
 | POST | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/ignore` | Perm | bank.reconcile |
 | POST | `/bank-accounts/{bankAccountId:int}/lines/{lineId:long}/journal` | Perm | bank.reconcile |
@@ -154,6 +155,7 @@
 | GET | `/documents/purchase-chain` | AuthnOnly | — |
 | GET | `/employees/` | Perm | master.employee.manage |
 | POST | `/employees/` | Perm | master.employee.manage |
+| GET | `/employees/lookup` | Perm | master.employee.lookup |
 | DELETE | `/employees/{id:long}` | Perm | master.employee.manage |
 | GET | `/employees/{id:long}` | Perm | master.employee.manage |
 | PUT | `/employees/{id:long}` | Perm | master.employee.manage |

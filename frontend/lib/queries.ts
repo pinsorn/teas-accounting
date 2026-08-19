@@ -630,6 +630,18 @@ export function useEmployees(includeInactive = false) {
       `employees${qs({ includeInactive: includeInactive ? 'true' : undefined })}`),
   });
 }
+// U6 (specs/fix-r2-u6-employee-lookup.md, L4-1) — name-only lookup (master.employee.lookup),
+// active-only. Used by EmployeeSelector.tsx instead of useEmployees() so non-manage roles
+// (e.g. ACCOUNTANT on the Expense Claim form) don't 403.
+export interface EmployeeLookupItem {
+  employeeId: number; employeeCode: string; fullNameTh: string;
+}
+export function useEmployeeLookup() {
+  return useQuery({
+    queryKey: ['employees', 'lookup'],
+    queryFn: () => apiGet<EmployeeLookupItem[]>('employees/lookup'),
+  });
+}
 export function useEmployee(id: number) {
   return useQuery({
     queryKey: ['employee', id],

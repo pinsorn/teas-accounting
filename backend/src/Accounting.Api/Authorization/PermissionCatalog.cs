@@ -50,6 +50,7 @@ public static class PermissionCatalog
             [Permissions.Master.ProductManage]      = ("จัดการสินค้า/บริการ", "Manage products"),
             [Permissions.Master.ProductRead]        = ("ดูสินค้า/บริการ", "View products"),
             [Permissions.Master.EmployeeManage]     = ("จัดการพนักงาน", "Manage employees"),
+            [Permissions.Master.EmployeeLookup]     = ("ค้นหาพนักงาน (ชื่อเท่านั้น)", "Look up employees (name only)"),
 
             // sys
             [Permissions.Sys.UserManage]        = ("จัดการผู้ใช้งาน", "Manage users"),

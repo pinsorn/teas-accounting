@@ -43,6 +43,11 @@ public sealed record EmployeeListItem(
     string NationalId, decimal BaseSalary, bool SsoApplicable, bool IsActive,
     int? YtdOpeningYear, decimal YtdOpeningIncome, decimal YtdOpeningPit, decimal YtdOpeningSso);
 
+// U6 (specs/fix-r2-u6-employee-lookup.md, L4-1) — name-only lookup for document pickers (e.g.
+// Expense Claim's Employee selector). Deliberately narrower than EmployeeListItem: no salary, no
+// national ID, no bank, no dates — only what a picker label needs.
+public sealed record EmployeeLookupItem(long EmployeeId, string EmployeeCode, string FullNameTh);
+
 public sealed record EmployeeDetail(
     long EmployeeId, string EmployeeCode,
     string? TitleTh, string FirstNameTh, string LastNameTh,
@@ -64,6 +69,8 @@ public interface IEmployeeService
     Task DeactivateAsync(long id, CancellationToken ct);   // soft (is_active=false)
     Task<IReadOnlyList<EmployeeListItem>> ListAsync(bool includeInactive, CancellationToken ct);
     Task<EmployeeDetail?> GetAsync(long id, CancellationToken ct);
+    // U6 — active-only, name-only. Gated by master.employee.lookup (NOT EmployeeManage).
+    Task<IReadOnlyList<EmployeeLookupItem>> LookupAsync(CancellationToken ct);
 }
 
 // Validators — messages are i18n keys (FE resolves TH/EN), per the BU/Vendor pattern.

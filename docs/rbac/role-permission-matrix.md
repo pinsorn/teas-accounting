@@ -36,6 +36,7 @@
 | `master.company_profile.manage` |  |  |  |  |  |  | ✓ |  |  |  |  | ✓ |
 | `master.customer.manage` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.customer.read` | ✓ |  | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
+| `master.employee.lookup` | ✓ |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.employee.manage` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.product.manage` |  |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `master.product.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -102,18 +103,18 @@
 
 | Role | Granted |
 |---|---:|
-| ACCOUNTANT | 58 |
+| ACCOUNTANT | 59 |
 | APPROVER | 8 |
 | AP_CLERK | 17 |
 | AR_CLERK | 27 |
 | AUDITOR | 31 |
-| CHIEF_ACCOUNTANT | 79 |
-| COMPANY_ADMIN | 86 |
+| CHIEF_ACCOUNTANT | 80 |
+| COMPANY_ADMIN | 87 |
 | PURCHASING_STAFF | 7 |
 | SALES_STAFF | 17 |
 | TAX_OFFICER | 15 |
 | WAREHOUSE_STAFF | 3 |
-| SUPER_ADMIN | 87 (bypass) |
+| SUPER_ADMIN | 88 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

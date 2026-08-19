@@ -1,10 +1,13 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useEmployees } from '@/lib/queries';
+import { useEmployeeLookup } from '@/lib/queries';
 
 // Cycle C (specs/expense-claims.md §5) — employee (payee) picker for Expense Claim create.
 // Clones BusinessUnitSelector.tsx's shape; active employees only, label `code — nameTh`.
+// U6 (specs/fix-r2-u6-employee-lookup.md, L4-1) — switched from useEmployees() (gated by
+// master.employee.manage, payroll data) to useEmployeeLookup() (master.employee.lookup,
+// name-only) so ACCOUNTANT and other expense.claim.create-holding roles don't 403 here.
 export function EmployeeSelector({
   value,
   onChange,
@@ -16,7 +19,7 @@ export function EmployeeSelector({
 }) {
   const t = useTranslations('expenseClaims');
   const tt = useTranslations('toast');
-  const { data: employees = [], isLoading } = useEmployees();
+  const { data: employees = [], isLoading } = useEmployeeLookup();
 
   return (
     <label className="form-control">

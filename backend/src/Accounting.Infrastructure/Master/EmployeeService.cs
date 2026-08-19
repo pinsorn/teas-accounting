@@ -78,6 +78,18 @@ public sealed class EmployeeService(AccountingDbContext db, ITenantContext tenan
             .ToListAsync(ct);
     }
 
+    // U6 (specs/fix-r2-u6-employee-lookup.md) — active-only, name-only. Mirrors ListAsync's
+    // shape/composition exactly, minus the payroll-sensitive fields; tenant-scoped via the same
+    // EF query filter.
+    public async Task<IReadOnlyList<EmployeeLookupItem>> LookupAsync(CancellationToken ct) =>
+        await db.Employees.AsNoTracking()
+            .Where(e => e.IsActive)
+            .OrderBy(e => e.EmployeeCode)
+            .Select(e => new EmployeeLookupItem(
+                e.EmployeeId, e.EmployeeCode,
+                ((e.TitleTh ?? "") + e.FirstNameTh + " " + e.LastNameTh).Trim()))
+            .ToListAsync(ct);
+
     public async Task<EmployeeDetail?> GetAsync(long id, CancellationToken ct) =>
         await db.Employees.AsNoTracking()
             .Where(e => e.EmployeeId == id)

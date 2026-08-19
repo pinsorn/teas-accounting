@@ -25,6 +25,10 @@ public static class Permissions
         public const string ProductManage      = "master.product.manage";  // Sprint 10
         public const string ProductRead        = "master.product.read";    // Sprint 10
         public const string EmployeeManage     = "master.employee.manage"; // Payroll P-A
+        // U6 (specs/fix-r2-u6-employee-lookup.md, L4-1) — name-only lookup for document pickers
+        // (e.g. Expense Claim's Employee selector). Deliberately separate from EmployeeManage,
+        // which stays gating the full payroll-data CRUD group unchanged.
+        public const string EmployeeLookup     = "master.employee.lookup";
     }
 
     public static class Sys
@@ -166,7 +170,7 @@ public static class Permissions
         Master.CompanyManage, Master.CompanyProfileManage, Master.BranchManage, Master.CustomerManage, Master.CustomerRead,
         Master.VendorManage, Master.VendorRead,
         Master.CoaManage, Master.BusinessUnitManage, Master.BusinessUnitRead,
-        Master.ProductManage, Master.ProductRead, Master.EmployeeManage,
+        Master.ProductManage, Master.ProductRead, Master.EmployeeManage, Master.EmployeeLookup,
         Sys.UserManage, Sys.RoleManage, Sys.DocPrefixManage, Sys.ExpenseCatManage, Sys.ExpenseCatRead,
         Sys.AttachmentUpload, Sys.AttachmentRead, Sys.AttachmentDelete, Sys.ApiKeyManage,
         Gl.JournalCreate, Gl.JournalPost, Gl.JournalRead, Gl.PeriodClose, Gl.YearClose,
