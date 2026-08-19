@@ -8,6 +8,21 @@
 -- Password = 'Admin@1234', hashed via pgcrypto bcrypt (wf 12). is_super_admin = FALSE so the
 -- permission check is actually exercised. Idempotent (ON CONFLICT). NB: pgcrypto crypt() not a
 -- literal '$2a$...' string (Npgsql would treat $2/$12 as positional params and throw).
+--
+-- RLS (troubles-wiki.md "Fresh reseed: ap_clerk/sales_staff login 401s ... RLS-seed footgun in
+-- 181_seed_demo_pv_users.sql", specs/fix-c11-seed181-roles.md): sys.roles is a G3 FORCE RLS table
+-- (600_superadmin_scoped_rls.sql) — USING (company_id IS NULL OR company_id = app.company_id OR
+-- app.bypass_rls). DbInitializer/PostgresFixture run this script with NO session GUC set at all,
+-- so the two INSERT ... SELECT ... FROM sys.roles statements below silently matched zero rows
+-- (neither disjunct true) and inserted no user_roles — no error, ON CONFLICT DO NOTHING on an
+-- empty source is a no-op. SET LOCAL app.bypass_rls below is transaction-scoped (auto-reverts;
+-- DbInitializer/PostgresFixture run each script in its own transaction) — same idiom as
+-- 636/639/640. sys.user_roles itself carries no RLS (not in 600's G1/G2/G3 arrays), so only the
+-- read side needed the bypass. An already-applied copy of this script on an existing DB (it is
+-- tracked in sys.applied_sql_scripts and will not re-run) is repaired separately by
+-- 641_reconcile_demo_pv_user_roles.sql.
+
+SET LOCAL app.bypass_rls = 'on';
 
 INSERT INTO sys.users (
     user_id, username, email, password_hash, full_name,
