@@ -1,0 +1,35 @@
+# PROGRESS — Fix batch R2 (2026-08-19, checkpoint at quota 93%)
+
+Plan: `PLAN-fix-findings-r2.md` (Ham GO ~11:4x; L2-3 in scope; co1 wipe at batch END).
+
+## Done + committed
+- **U7** ✅ `cd81bd0` — problemToast ×20 files (BillingNoteForm→U2, oauth/consent deviant skipped) + `.bak` cleanup `0ffa567`.
+- **U1** ✅ `753f545` — filing payer-tax-ID refuse (4 artifact paths incl. 50ทวิ extension) + seed 638. RED-then-GREEN T21–T24, filing area 74/0.
+- **U2 design** ✅ ratified `b0873bb` — all 4 deviations personally verified (sentinel (0,'VAT0') = N1 by-design; co3 chain = real violation 8 rows/4 tables; no seed; no FK — laundering).
+
+## In flight RIGHT NOW (2 workers, background)
+- **Tier-2 Opus review** of U1 (753f545) + U2 (working tree) — money lenses + boot-loop safety.
+- **Sonnet U3+U4** (bank): L2-2 tiebreaker + L2-3 delete-superseded endpoint + L2-4 typed import errors. Blast cap 10, bank area only, targeted tests only.
+
+## U2 implement state (UNCOMMITTED in working tree — do not lose)
+7 files: BillingNoteDtos (int?/string?), SalesLineBackstop (+AllById/+SanitizeInheritedTaxCode, Resolve untouched), BillingNoteService (3 launder sites), 639 SQL, TaxCodePairIntegrityTests (T1–T5), SalesLineTaxCodeRepairRlsTests (T6), spec ticked. All gates green: build 0/0, targeted 36/36, ExemptProduct 13/13, T9 (non-vat-mode-pdf e2e) PASS live, P1–P5 probes match spec (P1=0 violations post-repair, P2 BN3 totals unchanged, P3 sentinel intact, P4 class-B 2 rows untouched, P5 script recorded). 639 already applied to accounting_dev by the T9 boot — expected.
+**COMMIT U2 after Opus verdict** (APPROVE → commit as one unit; findings → fix first).
+
+## Queue after current two finish
+1. Opus verdict on U1+U2 → Fable verifies any finding in code → commit U2 (`fix(sales): ...` mentioning L6-1+L6-4, 639 repair, laundering).
+2. U3+U4 report → Fable diff review → commit.
+3. **U5** (L3-9 disposal-date validation, Sonnet, small) + **U6** (employee lookup — spec READY at specs/fix-r2-u6-employee-lookup.md, seed 640) — one Sonnet each or chained; then Opus review U6 (permission lens).
+4. **U8** small batch: L2-1 modals role=dialog (Haiku) · L3-12 draft-asset edit page (Sonnet) · doc hygiene expense-claims.md/payroll-deductions-o10.md (Haiku).
+5. Tier-3 consolidated gate (Haiku) → **Fable runs FULL suite** (backgrounded, single run; TEAS_TEST_PG; skip-count vs baseline ~12-14).
+6. **co1 wipe (Ham ordered):** pg_dump accounting_dev → D:\teas-backups\ → DROP/CREATE → ONE boot with Database__SeedDemoData=true (empty-DB one-boot rule; seeds 100..640 incl. new 638/639/640) → verify 11 roles/company, login works.
+7. Live re-verify through browser (Playwright): non-VAT billing note create (co3/co4) · ภ.ง.ด.1 with repaired tax ID renders 0105000000012 · bank rec tiebreaker · expense claim as accountant (U6).
+8. STATUS.md final update + release-notes block at top of PLAN-fix-findings-r2.md.
+
+## Known state
+- API :5080 DOWN deliberately (bin-lock vs builds); FE :3000 up. Boot cmd verbatim in PROGRESS-hard-test-r2.md.
+- teas_test: seeds 638/639 applied by test fixtures; accounting_dev: 638?/639 applied (639 confirmed; 638 applied at same boot).
+- e2e suite debt (pre-existing, NOT this batch): pickCustomer() ambiguous on customer_id=9 debris; PV confirm-dialog specs.
+- U9 parked: PurchaseOrderService verbatim TaxCodeId + PO form hardcoded taxCodeId:1 (0 live rows).
+
+## Resume rule
+Workers may have finished during the quota gap — read their notifications/output first (Tier-2 verdict + U3/U4 report), verify, commit, continue queue. Never re-plan from scratch.
