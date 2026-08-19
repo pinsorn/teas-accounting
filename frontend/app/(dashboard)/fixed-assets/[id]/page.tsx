@@ -215,7 +215,7 @@ export default function FixedAssetDetailPage() {
       </section>
 
       {disposeOpen && (
-        <div className="modal modal-open">
+        <div className="modal modal-open" role="dialog" aria-modal="true">
           <div className="modal-box">
             <h3 className="mb-3 text-lg font-bold">{t('dispose')}</h3>
             <p className="mb-3 rounded-lg bg-warning/10 p-2 text-xs text-warning-content">{t('vatNotice')}</p>
@@ -254,7 +254,7 @@ export default function FixedAssetDetailPage() {
       )}
 
       {writeOffOpen && (
-        <div className="modal modal-open">
+        <div className="modal modal-open" role="dialog" aria-modal="true">
           <div className="modal-box">
             <h3 className="mb-3 text-lg font-bold">{t('writeOff')}</h3>
             <label className="form-control">

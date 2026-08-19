@@ -15,6 +15,7 @@ import {
   usePayExpenseClaim, useCancelExpenseClaim, useBankAccounts, useMePermissions,
 } from '@/lib/queries';
 import { problemToast } from '@/lib/api';
+import { bangkokToday } from '@/lib/utils';
 
 const READ_SCOPE = 'expense.claim.read';
 
@@ -222,6 +223,11 @@ export default function ExpenseClaimDetailPage() {
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="mb-3 text-lg font-bold">{t('pay')}</h3>
+            {/* C2 item 3 (specs/fix-c2-fe-cleanup.md, r2 L4-7) — PAY posts the JE on the
+                payment date, not the claim date. Informational only, never blocking. */}
+            {d.claimDate.slice(0, 7) !== bangkokToday().slice(0, 7) && (
+              <p className="mb-3 text-xs text-info">{t('backDatedPayNote')}</p>
+            )}
             <label className="form-control">
               <span className="label-text">{t('method')}</span>
               <select className="select select-bordered" value={payMethod}

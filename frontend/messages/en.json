@@ -558,6 +558,7 @@
     "pay": "Pay",
     "paid": "Paid",
     "bankAccountRequired": "Select a bank account for a transfer payment",
+    "backDatedPayNote": "This will post to the current accounting period based on the payment date, not the claim's month.",
     "cancel": "Cancel",
     "cancelled": "Cancelled",
     "draftLabel": "Draft",

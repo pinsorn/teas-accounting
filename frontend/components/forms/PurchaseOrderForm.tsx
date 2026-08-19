@@ -46,6 +46,13 @@ const lineSchema = z.object({
   productCode: z.string().nullable().optional(),
   uomText: z.string().optional(),
   discountPercent: z.number().optional(),
+  // C2 item 2 (specs/fix-c2-fe-cleanup.md) — kept in the schema so zod doesn't strip
+  // these before submit, mirroring QuotationForm.tsx/SalesOrderForm.tsx. Purchase has no
+  // real per-line tax-code picker yet (LineItemsTable.tsx:104-106 — sale-side only), so
+  // these stay null; declaring them here future-proofs a later picker and matches the
+  // sibling forms' contract.
+  taxCode: z.string().nullable().optional(),
+  taxCodeId: z.number().nullable().optional(),
 });
 const schema = z.object({
   vendorId: z.number().int().positive(),
@@ -190,8 +197,13 @@ export function PurchaseOrderForm({ edit }: { edit?: PurchaseOrderDetail } = {})
           uomText: l.uomText?.trim() || 'หน่วย',
           unitPrice: l.unitPrice,
           discountPercent: l.discountPercent ?? 0,
-          taxCodeId: 1,
-          taxCode: vendorVat && l.taxRate > 0 ? 'VAT7' : 'VAT0',
+          // C2 item 2 (specs/fix-c2-fe-cleanup.md) — was hardcoded `taxCodeId: 1`, which
+          // PurchaseOrderService.cs:90 writes VERBATIM (no server-side resolver like the
+          // sales chain's SalesLineBackstop.Resolve) — silently wrong for any company whose
+          // tax-code master doesn't have id 1. Null (untouched line) matches
+          // Quotation/SalesOrder's contract and lets the backend's own fix resolve it.
+          taxCodeId: l.taxCodeId ?? null,
+          taxCode: l.taxCode ?? null,
           taxRate: vendorVat ? l.taxRate : 0,
           notes: null,
         })),

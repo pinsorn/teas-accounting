@@ -112,7 +112,12 @@ export function DeliveryOrderForm() {
           uomText: l.uomText.trim() || 'หน่วย',
           unitPrice: 0,
           discountPercent: 0,
-          taxCodeId: 1,
+          // C2 item 2 (specs/fix-c2-fe-cleanup.md) — was hardcoded `taxCodeId: 1`. Confirmed
+          // harmless to null out: SalesLineBackstop.Resolve (the sales-chain resolver DO's
+          // backend routes through) doesn't even take a taxCodeId parameter — the caller's
+          // id is provably never read. No picker sets a real one here (non-fiscal line, no
+          // VAT), so null is the honest "untouched" value.
+          taxCodeId: null,
           taxCode: 'VAT0',
           taxRate: 0,
         })),
