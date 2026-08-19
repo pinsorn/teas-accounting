@@ -67,8 +67,13 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
             : string.Join(" ", new[] { prof?.RegisteredAddressLine1, prof?.RegisteredAddressLine2 }
                 .Where(s => !string.IsNullOrWhiteSpace(s)));
 
+        // R2/L1-1 — refuse rather than render a placeholder/blank payer Tax ID onto a real RD
+        // form (see PayerTaxIdRules for the F10-mirrored definition).
+        var employerTaxId = prof?.TaxId ?? c?.TaxId ?? "";
+        PayerTaxIdRules.EnsureUsable(employerTaxId);
+
         var model = new Pnd1MonthlyModel(
-            EmployerTaxId: prof?.TaxId ?? c?.TaxId ?? "",
+            EmployerTaxId: employerTaxId,
             BranchCode: prof?.BranchCode ?? "00000",
             EmployerName: prof?.LegalName ?? c?.NameTh ?? "",
             Building: prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor, Village: prof?.RegVillage,
@@ -109,8 +114,12 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
             .OrderBy(l => l.LastName).ThenBy(l => l.FirstName)
             .ToList();
 
+        // R2/L1-1 — same refusal as the monthly ภ.ง.ด.1 above.
+        var employerTaxId = prof?.TaxId ?? c?.TaxId ?? "";
+        PayerTaxIdRules.EnsureUsable(employerTaxId);
+
         var model = new Pnd1aModel(
-            EmployerTaxId: prof?.TaxId ?? c?.TaxId ?? "",
+            EmployerTaxId: employerTaxId,
             BranchCode: prof?.BranchCode ?? "00000",
             EmployerName: prof?.LegalName ?? c?.NameTh ?? "",
             Building: prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor, Village: prof?.RegVillage,
@@ -162,10 +171,17 @@ public sealed class Pnd1FilingService(AccountingDbContext db, ITenantContext ten
         // cert is regenerable evidence, same store-nothing stance as the vendor 50ทวิ PDFs).
         var docNo = $"50T-{year}-E{employeeId:0000}";
 
+        // R2/L1-1 — same refusal as the ภ.ง.ด.1/ภ.ง.ด.1ก builders above: a 50ทวิ handed to an
+        // employee with a placeholder/blank payer Tax ID is a compliance artifact they cannot
+        // use, same defect class as the three originally-named call sites (Fable scope ruling,
+        // PLAN-fix-findings-r2.md U1 extension).
+        var employerTaxId = prof?.TaxId ?? c?.TaxId;
+        PayerTaxIdRules.EnsureUsable(employerTaxId);
+
         return Wht50TawiFormFiller.FillCopies(new Wht50TawiData(
             DocNo: docNo, FormType: "Pnd1",
             PayerName: prof?.LegalName ?? c?.NameTh ?? "",
-            PayerTaxId: prof?.TaxId ?? c?.TaxId, PayerAddress: payerAddress,
+            PayerTaxId: employerTaxId, PayerAddress: payerAddress,
             PayeeName: payeeName, PayeeTaxId: s0.NationalId,
             PayeeAddress: s0.AddressText,   // payslip snapshot = composed structured address
             IncomeTypeMa40: "1",

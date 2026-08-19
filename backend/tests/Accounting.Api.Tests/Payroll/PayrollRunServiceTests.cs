@@ -1801,4 +1801,148 @@ public sealed class PayrollRunServiceTests
             new CreatePayrollRunRequest(period, new DateOnly(year, 5, 25), null), default);
         replacementId.Should().BeGreaterThan(0);
     }
+
+    // ── R2/L1-1 (PLAN-fix-findings-r2.md, Unit U1) — ภ.ง.ด.1/ภ.ง.ด.1ก/สปส.1-10 must never
+    // render the employer's payer Tax ID as a blank/all-zero placeholder. Seed 637 repaired
+    // master.companies.tax_id but master.company_profile.tax_id (read FIRST by
+    // `prof?.TaxId ?? c?.TaxId ?? ""`) was untouched — seed 638 closes that desync; these tests
+    // pin the F10-mirrored refuse guard that now also covers a placeholder profile row on any
+    // OTHER company/environment where 638 hasn't (yet) run. ──────────────────────────────────
+
+    // CompanyProfile.TaxId is a HARD field (no service-layer update path — read-only via UI in
+    // Phase 1, see MasterDataServices.cs's CreateAsync comment), so tests mutate it directly,
+    // mirroring WhtPayerTaxIdGuardTests' direct db.Companies.TaxId mutation for the F10 case.
+    private static async Task SetCompanyProfileTaxIdAsync(ServiceProvider sp, string taxId)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var companyId = s.ServiceProvider.GetRequiredService<ITenantContext>().CompanyId;
+        var prof = await db.CompanyProfiles.SingleAsync(p => p.CompanyId == companyId);
+        prof.TaxId = taxId;
+        await db.SaveChangesAsync();
+    }
+
+    [SkippableFact]
+    public async Task T21_pnd1_and_sso_refuse_a_placeholder_company_profile_tax_id_even_though_companies_tax_id_is_real()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        // A fresh TestCompanyFactory company stamps a REAL TaxId on both master.companies AND
+        // master.company_profile (CompanyService.CreateAsync mirrors req.TaxId onto both) — this
+        // test deliberately corrupts ONLY the profile row's copy, exactly reproducing L1-1's
+        // real-world shape (companies repaired by 637, profile left behind).
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        await SetSsoEmployerAccountAsync(sp, "1234567890");   // isolate from the pre-existing H8 guard
+        await SetCompanyProfileTaxIdAsync(sp, "0000000000000");
+        await AddEmployee(sp, 30_000m);
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 4);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+
+        var actMonthly = () => pnd1.BuildPnd1MonthlyAsync(runId, default);
+        (await actMonthly.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("filing.payer_tax_id_missing");
+
+        var actAnnual = () => pnd1.BuildPnd1aAnnualAsync(year, default);
+        (await actAnnual.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("filing.payer_tax_id_missing");
+
+        var actSsoFile = () => sso.BuildMonthlyFileAsync(runId, default);
+        (await actSsoFile.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("filing.payer_tax_id_missing");
+
+        var actSsoPdf = () => sso.BuildMonthlyPdfAsync(runId, default);
+        (await actSsoPdf.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("filing.payer_tax_id_missing");
+
+        // Mirrors T15 — the on-screen สปส.1-10 schedule must keep rendering so the user can see
+        // what's wrong; only the two artifact builders (file/PDF) refuse.
+        var model = await sso.BuildMonthlyAsync(runId, default);
+        model.EmployerTaxId.Should().Be("0000000000000");
+    }
+
+    [SkippableFact]
+    public async Task T22_company1_files_clean_with_the_638_repaired_tax_id_post_seed()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        // Company 1 is the exact row seed 637/638 target — no mutation here, just proving the
+        // real demo company's filings now carry 0105000000012 (not the 0000000000000 placeholder
+        // the rendered PDF in findings-r2/findings-leg1.md L1-1 showed).
+        await using var sp = Provider();
+        await SetSsoEmployerAccountAsync(sp, "1234567890");   // company 1's profile has none seeded
+        await AddEmployee(sp, 25_000m);
+        var year = await FreshYearAsync(sp);
+        var period = Period(year, 6);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var sso = s.ServiceProvider.GetRequiredService<ISsoFilingService>();
+
+        var monthlyDigits = new string(PdfText(await pnd1.BuildPnd1MonthlyAsync(runId, default))
+            .Where(char.IsDigit).ToArray());
+        monthlyDigits.Should().Contain("0105000000012");
+
+        var annualDigits = new string(PdfText(await pnd1.BuildPnd1aAnnualAsync(year, default))
+            .Where(char.IsDigit).ToArray());
+        annualDigits.Should().Contain("0105000000012");
+
+        var model = await sso.BuildMonthlyAsync(runId, default);
+        model.EmployerTaxId.Should().Be("0105000000012");
+    }
+
+    [SkippableFact]
+    public async Task T23_pnd1_falls_back_to_companies_tax_id_when_the_profile_row_is_absent()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        await AddEmployee(sp, 30_000m);
+        var period = await FreshPeriodAsync(sp, 7);
+        var runId = await RunThroughPost(sp, period);
+
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var realTaxId = await db.Companies.AsNoTracking()
+            .Where(c => c.CompanyId == company.CompanyId).Select(c => c.TaxId).SingleAsync();
+
+        // company_profile is optional 1:1 (both filing services already null-check `prof`) —
+        // deleting it exercises the `?? c?.TaxId` fallback the new guard must not break.
+        var prof = await db.CompanyProfiles.SingleAsync(p => p.CompanyId == company.CompanyId);
+        db.CompanyProfiles.Remove(prof);
+        await db.SaveChangesAsync();
+
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+        var digits = new string(PdfText(await pnd1.BuildPnd1MonthlyAsync(runId, default))
+            .Where(char.IsDigit).ToArray());
+        digits.Should().Contain(realTaxId.Trim());
+    }
+
+    // R2/L1-1 extension (Fable scope ruling, 2026-08-19) — the 50ทวิ path
+    // (BuildEmployeeWht50TawiAsync) has the identical unguarded fallback pattern as the three
+    // originally-named call sites and is itself a compliance artifact handed to an employee, so
+    // it gets the same PayerTaxIdRules guard. Same repro shape as T21: a fresh company's Tax ID
+    // is real on `companies` but corrupted on `company_profile` only.
+    [SkippableFact]
+    public async Task T24_employee_wht50tawi_refuses_a_placeholder_company_profile_tax_id()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var company = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(company.CompanyId, company.BranchId);
+        await SetCompanyProfileTaxIdAsync(sp, "0000000000000");
+        var empId = await AddEmployee(sp, 60_000m);
+        var year = await FreshYearAsync(sp);
+        await RunThroughPost(sp, Period(year, 1));
+
+        await using var s = sp.CreateAsyncScope();
+        var pnd1 = s.ServiceProvider.GetRequiredService<IPnd1FilingService>();
+
+        var act = () => pnd1.BuildEmployeeWht50TawiAsync(empId, year, default);
+        (await act.Should().ThrowAsync<DomainException>())
+            .Which.Code.Should().Be("filing.payer_tax_id_missing");
+    }
 }

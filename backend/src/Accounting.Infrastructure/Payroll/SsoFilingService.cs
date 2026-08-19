@@ -84,6 +84,7 @@ public sealed class SsoFilingService(AccountingDbContext db, IOptions<SsoOptions
     public async Task<byte[]> BuildMonthlyPdfAsync(long runId, CancellationToken ct)
     {
         var model = await BuildMonthlyAsync(runId, ct);
+        EnsurePayerTaxId(model);
         EnsureEmployerAccount(model);
         return Pdf.Sps110FormFiller.Fill(model);
     }
@@ -91,10 +92,17 @@ public sealed class SsoFilingService(AccountingDbContext db, IOptions<SsoOptions
     public async Task<(byte[] Content, string FileName)> BuildMonthlyFileAsync(long runId, CancellationToken ct)
     {
         var model = await BuildMonthlyAsync(runId, ct);
+        EnsurePayerTaxId(model);
         EnsureEmployerAccount(model);
         EnsureNamesFilable(model);
         return (SpsBatchFormat.BuildBytes(model), SpsBatchFormat.FileName(model));
     }
+
+    // R2/L1-1 — mirrors EnsureEmployerAccount's placement exactly: guards only the two
+    // artifacts (file + PDF), NOT BuildMonthlyAsync — the on-screen สปส.1-10 ส่วนที่ 2 schedule
+    // must keep rendering (pinned by T15) so the user can see what's wrong before fixing the
+    // company profile, rather than being shut out entirely.
+    private static void EnsurePayerTaxId(SsoMonthlyModel model) => PayerTaxIdRules.EnsureUsable(model.EmployerTaxId);
 
     // R2/H8 — เลขที่บัญชีนายจ้าง is mandatory on สปส.1-10. Today a blank one is emitted as
     // "0000000000" by SpsBatchFormat.Digits (:67/:122-127) and the user discovers it at the SSO
