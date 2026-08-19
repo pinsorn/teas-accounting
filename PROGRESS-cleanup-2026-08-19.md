@@ -13,7 +13,7 @@ needs prod-shaped data).
 | C5 | minions-assemble sync: fold general lessons into templates (read-only sub-dispatch rule; blocked-file-write fallback; dir-add sweeps untracked) | sonnet | ✅ pushed `9b3f940` |
 | C6 | Spec backlog triage sweep | Explore | ✅ 48 DEAD·8 OBS·9 ALIVE → specs/TRIAGE-backlog-2026-08-19.md; spot-check 4/4 |
 | C9 | Mark 56 DEAD/OBSOLETE items in spec files + 2 troubles-wiki entries (from triage evidence) | haiku | pending (after C1 frees attention) |
-| C10 | MIGRATION-CUTOVER-CHECKLIST.md consolidation | Fable | pending |
+| C10 | MIGRATION-CUTOVER-CHECKLIST.md consolidation | Fable | ✅ |
 | C7 | C4's design → implement + tests | sonnet after C1 frees slot | pending |
 | C8 | Final: re-wipe accounting_dev (C3's e2e runs repollute it), fresh boot probe, STATUS/PROGRESS close | Fable | pending |
 
