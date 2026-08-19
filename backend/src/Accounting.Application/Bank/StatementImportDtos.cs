@@ -30,4 +30,10 @@ public interface IStatementImportService
     Task<IReadOnlyList<StatementImportListItem>> ListAsync(int bankAccountId, CancellationToken ct);
 
     Task<IReadOnlyList<StatementImportLineItem>> GetLinesAsync(long importId, CancellationToken ct);
+
+    /// <summary>L2-3 superseded-import remediation (PLAN-fix-findings-r2.md §U3.2) — refuses
+    /// `bank.import_has_matched_lines` if any line of the import is Matched or Posted
+    /// (JE-backed); otherwise hard-deletes the import and its lines (re-importable from the
+    /// source CSV — B2.5). `bank.import_not_found` for an unknown/foreign id.</summary>
+    Task DeleteImportAsync(long importId, CancellationToken ct);
 }

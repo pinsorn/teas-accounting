@@ -170,6 +170,30 @@ public sealed class BankReconciliationReportServiceTests
         return await db.ChartOfAccounts.Where(a => a.AccountCode == code).Select(a => a.AccountId).FirstAsync();
     }
 
+    // L2-2 (PLAN-fix-findings-r2.md §U3, findings-r2/findings-leg2.md) — two imports sharing the
+    // SAME PeriodEnd (realistic: B2.5's own "warn, never block" idempotency lets a same-day
+    // re-import happen) must not resolve the report's statement closing balance arbitrarily.
+    // The LOWER StatementImportId is seeded with the "wrong" (stale) balance, the HIGHER id
+    // (the more recently imported one) with the correct one — import identity, not physical/
+    // plan order, must break the PeriodEnd tie.
+    [SkippableFact]
+    public async Task StatementClosingBalance_ties_on_PeriodEnd_resolved_by_higher_import_id()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (co, sp, bankAccountId, _) = await SetupAsync();
+
+        var staleImportId = await SeedImportAsync(sp, co.CompanyId, bankAccountId, Today, Today, 255.00m);
+        var latestImportId = await SeedImportAsync(sp, co.CompanyId, bankAccountId, Today, Today, 800.00m);
+        latestImportId.Should().BeGreaterThan(staleImportId, "the fixture must actually produce a HIGHER id for the later import, or this test proves nothing");
+
+        await using var s = sp.CreateAsyncScope();
+        var reportSvc = s.ServiceProvider.GetRequiredService<IBankReconciliationReportService>();
+        var report = await reportSvc.GetAsync(bankAccountId, Today, Today, default);
+
+        report.StatementClosingBalance.Should().Be(800.00m,
+            "the HIGHER StatementImportId (the later, most-recently-imported statement) must win a PeriodEnd tie — L2-2");
+    }
+
     // (4) Fully reconciled: one line, matched, GL and statement agree, nothing outstanding.
     [SkippableFact]
     public async Task FullyReconciled_no_reconciling_items_difference_is_zero()

@@ -21,6 +21,36 @@ public sealed class StatementImportService(
 {
     private static string DigitsOnly(string s) => new(s.Where(char.IsDigit).ToArray());
 
+    // L2-4 (PLAN-fix-findings-r2.md §U4, findings-r2/findings-leg2.md) — mirrors the varchar
+    // caps in BankReconciliationConfiguration.cs's StatementLineConfiguration exactly (Channel/
+    // TxnType/RawRef 100, Description 500). Checked at parse time so a bank-supplied field that
+    // exceeds the DB column never reaches SaveChangesAsync as a raw DbUpdateException.
+    private const int MaxDescriptionLength = 500;
+    private const int MaxShortFieldLength = 100;
+
+    /// <summary>Throws a typed, no-PII (D10 convention: line numbers only, never raw text)
+    /// DomainException for the first line whose Description/Channel/TxnType/RawRef would
+    /// overflow its DB column — caught cleanly by the caller's existing
+    /// <c>catch (DomainException) { throw; }</c>.</summary>
+    private static void ValidateLineFieldLengths(ParsedStatement parsed)
+    {
+        foreach (var line in parsed.Lines)
+        {
+            if (line.Description.Length > MaxDescriptionLength)
+                throw new DomainException("bank.import_line_too_long",
+                    $"Line {line.LineNo}: description exceeds {MaxDescriptionLength} characters.");
+            if (line.Channel.Length > MaxShortFieldLength)
+                throw new DomainException("bank.import_line_too_long",
+                    $"Line {line.LineNo}: channel exceeds {MaxShortFieldLength} characters.");
+            if (line.TxnType.Length > MaxShortFieldLength)
+                throw new DomainException("bank.import_line_too_long",
+                    $"Line {line.LineNo}: transaction type exceeds {MaxShortFieldLength} characters.");
+            if (line.RawRef is { Length: > MaxShortFieldLength })
+                throw new DomainException("bank.import_line_too_long",
+                    $"Line {line.LineNo}: reference exceeds {MaxShortFieldLength} characters.");
+        }
+    }
+
     public async Task<StatementImportResult> ImportAsync(
         int bankAccountId, string fileName, string mimeType, long sizeBytes, Stream content,
         string? password, CancellationToken ct)
@@ -67,6 +97,10 @@ public sealed class StatementImportService(
             parsed = adapter.Parse(new MemoryStream(bytes), password);
             // D10 — fails LOUD; nothing below has run yet, so a throw here persists nothing.
             BankStatementIntegrity.Validate(parsed);
+            // L2-4 — same "fails loud before anything persists" placement; catches an oversized
+            // bank-supplied field BEFORE it would otherwise crash SaveChangesAsync with a raw,
+            // untyped DbUpdateException.
+            ValidateLineFieldLengths(parsed);
         }
         catch (DomainException)
         {
@@ -113,39 +147,55 @@ public sealed class StatementImportService(
             ImportedAt = clock.UtcNow,
             ImportedBy = tenant.UserId ?? 0,
         };
-        db.StatementImports.Add(import);
-        await db.SaveChangesAsync(ct);   // generates StatementImportId
-
-        // D11 — raw bytes stored EXACTLY as uploaded via the shared Attachment infra.
-        var uploaded = await attachments.UploadAsync(
-            "BANK_STATEMENT", import.StatementImportId, "BANK_STATEMENT", null,
-            fileName, mimeType, bytes.LongLength, new MemoryStream(bytes), ct);
-        import.AttachmentId = uploaded.AttachmentId;
-
-        foreach (var line in parsed.Lines)
+        // L2-4 residual defense — ValidateLineFieldLengths above catches the KNOWN oversized-
+        // field case, but any OTHER unexpected persistence failure (e.g. an oversized
+        // SourceFileName, or a future column this method doesn't know about) must still map to
+        // a typed error, never a raw DbUpdateException/Postgres text leak. Still inside the
+        // `await using var txn` scope above, so the rethrow still triggers rollback (atomicity
+        // unaffected — same "nothing persists on failure" guarantee as every other exit here).
+        try
         {
-            db.StatementLines.Add(new StatementLine
-            {
-                CompanyId = tenant.CompanyId,
-                StatementImportId = import.StatementImportId,
-                BankAccountId = bankAccountId,
-                LineNo = line.LineNo,
-                TxnDate = line.TxnDate,
-                TxnTime = line.TxnTime,
-                ValueDate = line.ValueDate,
-                Direction = line.Direction,
-                Amount = line.Amount,
-                RunningBalance = line.RunningBalance,
-                Channel = line.Channel,
-                TxnType = line.TxnType,
-                Description = line.Description,
-                RawRef = line.RawRef,
-                MatchStatus = MatchStatus.Unmatched,
-            });
-        }
+            db.StatementImports.Add(import);
+            await db.SaveChangesAsync(ct);   // generates StatementImportId
 
-        await db.SaveChangesAsync(ct);
-        await txn.CommitAsync(ct);
+            // D11 — raw bytes stored EXACTLY as uploaded via the shared Attachment infra.
+            var uploaded = await attachments.UploadAsync(
+                "BANK_STATEMENT", import.StatementImportId, "BANK_STATEMENT", null,
+                fileName, mimeType, bytes.LongLength, new MemoryStream(bytes), ct);
+            import.AttachmentId = uploaded.AttachmentId;
+
+            foreach (var line in parsed.Lines)
+            {
+                db.StatementLines.Add(new StatementLine
+                {
+                    CompanyId = tenant.CompanyId,
+                    StatementImportId = import.StatementImportId,
+                    BankAccountId = bankAccountId,
+                    LineNo = line.LineNo,
+                    TxnDate = line.TxnDate,
+                    TxnTime = line.TxnTime,
+                    ValueDate = line.ValueDate,
+                    Direction = line.Direction,
+                    Amount = line.Amount,
+                    RunningBalance = line.RunningBalance,
+                    Channel = line.Channel,
+                    TxnType = line.TxnType,
+                    Description = line.Description,
+                    RawRef = line.RawRef,
+                    MatchStatus = MatchStatus.Unmatched,
+                });
+            }
+
+            await db.SaveChangesAsync(ct);
+            await txn.CommitAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            log.LogError(ex, "Statement persistence failed for bank account {BankAccountId}, file '{FileName}'.",
+                bankAccountId, fileName);
+            throw new DomainException("bank.import_failed",
+                "The statement could not be saved — check the file's field lengths and try again.");
+        }
 
         return new StatementImportResult(import.StatementImportId, parsed.Lines.Count, overlap);
     }
@@ -174,5 +224,41 @@ public sealed class StatementImportService(
                 x.StatementLineId, x.LineNo, x.TxnDate, x.TxnTime, x.Direction, x.Amount,
                 x.RunningBalance, x.Channel, x.TxnType, x.Description, x.RawRef, x.MatchStatus))
             .ToListAsync(ct);
+    }
+
+    public async Task DeleteImportAsync(long importId, CancellationToken ct)
+    {
+        if (!tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+
+        var import = await db.StatementImports
+                .FirstOrDefaultAsync(x => x.StatementImportId == importId && x.CompanyId == tenant.CompanyId, ct)
+            ?? throw new DomainException("bank.import_not_found", $"Statement import {importId} not found.");
+
+        await using var txn = await db.Database.BeginTransactionAsync(ct);
+
+        // L2-3 remediation (PLAN-fix-findings-r2.md §U3.2) — refuse if any line has progressed
+        // past Unmatched/Ignored (a confirmed match, or a JE-backed adjustment — MatchStatus.
+        // Posted per D8/BankEnums.cs); those real Receipt/PV/JE links must be unmatched or
+        // reversed through their own flows first. Otherwise the import is a pure parse artifact
+        // — hard-delete is safe, the source CSV can always be re-imported (B2.5).
+        // Fable diff review (TOCTOU) — this check must run INSIDE the transaction, immediately
+        // before the delete, not before BeginTransactionAsync: a check-then-later-transaction
+        // ordering left a window where a concurrent ConfirmMatchAsync could match a line between
+        // the check and the delete, silently deleting a now-linked line out from under its
+        // Receipt/PV.
+        var hasBlockingLines = await db.StatementLines.AsNoTracking().AnyAsync(x =>
+            x.StatementImportId == importId && x.CompanyId == tenant.CompanyId &&
+            (x.MatchStatus == MatchStatus.Matched || x.MatchStatus == MatchStatus.Posted), ct);
+        if (hasBlockingLines)
+            throw new DomainException("bank.import_has_matched_lines",
+                "Cannot delete an import that has matched or posted lines — unmatch or reverse them first.");
+
+        await db.StatementLines
+            .Where(x => x.StatementImportId == importId && x.CompanyId == tenant.CompanyId)
+            .ExecuteDeleteAsync(ct);
+        db.StatementImports.Remove(import);
+        await db.SaveChangesAsync(ct);
+        await txn.CommitAsync(ct);
     }
 }

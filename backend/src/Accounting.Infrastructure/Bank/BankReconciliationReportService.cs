@@ -61,9 +61,15 @@ public sealed class BankReconciliationReportService(
         var docReconciliationLimited = bankAccount.GlCashAccountId != bankGlId;
 
         // Statement closing balance — the latest import whose period ends on/before `to`.
+        // L2-2 fix: OrderByDescending(PeriodEnd) alone has no defined tiebreak on a PeriodEnd
+        // tie (Postgres/EF returns physical/plan order, not "most recently imported") — a
+        // realistic same-day re-import (B2.5's "warn, never block" idempotency) hits this.
+        // StatementImportId (an identity column — always increases with import order) breaks
+        // the tie deterministically in favor of the LATEST import, never a stale one.
         var statementClosingBalance = await db.StatementImports.AsNoTracking()
             .Where(i => i.BankAccountId == bankAccountId && i.CompanyId == tenant.CompanyId && i.PeriodEnd <= to)
             .OrderByDescending(i => i.PeriodEnd)
+            .ThenByDescending(i => i.StatementImportId)
             .Select(i => (decimal?)i.ClosingBalance)
             .FirstOrDefaultAsync(ct) ?? 0m;
 

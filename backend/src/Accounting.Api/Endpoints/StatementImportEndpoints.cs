@@ -41,6 +41,15 @@ public static class StatementImportEndpoints
             Results.Ok(await svc.GetLinesAsync(importId, ct)))
             .RequireAuthorization(pol);
 
+        // L2-3 superseded-import remediation (PLAN-fix-findings-r2.md §U3.2) — same permission
+        // as import creation (this group's `pol`), not a new one.
+        g.MapDelete("/{importId:long}", async (
+            long importId, IStatementImportService svc, CancellationToken ct) =>
+        {
+            await svc.DeleteImportAsync(importId, ct);
+            return Results.NoContent();
+        }).RequireAuthorization(pol);
+
         return app;
     }
 }

@@ -149,4 +149,124 @@ public sealed class StatementImportServiceTests : IDisposable
         (await db.StatementImports.CountAsync(x => x.BankAccountId == wrongBankAccountId)).Should().Be(0);
         (await db.StatementLines.CountAsync(x => x.BankAccountId == wrongBankAccountId)).Should().Be(0);
     }
+
+    /// <summary>L2-4 (PLAN-fix-findings-r2.md §U4, findings-r2/findings-leg2.md) — a statement
+    /// line whose Description exceeds the column's varchar(500) cap (StatementLineConfiguration)
+    /// previously escaped as a raw, unhandled DbUpdateException (a generic 500 leaking Postgres
+    /// text at the API layer). Pre-validation must catch this at parse time and throw a typed
+    /// DomainException naming the line number only — never the raw text (D10 no-PII
+    /// convention).</summary>
+    [SkippableFact]
+    public async Task ImportAsync_oversized_description_field_returns_typed_error_not_raw_500()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (bankAccountId, sp) = await SeedBankAccountAsync();
+
+        var longDescription = new string('A', 600);
+        var oversized = KBizCsvAdapterTests.GoodCsv.Replace(
+            ",19-06-26,23:59,ภาษีหัก ณ ที่จ่าย,0.75,,,,\"6,004.25\",,โอนเข้า/หักบัญชีอัตโนมัติ,,รหัสอ้างอิง PCB00001\r\n",
+            $",19-06-26,23:59,ภาษีหัก ณ ที่จ่าย,0.75,,,,\"6,004.25\",,โอนเข้า/หักบัญชีอัตโนมัติ,,{longDescription}\r\n");
+        oversized.Should().NotBe(KBizCsvAdapterTests.GoodCsv, "the fixture's oversized line must actually replace something, or this test proves nothing");
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+        var act = () => svc.ImportAsync(
+            bankAccountId, "oversized-statement.csv", "text/csv", 1000,
+            KBizCsvAdapterTests.Utf8BomStream(oversized), null, default);
+
+        var ex = await Assert.ThrowsAsync<DomainException>(act);
+        ex.Code.Should().Be("bank.import_line_too_long");
+        ex.Message.Should().NotContain("22001", "the raw Postgres error class must never leak to a typed error's message");
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.StatementImports.CountAsync(x => x.BankAccountId == bankAccountId)).Should().Be(0);
+        (await db.StatementLines.CountAsync(x => x.BankAccountId == bankAccountId)).Should().Be(0);
+    }
+
+    /// <summary>L2-4 residual defense — a case pre-validation does NOT cover (an oversized
+    /// SourceFileName, varchar(255) on StatementImport, not a per-line field) must still hit the
+    /// persistence-phase catch and translate to a typed `bank.import_failed`, with the same
+    /// rollback/atomicity guarantee as every other ImportAsync failure mode.</summary>
+    [SkippableFact]
+    public async Task ImportAsync_residual_persistence_failure_rolls_back_atomically_with_typed_error()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (bankAccountId, sp) = await SeedBankAccountAsync();
+        var oversizedFileName = new string('f', 260) + ".csv";   // SourceFileName caps at 255
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+        var act = () => svc.ImportAsync(
+            bankAccountId, oversizedFileName, "text/csv", 1000,
+            KBizCsvAdapterTests.Utf8BomStream(KBizCsvAdapterTests.GoodCsv), null, default);
+
+        var ex = await Assert.ThrowsAsync<DomainException>(act);
+        ex.Code.Should().Be("bank.import_failed");
+        ex.Message.Should().NotContain("22001", "the raw Postgres error class must never leak to a typed error's message");
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.StatementImports.CountAsync(x => x.BankAccountId == bankAccountId)).Should().Be(0);
+        (await db.StatementLines.CountAsync(x => x.BankAccountId == bankAccountId)).Should().Be(0);
+    }
+
+    // ── L2-3 (PLAN-fix-findings-r2.md §U3.2) — DeleteImportAsync ──────────────────────────────
+
+    [SkippableFact]
+    public async Task DeleteImportAsync_removes_a_pure_unmatched_import_and_its_lines()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (bankAccountId, sp) = await SeedBankAccountAsync();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+        var result = await svc.ImportAsync(
+            bankAccountId, "test-statement.csv", "text/csv", 1000,
+            KBizCsvAdapterTests.Utf8BomStream(KBizCsvAdapterTests.GoodCsv), null, default);
+
+        await svc.DeleteImportAsync(result.StatementImportId, default);
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.StatementImports.CountAsync(x => x.StatementImportId == result.StatementImportId)).Should().Be(0);
+        (await db.StatementLines.CountAsync(x => x.StatementImportId == result.StatementImportId)).Should().Be(0);
+    }
+
+    [SkippableFact]
+    public async Task DeleteImportAsync_refuses_when_a_line_is_matched()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (bankAccountId, sp) = await SeedBankAccountAsync();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+        var result = await svc.ImportAsync(
+            bankAccountId, "test-statement.csv", "text/csv", 1000,
+            KBizCsvAdapterTests.Utf8BomStream(KBizCsvAdapterTests.GoodCsv), null, default);
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var line = await db.StatementLines.FirstAsync(x => x.StatementImportId == result.StatementImportId);
+        line.MatchStatus = Accounting.Domain.Enums.MatchStatus.Matched;
+        // MatchedReceiptId sits under a unique partial index (StatementLineConfiguration) — a
+        // hardcoded placeholder collides with leftover rows from a prior run of this SAME test
+        // in the shared, persistent teas_test DB (Random.Shared avoids that; no real Receipt FK
+        // exists on StatementLine, so any value works — see BankEnums.cs's "id only" note).
+        line.MatchedReceiptId = Random.Shared.NextInt64(1, long.MaxValue);
+        await db.SaveChangesAsync();
+
+        var act = () => svc.DeleteImportAsync(result.StatementImportId, default);
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("bank.import_has_matched_lines");
+
+        (await db.StatementImports.CountAsync(x => x.StatementImportId == result.StatementImportId)).Should().Be(1,
+            "a refused delete must not remove anything");
+        (await db.StatementLines.CountAsync(x => x.StatementImportId == result.StatementImportId)).Should().Be(4);
+    }
+
+    [SkippableFact]
+    public async Task DeleteImportAsync_unknown_id_throws_not_found()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (_, sp) = await SeedBankAccountAsync();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+
+        var act = () => svc.DeleteImportAsync(999999999, default);
+        (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("bank.import_not_found");
+    }
 }
