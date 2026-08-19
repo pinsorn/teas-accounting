@@ -183,3 +183,85 @@ Restored the guard line, rebuilt clean, re-ran the full targeted set:
 → `Passed! - Failed: 0, Passed: 74, Skipped: 12, Total: 86, Duration: 51 s`
 (was 73/85 before this extension; +1 passed/+1 total = T24, same 12 `TEAS_DIAG=1`-gated
 diagnostic skips as before, unrelated to this change — 0 regressions).
+
+## U10 extension — Tier-2 review finding N3 (Fable-verified, 2026-08-19)
+Five sibling filing artifact sites carried the identical unguarded `prof?.TaxId ?? c.TaxId`
+pattern, found in Tier-2 review round 2. Guarded each with the SAME `PayerTaxIdRules.
+EnsureUsable` helper from U1 (genuine cross-namespace reuse this time, per Fable's explicit
+instruction — unlike the PaymentVoucherService question, which stays deliberately undone):
+
+| Site | Method | Placement |
+|---|---|---|
+| `Pnd50FilingService.cs:160` | `BuildPnd50Async` | resolve local `taxId`, guard, use local — right before `Pnd50Model` construction (after `BuildSheet`, so the pre-existing `pnd50.not_attestable`/`pnd50.not_renderable` refusals still fire first, unchanged) |
+| `Pnd51FilingService.cs:78` | `BuildPnd51Async` | resolve local `employerTaxId`, guard, use local — right before `Pnd51Model` construction |
+| `VatRegFormService.cs:37` | `IdentityAsync` (private, shared by `BuildPp01Async` + `BuildPp09Async`) | ONE guard covers both artifacts — "one guard point per service", same as SsoFilingService's pattern |
+| `WhtFilingService.cs:127` | `BuildPnd54PdfAsync`'s `ModelFor` local fn | resolved ONCE outside the local fn (not per-row), guard once, referenced by `ModelFor` for every ม.70 sheet |
+| `WhtFilingService.cs:169` | `BuildWhtPdfAsync` (shared by `BuildPnd3PdfAsync` + `BuildPnd53PdfAsync`) | resolve local `payerTaxId`, guard, use local |
+
+EXCLUDED per Fable's instruction (internal documents, not filings — not touched):
+`FinancialStatementPdfService.cs:43`, `PayslipPdf`.
+
+Each of the 4 services needed `using Accounting.Infrastructure.Payroll;` added (where
+`PayerTaxIdRules` lives) — a cross-namespace reference (Tax/TaxFilings → Payroll), deliberate
+and explicit per Fable's instruction to reuse the same helper, unlike the PV question.
+
+### Tests (one per service, per the extension's explicit scope — "keep it lean")
+All 4 follow the SAME repro shape: company 1's `company_profile.tax_id` is real post-seed-638;
+each test temporarily corrupts it to the placeholder, exercises the guarded builder, asserts
+`filing.payer_tax_id_missing`, then restores in `finally` (mirrors `WhtPayerTaxIdGuardTests`'
+precedent for a SHARED fixture company — safe because every Postgres-touching test class in
+this suite shares one xunit collection run strictly sequentially). None of these 4 test files
+had a `TestCompanyFactory`-parameterized `Provider()` (all 4 are hardcoded to company 1 by
+existing convention, unlike `PayrollRunServiceTests.cs`), so the mutate-and-restore shape fit
+each file's own style better than introducing a new fresh-company pattern for one test.
+
+- `Pnd50FilingServiceTests.Pnd50_refuses_a_placeholder_company_profile_tax_id` — via
+  `BuildPnd50Async` (attest: Ok, so only the NEW guard can block it).
+- `Pnd51FilingServiceTests.Pnd51_refuses_a_placeholder_company_profile_tax_id` — via
+  `BuildPnd51Async`.
+- `VatRegFormServiceTests.Pp01_refuses_a_placeholder_company_profile_tax_id` — via
+  `BuildPp01Async`; `BuildPp09Async` shares the identical `IdentityAsync` code path (not
+  separately tested — "one per service").
+- `WhtFormPdfFillTests.Pnd3_pdf_refuses_a_placeholder_company_profile_tax_id` — via
+  `BuildPnd3PdfAsync` → `BuildWhtPdfAsync`; the `BuildPnd54PdfAsync` site (:127) shares the
+  byte-identical `PayerTaxIdRules.EnsureUsable(payerTaxId);` call, verified by inspection +
+  build, not separately tested — "one per service" covers TWO call sites in this one service,
+  so only one is test-driven; this is a deliberate, coordinator-authorized gap, not an oversight.
+
+### RED capture
+Temporarily commented out all 5 new guard call lines (all 4 files) with a `sed` toggle, rebuilt,
+ran all 4 new tests together:
+`Failed! - Failed: 4, Passed: 0, Skipped: 0, Total: 4, Duration: 2 s`
+— all four failed with "Expected a DomainException to be thrown, but no exception was thrown."
+Exactly the bug: a placeholder profile tax id would silently render on 5 more RD/VAT forms.
+
+### GREEN capture
+Restored all 5 guard lines (verified via grep — no stray TEMP markers, guards present at all 5
+original line numbers), rebuilt clean, re-ran:
+`TEAS_TEST_PG=... dotnet test --no-build --filter "FullyQualifiedName~Pnd50_refuses_a_placeholder|...Pnd51_refuses_a_placeholder|...Pp01_refuses_a_placeholder|...Pnd3_pdf_refuses_a_placeholder"`
+→ `Passed! - Failed: 0, Passed: 4, Skipped: 0, Total: 4, Duration: 767 ms`
+
+Re-ran the touched classes TOGETHER with the previous filing set (Payroll namespace +
+`WhtPayerTaxIdGuardTests` + `TaxFormFillDiagnostic` — same set as the U1-extension gate, per
+the instruction not to run the full suite):
+`Passed! - Failed: 0, Passed: 96, Skipped: 12, Total: 108, Duration: 57 s`
+(was 74/86 before this extension; +22 = the touched classes' full test counts, e.g. Pnd50's
+existing 3 tests + the new one, Pnd51's existing 2 + new, VatRegForm's existing 5 (across both
+classes in the file) + new, WhtFormPdfFillTests' existing ~8 + new — same 12 `TEAS_DIAG=1`-gated
+diagnostic skips as always, 0 regressions).
+
+psql-confirmed after the full run: company 1's `company_profile.tax_id` is still
+`0105000000012` (every mutate-then-restore test correctly cleaned up, no residual corruption
+left in the shared fixture).
+
+### Files touched (U10)
+- `backend/src/Accounting.Infrastructure/Tax/Pnd50FilingService.cs`
+- `backend/src/Accounting.Infrastructure/Tax/Pnd51FilingService.cs`
+- `backend/src/Accounting.Infrastructure/Tax/VatRegFormService.cs`
+- `backend/src/Accounting.Infrastructure/TaxFilings/WhtFilingService.cs`
+- `backend/tests/Accounting.Api.Tests/TaxFilings/Pnd50FilingServiceTests.cs`
+- `backend/tests/Accounting.Api.Tests/TaxFilings/Pnd51FilingServiceTests.cs`
+- `backend/tests/Accounting.Api.Tests/TaxFilings/VatRegFormTests.cs`
+- `backend/tests/Accounting.Api.Tests/TaxFilings/WhtFormPdfFillTests.cs`
+
+No `git commit`. No source touched outside these 8 files + this spec.

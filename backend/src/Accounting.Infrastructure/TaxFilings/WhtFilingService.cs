@@ -4,6 +4,7 @@ using Accounting.Application.TaxFilings;
 using Accounting.Domain.Common;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure.Ledger;
+using Accounting.Infrastructure.Payroll;
 using Accounting.Infrastructure.Pdf;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -123,8 +124,13 @@ public sealed class WhtFilingService(
             .Where(c => c.CompanyId == tenant.CompanyId)
             .Select(c => new { c.TaxId, c.NameTh }).FirstAsync(ct);
 
+        // R2/L1-1/N3 (Tier-2 review) — resolved ONCE (not per-row inside ModelFor) so the guard
+        // fires exactly once regardless of how many ม.70 sheets this filing renders.
+        var payerTaxId = prof?.TaxId ?? company.TaxId;
+        PayerTaxIdRules.EnsureUsable(payerTaxId);
+
         Pnd54Model ModelFor(WhtFilingRow? r) => new(
-            TaxId:      prof?.TaxId ?? company.TaxId,
+            TaxId:      payerTaxId,
             BranchCode: prof?.BranchCode ?? "00000",
             PayerName:  prof?.LegalName ?? company.NameTh,
             Building:   prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
@@ -165,8 +171,13 @@ public sealed class WhtFilingService(
                 ? $"{dt.Day:00}/{dt.Month:00}/{dt.Year + 543}"   // วัน/เดือน/ปี (พ.ศ.)
                 : null)).ToList();
 
+        // R2/L1-1/N3 (Tier-2 review) — same refusal as Pnd1FilingService: a placeholder/blank
+        // payer Tax ID must never render onto a real RD form (ภ.ง.ด.3/53).
+        var payerTaxId = prof?.TaxId ?? company.TaxId;
+        PayerTaxIdRules.EnsureUsable(payerTaxId);
+
         var model = new WhtFormModel(
-            TaxId:      prof?.TaxId ?? company.TaxId,
+            TaxId:      payerTaxId,
             BranchCode: prof?.BranchCode ?? "00000",
             PayerName:  prof?.LegalName ?? company.NameTh,
             Building:   prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,

@@ -2,6 +2,7 @@ using Accounting.Application.Abstractions;
 using Accounting.Application.Tax;
 using Accounting.Domain.Common;
 using Accounting.Infrastructure.Pdf;
+using Accounting.Infrastructure.Payroll;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,8 +34,13 @@ public sealed class VatRegFormService(
         var prof = await db.CompanyProfiles.AsNoTracking()
             .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
 
+        // R2/L1-1/N3 (Tier-2 review) — one guard covers both Pp01 and Pp09 (both callers share
+        // this resolver, mirroring "one guard point per service").
+        var taxId = prof?.TaxId ?? c.TaxId;
+        PayerTaxIdRules.EnsureUsable(taxId);
+
         return new VatRegIdentity(
-            TaxId: prof?.TaxId ?? c.TaxId, LegalName: prof?.LegalName ?? c.NameTh,
+            TaxId: taxId, LegalName: prof?.LegalName ?? c.NameTh,
             Building: prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
             Village: prof?.RegVillage, HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo,
             Soi: prof?.RegSoi, Road: prof?.RegStreet,

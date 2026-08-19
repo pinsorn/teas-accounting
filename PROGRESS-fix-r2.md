@@ -3,6 +3,12 @@
 Plan: `PLAN-fix-findings-r2.md` (Ham GO ~11:4x; L2-3 in scope; co1 wipe at batch END).
 
 ## Done + committed
+- **U3+U4** ✅ `a28718e` — tiebreaker + typed import errors + delete-superseded endpoint (TOCTOU
+  caught at Fable review, check moved inside txn). Bank 55/55 ×2 + 3/3.
+- **U8-docs** ✅ `2fc3a2d` — expense-claims §5 + payroll-o10 D2 closed vs r2 evidence.
+- **U8-FE** ✅ `46e3a46` — FixedAssetForm split + Draft edit route + bank modal dialog roles
+  (runtime walk deferred to live re-verify; FA detail Dispose/WriteOff modals lack role=dialog —
+  same class, triage leftover).
 - **U7** ✅ `cd81bd0` — problemToast ×20 files (BillingNoteForm→U2, oauth/consent deviant skipped) + `.bak` cleanup `0ffa567`.
 - **U1** ✅ `753f545` — filing payer-tax-ID refuse (4 artifact paths incl. 50ทวิ extension) + seed 638. RED-then-GREEN T21–T24, filing area 74/0.
 - **U2 design** ✅ ratified `b0873bb` — all 4 deviations personally verified (sentinel (0,'VAT0') = N1 by-design; co3 chain = real violation 8 rows/4 tables; no seed; no FK — laundering).
@@ -30,6 +36,16 @@ Plan: `PLAN-fix-findings-r2.md` (Ham GO ~11:4x; L2-3 in scope; co1 wipe at batch
 - **N4:** Tier-4/deploy probe set must widen the class-B survey to all 4 repaired tables (P4
   currently sweeps tax_invoice_lines only).
 - N2/N5: evidence/cosmetic notes, no action (recorded in review output).
+
+## U5/U6 landed + U6 Tier-2
+- **U5** ✅ `a711ae4` (disposal-date guard, 40/40) · **U6** ✅ `1afae7c` (employee lookup, 121/121,
+  cap 7→9 accepted with arithmetic).
+- U6 Tier-2 (Opus): **APPROVE-WITH-NITS** — N1: `a28718e` shipped a stale generated RBAC doc
+  (repaired incidentally by `1afae7c`; process note → fold into agent template at next
+  minions sync: "backend route changes must re-run RbacAuthMapTests before commit"). N2: seed 640
+  direct-grant arm untested (mirrors 629 precedent, prod-only symptom would be 23505 — coverage
+  note). N3: `McpScopes.cs:50` could narrow to `master.employee.lookup` — least-privilege
+  follow-up, verified NOT a leak today. No code action this batch.
 
 ## Queue after current two finish
 1. Opus verdict on U1+U2 → Fable verifies any finding in code → commit U2 (`fix(sales): ...` mentioning L6-1+L6-4, 639 repair, laundering).

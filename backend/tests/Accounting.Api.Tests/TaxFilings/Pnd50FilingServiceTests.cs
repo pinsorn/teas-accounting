@@ -251,4 +251,37 @@ public sealed class Pnd50FilingServiceTests
             await citData.UpsertYearAsync(year, new UpsertCitYearRequest(null, null), default);
         }
     }
+
+    // R2/L1-1/N3 (Tier-2 review round 2) — Pnd50FilingService has the identical unguarded
+    // `prof?.TaxId ?? c.TaxId` pattern as the payroll filing services; same
+    // PayerTaxIdRules.EnsureUsable guard, same repro shape as PayrollRunServiceTests' T21:
+    // company 1's profile is real post-seed-638, temporarily corrupted here and restored —
+    // shared fixture company, safe under the collection's strictly-sequential xunit run.
+    [SkippableFact]
+    public async Task Pnd50_refuses_a_placeholder_company_profile_tax_id()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var year = await CitExpenseByAccountTests.FreshJeYearAsync(db);
+
+        var prof = await db.CompanyProfiles.SingleAsync(p => p.CompanyId == 1);
+        var original = prof.TaxId;
+        prof.TaxId = "0000000000000";
+        await db.SaveChangesAsync();
+        try
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IPnd50FilingService>();
+            var act = () => svc.BuildPnd50Async(
+                year, isSme: false, hasRelatedPartyOver200M: false, attest: Ok, ct: default);
+            (await act.Should().ThrowAsync<DomainException>())
+                .Which.Code.Should().Be("filing.payer_tax_id_missing");
+        }
+        finally
+        {
+            prof.TaxId = original;
+            await db.SaveChangesAsync();
+        }
+    }
 }

@@ -1,8 +1,11 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Tax;
+using Accounting.Domain.Common;
 using Accounting.Infrastructure;
 using Accounting.Infrastructure.Pdf;
+using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -102,6 +105,35 @@ public sealed class VatRegFormServiceTests
             await svc.BuildPp09Async(default),
         })
             System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+    }
+
+    // R2/L1-1/N3 (Tier-2 review round 2) — same guard/repro shape as Pnd50's sibling test. One
+    // guard covers both Pp01/Pp09 (shared IdentityAsync resolver) — this pins Pp01; Pp09 shares
+    // the identical code path (verified by inspection, "one per service" per the extension scope).
+    [SkippableFact]
+    public async Task Pp01_refuses_a_placeholder_company_profile_tax_id()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        var prof = await db.CompanyProfiles.SingleAsync(p => p.CompanyId == 1);
+        var original = prof.TaxId;
+        prof.TaxId = "0000000000000";
+        await db.SaveChangesAsync();
+        try
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IVatRegFormService>();
+            var act = () => svc.BuildPp01Async(default);
+            (await act.Should().ThrowAsync<DomainException>())
+                .Which.Code.Should().Be("filing.payer_tax_id_missing");
+        }
+        finally
+        {
+            prof.TaxId = original;
+            await db.SaveChangesAsync();
+        }
     }
 }
 

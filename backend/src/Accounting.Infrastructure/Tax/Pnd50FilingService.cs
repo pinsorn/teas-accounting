@@ -4,6 +4,7 @@ using Accounting.Application.Tax;
 using Accounting.Domain.Common;
 using Accounting.Domain.Tax;
 using Accounting.Infrastructure.Pdf;
+using Accounting.Infrastructure.Payroll;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.TaxFilings;
 using Microsoft.EntityFrameworkCore;
@@ -156,8 +157,13 @@ public sealed class Pnd50FilingService(
         var sheet = BuildSheet(
             comp.Cit, comp.WhtCredit, comp.Pnd51Prepaid, comp.Surcharge, comp.IsSme, attest);
 
+        // R2/L1-1/N3 (Tier-2 review) — same refusal as Pnd1FilingService: a placeholder/blank
+        // payer Tax ID must never render onto a real RD form.
+        var taxId = prof?.TaxId ?? c.TaxId;
+        PayerTaxIdRules.EnsureUsable(taxId);
+
         var model = new Pnd50Model(
-            TaxId: prof?.TaxId ?? c.TaxId, CompanyName: prof?.LegalName ?? c.NameTh,
+            TaxId: taxId, CompanyName: prof?.LegalName ?? c.NameTh,
             PeriodStart: comp.PeriodStart, PeriodEnd: comp.PeriodEnd,
             Building: prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
             Village: prof?.RegVillage, HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo,

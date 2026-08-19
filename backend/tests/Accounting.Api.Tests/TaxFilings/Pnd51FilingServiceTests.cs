@@ -1,8 +1,11 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Tax;
+using Accounting.Domain.Common;
 using Accounting.Infrastructure;
+using Accounting.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -80,5 +83,34 @@ public sealed class Pnd51FilingServiceTests
         // SME tax on 500k = 0 (300k@0%) + 30k (200k@15%) = 30k; half-year = 15k < 50k.
         general.Length.Should().BeGreaterThan(0);
         sme.Length.Should().BeGreaterThan(0);
+    }
+
+    // R2/L1-1/N3 (Tier-2 review round 2) — same guard/repro shape as Pnd50's sibling test.
+    [SkippableFact]
+    public async Task Pnd51_refuses_a_placeholder_company_profile_tax_id()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        var prof = await db.CompanyProfiles.SingleAsync(p => p.CompanyId == 1);
+        var original = prof.TaxId;
+        prof.TaxId = "0000000000000";
+        await db.SaveChangesAsync();
+        try
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IPnd51FilingService>();
+            var act = () => svc.BuildPnd51Async(
+                year: 3099, estimatedAnnualProfit: 1_000_000m, whtSufferedH1: 0m,
+                isSme: false, fillWorksheet: false, attest: null, ct: default);
+            (await act.Should().ThrowAsync<DomainException>())
+                .Which.Code.Should().Be("filing.payer_tax_id_missing");
+        }
+        finally
+        {
+            prof.TaxId = original;
+            await db.SaveChangesAsync();
+        }
     }
 }

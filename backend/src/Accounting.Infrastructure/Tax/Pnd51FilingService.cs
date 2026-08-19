@@ -4,6 +4,7 @@ using Accounting.Application.Tax;
 using Accounting.Domain.Common;
 using Accounting.Domain.Tax;
 using Accounting.Infrastructure.Pdf;
+using Accounting.Infrastructure.Payroll;
 using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.TaxFilings;
 using Microsoft.EntityFrameworkCore;
@@ -74,8 +75,13 @@ public sealed class Pnd51FilingService(
 
         var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(Bkk).Date);
 
+        // R2/L1-1/N3 (Tier-2 review) — same refusal as Pnd1FilingService: a placeholder/blank
+        // payer Tax ID must never render onto a real RD form.
+        var employerTaxId = prof?.TaxId ?? c.TaxId;
+        PayerTaxIdRules.EnsureUsable(employerTaxId);
+
         var model = new Pnd51Model(
-            EmployerTaxId: prof?.TaxId ?? c.TaxId,
+            EmployerTaxId: employerTaxId,
             EmployerName:  prof?.LegalName ?? c.NameTh,
             PeriodStart:   periodStart,
             PeriodEnd:     periodEnd,

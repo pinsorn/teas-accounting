@@ -9,6 +9,7 @@ using Accounting.Infrastructure.Persistence;
 using Accounting.Infrastructure.TaxFilings;
 using PdfSharp.Pdf.IO;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -205,5 +206,37 @@ public sealed class WhtFormPdfFillTests
 
         Pages(await svc.BuildPnd54PdfAsync(p2, default))
             .Should().Be(2 * single, "one ภ.ง.ด.54 sheet per ม.70 payment");
+    }
+
+    // R2/L1-1/N3 (Tier-2 review round 2) — WhtFilingService has TWO independent unguarded
+    // `prof?.TaxId ?? company.TaxId` resolutions (BuildWhtPdfAsync for ภ.ง.ด.3/53, and
+    // BuildPnd54PdfAsync's ModelFor for ภ.ง.ด.54), both now guarded with the identical
+    // PayerTaxIdRules.EnsureUsable call. This pins the ภ.ง.ด.3 path (BuildWhtPdfAsync, via
+    // BuildPnd3PdfAsync) — one test per service per the extension scope; the ภ.ง.ด.54 site
+    // shares the byte-identical guard call, verified by inspection + build.
+    [SkippableFact]
+    public async Task Pnd3_pdf_refuses_a_placeholder_company_profile_tax_id()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        var prof = await db.CompanyProfiles.SingleAsync(p => p.CompanyId == 1);
+        var original = prof.TaxId;
+        prof.TaxId = "0000000000000";
+        await db.SaveChangesAsync();
+        try
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+            var act = () => svc.BuildPnd3PdfAsync(RandPeriod(), default);
+            (await act.Should().ThrowAsync<DomainException>())
+                .Which.Code.Should().Be("filing.payer_tax_id_missing");
+        }
+        finally
+        {
+            prof.TaxId = original;
+            await db.SaveChangesAsync();
+        }
     }
 }
