@@ -36,3 +36,19 @@ Domain 188/188 · Api 1318/1332 (0 failed, 14 diag-gated skips = baseline) — i
 Remaining: C8 only — wipe accounting_dev (backup exists), ONE boot on rebuilt binaries (seeds
 638–641), probes MUST include ap_clerk + sales_staff logins (the C11 regression) and user_roles
 count, then STATUS/PROGRESS close. If session dies: run C8 per this note.
+
+## ✅ BATCH CLOSED (2026-08-19 ~20:2x)
+C8 final wipe+boot on rebuilt binaries: seeds 638–641 applied, 3 companies, user_roles 30
+(ap_clerk + sales_staff now seeded correctly — login 200 on a GENUINELY fresh install, the C11
+regression), 0 documents, all probes green. Stack left UP (API :5080 fresh build, FE :3000).
+
+## Self-retro (Fable, batch close)
+- Six-way parallel wave worked because file/DB disjointness was designed in, not hoped for; the
+  one collision (my own `git add specs/` sweeping C7's in-progress spec edits into a C9 commit)
+  was EXACTLY the dir-add lesson synced to minions that same hour — the rule must apply to Fable's
+  own doc commits, not just workers' code commits.
+- C3's e2e repair paying for itself: found seed-181, a REAL fresh-install bug that every previous
+  boot probe missed because we probed admin/rbac_* but never the PV demo users — probe lists must
+  cover every seeded user CLASS, folded into the C8 probe this time.
+- Ratify-only-after-personal-verification caught nothing false this batch (C4 numbers all held) —
+  but the habit is what made accepting an 8-deviation design safe.
