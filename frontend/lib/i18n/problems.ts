@@ -84,6 +84,13 @@ const TH: Record<string, string> = {
   'pv.no_docno': 'ไม่สามารถออกเลขที่เอกสารใบสำคัญจ่ายได้',
   'pv.invalid_amount': 'จำนวนเงินที่ชำระต้องมากกว่า 0',
 
+  // bank.* (Bank Statement Import)
+  'bank.import_line_too_long': 'มีบางฟิลด์ในบรรทัดของไฟล์ statement ยาวเกินกำหนด กรุณาตรวจสอบไฟล์แล้วลองนำเข้าใหม่',
+
+  // fixed_asset.*
+  'fixed_asset.disposal_date_invalid':
+    'วันที่จำหน่าย/ตัดบัญชีต้องไม่อยู่ก่อนวันที่ได้มาหรือวันที่เริ่มคิดค่าเสื่อมของสินทรัพย์นี้',
+
   // po.* (Purchase Order / ใบสั่งซื้อ)
   'po.not_found': 'ไม่พบใบสั่งซื้อนี้',
   'po.not_draft': 'แก้ไขได้เฉพาะใบสั่งซื้อที่ยังเป็นฉบับร่าง',
@@ -129,6 +136,11 @@ const TH: Record<string, string> = {
   // tax_filing.* (R2/WP-6 — ภ.ง.ด.50/51 year validation, TaxFilingPeriod.EnsureYear)
   'tax_filing.bad_year': 'ปีภาษีไม่ถูกต้อง กรุณาระบุปี ค.ศ. ที่ถูกต้อง (เช่น 2026)',
 
+  // filing.* (R2/U1 — payer Tax ID guard shared by ภ.ง.ด.1/1ก and สปส.1-10 filing builders;
+  // Thai half mirrors PayerTaxIdRules.EnsureUsable's bilingual backend message verbatim)
+  'filing.payer_tax_id_missing':
+    'ยังไม่ได้กรอกเลขประจำตัวผู้เสียภาษีของบริษัทในข้อมูลบริษัท — ต้องกรอกให้ครบก่อนจึงจะออกแบบยื่นภาษี/ประกันสังคมได้',
+
   // pnd36.* (R3/F1 — ม.83/6 keys on the PAYMENT, and a manual JV can clear a foreign vendor's payable
   // without ever creating a PaymentVoucher. The filing is not refused; finalize just needs a tick.)
   // NO entry for 'pnd36.unreconciled_figure_changed' — deliberate, same reason as
@@ -173,6 +185,9 @@ const TH: Record<string, string> = {
     'ลบได้เฉพาะรอบจ่ายที่ยังเป็นฉบับร่าง หรือรอบที่อนุมัติแล้วแต่ยังไม่ได้ลงบัญชี (Post)',
   'payroll.bank_required': 'กรุณาเลือกบัญชีธนาคารสำหรับจ่ายเงินเดือน',
   'payroll.bank_not_found': 'ไม่พบบัญชีธนาคารที่เลือกหรือบัญชีถูกปิดใช้งาน',
+
+  // quotation.* (Sales Quotation)
+  'quotation.already_invoiced': 'ใบเสนอราคานี้ออกใบกำกับภาษีแล้ว',
 
   // customer.* / employee.* / branch.* / coa.* / prefix.* / expense_category.* / product.*
   'customer.not_found': 'ไม่พบลูกค้านี้',
