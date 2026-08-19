@@ -410,28 +410,28 @@ lines 50/86/104). All `.RequireAuthorization(PolicyPrefix + <perm>)`.
   line without a volatile parent id.
 
 FE (Next.js App Router + DaisyUI):
-- [ ] `frontend/app/(dashboard)/expense-claims/page.tsx` — list (clone
+- [x] `frontend/app/(dashboard)/expense-claims/page.tsx` — list (clone
   `bank-accounts/page.tsx`: `DataTable` + status/employee filters + PermissionGate
-  "New" button).
-- [ ] `frontend/app/(dashboard)/expense-claims/new/page.tsx` — multi-line create
+  "New" button). verified live, swarm r2 leg 4, 2026-08-19 — see findings-r2/findings-leg4.md
+- [x] `frontend/app/(dashboard)/expense-claims/new/page.tsx` — multi-line create
   (clone `payment-vouchers/new/page.tsx` `rows` state pattern). Header:
   **EmployeeSelector** (new component). Each line row: **ExpenseCategorySelector**
   (existing) + description + expense_date + amount + tax code + recoverable-VAT
   toggle. Save draft -> returns id -> attach receipts (header parent) -> optional
-  submit.
-- [ ] `frontend/app/(dashboard)/expense-claims/[id]/page.tsx` — detail + action
+  submit. verified live, swarm r2 leg 4, 2026-08-19 — see findings-r2/findings-leg4.md
+- [x] `frontend/app/(dashboard)/expense-claims/[id]/page.tsx` — detail + action
   buttons (submit/approve/reject/pay), each wrapped in `<PermissionGate
   scope="expense.claim.*">`, `disabled={m.isPending}` (clone
   `payment-vouchers/[id]/page.tsx`). Pay opens a small modal for payment_method +
-  bank account picker.
-- [ ] Optional edit page or reuse `new` in edit mode for Draft/Rejected.
-- [ ] `frontend/components/ui/EmployeeSelector.tsx` — clone
+  bank account picker. verified live, swarm r2 leg 4, 2026-08-19 — see findings-r2/findings-leg4.md
+- [x] Optional edit page or reuse `new` in edit mode for Draft/Rejected. verified live, swarm r2 leg 4, 2026-08-19 — see findings-r2/findings-leg4.md
+- [x] `frontend/components/ui/EmployeeSelector.tsx` — clone
   `BusinessUnitSelector.tsx`; `useEmployees()` already exists
-  (`queries.ts:556`); option label `code — nameTh`.
-- [ ] `frontend/lib/queries.ts` — add `useExpenseClaims`, `useExpenseClaim`,
+  (`queries.ts:556`); option label `code — nameTh`. verified live, swarm r2 leg 4, 2026-08-19 — see findings-r2/findings-leg4.md
+- [x] `frontend/lib/queries.ts` — add `useExpenseClaims`, `useExpenseClaim`,
   `useCreate/UpdateExpenseClaim`, `useSubmit/Approve/Reject/Pay/CancelExpenseClaim`
   (clone `useApprovePaymentVoucher` `queries.ts:480`; invalidate
-  `['expense-claims']` + `['expense-claim', id]`).
+  `['expense-claims']` + `['expense-claim', id]`). verified live, swarm r2 leg 4, 2026-08-19 — see findings-r2/findings-leg4.md
 - [x] i18n: add `expenseClaims` namespace to `frontend/messages/en.json` +
   `th.json`; add `nav.expenseClaims` label.
 - [x] Nav: add `{ href:'/expense-claims', key:'expenseClaims', Icon:<lucide>,
@@ -592,3 +592,4 @@ attachment wiring (`AttachmentEnums.cs`/`AttachmentCodes.cs`/`AttachmentService.
   already-tested migration on the shared teas_test DB). `dotnet build` green;
   `dotnet test --filter "FullyQualifiedName~ExpenseClaim"` = 11/11 pass. Full
   suite NOT re-run per dispatch (gate runner owns that next).
+- 2026-08-19 — r2 leg 4 walked the full claim→approve→pay→GL path live (browser); §5 pages all exist; source hardening through 2026-08-14 (allowlist, satang guards, non-VAT re-guards, numbering retry, 409-on-double-pay) was never logged here — recorded now.
