@@ -1651,3 +1651,45 @@ losing the test DB costs nothing.
 - **Root cause:** the conversion path (Decision 1 in the spec) creates a draft from the tracked quotation entity server-side, with no line payload from the browser. This eliminates a vector where a client-side form could lose data (discount, tax code) on a round-trip prefill. However, no `PUT /tax-invoices/{id}` route or draft-edit screen was built to give the user an undo for a mis-click; abandoning the draft is the current exit, and it is real (a draft burns no document number per `CreateDraftCoreAsync` behavior — `DocNo` is allocated only at `PostAsync`).
 - **Fix:** expose the existing `ITaxInvoiceService.UpdateDraftAsync` as `PUT /tax-invoices/{id}` plus a draft-edit screen mirroring the quotation/sales-order draft-edit pattern. Out of scope for this unit; Ham's call whether it becomes the next feature unit (escalation E4).
 - **Seen:** 2026-08-16, `specs/fix-chain-conversion-integrity.md` §10.5 (escalation E4, §3.0 Decision 1 consequence); also pre-existing for every manually created draft TI (F1.24).
+
+## Sonner toasts never auto-dismiss under headless Chromium — silently swallow clicks on top-of-page action-bar buttons
+- Symptom: a Playwright click on a `data-testid` action-bar button (e.g. quotation `q-accept`,
+  SO `so-post`) intermittently never takes effect — no navigation, no dialog, no error — the
+  click's own actionability retry just keeps logging `<li data-sonner-toast>... intercepts
+  pointer events` against the SAME toast for 20+ seconds until the test's own timeout gives up.
+  Confirmed via trace (`0-trace.trace`, `grep '"method":"click"'` then read that `callId`'s log
+  lines): a stack of 2-3 `[data-sonner-toast]` elements sat at the SAME position, unmoving, for
+  5.5s+ of active polling (diagnostic spec: log `page.locator('[data-sonner-toast]').count()`
+  on an interval — stayed at 3, never dropped).
+- Root cause: sonner's Toaster is `position="top-right"` (`frontend/app/layout.tsx`) — the
+  same corner several detail-page action bars render their buttons in, close to the top of the
+  page. Sonner pauses its auto-dismiss timer while the document/tab isn't considered
+  "focused" — headless Chromium (this repo's `playwright.config.ts` runs `headless: true`)
+  never reports real window focus the way an interactive session does, so the timer never
+  starts and toasts accumulate indefinitely across a multi-step flow (issue → accept → post
+  → ...), each one adding to a stack tall enough to cover a nearby button.
+- What did NOT work (in order tried):
+  1. `click({ force: true })` — force only skips Playwright's OWN pre-click hit-test; the
+     underlying OS click still lands wherever is topmost at those pixel coordinates, so it
+     silently lands on the toast instead of the button (no error, but no effect either).
+  2. Waiting for the toast list to become empty before clicking — it never does (see root
+     cause), so any such wait just burns its whole timeout every time.
+  3. Removing `[data-sonner-toast]` DOM nodes directly via `page.evaluate()` — React still
+     owns those nodes; ripping them out from under the reconciler is a real risk (a follow-up
+     run showed the click+dialog-confirm succeeding but the resulting status update never
+     landing — consistent with a `removeChild` mismatch corrupting later reconciliation).
+  4. `page.addStyleTag()` with `[data-sonner-toast] { pointer-events: none !important; }`
+     called ONCE inside the shared `login()` helper (reasoning: persist across the whole
+     session) — DIDN'T stick; toast interception reappeared in the very next run. A style tag
+     added before the Next.js app-router hydrates is exactly the kind of "unrecognized DOM
+     node" hydration can wipe.
+- What DOES work: the SAME `pointer-events: none !important` rule via `page.addStyleTag()`
+  called freshly at the POINT OF USE (immediately before each risky click, i.e. inside a
+  shared `clickAndConfirm(page, testId)` helper), AFTER the app has already hydrated — 5+
+  consecutive runs, zero interception failures at that click. `frontend/e2e/_helpers.ts`'s
+  `clickAndConfirm()` is the reference implementation.
+- Seen: 2026-08-19, C3 e2e debt cleanup (`specs/fix-c3-e2e-debt.md`) — `quotation-chain-flow.spec.ts`'s
+  `q-accept`/`so-post` clicks (behind a ConfirmActionDialog, so extra-vulnerable: TWO
+  state-changing toasts — the preceding action's + this one's own dialog confirm — stack up
+  before the NEXT action bar button is clicked). Cost ~1.5hrs of trace-reading across 4 wrong
+  turns before the point-of-use `addStyleTag` mechanism was confirmed reliable.

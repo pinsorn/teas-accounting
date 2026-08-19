@@ -21,10 +21,14 @@ test('quotation: draft → send → accept → convert', async ({ page }) => {
   // also surfaces "ส่งแล้ว"/"ร่าง" in the activity log, tripping strict mode.
   await expect(page.getByTestId('q-status')).toContainText(/Draft|ร่าง/i);
 
-  // Send → status moves to Sent.
+  // Send → status moves to Sent. Send now opens a ConfirmActionDialog (WP3 3.6-family) —
+  // click the trigger, then its own confirm button.
   const sendBtn = page.getByRole('button', { name: /Send|ส่ง/i }).first();
   if (await sendBtn.isVisible().catch(() => false)) {
     await sendBtn.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await dialog.getByRole('button', { name: /^ยืนยัน$|^Confirm$/ }).click();
     await expect(page.getByTestId('q-status')).toContainText(/Sent|ส่งแล้ว/i, { timeout: 10_000 });
   }
 });

@@ -47,17 +47,58 @@ export async function waitForNavGates(page: Page) {
 }
 
 /**
+ * WP3 3.6 (C3 debt) — several detail-page state-changing actions (PO/PV approve, PV post,
+ * PO mark-sent, quotation send/accept/reject, SO post, ...) now open a shared
+ * ConfirmActionDialog (role=dialog) instead of acting immediately. Call this right after
+ * clicking the trigger button to click the dialog's own confirm button
+ * (common.confirm — "ยืนยัน"/"Confirm").
+ */
+export async function confirmDialog(page: Page) {
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await dialog.getByRole('button', { name: /^ยืนยัน$|^Confirm$/ }).click();
+}
+
+/**
+ * Click a `data-testid` trigger button that opens a ConfirmActionDialog, then confirm it —
+ * retrying the WHOLE open→confirm sequence (gotcha §16 family: a react-query refetch
+ * re-rendering the action bar, or a sonner toast, can transiently make the trigger
+ * unclickable right as it's clicked).
+ *
+ * See `troubles-wiki.md`'s "Sonner toasts never auto-dismiss under headless Chromium" entry
+ * for the full investigation — this is the ONE mechanism that came out with a clean record
+ * (5 runs, zero failures at this step; other mechanisms tried and reverted: `{force:true}`,
+ * waiting for the stack to clear on its own, direct DOM removal, `addInitScript` in login(),
+ * keyboard focus+Enter). Re-inject on every call (point-of-use, AFTER hydration) rather than
+ * once in `login()` — a style tag added before the app-router hydrates gets wiped by it.
+ */
+export async function clickAndConfirm(page: Page, testId: string) {
+  await expect(async () => {
+    await page.addStyleTag({ content: '[data-sonner-toast] { pointer-events: none !important; }' });
+    await page.getByTestId(testId).click();
+    await confirmDialog(page);
+  }).toPass({ timeout: 20_000 });
+}
+
+/**
  * Pick a customer via EntityPickerModal. Two trigger generations exist:
  * the create-form redesign's PartySelectBox renders an empty-state dashed
  * "เลือกลูกค้า" button, while older pages still use CustomerSelector whose
  * trigger's accessible name is its placeholder "ค้นหาชื่อ หรือเลขผู้เสียภาษี".
  * Both open the same role=dialog with a search input + result <button>s.
+ *
+ * Result buttons render as "<name> <taxId>" — `name` is anchored to the
+ * START of that accessible name (not a bare substring) so a look-alike row
+ * elsewhere in the string (e.g. a seeded "บริษัท SALES ลูกค้าทดสอบ จำกัด" that
+ * merely CONTAINS the default target's name) can't collide with it; `.first()`
+ * is a second, defense-in-depth layer against Playwright's strict-mode
+ * violation if a polluted DB still produces two truly-prefix-matching rows.
  */
-export async function pickCustomer(page: Page, search = 'ลูกค้า', name: RegExp = /ลูกค้าทดสอบ/) {
+export async function pickCustomer(page: Page, search = 'ลูกค้า', name: RegExp = /^ลูกค้าทดสอบ จำกัด/) {
   await page.getByRole('button', { name: /^เลือกลูกค้า$|ค้นหาชื่อ หรือเลขผู้เสียภาษี/ }).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill(search);
-  await dialog.getByRole('button', { name }).click();
+  await dialog.getByRole('button', { name }).first().click();
 }
 
 /** Create + post a Tax Invoice via the UI; returns its numeric id from the detail URL. */
@@ -86,6 +127,10 @@ export async function createVendor(page: Page): Promise<string> {
   await page.getByText(/รหัสผู้ขาย|Vendor code/).locator('xpath=following::input[1]').fill(code);
   await page.getByText(/^ชื่อ \(ไทย\)|Name \(Thai\)/).locator('xpath=following::input[1]')
     .fill('ผู้ขาย e2e จำกัด');
+  // vendor.vat_registered_requires_taxid — the form defaults vatRegistered=true, which now
+  // (validator drift found in C3) requires a checksum-valid Thai Tax ID before save succeeds.
+  // No uniqueness constraint on tax_id, so any valid checksum id works here.
+  await page.getByLabel(/เลขประจำตัวผู้เสียภาษี/).fill('0105556123453');
   await page.getByRole('button', { name: /บันทึกผู้ขาย|Save vendor/ }).click();
   await page.waitForURL(/\/vendors$/, { timeout: 15_000 });
   return code;

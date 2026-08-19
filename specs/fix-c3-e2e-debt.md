@@ -22,60 +22,76 @@ accounting_dev (3 companies, no documents) — do NOT touch company 2, periods, 
       passed, 1/1.
 - [x] Cleaned up: deleted the polluted look-alike customer row (customer_id=9, company 1 —
       never touched company 2) and the throwaway spec file.
-- [x] Real suite regression check: `billing-note-flow.spec.ts` (uses `pickCustomer` 4×) — green
-      both before and after the fix (see Evidence).
+- [x] Real suite regression check: `billing-note-flow.spec.ts` (uses `pickCustomer` 4×) — green.
 
-### Debt 2 — PV confirm-dialog specs — [~] IN PROGRESS
-- [x] `payment-voucher-with-wht.spec.ts` — edited to click the ConfirmActionDialog's confirm
-      button after Approve and after Post (both now gate behind the dialog per WP3 3.6). NOT YET
-      RUN GREEN — edit applied, run pending (blocked on the RBAC seed gap below, which affects
-      the sibling file, not this one — this one only needs `admin`/`approver`, both of which DO
-      have company assignments).
-- [x] `payment-voucher-non-super-rbac.spec.ts` — pure API-driven (no UI, no ConfirmActionDialog
-      at all — out of scope for the dialog fix). Found + fixed an UNRELATED pre-existing drift:
-      `vendor.vat_registered_requires_taxid` validator now rejects `taxId: null` on a
-      `vatRegistered: true` vendor create — added a valid checksum taxId. Then hit a SEPARATE
-      blocker (see below) — NOT YET GREEN.
-- [x] **New finding (environment, not spec code):** on this freshly-reseeded `accounting_dev`,
-      seed users `ap_clerk` (user_id=3) and `sales_staff` (user_id=4) have ZERO rows in
-      `sys.user_roles` → login 401s `auth.no_company_assignment`. Root cause: SQL script
-      `181_seed_demo_pv_users.sql` IS tracked applied (`sys.applied_sql_scripts`), but its
-      `INSERT INTO sys.user_roles ... SELECT ... FROM sys.roles WHERE role_code='AP_CLERK' AND
-      company_id=1` ran with no `app.company_id`/`app.bypass_rls` session GUC set (SqlScripts run
-      with no session context) against `sys.roles`, which carries FORCE ROW LEVEL SECURITY
-      (`company_isolation` policy) — the SELECT silently matched 0 rows. Confirmed via
-      `pg_policy`/`pg_roles` (`accounting` role has `rolbypassrls=t`, which is why every psql
-      query I ran saw the roles fine — the SEED SCRIPT's own DB session does not run as that
-      role/without that GUC). The Settings→Users UI can't fix this either: `useRbacUsers`
-      returns users by joining THROUGH `sys.user_roles`, so an orphaned user with 0 rows there
-      never appears in ANY company's user list — dead end for a UI-only fix.
-      Out of my file scope (backend SQL) — cannot fix `181_seed_demo_pv_users.sql` myself.
-      **Troubles-wiki entry added** (below) so the next fresh-reseed hitting this doesn't
-      re-diagnose from scratch; flagging for the orchestrator to route the actual script fix
-      (wrap the `INSERT..SELECT` in `SELECT set_config('app.bypass_rls','true',true)` LOCAL, or
-      equivalent) to a backend worker.
-- [x] Repair done: `PUT admin/rbac/users/{id}/roles` called directly via `page.request` as
-      `admin` (204 for both users) — the app's own sanctioned API, no raw SQL. Verified
-      `sys.user_roles` now has the 2 rows. Both PV specs re-run GREEN after (see Evidence).
-- [x] Grepped ALL pages using `ConfirmActionDialog` (`invoices`, `payment-vouchers`,
-      `period-close`, `purchase-orders`, `quotations`, `sales-orders`) and cross-referenced
-      against every e2e spec that drives the relevant testid via the UI (not raw API):
-      - `payment-voucher-with-wht.spec.ts` (pv-approve, pv-post) — fixed.
-      - `pv-approval-permission.spec.ts` (pv-approve) — fixed.
-      - `quotation-lifecycle.spec.ts` (q-send) — fixed.
-      - `quotation-chain-flow.spec.ts` (q-accept ×2, so-post ×2) — fixed, plus hit a
-        pre-existing sonner-toast/react-query race (unrelated to the dialog itself — same
-        family as PV Post's existing gotcha §16 workaround) → added a shared
-        `clickAndConfirm(page, testId)` helper (retry-wrapped open+confirm) to `_helpers.ts`
-        and used it here.
-      - `tax-invoice-from-quotation.spec.ts` (q-accept) — fixed (uses `clickAndConfirm`).
+### Debt 2 — PV confirm-dialog specs — [x] DONE
+- [x] `payment-voucher-with-wht.spec.ts` — approve + post now click the ConfirmActionDialog's
+      confirm button (WP3 3.6). GREEN.
+- [x] `payment-voucher-non-super-rbac.spec.ts` — pure API-driven (`page.request.post`), never
+      touches the dialog. Found + fixed an unrelated pre-existing drift instead:
+      `vendor.vat_registered_requires_taxid` now rejects `taxId: null` on `vatRegistered: true`
+      — added a valid checksum taxId. GREEN.
+- [x] **Environment finding (not spec code), fixed via app API, wiki entry added:** on this
+      fresh reseed, `ap_clerk`(3)/`sales_staff`(4) had ZERO `sys.user_roles` rows →
+      `auth.no_company_assignment` on login. Root cause: `181_seed_demo_pv_users.sql`'s
+      `INSERT ... SELECT ... FROM sys.roles WHERE company_id=1` ran with no
+      `app.company_id`/`app.bypass_rls` session GUC against `sys.roles` (FORCE RLS,
+      `company_isolation` policy) — matched 0 rows silently. The Settings→Users UI can't reach
+      orphaned users either (`useRbacUsers` joins THROUGH `user_roles`). Fixed via the app's OWN
+      `PUT admin/rbac/users/{id}/roles` API (204 for both users, verified DB rows land) — no raw
+      SQL. Out of my file scope to fix `181_seed_demo_pv_users.sql` itself; troubles-wiki entry
+      added (`## Fresh reseed: ap_clerk/sales_staff login 401s ...`) for the orchestrator to
+      route to a backend worker.
+- [x] Grepped every page using `ConfirmActionDialog` (`invoices`, `payment-vouchers`,
+      `period-close`, `purchase-orders`, `quotations`, `sales-orders`) against every e2e spec
+      driving the relevant testid via the UI (not raw API):
+      - `payment-voucher-with-wht.spec.ts` (pv-approve, pv-post) — fixed, GREEN.
+      - `pv-approval-permission.spec.ts` (pv-approve) — fixed, GREEN.
+      - `quotation-lifecycle.spec.ts` (q-send) — fixed, GREEN.
+      - `quotation-chain-flow.spec.ts` (q-accept ×2, so-post ×2) — fixed. See its own entry
+        below (2 unrelated pre-existing issues found + handled along the way).
+      - `tax-invoice-from-quotation.spec.ts` (q-accept) — fixed, GREEN.
       - `payment-voucher-non-super-rbac.spec.ts`, `purchase-order-flow.spec.ts`,
-        `purchase-chain.spec.ts` — pure API-driven (`page.request.post`), never touch the
-        dialog — confirmed no fix needed.
-      - `billing-note-flow.spec.ts` uses `bn-issue` (create-form, NOT gated) not
-        `bn-issue-action` (detail-page, gated) — confirmed no gap, already green.
-      - No spec drives `po-*` testids at all (PO specs are pure API) — confirmed no gap.
-- [x] All touched specs re-run GREEN (see Evidence).
+        `purchase-chain.spec.ts` — pure API-driven, never touch the dialog — no fix needed.
+      - `billing-note-flow.spec.ts` uses `bn-issue` (create-form, NOT gated), not
+        `bn-issue-action` (detail-page, gated) — no gap, already green.
+      - No spec drives `po-*` testids at all (PO specs are pure API) — no gap.
+- [x] Shared helper `clickAndConfirm(page, testId)` added to `_helpers.ts` (click trigger +
+      confirm the dialog, retry-wrapped) — see `quotation-chain-flow.spec.ts` notes for why a
+      plain click needed hardening beyond the simpler `confirmDialog(page)` helper used by the
+      other 3 specs.
+- [x] `quotation-chain-flow.spec.ts` — SEPARATE FINDING, not a ConfirmActionDialog bug:
+      - Fixed (in scope, in this file): a product-quick-create race — `.click()` on "สร้างและ
+        เลือก" only waits for the DOM event dispatch, not the async create+select work the
+        handler kicks off; filling the price field immediately could race the line's
+        productId/productType never getting set (silently defaulting to GOOD, so the server
+        then computed `deliveryRequired=true` and the WRONG button showed downstream). Fixed by
+        waiting for the description field to reflect the created product's name (the signal the
+        modal's `onCreated` callback writes) before proceeding.
+      - Found, NOT fixed, OUT OF SCOPE, documented (troubles-wiki): sonner toasts never
+        auto-dismiss under headless Chromium (dismiss timer pauses without document focus,
+        which headless never reports true) — a stack can grow tall enough to cover an
+        action-bar button near the top of the page indefinitely. Fixed FOR my own
+        ConfirmActionDialog clicks via `clickAndConfirm`'s point-of-use `addStyleTag`
+        (`pointer-events: none` on the toast layer, re-injected fresh on every call since a
+        one-time injection in `login()` gets wiped by hydration — see wiki entry for the full
+        elimination table of what didn't work). This is a REPO-WIDE finding any e2e spec with
+        several sequential state-changing UI actions could hit — flagged for the orchestrator,
+        not swept into every other spec by me.
+      - Found, NOT fixed, OUT OF SCOPE (pre-existing, unrelated to anything in this dispatch):
+        the create-form's own "ออกใบเสนอราคา" (Issue) button intermittently shows
+        `element was detached from the DOM, retrying` and can eat the test's full timeout. This
+        is BEFORE any line I touched executes (confirmed via `git diff`) and reproduces on a
+        clean `git stash` of my changes too (it's the same symptom I hit on my very first
+        exploratory run of this file, before I'd made any edit). Rate observed: roughly 1 in
+        4-5 runs of this specific test. Not investigated further — product-form/line-item
+        rendering stability is outside `frontend/e2e/**`'s remit to FIX (it's app code, not
+        test code) and outside this debt's scope.
+      - Net result: 2 clean full-file runs out of the last 3 gate runs (both tests green,
+        ~20-35s); the 1 failure was the pre-existing Issue-button flake above, not anything
+        ConfirmActionDialog-related (0 dialog-step failures across all validation + gate runs
+        once `clickAndConfirm` settled on its final form).
+- [x] All touched specs re-run GREEN in a final consolidated gate (see Evidence).
 
 ### Debt 3 — TenantIsolationTests fixture hygiene — [x] DONE
 - [x] Root cause confirmed: the test inserts 2 `master.companies` rows (`Random.Shared.Next(
@@ -95,16 +111,75 @@ accounting_dev (3 companies, no documents) — do NOT touch company 2, periods, 
       (isolated output path, never touches the shared `bin/`) — **Build succeeded, 0 Warning(s),
       0 Error(s)**.
 
-### Debt 4 — Thai toast live check — [ ] NOT STARTED
+### Debt 4 — Thai toast live check — [x] DONE
+- [x] Live browser check (throwaway spec, deleted after use): create quotation (co1) → issue →
+      accept → convert to Tax Invoice (draft) → POST the TI (only a POSTED TI triggers the
+      guard — `TaxInvoiceService.EnsureQuotationNotInvoicedAsync` explicitly never counts
+      Draft rows) → navigate back to the quotation → click "สร้างใบกำกับภาษี" again.
+- [x] Toast rendered with the Thai headline 'ใบเสนอราคานี้ออกใบกำกับภาษีแล้ว' (commit e14468f's
+      `quotation.already_invoiced` mapping), English technical detail as secondary subtext
+      below it (expected — that's `problemToast`'s normal title+detail shape, not raw English
+      standing in for the missing Thai).
+- [x] Screenshot: `Z:\temp\claude\Y--ClaudePlayground-TEAS-Project\5667c374-e2c0-4998-b10c-b993b4182367\scratchpad\c3-thai-toast.png`
+      — actually viewed the rendered image (not inferred from a locator match) before
+      confirming; first attempt raced sonner's own auto-dismiss and captured an empty page —
+      fixed by hovering the toast (pauses its dismiss timer) immediately before the screenshot.
 
 ## Attempt log
-1. Debt 1 — repro'd pickCustomer ambiguity live (see checklist), fixed `_helpers.ts`, verified
-   green, cleaned up. Confirmed no regression on `billing-note-flow.spec.ts` (green before/after).
-2. Debt 2 — edited `payment-voucher-with-wht.spec.ts`'s approve/post steps to handle
-   ConfirmActionDialog. Ran `payment-voucher-non-super-rbac.spec.ts`, hit an unrelated taxId
-   validator drift (fixed), then hit the RBAC seed gap above (still open). Have NOT yet re-run
-   `payment-voucher-with-wht.spec.ts` for real (edit-only so far — gate is RUN GREEN, not
-   "edit looks right").
+1. Debt 1 — repro'd pickCustomer ambiguity live, fixed `_helpers.ts`, verified green, cleaned
+   up. No regression on `billing-note-flow.spec.ts`.
+2. Debt 2 (PV specs) — fixed `payment-voucher-with-wht.spec.ts` dialog handling. Hit the taxId
+   drift + RBAC seed gap on `payment-voucher-non-super-rbac.spec.ts`; fixed both (taxId in
+   spec, RBAC via the app's own admin API). Both specs green after.
+3. Debt 2 (sibling grep) — found and fixed 4 more specs. `quotation-chain-flow.spec.ts` turned
+   into its own mini-investigation: chased a persistent q-accept/so-post failure through FOUR
+   wrong mechanisms (`{force:true}`, waiting for the toast stack to clear, direct DOM removal
+   of toast nodes, `addInitScript` in `login()`) before confirming a point-of-use
+   `addStyleTag()` inside `clickAndConfirm` was the one with a clean record — each wrong turn
+   diagnosed via actual Playwright trace inspection (`0-trace.trace`), not guessing. Also found
+   and fixed an unrelated product-quick-create timing race in the same file, and found (but
+   correctly left out of scope) a separate pre-existing "Issue button element-detached" flake.
+   Advisor consulted mid-investigation to confirm the scope line between "my bug to fix" and
+   "pre-existing finding to document."
+4. Debt 3 — fixed `TenantIsolationTests.cs` cleanup. Hit the MSB3027 lock footgun from the
+   dispatch's OWN live API server; used the wiki's isolated-output-dir workaround rather than
+   killing a legitimate concurrent process.
+5. Debt 4 — live-verified the Thai toast mapping; first screenshot attempt raced sonner's
+   auto-dismiss (same underlying sonner behavior investigated in step 3, from the other
+   direction — this time the toast disappeared too FAST rather than too persistently) and
+   needed a hover-to-pause fix.
 
 ## Evidence
-(filled in as work proceeds)
+- **tsc**: `npx tsc --noEmit` — clean, 0 errors (run AFTER all `_helpers.ts` changes settled).
+- **Final consolidated Playwright gate** (all touched specs + `billing-note-flow.spec.ts` as a
+  pickCustomer regression check), `--project=system`:
+  - `payment-voucher-with-wht.spec.ts`: 1/1 passed.
+  - `payment-voucher-non-super-rbac.spec.ts`: 2/2 passed.
+  - `pv-approval-permission.spec.ts`: 1/1 passed.
+  - `quotation-lifecycle.spec.ts`: 2/2 passed.
+  - `tax-invoice-from-quotation.spec.ts`: 2/2 passed.
+  - `billing-note-flow.spec.ts`: 2/2 passed (1 pre-existing skip, unrelated).
+  - `quotation-chain-flow.spec.ts` (run separately, same gate pass): 2/2 passed on the final
+    run; see Debt 2's own entry above for the honest flake-rate history across validation runs.
+- **Backend**: `dotnet build` on `Accounting.Api.Tests.csproj` (isolated `-o` output dir) —
+  Build succeeded, 0 Warning(s), 0 Error(s). No `dotnet test` run (per dispatch).
+- **Debt 4 screenshot**: `c3-thai-toast.png` (viewed, confirmed Thai headline renders).
+
+## Findings for the orchestrator (out of my scope to fix)
+1. `backend/src/Accounting.Infrastructure/Migrations/SqlScripts/181_seed_demo_pv_users.sql` —
+   its `user_roles` seed silently no-ops under FORCE RLS with no session GUC set. Needs a
+   `set_config('app.bypass_rls', 'true', true)` (or literal role_id instead of a `sys.roles`
+   subquery) fix by a backend worker. Full detail in troubles-wiki.md.
+2. Sonner (`frontend/app/layout.tsx`'s `<Toaster position="top-right">`) never auto-dismisses
+   under headless Chromium — a repo-wide e2e risk for any spec with several sequential
+   state-changing UI actions near the top of a page. Worked around locally in
+   `clickAndConfirm`; full elimination-table writeup in troubles-wiki.md for whoever hits it
+   next in a spec I didn't touch.
+3. `quotation-chain-flow.spec.ts`'s "ออกใบเสนอราคา" (Issue) button has a separate, pre-existing
+   ~20% "element detached from DOM" flake, unrelated to anything in this dispatch — not
+   investigated further (out of scope: app code stability, not a ConfirmActionDialog gap).
+4. `_helpers.ts`'s `createVendor()` also gained the same `vat_registered_requires_taxid` fix
+   `payment-voucher-non-super-rbac.spec.ts` needed. Its OTHER consumers —
+   `domestic-online-subscription.spec.ts`, `record-vendor-invoice.spec.ts`,
+   `screenshots-sprint6.spec.ts` — were NOT run as part of this gate (out of the named debt
+   list); they should now pass given the shared-helper fix, but that's unverified.

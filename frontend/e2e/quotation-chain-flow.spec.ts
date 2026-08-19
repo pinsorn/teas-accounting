@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login, pickCustomer } from './_helpers';
+import { login, pickCustomer, clickAndConfirm } from './_helpers';
 
 // Sprint 10 Part B + Sprint 13e P2/P4 — full Q → SO → DO → TI happy path
 // through the rebuilt forms. "ออกใบเสนอราคา" (Issue) both creates the draft
@@ -23,7 +23,7 @@ test('quotation chain: Q (issue) → SO → DO (combined) → linked TI', async 
   await page.waitForURL(/\/quotations\/\d+$/, { timeout: 15_000 });
   await expect(page.getByTestId('q-status')).toContainText(/Sent|ส่งแล้ว/, { timeout: 15_000 });
 
-  await page.getByTestId('q-accept').click();
+  await clickAndConfirm(page, 'q-accept');
   await expect(page.getByTestId('q-status')).toContainText(/Accepted|ตอบรับแล้ว/, {
     timeout: 15_000,
   });
@@ -32,7 +32,7 @@ test('quotation chain: Q (issue) → SO → DO (combined) → linked TI', async 
   await page.waitForURL(/\/sales-orders\/\d+$/, { timeout: 15_000 });
   await expect(page.getByTestId('so-status')).toContainText(/Draft|ร่าง/);
 
-  await page.getByTestId('so-post').click();
+  await clickAndConfirm(page, 'so-post');
   await expect(page.getByTestId('so-status')).toContainText(/Posted|บันทึกแล้ว/, {
     timeout: 15_000,
   });
@@ -90,20 +90,28 @@ test('quotation chain: service-only SO shows Create Invoice, not Create Delivery
   await page.getByLabel('รหัส (SKU)').fill(`E2ESVC${Date.now()}`);
   // nameTh is pre-seeded from the search text; productType defaults to SERVICE already.
   await page.getByRole('button', { name: 'สร้างและเลือก' }).click();
+  // Playwright's click() only waits for the DOM event dispatch, not the async
+  // create+select work the handler kicks off (mutateAsync -> onCreated -> onClose) —
+  // filling the price immediately risked a race where the line's productId/productType
+  // hadn't been set yet, silently leaving the line at its GOOD default (server then
+  // computes deliveryRequired=true and shows the WRONG action button downstream).
+  // Wait for the description field to reflect the just-created product's name — the
+  // modal's onCreated callback is what writes it — as the sync signal instead.
+  await expect(page.getByLabel('รายละเอียด 1')).toHaveValue(uniqueName, { timeout: 10_000 });
   await page.getByLabel('ราคา/หน่วย 1').fill('2000');
 
   await page.getByRole('button', { name: /ออกใบเสนอราคา/ }).click();
   await page.waitForURL(/\/quotations\/\d+$/, { timeout: 15_000 });
   await expect(page.getByTestId('q-status')).toContainText(/Sent|ส่งแล้ว/, { timeout: 15_000 });
 
-  await page.getByTestId('q-accept').click();
+  await clickAndConfirm(page, 'q-accept');
   await expect(page.getByTestId('q-status')).toContainText(/Accepted|ตอบรับแล้ว/, { timeout: 15_000 });
 
   await page.getByTestId('q-convert').click();
   await page.waitForURL(/\/sales-orders\/\d+$/, { timeout: 15_000 });
   await expect(page.getByTestId('so-status')).toContainText(/Draft|ร่าง/);
 
-  await page.getByTestId('so-post').click();
+  await clickAndConfirm(page, 'so-post');
   await expect(page.getByTestId('so-status')).toContainText(/Posted|บันทึกแล้ว/, { timeout: 15_000 });
 
   await expect(page.getByTestId('so-create-invoice')).toBeVisible({ timeout: 15_000 });

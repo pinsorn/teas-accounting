@@ -32,20 +32,37 @@ public class TenantIsolationTests
         var spA = _fx.BuildServiceProvider(new StubTenant { CompanyId = companyA, UserId = 1 });
         var spB = _fx.BuildServiceProvider(new StubTenant { CompanyId = companyB, UserId = 1 });
 
-        await using (var sA = spA.CreateAsyncScope())
+        try
         {
-            var db = sA.ServiceProvider.GetRequiredService<AccountingDbContext>();
-            db.Companies.Add(new Company { CompanyId = companyA, TaxId = taxA, NameTh = "ABC", LegalEntityType = LegalEntityType.LimitedCompany });
-            db.Companies.Add(new Company { CompanyId = companyB, TaxId = taxB, NameTh = "XYZ", LegalEntityType = LegalEntityType.LimitedCompany });
-            await db.SaveChangesAsync();
+            await using (var sA = spA.CreateAsyncScope())
+            {
+                var db = sA.ServiceProvider.GetRequiredService<AccountingDbContext>();
+                db.Companies.Add(new Company { CompanyId = companyA, TaxId = taxA, NameTh = "ABC", LegalEntityType = LegalEntityType.LimitedCompany });
+                db.Companies.Add(new Company { CompanyId = companyB, TaxId = taxB, NameTh = "XYZ", LegalEntityType = LegalEntityType.LimitedCompany });
+                await db.SaveChangesAsync();
 
-            db.Customers.Add(new Customer { CompanyId = companyA, CustomerCode = custCode, CustomerType = CustomerType.Corporate, NameTh = "Cust-A" });
-            await db.SaveChangesAsync();
+                db.Customers.Add(new Customer { CompanyId = companyA, CustomerCode = custCode, CustomerType = CustomerType.Corporate, NameTh = "Cust-A" });
+                await db.SaveChangesAsync();
+            }
+
+            await using var sB = spB.CreateAsyncScope();
+            var dbB = sB.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var visible = await dbB.Customers.AnyAsync(c => c.CustomerCode == custCode);
+            visible.Should().BeFalse("EF global query filter must hide cross-tenant rows");
         }
-
-        await using var sB = spB.CreateAsyncScope();
-        var dbB = sB.ServiceProvider.GetRequiredService<AccountingDbContext>();
-        var visible = await dbB.Customers.AnyAsync(c => c.CustomerCode == custCode);
-        visible.Should().BeFalse("EF global query filter must hide cross-tenant rows");
+        finally
+        {
+            // C3 debt fix — this test previously never cleaned up its Random.Shared-id
+            // (500_000-699_999) fixture rows, letting them accumulate on the shared
+            // teas_test DB (~8,801 leftovers observed) and inflate the self-collision
+            // rate run over run. Runs in `finally` so a failed assertion above still
+            // cleans up. Customer is ITenantOwned (tenant-filtered to companyA already);
+            // Company is not tenant-filtered, so one context can delete both rows.
+            await using var cleanup = spA.CreateAsyncScope();
+            var db = cleanup.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            await db.Customers.Where(c => c.CustomerCode == custCode).ExecuteDeleteAsync();
+            await db.Companies.Where(c => c.CompanyId == companyA || c.CompanyId == companyB)
+                .ExecuteDeleteAsync();
+        }
     }
 }

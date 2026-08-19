@@ -14,7 +14,10 @@ test('ap_clerk can create→post a PV; approver approves (SoD)', async ({ page }
   const mk = await page.request.post(`${API}/vendors/`, {
     data: {
       vendorCode: code, vendorType: 'Corporate', nameTh: 'ผู้ขาย rbac',
-      nameEn: null, taxId: null, branchCode: null, branchName: null,
+      // vendor.vat_registered_requires_taxid (added since this spec was last green) —
+      // a VAT-registered vendor now needs a checksum-valid Thai Tax ID; no uniqueness
+      // constraint on tax_id, so any valid checksum id works here.
+      nameEn: null, taxId: '0105556123453', branchCode: null, branchName: null,
       vatRegistered: true, address: null, contactPerson: null, phone: null,
       email: null, paymentTermDays: 30, defaultCurrency: 'THB',
       defaultWhtTypeCode: null,

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login, pickCustomer } from './_helpers';
+import { login, pickCustomer, clickAndConfirm } from './_helpers';
 
 // F8b (specs/fix-chain-conversion-integrity.md WP-4) — Q→TI is now a server-side
 // conversion: q-create-ti on the quotation detail page no longer navigates to a
@@ -22,7 +22,7 @@ test('tax invoice: q-create-ti converts an accepted quotation server-side', asyn
   await page.waitForURL(/\/quotations\/\d+$/, { timeout: 15_000 });
   await expect(page.getByTestId('q-status')).toContainText(/Sent|ส่งแล้ว/, { timeout: 15_000 });
 
-  await page.getByTestId('q-accept').click();
+  await clickAndConfirm(page, 'q-accept');
   await expect(page.getByTestId('q-status')).toContainText(/Accepted|ตอบรับแล้ว/, { timeout: 15_000 });
 
   await page.getByTestId('q-create-ti').click();

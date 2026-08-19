@@ -26,6 +26,10 @@ test('PV approval is permission-based: creator can self-approve', async ({ page 
   await page.waitForURL(/\/payment-vouchers\/\d+$/, { timeout: 15_000 });
 
   // admin == creator → self-approve SUCCEEDS (permission-based, not SoD).
+  // WP3 3.6 — approve opens a ConfirmActionDialog; must click its own confirm button.
   await page.getByRole('button', { name: /^อนุมัติ$|^Approve$/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await dialog.getByRole('button', { name: /^ยืนยัน$|^Confirm$/ }).click();
   await expect(page.locator('body')).toContainText(/อนุมัติแล้ว|Approved/, { timeout: 10_000 });
 });

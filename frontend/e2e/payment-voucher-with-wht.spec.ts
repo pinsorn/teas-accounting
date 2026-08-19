@@ -44,7 +44,13 @@ test('payment voucher with WHT: SoD create→approve→post + 50 tawi', async ({
   await logout(page);
   await login(page, 'approver');
   await page.goto(pvUrl);
+  // WP3 3.6 — approve now opens a ConfirmActionDialog (role=dialog) instead of
+  // acting immediately; must click its own confirm button (common.confirm,
+  // "ยืนยัน"/"Confirm") to actually fire the mutation.
   await page.getByRole('button', { name: /^อนุมัติ$|^Approve$/ }).click();
+  const approveDialog = page.getByRole('dialog');
+  await expect(approveDialog).toBeVisible({ timeout: 5_000 });
+  await approveDialog.getByRole('button', { name: /^ยืนยัน$|^Confirm$/ }).click();
   await expect(page.locator('body')).toContainText(/อนุมัติแล้ว|Approved/, { timeout: 10_000 });
   // Approve triggers a refetch that re-renders the action bar; the Post button
   // only appears once the PV is Approved. Wait for it to be actionable, then
@@ -52,10 +58,15 @@ test('payment voucher with WHT: SoD create→approve→post + 50 tawi', async ({
   // wait for the actual POST response so the assertion can't race the request.
   const postBtn = page.getByRole('button', { name: /บันทึกเอกสาร \(Post\)|^Post$/ });
   await expect(postBtn).toBeVisible({ timeout: 10_000 });
-  // The Approved→Post render + sonner toast make a single click racy; retry the
-  // click until the POST actually fires (gotcha §16 family).
+  // Post also opens a ConfirmActionDialog now — click the trigger, then its
+  // own confirm button. The Approved→Post render + sonner toast make a single
+  // click racy; retry the whole open-dialog→confirm sequence until the POST
+  // actually fires (gotcha §16 family).
   await expect(async () => {
     await postBtn.click({ force: true });
+    const postDialog = page.getByRole('dialog');
+    await expect(postDialog).toBeVisible({ timeout: 3_000 });
+    await postDialog.getByRole('button', { name: /^ยืนยัน$|^Confirm$/ }).click();
     await page.waitForResponse(
       (r) => /\/payment-vouchers\/\d+\/post$/.test(r.url()) && r.request().method() === 'POST',
       { timeout: 3_000 });
