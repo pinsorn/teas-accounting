@@ -15,6 +15,22 @@ Plan: `PLAN-fix-findings-r2.md` (Ham GO ~11:4x; L2-3 in scope; co1 wipe at batch
 7 files: BillingNoteDtos (int?/string?), SalesLineBackstop (+AllById/+SanitizeInheritedTaxCode, Resolve untouched), BillingNoteService (3 launder sites), 639 SQL, TaxCodePairIntegrityTests (T1–T5), SalesLineTaxCodeRepairRlsTests (T6), spec ticked. All gates green: build 0/0, targeted 36/36, ExemptProduct 13/13, T9 (non-vat-mode-pdf e2e) PASS live, P1–P5 probes match spec (P1=0 violations post-repair, P2 BN3 totals unchanged, P3 sentinel intact, P4 class-B 2 rows untouched, P5 script recorded). 639 already applied to accounting_dev by the T9 boot — expected.
 **COMMIT U2 after Opus verdict** (APPROVE → commit as one unit; findings → fix first).
 
+## Tier-2 verdict (2026-08-19 ~14:1x): APPROVE-WITH-NITS both units → U2 COMMITTED `4393495`
+- **N1 (MEDIUM, disposition = deploy runbook):** seed 638 value-targets the placeholder, so any
+  UNKNOWN prod tenant holding all-zero would get laundered to the fictional-but-valid dummy and
+  U1's guard never fires for them. Bounded (checksum validator blocks onboarding with all-zero;
+  no service-layer profile.tax_id update path) but MANDATORY pre-deploy probe added:
+  `SELECT company_id FROM master.company_profile WHERE tax_id='0000000000000';` must return only
+  the demo company (or nothing) BEFORE the boot that applies 638. → recorded in PLAN §deploy.
+- **N3 → NEW UNIT U10 (Fable-verified, 5 sites):** ภ.ง.ด.50 (:160), ภ.ง.ด.51 (:78), ภ.พ.01
+  (VatRegFormService:37), WHT filings (WhtFilingService:127,169) carry the identical unguarded
+  `prof?.TaxId ?? c.TaxId`. Same defect class, same fix (PayerTaxIdRules). Queue: resume warm U1
+  worker AFTER the bank worker frees the test slot. FinancialStatementPdf + Payslip = internal
+  docs, deliberately excluded.
+- **N4:** Tier-4/deploy probe set must widen the class-B survey to all 4 repaired tables (P4
+  currently sweeps tax_invoice_lines only).
+- N2/N5: evidence/cosmetic notes, no action (recorded in review output).
+
 ## Queue after current two finish
 1. Opus verdict on U1+U2 → Fable verifies any finding in code → commit U2 (`fix(sales): ...` mentioning L6-1+L6-4, 639 repair, laundering).
 2. U3+U4 report → Fable diff review → commit.

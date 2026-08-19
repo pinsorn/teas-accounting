@@ -123,3 +123,7 @@ sync `specs/payroll-deductions-o10.md` [~] item per Leg-1 pass evidence (Haiku).
 Every 🔴/🟠 unit RED-then-GREEN with the leg's own repro (L1-1 against the rendered PDF; U2 against
 a non-VAT UI create), suite green, Tier-2 on U1/U2/U6 (money/compliance/permission), Fable full-diff
 review, then live re-verify through the browser exactly like this round.
+
+## Deploy runbook additions (from Tier-2 N1/N4, 2026-08-19)
+- BEFORE the boot that applies seed 638 on prod: `SELECT company_id FROM master.company_profile WHERE tax_id = '0000000000000';` must return ONLY the demo company or nothing — any real tenant row = STOP, Ham rules first.
+- Post-deploy probe set: widen the class-B survey (id valid, string disagrees) to quotation_lines, sales_order_lines, delivery_order_lines, billing_note_lines — not just tax_invoice_lines.
