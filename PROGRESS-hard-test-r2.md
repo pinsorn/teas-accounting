@@ -36,7 +36,7 @@ co2 `demo-*` = `Demo@1234`. Companies local: 1=Demo (VAT), 2=แมนนวล 
 | 3 | Fixed assets + depreciation (proration, double-run, disposal) | sonnet | pending |
 | 4 | Expense claims (spec-vs-reality first, SoD, VAT/WHT, GL) | sonnet | pending |
 | 5 | co2 READ-ONLY tie-out + master integrity + report cross-check | sonnet | ✅ 22:25 — verdict N/A (co2 empty), 1×🟡 5×⚪ |
-| 6 | Round-1 leftovers (co4 sale, N1/N2 live re-verify) | small dispatch in a free co1 slot | pending |
+| 6 | Round-1 leftovers (co4 sale, N1/N2 live re-verify) | sonnet | ✅ 23:1x — 1×🔴 1×🟡 +1×🔴 Fable; N1/N2 live PASS (worker died at report step post-work; findings file complete) |
 
 **Browser directive (Ham, 22:3x):** ตรวจผ่าน browser, don't test by raw API. Claude-in-Chrome
 extension is a separate client not reachable from this Claude Code session (ToolSearch swept twice —
@@ -78,6 +78,39 @@ Full detail: `scratchpad/findings-leg1.md` (295 lines, 14 screenshots, rendered 
 - Test data left in co1 (via UI/API per house rule): employees 3–14, payroll runs 2 (202607
   Posted+Paid), 3 (202608 Posted), 4 (202609 Approved).
 - Throwaway spec moved out of the tree → scratchpad (`r2-leg1-payroll-cycle.spec.ts`); repo clean.
+
+### Leg 6 — round-1 leftovers (sales) — ✅ walked browser-first
+Full detail: `scratchpad/findings-leg6.md`. Worker died on an API error AFTER completing all three
+items and the findings file — nothing lost. Throwaway specs moved to scratchpad; tree clean.
+
+- **L6-1 🔴 CONFIRMED BY FABLE** (source read): Billing Note creation is broken for any line whose
+  tax code was never explicitly picked — `BillingNoteDtos.cs:16` types `TaxCodeId` as non-nullable
+  `int` while every sibling DTO (SalesChainDtos.cs:17,64; TaxInvoiceDtos.cs:19) is `int?`; FE
+  `LineItemsTable` leaves line state `taxCodeId:null` until the VAT `<select>` fires onChange, and
+  for a NON-VAT company that select never renders → **non-VAT companies (co3/co4) cannot create
+  their only revenue document through the UI at all** (binding throws → generic 400 toast). Worker
+  bisected empirically: `taxCodeId:999`→201, `taxCodeId:null`→400. VAT companies hit it too when
+  the user accepts the visually-pre-filled 7% without clicking. Task-1's co4 end-to-end sale was
+  BLOCKED by this; the TI-refusal half PASSES (NonVatGuard ม.86/4 empty state, no nav links).
+- **L6-4 🔴 FABLE-FOUND while verifying L6-1's probe leftovers:** `sales.billing_note_lines.tax_code_id`
+  has **no FK to tax.tax_codes** (only billing_notes/products/tax_invoices FKs), and the bisection
+  probe's draft (billing_note_id=4, co4, DRAFT, no doc_no) stored `tax_code_id=0` + `tax_code='VAT0'`
+  — **neither exists in co4's master** (its codes are ids 37–48; 'VAT0' is co3's code). Round-1 F13
+  shape (document carrying a tax code absent from company master) is live on the billing-note path:
+  backend accepted a bogus taxCodeId without validating against the company's master. Whether POST
+  would catch it is untested (draft left in place as evidence — Ham may want it deleted).
+- **L6-2 ⚪ PASS — N1 live:** exempt product (EXEMPT_GOOD, product_id=14) through the real UI:
+  screen shows locked 0% + VAT ฿0.00 (screenshots), stored pair `tax_code_id=5 EXEMPT-AGRI is_exempt=t,
+  rate 0` survives BOTH doors (create + edit-resave; the Aug-16 hydration fix is what saves door 2).
+  Fable re-ran the SQL — pair intact.
+- **L6-3 🟡 — N2 live:** guard itself CORRECT — second convert refused, DB shows exactly one posted
+  TI for quotation_id=5 (Fable re-verified), API returns typed 409 `quotation.already_invoiced` with
+  the covering TI's doc number. But the UI toast swallows it → generic "เกิดข้อผิดพลาด" because
+  `quotations/[id]/page.tsx` catches with the broken `e.detail` read instead of the existing
+  `problemToast` helper. Repo-wide pattern: **22 files** still carry the ad-hoc catch (list in
+  findings file) — incl. BillingNoteForm (which is why L6-1's 400 is also silent).
+- Test data left: co4 customer_id=10 + draft billing_note_id=4 (probe evidence); co1 product_id=14,
+  quotations 3 (draft) + 5 (accepted/invoiced), TI 08-2026-TI-0003 posted.
 
 ### Leg 5 — company 2 integrity sweep (read-only) — ✅ walked, verdict N/A
 **Fable-verified** (SQL re-run): journals exist only for co1 (8) and co3 (2); company 2 has ZERO
