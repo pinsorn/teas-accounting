@@ -32,7 +32,7 @@ co2 `demo-*` = `Demo@1234`. Companies local: 1=Demo (VAT), 2=แมนนวล 
 | Leg | Scope | Worker | State |
 |---|---|---|---|
 | 1 | Payroll (WHT ภ.ง.ด.1/1ก, สปส., GL, closed-period) | sonnet | ✅ 23:0x — 1×🔴 (L1-1), rest PASS w/ evidence |
-| 2 | Bank reconciliation (KBiz CSV, tie to satang, dup import) | sonnet | pending |
+| 2 | Bank reconciliation (KBiz CSV, tie to satang, dup import) | sonnet | ✅ 09:3x — 2×🔴 1×🟠 1×🟡 |
 | 3 | Fixed assets + depreciation (proration, double-run, disposal) | sonnet | pending |
 | 4 | Expense claims (spec-vs-reality first, SoD, VAT/WHT, GL) | sonnet | pending |
 | 5 | co2 READ-ONLY tie-out + master integrity + report cross-check | sonnet | ✅ 22:25 — verdict N/A (co2 empty), 1×🟡 5×⚪ |
@@ -78,6 +78,28 @@ Full detail: `scratchpad/findings-leg1.md` (295 lines, 14 screenshots, rendered 
 - Test data left in co1 (via UI/API per house rule): employees 3–14, payroll runs 2 (202607
   Posted+Paid), 3 (202608 Posted), 4 (202609 Approved).
 - Throwaway spec moved out of the tree → scratchpad (`r2-leg1-payroll-cycle.spec.ts`); repo clean.
+
+### Leg 2 — Bank reconciliation — ✅ walked browser-first (10/10 throwaway tests green)
+Full detail: `scratchpad/findings-leg2.md`. Reconciled-vs-GL ties to the satang (Postgres
+cross-check); adjustment JEs Dr=Cr correct; 9 bank routes 403 low-privilege; unmatch/rematch
+idempotent; "close reconciliation" doesn't exist BY DESIGN (spec D1: v1 = computed report).
+
+- **L2-2 🔴 CONFIRMED BY FABLE** (source + DB): `BankReconciliationReportService.cs:66` orders
+  imports by `OrderByDescending(PeriodEnd)` with NO tiebreaker, then `FirstOrDefault` — with
+  multiple imports sharing a PeriodEnd the statement closing balance is ARBITRARY. Live proof in
+  accounting_dev: 6 imports all period_end=2026-08-19, closing balances 255→1075; report picked a
+  stale one. Fix shape: secondary sort on statement_import_id/imported_at desc.
+- **L2-4 🔴 CONFIRMED BY FABLE** (source): `StatementImportService.cs` try/catch (lines 65–75)
+  wraps only the parse phase; `SaveChangesAsync` at 117/147 sits OUTSIDE → an oversized field
+  (>500 chars) escapes as raw `internal_error` 500 leaking the Postgres exception instead of a
+  typed `bank.*` error. Atomicity holds (rollback confirmed, no orphans) — contract bug, not
+  corruption.
+- **L2-3 🟠**: duplicate import warns but duplicates rows by design; orphaned unmatched lines
+  from superseded imports have NO bulk remediation — compounds L2-2's tie problem.
+- **L2-1 🟡**: 3 bank-rec DaisyUI modals lack `role="dialog"` (inconsistent with app).
+- ⚪ out-of-scope asides in findings file: shared `createVendor()` e2e helper + PV approve/post
+  specs likely broken by recent confirm-dialog UI changes (suite debt, not product).
+- Test data left in co1: bank account 1, 6 statement imports (r2l2-statement.csv), matching JEs.
 
 ### Leg 6 — round-1 leftovers (sales) — ✅ walked browser-first
 Full detail: `scratchpad/findings-leg6.md`. Worker died on an API error AFTER completing all three
