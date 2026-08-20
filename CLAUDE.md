@@ -121,6 +121,20 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
   blast-cap NUMBER (the header line, not an appended note) in the same edit that
   adds the findings. A stale "Max 22" header survived two remediation rounds of
   real cap ~40 and had to be flagged by the round-3 reviewer (2026-07-29).
+- Any read-only sub-dispatch (exploration, research, a verification pass) must
+  NAME a read-only agent type (e.g. Explore) or carry an explicit no-writes/
+  no-test-runs rule — an unscoped default agent inherits FULL tools and can
+  quietly duplicate work against a shared resource (a 261k-token duplicate
+  verification pass against a shared dev stack, 2026-08-19). Applies whether
+  the orchestrator or a worker does the spawning.
+- Standing worker rule: if a findings/report FILE write is blocked by the
+  harness, return the FULL findings in the final report text — never truncate;
+  that text may be the only copy the orchestrator ever sees (2026-08-19 ×2).
+- Stage explicit, reviewed file lists — never a bare `git add -u` (misses new
+  untracked source) or a directory-level `git add` (sweeps untracked debris —
+  a stray `.bak`, a concurrent worker's in-progress files — into the commit;
+  hit twice on 2026-08-19, once by a worker and once by Fable's own doc
+  commit). Run `git status` first and reconcile the list against it.
 - Lessons that apply to every future dispatch of a role get folded into the
   agent/template file, not repeated in prompts.
 - Codex artifact output: Codex's sandbox is `read-only` unless the dispatch
@@ -219,21 +233,30 @@ makes Fable worse, not better):
   exists). A missing/stale reading never blocks — a broken meter must not
   halt work. Manual `cat ~/.claude/quota-guard/state.json` is now only a
   fallback for a pathological stretch with zero tool calls.
-- On the ≥95% block (or any 85%+ warning): checkpoint protocol —
-  write PROGRESS-<task>.md (done / in-flight / next / pending gates) →
-  checkpoint-commit verified work → **ScheduleWakeup → pause**. At ≥99% (or
-  a blocked dispatch), collapse it: the response contains EXACTLY two
-  actions — PROGRESS write + ScheduleWakeup — nothing else; every next tool
-  call may be the last one that runs, and a wakeup scheduled after "one more
-  cheap dispatch" never got scheduled (2026-07-07). Commits and
-  quota-arbitrage dispatches move into the PROGRESS resume steps. The wake-up is
-  the DEFAULT, not optional: an orchestrator with unfinished work ALWAYS
-  schedules its own resume at the cliff so it continues autonomously after the
-  quota resets — never just stops and waits for the human. Chain wakeups (the
-  tool caps at 60min) until `quota-guard/state.json` shows the 5-hour window
-  reset, then resume from the checkpoint. Resume = read PROGRESS + spec
-  checklists, never re-plan from scratch. 85% → stop new Claude-worker dispatches (Codex/AGY,
-  separate pools, still allowed).
+- **Self-wake-monitor (kickoff, once per multi-dispatch task)**: before long
+  dispatches, arm the in-terminal watcher so a session that pushes past 100%
+  mid-subagent still resumes itself — `ToolSearch select:Monitor`, then
+  `Monitor({command: "node ~/.claude/quota-guard/wake-watch.mjs",
+  persistent: true, description: "quota self-wake"})`. Path is the INSTALLED
+  copy (`~/.claude/quota-guard/`), never the project repo. Monitor is the
+  primary; ScheduleWakeup (below) is the backup if the watcher dies.
+- Quota ladder — 85 buys insurance, 95 winds down, 100 is crash-insured:
+  - **85% INSURANCE** (mandatory, first crossing — never a stop-or-continue
+    decision): write PROGRESS-<task>.md + checkpoint-commit verified work +
+    ScheduleWakeup chained to the reset + verify the self-wake Monitor is
+    armed (arm if missing), THEN continue working at full speed. Refresh
+    PROGRESS at every phase boundary past 85%. New dispatches prefer
+    Codex/AGY (separate pools); Claude workers still allowed.
+  - **95% WIND-DOWN**: hook denies new dispatches. Land only the in-flight
+    unit (review/commit), final PROGRESS refresh, pause. Wakeup is already
+    standing since 85% — verify, set only if missing.
+  - **100% CRASH**: acceptable by design — loss is only work since the last
+    PROGRESS refresh; the standing wakeup chain resumes autonomously after
+    reset. A wakeup scheduled after "one more cheap dispatch" never got
+    scheduled (2026-07-07) — insurance FIRST, always.
+  Chain wakeups (tool caps at 60min) until `quota-guard/state.json` shows the
+  5-hour window reset. Resume = read PROGRESS + spec checklists, never
+  re-plan from scratch.
 - **7-day pool ≥85% → STOP. Do not fall back to Codex/AGY** (Ham, 2026-07-31:
   "ถ้า Weekly Limit ถึง 85 ไม่ต้องใช้ Codex หยุดเลยได้ ไม่รีบ แค่บันทึกทุกอย่างเอาไว้").
   Write everything down — PROGRESS + specs + a resume order — checkpoint-commit,

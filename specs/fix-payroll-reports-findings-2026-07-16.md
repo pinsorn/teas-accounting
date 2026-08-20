@@ -70,8 +70,9 @@ manual after. Execution grouped W1/W2/W3 per PROGRESS-payroll-reports-uxtest.md 
       note inside the empty-state cell, both using the new `report.ssBasisNote` key: "คำนวณจาก
       ใบกำกับภาษีขายที่บันทึกบัญชีแล้ว — บริษัทที่ไม่ได้จด VAT และรับเงินผ่านใบเสร็จอย่างเดียว
       จะไม่มีข้อมูลในรายงานนี้ (ดูรายได้ที่ งบกำไรขาดทุน)".
-- [ ] R10 picker double-click: reproduce + แก้ถ้าเป็นของแอปจริง (อาจเป็น edge/fetch gating) —
-      NOT in this W3 dispatch's item list (dispatch covered R4/R5/R6/R7/R8/R9/R11 only); still open.
+- [x] R10 picker double-click — CLOSED won't-fix per Ham 2026-08-20: reported once (2026-07),
+      never reproduced since across every later swarm/e2e round. Reopen with a fresh repro if it
+      ever recurs.
 
 ## Blast radius / routing hints
 - P1, R1 = app-wide FE infra → Sonnet impl + Opus review (error path ทั้งแอป)
