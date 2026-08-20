@@ -1,6 +1,12 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **🚀 2026-08-20 — v2.3.0 RELEASED** (GitHub release + tag via release-please PR #114, admin-merged
+  after CI green on main). Everything since v2.2.1 (2026-08-14): the entire local hard-test round
+  (14 findings), N1/N2/N3, swarm-r2 fix batch (11 units), cleanup batch (11 units), and all four
+  Ham rulings incl. ภ.พ.36 PDF + E1 closure. NOT deployed — prod awaits server migration; deploy
+  day follows MIGRATION-CUTOVER-CHECKLIST.md (note: remote main now also carries Coolify
+  Docker/Compose artifacts from the migration track, #113).
 - **✅ 2026-08-20 — ALL FOUR PENDING DECISIONS RULED BY HAM AND EXECUTED.** O2b block-on-mismatch
   (`3732f27` — billing_note.lines_not_reconciled at issue, Receipt-pattern reconcile vs linked
   TIs' applied sum) · O5 ภ.พ.36 filled-PDF export (`cc11662` — official RD template from
