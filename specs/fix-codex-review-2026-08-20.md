@@ -479,3 +479,201 @@ exemption."
   transient by an immediate clean rerun (34/34 green, 0 failures).
   Blast radius: 7 files (5 modified + 2 new), within the 10-file cap. No commits made (per
   instruction — orchestrator commits).
+
+---
+
+# WAVE 3 -- two more backend findings (Codex UI review, appended 2026-08-20)
+
+Source: _review/ui-codebase-review-2026-08-20.md finding 1 (R1), and
+_review/ui-document-creation-test-2026-08-20.md's activity finding (R3 backend half). Both
+Fable-verified. F1-F4 (above) already committed at 72b25ad. Blast cap for this wave: +8 files.
+Still no commits (orchestrator commits), still the only backend dotnet-test runner this session
+(the FE worker holds its own dotnet tests until this wave reports done).
+
+## R1 [P1] -- seed 160 makes the demo approver a SUPER_ADMIN
+
+- [x] DONE. 160 edited (is_super_admin FALSE, role APPROVER). New file 642 created (identity-
+  matched reconcile mirroring 641). Test file
+  backend/tests/Accounting.Api.Tests/Rbac/ApproverDemotionScriptTests.cs (4 tests).
+  DISCOVERY MID-WORK: the live Accounting.Api.exe (PID 22620, running the whole session) picked
+  up the new 642 file on its own and applied it for REAL between file-creation and test-writing --
+  confirmed via psql (sys.applied_sql_scripts shows 642 applied at 17:49; live approver row now
+  is_super_admin=f, holds APPROVER role, no more SUPER_ADMIN). This is the fix working correctly
+  end-to-end, not a bug -- but it meant my first test draft's hardcoded "still SUPER_ADMIN today"
+  baseline assumption was stale. Fixed both affected tests to capture the REAL current state at
+  test start (never hardcode) and, for 642's positive test, explicitly reconstruct the pre-642
+  broken shape (is_super_admin=TRUE, SUPER_ADMIN role) INSIDE the rolled-back transaction before
+  replaying 642's real SQL -- otherwise the assertions would trivially pass against an
+  already-correct live row without 642's logic ever being exercised.
+  RED: 160's two tests failed correctly against unfixed content (git-stash trick) -- the text
+  assertion caught the literal SUPER_ADMIN/TRUE strings, the replay assertion caught
+  is_super_admin staying TRUE. 642's positive test failed correctly against a temporary no-op stub
+  (SELECT 1;, swapped in and back out via Write, since 642 is a brand-new untracked file with no
+  git history to stash) -- is_super_admin stayed TRUE because the stub did nothing.
+  GREEN: all 4/4 after restoring both real fixes.
+  Evidence: dotnet test tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj --filter
+  "FullyQualifiedName~ApproverDemotionScriptTests" -o tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated
+  -> Passed! - Failed: 0, Passed: 4, Skipped: 0, Total: 4.
+  Sanity-checked post-run: live approver row still is_super_admin=f, holds ONLY APPROVER role --
+  the rollback-based tests left zero permanent trace.
+
+Finding: 160_seed_approver_user.sql creates the demo approver user (B2 Segregation-of-Duties
+persona) as is_super_admin = TRUE bound to the global SUPER_ADMIN role -- bypassing every
+permission check, defeating the exact SoD flow this login exists to demonstrate (same account can
+create AND approve, and can also edit its own RBAC/Users/Companies).
+
+Ruling (Fable): approver becomes a NON-super user carrying the APPROVER role's grant set
+(role-based membership, not literal permission duplication -- mirrors how
+181_seed_demo_pv_users.sql gives ap_clerk/sales_staff their roles). APPROVER (role_code, seeded
+globally in 110_seed_roles_and_permissions.sql) already holds purchase.payment_voucher.approve
+since 140_seed_vendor_invoice_prefix_and_pv_approve.sql -- the "non-super Purchase RBAC gap" 160's
+OLD comment cited as justification for SUPER_ADMIN is CLOSED; demoting is safe today.
+
+Plan:
+- Edit 160 (fresh installs): is_super_admin TRUE to FALSE; the sys.user_roles INSERT's
+  WHERE r.role_code = 'SUPER_ADMIN' to 'APPROVER'. No RLS bypass needed -- 160 runs at file-order
+  position 160, BEFORE 510 (which is what converts the GLOBAL role catalog into per-company copies
+  + adds ck_roles_company_required CHECK + deletes now-orphaned global non-SUPER_ADMIN rows) -- at
+  160's run time on a fresh boot, sys.roles WHERE role_code = 'APPROVER' still matches the GLOBAL
+  (company_id IS NULL) row, which RLS's USING (company_id IS NULL OR ...) clause allows without
+  bypass -- same mechanism the CURRENT (SUPER_ADMIN-targeting) INSERT already relies on. 510's own
+  step 5 (UPDATE sys.user_roles ... FROM sys.roles oldr, sys.roles nr WHERE ... oldr.company_id IS
+  NULL AND oldr.role_code <> 'SUPER_ADMIN' AND nr.company_id = ur.company_id AND nr.role_code =
+  oldr.role_code) automatically remaps this to company 1's per-company APPROVER copy later in the
+  SAME boot -- no extra work needed in 160 itself.
+- New SYSTEM script 642_demote_approver_from_super_admin.sql (existing/already-applied DBs) --
+  idempotent, no braces, RLS-context header, mirrors 641_reconcile_demo_pv_user_roles.sql's exact
+  identity discipline (match username = 'approver' AND email = 'approver@teas.local' -- 160's own
+  pins -- never a bare id):
+  1. UPDATE sys.users SET is_super_admin = FALSE WHERE username = 'approver' AND email =
+     'approver@teas.local' AND is_super_admin = TRUE;
+  2. DELETE FROM sys.user_roles ur USING sys.users u, sys.roles r WHERE ur.user_id = u.user_id AND
+     ur.role_id = r.role_id AND u.username = 'approver' AND u.email = 'approver@teas.local' AND
+     r.role_code = 'SUPER_ADMIN' AND ur.company_id = 1 AND ur.branch_id = 1; (only the grant 160
+     itself created -- scoped to company 1/branch 1, matching 160's own scope).
+  3. INSERT INTO sys.user_roles (...) SELECT u.user_id, r.role_id, 1, 1, DATE '2026-01-01' FROM
+     sys.users u JOIN sys.roles r ON r.role_code = 'APPROVER' AND r.company_id = 1 WHERE
+     u.username = 'approver' AND u.email = 'approver@teas.local' AND NOT EXISTS (... same
+     NOT-EXISTS idempotency guard as 641 ...);
+  SET LOCAL app.bypass_rls = 'on'; at top -- 642 runs post-510 (already-applied DB, only the
+  per-company APPROVER role exists), so reading sys.roles WHERE company_id = 1 needs the bypass
+  (G3 RLS, app.company_id unset at boot) exactly like 641 already documents.
+
+Test design constraint discovered: ck_roles_company_required CHECK (company_id IS NOT NULL OR
+role_code = 'SUPER_ADMIN', added by 510) makes it IMPOSSIBLE to recreate a transient GLOBAL
+APPROVER role row in the current (already-510-migrated) teas_test -- confirmed via psql (sys.roles
+currently has exactly one global row, SUPER_ADMIN; APPROVER's global copy was already deleted by
+510's own step 6 years ago). So a literal SQL-replay of 160's ROLE-ASSIGNMENT half against live
+teas_test cannot faithfully reproduce true fresh-install ordering -- same class of
+"already-migrated DB state != fresh-install file-order state" limitation the 636/637/638/641
+lineage already documents. Plan: verify 160's is_super_admin flip via a rollback-transaction
+replay (that INSERT doesn't depend on sys.roles state at all, so it IS faithfully replayable);
+verify 160's role-code reference (APPROVER not SUPER_ADMIN) via a text assertion on the file
+content instead of execution -- same "assert-new-behavior only and say so" fallback the F2
+dispatch pre-authorized for an analogous infeasibility. 642's tests have NO such limitation (642
+operates on the CURRENT, already-migrated DB shape by design) -- full SQL-replay tests for all
+three required behaviors (demote happens / identity-mismatch untouched / idempotent second run),
+using the SAME rollback-transaction technique proven in F1 (never permanently mutate the shared,
+live approver user via a test -- the real demotion happens for real only when 642 runs through
+DbInitializer on an actual boot, not as a side effect of this test suite).
+
+## R3 [P2] backend half -- per-document activity permission
+
+- [x] DONE. ActivityEndpoints.Docs changed to (Route, EntityType, Permission)[], each route now
+  gated on its own document's read permission per the mapping table below. New test file
+  backend/tests/Accounting.Api.Tests/Rbac/ActivityPermissionTests.cs (2 HTTP-level tests,
+  RbacApiFactory + real role permissions from DB, mirrors EmployeeLookupGrantTests) -- reproduces
+  the exact two personas/doctypes named in the UI review finding, both directions: sales_staff
+  gets 200 on quotation activity / 403 on payment-voucher activity; ap_clerk gets 200 on
+  payment-voucher activity / 403 on quotation activity.
+  RED confirmed (git-stash trick): both tests failed with 403 where 200 was expected, against the
+  unfixed single-shared-AuditRead gate. GREEN after restoring the fix: 2/2 passed.
+  RbacAuthMapTests re-run afterward -- 1/1 passed (gates 0/1/2 all green: every one of the 13
+  replacement permissions already exists in sys.permissions, no ungrantable-permission regression;
+  no new unprotected/authn-only routes introduced). Its WriteGeneratedMap side effect regenerated
+  docs/rbac/endpoint-permission-map.generated.md -- confirmed via grep: GET
+  /quotations/{id:long}/activity now shows sales.quotation.read, GET
+  /payment-vouchers/{id:long}/activity now shows purchase.payment_voucher.read (previously both
+  showed report.audit.read).
+  Full Rbac-area regression re-run after both R1+R3 landed: 79/79 passed (up from wave 2's 73 --
+  +6 matches the 4 ApproverDemotionScriptTests + 2 ActivityPermissionTests added this wave), 0
+  skipped, 0 failed.
+  Evidence: dotnet test tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj --filter
+  "FullyQualifiedName~ActivityPermissionTests" -o tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated
+  -> Passed! - Failed: 0, Passed: 2, Skipped: 0, Total: 2. Then --filter
+  "FullyQualifiedName~RbacAuthMapTests" -> Passed! - Failed: 0, Passed: 1, Skipped: 0, Total: 1.
+  Then --filter "FullyQualifiedName~Rbac" (full area) -> Passed! - Failed: 0, Passed: 79,
+  Skipped: 0, Total: 79, Duration: 3m 53s.
+
+Finding: ActivityEndpoints.cs gates ALL 13 document-activity routes
+(GET /{docType}/{id}/activity) behind one shared Permissions.Report.AuditRead -- a permission no
+ordinary operator role holds. sales_staff gets 403 on /quotations/{id}/activity for a Quotation
+they created and can otherwise fully read; ap_clerk gets 403 on
+/payment-vouchers/{id}/activity likewise. Frontend ActivityLog.tsx reads only
+data/isLoading (not isError), so the 403 renders as "ยังไม่มีประวัติกิจกรรม" (no activity
+history) -- a misleading FALSE STATEMENT about the audit trail, not an access-denied state. Backend
+half only (this wave) -- frontend isError handling is the FE worker's own concurrent wave.
+
+Ruling (Fable): each activity route requires its OWN document's READ permission (derived from
+how that document's own GET /{docType}/{id} route is gated -- grepped every relevant Endpoints.cs
+file). Permissions.Report.AuditRead stays exactly as-is on ReportEndpoints.cs:150 (a genuine
+global/audit-page route) -- only ActivityEndpoints.cs's 13 routes change.
+
+Derived mapping (grepped from each doc type's own GET-by-id route):
+
+| Activity route segment | Entity | Permission | Source |
+|---|---|---|---|
+| quotations | Quotation | Sales.QuotationRead | SalesChainEndpoints.cs (qRead) |
+| sales-orders | SalesOrder | Sales.SalesOrderRead | SalesChainEndpoints.cs (soRead) |
+| delivery-orders | DeliveryOrder | Sales.DeliveryOrderRead | SalesChainEndpoints.cs (doRead) |
+| tax-invoices | TaxInvoice | Sales.TaxInvoiceRead | TaxInvoiceEndpoints.cs |
+| receipts | Receipt | Sales.ReceiptRead | ReceiptEndpoints.cs (readPol) |
+| credit-notes | CreditNote | Sales.CreditNoteRead | PrintEndpoints.cs precedent (same per-type split already used for print routes off the shared /tax-adjustment-notes entity) |
+| debit-notes | DebitNote | Sales.DebitNoteRead | PrintEndpoints.cs precedent |
+| billing-notes | BillingNote | Sales.BillingNoteRead | BillingNoteEndpoints.cs (readPol) |
+| purchase-orders | PurchaseOrder | Purchase.PurchaseOrderRead | PurchaseOrderEndpoints.cs (read) |
+| vendor-invoices | VendorInvoice | Purchase.VendorInvoiceRead | VendorInvoiceEndpoints.cs |
+| payment-vouchers | PaymentVoucher | Purchase.PaymentVoucherRead | PaymentVoucherEndpoints.cs |
+| wht-certificates | WhtCertificate | Purchase.WhtRead | WhtCertificateEndpoints.cs (group-level policy) |
+| payroll-runs | PayrollRun | Payroll.RunManage | PayrollEndpoints.cs (no separate RunRead -- GET /payroll/runs/{id} itself is gated on RunManage) |
+
+Note: credit-notes/debit-notes activity routes don't correspond 1:1 to a single GET-by-id
+route -- both note types share one /tax-adjustment-notes/{id} GET gated by an OR-combined policy
+(any of CreditNote/DebitNote Read/Create/Post). Followed PrintEndpoints.cs's existing precedent
+instead, which already splits print routes into separate credit-notes/debit-notes segments
+each gated by ONLY that note type's own .Read permission -- same shape as
+ActivityEndpoints.Docs, so it's the correct template to mirror.
+
+Plan: change ActivityEndpoints.Docs from (string Route, string EntityType)[] to
+(string Route, string EntityType, string Permission)[], gate each route's
+.RequireAuthorization(...) on its own PermissionPolicyProvider.PolicyPrefix + permission
+instead of the shared Permissions.Report.AuditRead.
+
+Tests: an operator role holding the document's read permission gets 200 on its activity route;
+a role without that document's read permission stays 403. RbacAuthMapTests re-run afterward --
+its WriteGeneratedMap side effect regenerates docs/rbac/endpoint-permission-map.generated.md
+on every run, so re-running it after the endpoint change is enough to pick up the 13 new
+permission mappings (no hand-editing that generated file). Must also confirm gate 0 (every
+enforced permission exists in sys.permissions) and gate 2 (authn-only allowlist) both still pass
+-- none of the 13 replacement permissions are new codes, all already exist and are already granted
+to real roles elsewhere, so no sys.permissions/template-grant gap expected.
+
+## Wave 3 gates -- ALL RUN, ALL GREEN (2026-08-20)
+
+- Same teas_test, same isolated -o build path (live API still running, still locked, confirmed
+  still respected throughout this wave -- no lock collisions).
+- R1: ApproverDemotionScriptTests 4/4 passed (RED->GREEN both for 160's edit and for 642, the
+  latter via a temporary no-op-stub swap since 642 is a brand-new untracked file with no git
+  history to stash).
+- R3: ActivityPermissionTests 2/2 passed (RED->GREEN). RbacAuthMapTests 1/1 passed (regenerated
+  docs/rbac/endpoint-permission-map.generated.md, confirmed the 13 activity routes now show their
+  per-document permissions; gates 0/1/2 all still green).
+- Full Rbac-area regression (narrower than a full Bank+Rbac+Persistence re-run, per the plan --
+  R1/R3 don't touch bank/persistence code): 79/79 passed, 0 skipped (up from wave 2's 73; +6 new
+  tests this wave, all accounted for).
+- Blast radius this wave: 6 files (160 edited, 642 new, ActivityEndpoints.cs edited,
+  ApproverDemotionScriptTests.cs new, ActivityPermissionTests.cs new,
+  endpoint-permission-map.generated.md regenerated as a side effect of running RbacAuthMapTests) +
+  this spec file = 7, within the +8 cap.
+- No commits made (per instruction -- orchestrator commits). Live approver row sanity-checked
+  clean after all test runs: is_super_admin=f, holds only the APPROVER role.

@@ -96,7 +96,7 @@
 | DELETE | `/billing-notes/{id:long}` | Perm | sales.billing_note.manage |
 | GET | `/billing-notes/{id:long}` | Perm | sales.billing_note.read |
 | PUT | `/billing-notes/{id:long}` | Perm | sales.billing_note.manage |
-| GET | `/billing-notes/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/billing-notes/{id:long}/activity` | Perm | sales.billing_note.read |
 | POST | `/billing-notes/{id:long}/cancel` | Perm | sales.billing_note.manage |
 | POST | `/billing-notes/{id:long}/create-tax-invoice` | Perm | sales.billing_note.manage / sales.tax_invoice.create |
 | POST | `/billing-notes/{id:long}/issue` | Perm | sales.billing_note.manage |
@@ -124,18 +124,18 @@
 | PUT | `/company-profile/registered-address` | Perm | master.company_profile.manage |
 | PUT | `/company-profile/soft` | Perm | master.company_profile.manage |
 | POST | `/company-profile/stamp` | Perm | master.company_profile.manage |
-| GET | `/credit-notes/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/credit-notes/{id:long}/activity` | Perm | sales.credit_note.read |
 | POST | `/credit-notes/{id:long}/mark-printed` | Perm | sales.credit_note.read |
 | GET | `/customers/` | Perm | master.customer.read |
 | POST | `/customers/` | Perm | master.customer.manage |
 | GET | `/customers/{id:long}` | Perm | master.customer.read |
 | PUT | `/customers/{id:long}` | Perm | master.customer.manage |
-| GET | `/debit-notes/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/debit-notes/{id:long}/activity` | Perm | sales.debit_note.read |
 | POST | `/debit-notes/{id:long}/mark-printed` | Perm | sales.debit_note.read |
 | GET | `/delivery-orders/` | Perm | sales.delivery_order.read |
 | POST | `/delivery-orders/` | Perm | sales.delivery_order.manage |
 | GET | `/delivery-orders/{id:long}` | Perm | sales.delivery_order.read |
-| GET | `/delivery-orders/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/delivery-orders/{id:long}/activity` | Perm | sales.delivery_order.read |
 | POST | `/delivery-orders/{id:long}/create-invoice` | Perm | sales.delivery_order.manage / sales.billing_note.manage |
 | POST | `/delivery-orders/{id:long}/create-ti` | Perm | sales.delivery_order.manage / sales.tax_invoice.create |
 | POST | `/delivery-orders/{id:long}/issue` | Perm | sales.delivery_order.manage |
@@ -197,7 +197,7 @@
 | GET | `/payment-vouchers/` | Perm | purchase.payment_voucher.read |
 | POST | `/payment-vouchers/` | Perm | purchase.payment_voucher.create |
 | GET | `/payment-vouchers/{id:long}` | Perm | purchase.payment_voucher.read |
-| GET | `/payment-vouchers/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/payment-vouchers/{id:long}/activity` | Perm | purchase.payment_voucher.read |
 | POST | `/payment-vouchers/{id:long}/approve` | Perm | purchase.payment_voucher.approve |
 | POST | `/payment-vouchers/{id:long}/cancel` | Perm | purchase.payment_voucher.approve |
 | POST | `/payment-vouchers/{id:long}/mark-printed` | Perm | purchase.payment_voucher.read |
@@ -205,7 +205,7 @@
 | GET | `/payment-vouchers/{id:long}/pdf` | Perm | purchase.payment_voucher.read |
 | POST | `/payment-vouchers/{id:long}/post` | Perm | purchase.payment_voucher.post |
 | POST | `/payment-vouchers/{id:long}/vendor-invoice` | Perm | purchase.vendor_invoice.create |
-| GET | `/payroll-runs/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/payroll-runs/{id:long}/activity` | Perm | payroll.run.manage |
 | GET | `/payroll/employees/{employeeId:long}/wht50tawi/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
 | GET | `/payroll/pnd1a/pdf` | Assertion | payroll.run.manage / tax.filing.preview |
 | GET | `/payroll/runs/` | Perm | payroll.run.manage |
@@ -238,7 +238,7 @@
 | POST | `/purchase-orders/` | Perm | purchase.purchase_order.create |
 | GET | `/purchase-orders/{id:long}` | Perm | purchase.purchase_order.read |
 | PUT | `/purchase-orders/{id:long}` | Perm | purchase.purchase_order.create |
-| GET | `/purchase-orders/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/purchase-orders/{id:long}/activity` | Perm | purchase.purchase_order.read |
 | POST | `/purchase-orders/{id:long}/approve` | Perm | purchase.purchase_order.approve |
 | POST | `/purchase-orders/{id:long}/cancel` | Perm | purchase.purchase_order.cancel |
 | POST | `/purchase-orders/{id:long}/close` | Perm | purchase.purchase_order.cancel |
@@ -253,7 +253,7 @@
 | GET | `/quotations/{id:long}` | Perm | sales.quotation.read |
 | PUT | `/quotations/{id:long}` | Perm | sales.quotation.manage |
 | POST | `/quotations/{id:long}/accept` | Perm | sales.quotation.manage |
-| GET | `/quotations/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/quotations/{id:long}/activity` | Perm | sales.quotation.read |
 | POST | `/quotations/{id:long}/cancel` | Perm | sales.quotation.manage |
 | POST | `/quotations/{id:long}/convert-to-so` | Perm | sales.quotation.manage / sales.sales_order.manage |
 | POST | `/quotations/{id:long}/create-tax-invoice` | Perm | sales.quotation.manage / sales.tax_invoice.create |
@@ -266,7 +266,7 @@
 | POST | `/receipts/` | Perm | sales.receipt.create |
 | POST | `/receipts/wht-base-suggest` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}` | Perm | sales.receipt.read |
-| GET | `/receipts/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/receipts/{id:long}/activity` | Perm | sales.receipt.read |
 | POST | `/receipts/{id:long}/mark-printed` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/paper` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/pdf` | Perm | sales.receipt.read |
@@ -300,7 +300,7 @@
 | POST | `/sales-orders/` | Perm | sales.sales_order.manage |
 | GET | `/sales-orders/{id:long}` | Perm | sales.sales_order.read |
 | PUT | `/sales-orders/{id:long}` | Perm | sales.sales_order.manage |
-| GET | `/sales-orders/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/sales-orders/{id:long}/activity` | Perm | sales.sales_order.read |
 | POST | `/sales-orders/{id:long}/create-invoice` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/{id:long}/delivery-orders` | Perm | sales.sales_order.manage |
 | POST | `/sales-orders/{id:long}/delivery-orders/full` | Perm | sales.sales_order.manage / sales.delivery_order.manage |
@@ -354,7 +354,7 @@
 | GET | `/tax-invoices/` | Perm | sales.tax_invoice.read |
 | POST | `/tax-invoices/` | Perm | sales.tax_invoice.create |
 | GET | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.read |
-| GET | `/tax-invoices/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/tax-invoices/{id:long}/activity` | Perm | sales.tax_invoice.read |
 | POST | `/tax-invoices/{id:long}/mark-printed` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/paper` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/pdf` | Perm | sales.tax_invoice.read |
@@ -365,7 +365,7 @@
 | POST | `/vendor-invoices/` | Perm | purchase.vendor_invoice.create |
 | GET | `/vendor-invoices/{id:long}` | Perm | purchase.vendor_invoice.read |
 | PUT | `/vendor-invoices/{id:long}` | Perm | purchase.vendor_invoice.create |
-| GET | `/vendor-invoices/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/vendor-invoices/{id:long}/activity` | Perm | purchase.vendor_invoice.read |
 | POST | `/vendor-invoices/{id:long}/claim-period` | Perm | purchase.vendor_invoice.create |
 | POST | `/vendor-invoices/{id:long}/post` | Perm | purchase.vendor_invoice.post |
 | GET | `/vendors/` | Perm | master.vendor.read |
@@ -374,7 +374,7 @@
 | PUT | `/vendors/{id:long}` | Perm | master.vendor.manage |
 | GET | `/wht-certificates/` | Perm | purchase.wht.read |
 | GET | `/wht-certificates/{id:long}` | Perm | purchase.wht.read |
-| GET | `/wht-certificates/{id:long}/activity` | Perm | report.audit.read |
+| GET | `/wht-certificates/{id:long}/activity` | Perm | purchase.wht.read |
 | GET | `/wht-certificates/{id:long}/pdf` | Perm | purchase.wht.read |
 | GET | `/wht-types/` | AuthnOnly | — |
 | POST | `/wht-types/` | Perm | tax.wht_type.manage |
