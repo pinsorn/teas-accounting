@@ -195,5 +195,124 @@ Exercised against the review's own fixture companies 4 ("UI VAT Review Co
   hides itself once `d.status` flips on success; on failure it stays open
   with the text intact). Net simpler than the original draft, not just safer.
 
+## Wave 3 — 2026-08-20 addendum
+
+Sources: `_review/ui-codebase-review-2026-08-20.md` findings 2/4/5,
+`_review/ui-document-creation-test-2026-08-20.md` activity 403 finding (R3-FE
+half — backend re-scoping the permission is a SEPARATE worker/finding).
+FE-only. No backend tests run (backend worker owns teas_test this wave).
+Blast cap +10 files; used 10.
+
+### R2 [P2] — mobile clipping at 390px
+- [x] `Topbar.tsx` breadcrumb `<nav>`: `min-w-0` (was inert without it — a
+      flex item with nowrap text inside floors at its min-content size) +
+      `flex-auto` (NOT `flex-1` — Tailwind's `flex-1` sets `flex-basis:0%`,
+      which rendered the nav at literal ZERO width whenever the row was in
+      any width deficit, i.e. hid the breadcrumb on almost every mobile page
+      — caught via live diagnostic, not assumed). Non-last crumbs collapse to
+      `hidden sm:flex` so mobile shows only the current page.
+- [x] `CompanySwitcher.tsx`: `min-w-0` on the inner `<button>` alone did
+      NOTHING — daisyUI's `.dropdown` wrapper div (the actual flex item in
+      Topbar's header row) is block-level, not flex, so a width:auto flex
+      child inside it does not inherit a flexed ancestor's resolved width.
+      Fixed by making the wrapper itself `flex min-w-0 max-w-[220px]` and the
+      button `w-full min-w-0` (fills the wrapper instead of separately
+      capping its own max-width). Confirmed via `getBoundingClientRect()`
+      diagnostic: wrapper and button now both resolve to the identical
+      flexed width.
+- [x] `Bell`/`Settings` icon buttons: added `shrink-0` so they never compress.
+- [x] `PageHeader.tsx`: `flex-wrap` on the outer container + the actions
+      `<div>` — title block and actions (e.g. P&L's PDF/CSV buttons) now wrap
+      to their own row instead of overflowing.
+- [x] `DataTable.tsx` `ColumnFilter` dateRange variant: the from/to
+      `<input type="date">` pair's wrapping `<span>` gets `flex-wrap` so "to"
+      stacks below "from" on narrow screens instead of being clipped (parent
+      filter panel already had `flex-wrap`; this was the ONE un-wrapped
+      inner level the review caught).
+- [x] Live browser verification at 390×844 (admin): CompanySwitcher
+      bounding-box fully inside [0,390] on the dashboard; TI list and PV list
+      both date `<input>`s fully inside [0,390]; Profit & Loss both PDF and
+      CSV buttons fully inside [0,390]. Screenshots:
+      `r2-company-switcher-mobile.png`, `r2-ti-date-range-mobile.png`,
+      `r2-pv-date-range-mobile.png`, `r2-pl-buttons-mobile.png`.
+- [x] `tsc --noEmit` clean — 0 errors.
+
+### R4 [P2] — company selector missing accessible name
+- [x] `settings/roles/page.tsx` + `settings/users/page.tsx`: swapped the
+      `<div><span>บริษัท</span><select>` sibling pattern for the app's
+      existing labeled-select idiom (`<label htmlFor><span>...</span>
+      <select id>`, precedent: `VendorForm.tsx`), with page-unique ids
+      (`roles-company-select` / `users-company-select`).
+- [x] Live browser verification (admin, desktop): `page.getByRole('combobox',
+      { name: 'บริษัท' })` resolves on BOTH pages and carries
+      `data-testid="rbac-company-select"` — confirms the accessible name is
+      correctly bound, not just visually adjacent (accessibility-tree
+      snapshot independently showed `combobox "บริษัท"` on /settings/roles).
+- [x] `tsc --noEmit` clean.
+
+### R5 [P3] — empty "ทางลัด" heading for zero-action roles
+- [x] `app/(dashboard)/page.tsx`: added `anyQuickAction` (same 5 scope checks
+      as the per-button `<PermissionGate>`s, via the already-imported
+      `useHasScope`), wrapped the WHOLE `<section>` (heading + wrapper) in
+      `{anyQuickAction && (...)}` instead of only gating each button.
+- [x] Live browser verification: logged in as `sales_staff` (confirmed by
+      the review to have zero of the 5 scopes) — dashboard has ZERO
+      `heading("ทางลัด")` elements (not just an empty section). Regression
+      check: `admin` still sees the section. Screenshot:
+      `r5-sales-staff-dashboard-no-quick-actions.png`.
+- [x] `tsc --noEmit` clean.
+
+### R3-FE [P2 half] — ActivityLog maps 403 to the empty-history state
+- [x] `components/doc/ActivityLog.tsx`: destructured `isError`/`error` from
+      `useDocumentActivity` (was `data, isLoading` only — `data ?? []` alone
+      can't tell "really empty" from "the query errored"). Added
+      `isForbidden = isError && error instanceof ApiError && error.status
+      === 403`; render order is loading → forbidden (new) → other error
+      (new, generic) → empty-history (unchanged) → list. A query error can
+      NEVER reach the empty-history branch now.
+- [x] i18n: `common.activityNoPermission` / `common.activityLoadError` added
+      to `th.json`/`en.json` next to the existing `activityEmpty` key.
+- [x] Live browser verification: logged in as `sales_staff`, created a fresh
+      Quotation as themselves (so this is NOT stale review-run data), opened
+      its detail page — activity panel shows "คุณไม่มีสิทธิ์ดูประวัติกิจกรรมนี้"
+      (the new 403 message) and the OLD "ยังไม่มีประวัติกิจกรรม" text has zero
+      matches on the page. Screenshot: `r3fe-activity-403-honest.png`.
+- [x] `tsc --noEmit` clean.
+
+### Gates — ALL PASSED (Wave 3)
+- `npx tsc --noEmit` — 0 errors (checked after every item, and once more at
+  the end).
+- Live browser smoke (no MCP browser tool available; used the repo's own
+  Playwright e2e tooling as in Wave 1-2, throwaway spec
+  `e2e/tmp-wave3-smoke.spec.ts` + `e2e/tmp-diag.spec.ts`, both deleted after
+  the run, zero git trace): 4/4 tests green (R2 mobile, R4 desktop, R5+R3-FE
+  combined, R5 admin regression). All 6 screenshots in the scratchpad dir
+  listed above.
+- No `dotnet test` run this wave per explicit instruction (FE-only, backend
+  worker owns teas_test).
+
+### Blast radius (Wave 3)
+10 files: `page.tsx`, `settings/roles/page.tsx`, `settings/users/page.tsx`,
+`ActivityLog.tsx`, `CompanySwitcher.tsx`, `Topbar.tsx`, `DataTable.tsx`,
+`PageHeader.tsx`, `th.json`, `en.json`. Cap: +10. Used exactly 10 — at cap,
+not over.
+
+### Self-caught regression during this wave (worth flagging to Fable)
+My FIRST attempt at R2's Topbar fix (`flex-1` on the breadcrumb `<nav>`)
+shipped a NEW bug — it rendered the breadcrumb at literal 0px width on any
+mobile page (verified via live `getBoundingClientRect()` diagnostic, not
+assumed from reading the class name). Caught before commit because I visually
+re-checked the mobile screenshot after the "fix" instead of trusting the
+bounding-box assertion alone (the assertion only checked CompanySwitcher, not
+breadcrumb presence). Two lessons for future flex-shrink fixes in this repo:
+(1) Tailwind's `flex-1` is `flex-basis:0%` — wrong choice whenever the item
+needs a content-based fallback size, use `flex-auto` instead; (2) `min-w-0`
+must go on the ACTUAL flex item in the parent's row, not on a nested
+descendant several levels down (daisyUI's `.dropdown` wrapper silently ate my
+first `min-w-0` because it landed on the wrong element). A bounding-box
+assertion that only checks the ONE element you're fixing can pass while an
+adjacent element silently breaks — screenshot review caught what the
+assertion missed.
+
 ## Report
 See final message to orchestrator for fix shape / files / evidence per finding.

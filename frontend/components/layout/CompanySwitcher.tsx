@@ -69,12 +69,19 @@ export function CompanySwitcher() {
     }
   }
 
+  // R2 (ui-codebase-review-2026-08-20 #2) — min-w-0 on the <button> alone did nothing:
+  // daisyUI's .dropdown wrapper (the div below) is the actual flex item in Topbar's header
+  // row, and it's block-level, not flex — a width:auto flex-display child inside it does
+  // NOT automatically match a flexed ancestor's resolved width the way it would one level
+  // up. Make the wrapper itself the size-managed flex container (min-w-0 so the HEADER can
+  // actually shrink it, max-w to cap it) and have the button fill it (w-full) instead of
+  // separately capping its own max-width.
   return (
-    <div className="dropdown dropdown-end">
+    <div className="dropdown dropdown-end flex min-w-0 max-w-[220px]">
       <button
         tabIndex={0}
         role="button"
-        className="flex h-[34px] max-w-[220px] items-center gap-2 rounded-lg border border-ink-100 bg-base-100 px-3 text-[13px] text-ink-700 hover:bg-base-300 disabled:opacity-60"
+        className="flex h-[34px] w-full min-w-0 items-center gap-2 rounded-lg border border-ink-100 bg-base-100 px-3 text-[13px] text-ink-700 hover:bg-base-300 disabled:opacity-60"
         title={t('switchCompany')}
         aria-label={t('switchCompany')}
         disabled={switching}

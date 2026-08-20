@@ -111,20 +111,29 @@ export function Topbar() {
         <Menu className="h-5 w-5" aria-hidden />
       </label>
 
-      <nav aria-label="breadcrumb" className="flex items-center gap-1.5 text-[13px] text-ink-600">
+      {/* R2 (ui-codebase-review-2026-08-20 #2) — at 390px the full trail + CompanySwitcher
+          + icons never fit; overflow-hidden on the ancestor drawer-content div then clips
+          CompanySwitcher instead of reflowing. min-w-0 lets the nav actually shrink below
+          its intrinsic min-content size (was inert without it, same footgun on any flex
+          item with nowrap text inside). flex-auto (NOT flex-1 — flex-1's 0% basis made the
+          nav render at literal zero width whenever the row is in deficit, i.e. hid the
+          breadcrumb on almost every mobile page) keeps its content-sized basis, still grows
+          to push CompanySwitcher/icons to the right on desktop, still shrinks under
+          pressure. Non-last crumbs collapse to just the current page below sm so mobile
+          spends its width on what users need (company switcher, icons). */}
+      <nav aria-label="breadcrumb" className="flex min-w-0 flex-auto items-center gap-1.5 text-[13px] text-ink-600">
         {crumbs.map((c, i) => (
-          <span key={i} className="flex items-center gap-1.5">
-            {i > 0 && <ChevronRight className="h-3 w-3 text-ink-300" aria-hidden />}
-            <span className={i === crumbs.length - 1 ? 'font-semibold text-ink-900' : ''}>{c}</span>
+          <span key={i} className={`flex min-w-0 items-center gap-1.5 ${i < crumbs.length - 1 ? 'hidden sm:flex' : ''}`}>
+            {i > 0 && <ChevronRight className="hidden h-3 w-3 shrink-0 text-ink-300 sm:block" aria-hidden />}
+            <span className={`truncate ${i === crumbs.length - 1 ? 'font-semibold text-ink-900' : ''}`}>{c}</span>
           </span>
         ))}
       </nav>
 
-      <div className="ml-auto" />
       <CompanySwitcher />
 
       <button
-        className="relative grid h-[34px] w-[34px] place-items-center rounded-lg border border-ink-100 bg-base-100 text-ink-600 hover:bg-base-300"
+        className="relative grid h-[34px] w-[34px] shrink-0 place-items-center rounded-lg border border-ink-100 bg-base-100 text-ink-600 hover:bg-base-300"
         title="การแจ้งเตือน"
         aria-label="การแจ้งเตือน"
       >
@@ -133,7 +142,7 @@ export function Topbar() {
       </button>
       <Link
         href="/settings/company"
-        className="grid h-[34px] w-[34px] place-items-center rounded-lg border border-ink-100 bg-base-100 text-ink-600 hover:bg-base-300"
+        className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-lg border border-ink-100 bg-base-100 text-ink-600 hover:bg-base-300"
         title="ตั้งค่า"
         aria-label="ตั้งค่า"
       >

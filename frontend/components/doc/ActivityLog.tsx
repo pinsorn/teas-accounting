@@ -3,6 +3,7 @@
 import { Clock, FilePlus, Send, Lock, CheckCheck, ArrowRight, Truck, X, Mail, Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useDocumentActivity } from '@/lib/queries';
+import { ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import type { ActivityDocType } from '@/lib/types';
 
@@ -48,8 +49,15 @@ export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: num
   // map to the Thai label when known, else fall back to the raw code (F11).
   const tAction = useTranslations('common.activityAction');
   const label = (code: string): string => (tAction.has(code) ? tAction(code) : code);
-  const { data, isLoading } = useDocumentActivity(docType, id);
+  // R3-FE (ui-document-creation-test-2026-08-20 — Activity panel กลบ 403 เป็น "ยังไม่มี
+  // ประวัติกิจกรรม") — `data ?? []` alone can't distinguish "really empty" from "the
+  // query errored"; both fell into the same neutral empty state, telling a 403'd normal
+  // operator (creator of their OWN doc) that no activity happened at all. isError/error
+  // give the real cause; 403 gets its own honest message, any other error a generic one.
+  // NEVER let a query error render as the empty-history text.
+  const { data, isLoading, isError, error } = useDocumentActivity(docType, id);
   const entries = data ?? [];
+  const isForbidden = isError && error instanceof ApiError && error.status === 403;
 
   return (
     <div className="rounded-card border border-ink-100 bg-base-100 shadow-warm-sm">
@@ -70,6 +78,10 @@ export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: num
               </div>
             ))}
           </div>
+        ) : isForbidden ? (
+          <p className="text-[13px] font-medium text-error">{tc('activityNoPermission')}</p>
+        ) : isError ? (
+          <p className="text-[13px] font-medium text-error">{tc('activityLoadError')}</p>
         ) : entries.length === 0 ? (
           <p className="text-[13px] text-ink-500">{tc('activityEmpty')}</p>
         ) : (

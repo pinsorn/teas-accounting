@@ -1704,6 +1704,8 @@
     "close": "ปิด",
     "activityLog": "ประวัติกิจกรรม",
     "activityEmpty": "ยังไม่มีประวัติกิจกรรม",
+    "activityNoPermission": "คุณไม่มีสิทธิ์ดูประวัติกิจกรรมนี้",
+    "activityLoadError": "โหลดประวัติกิจกรรมไม่สำเร็จ กรุณาลองใหม่",
     "activityAction": {
       "Created": "สร้างเอกสาร",
       "Draft": "ฉบับร่าง",

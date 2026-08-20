@@ -270,7 +270,7 @@ function ColumnFilter<T>({ column, allLabel }: { column: Column<T, unknown>; all
     return (
       <label className="form-control">
         <span className="label-text text-ink-600">{label}</span>
-        <span className="flex items-center gap-1">
+        <span className="flex flex-wrap items-center gap-1">
           <input type="date" className="input input-bordered" value={from}
             onChange={(e) => set([e.target.value, to])} aria-label={`${label} from`} />
           <span className="text-ink-400">–</span>

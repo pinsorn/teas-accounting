@@ -1704,6 +1704,8 @@
     "close": "Close",
     "activityLog": "Activity log",
     "activityEmpty": "No activity yet",
+    "activityNoPermission": "You do not have permission to view this activity log",
+    "activityLoadError": "Failed to load activity log — please try again",
     "activityAction": {
       "Created": "Created",
       "Draft": "Draft",

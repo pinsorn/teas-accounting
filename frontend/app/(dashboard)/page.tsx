@@ -54,6 +54,14 @@ export default function DashboardPage() {
   const incompleteVi = useVendorInvoices(true).data?.length ?? 0;
   const agentApprovals = usePendingAgentApprovals().data;
   const hasScope = useHasScope();
+  // R5 — mirrors the Quick-actions section's own per-button PermissionGate scopes below;
+  // keep this list in sync if a quick action is added/removed.
+  const anyQuickAction =
+    (vatMode && hasScope('sales.tax_invoice.create'))
+    || hasScope('sales.receipt.create')
+    || hasScope('purchase.payment_voucher.create')
+    || hasScope('master.customer.manage')
+    || hasScope('master.vendor.manage');
 
   const companyName = profile?.tradeName || profile?.legalName || t('title');
   const netVat = (cur?.vatPayable ?? 0) - (cur?.vatRefundable ?? 0);
@@ -183,29 +191,35 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      {/* Quick actions */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-base-content/80">{t('quick.title')}</h2>
-        <div className="flex flex-wrap gap-2">
-          {vatMode && (
-            <PermissionGate scope="sales.tax_invoice.create">
-              <QuickAction href="/tax-invoices/new" icon={FileText} label={t('quick.taxInvoice')} />
+      {/* Quick actions — R5 (ui-codebase-review-2026-08-20 #5): each button is gated
+          individually below via <PermissionGate>, but the heading+wrapper used to render
+          unconditionally, leaving an empty "ทางลัด" section for roles with zero of these
+          5 scopes (e.g. sales_staff, rbac_auditor). Mirror the SAME scope checks here
+          (same source, useHasScope) so the section only renders when ≥1 button will. */}
+      {anyQuickAction && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-base-content/80">{t('quick.title')}</h2>
+          <div className="flex flex-wrap gap-2">
+            {vatMode && (
+              <PermissionGate scope="sales.tax_invoice.create">
+                <QuickAction href="/tax-invoices/new" icon={FileText} label={t('quick.taxInvoice')} />
+              </PermissionGate>
+            )}
+            <PermissionGate scope="sales.receipt.create">
+              <QuickAction href="/receipts/new" icon={Receipt} label={t('quick.receipt')} />
             </PermissionGate>
-          )}
-          <PermissionGate scope="sales.receipt.create">
-            <QuickAction href="/receipts/new" icon={Receipt} label={t('quick.receipt')} />
-          </PermissionGate>
-          <PermissionGate scope="purchase.payment_voucher.create">
-            <QuickAction href="/payment-vouchers/new" icon={Wallet} label={t('quick.paymentVoucher')} />
-          </PermissionGate>
-          <PermissionGate scope="master.customer.manage">
-            <QuickAction href="/customers/new" icon={Plus} label={t('quick.customer')} />
-          </PermissionGate>
-          <PermissionGate scope="master.vendor.manage">
-            <QuickAction href="/vendors/new" icon={Plus} label={t('quick.vendor')} />
-          </PermissionGate>
-        </div>
-      </section>
+            <PermissionGate scope="purchase.payment_voucher.create">
+              <QuickAction href="/payment-vouchers/new" icon={Wallet} label={t('quick.paymentVoucher')} />
+            </PermissionGate>
+            <PermissionGate scope="master.customer.manage">
+              <QuickAction href="/customers/new" icon={Plus} label={t('quick.customer')} />
+            </PermissionGate>
+            <PermissionGate scope="master.vendor.manage">
+              <QuickAction href="/vendors/new" icon={Plus} label={t('quick.vendor')} />
+            </PermissionGate>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

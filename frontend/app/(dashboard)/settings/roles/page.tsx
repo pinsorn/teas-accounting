@@ -64,9 +64,13 @@ function CompanySelector({
   }, [rows, value, onChange]);
 
   return (
-    <div className="mb-4 flex items-center gap-2">
+    // R4 (ui-codebase-review-2026-08-20 #4) — "บริษัท" was a plain sibling <span>, not
+    // bound to the <select> via label/aria — screen readers announced an unnamed
+    // combobox. App's existing labeled-select idiom (see VendorForm.tsx).
+    <label className="mb-4 flex items-center gap-2" htmlFor="roles-company-select">
       <span className="text-sm text-base-content/60">{t('company')}</span>
       <select
+        id="roles-company-select"
         className="select select-bordered select-sm min-w-64"
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}
@@ -76,7 +80,7 @@ function CompanySelector({
           <option key={c.companyId} value={c.companyId}>{c.nameTh}</option>
         ))}
       </select>
-    </div>
+    </label>
   );
 }
 
