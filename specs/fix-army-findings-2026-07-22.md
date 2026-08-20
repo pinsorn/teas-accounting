@@ -980,7 +980,7 @@ while anyone who CAN read payroll necessarily also holds manage. No seed grants 
         backend's own comment says the payload is "for chips". `bn-ti-chips` exists only in the CREATE
         form. Render them on the detail page (same chip pattern), linking each to its TI. → WAVE 5. —
         closed by triage 2026-08-19 (bn-ti-chips, invoices/[id]/page.tsx:162)
-  - [ ] **O2b — should linking TIs drive the BN TOTAL? (Ham's call — do NOT guess.)** Today the total is
+  - [x] **O2b — RESOLVED 2026-08-20 (Ham: option 2, block-on-mismatch; commit 3732f27).** Today the total is
         manual-lines-only: ฿107.00 billed vs ฿6,955 of linked TIs (totals never read the join table).
         A Thai ใบวางบิล normally bills the SUM of the invoices it lists, which argues the linked TIs
         should either generate the lines or at least be reconciled against them — but that changes what

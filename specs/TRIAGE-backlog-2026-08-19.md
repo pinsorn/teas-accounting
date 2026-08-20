@@ -13,15 +13,15 @@ the marking dispatch C9 stamps each spec file with its verdict + evidence line).
 (+ from r2: seed-638 pre-probe, class-B survey ×4 tables, §N2.5, co2-style real-volume leg, co5 sanity.)
 
 ## ALIVE — Cluster B: Ham decisions
-5. **O2b**: should linked TIs drive the Billing Note total? (฿107 billed vs ฿6,955 linked — options
+5. ~~O2b~~ DONE 2026-08-20 (Ham: block-on-mismatch) — commit 3732f27.
    drafted in fix-army-findings L980-995). Money semantics.
-6. **O5**: ภ.พ.36 PDF export (parity with ภ.ง.ด.54 route; filers currently get no printable form). Tax.
+6. ~~O5~~ ✅ DONE 2026-08-20 — commit cc11662 (Pp36FormFiller + /tax-filings/pp36/pdf + FE button).
 (+ footnote: fix-breakit-r2 §10 E1 — CPA sign-off on the ภ.พ.36 ม.83/6 rule; code implements it,
 professional confirmation outstanding.)
 
 ## ALIVE — Cluster C: small, unblocked
 7. troubles-wiki entries ×2 (F14 tax-code-picker trap; no-browser-edit/delete-draft-TI) — C9 does.
-8. R10 payroll picker double-click — low UX, never reproduced; stays open in its spec.
+8. ~~R10~~ ✅ CLOSED won't-fix per Ham 2026-08-20 (2e31d02).
 
 ## Corrections the sweep made vs prior belief
 - O11 (สปส.1-10 ส่วนที่ 2) = OBSOLETE not DEAD (blocked by template, superseded by on-screen alt bf87333).
