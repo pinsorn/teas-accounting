@@ -1,6 +1,18 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **🚀 2026-08-20 — v2.3.1 RELEASED: the full Codex external-review round closed same-day.**
+  12 findings across 3 Codex reports (4 code + 3 UI-test + 5 UI-codebase) — every one Fable-
+  verified, fixed, and Tier-2-reviewed (one REJECT round: reviewer caught our own 160 fix breaking
+  on the post-510 replay path — remediated + delta APPROVE with a structural impossibility proof).
+  Headlines: demo-only scoping for seeds 637/638/641 (a real tenant's placeholder tax ID now
+  correctly REFUSES filings instead of being laundered) · approver demoted from SUPER_ADMIN (SoD
+  restored, seed 642) · per-document activity permissions + honest 403 states · import-delete race
+  closed for real (conditional delete) + attachment no longer orphaned · VatRate 0 persists ·
+  paper previews refresh after master-data edits · mobile 390px clipping fixed · quotation
+  cancel/reject take real reasons. Gates: full suite 1337/1352 green (1 known pre-existing flake,
+  passes alone) · live verify on fresh boot (642 applied, activity 200) · CI green · PR #115
+  admin-merged. Local stack UP on v2.3.1 binaries. Prod still awaits server migration.
 - **🚀 2026-08-20 — v2.3.0 RELEASED** (GitHub release + tag via release-please PR #114, admin-merged
   after CI green on main). Everything since v2.2.1 (2026-08-14): the entire local hard-test round
   (14 findings), N1/N2/N3, swarm-r2 fix batch (11 units), cleanup batch (11 units), and all four
