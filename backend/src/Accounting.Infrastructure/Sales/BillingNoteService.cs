@@ -315,6 +315,25 @@ public sealed class BillingNoteService(
         if (bn.Status != BillingNoteStatus.Draft)
             throw new DomainException("billing_note.bad_status", "Only a Draft billing note can be issued.");
 
+        // O2b ruling (Ham, 2026-08-20, specs/fix-o2b-bn-reconcile.md) — manual lines stay
+        // authoritative, but a BN that links TIs AND carries its own lines must actually bill
+        // what it lists. The pure-generated path (ApplyTaxInvoiceLinesAsync, no manual lines)
+        // already reconciles by construction (bn.TotalAmount == Σ AppliedAmount), so this is a
+        // structural no-op there — it only ever refuses a manually-edited/-supplied set of lines
+        // that drifted from the linked TIs' total. Pure validation: no mutation before the throw.
+        if (bn.TaxInvoiceLinks.Count > 0 && bn.Lines.Count > 0)
+        {
+            var tiTotal = bn.TaxInvoiceLinks.Sum(l => l.AppliedAmount);
+            if (bn.TotalAmount != tiTotal)
+            {
+                var diff = bn.TotalAmount - tiTotal;
+                throw new DomainException("billing_note.lines_not_reconciled",
+                    $"Billing note total ({bn.TotalAmount:F2}) does not match the sum of its " +
+                    $"linked tax invoices ({tiTotal:F2}); difference {diff:F2}. Edit the lines " +
+                    "so they reconcile, or issue with no linked invoices.");
+            }
+        }
+
         // R1/C6 (WP-1) — non-VAT only: issuing now moves money, so the period must be open
         // BEFORE the number allocation below (no invoice number consumed on a closed-period
         // issue). VAT companies: no JE, unchanged behaviour, zero risk (their BN groups

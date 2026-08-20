@@ -189,6 +189,15 @@ const TH: Record<string, string> = {
   // quotation.* (Sales Quotation)
   'quotation.already_invoiced': 'ใบเสนอราคานี้ออกใบกำกับภาษีแล้ว',
 
+  // billing_note.* (O2b ruling, Ham 2026-08-20 — specs/fix-o2b-bn-reconcile.md). The backend
+  // detail carries both totals + the difference; `problemToast` (lib/api.ts) shows this Thai
+  // string as the primary toast AND the EN detail as a secondary description line, so the
+  // numbers are not lost — unlike pnd36.unreconciled_figure_changed / sso_batch.unencodable_name
+  // (deliberately no entry there), this code's caller uses problemToast, not errorToToast.
+  'billing_note.lines_not_reconciled':
+    'ยอดรวมในใบวางบิลไม่ตรงกับผลรวมของใบกำกับภาษีที่เชื่อมโยงไว้ กรุณาแก้ไขรายการให้ยอดตรงกัน ' +
+    'หรือยกเลิกการเชื่อมโยงใบกำกับภาษีก่อนออกเอกสาร',
+
   // customer.* / employee.* / branch.* / coa.* / prefix.* / expense_category.* / product.*
   'customer.not_found': 'ไม่พบลูกค้านี้',
   'customer.duplicate_code': 'รหัสลูกค้านี้มีอยู่แล้ว',

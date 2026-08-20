@@ -253,4 +253,81 @@ public sealed class BillingNoteGenerateLinesO2bTests
         bn.VatAmount.Should().Be(7m);
         bn.TotalAmount.Should().Be(107m);
     }
+
+    // O2b ruling (Ham, 2026-08-20, specs/fix-o2b-bn-reconcile.md) — manual lines stay
+    // authoritative, but ISSUE is blocked when the BN has linked TIs AND its lines don't
+    // reconcile with them. ManualLine() totals 107 (100 + 7% VAT); linking a TI worth 535
+    // leaves the BN under-billing the invoice it lists.
+    [SkippableFact]
+    public async Task Issue_blocked_when_manual_lines_dont_reconcile_with_linked_tax_invoice()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(c);
+        var ti = await SeedTaxInvoiceAsync(sp, c, 500m, 35m, 535m);
+        long bnId;
+        await using (var scope = sp.CreateAsyncScope())
+            bnId = await scope.ServiceProvider.GetRequiredService<IBillingNoteService>()
+                .CreateDraftAsync(Request(c.CustomerId, [ti], [ManualLine()]), default);
+
+        await using var issueScope = sp.CreateAsyncScope();
+        var issueSvc = issueScope.ServiceProvider.GetRequiredService<IBillingNoteService>();
+        var act = () => issueSvc.IssueAsync(bnId, default);
+        var ex = await act.Should().ThrowAsync<DomainException>();
+        ex.Which.Code.Should().Be("billing_note.lines_not_reconciled");
+        ex.Which.Message.Should().Contain("107").And.Contain("535").And.Contain("428");
+
+        // money invariant — the guard only refuses, it never mutates.
+        var bn = await LoadAsync(sp, bnId);
+        bn.Status.Should().Be(BillingNoteStatus.Draft);
+        bn.DocNo.Should().BeNull();
+        bn.TotalAmount.Should().Be(107m);
+        bn.TaxInvoiceLinks.Should().ContainSingle(l => l.TaxInvoiceId == ti && l.AppliedAmount == 535m);
+    }
+
+    [SkippableFact]
+    public async Task Issue_succeeds_when_manual_lines_exactly_reconcile_with_linked_tax_invoice()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(c);
+        var ti = await SeedTaxInvoiceAsync(sp, c, 100m, 7m, 107m);
+        long bnId;
+        await using (var scope = sp.CreateAsyncScope())
+            bnId = await scope.ServiceProvider.GetRequiredService<IBillingNoteService>()
+                .CreateDraftAsync(Request(c.CustomerId, [ti], [ManualLine()]), default);
+
+        await using (var issueScope = sp.CreateAsyncScope())
+            await issueScope.ServiceProvider.GetRequiredService<IBillingNoteService>()
+                .IssueAsync(bnId, default);
+
+        var bn = await LoadAsync(sp, bnId);
+        bn.Status.Should().Be(BillingNoteStatus.Issued);
+        bn.DocNo.Should().NotBeNullOrEmpty();
+        bn.TotalAmount.Should().Be(107m);
+    }
+
+    // Regression — the pure-generated path (07-26 O2b, no manual lines) reconciles by
+    // construction; the new Issue-time guard must be a structural no-op for it.
+    [SkippableFact]
+    public async Task Issue_succeeds_via_lines_generated_from_linked_tax_invoices()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        await using var sp = Provider(c);
+        var ti1 = await SeedTaxInvoiceAsync(sp, c, 1000.11m, 70.01m, 1070.12m);
+        var ti2 = await SeedTaxInvoiceAsync(sp, c, 234.56m, 16.42m, 250.98m);
+        long bnId;
+        await using (var scope = sp.CreateAsyncScope())
+            bnId = await scope.ServiceProvider.GetRequiredService<IBillingNoteService>()
+                .CreateDraftAsync(Request(c.CustomerId, [ti1, ti2]), default);
+
+        await using (var issueScope = sp.CreateAsyncScope())
+            await issueScope.ServiceProvider.GetRequiredService<IBillingNoteService>()
+                .IssueAsync(bnId, default);
+
+        var bn = await LoadAsync(sp, bnId);
+        bn.Status.Should().Be(BillingNoteStatus.Issued);
+        bn.TotalAmount.Should().Be(1321.10m);
+    }
 }
