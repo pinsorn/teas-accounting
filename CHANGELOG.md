@@ -1,5 +1,39 @@
 # Changelog
 
+## [2.3.0](https://github.com/pinsorn/teas-accounting/compare/v2.2.1...v2.3.0) (2026-08-20)
+
+
+### Features
+
+* **fe:** draft fixed-asset edit page + bank-rec modal dialog roles (r2 U8/L3-12+L2-1) ([677707e](https://github.com/pinsorn/teas-accounting/commit/677707eafd1890864e934f14ba9311b9001af5a5))
+* **fixedasset:** day-prorated first month + units-indexed depreciation schedule (cleanup C4/C7) ([cecfac7](https://github.com/pinsorn/teas-accounting/commit/cecfac7279b1f337f069c2374b3a64263336be3c))
+* **rbac:** name-only employee lookup for expense-claim submitters (r2 U6/L4-1) ([e81f92d](https://github.com/pinsorn/teas-accounting/commit/e81f92dd1495d64a234f87de7faef574823bc30b))
+* **tax:** ภ.พ.36 filled-PDF export with ภ.ง.ด.54 parity (O5, Ham ruling 2026-08-20) ([9f81d6f](https://github.com/pinsorn/teas-accounting/commit/9f81d6f765932922ea51655f05506817a2ec132d))
+
+
+### Bug Fixes
+
+* **api,mcp:** binding failures return typed 400s, and settling a receipt now requires the right to read the tax invoice ([701aa7c](https://github.com/pinsorn/teas-accounting/commit/701aa7c3938d615e26edfc1436971372a07c9eb1))
+* **bank:** deterministic statement closing balance, typed import errors, superseded-import deletion (r2 U3+U4/L2-2,3,4) ([f1f334b](https://github.com/pinsorn/teas-accounting/commit/f1f334b883fa1ac4483ec42f9f6b4d9ad5fc8312))
+* **fe:** FA modal dialog roles, PO/DO forms stop hardcoding tax code 1, back-dated-claim pay note (cleanup C2) ([5a4981c](https://github.com/pinsorn/teas-accounting/commit/5a4981cadf238c83a02d73bb2ea970ce6bff8e0e))
+* **fe:** route typed API errors to problemToast across 20 screens (r2 U7/L6-3) ([635e21f](https://github.com/pinsorn/teas-accounting/commit/635e21f3bd9938685009c3364b10bda639b87ca2))
+* **fe:** Thai toast mappings for the r2 batch's new error codes ([7f8269b](https://github.com/pinsorn/teas-accounting/commit/7f8269bc3f121e42490ddb29ced680878486e2c4))
+* **fixedasset:** refuse disposal dated before acquisition or depreciation start (r2 U5/L3-9) ([bb5d10a](https://github.com/pinsorn/teas-accounting/commit/bb5d10a27739b8df5a2faa454abba2dabcdc6d9d))
+* **payroll:** refuse tax/SSO filing artifacts on a placeholder payer tax ID; seed 638 re-syncs company_profile (r2 U1/L1-1) ([ce54051](https://github.com/pinsorn/teas-accounting/commit/ce54051d12aa9e2aefb31144acaba4dddc716a50))
+* **purchase,mcp:** PO tax-code resolver closes the last verbatim-id writer; MCP employee scope narrowed to lookup with manage back-compat; seed-640 direct-grant arm now tested (cleanup C1) ([1074384](https://github.com/pinsorn/teas-accounting/commit/10743842cd064e61b1d02c2f14a9f58063fc752a))
+* **purchase:** a 50 ทวิ can no longer be issued with an all-zero payer tax ID ([9197077](https://github.com/pinsorn/teas-accounting/commit/91970772df34095d795e396c057fce945c59b99b))
+* **rbac:** seed 181's role inserts silently no-op'd under FORCE RLS; seed 641 reconciles existing DBs (cleanup C11) ([a1b6b99](https://github.com/pinsorn/teas-accounting/commit/a1b6b994562fa825bbd38a9ec5543c127338b3b9))
+* **reports,sales:** P&L default stops hiding untagged activity, and the tax-invoice header finally reports the discount it gave ([ee9a594](https://github.com/pinsorn/teas-accounting/commit/ee9a594aa1b37e1ff58df706f23f7d21d3bf4ce5))
+* **sales:** billing note issue refuses when manual lines don't reconcile with linked tax invoices (O2b, Ham ruling 2026-08-20) ([10ed939](https://github.com/pinsorn/teas-accounting/commit/10ed939b8c9ac376c8fa19e90726c0ba800fbb90))
+* **sales:** billing notes accept null tax codes, launder inherited ids against the company master; seed 639 repairs foreign tax_code_id on sales lines (r2 U2/L6-1+L6-4) ([9a780d5](https://github.com/pinsorn/teas-accounting/commit/9a780d53fdfb9bd2a12f9d3d6eda469c833cb96e))
+* **sales:** document conversions stop losing the discount, and the tax code the user picks is the one that is charged ([d2afbdd](https://github.com/pinsorn/teas-accounting/commit/d2afbddd31148fa148c85d9dee079b9db640844f))
+* **sales:** exempt products can no longer be charged VAT, one posted tax invoice per quotation, and tax-code lookup honours its ignore-case contract ([fa31f2b](https://github.com/pinsorn/teas-accounting/commit/fa31f2b69834914fa4341c46b1c6c1f98e4067af))
+* **security:** an MCP api key can no longer mint a Tax Invoice it has no scope for ([a9244af](https://github.com/pinsorn/teas-accounting/commit/a9244afc4281e584f7ba6651d8f3285218658cd0))
+* **seed:** a company seeded after script 510 no longer ends up with no roles ([7f86a00](https://github.com/pinsorn/teas-accounting/commit/7f86a00bd7127db2b2a18d97cbcf7ef112f79569))
+* **tax:** extend the payer-tax-ID refusal to all remaining filing artifacts (r2 U10, Tier-2 N3) ([3e368e5](https://github.com/pinsorn/teas-accounting/commit/3e368e567abbeb6c98e34471dc0a69aefbb6e563))
+* **ui:** convert buttons say why they are unavailable instead of failing on click ([4d4d492](https://github.com/pinsorn/teas-accounting/commit/4d4d492aca01753ca18ac452def76397638b5b5d))
+* **ui:** payment-voucher preview showed the wrong amount leaving the bank ([6b54d23](https://github.com/pinsorn/teas-accounting/commit/6b54d230d7a9b5d42a91915a7ec99433f1bd5a4d))
+
 ## [2.2.1](https://github.com/pinsorn/teas-accounting/compare/v2.2.0...v2.2.1) (2026-08-14)
 
 
