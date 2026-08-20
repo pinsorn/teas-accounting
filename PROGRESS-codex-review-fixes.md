@@ -45,3 +45,23 @@ From _review/ui-edit-cancel-vat-nonvat-test + ui-document-creation-test + ui-cod
   says wipe (screenshots reference them).
 - After all: full suite → Opus review (security lens: F1/F2/R1/R3 permission changes) → commits →
   push → v2.3.1.
+
+## Checkpoint 2026-08-20 ~21:xx (quota 98%) — ALL CODE LANDED, release pending
+Commits: 72b25ad F1-F4 · 3424fb0 UI-1/2/3 · 3054c89 R1+R3-be · 1b6d992 R2-R5+R3-fe ·
+3aaafb0 F-3/N2 follow-up · <latest> F-1/F-2 REJECT remediation. Tier-2: REJECT → delta re-review
+**APPROVE** (double-grant proven structurally impossible; catch narrow; FE list exact).
+Final suite: Domain 188/188 · Api 1337/1352, 1 fail = TenantIsolationTests.Customer_from_company_A
+— the KNOWN pre-existing self-collision flake (legacy 8.8k rows still in teas_test's id range;
+C3's cleanup only prevents NEW leaks). Passed alone earlier today.
+
+## Resume order
+1. Confirm flake: run TenantIsolationTests alone → expect green. Optionally purge the legacy
+   500000-699999 test companies from teas_test (read-only rule applies to accounting_dev, NOT
+   teas_test — but purge via a test-context script, carefully).
+2. Boot API (:5080) fresh → 642 + hardened 160/637/638/641 apply to accounting_dev → verify:
+   approver is_super_admin=f + single APPROVER role; sales_staff activity 200 on own quotation.
+   Restart FE :3000 (stale-chunk).
+3. git push origin main → CI green → release-please PR (v2.3.1) → admin-merge → verify tag.
+4. STATUS.md update: Codex review round closed (12 findings: 4 code + 3 UI-test + 5 UI-codebase,
+   all fixed+reviewed). Note reviewer non-blocking leftovers: N1 auditor/tax-officer payroll
+   activity (deliberate), N3 error-code nuance, F-3 residual (none — done).
