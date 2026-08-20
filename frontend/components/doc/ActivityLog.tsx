@@ -43,6 +43,14 @@ export function activityHeadline(actionLabel: string, toStatusLabel: string | nu
   return toStatusLabel ?? actionLabel;
 }
 
+// fix-postfix-review-2026-08-20 finding 2 — the BE already returns `note` (the cancel/reject
+// reason) on every activity entry; this component just never read it. Whitespace-only notes
+// (e.g. the old canned-string era, or a stray " ") render nothing rather than an empty line.
+// Pure (no i18n hook) so it's unit-testable in isolation, matching activityHeadline above.
+export function noteText(note: string | null): string | null {
+  return note && note.trim() ? note : null;
+}
+
 export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: number }) {
   const tc = useTranslations('common');
   // WP4 4.3 — activity entries carry raw BE event codes (Created/MarkedSent/Posted/…);
@@ -110,6 +118,11 @@ export function ActivityLog({ docType, id }: { docType: ActivityDocType; id: num
                       <div className="mt-0.5 text-[12px] text-ink-500">
                         {formatDate(e.at)} · {e.actor}
                       </div>
+                      {noteText(e.note) && (
+                        <div className="mt-1 whitespace-pre-wrap break-words text-[12.5px] text-ink-600">
+                          {noteText(e.note)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

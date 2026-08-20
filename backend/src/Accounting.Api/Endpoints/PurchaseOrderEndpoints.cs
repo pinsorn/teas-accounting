@@ -54,7 +54,7 @@ public static class PurchaseOrderEndpoints
 
         g.MapPost("/{id:long}/cancel", async (long id, [FromBody] ReasonBody b,
             IPurchaseOrderService s, CancellationToken ct) =>
-            { await s.CancelAsync(id, b.Reason, ct); return Results.NoContent(); })
+            { await s.CancelAsync(id, SalesChainEndpoints.RequireReason(b.Reason), ct); return Results.NoContent(); })
             .RequireAuthorization(cancel);
 
         g.MapGet("/", async ([FromQuery] string? status, [FromQuery] long? vendorId,

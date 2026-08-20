@@ -49,7 +49,7 @@ public static class BillingNoteEndpoints
 
         g.MapPost("/{id:long}/cancel", async (long id, [FromBody] SalesChainEndpoints.ReasonBody b,
             IBillingNoteService s, CancellationToken ct) =>
-            { await s.CancelAsync(id, b.Reason, ct); return Results.NoContent(); })
+            { await s.CancelAsync(id, SalesChainEndpoints.RequireReason(b.Reason), ct); return Results.NoContent(); })
             .RequireAuthorization(managePol);
 
         // cont.69 Phase 1 — Invoice → Tax Invoice (manual, VAT only). Throws

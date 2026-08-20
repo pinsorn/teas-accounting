@@ -525,13 +525,24 @@ app.MapHealthChecks("/health").AllowAnonymous(); // ponytail: explicit AllowAnon
 // caller's company row, so the endpoint needs a tenant → authenticated.
 app.MapGet("/system/info", async (ICompanyTaxConfigService taxCfg, CancellationToken ct) =>
 {
-    var tax = await taxCfg.GetAsync(ct);
+    // fix-postfix-review-2026-08-20 item 3 — a companyId=0 super-admin (fresh install / no
+    // home company, i.e. the /onboarding wizard — the ONE page that most needs to show the
+    // version) has no company row to resolve tax config from; GetAsync throws
+    // InvalidOperationException, which previously 500'd the whole endpoint and hid the
+    // version too. version is unconditional; the tax fields degrade to null instead.
+    bool? vatMode = null; decimal? vatRate = null; string? pnd30 = null;
+    try
+    {
+        var tax = await taxCfg.GetAsync(ct);
+        vatMode = tax.VatMode; vatRate = tax.VatRate; pnd30 = tax.Pnd30SubmissionMode;
+    }
+    catch (InvalidOperationException) { /* no company yet — version-only response */ }
     return new
     {
         version = AppBuildInfo.Version,
-        vat_mode = tax.VatMode,
-        vat_rate = tax.VatRate,
-        pnd30_submission_mode = tax.Pnd30SubmissionMode,
+        vat_mode = vatMode,
+        vat_rate = vatRate,
+        pnd30_submission_mode = pnd30,
         document_number_format = "MM-YYYY-PREFIX-NNNN",
         timezone = "Asia/Bangkok",
     };

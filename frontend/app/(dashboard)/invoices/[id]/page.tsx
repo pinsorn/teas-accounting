@@ -180,12 +180,13 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
             placeholder={t('cancelReasonPlaceholder')}
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
+            maxLength={500}
           />
           <button
             data-testid="bn-cancel-confirm"
             className="btn btn-danger btn-sm"
-            disabled={!cancelReason || act.isPending}
-            onClick={() => run('cancel', { reason: cancelReason })}
+            disabled={!cancelReason.trim() || act.isPending}
+            onClick={() => run('cancel', { reason: cancelReason.trim() })}
           >
             {tc('confirm')}
           </button>

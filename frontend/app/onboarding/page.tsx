@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Building2, KeyRound, ShieldCheck, UserCog } from 'lucide-react';
+import { apiGet } from '@/lib/api';
 
 // Onboarding-switcher spec (2026-06-16) — first-company wizard. The first thing a brand-new
 // super-admin (companyId===0) sees. One clean step: create the first company. On submit, the
@@ -86,6 +87,25 @@ type Phase = 'checking' | 'createAdmin' | 'company';
 export default function OnboardingPage() {
   const t = useTranslations('onboarding');
   const [phase, setPhase] = useState<Phase>('checking');
+  // Ham request — app version on the onboarding page, same mechanism as the dashboard
+  // footer ((dashboard)/layout.tsx): GET /system/info, keep only the `x.y.z` prefix (drop
+  // the MinVer `+sha` suffix), best-effort (a failure just hides it, never blocks the
+  // wizard). Gated to the 'company' phase — the only phase with a real session; firing it
+  // during 'createAdmin' (no session yet) would just 401.
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (phase !== 'company') return;
+    let cancelled = false;
+    apiGet<{ version?: string }>('system/info')
+      .then((info) => {
+        if (cancelled) return;
+        setVersion(typeof info?.version === 'string' ? (info.version.split('+')[0] ?? null) : null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [phase]);
 
   // On mount decide which step to show: do we already have a companyId=0 super-admin session?
   useEffect(() => {
@@ -612,6 +632,9 @@ export default function OnboardingPage() {
             {isSubmitting ? t('creating') : t('submit')}
           </button>
         </form>
+        {version && (
+          <p className="mt-4 text-center text-xs text-ink-400">TEAS · v{version}</p>
+        )}
       </div>
     </main>
   );

@@ -235,12 +235,13 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
             placeholder={t('cancelReasonPlaceholder')}
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
+            maxLength={500}
           />
           <button
             data-testid="q-cancel-confirm"
             className="btn btn-danger btn-sm"
-            disabled={!cancelReason || act.isPending}
-            onClick={() => run('cancel', { reason: cancelReason })}
+            disabled={!cancelReason.trim() || act.isPending}
+            onClick={() => run('cancel', { reason: cancelReason.trim() })}
           >
             {tc('confirm')}
           </button>
@@ -253,12 +254,13 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
             placeholder={t('rejectReasonPlaceholder')}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
+            maxLength={500}
           />
           <button
             data-testid="q-reject-confirm"
             className="btn btn-danger btn-sm"
-            disabled={!rejectReason || act.isPending}
-            onClick={() => run('reject', { reason: rejectReason })}
+            disabled={!rejectReason.trim() || act.isPending}
+            onClick={() => run('reject', { reason: rejectReason.trim() })}
           >
             {tc('confirm')}
           </button>

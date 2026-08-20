@@ -2,6 +2,7 @@ using Accounting.Api.Authorization;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Identity;
 using Accounting.Application.Sales;
+using Accounting.Domain.Common;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
@@ -62,10 +63,10 @@ public static class SalesChainEndpoints
             { await s.AcceptAsync(id, ct); return Results.NoContent(); }).RequireAuthorization(qManage);
         q.MapPost("/{id:long}/reject", async (long id, [FromBody] ReasonBody b,
             IQuotationService s, CancellationToken ct) =>
-            { await s.RejectAsync(id, b.Reason, ct); return Results.NoContent(); }).RequireAuthorization(qManage);
+            { await s.RejectAsync(id, RequireReason(b.Reason), ct); return Results.NoContent(); }).RequireAuthorization(qManage);
         q.MapPost("/{id:long}/cancel", async (long id, [FromBody] ReasonBody b,
             IQuotationService s, CancellationToken ct) =>
-            { await s.CancelAsync(id, b.Reason, ct); return Results.NoContent(); }).RequireAuthorization(qManage);
+            { await s.CancelAsync(id, RequireReason(b.Reason), ct); return Results.NoContent(); }).RequireAuthorization(qManage);
         q.MapPost("/{id:long}/convert-to-so", async (long id, IQuotationService s, CancellationToken ct) =>
             Results.Ok(new { sales_order_id = await s.ConvertToSalesOrderAsync(id, ct) }))
             .RequireAuthorization(qManage, soManage);
@@ -193,4 +194,23 @@ public static class SalesChainEndpoints
     }
 
     public sealed record ReasonBody(string Reason);
+
+    // fix-postfix-review-2026-08-20 finding 1 — ReasonBody's records live in Accounting.Api,
+    // out of reach of the Application-assembly FluentValidation scan (AddValidatorsFromAssembly
+    // only scans Accounting.Application, see DependencyInjection.cs), so a raw 501-char reason
+    // reached the DB unfiltered and surfaced as a raw 500 (Npgsql 22001 — column is
+    // varchar(500)), and a whitespace-only reason was silently accepted. Shared guard for
+    // every ReasonBody-consuming endpoint (Quotation reject/cancel here, Billing Note cancel,
+    // Purchase Order cancel — both reference this method the same way they already reference
+    // SalesChainEndpoints.ReasonBody): trims, rejects empty/over-length with a typed
+    // DomainException (→ 422 via DomainExceptionMiddleware, never a raw DB error).
+    public static string RequireReason(string? reason)
+    {
+        var trimmed = (reason ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+            throw new DomainException("validation.reason_required", "A reason is required.");
+        if (trimmed.Length > 500)
+            throw new DomainException("validation.reason_too_long", "Reason must be 500 characters or fewer.");
+        return trimmed;
+    }
 }
