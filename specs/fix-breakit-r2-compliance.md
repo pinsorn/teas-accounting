@@ -1166,13 +1166,13 @@ pending.** Two do: **E3** ships the recommended payslip rule as a separately-rev
 **E5** ships the deferral. The rest ship nothing — **E1 and E7 hard-block their work packages.** No row
 below is settled by an engineer.
 
-- **E1 · C2: which side carries ภ.พ.36, and the period consequence — TAX (Ham + the company's CPA).**
+- **✅ CLOSED 2026-08-20 — E1 · C2: which side carries ภ.พ.36, and the period consequence — TAX (Ham + the company's CPA).**
   Recommendation: the **payment voucher**. Basis: ม.83/6's tax point is payment to the overseas provider,
   and ภ.พ.36 is due within 7 days of the end of the **payment** month. Consequence to confirm out loud:
   a VI in June paid in July declares in **July**. **Before dispatching WP-2**, run the same pattern the
   prior-period question got — a short delegated research note citing the RD's own ภ.พ.36 instruction,
   Fable filters it, Ham/CPA confirm. Do not cite the statute from memory in the code comment.
-  **WP-2 is blocked on this.**
+  **WP-2 is blocked on this.** → RESOLVED: payment-month tax point CONFIRMED (Ham 2026-08-20; sources: ม.83/6 + RD instruction research note 2026-08-12 + PEAK guide peakaccount.com/blog/tax/gen-tax/tax-pnd54-pp36-difference — 'ยื่นเฉพาะเดือนที่มีการจ่ายเงิน', 7-day paper / 15-day e-filing deadline). CPA sign-off waived by Ham. WP-2 unblocked historically; nothing further pending.
 - **E2 · C2: already-double-counted history — TAX (Ham + CPA), informed by WP-0 P1.** Any finalized ภ.พ.36
   over-remitted VAT to the RD on an immutable JV, and re-finalize is blocked
   (`WhtFilingService.cs:277-280`). Options: (a) leave it (VAT over-remitted, recoverable via the next

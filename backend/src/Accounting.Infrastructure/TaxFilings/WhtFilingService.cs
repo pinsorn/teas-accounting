@@ -296,8 +296,7 @@ public sealed class WhtFilingService(
     /// VI dated June settled by a PV dated July belongs in July's return, and an unpaid VI owes
     /// nothing yet (zero rows, correctly). E1 resolved 2026-08-12 (spec §10 E1 / §12 WP-0 probe):
     /// PND36 has never been finalized for any company, so this ships as a pure correctness fix,
-    /// not a remediation of an actual over-remittance — CPA confirmation of the rule itself still
-    /// to follow before a real tenant starts using foreign services (§10 E1, not yet closed).
+    /// not a remediation of an actual over-remittance — rule CONFIRMED and E1 CLOSED 2026-08-20 (Ham ruling, PEAK practitioner guide corroborating the RD instruction + ม.83/6 — payment-month tax point; see spec §10 E1).
     /// VendorInvoice.RequiresPnd36ReverseCharge stays on the entity as an INFORMATIONAL-ONLY flag
     /// ("this invoice will trigger ภ.พ.36 when paid") — see its doc comment — and is never again a
     /// filing-row source. Do NOT add a VatMode gate here: ม.83/6 binds non-VAT payers too
