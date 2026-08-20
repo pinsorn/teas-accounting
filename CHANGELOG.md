@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.3.1](https://github.com/pinsorn/teas-accounting/compare/v2.3.0...v2.3.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* **fe,master:** paper preview refreshes after edit, explicit 0% VAT rate persists, cancel/reject reasons are the user's own (Codex UI review 1-3) ([3424fb0](https://github.com/pinsorn/teas-accounting/commit/3424fb0b77275b9a3222716985bac187fd11513c))
+* **fe:** master-data edits refresh paper previews; orphaned quotation i18n removed (Tier-2 follow-up F-3/N2) ([3aaafb0](https://github.com/pinsorn/teas-accounting/commit/3aaafb061c45154f678def623b75b86b22414641))
+* **fe:** mobile layouts stop clipping controls, labeled company selectors, honest activity error states, no empty quick-action section (Codex UI review R2-R5) ([1b6d992](https://github.com/pinsorn/teas-accounting/commit/1b6d9928194be2bb7019e407d3da411b155e4216))
+* **rbac:** demo approver loses SUPER_ADMIN (seed 160 + reconcile 642); document activity gated by the document's own read permission (Codex UI review R1+R3) ([3054c89](https://github.com/pinsorn/teas-accounting/commit/3054c8958257faeab209849dcaf1813adea7e4d3))
+* **seed,bank:** 160 survives both pre- and post-510 shapes under RLS; import delete tolerates an already-deleted attachment (Tier-2 REJECT remediation) ([1995412](https://github.com/pinsorn/teas-accounting/commit/19954120964eda52eda9ef9c3f575a6e7a4ebd13))
+* **seed,bank:** scope demo repairs to the demo identity; close the import-delete race and attachment orphan (Codex review F1-F4) ([72b25ad](https://github.com/pinsorn/teas-accounting/commit/72b25ad24f342f177683bd398b3839f25139e46d))
+
 ## [2.3.0](https://github.com/pinsorn/teas-accounting/compare/v2.2.1...v2.3.0) (2026-08-20)
 
 
