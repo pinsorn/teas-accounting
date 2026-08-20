@@ -1804,8 +1804,10 @@
     "cancelQuotation": "ยกเลิกใบเสนอราคา",
     "cancelConfirm": "ยืนยันยกเลิกใบเสนอราคานี้?",
     "cancelReason": "ยกเลิกโดยผู้ใช้",
+    "cancelReasonPlaceholder": "ระบุเหตุผลในการยกเลิก",
     "rejectConfirm": "ยืนยันว่าลูกค้าปฏิเสธใบเสนอราคานี้?",
-    "rejectReason": "ลูกค้าปฏิเสธ"
+    "rejectReason": "ลูกค้าปฏิเสธ",
+    "rejectReasonPlaceholder": "ระบุเหตุผลที่ลูกค้าปฏิเสธ"
   },
   "salesOrder": {
     "listTitle": "ใบสั่งขาย",

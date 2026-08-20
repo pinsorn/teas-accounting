@@ -1685,6 +1685,10 @@ export function useUpdateQuotation() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['quotations'] });
       qc.invalidateQueries({ queryKey: ['quotation', v.id] });
+      // fix-codex-ui-review-2026-08-20 UI-1 — the paper preview reads a separate
+      // ['paper-doc'] cache key (usePaperDoc); without this it shows stale data
+      // until a full reload. Mirrors useUpdatePurchaseOrder/useUpdateSalesOrder.
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -1881,6 +1885,10 @@ export function useUpdateBillingNote() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['billing-notes'] });
       qc.invalidateQueries({ queryKey: ['billing-note', v.id] });
+      // fix-codex-ui-review-2026-08-20 UI-1 sweep — same stale-paper-preview gap
+      // as useUpdateQuotation (invoices/[id]/page.tsx reads paper via docPath
+      // 'billing-notes').
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }

@@ -1804,8 +1804,10 @@
     "cancelQuotation": "Cancel quotation",
     "cancelConfirm": "Cancel this quotation?",
     "cancelReason": "Cancelled by user",
+    "cancelReasonPlaceholder": "Enter a cancellation reason",
     "rejectConfirm": "Confirm the customer rejected this quotation?",
-    "rejectReason": "Customer rejected"
+    "rejectReason": "Customer rejected",
+    "rejectReasonPlaceholder": "Enter the customer's rejection reason"
   },
   "salesOrder": {
     "listTitle": "Sales Orders",

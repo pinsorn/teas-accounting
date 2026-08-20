@@ -30,10 +30,12 @@ public static class TestCompanyFactory
     public sealed record SeededCompany(int CompanyId, int BranchId, long CustomerId, string NameTh);
 
     /// <summary>Creates a company + HQ branch + CoA + customer and returns the ids.
-    /// CAUTION: <paramref name="vatRate"/> = 0 is NOT persisted on insert — the EF
-    /// mapping HasDefaultValue(0.07m) treats the decimal CLR default 0 as "unset",
-    /// so the DB default 0.07 wins. Behaviour is governed by VatRegistered anyway
-    /// (VatRate is "effective only when VatRegistered" per the entity doc).</summary>
+    /// <paramref name="vatRate"/> = 0 persists correctly (fix-codex-ui-review-2026-08-20
+    /// UI-2 — CompanyConfiguration.cs's VatRate mapping now carries .HasSentinel(-1m) so
+    /// EF's insert-time "unset" check no longer conflates an explicit 0 with the CLR
+    /// default; see CompanyTaxConfigTests.VatRate_zero_persists_on_create). Behaviour is
+    /// still governed by VatRegistered anyway (VatRate is "effective only when
+    /// VatRegistered" per the entity doc).</summary>
     public static async Task<SeededCompany> CreateAsync(
         string connectionString, bool vatRegistered,
         decimal vatRate = 0.07m, string pnd30SubmissionMode = "manual")

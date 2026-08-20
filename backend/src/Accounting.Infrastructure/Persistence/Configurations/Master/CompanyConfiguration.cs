@@ -30,7 +30,15 @@ internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
         b.Property(c => c.RequiresBusinessUnit).HasDefaultValue(false);
         b.Property(c => c.PaidUpCapital).HasPrecision(19, 4);
 
-        b.Property(c => c.VatRate).HasPrecision(5, 4).HasDefaultValue(0.07m);
+        // fix-codex-ui-review-2026-08-20 UI-2 — HasDefaultValue(0.07m) alone means EF's
+        // insert convention treats a tracked value == CLR default(decimal) (0m) as "never
+        // set" and omits the column, letting the DB default win — so an explicit 0 (a
+        // deliberately non-VAT-rate company) silently became 7%. HasSentinel(-1m) moves
+        // that "was this ever set" check off 0 (a real, valid rate per ck_companies_vat_rate
+        // below) onto an impossible value, so 0 now round-trips like any other rate. The DB
+        // default stays: raw-SQL company seeds (120/400/440_seed_*.sql) INSERT without a
+        // vat_rate column and rely on it.
+        b.Property(c => c.VatRate).HasPrecision(5, 4).HasDefaultValue(0.07m).HasSentinel(-1m);
         // Explicit name: the snake_case convention would emit "pnd30submission_mode"
         // (digit boundary), which the ck constraint below doesn't match.
         b.Property(c => c.Pnd30SubmissionMode).HasColumnName("pnd30_submission_mode")

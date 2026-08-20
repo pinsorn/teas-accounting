@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.Master;
@@ -30,6 +32,14 @@ public sealed class CompanyTaxConfigTests
     private readonly PostgresFixture _fx;
     public CompanyTaxConfigTests(PostgresFixture fx) => _fx = fx;
 
+    // CA1869 — cache the options instance (mirrors Program.cs ConfigureHttpJsonOptions'
+    // camelCase-web-defaults + string-enum-converter wire shape).
+    private static readonly JsonSerializerOptions CamelCaseJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
     private static async Task<CompanyTaxConfig> ConfigOf(ServiceProvider sp)
     {
         await using var s = sp.CreateAsyncScope();
@@ -44,9 +54,10 @@ public sealed class CompanyTaxConfigTests
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         var vat = await TestCompanyFactory.CreateAsync(_fx.ConnectionString,
             vatRegistered: true, vatRate: 0.07m, pnd30SubmissionMode: "manual");
-        // NOTE: vat_rate 0 cannot be persisted on INSERT — EF HasDefaultValue(0.07m)
-        // treats the decimal CLR default 0 as "unset" and lets the DB default win
-        // (flagged to main agent). A distinct non-zero rate still proves per-row reads.
+        // Two distinct non-zero rates prove per-row reads; the explicit-0 case (once a lost
+        // value, fix-codex-ui-review-2026-08-20 UI-2 — see VatRate_zero_persists_on_create
+        // below) is now covered separately since it exercises a different EF code path
+        // (store-generated-default omission), not per-row scoping.
         var nonVat = await TestCompanyFactory.CreateAsync(_fx.ConnectionString,
             vatRegistered: false, vatRate: 0.05m, pnd30SubmissionMode: "auto");
 
@@ -186,5 +197,46 @@ public sealed class CompanyTaxConfigTests
 
         (await act.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation); // 23514
+    }
+
+    // ── 7. fix-codex-ui-review-2026-08-20 UI-2 — explicit VatRate 0 must round-trip ──
+    // CompanyConfiguration.cs previously mapped VatRate with ONLY .HasDefaultValue(0.07m);
+    // EF's insert convention omits a value-type column from the INSERT whenever the
+    // tracked value equals the CLR default for the type (0m for decimal) and the property
+    // has a store-generated default, so the DB default (0.07) silently overwrote an
+    // explicit 0 even though CreateAsync assigns VatRate = req.VatRate before SaveChanges.
+    // Fixed via .HasSentinel(-1m) (impossible under ck_companies_vat_rate's 0..1 bound) so
+    // EF's "was this ever set" check no longer conflates 0 with "untouched".
+    [SkippableFact]
+    public async Task VatRate_zero_persists_on_create()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await TestCompanyFactory.CreateAsync(_fx.ConnectionString,
+            vatRegistered: false, vatRate: 0m);
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, c.CompanyId, c.BranchId);
+
+        await using var s = sp.CreateAsyncScope();
+        var dto = await s.ServiceProvider.GetRequiredService<ICompanyService>()
+            .GetAsync(c.CompanyId, default);
+        dto.VatRate.Should().Be(0m);
+    }
+
+    // ── 8. Companion to #7 — the JSON-omission default is the APP-LAYER contract this
+    //      fix relies on (CompanyDtos.cs:12's CreateCompanyRequest positional-record
+    //      default), separate from and unaffected by the DB-level default disabled above.
+    //      No DB: pins System.Text.Json's parameterized-record deserialization actually
+    //      applying the ctor default when the wire payload has no "vatRate" property. ──
+    [Fact]
+    public void CreateCompanyRequest_omitted_vat_rate_deserializes_to_0_07()
+    {
+        const string json = """
+            {"taxId":"0105536000012","nameTh":"บริษัททดสอบ","legalEntityType":"LimitedCompany",
+             "vatRegistered":true,"fiscalYearStartMonth":1,"province":"กรุงเทพมหานคร","postalCode":"10110"}
+            """;
+
+        var req = JsonSerializer.Deserialize<CreateCompanyRequest>(json, CamelCaseJsonOptions);
+
+        req.Should().NotBeNull();
+        req!.VatRate.Should().Be(0.07m);
     }
 }

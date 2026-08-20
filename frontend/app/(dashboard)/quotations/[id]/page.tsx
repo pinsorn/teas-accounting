@@ -52,11 +52,18 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
   // button and can get a 403 — pre-existing precedent, not a new F6 gap.
   const canCreateTi = useScopeState('sales.tax_invoice.create');
   const [isApproveAction, setIsApproveAction] = useState(false);
-  // S11 — send/accept/reject had no confirm dialog (send issues the doc number
+  // S11 — send/accept had no confirm dialog (send issues the doc number
   // immediately, immutable numbering). Mirrors the WP3.6 purchase-side pattern.
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmAccept, setConfirmAccept] = useState(false);
-  const [confirmReject, setConfirmReject] = useState(false);
+  // fix-codex-ui-review-2026-08-20 UI-3 — cancel/reject require a REAL reason
+  // from the user (audit trail), not a canned string. Mirrors the Invoice
+  // page's cancel idiom (invoices/[id]/page.tsx:47,177-188): toggle + inline
+  // input + confirm disabled while empty.
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [showReject, setShowReject] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const d = q.data;
 
   useEffect(() => {
@@ -75,11 +82,6 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
     } catch (e) {
       problemToast(e, tc('error'));
     }
-  }
-
-  async function cancelQuotation() {
-    if (!(await confirm({ description: t('cancelConfirm'), variant: 'destructive' }))) return;
-    await run('cancel', { reason: t('cancelReason') });
   }
 
   // F8b (specs/fix-chain-conversion-integrity.md) — server-side conversion: no line payload,
@@ -177,7 +179,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
                 <button data-testid="q-accept" className="btn btn-primary btn-sm" disabled={act.isPending} onClick={() => setConfirmAccept(true)}>
                   {t('accept')}
                 </button>
-                <button data-testid="q-reject" className="btn btn-danger btn-sm" disabled={act.isPending} onClick={() => setConfirmReject(true)}>
+                <button data-testid="q-reject" className="btn btn-danger btn-sm" disabled={act.isPending} onClick={() => setShowReject((v) => !v)}>
                   {t('reject')}
                 </button>
               </>
@@ -213,7 +215,7 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
               </span>
             )}
             {canCancel && (
-              <button data-testid="q-cancel" className="btn btn-danger btn-sm" disabled={act.isPending} onClick={cancelQuotation}>
+              <button data-testid="q-cancel" className="btn btn-danger btn-sm" disabled={act.isPending} onClick={() => setShowCancel((v) => !v)}>
                 {t('cancelQuotation')}
               </button>
             )}
@@ -223,6 +225,45 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
 
       {/* S10 — BU wasn't visible anywhere on the QT detail page though the API carries it. */}
       <div className="mb-4"><BusinessUnitBadge businessUnitId={d.businessUnitId} /></div>
+
+      {/* fix-codex-ui-review-2026-08-20 UI-3 — required-reason inline input, mirrors
+          invoices/[id]/page.tsx:176-193 exactly (no canned string, no modal). */}
+      {showCancel && canCancel && (
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            className="input input-bordered input-sm max-w-md flex-1"
+            placeholder={t('cancelReasonPlaceholder')}
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+          />
+          <button
+            data-testid="q-cancel-confirm"
+            className="btn btn-danger btn-sm"
+            disabled={!cancelReason || act.isPending}
+            onClick={() => run('cancel', { reason: cancelReason })}
+          >
+            {tc('confirm')}
+          </button>
+        </div>
+      )}
+      {showReject && d.status === 'Sent' && (
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            className="input input-bordered input-sm max-w-md flex-1"
+            placeholder={t('rejectReasonPlaceholder')}
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+          />
+          <button
+            data-testid="q-reject-confirm"
+            className="btn btn-danger btn-sm"
+            disabled={!rejectReason || act.isPending}
+            onClick={() => run('reject', { reason: rejectReason })}
+          >
+            {tc('confirm')}
+          </button>
+        </div>
+      )}
 
       <div className="detail-grid">
         <div className="paper-wrap">
@@ -261,16 +302,6 @@ export default function QuotationDetailPage({ params }: { params: Promise<{ id: 
         ]}
         onClose={() => setConfirmAccept(false)}
         onConfirm={async () => { await run('accept'); setConfirmAccept(false); }}
-      />
-      <ConfirmActionDialog
-        open={confirmReject}
-        busy={act.isPending}
-        title={tca('qtReject.title')}
-        warning={tca('qtReject.warning')}
-        party={d.customerName}
-        rows={[{ label: t('total'), value: d.totalAmount }]}
-        onClose={() => setConfirmReject(false)}
-        onConfirm={async () => { await run('reject', { reason: t('rejectReason') }); setConfirmReject(false); }}
       />
     </>
   );
