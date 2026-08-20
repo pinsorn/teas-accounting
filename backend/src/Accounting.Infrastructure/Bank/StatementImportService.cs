@@ -264,8 +264,24 @@ public sealed class StatementImportService(
         // at all (StatementImportEndpoints' DELETE route), which is the real authority governing
         // this cascade; SoftDeleteAsync's own "delete perm OR uploader" check is for the standalone
         // attachment-delete route, not relevant to this authorized parent-delete cascade.
+        // Tier-2 F-2 (specs/fix-codex-review-2026-08-20.md) — SoftDeleteAsync throws
+        // attachment.not_found for a row that is MISSING *or already soft-deleted*
+        // (AttachmentService.cs:219 filters DeletedAt == null before throwing). A clerk who
+        // already deleted the raw file from the standalone attachments panel (same permission, or
+        // as its own uploader) would otherwise make this parent delete permanently unrecoverable
+        // — the throw would abort `txn` on every future attempt. The attachment is already in the
+        // desired (gone) state, so this specific, narrow exception is tolerated; any OTHER
+        // DomainException from this call still propagates and aborts the delete as before.
         if (import.AttachmentId is long attachmentId)
-            await attachments.SoftDeleteAsync(attachmentId, callerHasDeletePerm: true, ct);
+        {
+            try
+            {
+                await attachments.SoftDeleteAsync(attachmentId, callerHasDeletePerm: true, ct);
+            }
+            catch (DomainException ex) when (ex.Code == "attachment.not_found")
+            {
+            }
+        }
 
         // Codex review 2026-08-20 F4 — the correctness mechanism for the delete-vs-match race.
         // Read-committed does not lock rows read by the AnyAsync check above, so a concurrent

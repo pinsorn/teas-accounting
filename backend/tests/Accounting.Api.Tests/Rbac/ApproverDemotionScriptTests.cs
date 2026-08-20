@@ -76,8 +76,17 @@ public sealed class ApproverDemotionScriptTests
             "160 must no longer seed the approver user with is_super_admin = TRUE");
     }
 
+    /// <summary>
+    /// Tier-2 F-1 (specs/fix-codex-review-2026-08-20.md) — 160 is replayed on the documented
+    /// post-510 path (a demo-gated script skipped on an earlier boot is never recorded as
+    /// applied, per DbInitializer.cs:141-148; 636's runbook exercises this deliberately). This
+    /// shared teas_test DB is ALREADY post-510 (confirmed: only SUPER_ADMIN remains a global
+    /// role; APPROVER only exists as per-company copies) — exactly the shape this replay must be
+    /// safe under, with no extra setup needed to simulate it. Asserts on sys.user_roles CONTENT
+    /// (row count + which role), not just is_super_admin, per the reviewer's explicit instruction.
+    /// </summary>
     [SkippableFact]
-    public async Task Script160_is_super_admin_flip_replays_correctly_in_isolation()
+    public async Task Script160_replay_flips_is_super_admin_and_grants_exactly_one_company_scoped_approver_role()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
 
@@ -109,6 +118,23 @@ public sealed class ApproverDemotionScriptTests
         var isSuperAdmin = await ScalarAsync<bool>(conn,
             "SELECT is_super_admin FROM sys.users WHERE user_id = 2", txn);
         isSuperAdmin.Should().BeFalse("160's re-seeded approver row must not be a super admin");
+
+        // Tier-2 F-1 — the actual regression: assert on sys.user_roles CONTENT. Zero rows would
+        // mean the (r.company_id = 1 OR r.company_id IS NULL) + bypass fix regressed back to
+        // silently matching nothing under RLS; more than one row would mean it matched every
+        // company's own APPROVER copy (the cross-tenant permission union the finding describes).
+        var roleGrantCount = await ScalarAsync<int>(conn,
+            "SELECT count(*)::int FROM sys.user_roles WHERE user_id = 2", txn);
+        roleGrantCount.Should().Be(1,
+            "160 replayed against this (post-510) DB shape must grant EXACTLY ONE role — never " +
+            "zero (RLS silently blocking the per-company row) and never one-per-company (a " +
+            "cross-tenant permission union via PermissionLookup)");
+
+        var grantIsCompanyOneApprover = await ScalarAsync<int>(conn,
+            "SELECT count(*)::int FROM sys.user_roles ur JOIN sys.roles r ON r.role_id = ur.role_id " +
+            "WHERE ur.user_id = 2 AND r.role_code = 'APPROVER' AND r.company_id = 1 AND ur.company_id = 1", txn);
+        grantIsCompanyOneApprover.Should().Be(1,
+            "the single granted row must be specifically company 1's own APPROVER role copy");
 
         await txn.RollbackAsync();
 

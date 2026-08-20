@@ -486,7 +486,7 @@ exemption."
 
 Source: _review/ui-codebase-review-2026-08-20.md finding 1 (R1), and
 _review/ui-document-creation-test-2026-08-20.md's activity finding (R3 backend half). Both
-Fable-verified. F1-F4 (above) already committed at 72b25ad. Blast cap for this wave: +8 files.
+Fable-verified. F1-F4 (above) committed at 72b25ad. R1+R3 (this wave) committed at 3054c89 -- then Tier-2 reviewed and REJECTED with 2 blocking findings (F-1, F-2 below), remediated on top, uncommitted. Blast cap for this wave: +8 files (unchanged by Tier-2 remediation -- 0 new files, only edits to files already inside the cap).
 Still no commits (orchestrator commits), still the only backend dotnet-test runner this session
 (the FE worker holds its own dotnet tests until this wave reports done).
 
@@ -677,3 +677,99 @@ to real roles elsewhere, so no sys.permissions/template-grant gap expected.
   this spec file = 7, within the +8 cap.
 - No commits made (per instruction -- orchestrator commits). Live approver row sanity-checked
   clean after all test runs: is_super_admin=f, holds only the APPROVER role.
+
+---
+
+# TIER-2 REMEDIATION (2026-08-20) -- REJECT verdict, 2 blocking findings, both fixed
+
+Tier-2 review of the F1-F4 + R1 + R3 batch came back REJECT with two Fable-verified blocking
+findings. Remediated on top of the already-committed Wave-3 state (commits 72b25ad, 3054c89).
+Still no commits per instruction -- these fixes sit uncommitted in the working tree.
+
+## F-1 [HIGH] -- 160's APPROVER lookup breaks on the documented post-510 replay path
+
+Root cause: my Wave-3 fix for R1 changed WHERE r.role_code = 'SUPER_ADMIN' to
+WHERE r.role_code = 'APPROVER' with NO company predicate and NO RLS bypass. 160 is also
+replayed on a documented path -- DbInitializer does not record a SKIPPED demo script as applied
+(DbInitializer.cs:141-148), so a DB first booted with SeedDemoData=false then later flipped true
+runs 160 for the first time AFTER 510 has already converted the role catalog to per-company
+copies (636's runbook exercises this by design). Post-510 there is no global APPROVER row -- only
+per-company copies -- so the bare predicate either matched ZERO rows under a real NOBYPASSRLS
+role (silently leaving approver with NO role) or, under a connection that bypasses RLS via table
+ownership/superuser (teas_test/dev), matched EVERY company's own APPROVER copy -- confirmed live
+via the RED run below: 12,846 rows (one per company in the shared teas_test DB), which
+PermissionLookup (role_id-keyed, no role-company predicate) would union into a cross-tenant
+permission leak.
+
+Fix (reviewer's exact prescribed predicate -- do NOT copy 641's bare company_id = 1 style,
+which would break a true fresh install where only the global row exists at 160's file-order
+position): WHERE r.role_code = 'APPROVER' AND (r.company_id = 1 OR r.company_id IS NULL) plus
+SET LOCAL app.bypass_rls = 'on'; (same idiom as 642). This matches exactly one row in both
+shapes (global row pre-510 on a fresh install; company-1's own copy post-510 on a replay) and
+excludes every OTHER company's copy.
+
+File: backend/src/Accounting.Infrastructure/Migrations/SqlScripts/160_seed_approver_user.sql
+(header updated with the reviewer's own reasoning; predicate + bypass added).
+
+Test: extended the existing ApproverDemotionScriptTests.Script160_is_super_admin_flip_replays_
+correctly_in_isolation (renamed Script160_replay_flips_is_super_admin_and_grants_exactly_one_
+company_scoped_approver_role) -- asserts on sys.user_roles CONTENT (row count == 1, and that
+the single row is specifically company 1's own APPROVER copy), not just is_super_admin, per the
+reviewer's explicit instruction. Replayed against teas_test's ACTUAL current shape (already
+post-510, no global APPROVER row -- confirmed via psql, so no extra setup was needed to simulate
+the replay scenario; it IS the natural state of this shared DB).
+
+RED (git-stash to the pre-Tier-2 Wave-3 content): roleGrantCount assertion failed with
+12,846 instead of 1 -- one row inserted per company in the DB, a dramatic, concrete
+reproduction of the exact cross-tenant permission union the reviewer described.
+GREEN after restoring the fix: 1/1 (and the full ApproverDemotionScriptTests class: 4/4, same
+count as before since this extended an existing test rather than adding a new one).
+Sanity-checked post-run: live approver row (user_id=2) still is_super_admin=f, holds EXACTLY
+one role (APPROVER, company_id=1) -- the rolled-back-transaction test technique (proven in
+Wave 3) left zero permanent trace even through the 12,846-row RED failure (the await using
+transaction's automatic dispose-time rollback covers the FluentAssertions-throws-before-explicit-
+rollback case too).
+
+## F-2 [MEDIUM] -- import delete now permanently fails if the attachment was already soft-deleted
+
+Root cause: my Wave-2 F3 fix called attachments.SoftDeleteAsync(attachmentId, callerHasDeletePerm:
+true, ct) unconditionally inside DeleteImportAsync's transaction. AttachmentService.
+SoftDeleteAsync (line 219) filters DeletedAt == null before throwing attachment.not_found for
+a row that is EITHER missing OR already soft-deleted -- so a clerk who separately deleted the raw
+file from the standalone attachments panel (same permission set, or as its own uploader) would hit
+this throw on every subsequent attempt to delete the parent import, aborting the whole transaction
+permanently (the parent row and its lines would never be removable).
+
+Fix: wrap the SoftDeleteAsync call in a narrow catch (DomainException ex) when (ex.Code ==
+"attachment.not_found") that swallows ONLY that specific code and lets the parent delete proceed
+(the attachment is already in the desired/gone state) -- any OTHER DomainException from that
+call still propagates and aborts the delete exactly as before.
+
+File: backend/src/Accounting.Infrastructure/Bank/StatementImportService.cs (DeleteImportAsync,
+same method as F3/F4; comment explains the reviewer's own reasoning).
+
+Test: new StatementImportServiceTests.DeleteImportAsync_succeeds_when_the_attachment_was_already_
+soft_deleted -- imports a statement, calls attachments.SoftDeleteAsync directly on its
+attachment (simulating the standalone-panel deletion), then asserts DeleteImportAsync does NOT
+throw and both the import row and its lines are gone.
+
+RED (git-stash to the pre-Tier-2 content): failed with the EXACT unhandled
+Accounting.Domain.Common.DomainException: Attachment 1121 not found propagating out of
+DeleteImportAsync -- precisely the finding's described failure mode.
+GREEN after restoring the fix: 1/1.
+
+## Tier-2 remediation gates -- ALL RUN, ALL GREEN
+
+- Targeted (both fixes together): dotnet test tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj
+  --filter "FullyQualifiedName~ApproverDemotionScriptTests|FullyQualifiedName~DeleteImportAsync_
+  succeeds_when_the_attachment_was_already_soft_deleted" -o tests/Accounting.Api.Tests/bin/Debug/
+  net10.0-isolated -> Passed! - Failed: 0, Passed: 5, Skipped: 0, Total: 5.
+- Bank area (coordinator's requested rerun): --filter "FullyQualifiedName~Bank" ->
+  Passed! - Failed: 0, Passed: 88, Skipped: 0, Total: 88, Duration: 1m 16s (up from Wave 2's 87,
+  +1 the new F-2 test).
+- Rbac area (coordinator's requested rerun): --filter "FullyQualifiedName~Rbac" ->
+  Passed! - Failed: 0, Passed: 79, Skipped: 0, Total: 79, Duration: 3m 55s (same count as Wave 3
+  -- F-1's test extended an existing method rather than adding a new one).
+- No commits made (per instruction -- orchestrator commits). Blast radius unchanged from Wave 3's
+  cap (+8 files) -- 0 new files this round, only edits to 4 files already inside the cap: 160,
+  StatementImportService.cs, ApproverDemotionScriptTests.cs, StatementImportServiceTests.cs.

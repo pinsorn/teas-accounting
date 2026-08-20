@@ -309,6 +309,42 @@ public sealed class StatementImportServiceTests : IDisposable
             "the soft-deleted attachment must no longer be downloadable");
     }
 
+    /// <summary>Tier-2 F-2 (specs/fix-codex-review-2026-08-20.md) — a clerk who already deleted
+    /// the raw attachment from the standalone attachments panel (same permission, or as its own
+    /// uploader) must still be able to delete the parent import afterward. Before the fix,
+    /// AttachmentService.SoftDeleteAsync's "attachment.not_found" throw (already-deleted rows are
+    /// filtered by DeletedAt == null) aborted the whole transaction, permanently blocking the
+    /// import delete.</summary>
+    [SkippableFact]
+    public async Task DeleteImportAsync_succeeds_when_the_attachment_was_already_soft_deleted()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (bankAccountId, sp) = await SeedBankAccountAsync();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+        var result = await svc.ImportAsync(
+            bankAccountId, "test-statement.csv", "text/csv", 1000,
+            KBizCsvAdapterTests.Utf8BomStream(KBizCsvAdapterTests.GoodCsv), null, default);
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var import = await db.StatementImports.SingleAsync(x => x.StatementImportId == result.StatementImportId);
+        var attachmentId = import.AttachmentId!.Value;
+
+        // Simulate a clerk deleting the raw file from the standalone attachments panel FIRST,
+        // independently of the import delete flow.
+        var attachments = s.ServiceProvider.GetRequiredService<IAttachmentService>();
+        await attachments.SoftDeleteAsync(attachmentId, callerHasDeletePerm: true, default);
+
+        var act = () => svc.DeleteImportAsync(result.StatementImportId, default);
+        await act.Should().NotThrowAsync(
+            "the parent import delete must still succeed even though its attachment is already gone");
+
+        (await db.StatementImports.CountAsync(x => x.StatementImportId == result.StatementImportId)).Should().Be(0,
+            "the import row must still be removed");
+        (await db.StatementLines.CountAsync(x => x.StatementImportId == result.StatementImportId)).Should().Be(0,
+            "the lines must still be removed");
+    }
+
     // F4 (Codex review 2026-08-20) — no new tests here by design: the pre-existing
     // DeleteImportAsync_removes_a_pure_unmatched_import_and_its_lines (all-unmatched → clean
     // delete) and DeleteImportAsync_refuses_when_a_line_is_matched (a Matched line → refused,
