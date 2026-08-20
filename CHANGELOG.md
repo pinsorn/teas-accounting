@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.2](https://github.com/pinsorn/teas-accounting/compare/v2.3.1...v2.3.2) (2026-08-20)
+
+
+### Bug Fixes
+
+* **sales,fe:** cancel/reject reasons validated at both ends, activity notes rendered, version on onboarding (post-fix review + Ham request) ([36516c6](https://github.com/pinsorn/teas-accounting/commit/36516c60cd53346a3b78d2080eb02735624265db))
+
 ## [2.3.1](https://github.com/pinsorn/teas-accounting/compare/v2.3.0...v2.3.1) (2026-08-20)
 
 
