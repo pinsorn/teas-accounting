@@ -1,6 +1,16 @@
 # STATUS.md — orchestrator live board
 
 ## Now
+- **✅ 2026-08-20 — ALL FOUR PENDING DECISIONS RULED BY HAM AND EXECUTED.** O2b block-on-mismatch
+  (`3732f27` — billing_note.lines_not_reconciled at issue, Receipt-pattern reconcile vs linked
+  TIs' applied sum) · O5 ภ.พ.36 filled-PDF export (`cc11662` — official RD template from
+  docs/RD-Forms, field map render-verified by viewing, /tax-filings/pp36/pdf + FE button) ·
+  R10 closed won't-fix · CLAUDE.md reconciled both directions with minions-assemble (`2e31d02`
+  local: new 85/95/100 quota ladder + self-wake monitor + staging rules; `4d050cd` upstream:
+  money-invariant review, shared-test-DB, orchestrator-runs-suite, 7-day stop). Post-rulings full
+  suite: Domain 188/188 + Api 1324/1338 (0 failed, 14 baseline skips, zero flakes). Stack UP on
+  HEAD binaries, accounting_dev CLEAN (0 documents, roles correct). Remaining external: E1 CPA
+  sign-off (Ham) + everything in MIGRATION-CUTOVER-CHECKLIST.md (needs the new server).
 - **✅ 2026-08-19 — CLEANUP BATCH CLOSED (Ham: "ทำทั้งหมดยกเว้น server migration").** 11 units:
   C1 PO tax-code resolver (last verbatim-id writer closed) + MCP employee scope narrowed +
   seed-640 arm test · C2 FE trio (FA modal a11y, PO/DO hardcoded taxCodeId gone, back-dated-claim
