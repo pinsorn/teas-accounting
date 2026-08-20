@@ -113,6 +113,13 @@ public static class TaxFilingEndpoints
                 Results.File(await svc.BuildPnd54PdfAsync(period, ct), "application/pdf", $"pnd54-{period}.pdf"))
         .WithTags("TaxFilings").RequireAuthorization(preview);
 
+        // ── O5 (specs/fix-o5-pp36-pdf.md) — ภ.พ.36 filled PDF, parity with ภ.ง.ด.54. Same
+        // FilingPreview gate as the /tax-filings/pnd36 compute route above (read-only export).
+        app.MapGet("/tax-filings/pp36/pdf", async (
+            [FromQuery] int period, IWhtFilingService svc, CancellationToken ct) =>
+                Results.File(await svc.BuildPp36PdfAsync(period, ct), "application/pdf", $"pp36-{period}.pdf"))
+        .WithTags("TaxFilings").RequireAuthorization(preview);
+
         // ── cont.82.1 P2 — RD batch-upload file (FORMAT กลาง) for ภ.ง.ด.53 / ภ.ง.ด.3.
         // Emits the pipe-delimited UTF-8 .txt the user uploads to the RD e-Filing portal.
         // Read-only export (no finalize) → gated on the same FilingPreview permission.

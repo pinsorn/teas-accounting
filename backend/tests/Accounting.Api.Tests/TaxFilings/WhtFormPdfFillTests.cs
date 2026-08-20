@@ -2,6 +2,8 @@ using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
 using Accounting.Application.TaxFilings;
 using Accounting.Domain.Common;
+using Accounting.Domain.Entities.Master;
+using Accounting.Domain.Entities.Purchase;
 using Accounting.Domain.Entities.Tax;
 using Accounting.Domain.Enums;
 using Accounting.Infrastructure;
@@ -75,6 +77,37 @@ public sealed class WhtFormPdfFillTests
             IncomeAmount = income, WhtRate = rate,
             WhtAmount = decimal.Round(income * rate, 2),
             Status = DocumentStatus.Posted, IssuedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync(default);
+    }
+
+    // O5 (specs/fix-o5-pp36-pdf.md) — seeds a Posted foreign-vendor Vendor + settling PaymentVoucher
+    // with RequiresPnd36ReverseCharge=true, mirroring Sprint9WhtComplianceTests' GeneratePnd36Async
+    // seed shape (ม.83/6 declares off the settling PV, not the VendorInvoice — R2/C2).
+    private static async Task AddPnd36Pv(
+        ServiceProvider sp, int period, int day, string vendorName, string country, decimal subtotal)
+    {
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var dd = new DateOnly(period / 100, period % 100, day);
+        var ven = new Vendor
+        {
+            CompanyId = 1, VendorCode = "V-" + Sfx(), NameTh = vendorName,
+            IsForeign = true, CountryCode = country, VatRegistered = true,
+        };
+        db.Vendors.Add(ven);
+        await db.SaveChangesAsync(default);
+
+        db.PaymentVouchers.Add(new PaymentVoucher
+        {
+            CompanyId = 1, BranchId = 1, SubPrefix = "PV",
+            DocDate = dd, PostingDate = dd,
+            VendorId = ven.VendorId, VendorName = vendorName, VendorType = CustomerType.Corporate,
+            CurrencyCode = "THB", ExchangeRate = 1m,
+            SubtotalAmount = subtotal, VatAmount = 0m, WhtAmount = 0m,
+            TotalPaid = subtotal, TotalAmountThb = subtotal,
+            RequiresPnd36ReverseCharge = true,
+            Status = DocumentStatus.Posted, PostedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync(default);
     }
@@ -230,6 +263,95 @@ public sealed class WhtFormPdfFillTests
         {
             var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
             var act = () => svc.BuildPnd3PdfAsync(RandPeriod(), default);
+            (await act.Should().ThrowAsync<DomainException>())
+                .Which.Code.Should().Be("filing.payer_tax_id_missing");
+        }
+        finally
+        {
+            prof.TaxId = original;
+            await db.SaveChangesAsync();
+        }
+    }
+
+    // ── O5 (specs/fix-o5-pp36-pdf.md) — ภ.พ.36 filled PDF ──
+    // Money invariant per sheet: printed(1.)=ServiceAmountThb, printed(2.)=printed(5.)=VatAmount
+    // (rows 3/4 — เงินเพิ่ม/เบี้ยปรับ — are always blank, we only ever file on time). Asserted at the
+    // SERVICE layer (the authoritative source BuildPp36PdfAsync prints from) — mirrors every other
+    // filler test in this file, which never text-extracts a flattened comb render (Thai combining
+    // marks scramble under extraction; the box PLACEMENT itself was render-verified via a screenshot
+    // actually viewed during development, per specs/fix-o5-pp36-pdf.md, not re-asserted here).
+    [SkippableFact]
+    public async Task Pp36_maps_reverse_charge_payment_through_to_the_form()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var period = RandPeriod();
+
+        await AddPnd36Pv(sp, period, 15, "Amazon Web Services, Inc.", "US", 50_000m);
+
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+
+        var filing = await svc.GeneratePnd36Async(period, TaxFilingMode.Preview, default);
+        filing.Rows.Should().HaveCount(1);
+        filing.Rows[0].ServiceAmountThb.Should().Be(50_000m);
+        filing.Rows[0].VatAmount.Should().Be(3_500m);          // 50,000 * 7%
+        filing.TotalVat.Should().Be(filing.Rows[0].VatAmount); // (2.) == (5.) invariant, one row
+
+        var pdf = await svc.BuildPp36PdfAsync(period, default);
+        System.Text.Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
+        pdf.Length.Should().BeGreaterThan(10_000);
+        Dump("_test_pp36.pdf", pdf);
+    }
+
+    // ภ.พ.36's own page-2 instructions say to separate by payee ("แยกเปนแต่ละรายผู้รับ") — one
+    // sheet per reverse-charge payment, same one-sheet-per-payment contract ภ.ง.ด.54 already proves.
+    [SkippableFact]
+    public async Task Pp36_renders_one_sheet_per_reverse_charge_payment()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+
+        static int Pages(byte[] pdf)
+        {
+            using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
+            return doc.PageCount;
+        }
+
+        var p1 = RandPeriod();
+        await AddPnd36Pv(sp, p1, 5, "Foreign Vendor A", "US", 20_000m);
+        var single = Pages(await svc.BuildPp36PdfAsync(p1, default));
+
+        var p2 = RandPeriod();
+        await AddPnd36Pv(sp, p2, 5, "Foreign Vendor A", "US", 20_000m);
+        await AddPnd36Pv(sp, p2, 6, "Foreign Vendor B", "SG", 30_000m);
+        (await svc.GeneratePnd36Async(p2, TaxFilingMode.Preview, default)).Rows.Should().HaveCount(2);
+
+        Pages(await svc.BuildPp36PdfAsync(p2, default))
+            .Should().Be(2 * single, "one ภ.พ.36 sheet per reverse-charge payment");
+    }
+
+    // R2/L1-1/N3-shaped guard — BuildPp36PdfAsync is a NEW build path GeneratePnd36Async itself does
+    // NOT guard (presentation-only concern, per the U1/U10 convention already applied to
+    // BuildPnd54PdfAsync/BuildWhtPdfAsync).
+    [SkippableFact]
+    public async Task Pp36_pdf_refuses_a_placeholder_company_profile_tax_id()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        await using var s = sp.CreateAsyncScope();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        var prof = await db.CompanyProfiles.SingleAsync(p => p.CompanyId == 1);
+        var original = prof.TaxId;
+        prof.TaxId = "0000000000000";
+        await db.SaveChangesAsync();
+        try
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IWhtFilingService>();
+            var act = () => svc.BuildPp36PdfAsync(RandPeriod(), default);
             (await act.Should().ThrowAsync<DomainException>())
                 .Which.Code.Should().Be("filing.payer_tax_id_missing");
         }

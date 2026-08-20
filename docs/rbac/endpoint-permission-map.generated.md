@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 17 |
-| Perm | 299 |
+| Perm | 300 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **363** |
+| **TOTAL** | **364** |
 
 ## Routes
 
@@ -350,6 +350,7 @@
 | GET | `/tax-filings/pnd54/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pp01/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-filings/pp09/pdf` | Perm | tax.filing.preview |
+| GET | `/tax-filings/pp36/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-invoices/` | Perm | sales.tax_invoice.read |
 | POST | `/tax-invoices/` | Perm | sales.tax_invoice.create |
 | GET | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.read |

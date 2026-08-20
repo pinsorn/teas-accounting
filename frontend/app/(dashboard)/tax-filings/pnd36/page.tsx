@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import { usePnd36 } from '@/lib/queries';
+import { openPdf } from '@/lib/api';
 import { formatTHB } from '@/lib/utils';
 import type { Pnd36Filing } from '@/lib/types';
 import { useConfirm } from '@/hooks/useConfirm';
@@ -81,6 +82,11 @@ export default function Pnd36Page() {
             {t('finalize')}
           </button>
         </PermissionGate>
+        <button className="btn btn-sm btn-outline" data-testid="tf-download-pdf"
+          onClick={() => openPdf(`tax-filings/pp36/pdf?period=${ym.replace('-', '')}`)
+            .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Error'))}>
+          {t('downloadPdf')}
+        </button>
         {filing && (
           <span data-testid="tf-status"
             className={`badge ${filing.status === 'Preview' ? 'badge-ghost' : 'badge-success'}`}>

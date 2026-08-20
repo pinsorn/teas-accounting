@@ -171,6 +171,8 @@ public interface IWhtFilingService
     Task<byte[]> BuildPnd3PdfAsync(int period, CancellationToken ct);
     Task<byte[]> BuildPnd53PdfAsync(int period, CancellationToken ct);
     Task<byte[]> BuildPnd54PdfAsync(int period, CancellationToken ct);
+    // O5 (specs/fix-o5-pp36-pdf.md) — ภ.พ.36 self-assess VAT filled PDF, parity with ภ.ง.ด.54.
+    Task<byte[]> BuildPp36PdfAsync(int period, CancellationToken ct);
 }
 
 // ── cont.82.1 P2 — WHT batch-upload file (RD โปรแกรมโอนย้ายข้อมูล / FORMAT กลาง V2.0) ──

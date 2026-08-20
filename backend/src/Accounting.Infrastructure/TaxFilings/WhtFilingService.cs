@@ -149,6 +149,46 @@ public sealed class WhtFilingService(
         return sheets.Count == 1 ? sheets[0] : WhtFormFiller.Merge(sheets);
     }
 
+    // O5 (specs/fix-o5-pp36-pdf.md) — ภ.พ.36 self-assess VAT filled PDF, one sheet per foreign-vendor
+    // payment (the form's own page-2 instructions say to separate by payee), merged like ภ.ง.ด.54.
+    // Preview-mode only (never Finalize — this is presentation over GeneratePnd36Async's own output,
+    // it must never re-run the FIX-3b ack/unreconciled guards or post the reverse-charge JV again).
+    public async Task<byte[]> BuildPp36PdfAsync(int period, CancellationToken ct)
+    {
+        var f = await GeneratePnd36Async(period, TaxFilingMode.Preview, ct);
+        var prof = await db.CompanyProfiles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CompanyId == tenant.CompanyId, ct);
+        var company = await db.Companies.AsNoTracking()
+            .Where(c => c.CompanyId == tenant.CompanyId)
+            .Select(c => new { c.TaxId, c.NameTh }).FirstAsync(ct);
+
+        // Same U1/U10 refuse-guard as BuildPnd54PdfAsync/BuildWhtPdfAsync — GeneratePnd36Async itself
+        // does not carry it (presentation-only concern), so this NEW build path gets its own call,
+        // resolved ONCE before the row loop (not per-sheet — N3 Tier-2 lesson, WhtFilingService.cs:127).
+        var payerTaxId = prof?.TaxId ?? company.TaxId;
+        PayerTaxIdRules.EnsureUsable(payerTaxId);
+
+        Pp36Model ModelFor(Pnd36Row? r) => new(
+            TaxId:      payerTaxId,
+            BranchCode: prof?.BranchCode ?? "00000",
+            PayerName:  prof?.LegalName ?? company.NameTh,
+            Building:   prof?.RegBuilding, RoomNo: prof?.RegRoomNo, Floor: prof?.RegFloor,
+            Village:    prof?.RegVillage, HouseNo: prof?.RegHouseNo, Moo: prof?.RegMoo,
+            Soi:        prof?.RegSoi, Road: prof?.RegStreet,
+            SubDistrict: prof?.RegisteredSubdistrict, District: prof?.RegisteredDistrict,
+            Province:    prof?.RegisteredProvince, PostalCode: prof?.RegisteredPostalCode,
+            PayeeName:  r?.VendorName,
+            Country:    r?.VendorCountry,
+            PayDate:    r?.PaymentDate,
+            ServiceAmount: r?.ServiceAmountThb,
+            VatAmount:     r?.VatAmount);
+
+        var sheets = f.Rows.Count == 0
+            ? new List<byte[]> { Pp36FormFiller.Fill(ModelFor(null)) }
+            : f.Rows.Select(r => Pp36FormFiller.Fill(ModelFor(r))).ToList();
+        return sheets.Count == 1 ? sheets[0] : WhtFormFiller.Merge(sheets);
+    }
+
     private async Task<byte[]> BuildWhtPdfAsync(WhtFiling f, WhtFormLayout layout, CancellationToken ct)
     {
         var prof = await db.CompanyProfiles.AsNoTracking()
