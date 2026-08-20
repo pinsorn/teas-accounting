@@ -85,10 +85,6 @@
       "title": "Confirm the customer accepted this quotation",
       "warning": "This records the customer's acceptance and unlocks converting it to a sales order."
     },
-    "qtReject": {
-      "title": "Confirm the customer rejected this quotation",
-      "warning": "This records the customer's rejection and ends the workflow for this quotation."
-    },
     "soPost": {
       "title": "Confirm sales order confirmation (Post)",
       "warning": "Posting issues the document number immediately and cannot be reverted to Draft."
@@ -1804,11 +1800,7 @@
     "downloadPdf": "Download PDF",
     "reject": "Customer rejected",
     "cancelQuotation": "Cancel quotation",
-    "cancelConfirm": "Cancel this quotation?",
-    "cancelReason": "Cancelled by user",
     "cancelReasonPlaceholder": "Enter a cancellation reason",
-    "rejectConfirm": "Confirm the customer rejected this quotation?",
-    "rejectReason": "Customer rejected",
     "rejectReasonPlaceholder": "Enter the customer's rejection reason"
   },
   "salesOrder": {

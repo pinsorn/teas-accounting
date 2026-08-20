@@ -9,9 +9,9 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionGate } from '@/components/PermissionGate';
 import {
   useCompanyProfile, useUpdateCompanyProfileSoft, useUploadCompanyLogo, useUpdateCompanyInfo,
-  useUploadCompanyStamp,
+  useUploadCompanyStamp, useUpdateCompany,
 } from '@/lib/queries';
-import { problemToast,  apiGet, apiPut } from '@/lib/api';
+import { problemToast, apiGet } from '@/lib/api';
 import { resolveAttachmentUrl } from '@/lib/company-logo';
 import type {
   CompanyDto, CompanyProfile, DefaultDocNotes, LegalEntityType, UpdateCompanyProfileSoftRequest,
@@ -621,6 +621,12 @@ function PaidUpCapitalCard({ profile }: { profile: CompanyProfile }) {
   const [row, setRow] = useState<CompanyDto | null>(null);
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
+  // Tier-2 F-3b — this card previously called apiPut() directly, invalidating NOTHING
+  // (not even company-profile) despite PUTting the whole row (vatRate/address/phone
+  // echoed back unchanged alongside the real paidUpCapital edit). Routed through the
+  // existing useUpdateCompany mutation so it gets the same invalidations every other
+  // /companies/{id} editor gets (companies list, this company, system-info, paper-doc).
+  const updateCompany = useUpdateCompany(profile.companyId);
 
   useEffect(() => {
     let alive = true;
@@ -661,7 +667,7 @@ function PaidUpCapitalCard({ profile }: { profile: CompanyProfile }) {
         vatRate: row.vatRate,
         pnd30SubmissionMode: row.pnd30SubmissionMode,
       };
-      await apiPut<unknown>(`companies/${row.companyId}`, payload);
+      await updateCompany.mutateAsync(payload);
       setRow({ ...row, paidUpCapital: parsed });
       toast.success(t('paidUpCapitalSaved'));
     } catch (e) {

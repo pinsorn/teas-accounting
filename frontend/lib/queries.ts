@@ -393,6 +393,10 @@ export function useUpdateCustomer(id: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customers'] });
       qc.invalidateQueries({ queryKey: ['customer', id] });
+      // Tier-2 F-3a (fix-codex-ui-review-2026-08-20) — SalesChainPdfService reads the
+      // LIVE customer row into the paper preview (name/address/tax id); without this,
+      // an open quotation/SO/invoice preview for this customer shows stale party info.
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -944,7 +948,12 @@ export function useUpdateCompanyProfileSoft() {
   return useMutation({
     mutationFn: (req: UpdateCompanyProfileSoftRequest) =>
       apiPut<unknown>('company-profile/soft', req),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-profile'] });
+      // Tier-2 F-3b — PaperSellerSource.FromCompanyProfileAsync composes the paper
+      // seller block (name/address/phone/email) from this same CompanyProfile row.
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+    },
   });
 }
 
@@ -954,7 +963,12 @@ export function useUpdateRegisteredAddress() {
   return useMutation({
     mutationFn: (req: UpdateRegisteredAddressRequest) =>
       apiPut<unknown>('company-profile/registered-address', req),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-profile'] });
+      // Tier-2 F-3b — registered address feeds the paper seller block (see
+      // useUpdateCompanyProfileSoft above).
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+    },
   });
 }
 
@@ -970,6 +984,8 @@ export function useUpdateCompanyInfo() {
       qc.invalidateQueries({ queryKey: ['company-profile'] });
       qc.invalidateQueries({ queryKey: ['companies'] });
       qc.invalidateQueries({ queryKey: ['system-info'] });
+      // Tier-2 F-3b — founding identity/tax config feeds the paper seller block.
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -980,7 +996,11 @@ export function useUploadCompanyLogo() {
   return useMutation({
     mutationFn: (file: File) =>
       apiUploadFile<{ logoUrl: string }>('company-profile/logo', file),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-profile'] });
+      // Tier-2 F-3b — the logo is embedded in the paper document header.
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+    },
   });
 }
 
@@ -992,7 +1012,11 @@ export function useUploadCompanyStamp() {
   return useMutation({
     mutationFn: (file: File) =>
       apiUploadFile<{ stampUrl: string }>('company-profile/stamp', file),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['company-profile'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-profile'] });
+      // Tier-2 F-3b — the stamp is embedded in the paper document (PaperSignatureSource).
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+    },
   });
 }
 
@@ -1055,6 +1079,9 @@ export function useUpdateCompany(id: number) {
       // §4.6 — vatRegistered/vatRate drive app-wide VAT mode (nav, e-Tax CTAs,
       // doc forms) via /system/info → must refetch immediately after an edit.
       qc.invalidateQueries({ queryKey: ['system-info'] });
+      // Tier-2 F-3b — PaperSellerSource falls back to the Company row when the
+      // tenant has no CompanyProfile yet, so this can feed the paper seller block too.
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
     },
   });
 }
@@ -2236,7 +2263,12 @@ export function useUploadUserSignature(userId: number) {
   return useMutation({
     mutationFn: (file: File) =>
       apiUploadFile<{ signatureUrl: string }>(`admin/rbac/users/${userId}/signature`, file),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rbac-users'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rbac-users'] });
+      // Tier-2 F-3c — PaperSignatureSource embeds the signer's signature image in the
+      // paper document; an open doc signed/re-signed by this user must refresh it.
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+    },
   });
 }
 

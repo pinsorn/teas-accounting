@@ -314,5 +314,83 @@ assertion that only checks the ONE element you're fixing can pass while an
 adjacent element silently breaks — screenshot review caught what the
 assertion missed.
 
+## Tier-2 follow-up — 2026-08-20 (non-blocking findings on the Wave 1-3 commits)
+
+FE-only, no `dotnet test`, no commits. Fold-in of two findings from the Tier-2
+review of the earlier commits in this file.
+
+### F-3 — master-data mutations that feed the paper preview invalidate nothing
+Grounded in `backend/src/Accounting.Infrastructure/Pdf/PaperSellerSource.cs`
+(`FromCompanyProfileAsync` composes the paper seller block — name/taxId/
+address/logo/phone/email — from `CompanyProfiles`, falling back to `Companies`
+when the tenant has no profile row yet) and `PaperSignatureSource.cs` (embeds
+the signer's uploaded signature image). Every hook below previously
+invalidated only its own narrow key; none touched `['paper-doc']`, so an open
+document's paper preview kept showing a stale customer/seller/signature after
+exactly the master-data edit that should have changed it.
+
+- [x] **(a) `useUpdateCustomer`** (`lib/queries.ts` ~389) — added
+      `['paper-doc']` alongside the existing `['customers']`/`['customer', id]`.
+- [x] **(b) Company hooks** (`lib/queries.ts`) — added `['paper-doc']` to ALL
+      six: `useUpdateCompanyProfileSoft`, `useUpdateRegisteredAddress`,
+      `useUpdateCompanyInfo`, `useUploadCompanyLogo`, `useUploadCompanyStamp`,
+      `useUpdateCompany(id)`. Verified via `PaperSellerSource.cs` that every
+      field these six write (name/address/phone/email/logo/stamp/vatRate) is
+      one FromCompanyProfileAsync (or its Company-row fallback) reads.
+- [x] **(b) the raw `apiPut('companies/{id}')`** in
+      `settings/company/page.tsx:664` (`PaidUpCapitalCard`) — this call
+      previously invalidated NOTHING at all (bypassed React Query entirely,
+      a plain `apiPut` import), despite PUTting the FULL row (vatRate,
+      address, phone echoed back unchanged alongside the real
+      `paidUpCapital` edit — a whole-row overwrite endpoint). Routed through
+      the existing `useUpdateCompany(profile.companyId)` mutation instead of
+      hand-rolling new invalidations (no refactor beyond that swap — `saving`
+      state, the `row`/`value` local state, and the GET-via-`apiGet` loader
+      are all untouched). Removed the now-dead `apiPut` import.
+- [x] **(c) `useUploadUserSignature`** (`lib/queries.ts` ~2238) — added
+      `['paper-doc']` alongside the existing `['rbac-users']`.
+- [x] `tsc --noEmit` — 0 errors.
+
+### N2 — orphaned i18n keys from the UI-3 cancel/reject rework
+Verified EACH key unreferenced by any `.tsx`/`.ts` file before deleting
+(`grep -rn` across `app/`, `components/`, `lib/` — see evidence below), scoped
+correctly to the `quotation` namespace only (a same-named `rejectReason` key
+exists in a DIFFERENT namespace for expense-claims and was left untouched —
+confirmed by grep showing its only matches are `t('rejectReason')` calls
+inside `expense-claims/[id]/page.tsx`, never `quotations/[id]/page.tsx`).
+
+- [x] `confirmAction.qtReject` (title + warning, both files) — zero code
+      references (the reject flow now uses the inline required-reason input,
+      not `ConfirmActionDialog`).
+- [x] `quotation.cancelConfirm` — zero code references (was the canned
+      `useConfirm()` popup description, removed when cancel became the
+      inline-input pattern).
+- [x] `quotation.cancelReason` — zero `t('cancelReason')` calls; only matches
+      were the unrelated `cancelReason` REACT STATE variable name and the
+      `cancelReasonPlaceholder` key (kept).
+- [x] `quotation.rejectConfirm` — zero code references.
+- [x] `quotation.rejectReason` — zero `t('rejectReason')` calls within
+      `quotation` namespace context; the only `t('rejectReason')` calls in the
+      codebase are `expense-claims/[id]/page.tsx`'s OWN `rejectReason` key in
+      a different namespace (left alone).
+- [x] Post-deletion re-grep across `app/`, `components/`, `lib/`, `messages/`
+      confirms zero remaining references to any of the five removed keys.
+- [x] Key-parity check (`th.json` vs `en.json`, `quotation`/`confirmAction`
+      namespaces): both files list identical leaf keys after the edit — no
+      key deleted from only one language file.
+- [x] Both JSON files re-validated with `JSON.parse` after editing.
+- [x] `tsc --noEmit` — 0 errors.
+
+### Gates — ALL PASSED (Tier-2 follow-up)
+- `npx tsc --noEmit` — 0 errors (run after F-3 edits, again after N2 edits).
+- `node -e "JSON.parse(...)"` on both `th.json`/`en.json` — valid.
+- Key-parity check script (inline `node -e`) — `quotation`/`confirmAction`
+  namespaces identical between languages.
+- No `dotnet test` run (not requested this round — FE-only, invalidation
+  keys are React-Query-side plumbing with no backend surface).
+
+### Blast radius (Tier-2 follow-up)
+4 files: `lib/queries.ts`, `settings/company/page.tsx`, `th.json`, `en.json`.
+
 ## Report
 See final message to orchestrator for fix shape / files / evidence per finding.
