@@ -42,10 +42,22 @@
 -- Idempotent: the WHERE clause only ever matches the literal placeholder; a second run (or
 -- replay on an already-repaired database) matches zero rows.
 --
+-- Codex review 2026-08-20 F1 — same class of bug as 637's own header: the literal-value-only
+-- WHERE above would launder ANY real tenant's placeholder company_profile.tax_id into the
+-- fictional 0105000000012. Added a JOIN back to master.companies (not company_profile's own
+-- legal_name — company_profile is the desynced side here, see this file's header above) checking
+-- the demo company's stable seeded identity (name_th = 'Demo Company (เดโม)', same literal 120
+-- uses). Any other tenant's placeholder profile is left invalid so the filing/WHT guards keep
+-- refusing it until a real Tax ID is entered.
+--
 -- NB: NEVER put curly braces anywhere in this file — DbInitializer runs it through
 -- ExecuteSqlRawAsync, which treats brace characters as string.Format placeholders and fails at
 -- boot.
 
-UPDATE master.company_profile
+UPDATE master.company_profile p
 SET tax_id = '0105000000012'
-WHERE tax_id = '0000000000000';
+WHERE p.tax_id = '0000000000000'
+  AND EXISTS (
+    SELECT 1 FROM master.companies c
+    WHERE c.company_id = p.company_id AND c.name_th = 'Demo Company (เดโม)'
+  );

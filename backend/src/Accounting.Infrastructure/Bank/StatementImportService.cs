@@ -242,11 +242,12 @@ public sealed class StatementImportService(
         // Posted per D8/BankEnums.cs); those real Receipt/PV/JE links must be unmatched or
         // reversed through their own flows first. Otherwise the import is a pure parse artifact
         // — hard-delete is safe, the source CSV can always be re-imported (B2.5).
-        // Fable diff review (TOCTOU) — this check must run INSIDE the transaction, immediately
-        // before the delete, not before BeginTransactionAsync: a check-then-later-transaction
-        // ordering left a window where a concurrent ConfirmMatchAsync could match a line between
-        // the check and the delete, silently deleting a now-linked line out from under its
-        // Receipt/PV.
+        // Fast-path pre-check only — a friendly error with zero rows touched when the common case
+        // (no matched lines) doesn't apply. Codex review 2026-08-20 F4 — this check does NOT by
+        // itself close the race: under read-committed, a concurrent ConfirmMatchAsync can commit
+        // a match between this AnyAsync and the delete below, and this check alone would not see
+        // it. The CONDITIONAL DELETE + count comparison below is the actual correctness
+        // mechanism (see its own comment).
         var hasBlockingLines = await db.StatementLines.AsNoTracking().AnyAsync(x =>
             x.StatementImportId == importId && x.CompanyId == tenant.CompanyId &&
             (x.MatchStatus == MatchStatus.Matched || x.MatchStatus == MatchStatus.Posted), ct);
@@ -254,9 +255,40 @@ public sealed class StatementImportService(
             throw new DomainException("bank.import_has_matched_lines",
                 "Cannot delete an import that has matched or posted lines — unmatch or reverse them first.");
 
-        await db.StatementLines
-            .Where(x => x.StatementImportId == importId && x.CompanyId == tenant.CompanyId)
+        // Codex review 2026-08-20 F3 — the raw uploaded file must not outlive its parent import:
+        // listing/download both already filter on DeletedAt == null (AttachmentService.ListAsync/
+        // OpenForDownloadAsync/ResolveParentAsync), so soft-deleting it here is enough to stop it
+        // being served. Runs on the SAME scoped AccountingDbContext `db` as this transaction, so
+        // it participates in `txn` automatically — no separate commit needed. `callerHasDeletePerm:
+        // true` — the caller already cleared Permissions.Bank.StatementImport to reach this method
+        // at all (StatementImportEndpoints' DELETE route), which is the real authority governing
+        // this cascade; SoftDeleteAsync's own "delete perm OR uploader" check is for the standalone
+        // attachment-delete route, not relevant to this authorized parent-delete cascade.
+        if (import.AttachmentId is long attachmentId)
+            await attachments.SoftDeleteAsync(attachmentId, callerHasDeletePerm: true, ct);
+
+        // Codex review 2026-08-20 F4 — the correctness mechanism for the delete-vs-match race.
+        // Read-committed does not lock rows read by the AnyAsync check above, so a concurrent
+        // match confirmation could still land between that check and a plain unconditional
+        // delete. Constraining the DELETE's own WHERE to the allowed statuses closes this:
+        // Postgres evaluates a DELETE's WHERE against each row's latest COMMITTED state at
+        // execution time (blocking on any row a concurrent still-open transaction holds a lock
+        // on, then re-checking after it resolves) — so a line that was concurrently matched is
+        // simply excluded from the delete, never silently discarded. Comparing the deleted count
+        // against the import's current total line count catches exactly that case and rolls the
+        // whole transaction back instead of leaving a partially-deleted import.
+        var totalLineCount = await db.StatementLines.AsNoTracking().CountAsync(x =>
+            x.StatementImportId == importId && x.CompanyId == tenant.CompanyId, ct);
+
+        var deletedCount = await db.StatementLines
+            .Where(x => x.StatementImportId == importId && x.CompanyId == tenant.CompanyId &&
+                (x.MatchStatus == MatchStatus.Unmatched || x.MatchStatus == MatchStatus.Ignored))
             .ExecuteDeleteAsync(ct);
+
+        if (deletedCount < totalLineCount)
+            throw new DomainException("bank.import_has_matched_lines",
+                "Cannot delete an import that has matched or posted lines — unmatch or reverse them first.");
+
         db.StatementImports.Remove(import);
         await db.SaveChangesAsync(ct);
         await txn.CommitAsync(ct);

@@ -38,27 +38,36 @@
 -- ON CONFLICT DO NOTHING on the same primary key (user_id, role_id, company_id, branch_id) is
 -- still in force. A second run of this script finds the rows already present and touches nothing.
 --
+-- Codex review 2026-08-20 F2 — the bare `EXISTS (... WHERE user_id = 3)` / `= 4` above verified
+-- only that SOME row with that numeric id exists, not that it was actually 181's ap_clerk/
+-- sales_staff. On a database where a real user happens to land on id 3 or 4 (e.g. the first
+-- accounts created after install), this script would grant them AP_CLERK/SALES_STAFF for company
+-- 1 they never should have held. Hardened to match 181's own exact identity pins (username AND
+-- email, not just a numeric id) and to DERIVE the user_id FROM that identity via a JOIN, instead
+-- of hardcoding 3/4 — so this is correct even on a database where ap_clerk/sales_staff ended up
+-- with different ids (some other user registered first).
+--
 -- NB: NEVER put curly braces anywhere in this file — DbInitializer runs it through
 -- ExecuteSqlRawAsync, which treats brace characters as string.Format placeholders and fails at boot.
 
 SET LOCAL app.bypass_rls = 'on';
 
 INSERT INTO sys.user_roles (user_id, role_id, company_id, branch_id, valid_from)
-SELECT 3, r.role_id, 1, 1, DATE '2026-01-01'
-FROM sys.roles r
-WHERE r.role_code = 'AP_CLERK' AND r.company_id = 1
-  AND EXISTS (SELECT 1 FROM sys.users u WHERE u.user_id = 3)
+SELECT u.user_id, r.role_id, 1, 1, DATE '2026-01-01'
+FROM sys.users u
+JOIN sys.roles r ON r.role_code = 'AP_CLERK' AND r.company_id = 1
+WHERE u.username = 'ap_clerk' AND u.email = 'ap_clerk@teas.local'
   AND NOT EXISTS (
     SELECT 1 FROM sys.user_roles ur
-    WHERE ur.user_id = 3 AND ur.role_id = r.role_id AND ur.company_id = 1 AND ur.branch_id = 1
+    WHERE ur.user_id = u.user_id AND ur.role_id = r.role_id AND ur.company_id = 1 AND ur.branch_id = 1
   );
 
 INSERT INTO sys.user_roles (user_id, role_id, company_id, branch_id, valid_from)
-SELECT 4, r.role_id, 1, 1, DATE '2026-01-01'
-FROM sys.roles r
-WHERE r.role_code = 'SALES_STAFF' AND r.company_id = 1
-  AND EXISTS (SELECT 1 FROM sys.users u WHERE u.user_id = 4)
+SELECT u.user_id, r.role_id, 1, 1, DATE '2026-01-01'
+FROM sys.users u
+JOIN sys.roles r ON r.role_code = 'SALES_STAFF' AND r.company_id = 1
+WHERE u.username = 'sales_staff' AND u.email = 'sales_staff@teas.local'
   AND NOT EXISTS (
     SELECT 1 FROM sys.user_roles ur
-    WHERE ur.user_id = 4 AND ur.role_id = r.role_id AND ur.company_id = 1 AND ur.branch_id = 1
+    WHERE ur.user_id = u.user_id AND ur.role_id = r.role_id AND ur.company_id = 1 AND ur.branch_id = 1
   );

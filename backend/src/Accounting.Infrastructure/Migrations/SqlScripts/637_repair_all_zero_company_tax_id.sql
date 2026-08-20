@@ -33,9 +33,21 @@
 -- Idempotent: the WHERE clause only ever matches the literal placeholder; once repaired, a
 -- second run (or replay on an already-fixed database) matches zero rows.
 --
+-- Codex review 2026-08-20 F1 — the literal-value-only WHERE above would launder ANY real
+-- tenant's all-zero placeholder into the fictional-but-checksum-valid 0105000000012, letting the
+-- U1/U10 filing/withholding guards accept a fake payer identity for a genuine company that simply
+-- never got its real Tax ID filled in yet. Added `name_th = 'Demo Company (เดโม)'` — the demo
+-- company's own stable seeded identity (120_seed_demo_company.sql), company-agnostic (matches
+-- WHATEVER row currently holds that exact name, not a hardcoded company_id, same as the rest of
+-- this script's contract) — so this repair only ever touches the KNOWN demo record. Any other
+-- tenant's placeholder is left invalid on purpose: the filing/WHT guards then correctly REFUSE to
+-- issue statutory documents until an administrator supplies the real Tax ID, instead of silently
+-- stamping a fictional one.
+--
 -- NB: NEVER put curly braces anywhere in this file — DbInitializer runs it through
 -- ExecuteSqlRawAsync, which treats brace characters as string.Format placeholders and fails at boot.
 
 UPDATE master.companies
 SET tax_id = '0105000000012'
-WHERE tax_id = '0000000000000';
+WHERE tax_id = '0000000000000'
+  AND name_th = 'Demo Company (เดโม)';

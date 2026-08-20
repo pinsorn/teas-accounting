@@ -1,5 +1,6 @@
 using Accounting.Api.Tests.Fixtures;
 using Accounting.Application.Abstractions;
+using Accounting.Application.Attachments;
 using Accounting.Application.Bank;
 using Accounting.Domain.Common;
 using Accounting.Infrastructure;
@@ -269,4 +270,49 @@ public sealed class StatementImportServiceTests : IDisposable
         var act = () => svc.DeleteImportAsync(999999999, default);
         (await Assert.ThrowsAsync<DomainException>(act)).Code.Should().Be("bank.import_not_found");
     }
+
+    // ── Codex review 2026-08-20 F3 — deleting an import must soft-delete its attachment too ──
+
+    [SkippableFact]
+    public async Task DeleteImportAsync_soft_deletes_the_statement_attachment_and_stops_serving_it()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var (bankAccountId, sp) = await SeedBankAccountAsync();
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IStatementImportService>();
+        var result = await svc.ImportAsync(
+            bankAccountId, "test-statement.csv", "text/csv", 1000,
+            KBizCsvAdapterTests.Utf8BomStream(KBizCsvAdapterTests.GoodCsv), null, default);
+
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var import = await db.StatementImports.SingleAsync(x => x.StatementImportId == result.StatementImportId);
+        import.AttachmentId.Should().NotBeNull();
+        var attachmentId = import.AttachmentId!.Value;
+
+        var attachments = s.ServiceProvider.GetRequiredService<IAttachmentService>();
+        (await attachments.ListAsync("BANK_STATEMENT", result.StatementImportId, default))
+            .Should().ContainSingle(a => a.AttachmentId == attachmentId,
+                "sanity — the attachment must be live and listed before deletion");
+
+        await svc.DeleteImportAsync(result.StatementImportId, default);
+
+        var attachmentRow = await db.Attachments.AsNoTracking()
+            .SingleAsync(a => a.AttachmentId == attachmentId);
+        attachmentRow.DeletedAt.Should().NotBeNull(
+            "F3 — deleting the import must soft-delete its raw statement attachment, not leave it live");
+
+        (await attachments.ListAsync("BANK_STATEMENT", result.StatementImportId, default))
+            .Should().BeEmpty("the soft-deleted attachment must no longer be listed");
+
+        var download = () => attachments.OpenForDownloadAsync(attachmentId, default);
+        (await Assert.ThrowsAsync<DomainException>(download)).Code.Should().Be("attachment.not_found",
+            "the soft-deleted attachment must no longer be downloadable");
+    }
+
+    // F4 (Codex review 2026-08-20) — no new tests here by design: the pre-existing
+    // DeleteImportAsync_removes_a_pure_unmatched_import_and_its_lines (all-unmatched → clean
+    // delete) and DeleteImportAsync_refuses_when_a_line_is_matched (a Matched line → refused,
+    // nothing deleted) above already exercise the conditional-delete + count-comparison code path
+    // end-to-end and must stay green after the refactor. Per the dispatch: "a true concurrent-race
+    // test is not required — the conditional delete makes the race structurally harmless."
 }

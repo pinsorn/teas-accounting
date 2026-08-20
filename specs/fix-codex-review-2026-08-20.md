@@ -3,16 +3,36 @@
 Source: `_review/code-review-2026-08-20.md` (4 findings, all verified by Fable in source).
 Blast cap: 10 files. No commits (orchestrator commits). Repo: Y:\ClaudePlayground\TEAS-Project.
 
-STATUS AT CHECKPOINT (STOP order from Ham, quota conservation): **research/design complete for
-all 4 findings, ZERO file edits made yet.** No source or test files have been touched. Everything
-below is the resume plan — read it, then start implementing from F1.
+STATUS: **ALL 4 FINDINGS IMPLEMENTED AND VERIFIED GREEN** (resumed after quota reset, per
+coordinator's message). See per-finding entries below for RED→GREEN evidence, and the "Full
+regression" section at the end for the final gate run.
 
 TEAS_TEST_PG (per shell): `Host=localhost;Port=5432;Database=teas_test;Username=accounting;Password=accounting_dev_password;Include Error Detail=true`
 API :5080 assumed running — leave it, do not touch.
 
 ## F1 [P1] — seeds 637 + 638 must not launder a real tenant's placeholder tax ID
 
-- [ ] Not started (design complete, see below)
+- [x] DONE. Both scripts edited (identity predicate + header). Test file
+  `backend/tests/Accounting.Api.Tests/Persistence/DemoTaxIdRepairScriptTests.cs` (3 tests).
+  RED confirmed against unfixed content (git-stash trick): 637's 2nd script run hit a unique-index
+  collision laundering a real tenant into the same fictional value already on the demo row; 638's
+  real-tenant row got wrongly repaired to 0105000000012. GREEN after fix: 3/3 passed.
+  DISCOVERED MID-WORK: company_id=1 in the shared teas_test DB already legitimately holds the
+  repaired value 0105000000012 (a prior real script run) — a synthetic 2nd row can never reach
+  that SAME literal value (ix_companies_tax_id is one GLOBAL unique index). Redesigned the
+  "demo gets repaired" case to exercise company 1 directly inside a transaction that is ALWAYS
+  rolled back (never committed, so no concurrent reader incl. the live :5080 API ever observes
+  it) — split into 2 tests: `Script637_repairs_the_real_demo_company_row` (txn+rollback against
+  company 1) and `Script637_does_not_repair_a_real_tenant_coincidentally_holding_the_placeholder`
+  (committed, self-cleaning via `finally`). `Script638_...` unchanged design (company_profile.tax_id
+  has no unique index, no collision risk). Also found and cleaned ONE pre-existing pollution row
+  (company_id 667507, `created_at = -infinity`, clearly test debris from an earlier session) that
+  was squatting on the placeholder value and blocking setup — reset its tax_id to a harmless
+  random value via psql (not deleted, in case of FK refs).
+  Evidence: `dotnet test tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj --filter
+  "FullyQualifiedName~DemoTaxIdRepairScriptTests" -o tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated`
+  → `Passed! - Failed: 0, Passed: 3, Skipped: 0, Total: 3`. Sanity-checked company_id=1 unaffected
+  (`tax_id=0105000000012` unchanged) and zero rows left at the placeholder after the run.
 
 **Files:**
 - `backend/src/Accounting.Infrastructure/Migrations/SqlScripts/637_repair_all_zero_company_tax_id.sql`
@@ -100,7 +120,32 @@ execute via `NpgsqlCommand`.
 
 ## F2 [P1] — seed 641 grants roles by bare numeric user IDs
 
-- [ ] Not started (design complete, see below)
+- [x] DONE. Blocker resolved: AP_CLERK/SALES_STAFF are global roles (110), captured into
+  sys.role_templates by 510, fanned out to every company automatically —
+  `CompanyService.CreateAsync` calls `sys.seed_company_roles(companyId)`
+  (`MasterDataServices.cs:388`) — so any `TestCompanyFactory`-created company already has both
+  roles, no manual seeding needed in the test.
+  641 edited: derives `user_id` via `JOIN sys.users u ON ...` matching `username` AND `email`
+  (181's exact pins) instead of hardcoding 3/4; header updated.
+  Test file `backend/tests/Accounting.Api.Tests/Rbac/DemoPvUserRoleReconcileScriptTests.cs`.
+  DESIGN CHANGE FROM CHECKPOINT: `sys.users.username`/`email` are GLOBALLY unique
+  (`ix_users_username`/`ix_users_email`) — the real ap_clerk/sales_staff (user_id 3/4) already
+  occupy those exact identities, so a literal "id 3, wrong username" collision cannot be
+  fabricated. Proved the mechanism instead: scoped the script via text-substitution (3 anchors:
+  role-company, grant-values, NOT-EXISTS-guard — mirrors EmployeeLookupGrantTests' loop-anchor
+  substitution) to a fresh test company, added an "impostor" user with a different username in
+  that company, and confirmed the impostor gets NOTHING while the real, globally identity-matched
+  ap_clerk/sales_staff DO get granted for that company (proving id is derived by identity, not
+  hardcoded) — this is a strictly stronger proof than the literal id-3 scenario, since NO
+  non-ap_clerk-named user can ever match now, whatever id it holds. Also asserted second-replay
+  idempotency (no throw).
+  RED confirmed: `fileSql.Should().Contain(grantValuesAnchor, ...)` correctly failed against the
+  unfixed script (old text has `SELECT 3, r.role_id, ...` / `SELECT 4, ...`, no `u.user_id` JOIN
+  concept at all — the anchor literally cannot exist pre-fix, itself proof of the bug shape).
+  GREEN after restoring fix: 1/1 passed.
+  Evidence: `dotnet test tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj --filter
+  "FullyQualifiedName~DemoPvUserRoleReconcileScriptTests" -o tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated`
+  → `Passed! - Failed: 0, Passed: 1, Skipped: 0, Total: 1`.
 
 **Files:**
 - `backend/src/Accounting.Infrastructure/Migrations/SqlScripts/641_reconcile_demo_pv_user_roles.sql`
@@ -190,7 +235,18 @@ the attempt log.
 
 ## F3 [P2] — deleting a statement import orphans its attachment
 
-- [ ] Not started (design complete, see below)
+- [x] DONE, implemented together with F4 (same file/method, one pass). See F4's entry for the
+  shared RED→GREEN evidence run (both fixed in the same edit, both verified in the same test run).
+  `StatementImportService.DeleteImportAsync` now calls `attachments.SoftDeleteAsync(attachmentId,
+  callerHasDeletePerm: true, ct)` when `import.AttachmentId is long attachmentId`, placed right
+  after the fast-path pre-check and before the conditional delete — same scoped `db`/`txn` as
+  designed, no new plumbing. New test
+  `DeleteImportAsync_soft_deletes_the_statement_attachment_and_stops_serving_it` in
+  `StatementImportServiceTests.cs`: imports a statement, confirms the attachment is listed, calls
+  `DeleteImportAsync`, then asserts `Attachment.DeletedAt` is set, `ListAsync` returns empty, and
+  `OpenForDownloadAsync` throws `attachment.not_found`.
+  RED confirmed (git-stash trick on the service file): failed exactly at the `DeletedAt` assertion
+  (`found <null>`) against the unfixed code. GREEN after restoring the fix.
 
 **File:** `backend/src/Accounting.Infrastructure/Bank/StatementImportService.cs`
 (`DeleteImportAsync`, current lines ~229-263, already read in full).
@@ -255,7 +311,28 @@ RED: write this test against current (unedited) `DeleteImportAsync` first — it
 
 ## F4 [P1] — delete-vs-match race not actually closed by the in-txn check
 
-- [ ] Not started (design complete, see below)
+- [x] DONE, implemented together with F3. `DeleteImportAsync` now: keeps the `hasBlockingLines`
+  `AnyAsync` as a fast-path-only pre-check (comment corrected — no longer claims this alone closes
+  the race), soft-deletes the attachment (F3), then reads `totalLineCount` and runs the DELETE
+  constrained to `MatchStatus == Unmatched || MatchStatus == Ignored`, comparing `deletedCount` vs
+  `totalLineCount` and throwing `bank.import_has_matched_lines` (rolling back the whole txn, incl.
+  the attachment soft-delete) if fewer were deleted than exist.
+  SIMPLIFIED FROM CHECKPOINT: dropped the two new F4-specific tests I initially drafted
+  (`..._all_unmatched_lines_delete_cleanly` / `..._a_matched_line_refuses_and_deletes_nothing...`)
+  — they were near-exact duplicates of the PRE-EXISTING
+  `DeleteImportAsync_removes_a_pure_unmatched_import_and_its_lines` and
+  `DeleteImportAsync_refuses_when_a_line_is_matched` tests already in
+  `StatementImportServiceTests.cs`, which already exercise the new conditional-delete +
+  count-comparison path end-to-end. Left a one-line doc comment pointing at those two instead
+  (Ponytail — no unrequested duplication). Per the dispatch's own exemption, no genuine-concurrency
+  test was written.
+  Evidence (same run as F3, both fixed in one file edit): `dotnet test
+  tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj --filter
+  "FullyQualifiedName~StatementImportServiceTests" -o tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated`
+  → RED (unfixed, F3's assertion) `Failed: 1, Passed: 8, Total: 9` (F4's 2 pre-existing tests were
+  among the 8 that already passed unfixed too — expected, since without real concurrency the
+  externally observable result of check-then-delete and conditional-delete is identical). GREEN
+  after restoring fix: `Passed! - Failed: 0, Passed: 9, Skipped: 0, Total: 9`.
 
 **File:** same `StatementImportService.cs`, `DeleteImportAsync` (lines ~250-259 currently: the
 `hasBlockingLines` `AnyAsync` check followed by an UNCONDITIONAL
@@ -334,19 +411,30 @@ exemption."
   `EmployeeLookupGrantTests` both read-from-disk-and-execute rather than restarting the app.
 - F3+F4 are both in the same file/method (`DeleteImportAsync`) — implement together in one pass,
   one gate run covers both.
-- Full regression gates to run once all 4 are implemented (not yet run — nothing implemented yet):
-  - Bank area: `dotnet test backend/tests/Accounting.Api.Tests --filter
-    "FullyQualifiedName~Bank"` (spec says "existing bank tests (55/55 area) must stay green" —
-    confirm the actual current count when this is run, 55 is the dispatch's expectation).
-  - Rbac area: `dotnet test backend/tests/Accounting.Api.Tests --filter
-    "FullyQualifiedName~Rbac"` (must stay green — F2's script touches sys.user_roles/sys.roles).
-  - Persistence area (new F1 test lives here): `dotnet test backend/tests/Accounting.Api.Tests
-    --filter "FullyQualifiedName~Persistence"`.
-  - `-o` isolated build dir if bin is locked (troubles-wiki.md pattern, not yet hit this session).
-- grep `troubles-wiki.md` FIRST on any unexpected error before debugging from scratch — not yet
-  needed this session (zero errors hit; zero commands run beyond file reads).
-- Nothing has been committed. Nothing has been edited. This checkpoint exists purely because of a
-  quota-conservation STOP order mid-research, before any implementation began.
+- Full regression gates — ALL RUN, ALL GREEN (2026-08-20, resume session):
+  - Bank area: `dotnet test tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj --filter
+    "FullyQualifiedName~Bank" -o tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated` →
+    `Passed! - Failed: 0, Passed: 87, Skipped: 0, Total: 87, Duration: 1m 28s` (dispatch's "55/55"
+    was the expectation at spec-write time; the area has grown to 87 since — all pass, 0 skips).
+  - Rbac area: same command, `FullyQualifiedName~Rbac` → `Passed! - Failed: 0, Passed: 73,
+    Skipped: 0, Total: 73, Duration: 4m 52s` (auto-backgrounded past the 300s foreground timeout;
+    polled the output file in-turn per the harness rule, did not end the turn to wait).
+  - Persistence area: same command, `FullyQualifiedName~Persistence` → first attempt showed 5
+    transient failures (`pk_companies` duplicate-key race from a concurrent unrelated test run,
+    already a documented troubles-wiki class of failure) — immediate rerun: `Passed! - Failed: 0,
+    Passed: 34, Skipped: 0, Total: 34, Duration: 13s`. Confirms F1's 3 new tests are stable, not
+    flaky by themselves.
+  - `-o` isolated build dir used throughout (troubles-wiki.md's depth-preserving sibling-leaf
+    pattern — `tests/Accounting.Api.Tests/bin/Debug/net10.0-isolated` from `backend/`) because the
+    live `Accounting.Api.exe` (PID 22620, "leave it" per dispatch) holds the normal `bin/` locked.
+- grep `troubles-wiki.md` used successfully once this session: the `-o`/`PostgresFixture`
+  `DirectoryNotFoundException` entry (exact match, gave the depth-preserving fix directly) and the
+  `pk_companies` duplicate-key-under-concurrent-test-runs entry (exact match, confirmed the
+  Persistence-area blip was a known transient class, not a new defect).
+- Nothing has been committed (per instruction — orchestrator commits). Blast radius: 5 files
+  modified (637/638/641 SQL, `StatementImportService.cs`, `StatementImportServiceTests.cs`) + 2
+  new test files (`DemoTaxIdRepairScriptTests.cs`, `DemoPvUserRoleReconcileScriptTests.cs`) = 7,
+  within the 10-file cap.
 
 ## Attempt log
 
@@ -360,8 +448,34 @@ exemption."
   `ExecuteUpdateAsync` precedent (grep only, lines 156-299) for F4's style. Was mid-grep on
   `510_per_company_roles_reconcile.sql` / `180_seed_pv_purchase_perms.sql` to determine whether
   AP_CLERK/SALES_STAFF are auto-seeded per company (needed to finalize F2's test setup) when the
-  STOP order arrived. **Zero file edits made. Zero tests run. Zero builds run.** Full designs for
-  all 4 findings recorded above — next session should start implementing F1 first (SQL-only,
-  smallest blast radius), per-item TDD loop (RED against current unfixed script → edit → GREEN),
-  then F2 (same pattern, resolve the AP_CLERK/SALES_STAFF per-company-seeding question first via
-  the grep that was interrupted), then F3+F4 together (same file, same method).
+  STOP order arrived. Zero file edits, zero tests, zero builds at that checkpoint. Full designs
+  recorded for all 4 findings.
+
+- 2026-08-20 (resume) — Quota window reset, coordinator directed resume-and-implement.
+  Resolved the interrupted F2 grep first: `AP_CLERK`/`SALES_STAFF` are global roles seeded in
+  `110_seed_roles_and_permissions.sql`, captured into `sys.role_templates` by 510, and fanned out
+  to every company automatically (`CompanyService.CreateAsync` calls
+  `sys.seed_company_roles(companyId)`, confirmed `MasterDataServices.cs:388`) — no manual role
+  seeding needed in F2's test.
+  Implemented F1 → F2 → F3+F4 in that order, TDD loop per item (RED against unfixed content via
+  `git stash push --keep-index -- <file>` / `git stash pop`, then GREEN after restoring the fix).
+  Two mid-work design corrections, both recorded in their own finding's entry above: F1 needed a
+  transaction-rollback approach against company_id=1 itself (a synthetic duplicate-identity row
+  can never reach the same hardcoded repaired value under the real unique index); F2's planned
+  "wrong-username user with id 3" scenario was impossible under `sys.users`' global username/email
+  uniqueness, so the test proves the mechanism generically instead (impostor gets nothing
+  regardless of id; the real identity-matched user does get granted).
+  One incidental fix along the way: found and cleaned a pre-existing pollution row
+  (`company_id=667507`, `created_at=-infinity`, clearly test debris unrelated to this task) in
+  `master.companies` that was squatting on the all-zero placeholder and blocking F1's test setup —
+  reset its `tax_id` to a harmless random value via psql (not deleted).
+  Noted a concurrent, unrelated workstream (`fix-codex-ui-review-2026-08-20`, frontend + one
+  benign EF `.HasSentinel` fix in `CompanyConfiguration.cs`/`TestCompanyFactory.cs` doc-comment)
+  editing files in the same repo at the same time — confirmed compatible (no signature/schema
+  changes affecting my code) and NOT the source of any of my 4 fixes' test failures. It IS the
+  likely source of one transient 5-failure `pk_companies` collision on a Persistence-area gate run
+  (a known, already-documented troubles-wiki class of failure — concurrent `dotnet test` runs
+  racing on `TestCompanyFactory`'s non-atomic `setval(MAX+1)` sequence alignment) — confirmed
+  transient by an immediate clean rerun (34/34 green, 0 failures).
+  Blast radius: 7 files (5 modified + 2 new), within the 10-file cap. No commits made (per
+  instruction — orchestrator commits).
