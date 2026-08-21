@@ -59,8 +59,11 @@ scratchpad/codex-research.md (Codex session 01a0223e-c084 resumable).
    registrant ต้องออกใบกำกับทุกการขาย) → **ไม่ใช่ทางเลือกที่ถูกกฎหมาย**. สรุป: VAT co เลือกได้แค่
    (ก) ใบเต็มพร้อมยอมรับ defect-fine risk หรือ (ข) ทำใบอย่างย่อ.
 
-## Ham decisions pending
-- [ ] VAT co: เลือก (ก) ใบเต็ม-รับความเสี่ยงปรับ/ฉบับ หรือ (ข) เพิ่ม scope ใบกำกับภาษีอย่างย่อ
-      (Fable แนะนำ (ข) — ความเสี่ยงศูนย์ + UX ขายออนไลน์ดีกว่า ไม่ต้องถามข้อมูลลูกค้า)
-- [ ] ถ้า (ข): ท่า ภ.พ.06 — ยืนตำแหน่ง invoicing-system (บันทึกเหตุผล) หรือหารือกรม/ยื่นแบบ
-- [ ] Non-VAT co: ยืนยันว่าใช้ flow ใบรับเดิม + ปรับ operational (generic customer) พอ
+## ✅ HAM RULED (2026-08-21) — SCOPE CLOSED, ZERO BUILD
+- **VAT co: เก็บชื่อจริง+ที่อยู่จริงของลูกค้าตอนขาย แล้วออกใบกำกับภาษีเต็มรูปตามปกติ** — เลือก
+  compliance ทาง checkout form แทนการเพิ่ม doc type. ถูกกฎหมายเต็ม (ม.86/4 ครบ), ไม่มี scope ใหม่.
+- **Non-VAT co: ใช้ใบรับ flow เดิม** — ถูกกฎหมายอยู่แล้ว (ชื่อลูกค้าไม่บังคับ B2C).
+- ใบกำกับอย่างย่อ: NOT BUILT — YAGNI. Note นี้เก็บไว้เป็น reference ถ้าอนาคตเปลี่ยนใจ (verdicts +
+  precedents ยังใช้ได้; จุดเดียวที่ต้องระวังเมื่อกลับมา = ภ.พ.06 gray zone ใน Q2).
+- Implementation note ฝั่งระบบขายออนไลน์ (นอก TEAS): checkout ต้องบังคับกรอกชื่อจริง+ที่อยู่;
+  TEAS รับข้อมูลนั้นเข้า customer master ผ่าน API/MCP เดิมได้เลย — ไม่มีงานฝั่ง TEAS.
