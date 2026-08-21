@@ -45,10 +45,19 @@ Per-company profile (invoice header, branding, banking). Soft fields are admin-e
 ### `PUT /company-profile/hard`
 - **Auth:** `master.company_profile.manage`. **Response:** `501 Not Implemented` — legal fields are ภ.พ.20-bound (Phase 2 adds a 2-person approval flow).
 
+### `PUT /company-profile/company-info`
+- **Auth:** `master.company.manage` (super-admin only). Full company-info edit (founding legal identity + tax config + registered address) — implements the workaround the `/hard` 501 stub points to. Posted tax invoices snapshot the supplier identity at post-time, so this only changes future documents. Audited (`tax_config_change` + `CompanyInfoChanged`).
+- **Response:** `204`.
+
 ### `POST /company-profile/logo`
 - **Auth:** `master.company_profile.manage`.
 - **Request:** `multipart/form-data`, part `file` (png/jpeg/svg/webp, max 1 MB).
 - **Response:** `200` `{ logoUrl }`.
+
+### `POST /company-profile/stamp`
+- **Auth:** `master.company_profile.manage`. Company stamp upload — same shape as `/logo` (doc-signature spec §E5). Embedded on posted-document PDFs alongside a user's saved signature (see [rbac-admin.md](rbac-admin.md) for the per-user signature upload).
+- **Request:** `multipart/form-data`, part `file`.
+- **Response:** `200` `{ stampUrl }`.
 
 ## Branches
 Gated by `master.branch.manage`.
@@ -122,3 +131,6 @@ Read is open to any authenticated user; writes need `tax.wht_type.manage`.
 - `DELETE /wht-types/{id}` — deactivate. **Auth:** `tax.wht_type.manage`. → `204`.
 - `POST /wht-types/{id}/reactivate` — reactivate. **Auth:** `tax.wht_type.manage`.
 - `POST /wht-types/{id}/change-rate` — change the rate (new version). **Auth:** `tax.wht_type.manage`.
+
+## Tax Codes
+`GET /tax-codes` — the company's own VAT/WHT tax-code master, used by every line-item tax-code picker. **Auth:** Authenticated (no dedicated read permission — any signed-in tenant user reads their own company's reference master, mirroring `GET /wht-types`). → `200`.

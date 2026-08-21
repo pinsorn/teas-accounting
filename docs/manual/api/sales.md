@@ -14,6 +14,7 @@ Gated by `sales.quotation.manage`.
 - `POST /quotations/{id}/reject` — reject. Body: `{ reason }`. → `204`.
 - `POST /quotations/{id}/cancel` — cancel. Body: `{ reason }`. → `204`.
 - `POST /quotations/{id}/convert-to-so` — create a sales order from the quotation. → `200` `{ sales_order_id }`.
+- `POST /quotations/{id}/create-tax-invoice` — create a TI directly from the quotation (non-VAT-chain shortcut, ม.86). → `200` `{ tax_invoice_id }`.
 - `GET /quotations` — list. Query: `status?`. → `200`.
 - `GET /quotations/{id}` — detail. → `200` / `404`.
 - `GET /quotations/{id}/pdf` — PDF. Query: `copy?` (bool). → `application/pdf`.
@@ -23,8 +24,11 @@ Gated by `sales.sales_order.manage`.
 - `POST /sales-orders` — create draft. Body: `docDate`, `expectedDeliveryDate?`, `customerId` (required), `businessUnitId?`, `currencyCode`, `exchangeRate`, `notes?`, `fromQuotationId?`, `lines[]` (`CreateSalesOrderRequest`). → `201` `{ sales_order_id }`.
 - `POST /sales-orders/{id}/post` — post. → `204`.
 - `POST /sales-orders/{id}/delivery-orders` — create a delivery order from this SO. Body: `CreateDeliveryOrderRequest`. → `200` `{ delivery_order_id }`.
+- `POST /sales-orders/{id}/delivery-orders/full` — create a DO for the FULL remaining quantity of every line. Query: `combineTi?` (bool — also create the TI in the same call). → `200`.
+- `POST /sales-orders/{id}/create-invoice` — create the next document straight from the SO: VAT-mode companies get a tax invoice, non-VAT companies get a billing note (checked dynamically). → `200` `{ tax_invoice_id, billing_note_id }` (one populated, the other `null`).
 - `GET /sales-orders` — list. Query: `status?`. → `200`.
 - `GET /sales-orders/{id}` — detail. → `200` / `404`.
+- `PUT /sales-orders/{id}` — edit (draft only). → `204`.
 - `GET /sales-orders/{id}/pdf` — PDF. Query: `copy?`. → `application/pdf`.
 
 ## Delivery Orders
@@ -86,9 +90,12 @@ Read-only resolvers for the FE cross-reference hooks. Tenant-scoped.
 - `GET /documents/purchase-chain` — full purchase chain (PO→VI→PV→WHT). **Auth:** Authenticated. Query: `type`, `id`. → `200` / `404`.
 
 ## Activity (audit rail)
-Read-only chronological audit trail per document (`audit.activity_log`). All share `report.audit.read`.
+Read-only chronological audit trail per document (`audit.activity_log`).
 
-`GET /{docType}/{id}/activity` — **Auth:** `report.audit.read`. → `200` list of activity entries.
+`GET /{docType}/{id}/activity` — **Auth:** the SAME read permission that document type's own `GET /{docType}/{id}` route requires (e.g. `sales.quotation.read` for quotations, `purchase.vendor_invoice.read` for vendor-invoices) — **not** a single shared permission. → `200` list of activity entries.
+
+- **Fixed 2026-08-20 (R3):** every route used to share the global `report.audit.read`, which no ordinary operator role holds — a sales rep got `403` on a quotation they created and could otherwise fully read, and the frontend mis-rendered that `403` as "no activity" (a false statement). Each route now checks its own document's read permission instead.
+- `credit-notes` / `debit-notes` both live on the single `/tax-adjustment-notes/{id}` resource but get their own read-gated activity route here (mirrors the Print Tracking split below). `payroll-runs` is gated on `payroll.run.manage` (there is no separate `payroll.run.read`).
 
 `docType` ∈ `quotations`, `sales-orders`, `delivery-orders`, `tax-invoices`, `receipts`, `credit-notes`, `debit-notes`, `billing-notes`, `purchase-orders`, `vendor-invoices`, `payment-vouchers`, `wht-certificates`, `payroll-runs`.
 

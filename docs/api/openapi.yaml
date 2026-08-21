@@ -110,6 +110,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Quotation'
+    delete:
+      summary: ลบใบเสนอราคา (Draft only)
+      tags: [Quotations]
+      responses:
+        '204':
+          description: Deleted
+
+  /quotations/{id}/create-tax-invoice:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: สร้างใบกำกับภาษีตรงจากใบเสนอราคา (non-VAT-chain shortcut; ม.86)
+      tags: [Quotations]
+      responses:
+        '200':
+          description: 'TI draft created — returns { tax_invoice_id }'
 
   /quotations/{id}/send:
     parameters:
@@ -232,6 +248,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SalesOrder'
+    get:
+      summary: รายการ Sales Orders
+      tags: [Sales Orders]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+
+  /sales-orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: ดู Sales Order
+      tags: [Sales Orders]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: แก้ไข Sales Order (Draft only)
+      tags: [Sales Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderCreateRequest'
+      responses:
+        '200':
+          description: OK
+
+  /sales-orders/{id}/delivery-orders/full:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: สร้าง Delivery Order เต็มจำนวน (ทุกบรรทัดคงเหลือ) จาก Sales Order
+      description: 'combineTi (query, optional) — สร้างใบกำกับภาษีต่อทันทีในคำขอเดียวกัน'
+      tags: [Sales Orders]
+      parameters:
+        - { name: combineTi, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: 'DO created (+ TI if combineTi=true)'
+
+  /sales-orders/{id}/create-invoice:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: สร้างเอกสารถัดไปตรงจาก Sales Order — VAT mode สร้างใบกำกับภาษี, non-VAT สร้างใบแจ้งหนี้
+      description: |
+        Company VAT mode decides the target doc type (checked dynamically —
+        sales.tax_invoice.create for VAT mode, sales.billing_note.manage for
+        non-VAT). Response always carries both keys; the inactive one is null.
+      tags: [Sales Orders]
+      responses:
+        '200':
+          description: 'One of tax_invoice_id / billing_note_id populated, the other null'
 
   /sales-orders/{id}/post:
     parameters:
@@ -310,6 +391,28 @@ paths:
       responses:
         '201':
           description: Created
+    get:
+      summary: รายการ Delivery Orders
+      tags: [Delivery Orders]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+
+  /delivery-orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: ดู Delivery Order
+      tags: [Delivery Orders]
+      responses:
+        '200':
+          description: OK
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /delivery-orders/{id}/issue:
     parameters:
@@ -534,19 +637,30 @@ paths:
         '401': { description: Unauthorized }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /tax-invoices/{id}/etax-status:
-    parameters:
-      - $ref: '#/components/parameters/DocId'
+  # /tax-invoices/{id}/etax-status FIXED 2026-08-21 — stale path, no such route
+  # in TaxInvoiceEndpoints.cs. The real e-Tax submission-audit query is:
+  /etax/submissions:
     get:
-      summary: เช็คสถานะ e-Tax submission
+      summary: e-Tax submission audit history for one tax invoice
+      description: |
+        Read-only submission-audit query (Sprint 13c). Reuses tax.filing.read —
+        e-Tax is tax-domain and no dedicated e-Tax permission is seeded. Never
+        projects storage_path. EtaxEndpoints.cs:19.
       tags: [Tax Invoices]
+      parameters:
+        - name: tax_invoice_id
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EtaxStatus'
+                type: array
+                items:
+                  $ref: '#/components/schemas/EtaxStatus'
 
   /tax-invoices/{id}/resend:
     parameters:
@@ -596,6 +710,11 @@ paths:
       responses:
         '200': { description: OK }
         '404': { description: Not found }
+    delete:
+      summary: ลบ CN/DN (Draft only)
+      tags: [Credit/Debit Notes]
+      responses:
+        '204': { description: Deleted }
 
   /tax-adjustment-notes/{id}/post:
     parameters:
@@ -674,6 +793,51 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
       responses:
         '200': { description: Posted }
+
+  /receipts/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: ดูใบเสร็จ
+      tags: [Receipts]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /receipts/{id}/wht-cert:
+    post:
+      summary: บันทึกเลข/วันที่ใบทวิ 50 ที่ลูกค้าออกให้ (หลัง post; แนบสแกนผ่าน /attachments)
+      tags: [Receipts]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                certNo: { type: string }
+                certDate: { type: string, format: date }
+      responses:
+        '204': { description: Saved }
+
+  /receipts/wht-base-suggest:
+    post:
+      summary: WHT auto-suggest ต่อ income type สำหรับฟอร์มใบเสร็จ (pro-rate ยอดที่จ่ายบางส่วน)
+      description: POST (not GET) — needs applied amounts in the body to pro-rate across the applied TIs' service lines.
+      tags: [Receipts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                applications: { type: array, items: { type: object } }
+                customerId: { type: integer, format: int64 }
+      responses:
+        '200': { description: OK }
 
   /receipts/{id}/pdf:
     get:
@@ -1071,6 +1235,37 @@ paths:
         '409':
           description: Not Approved, or over-settles VI (settled+applied > total + 0.01 tol)
 
+  /payment-vouchers/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: Cancel an Approved PV that can never Post (escape hatch)
+      description: |
+        B1(b) (specs/fix-army-findings-2026-07-22.md). Approved-only. Reuses the
+        approve permission (undo-of-approval = approver authority; creator-only
+        is intentionally NOT sufficient). PaymentVoucherEndpoints.cs:40.
+      tags: [Payment Vouchers]
+      responses:
+        '204': { description: Cancelled }
+        '409': { description: PV not in Approved status }
+
+  /payment-vouchers/{id}/vendor-invoice:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: สร้างใบกำกับภาษีซื้อ (VI) draft จาก PV (guided path; ลิงก์กลับหากัน)
+      description: cont.76. Requires purchase.vendor_invoice.create (it creates a VI). PaymentVoucherEndpoints.cs:49.
+      tags: [Payment Vouchers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: 'Created — returns { vendor_invoice_id }'
+
   /payment-vouchers/{id}/pdf:
     parameters:
       - $ref: '#/components/parameters/DocId'
@@ -1103,8 +1298,127 @@ paths:
         '401': { description: Unauthorized }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  # BFF purchase-order routes are otherwise undocumented here (only the /api/v1
-  # PDF variant is); the canonical paper JSON twin is documented for parity.
+  # BFF purchase-order routes — full family synced 2026-08-21 from
+  # PurchaseOrderEndpoints.cs (previously only /{id}/paper was documented here).
+  /purchase-orders:
+    post:
+      summary: สร้างใบสั่งซื้อ (Draft)
+      tags: [Purchase Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: 'Created — returns { purchase_order_id }'
+    get:
+      summary: รายการใบสั่งซื้อ
+      tags: [Purchase Orders]
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: vendorId, in: query, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: OK
+
+  /purchase-orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: ดูใบสั่งซื้อ
+      tags: [Purchase Orders]
+      responses:
+        '200':
+          description: OK
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: แก้ไขใบสั่งซื้อ (Draft only)
+      tags: [Purchase Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+
+  /purchase-orders/{id}/approve:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: อนุมัติใบสั่งซื้อ (perm purchase.purchase_order.approve)
+      tags: [Purchase Orders]
+      responses:
+        '200':
+          description: OK
+
+  /purchase-orders/{id}/mark-sent:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: บันทึกว่าส่งให้ vendor แล้ว
+      tags: [Purchase Orders]
+      responses:
+        '204':
+          description: Marked sent
+
+  /purchase-orders/{id}/close:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: ปิดใบสั่งซื้อ (perm purchase.purchase_order.cancel)
+      tags: [Purchase Orders]
+      responses:
+        '204':
+          description: Closed
+
+  /purchase-orders/{id}/reopen:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: เปิดใบสั่งซื้อกลับ (Closed → Approved)
+      tags: [Purchase Orders]
+      responses:
+        '204':
+          description: Reopened
+
+  /purchase-orders/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    post:
+      summary: ยกเลิกใบสั่งซื้อ (พร้อมเหตุผล, ≤500 chars)
+      tags: [Purchase Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 500 }
+      responses:
+        '204':
+          description: Cancelled
+
+  /purchase-orders/{id}/pdf:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: Download PO PDF (?copy=true สำเนา)
+      tags: [Purchase Orders]
+      parameters:
+        - { name: copy, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: PDF stream
+          content:
+            application/pdf: {}
+
   /purchase-orders/{id}/paper:
     parameters:
       - $ref: '#/components/parameters/DocId'
@@ -1125,7 +1439,27 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   # WHT certificates (50ทวิ) are read-only — issued by PV post, never created here.
-  # Gated by purchase.wht.read.
+  # Gated by purchase.wht.read. List/detail added 2026-08-21 (only /pdf was documented).
+  /wht-certificates:
+    get:
+      summary: รายการใบรับรองหักภาษี ณ ที่จ่าย (50ทวิ)
+      tags: [WHT Certificates]
+      parameters:
+        - { name: cursor, in: query, schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+      responses:
+        '200': { description: OK }
+
+  /wht-certificates/{id}:
+    get:
+      summary: รายละเอียดใบรับรองหักภาษี ณ ที่จ่าย
+      tags: [WHT Certificates]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /wht-certificates/{id}/pdf:
     get:
       summary: ใบรับรองหักภาษี ณ ที่จ่าย (50ทวิ) เป็น PDF
@@ -1181,18 +1515,37 @@ paths:
         '201':
           description: Created
 
-  /customers/search:
+  # /customers/search REMOVED 2026-08-21 — stale, no such route in
+  # CustomerEndpoints.cs (only POST /, PUT /{id}, GET /{id}, GET / exist).
+  # Search is GET /customers?search= (documented above).
+
+  /customers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
     get:
-      summary: ค้นหาลูกค้า (legacy — prefer GET /customers?search=)
-      deprecated: true
+      summary: ดูรายละเอียดลูกค้า (perm master.customer.read)
       tags: [Master Data]
-      parameters:
-        - name: q
-          in: query
-          schema: { type: string }
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerListItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: แก้ไขลูกค้า (perm master.customer.manage)
+      tags: [Master Data]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreateRequest'
+      responses:
+        '204':
+          description: Updated
 
   /products:
     get:
@@ -1218,9 +1571,39 @@ paths:
         '201':
           description: Created
 
+  /products/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: ดูรายละเอียด SKU/Product
+      tags: [Master Data]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: แก้ไข SKU/Product
+      tags: [Master Data]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+      responses:
+        '204': { description: Updated }
+
+  /products/{id}/deactivate:
+    post:
+      summary: ปิดใช้งาน SKU/Product (soft)
+      tags: [Master Data]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Deactivated }
+
   /expense-categories:
     get:
-      summary: List expense categories
+      summary: List expense categories (perm sys.expense_cat.read)
       tags: [Master Data]
       responses:
         '200':
@@ -1231,6 +1614,32 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ExpenseCategory'
+    post:
+      summary: สร้างหมวดค่าใช้จ่าย (perm sys.expense_cat.manage)
+      tags: [Master Data]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { expense_category_id }' }
+
+  /expense-categories/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    put:
+      summary: แก้ไขหมวดค่าใช้จ่าย (perm sys.expense_cat.manage — e.g. fix a poisoned default account)
+      tags: [Master Data]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
 
   # ============================================================
   # REPORTS
@@ -1267,6 +1676,185 @@ paths:
         '403':
           description: Missing `report.audit.read` permission
 
+  # Reports family gaps synced 2026-08-21 (ReportEndpoints.cs) — vat-register,
+  # pnd30(GET), wht-receivable-*, trial-balance, profit-loss, sales-summary,
+  # general-ledger(+accounts,+export), ar-aging(+export), customer-statement,
+  # vendor-ledger, pending-agent-approvals. (output-vat-register,
+  # input-vat-register, ap-aging, tax-summary, balance-sheet,
+  # financial-statements/pdf, number-gaps already documented elsewhere in
+  # this file — not repeated here.)
+  /reports/vat-register:
+    get:
+      summary: รายงานภาษีซื้อ-ขายรวม (perm tax.vat_register.read)
+      tags: [Reports]
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer } }
+        - { name: month, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+
+  /reports/pnd30:
+    get:
+      summary: ข้อมูล ภ.พ.30 สำหรับหน้าจอ (perm tax.pnd30.read)
+      tags: [Reports]
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer } }
+        - { name: month, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+
+  /reports/wht-receivable-register:
+    get:
+      summary: ทะเบียนภาษีหัก ณ ที่จ่ายที่ลูกค้าหัก (AR-side; perm tax.pnd53.read)
+      tags: [Reports]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+
+  /reports/wht-receivable-aging:
+    get:
+      summary: อายุใบทวิ 50 ที่ยังไม่ได้รับจากลูกค้า (perm tax.pnd53.read)
+      tags: [Reports]
+      responses:
+        '200': { description: OK }
+
+  /reports/wht-receivable-missing-cert:
+    get:
+      summary: ใบเสร็จที่ยังขาดใบทวิ 50 ของงวด (perm tax.pnd53.read)
+      tags: [Reports]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200': { description: OK }
+
+  /reports/trial-balance:
+    get:
+      summary: งบทดลอง (perm report.trial_balance)
+      tags: [Reports]
+      parameters:
+        - { name: asOfDate, in: query, schema: { type: string, format: date } }
+        - { name: includeInactive, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+
+  /reports/profit-loss:
+    get:
+      summary: งบกำไรขาดทุน (perm report.profit_loss)
+      tags: [Reports]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - { name: businessUnitId, in: query, schema: { type: integer } }
+        - { name: includeUnspecified, in: query, schema: { type: boolean, default: true } }
+      responses:
+        '200': { description: OK }
+
+  /reports/sales-summary:
+    get:
+      summary: สรุปยอดขาย (group by customer/product/etc; perm report.profit_loss)
+      tags: [Reports]
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+        - { name: groupBy, in: query, schema: { type: string, default: customer } }
+      responses:
+        '200': { description: OK }
+
+  /reports/pending-agent-approvals:
+    get:
+      summary: จำนวนเอกสาร Draft ที่สร้างผ่าน MCP API key รออนุมัติ (badge count)
+      description: 'Tenant-scoped. Any user who can read tax invoices sees the count (TI/Quotation/Receipt/PO/VI/PV). ReportEndpoints.cs:115.'
+      tags: [Reports]
+      responses:
+        '200':
+          description: 'returns { count, taxInvoices, quotations, receipts, purchaseOrders, vendorInvoices, paymentVouchers }'
+
+  /reports/general-ledger:
+    get:
+      summary: บัญชีแยกประเภทรายบัญชี (perm report.general_ledger)
+      tags: [Reports]
+      parameters:
+        - { name: accountId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+        '400': { description: fromDate must be on or before toDate }
+
+  /reports/general-ledger/accounts:
+    get:
+      summary: บัญชีที่มีให้เลือกสำหรับหน้ารายงาน GL (perm report.general_ledger — no separate CoA-read perm exists)
+      tags: [Reports]
+      responses:
+        '200': { description: OK }
+
+  /reports/general-ledger/export:
+    get:
+      summary: Export บัญชีแยกประเภท เป็น PDF หรือ CSV (perm report.general_ledger)
+      tags: [Reports]
+      parameters:
+        - { name: accountId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: format, in: query, required: true, schema: { type: string, enum: [pdf, csv] } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf: {}
+            text/csv: {}
+        '400': { description: 'fromDate > toDate, or format not pdf/csv' }
+
+  /reports/ar-aging:
+    get:
+      summary: อายุลูกหนี้การค้า (specs/subledgers.md; perm sales.tax_invoice.read)
+      tags: [Reports]
+      parameters:
+        - { name: asOf, in: query, schema: { type: string, format: date } }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+
+  /reports/ar-aging/export:
+    get:
+      summary: Export อายุลูกหนี้การค้า เป็น CSV (UTF-8 BOM; perm sales.tax_invoice.read)
+      description: specs/ar-aging-csv-export.md. Formula-injection-safe cell escaping (CsvCell).
+      tags: [Reports]
+      parameters:
+        - { name: asOf, in: query, schema: { type: string, format: date } }
+        - { name: customerId, in: query, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            text/csv: {}
+
+  /reports/customer-statement:
+    get:
+      summary: Statement ลูกค้ารายราย (perm sales.tax_invoice.read)
+      tags: [Reports]
+      parameters:
+        - { name: customerId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+        '400': { description: fromDate must be on or before toDate }
+
+  /reports/vendor-ledger:
+    get:
+      summary: บัญชีแยกประเภทเจ้าหนี้รายราย (perm purchase.vendor_invoice.read)
+      tags: [Reports]
+      parameters:
+        - { name: vendorId, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+        '400': { description: fromDate must be on or before toDate }
+
   # Actual route is /reports/output-vat-register (served by TaxFilingEndpoints);
   # single `period` (yyyymm) query param — NOT year+month. Reconciled to code 2026-06-16.
   /reports/output-vat-register:
@@ -1301,6 +1889,21 @@ paths:
         '200':
           description: OK
 
+  /reports/outstanding-po:
+    get:
+      summary: ใบสั่งซื้อค้างส่ง/ค้างรับ (perm purchase.purchase_order.read)
+      description: PurchaseOrderEndpoints.cs:83. Mapped next to ap-aging, same auth policy.
+      tags: [Reports]
+      parameters:
+        - name: as_of
+          in: query
+          description: As-of date. Default = today (UTC).
+          schema: { type: string, format: date }
+        - { name: vendorId, in: query, schema: { type: integer, format: int64 } }
+        - { name: overdue_only, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+
   /reports/ap-aging:
     get:
       summary: รายงานอายุหนี้เจ้าหนี้ (AP Aging) — posted vendor invoices bucketed by age
@@ -1333,33 +1936,32 @@ paths:
                     items: { $ref: '#/components/schemas/ApAgingRow' }
                   totals: { $ref: '#/components/schemas/ApAgingRow' }
 
-  # /reports/pnd30/preview REMOVED 2026-06-16 — not served (404). The real ภ.พ.30
-  # preview is POST /tax-filings/pnd30?mode=preview (TaxFilingEndpoints), currently
-  # undocumented in this spec.
-  /reports/pnd30/submit:
+  # /reports/pnd30/preview REMOVED 2026-06-16 — not served (404).
+  # /reports/pnd30/submit and /reports/pnd30/file (formerly documented here) were
+  # STALE — no such routes exist in TaxFilingEndpoints.cs. Fixed 2026-08-21: the
+  # real preview/finalize route is POST /tax-filings/pnd30 below (mode= query
+  # param); the file-download twins are the already-documented
+  # GET /tax-filings/pnd30/pdf and GET /tax-filings/pnd30/batch-file.
+  /tax-filings/pnd30:
     post:
-      summary: Submit ภ.พ.30 (Auto mode only — call RD Open API)
+      summary: ภ.พ.30 compute (preview) / finalize — Auto or Manual submission mode
+      description: |
+        `mode=preview` (default) computes without side effects; `mode=finalize`
+        requires the tax.filing.finalize permission (GuardFinalizeAsync) and
+        records the filing. period = yyyymm. TaxFilingEndpoints.cs:39.
       tags: [Tax Filings]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                year: { type: integer }
-                month: { type: integer }
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+        - { name: mode, in: query, schema: { type: string, enum: [preview, finalize] } }
       responses:
         '200':
-          description: Submitted
+          description: OK (Pnd30Filing)
+        '403':
+          description: tax.filing.finalize required for mode=finalize
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  filing_reference: { type: string }
-                  vat_payable: { type: number }
-                  payment_qr_url: { type: string }
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
 
   /tax-filings/pnd51/pdf:
     get:
@@ -1524,6 +2126,22 @@ paths:
           content:
             application/pdf: {}
 
+  /tax-filings/pp36/pdf:
+    get:
+      summary: ภ.พ.36 (VAT reverse-charge for services from abroad) — filled official RD AcroForm
+      description: >
+        O5 (specs/fix-o5-pp36-pdf.md) — parity with ภ.ง.ด.54. Read-only export from the same
+        computed figures as POST /tax-filings/pnd36. Gated on the same tax.filing.preview permission
+        (no RD submission).
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf: {}
+
   /tax-filings/pnd30/pdf:
     get:
       summary: ภ.พ.30 (VAT return) — filled official RD AcroForm, print-and-file (no RD submission)
@@ -1562,6 +2180,107 @@ paths:
           description: ภ.พ.30 Format-กลาง text file
           content:
             text/plain: {}
+
+  # ── Compute/finalize routes (mode=preview|finalize; preview default) —
+  # synced 2026-08-21, previously undocumented. TaxFilingEndpoints.cs.
+  /tax-filings/pnd2:
+    post:
+      summary: ภ.ง.ด.2 compute (preview) / finalize — WHT on individuals (specs/pnd2-filing.md)
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+        - { name: mode, in: query, schema: { type: string, enum: [preview, finalize] } }
+      responses:
+        '200': { description: OK }
+
+  /tax-filings/pnd3:
+    post:
+      summary: ภ.ง.ด.3 compute (preview) / finalize — WHT on individuals ม.3เตรส
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+        - { name: mode, in: query, schema: { type: string, enum: [preview, finalize] } }
+      responses:
+        '200': { description: OK }
+
+  /tax-filings/pnd53:
+    post:
+      summary: ภ.ง.ด.53 compute (preview) / finalize — WHT on juristic payees
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+        - { name: mode, in: query, schema: { type: string, enum: [preview, finalize] } }
+      responses:
+        '200': { description: OK }
+
+  /tax-filings/pnd54:
+    post:
+      summary: ภ.ง.ด.54 compute (preview) / finalize — WHT on foreign payees ม.70
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+        - { name: mode, in: query, schema: { type: string, enum: [preview, finalize] } }
+      responses:
+        '200': { description: OK }
+
+  /tax-filings/pnd36:
+    post:
+      summary: ภ.พ.36 reverse-charge compute (preview) / finalize (+ auto-JV on finalize)
+      description: |
+        acknowledge + ackAmount carry the unexplained-AP figure the filer saw
+        when they ticked; the service refuses to finalize when it no longer
+        matches the freshly computed figure (F1, specs/fix-pnd36-payment-detection.md §3.5).
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+        - { name: mode, in: query, schema: { type: string, enum: [preview, finalize] } }
+        - { name: acknowledge, in: query, schema: { type: boolean } }
+        - { name: ackAmount, in: query, schema: { type: number } }
+      responses:
+        '200': { description: OK }
+
+  /tax-filings/pnd2/batch-file:
+    get:
+      summary: ภ.ง.ด.2 RD batch-upload file (Format กลาง, pipe-delimited .txt; read-only export)
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain: {}
+
+  /tax-filings/pnd3/batch-file:
+    get:
+      summary: ภ.ง.ด.3 RD batch-upload file (Format กลาง, pipe-delimited .txt; read-only export)
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain: {}
+
+  /tax-filings/pnd53/batch-file:
+    get:
+      summary: ภ.ง.ด.53 RD batch-upload file (Format กลาง, pipe-delimited .txt; read-only export)
+      tags: [Tax Filings]
+      parameters:
+        - { name: period, in: query, required: true, schema: { type: integer }, description: yyyymm }
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain: {}
+
+  /tax-filings:
+    get:
+      summary: Immutable filing history index (C8)
+      tags: [Tax Filings]
+      responses:
+        '200': { description: OK }
 
   /tax-filings/pnd3/pdf:
     get:
@@ -1869,24 +2588,9 @@ paths:
           content:
             application/pdf: {}
 
-  /reports/pnd30/file:
-    get:
-      summary: Generate ภ.พ.30 file (Manual mode — download for portal upload)
-      tags: [Tax Filings]
-      parameters:
-        - name: year
-          in: query
-          required: true
-          schema: { type: integer }
-        - name: month
-          in: query
-          required: true
-          schema: { type: integer }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/xml: {}
+  # /reports/pnd30/file REMOVED 2026-08-21 — stale, no such route in code
+  # (content-type was even wrong: application/xml — the real batch file is
+  # pipe-delimited text/plain, see GET /tax-filings/pnd30/batch-file above).
 
   # ============================================================
   # ADMIN / SYSTEM
@@ -1908,6 +2612,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/SystemInfo'
 
+  /system/vat-threshold-status:
+    get:
+      summary: VAT-registration threshold status (ม.85/1) — any signed-in user
+      description: Sprint 8.5. Authenticated (needs tenant context for the TI query); no specific permission. Program.cs:552.
+      tags: [System]
+      responses:
+        '200':
+          description: 'returns { status }'
+
   /system/setup/status:
     get:
       summary: First-run probe (anonymous) — needs_setup=true when the instance has ZERO users
@@ -1926,6 +2639,86 @@ paths:
                 type: object
                 properties:
                   needs_setup: { type: boolean }
+
+  /system/setup/bootstrap-admin:
+    post:
+      summary: First-run super-admin bootstrap (anonymous — SECURITY-CRITICAL)
+      description: |
+        Succeeds ONLY when the system has ZERO users total (TOCTOU-safe via a
+        Postgres advisory lock in one transaction) — the instant any user
+        exists this refuses with 409. That single invariant is what makes an
+        anonymous create-admin endpoint safe. Created user is a global
+        super-admin with NO user_roles row (companyId=0 → FE routes to
+        /onboarding to create the first company). BootstrapAdminEndpoints.cs:40.
+      tags: [System]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 64 }
+                password: { type: string, minLength: 12 }
+                email: { type: string }
+                fullName: { type: string }
+      responses:
+        '200':
+          description: 'Created — returns { ok, userId, username }'
+        '400':
+          description: validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+        '409':
+          description: already_initialised — at least one user already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+
+  /system/setup/instance-keys:
+    post:
+      summary: First-run instance MFA key + JWT access-token lifetime (security-critical)
+      description: |
+        Sets the instance MFA AES-256 key + JWT lifetime, written to a
+        git-ignored secrets file (never logged, never committed). The MFA key
+        is refuse-to-overwrite once set (rotating would orphan every enrolled
+        user's TOTP secret) — this is what "first-run only" means for it.
+        Authenticated + explicit super-admin claim check (a fresh super-admin
+        carries no permission claims yet, so a permission-policy gate would
+        wrongly 403). InstanceSetupEndpoints.cs:54.
+      tags: [System]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mfaAesKeyBase64, jwtAccessTokenMinutes]
+              properties:
+                mfaAesKeyBase64: { type: string, description: 'base64, must decode to exactly 32 bytes' }
+                jwtAccessTokenMinutes: { type: integer, minimum: 5, maximum: 1440 }
+      responses:
+        '200':
+          description: 'returns { ok, jwtAccessTokenMinutes }'
+        '400':
+          description: validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+        '403':
+          description: Caller is not a super-admin
+        '409':
+          description: already_configured — MFA key already set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
 
   /companies:
     get:
@@ -2228,6 +3021,42 @@ paths:
         '404': { description: User not found }
         '422': { description: user.password_too_short }
 
+  /admin/rbac/users/{id}/signature:
+    post:
+      summary: Upload a user's saved signature (multipart/form-data; perm sys.user.manage)
+      description: doc-signature spec §E5 — embedded on posted-document PDFs. Same shape as POST /company-profile/logo. RbacAdminEndpoints.cs:96.
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200': { description: 'Uploaded — returns { signatureUrl }' }
+
+  /admin/rbac/users/{id}/profile:
+    put:
+      summary: Set a user's job position (ตำแหน่ง; perm sys.user.manage)
+      description: doc-signature spec §E5/§F1. RbacAdminEndpoints.cs:111.
+      tags: [RBAC Admin]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                position: { type: string }
+      responses:
+        '204': { description: Updated }
+
   /document-prefixes:
     get:
       summary: List registered prefixes
@@ -2331,6 +3160,41 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorEnvelope401'
 
+  /auth/login:
+    post:
+      summary: BFF login (username/password → JWT, or MFA challenge)
+      description: |
+        Anonymous, rate-limited (10 req/min/IP fixed-window). Returns
+        `{ mfa_required: true }` when the account has MFA enrolled (no token
+        yet — client must complete the MFA step separately); otherwise the
+        usual access_token/expires_at/token_type. AuthEndpoints.cs:17.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: 'OK — either { mfa_required: true } or a token'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mfa_required: { type: boolean }
+                  access_token: { type: string }
+                  expires_at: { type: string, format: date-time }
+                  token_type: { type: string, example: 'Bearer' }
+        '401':
+          $ref: '#/components/responses/ErrorEnvelope401'
+
   /auth/switch-company/{companyId}:
     post:
       summary: Switch active company (super-admin only)
@@ -2369,6 +3233,33 @@ paths:
           description: Forbidden — caller is not a super-admin
         '404':
           description: Not Found — target company does not exist or is inactive
+
+  /auth/refresh:
+    post:
+      summary: Re-issue a fresh access token for a still-valid session (sliding refresh)
+      description: |
+        Same claims/company/branch as the caller's current token; roles/perms are
+        RELOADED (so a revoked grant takes effect immediately). Enforces the
+        ABSOLUTE session cap (auth_time carried forward, never reset by a
+        refresh) — an over-cap caller gets 403, not a silent re-login. An
+        expired token already 401s at the JWT bearer handler before this ever
+        runs. AuthEndpoints.cs:108.
+      tags: [Auth]
+      responses:
+        '200':
+          description: OK — newly issued access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  expires_at: { type: string, format: date-time }
+                  token_type: { type: string, example: 'Bearer' }
+        '401':
+          $ref: '#/components/responses/ErrorEnvelope401'
+        '403':
+          description: Absolute session cap exceeded, or account disabled
 
   # ============================================================
   # COMPANY PROFILE — Hybrid lock model (Sprint 13d P6, plan §6.7)
@@ -2498,9 +3389,126 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelopeV1'
 
+  /company-profile/registered-address:
+    put:
+      summary: Update registered address (HARD field, requires FE ยืนยัน modal — filed with DBD/ภ.พ.09)
+      description: |
+        Unlike PUT /hard (501 stub), this route IS implemented — the founding
+        registered-address parts are additive/optional (§ granular fields).
+        Audited. CompanyProfileEndpoints.cs:48.
+      tags: [Company Profile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+        '403':
+          description: Missing master.company_profile.manage scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+
+  /company-profile/logo:
+    post:
+      summary: Upload company logo (multipart/form-data; png/jpeg/svg/webp, max 1 MB)
+      tags: [Company Profile]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: 'Uploaded — returns { logoUrl }'
+
+  /company-profile/stamp:
+    post:
+      summary: Upload company stamp (multipart/form-data; same shape as /logo)
+      description: doc-signature spec §E5 — embedded on posted-document PDFs alongside a user's saved signature.
+      tags: [Company Profile]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: 'Uploaded — returns { stampUrl }'
+
   # ============================================================
-  # WHT TYPES — Reactivate (Sprint 13f-P2; mirrors BU/Product Restore)
+  # WHT TYPES — full CRUD synced 2026-08-21 (only /reactivate was documented)
   # ============================================================
+  /wht-types:
+    get:
+      summary: List WHT types (any authenticated user — Receipt form dropdown needs it)
+      tags: [WHT Types]
+      parameters:
+        - { name: includeInactive, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create WHT type (perm tax.wht_type.manage)
+      tags: [WHT Types]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { wht_type_id }' }
+
+  /wht-types/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      summary: WHT type detail
+      tags: [WHT Types]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: Update WHT type (perm tax.wht_type.manage)
+      tags: [WHT Types]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+    delete:
+      summary: Deactivate WHT type (soft)
+      tags: [WHT Types]
+      responses:
+        '204': { description: Deactivated }
+
+  /wht-types/{id}/change-rate:
+    post:
+      summary: Change the WHT rate (effective-dated; perm tax.wht_type.manage)
+      tags: [WHT Types]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Rate changed }
+
   /wht-types/{id}/reactivate:
     post:
       summary: Reactivate a deactivated WHT type
@@ -2538,6 +3546,29 @@ paths:
   # longstanding "payroll group absent from openapi" gap)
   # SoD perms: payroll.run.manage (draft/read) · .post (approve+post) · .pay
   # ============================================================
+  /employees/lookup:
+    get:
+      summary: Name-only employee lookup for document pickers (U6)
+      description: |
+        Registered OUTSIDE the master.employee.manage-gated group, under its own
+        narrower `master.employee.lookup` permission (seed 640) — document
+        pickers (e.g. Expense Claim's Employee selector) need this without the
+        full manage grant. Active-only, name-only (no payroll PII).
+      tags: [Employees]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    employeeId: { type: integer, format: int64 }
+                    employeeCode: { type: string }
+                    fullNameTh: { type: string }
+
   /employees:
     post:
       summary: สร้างพนักงาน
@@ -2580,6 +3611,31 @@ paths:
     get:
       summary: รายการ payroll runs
       tags: [Payroll]
+      responses:
+        '200': { description: OK }
+
+  /payroll/runs/{id}/deductions:
+    put:
+      summary: แก้ไขรายการหักของ run (Draft only; perm payroll.run.manage)
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+
+  /payroll/runs/{id}/sso-schedule:
+    get:
+      summary: สปส.1-10 ส่วนที่ 2 บนหน้าจอ (official PDF ไม่มีหน้านี้ — ใช้ transcribe ลงกระดาษ)
+      description: O11-alt — pure projection of the same model sso/pdf and sso/file build. Same filing gate (payroll.run.manage OR tax.filing.preview).
+      tags: [Payroll]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
       responses:
         '200': { description: OK }
 
@@ -2781,6 +3837,1016 @@ paths:
       responses:
         '200':
           description: Rotated — new plaintext key returned (same one-time-display contract as create)
+
+# ============================================================
+# BANK ACCOUNTS — master CRUD (specs/bank-reconciliation.md B1.6)
+# synced 2026-08-21 (whole family was undocumented). BankAccountEndpoints.cs.
+# ============================================================
+  /bank-accounts:
+    post:
+      summary: สร้างบัญชีธนาคาร (perm bank.account.manage)
+      tags: [Bank Accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { bank_account_id }' }
+    get:
+      summary: รายการบัญชีธนาคาร (perm bank.account.read)
+      tags: [Bank Accounts]
+      parameters:
+        - { name: includeInactive, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+
+  /bank-accounts/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      summary: ดูบัญชีธนาคาร (perm bank.account.read)
+      tags: [Bank Accounts]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: แก้ไขบัญชีธนาคาร (perm bank.account.manage)
+      tags: [Bank Accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+    delete:
+      summary: ปิดใช้งานบัญชีธนาคาร (soft; perm bank.account.manage)
+      tags: [Bank Accounts]
+      responses:
+        '204': { description: Deactivated }
+
+  # ============================================================
+  # BANK STATEMENT IMPORTS (specs/bank-reconciliation.md B2.6)
+  # ============================================================
+  /bank-accounts/{bankAccountId}/imports:
+    parameters:
+      - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+    post:
+      summary: อัปโหลด bank statement (multipart/form-data; CSV — K-Plus PDF adapter reserved)
+      description: perm bank.statement_import. StatementImportEndpoints.cs:18.
+      tags: [Bank Statement Imports]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                password: { type: string, description: 'reserved for the K-Plus PDF adapter; CSV adapter ignores it' }
+      responses:
+        '201': { description: 'Created — returns { statementImportId, ... }' }
+        '400': { description: 'multipart/form-data or file missing' }
+    get:
+      summary: รายการ imports ของบัญชีนี้
+      tags: [Bank Statement Imports]
+      responses:
+        '200': { description: OK }
+
+  /bank-accounts/{bankAccountId}/imports/{importId}/lines:
+    get:
+      summary: รายการ statement lines ของ import นี้
+      tags: [Bank Statement Imports]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: importId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+
+  /bank-accounts/{bankAccountId}/imports/{importId}:
+    delete:
+      summary: ลบ import ที่นำเข้าผิด (remediation; same perm as create — bank.statement_import)
+      description: L2-3 superseded-import remediation (PLAN-fix-findings-r2.md §U3.2). StatementImportEndpoints.cs:46.
+      tags: [Bank Statement Imports]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: importId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Deleted }
+
+  # ============================================================
+  # BANK RECONCILIATION — matching + inline JE (specs/bank-reconciliation.md
+  # §Matching + inline JE B4.3) + reconciliation report (B5.2)
+  # ============================================================
+  /bank-accounts/{bankAccountId}/lines/{lineId}/suggestions:
+    get:
+      summary: Suggested matches for one statement line (perm bank.reconcile)
+      tags: [Bank Reconciliation]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: lineId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+
+  /bank-accounts/{bankAccountId}/lines/{lineId}/match:
+    post:
+      summary: Confirm a match (perm bank.reconcile)
+      tags: [Bank Reconciliation]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: lineId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Matched }
+
+  /bank-accounts/{bankAccountId}/lines/{lineId}/unmatch:
+    post:
+      summary: Undo a match (perm bank.reconcile)
+      tags: [Bank Reconciliation]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: lineId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Unmatched }
+
+  /bank-accounts/{bankAccountId}/lines/{lineId}/journal:
+    post:
+      summary: Create an inline JE for a statement line with no matching document (perm bank.reconcile)
+      tags: [Bank Reconciliation]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: lineId, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200': { description: OK }
+
+  /bank-accounts/{bankAccountId}/lines/{lineId}/ignore:
+    post:
+      summary: Mark a statement line as ignored (perm bank.reconcile)
+      tags: [Bank Reconciliation]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: lineId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Ignored }
+
+  /bank-accounts/{bankAccountId}/lines/{lineId}/unignore:
+    post:
+      summary: Undo ignore on a statement line (perm bank.reconcile)
+      tags: [Bank Reconciliation]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: lineId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Un-ignored }
+
+  /bank-accounts/{bankAccountId}/reconciliation:
+    get:
+      summary: Reconciliation report for a date range (perm bank.report_read)
+      tags: [Bank Reconciliation]
+      parameters:
+        - { name: bankAccountId, in: path, required: true, schema: { type: integer } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+
+  # ============================================================
+  # FIXED ASSETS + DEPRECIATION RUNS — synced 2026-08-21 (whole family was
+  # undocumented). FixedAssetEndpoints.cs.
+  # ============================================================
+  /fixed-assets:
+    get:
+      summary: รายการสินทรัพย์ถาวร (perm fixed_asset.read)
+      tags: [Fixed Assets]
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+    post:
+      summary: สร้างสินทรัพย์ถาวร (Draft; perm fixed_asset.manage)
+      tags: [Fixed Assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                category: { type: string }
+                acquireDate: { type: string, format: date }
+                vendorInvoiceId: { type: integer, format: int64 }
+                cost: { type: number }
+                salvageValue: { type: number }
+                usefulLifeMonths: { type: integer }
+                depreciationStartDate: { type: string, format: date, description: 'null → defaults to acquireDate' }
+                assetCostAccountId: { type: integer, format: int64 }
+                accumDepAccountId: { type: integer, format: int64 }
+                depExpenseAccountId: { type: integer, format: int64 }
+                notes: { type: string }
+                businessUnitId: { type: integer }
+      responses:
+        '201': { description: 'Created — returns { fixed_asset_id }' }
+
+  /fixed-assets/reports/register:
+    get:
+      summary: ทะเบียนสินทรัพย์ถาวร (perm fixed_asset.read)
+      tags: [Fixed Assets]
+      parameters:
+        - { name: asOf, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+
+  /fixed-assets/reports/accumulated-depreciation:
+    get:
+      summary: รายงานค่าเสื่อมสะสมรายปี (perm fixed_asset.read)
+      tags: [Fixed Assets]
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+
+  /fixed-assets/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: ดูรายละเอียดสินทรัพย์ถาวร (perm fixed_asset.read)
+      tags: [Fixed Assets]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: แก้ไขสินทรัพย์ถาวร (Draft only; perm fixed_asset.manage)
+      tags: [Fixed Assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+
+  /fixed-assets/{id}/activate:
+    post:
+      summary: เริ่มคิดค่าเสื่อม (Draft → Active; perm fixed_asset.manage)
+      tags: [Fixed Assets]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Activated }
+
+  /fixed-assets/{id}/cancel:
+    post:
+      summary: ยกเลิกสินทรัพย์ถาวร Draft (perm fixed_asset.manage)
+      tags: [Fixed Assets]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Cancelled }
+
+  /fixed-assets/{id}/dispose:
+    post:
+      summary: จำหน่ายสินทรัพย์ (perm fixed_asset.dispose) — คำนวณ NBV/กำไรขาดทุน + ลง GL
+      tags: [Fixed Assets]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                disposalDate: { type: string, format: date }
+                proceeds: { type: number }
+                vatAmount: { type: number }
+                buyerName: { type: string }
+      responses:
+        '200':
+          description: 'returns { fixedAssetId, nbv, gainLoss, journalEntryId, status }'
+
+  /fixed-assets/{id}/write-off:
+    post:
+      summary: ตัดจำหน่ายสินทรัพย์ (มูลค่า 0; perm fixed_asset.dispose)
+      tags: [Fixed Assets]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date: { type: string, format: date }
+                reason: { type: string }
+      responses:
+        '200': { description: OK }
+
+  /depreciation-runs:
+    post:
+      summary: สร้างรอบคิดค่าเสื่อมประจำเดือน (perm fixed_asset.depreciation_run)
+      tags: [Fixed Assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                year: { type: integer }
+                month: { type: integer }
+      responses:
+        '200': { description: OK }
+    get:
+      summary: รายการรอบคิดค่าเสื่อม (perm fixed_asset.read)
+      tags: [Fixed Assets]
+      responses:
+        '200': { description: OK }
+
+  /depreciation-runs/{year}/{month}:
+    get:
+      summary: ดูรอบคิดค่าเสื่อมเดือนที่ระบุ (perm fixed_asset.read)
+      tags: [Fixed Assets]
+      parameters:
+        - { name: year, in: path, required: true, schema: { type: integer } }
+        - { name: month, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================================================
+  # EXPENSE CLAIMS — synced 2026-08-21 (whole family was undocumented).
+  # ExpenseClaimEndpoints.cs.
+  # ============================================================
+  /expense-claims:
+    post:
+      summary: สร้างใบเบิกค่าใช้จ่าย (Draft; perm expense.claim.create)
+      tags: [Expense Claims]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { expense_claim_id }' }
+    get:
+      summary: รายการใบเบิกค่าใช้จ่าย (perm expense.claim.read)
+      tags: [Expense Claims]
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: employeeId, in: query, schema: { type: integer, format: int64 } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK }
+
+  /expense-claims/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: ดูใบเบิกค่าใช้จ่าย (perm expense.claim.read)
+      tags: [Expense Claims]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: แก้ไขใบเบิกค่าใช้จ่าย (Draft only; perm expense.claim.create)
+      tags: [Expense Claims]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+
+  /expense-claims/{id}/submit:
+    post:
+      summary: ส่งใบเบิกเพื่ออนุมัติ (perm expense.claim.create)
+      tags: [Expense Claims]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Submitted }
+
+  /expense-claims/{id}/approve:
+    post:
+      summary: อนุมัติใบเบิก (perm expense.claim.approve)
+      tags: [Expense Claims]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+
+  /expense-claims/{id}/reject:
+    post:
+      summary: ปฏิเสธใบเบิก (พร้อมเหตุผล; perm expense.claim.approve)
+      tags: [Expense Claims]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '204': { description: Rejected }
+
+  /expense-claims/{id}/pay:
+    post:
+      summary: บันทึกจ่ายใบเบิก + ลง GL (perm expense.claim.pay)
+      tags: [Expense Claims]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200': { description: OK }
+
+  /expense-claims/{id}/cancel:
+    post:
+      summary: ยกเลิกใบเบิก (perm expense.claim.create)
+      tags: [Expense Claims]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Cancelled }
+
+  # ============================================================
+  # BUSINESS UNITS — synced 2026-08-21 (whole family was undocumented).
+  # BusinessUnitEndpoints.cs.
+  # ============================================================
+  /business-units:
+    post:
+      summary: สร้าง Business Unit (perm master.business_unit.manage)
+      tags: [Business Units]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { business_unit_id }' }
+    get:
+      summary: รายการ Business Units (perm master.business_unit.read)
+      tags: [Business Units]
+      parameters:
+        - { name: includeInactive, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+
+  /business-units/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      summary: ดู Business Unit (perm master.business_unit.read)
+      tags: [Business Units]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: แก้ไข Business Unit (perm master.business_unit.manage)
+      tags: [Business Units]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+    delete:
+      summary: ปิดใช้งาน Business Unit (soft; perm master.business_unit.manage)
+      tags: [Business Units]
+      responses:
+        '204': { description: Deactivated }
+
+  /business-units/company-setting:
+    put:
+      summary: เปิด/ปิด บังคับระบุ Business Unit ทั้งบริษัท (perm master.business_unit.manage)
+      tags: [Business Units]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requiresBusinessUnit: { type: boolean }
+      responses:
+        '204': { description: Updated }
+    get:
+      summary: อ่านสถานะ requires_business_unit (any authenticated user — the required-asterisk on the 4 doc forms needs it even without BusinessUnitManage)
+      description: BusinessUnitEndpoints.cs:64 registers this GET separately (top-level app.MapGet, not the manage-gated group) on the same path.
+      tags: [Business Units]
+      responses:
+        '200': { description: 'returns { requiresBusinessUnit }' }
+
+  # ============================================================
+  # JOURNALS — synced 2026-08-21 (whole family was undocumented).
+  # JournalEndpoints.cs.
+  # ============================================================
+  /journals:
+    post:
+      summary: สร้าง Journal Draft (perm gl.journal.create)
+      tags: [Journals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { journal_id }' }
+    get:
+      summary: รายการ Journal Entries (perm gl.journal.read)
+      tags: [Journals]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: pageSize, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+
+  /journals/{id}:
+    get:
+      summary: ดู Journal Entry detail (perm gl.journal.read; GL drill-down target)
+      tags: [Journals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /journals/{id}/post:
+    post:
+      summary: Post Journal Entry ลง GL (perm gl.journal.post)
+      tags: [Journals]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Posted }
+
+  /journals/manual:
+    post:
+      summary: Manual JV — สร้างและ Post ในคำขอเดียว (perm gl.journal.post, ไม่ใช่ .create — ไม่มี draft state)
+      tags: [Journals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200': { description: OK }
+
+  # ============================================================
+  # PERIODS — month close/reopen + year-end closing (specs/year-end-closing.md B6)
+  # synced 2026-08-21 (whole family was undocumented). PeriodEndpoints.cs.
+  # ============================================================
+  /periods/{year}/{month}/close:
+    post:
+      summary: ปิดงวดบัญชี (perm gl.period.close)
+      tags: [Periods]
+      parameters:
+        - { name: year, in: path, required: true, schema: { type: integer } }
+        - { name: month, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes: { type: string }
+      responses:
+        '200': { description: OK }
+
+  /periods/{year}/{month}/reopen:
+    post:
+      summary: เปิดงวดบัญชีกลับ (perm gl.period.close)
+      tags: [Periods]
+      parameters:
+        - { name: year, in: path, required: true, schema: { type: integer } }
+        - { name: month, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '204': { description: Reopened }
+
+  /periods/{year}/{month}/status:
+    get:
+      summary: สถานะเปิด/ปิดของงวด (any authenticated user — posting flows across every role need it)
+      tags: [Periods]
+      parameters:
+        - { name: year, in: path, required: true, schema: { type: integer } }
+        - { name: month, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: 'returns { open: boolean }' }
+
+  /periods/{year}/close-year:
+    post:
+      summary: ปิดปีบัญชี (perm gl.year_close)
+      tags: [Periods]
+      parameters:
+        - { name: year, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes: { type: string }
+      responses:
+        '200': { description: OK }
+
+  /periods/{year}/reopen-year:
+    post:
+      summary: เปิดปีบัญชีกลับ (perm gl.year_close)
+      tags: [Periods]
+      parameters:
+        - { name: year, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+
+  /periods/{year}/year-status:
+    get:
+      summary: สถานะปิดปี (any authenticated user)
+      tags: [Periods]
+      parameters:
+        - { name: year, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+
+  # ============================================================
+  # ATTACHMENTS — polymorphic file upload/download (synced 2026-08-21,
+  # whole family was undocumented). AttachmentEndpoints.cs.
+  # ============================================================
+  /attachments:
+    post:
+      summary: อัปโหลดไฟล์แนบ (multipart/form-data; perm sys.attachment.upload + parent-read inheritance)
+      description: |
+        parent_type COMPANY_PROFILE / COMPANY_STAMP / USER_SIGNATURE are brand/
+        identity assets — tenant-wide readable by every user regardless of role
+        (see AttachmentEndpoints.cs:24-27); other parent types require the
+        parent document's own read permission.
+      tags: [Attachments]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                parent_type: { type: string }
+                parent_id: { type: integer, format: int64 }
+                category: { type: string }
+                description: { type: string }
+      responses:
+        '201': { description: 'Created — returns { attachmentId, ... }' }
+        '413': { description: File exceeds configured max size }
+    get:
+      summary: รายการไฟล์แนบของ parent หนึ่งราย (perm sys.attachment.read + parent-read inheritance)
+      tags: [Attachments]
+      parameters:
+        - { name: parent_type, in: query, required: true, schema: { type: string } }
+        - { name: parent_id, in: query, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: 'returns { items: [...] }' }
+
+  /attachments/categories:
+    get:
+      summary: รายการหมวดหมู่ไฟล์แนบที่รองรับ (perm sys.attachment.read)
+      tags: [Attachments]
+      responses:
+        '200': { description: OK }
+
+  /attachments/{id}/download:
+    get:
+      summary: ดาวน์โหลดไฟล์แนบ (perm sys.attachment.read + parent-read inheritance, resolved from the attachment's own row)
+      tags: [Attachments]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: File stream }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /attachments/{id}:
+    delete:
+      summary: ลบไฟล์แนบ (soft; perm sys.attachment.read, hard-delete needs sys.attachment.delete)
+      tags: [Attachments]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================================================
+  # MASTER DATA — Branches / Vendors / Chart of Accounts / Document Prefixes /
+  # Tax Codes. synced 2026-08-21 (Companies sub-family was already documented
+  # above under /companies; these were not). MasterEndpoints.cs.
+  # ============================================================
+  /branches:
+    post:
+      summary: สร้างสาขา (perm master.branch.manage)
+      tags: [Branches]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { branch_id }' }
+    get:
+      summary: รายการสาขา (perm master.branch.manage)
+      tags: [Branches]
+      responses:
+        '200': { description: OK }
+
+  /branches/{id}:
+    put:
+      summary: แก้ไขสาขา (perm master.branch.manage)
+      tags: [Branches]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+
+  /vendors:
+    post:
+      summary: สร้างผู้ขาย/vendor (perm master.vendor.manage)
+      tags: [Vendors]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { vendor_id }' }
+    get:
+      summary: ค้นหา/list vendors (perm master.vendor.read)
+      tags: [Vendors]
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: pageSize, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: OK }
+
+  /vendors/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    put:
+      summary: แก้ไขผู้ขาย/vendor (perm master.vendor.manage)
+      tags: [Vendors]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+    get:
+      summary: ดูรายละเอียดผู้ขาย (perm master.vendor.read)
+      tags: [Vendors]
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts:
+    post:
+      summary: สร้างผังบัญชี (perm master.coa.manage)
+      tags: [Chart of Accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201': { description: 'Created — returns { account_id }' }
+    get:
+      summary: รายการผังบัญชี (perm master.coa.manage)
+      tags: [Chart of Accounts]
+      parameters:
+        - { name: type, in: query, schema: { type: string } }
+        - { name: activeOnly, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK }
+
+  /accounts/{id}:
+    put:
+      summary: แก้ไขผังบัญชี (perm master.coa.manage)
+      tags: [Chart of Accounts]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204': { description: Updated }
+
+  # /document-prefixes already documented above (near /admin/rbac — tag
+  # "System") — POST + GET both match MasterEndpoints.cs's MapDocumentPrefixes
+  # exactly, no gap. Not re-added here (would collide as a duplicate yaml key).
+
+  /tax-codes:
+    get:
+      summary: รายการ tax codes (any authenticated user — line-editor tax-code picker)
+      description: 'No dedicated read permission — mirrors GET /wht-types: any signed-in tenant user reads their own company reference master (MasterEndpoints.cs:194-199).'
+      tags: [Tax Codes]
+      responses:
+        '200': { description: OK }
+
+  # ============================================================
+  # DOCUMENT CROSS-REFS — read-only cross-reference lookups for the FE
+  # useCrossReferences hook (Sprint 13h P8). synced 2026-08-21.
+  # DocumentCrossRefEndpoints.cs.
+  # ============================================================
+  /document-cross-refs/tax-invoice/{id}:
+    get:
+      summary: Cross-refs for a tax invoice (perm sales.tax_invoice.read)
+      tags: [DocumentCrossRefs]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /document-cross-refs/receipt/{id}:
+    get:
+      summary: Cross-refs for a receipt (perm sales.receipt.create — legacy, no separate read code)
+      tags: [DocumentCrossRefs]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /document-cross-refs/adjustment-note/{id}:
+    get:
+      summary: Cross-refs for a credit/debit note (perm sales.credit_note.create)
+      tags: [DocumentCrossRefs]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /documents/purchase-chain:
+    get:
+      summary: Full purchase-chain resolver (PO→VI→PV→WHT; authenticated only — query itself is tenant-scoped)
+      description: 'Sales-side counterpart is GET /documents/chain (documented above). Question-Backend36.'
+      tags: [Documents]
+      parameters:
+        - { name: type, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================================================
+  # ACTIVITY — per-document audit trail (Sprint 13j-FE D1/D2, 13j-PURCH BP-09).
+  # ONE templated route: 13 docRoute values, each gated by that document's OWN
+  # read permission (not the global report.audit_read) — mirrors this yaml's
+  # existing /{docRoute}/{id}/mark-printed precedent. synced 2026-08-21.
+  # ActivityEndpoints.cs.
+  # ============================================================
+  /{docRoute}/{id}/activity:
+    get:
+      summary: Chronological audit trail for one document (audit.activity_log)
+      description: |
+        docRoute ∈ {quotations, sales-orders, delivery-orders, tax-invoices,
+        receipts, credit-notes, debit-notes, billing-notes, purchase-orders,
+        vendor-invoices, payment-vouchers, wht-certificates, payroll-runs}.
+        Each is gated by that SAME document's own read permission (the exact
+        policy its own GET /{docRoute}/{id} route requires) — e.g.
+        sales.quotation.read for quotations, purchase.vendor_invoice.read for
+        vendor-invoices. credit-notes/debit-notes both live on the single
+        /tax-adjustment-notes/{id} resource but get their OWN read-gated
+        activity route here (mirrors PrintEndpoints.cs's existing
+        credit-notes/debit-notes split). payroll-runs is gated on
+        payroll.run.manage (no separate RunRead permission exists).
+        Read-only, tenant-scoped. Fixed 2026-08-20 R3 — previously every route
+        shared the global report.audit_read, which no ordinary operator role
+        holds (403'd sales_staff on their OWN quotation).
+      tags: [Activity]
+      parameters:
+        - name: docRoute
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [quotations, sales-orders, delivery-orders, tax-invoices, receipts,
+                   credit-notes, debit-notes, billing-notes, purchase-orders,
+                   vendor-invoices, payment-vouchers, wht-certificates, payroll-runs]
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: OK }
+        '403':
+          description: Missing the document's own read permission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+
+  # ============================================================
+  # ADMIN — non-VAT AR backfill (R1/C6 WP-2, one-time super-admin op).
+  # synced 2026-08-21. AdminBackfillEndpoints.cs.
+  # ============================================================
+  /admin/nonvat-ar-backfill:
+    post:
+      summary: Non-VAT AR backfill for invoices issued before WP-1 shipped (super-admin only, irreversible-once-applied)
+      description: |
+        mode=preview computes without side effects; mode=apply commits.
+        Authorization is an explicit IsSuperAdmin claim check, not a
+        permission policy — a one-time prod-data operation, not a
+        role-grantable feature. AdminBackfillEndpoints.cs:21.
+      tags: [Admin]
+      parameters:
+        - { name: mode, in: query, required: true, schema: { type: string, enum: [preview, apply] } }
+      responses:
+        '200': { description: OK }
+        '400':
+          description: mode missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelopeV1'
+        '403':
+          description: Caller is not a super-admin
+
+  # ============================================================
+  # PUBLIC PDF — the ONE anonymous, browser-openable PDF route
+  # (spec mcp-expansion.md §A). synced 2026-08-21. PublicPdfEndpoints.cs.
+  # ============================================================
+  /public/pdf:
+    get:
+      summary: Anonymous PDF view via a time-limited DataProtection token (never X-Api-Key/JWT)
+      description: |
+        docType/docId are resolved by PublicPdfTenantMiddleware from the token
+        itself (never a query param), so a doctored URL can't be pointed at a
+        different document. Supports tax_invoice, receipt, quotation, invoice
+        (billing note), delivery_order, purchase_order, payment_voucher.
+        Rendered inline (Content-Disposition: inline), never forced-download.
+        Rate-limited. PublicPdfEndpoints.cs:21.
+      tags: [Public]
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf: {}
+        '404':
+          description: 'Missing/invalid/expired token, or unknown docType — never 401/403 (no signal to a prober)'
 
 # ============================================================
 # /api/v1/* — EXTERNAL API (X-Api-Key auth ONLY, JWT rejected here)
@@ -3129,6 +5195,7 @@ paths:
         | list_payment_vouchers / get_payment_voucher | purchase.payment_voucher.read |
         | create_payment_voucher_draft | purchase.payment_voucher.create |
         | list_vendors / get_vendor / create_vendor | master.vendor.manage |
+        | list_employees | master.employee.lookup (OR master.employee.manage — back-compat for keys minted before the U6 scope narrowing) |
         | create_manual_journal_draft | gl.journal.create |
         | get_tax_invoice_pdf_url | sales.tax_invoice.read |
         | get_receipt_pdf_url | sales.receipt.read |

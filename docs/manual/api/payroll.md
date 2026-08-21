@@ -5,16 +5,20 @@
 Employee master plus the payroll-run lifecycle and its statutory outputs. Payroll data is sensitive — employee CRUD is admin-only; runs use a SoD permission split (`payroll.run.manage` for draft/read, `payroll.run.post` for approve/post, `payroll.run.pay` for marking paid). Posted runs are immutable (no edit endpoint).
 
 ## Employees
-All gated by `master.employee.manage`.
+Full CRUD is gated by `master.employee.manage` — payroll data (`baseSalary`, bank fields, `nationalId`, etc.) is sensitive, so this stays admin/chief-accountant only.
 - `POST /employees` — create. Body (key fields): `employeeCode`, `firstNameTh`, `lastNameTh`, `nationalId` (required); `titleTh?`, name-EN parts, `taxId?`, `address?`, `hireDate`, `terminationDate?`, `baseSalary` (decimal), bank fields, `ssoApplicable` (bool), `ssoNumber?`, `maritalStatus`, `spouseHasIncome` (bool), `childrenCount` (int) (`CreateEmployeeRequest`). → `201`.
 - `PUT /employees/{id}` — update (`UpdateEmployeeRequest`, adds `isActive`). Path `id` (long). → `204`.
 - `DELETE /employees/{id}` — soft-deactivate. → `204`.
 - `GET /employees` — list. Query: `includeInactive?` (bool). → `200`.
 - `GET /employees/{id}` — detail. → `200` / `404`.
 
+### Name-only lookup (document pickers)
+`GET /employees/lookup` — **Auth:** `master.employee.lookup` (a narrower permission than `master.employee.manage` above). Returns active employees' `{ employeeId, employeeCode, fullNameTh }` only — no payroll PII. Registered OUTSIDE the manage-gated group specifically so document pickers (e.g. the Expense Claim form's Employee selector) work without granting full employee-management rights. `list_employees` on the MCP surface uses the same scope (`master.employee.lookup`, with `master.employee.manage` still accepted for back-compat on keys minted before this scope was split out).
+
 ## Payroll Runs
 Mounted at `/payroll/runs`. The group requires authentication; each route adds its specific permission.
 - `POST /payroll/runs` — create draft (auto-creates a payslip per active employee). **Auth:** `payroll.run.manage`. Body: `periodYearMonth` (YYYYMM, CE), `payDate`, `notes?` (`CreatePayrollRunRequest`). → `201`.
+- `PUT /payroll/runs/{id}/deductions` — edit the run's deduction lines (draft only). **Auth:** `payroll.run.manage`. → `204`.
 - `POST /payroll/runs/{id}/approve` — approve. **Auth:** `payroll.run.post`. → `204`.
 - `POST /payroll/runs/{id}/post` — post to GL. **Auth:** `payroll.run.post`. → `204`.
 - `POST /payroll/runs/{id}/pay` — mark paid. **Auth:** `payroll.run.pay`. → `204`.
@@ -23,11 +27,12 @@ Mounted at `/payroll/runs`. The group requires authentication; each route adds i
 - `GET /payroll/runs/{id}` — detail. **Auth:** `payroll.run.manage`. → `200` / `404`.
 
 ## Statutory documents
-All gated by `payroll.run.manage`.
-- `GET /payroll/runs/{id}/payslips/{employeeId}/pdf` — single payslip. → `application/pdf`.
-- `GET /payroll/runs/{id}/payslips/pdf` — all payslips for the run, zipped. → `application/zip`.
-- `GET /payroll/runs/{id}/pnd1/pdf` — ภ.ง.ด.1 (monthly WHT return + ใบแนบ). → `application/pdf`.
-- `GET /payroll/runs/{id}/sso/file` — SSO สปส.1-10 monthly upload file (TIS-620 fixed-width). → `text/plain`.
-- `GET /payroll/runs/{id}/sso/pdf` — สปส.1-10 ส่วนที่ 1 PDF. → `application/pdf`.
-- `GET /payroll/pnd1a/pdf` — ภ.ง.ด.1ก (annual, ม.58(1); aggregates posted runs). Query: `year` (CE). → `application/pdf`.
-- `GET /payroll/employees/{employeeId}/wht50tawi/pdf` — annual 50ทวิ for one employee (ม.50ทวิ). Query: `year` (CE). → `application/pdf`.
+Payslips are gated by `payroll.run.manage`. The RD/SSO filing artifacts below (ภ.ง.ด.1, สปส.1-10, ภ.ง.ด.1ก, 50ทวิ, สปส.1-10 ส่วนที่ 2) are tax **filings**, not payroll administration, so they accept `payroll.run.manage` **OR** `tax.filing.preview` — a `TAX_OFFICER` role that only holds the filing permission can pull these without being granted payroll administration.
+- `GET /payroll/runs/{id}/payslips/{employeeId}/pdf` — single payslip. **Auth:** `payroll.run.manage`. → `application/pdf`.
+- `GET /payroll/runs/{id}/payslips/pdf` — all payslips for the run, zipped. **Auth:** `payroll.run.manage`. → `application/zip`.
+- `GET /payroll/runs/{id}/pnd1/pdf` — ภ.ง.ด.1 (monthly WHT return + ใบแนบ). **Auth:** `payroll.run.manage` OR `tax.filing.preview`. → `application/pdf`.
+- `GET /payroll/runs/{id}/sso/file` — SSO สปส.1-10 monthly upload file (TIS-620 fixed-width). **Auth:** `payroll.run.manage` OR `tax.filing.preview`. → `text/plain`.
+- `GET /payroll/runs/{id}/sso/pdf` — สปส.1-10 ส่วนที่ 1 PDF. **Auth:** `payroll.run.manage` OR `tax.filing.preview`. → `application/pdf`.
+- `GET /payroll/runs/{id}/sso-schedule` — สปส.1-10 ส่วนที่ 2 shown ON SCREEN (the official PDF has no page for it — transcribe from here, or use the batch file/e-Service instead). **Auth:** `payroll.run.manage` OR `tax.filing.preview`. → `200`.
+- `GET /payroll/pnd1a/pdf` — ภ.ง.ด.1ก (annual, ม.58(1); aggregates posted runs). **Auth:** `payroll.run.manage` OR `tax.filing.preview`. Query: `year` (CE). → `application/pdf`.
+- `GET /payroll/employees/{employeeId}/wht50tawi/pdf` — annual 50ทวิ for one employee (ม.50ทวิ). **Auth:** `payroll.run.manage` OR `tax.filing.preview`. Query: `year` (CE). → `application/pdf`.

@@ -19,6 +19,11 @@ All gated by `sys.role.manage`.
 ## Users
 Gated by `sys.user.manage`.
 - `GET /admin/rbac/users` — list users. Query: `companyId?`. Returns `200`.
+- `POST /admin/rbac/users` — create a user. Body: `CreateUserRequest`. Returns `201` `{ userId }`.
 - `PUT /admin/rbac/users/{id}/roles` — assign roles to a user. Path: `id` (long). Body: `{ roleIds: int[], companyId?: int }` (`SetUserRolesRequest`). Returns `204`.
+- `PUT /admin/rbac/users/{id}/active` — enable/disable a user (deactivate = safe alternative to delete). Body: `{ isActive: bool }`. Returns `204`. `422 rbac.self_lockout` if deactivating self.
+- `PUT /admin/rbac/users/{id}/password` — admin-set a new password (clears lockout/failed-count; never logged). Body: `{ password }` (min 12 chars). Returns `204`.
+- `POST /admin/rbac/users/{id}/signature` — upload the user's saved signature (`multipart/form-data`, part `file`), embedded on posted-document PDFs (doc-signature spec §E5). Returns `200` `{ signatureUrl }`.
+- `PUT /admin/rbac/users/{id}/profile` — set the user's job position (ตำแหน่ง). Body: `{ position }`. Returns `204`.
 
 > See also `GET /me/permissions` (in [auth-and-identity.md](auth-and-identity.md)) for the caller's own effective permissions.

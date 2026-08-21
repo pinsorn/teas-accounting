@@ -71,8 +71,11 @@ A typical body: `{ "type": "urn:teas:error:<code>", "title": "<code>", "detail":
 | [Master Data](master-data.md) | companies, company profile, branches, customers, vendors, products, business units, chart of accounts, document prefixes, expense categories, WHT types |
 | [Sales](sales.md) | quotation → sales order → delivery order → tax invoice → receipt, credit/debit notes, billing notes, cross-refs, activity, print |
 | [Purchases](purchases.md) | purchase order, vendor invoice, payment voucher, WHT certificates |
-| [Payroll](payroll.md) | employees, payroll runs, payslips, ภ.ง.ด.1/1ก, SSO, 50ทวิ |
-| [Tax Filings](tax-filings.md) | ภ.พ.30, ภ.ง.ด.3/53/54/36, ภ.ง.ด.50/51, ภ.พ.01/09, CIT, e-Tax, VAT registers |
-| [Reports](reports.md) | P&L, balance sheet, trial balance, tax/sales summary, AP aging, number gaps, WHT receivable |
-| [RBAC Admin](rbac-admin.md) | roles, permissions catalog, users, user-role assignment |
+| [Banking](banking.md) | bank accounts, statement imports, bank reconciliation matching |
+| [Fixed Assets](fixed-assets.md) | asset register, activate/dispose/write-off, monthly depreciation runs (day-prorated) |
+| [Expense Claims](expense-claims.md) | employee expense claims: submit → approve → pay |
+| [Payroll](payroll.md) | employees, employee lookup, payroll runs, payslips, ภ.ง.ด.1/1ก, SSO, 50ทวิ |
+| [Tax Filings](tax-filings.md) | ภ.พ.30, ภ.ง.ด.2/3/53/54/36, ภ.ง.ด.50/51, ภ.พ.01/09, CIT, e-Tax, VAT registers |
+| [Reports](reports.md) | P&L, balance sheet, trial balance, tax/sales summary, general ledger, AP/AR aging, number gaps, WHT receivable |
+| [RBAC Admin](rbac-admin.md) | roles, permissions catalog, users, user-role assignment, signatures |
 | [System](system.md) | health, system info, VAT threshold, period close, journals, attachments |

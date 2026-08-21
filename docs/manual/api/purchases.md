@@ -10,10 +10,12 @@ The accounts-payable chain: Purchase Order → Vendor Invoice → Payment Vouche
 - `POST /purchase-orders/{id}/approve` — approve. **Auth:** `purchase.purchase_order.approve`. → `204`.
 - `POST /purchase-orders/{id}/mark-sent` — mark sent to vendor. **Auth:** `purchase.purchase_order.create`. → `204`.
 - `POST /purchase-orders/{id}/close` — close. **Auth:** `purchase.purchase_order.cancel`. → `204`.
-- `POST /purchase-orders/{id}/cancel` — cancel. **Auth:** `purchase.purchase_order.cancel`. → `204`.
+- `POST /purchase-orders/{id}/reopen` — reopen a closed PO (Closed → Approved). **Auth:** `purchase.purchase_order.cancel`. → `204`.
+- `POST /purchase-orders/{id}/cancel` — cancel. Body: `{ reason }` (≤500 chars). **Auth:** `purchase.purchase_order.cancel`. → `204`.
 - `GET /purchase-orders` — list. **Auth:** `purchase.purchase_order.read`. → `200`.
 - `GET /purchase-orders/{id}` — detail. **Auth:** `purchase.purchase_order.read`. → `200` / `404`.
 - `GET /purchase-orders/{id}/pdf` — PDF. **Auth:** `purchase.purchase_order.read`. → `application/pdf`.
+- `GET /purchase-orders/{id}/paper` — canonical paper JSON (screen == print parity twin of `/pdf`). **Auth:** `purchase.purchase_order.read`. → `200`.
 
 ## Vendor Invoices (ใบแจ้งหนี้ผู้ขาย)
 Input-VAT claim source; claim period defaults to the period of the vendor's tax-invoice date (§4).
@@ -29,6 +31,7 @@ SoD split: create / approve / post. PV number embeds the expense category (`MM-Y
 - `POST /payment-vouchers` — create. **Auth:** `purchase.payment_voucher.create`. Body: `docDate`, `vendorId` (required), `expenseCategoryId` (int), `paymentMethod`, `chequeNo?`, `chequeDate?`, `bankAccountId?`, `currencyCode`, `exchangeRate`, `description?`, `notes?`, `lines[]`, `vendorInvoiceId?` (settle a posted VI), WHT auto-derive fields (`CreatePaymentVoucherRequest`). → `201`.
 - `POST /payment-vouchers/{id}/approve` — approve. **Auth:** `purchase.payment_voucher.approve`. → `204`.
 - `POST /payment-vouchers/{id}/post` — post. **Auth:** `purchase.payment_voucher.post`. → `204`.
+- `POST /payment-vouchers/{id}/cancel` — cancel an Approved PV that can never Post (escape hatch; reuses the approve permission — creator-only is intentionally not sufficient). **Auth:** `purchase.payment_voucher.approve`. → `204`.
 - `POST /payment-vouchers/{id}/vendor-invoice` — create a vendor invoice from this PV. **Auth:** `purchase.vendor_invoice.create`. → `200`.
 - `GET /payment-vouchers` — list. **Auth:** `purchase.payment_voucher.read`. → `200`.
 - `GET /payment-vouchers/{id}` — detail. **Auth:** `purchase.payment_voucher.read`. → `200` / `404`.

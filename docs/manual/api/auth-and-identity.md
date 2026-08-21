@@ -14,6 +14,13 @@ Authenticate and obtain a JWT.
 - **Response:** `200` `{ access_token, expires_at, token_type: "Bearer" }`. If MFA is enabled and no code supplied: `200` `{ mfa_required: true }`.
 - **Notes:** The JWT field is `access_token`. `401` on bad credentials.
 
+### `POST /auth/refresh`
+Re-issue a fresh access token for a still-valid session (sliding refresh).
+
+- **Auth:** Authenticated.
+- **Response:** `200` `{ access_token, expires_at, token_type }` — same claims/company/branch, but roles/permissions are reloaded (a revoked grant takes effect immediately).
+- **Notes:** Enforces the ABSOLUTE session cap (`auth_time` never resets on refresh) — an over-cap caller gets `403`, not a silent re-login. An already-expired token 401s before this handler runs.
+
 ### `POST /auth/switch-company/{companyId}`
 Re-scope the caller's session to another company (super-admin only).
 

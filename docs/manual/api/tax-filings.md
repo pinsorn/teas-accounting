@@ -1,26 +1,31 @@
 # Tax Filings
 
-แบบยื่นภาษี: ภ.พ.30, ภ.ง.ด.3/53/54/36, ภ.ง.ด.50/51, ภ.พ.01/09, CIT (ภาษีเงินได้นิติบุคคล), e-Tax และทะเบียนภาษีซื้อ/ขาย.
+แบบยื่นภาษี: ภ.พ.30, ภ.ง.ด.2/3/53/54/36, ภ.ง.ด.50/51, ภ.พ.01/09, CIT (ภาษีเงินได้นิติบุคคล), e-Tax และทะเบียนภาษีซื้อ/ขาย.
 
 Generation and PDF/batch export of statutory returns. POST routes that compute a return accept a `?mode=preview|finalize` query param — `mode=finalize` additionally requires `tax.filing.finalize` (super-admin bypasses); `preview` (default) needs only `tax.filing.preview`. `period` is `YYYYMM`; `year` is CE. PDFs are print-and-file (no automatic RD submission unless noted). Most routes use `tax.filing.preview`.
+
+**Payer Tax ID refusal:** every RD/SSO filing artifact (ภ.ง.ด.1/1ก, สปส.1-10, ภ.ง.ด.50/51, ภ.พ.01/09, ภ.ง.ด.2/3/53/54/36) refuses to render — `422 filing.payer_tax_id_missing` — if the company's own Tax ID on `GET /company-profile` is blank or all-zero digits. A filing document nobody can attribute to a real payer is as useless to the RD/SSO as an unattributable 50ทวิ; the check is deliberately just "blank or all-zero", not a full checksum — the finding is a never-filled-in profile, not a typo. Set the company Tax ID via `master-data.md`'s Companies/Company Profile endpoints before generating any filing artifact.
 
 ## VAT — ภ.พ.30
 - `POST /tax-filings/pnd30` — generate the VAT return. **Auth:** `tax.filing.preview` (+`finalize` for `mode=finalize`). Query: `period`, `mode?`. → `200` filing data.
 - `GET /tax-filings/pnd30/pdf` — filled ภ.พ.30 PDF. **Auth:** `tax.filing.preview`. Query: `period`. → `application/pdf`.
 
-## WHT — ภ.ง.ด.3 / 53 / 54 / 36
+## WHT — ภ.ง.ด.2 / 3 / 53 / 54 / 36
 Each POST: **Auth:** `tax.filing.preview` (+`finalize`); Query: `period`, `mode?`; → `200`.
+- `POST /tax-filings/pnd2` — ภ.ง.ด.2 (WHT on individuals, specs/pnd2-filing.md).
 - `POST /tax-filings/pnd3` — ภ.ง.ด.3 (WHT on individuals).
 - `POST /tax-filings/pnd53` — ภ.ง.ด.53 (WHT on juristic persons).
 - `POST /tax-filings/pnd54` — ภ.ง.ด.54 (WHT/VAT on foreign payments).
-- `POST /tax-filings/pnd36` — ภ.พ.36 reverse-charge (auto-JV on finalize).
+- `POST /tax-filings/pnd36` — ภ.พ.36 reverse-charge (auto-JV on finalize; also takes `acknowledge?`, `ackAmount?` — the figure the filer saw when they ticked, checked against the freshly computed figure).
 
 PDFs (Query: `period`; → `application/pdf`; **Auth:** `tax.filing.preview`):
 - `GET /tax-filings/pnd3/pdf`
 - `GET /tax-filings/pnd53/pdf`
 - `GET /tax-filings/pnd54/pdf`
+- `GET /tax-filings/pp36/pdf` — ภ.พ.36 (reverse-charge), parity with ภ.ง.ด.54.
 
 RD batch-upload files (pipe-delimited UTF-8 `.txt`; Query: `period`; → `text/plain`; **Auth:** `tax.filing.preview`):
+- `GET /tax-filings/pnd2/batch-file`
 - `GET /tax-filings/pnd53/batch-file`
 - `GET /tax-filings/pnd3/batch-file`
 
