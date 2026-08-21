@@ -1,5 +1,8 @@
 # STATUS.md — orchestrator live board
 
+> Closed PLAN-*/PROGRESS-* records live in `docs/archive/` (moved 2026-08-21; git history intact —
+> relative links inside archived files may point at root-era paths).
+
 ## Now
 - **🚀 2026-08-20 — v2.3.1 RELEASED: the full Codex external-review round closed same-day.**
   12 findings across 3 Codex reports (4 code + 3 UI-test + 5 UI-codebase) — every one Fable-
