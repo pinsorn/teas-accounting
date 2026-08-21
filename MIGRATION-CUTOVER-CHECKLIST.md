@@ -40,6 +40,13 @@ memory `teas-prod-disabled-server-crisis`. Order matters — probes before boots
       cross-check, ภ.พ.30 EXEMPT vs ZERO_RATED bucketing on real data.
 - [ ] co5 post-swarm sanity walk (folds the retired-host OBSOLETE items' concern into cutover).
 
+## 3.5 Repttown data re-entry (source secured 2026-08-21)
+- [x] OLD-server extract done: full pg_dump of prod DB `teas` + per-table CSVs for Repttown
+      (company 2 — BN 8, Receipt 8, PV 5, JE 15 + masters) at
+      `D:	eas-backupsepttown-extract-2026-08-21\` (md5-verified; server /tmp cleaned).
+- [ ] After new prod is up: re-enter Repttown documents via UI/API and tie out against the bank
+      statement using the CSVs as the source of truth (doc numbers/dates/amounts per CSV).
+
 ## 4. One-off data chores on prod (money — follow each spec's protocol exactly)
 - [ ] **Non-VAT AR backfill APPLY** on Repttown (`POST /admin/nonvat-ar-backfill?mode=apply`,
       protocol in specs/fix-breakit-r1-ledger-integrity.md §7 — dry-run first, Tier-4 tie-out after).
