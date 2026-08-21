@@ -122,3 +122,8 @@ STM_*.pdf
 # Claude Code local-only state (agent/template definitions ARE tracked; these are not)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# deploy build outputs (8GB incident 2026-08-21) — keep only scripts/notes in publish/
+publish/api-*/
+publish/fe-*/
+publish/*.tar.gz
