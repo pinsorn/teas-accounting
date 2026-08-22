@@ -12,7 +12,12 @@ RUN dotnet restore "src/Accounting.Api/Accounting.Api.csproj"
 
 # Build
 COPY . .
-RUN dotnet publish "src/Accounting.Api/Accounting.Api.csproj" -c Release -o /app/publish --no-restore
+# Docker context has no .git, so MinVer can't read the tag — override from the
+# checked-in VERSION file. Bump backend/VERSION when tagging a release, or prod
+# keeps showing the previous version. tr strips CRLF/whitespace so a Windows
+# checkout can't feed MinVer an invalid version and fail the Coolify build.
+RUN dotnet publish "src/Accounting.Api/Accounting.Api.csproj" -c Release -o /app/publish --no-restore \
+    -p:MinVerVersionOverride=$(tr -d ' \r\n' < VERSION)
 
 # Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final

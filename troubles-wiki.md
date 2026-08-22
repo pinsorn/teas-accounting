@@ -1693,3 +1693,14 @@ losing the test DB costs nothing.
   state-changing toasts — the preceding action's + this one's own dialog confirm — stack up
   before the NEXT action bar button is clicked). Cost ~1.5hrs of trace-reading across 4 wrong
   turns before the point-of-use `addStyleTag` mechanism was confirmed reliable.
+
+## Prod footer shows wrong/stale version (0.0.0-alpha.0 or previous release)
+- Symptom: teas.kazaki-rio.com footer / `/system/info` shows `0.0.0-alpha.0`, or after a
+  release it still shows the PREVIOUS version (looks right, is wrong).
+- Root cause: Coolify Docker build context is `./backend` — no `.git` there, so MinVer
+  can't read the tag. `backend/Dockerfile` overrides via `-p:MinVerVersionOverride`
+  read from the checked-in `backend/VERSION` file.
+- Fix: bump `backend/VERSION` in the same commit that tags `vX.Y.Z`. If the build fails
+  inside Coolify on the publish step, check VERSION for CRLF/whitespace (the Dockerfile
+  `tr -d ' \r\n'` should already strip it).
+- Seen: 2026-08-22, first Coolify deploy on the new server showed 0.0.0-alpha.0.
