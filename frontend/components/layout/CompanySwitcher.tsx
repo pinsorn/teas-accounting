@@ -112,9 +112,19 @@ export function CompanySwitcher() {
                 aria-current={active ? 'true' : undefined}
               >
                 <span className="flex min-w-0 flex-1 flex-col text-left">
-                  <span className="truncate text-[13px] text-ink-900">{c.nameTh}</span>
+                  {/* daisyUI .active paints a dark bg — the fixed ink colors go
+                      dark-on-dark, so the active row flips to white text. */}
+                  <span
+                    className={`truncate text-[13px] ${active ? 'text-white' : 'text-ink-900'}`}
+                  >
+                    {c.nameTh}
+                  </span>
                   {c.nameEn && (
-                    <span className="truncate text-[11px] text-ink-400">{c.nameEn}</span>
+                    <span
+                      className={`truncate text-[11px] ${active ? 'text-white/70' : 'text-ink-400'}`}
+                    >
+                      {c.nameEn}
+                    </span>
                   )}
                 </span>
                 {active && <Check className="h-4 w-4 shrink-0 text-peach-600" aria-hidden />}
