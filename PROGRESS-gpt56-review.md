@@ -53,6 +53,16 @@ whole round is green + Tier-4 plan agreed). Self-wake Monitor armed (`wake-watch
 5. Release: bump `backend/VERSION`, push main (CI must be green incl. the new frontend gates —
    watch the first run: `pnpm build` in CI is new), release-please, Coolify. Tier-4 per PLAN §3.
 
+## Quota events
+- 22:35 five_hour 97% → hook DENIED the Codex review dispatch (Agent tool blocked ≥95 regardless of pool).
+  Wakeup standing for 23:12 (chain until state.json five_hour < 85). WP-B remediation was ordered to the
+  warm worker BEFORE the block (SendMessage at 94%) and the acceptance-tester is still running — both
+  may finish during the pause; their reports will be in the transcript. If the session crashed, check:
+  `git status` for `IdempotencyClaimFirstTests.cs` (acceptance) and for changes in
+  `frontend/components/ui/ProductTypeSelect.tsx` / `page.tsx` / `purchase-chain.spec.ts` (WP-B fixes).
+- If a Codex report exists at `Z:/temp/claude/Y--ClaudePlayground-TEAS-Project/485d6f4e-ebb5-4fb9-b1cd-3d278b885897/scratchpad/codex-wpa-review.md`,
+  read it — it is the WP-A Tier-2 cross-family review (run directly via the codex CLI during wind-down).
+
 ## Resume order (short)
 acceptance-tester result → WP-B remediation (SendMessage warm worker) → WP-A review (Codex if quota
 high) → fixes if any → Tier-3 suite + e2e → commit → push → release → Tier-4 → STATUS/PLAN close-out
