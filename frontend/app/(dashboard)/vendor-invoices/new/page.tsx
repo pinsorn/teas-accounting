@@ -81,7 +81,8 @@ function VendorInvoiceNewForm() {
   // "arrive via PO CTA" path (fromPoId) is still stale on the very first run (vendorId hasn't
   // propagated to a re-render yet); the manual "link a PO from the dropdown" path (vendor
   // already selected first) is unaffected.
-  const vendor = useVendor(vendorId ?? 0).data;
+  const vendorQ = useVendor(vendorId ?? 0);
+  const vendor = vendorQ.data;
   const autoNoInputVat = !!vendor &&
     (!vendor.vatRegistered || (vendor.isForeign && !vendor.hasThaiVatDReg));
   const foreignNoVatD = !!vendor?.isForeign && !vendor.hasThaiVatDReg;
@@ -115,9 +116,11 @@ function VendorInvoiceNewForm() {
   // a vendor that didn't match the PO. Wait until the vendor query has actually caught up to the
   // PO's own vendor before deriving; the manual "link a PO from the dropdown" path (vendor
   // already picked by the user before a PO can even be chosen) is unaffected by this guard.
+  // Tier-2 F3 — `vendorQ.isError` escapes the wait if the vendor fetch itself fails: without it,
+  // an errored query never resolves to the PO's vendorId and rows would never initialise at all.
   useEffect(() => {
     if (!poDetail || poDetail.purchaseOrderId !== poId) return;
-    if (fromPoId && vendor?.vendorId !== poDetail.vendorId) return;
+    if (fromPoId && !vendorQ.isError && vendor?.vendorId !== poDetail.vendorId) return;
     // WP5 (specs/fix-swarm-findings-all.md, round-4 ap01 HIGH) — MERGE, don't replace: this
     // effect fires again whenever `poDetail`/`vendor` settles, and used to blindly null out every
     // row's categoryId even when the user had already picked one on a pre-existing row (by
@@ -145,7 +148,7 @@ function VendorInvoiceNewForm() {
       // reclassifying every SERVICE/EXEMPT_* line on the CTA and manual-link paths alike).
       productType: l.productType,
     })));
-  }, [poDetail, poId, fromPoId, vendor, companyVatRegistered, stdRate]);
+  }, [poDetail, poId, fromPoId, vendor, vendorQ.isError, companyVatRegistered, stdRate]);
 
   const options = useMemo(() => claimOptions(tiDate), [tiDate]);
   const effClaim = claim ?? options[0] ?? null;

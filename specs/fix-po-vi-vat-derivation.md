@@ -87,7 +87,14 @@ siblings do cleanup; otherwise use the same disposable naming they use).
 
 ## 3. Invariants
 - I1 A VI initialised from a PO carries each line's PO `taxRate` and `productType` verbatim,
-  regardless of async load order — T2 (e2e), T1 (unit).
+  regardless of async load order — T2 (e2e), T1 (unit). Tier-2 F2 correction: the `taxRate` half
+  of I1 is guaranteed by `PoLineDto.taxRate` being non-nullable at the DTO layer already (Round
+  1a) — `derivePoLineVatRate`'s first branch takes it regardless of which effect/deps version
+  reads it, so the e2e's VAT-rate assertions cannot actually falsify the effect split; the split
+  is defense-in-depth (correct `recoverable` default, `productType`, no eslint-disable), not what
+  makes those specific assertions pass. Only the **`productType`** assertions (row 2 = SERVICE,
+  not the pre-fix hardcoded 'GOOD') falsify anything at the base commit. No delay-injection test
+  added for the old stale-vendor-closure path — dead code now that taxRate comes from the DTO.
 - I2 A user's already-picked expense category on a row survives the (now possibly repeated)
   row-init — code review of the merge (unchanged) + T2 asserts the category select is still
   editable after rows settle.
@@ -127,6 +134,19 @@ siblings do cleanup; otherwise use the same disposable naming they use).
       `eslint-disable-next-line react-hooks/exhaustive-deps` is gone with no new "unused
       eslint-disable" complaint.
 
+### 4a. Tier-2 remediation (Round 2, commit 77e40c4 REJECTed, 5 findings — all applied)
+- [x] F1 (MEDIUM) `ProductTypeSelect.tsx` — `PRODUCT_TYPE_OPTIONS` now includes
+      `EXEMPT_GOOD`/`EXEMPT_SERVICE`; comment rewritten. `messages/en.json` already had both
+      labels (verified, not edited).
+- [x] F3 (LOW) `page.tsx` Effect B — `vendorQ.isError` escape hatch added to the guard + deps.
+- [x] F4 (NIT) `e2e/purchase-chain.spec.ts` new test's PO line 1 — `taxCodeId: null` (was the
+      seed-order-dependent `1`); pre-existing test #1 untouched (out of scope).
+- [x] F5 (NIT) §8 header — "Max 6 files" → "Max 9 files", extra files listed.
+- [x] F2 (wording only) — Invariants §3 I1 + the Round-1 attempt-log entry corrected: only
+      productType assertions falsify the pre-fix bug, not VAT-rate. No new test added.
+- [x] Gates re-run post-remediation: tsc 0, lint 0 errors, vitest 5/5, e2e (`-g` on the WP-B
+      test's title) 2/2 green against a freshly-restarted `next dev` :3000.
+
 ## 5. Tests
 T1 unit (2.2) · T2 e2e CTA path · T3 e2e manual-link path (same test file).
 
@@ -139,9 +159,11 @@ Server-side VAT derivation from tax code (backlog: backend trusts client rate) �
 tax-code handling · payment-vouchers page · WP-E lint burn-down.
 
 ## 8. Blast-radius cap
-Max 6 files: `page.tsx`, `lib/po-line-vat.ts`, `lib/po-line-vat.test.ts`, `e2e/purchase-chain.spec.ts`
-(+ ≤1 e2e helper if genuinely needed), this spec. Stop-and-re-spec if the effect split needs a
-change to `useVendor`/queries, or the e2e needs a new backend endpoint.
+Max 9 files: `page.tsx`, `lib/po-line-vat.ts`, `lib/po-line-vat.test.ts`, `e2e/purchase-chain.spec.ts`
+(+ ≤1 e2e helper if genuinely needed), this spec, `docs/api/openapi.yaml`, `troubles-wiki.md` (Round
+1) + `components/ui/ProductTypeSelect.tsx`, `messages/en.json` (Tier-2 remediation, F1). Stop-and-re-
+spec if the effect split needs a change to `useVendor`/queries, or the e2e needs a new backend
+endpoint.
 
 ## Attempt log
 - 2026-09-04 Fable: spec written; dispatch in Round 1c after WP-C (DTO) and WP-E land.
@@ -158,8 +180,13 @@ change to `useVendor`/queries, or the e2e needs a new backend endpoint.
   Consulted advisor before writing the e2e: confirmed effect-split guard field names, flagged the
   openapi.yaml anchor mismatch (resolved via line-726 precedent, see checklist), the biggest e2e
   risk (taxRate re-derivation from taxCodeId — verified NOT the case), and that row-1 (7%/GOOD)
-  is indistinguishable from the pre-fix default so row-2 (SERVICE/0%) is the assertion that
-  actually falsifies the bug.
+  is indistinguishable from the pre-fix default so row-2's productType (SERVICE) is the assertion
+  that actually falsifies the bug. Tier-2 F2 correction (see Invariants §3, I1): the VAT-RATE half
+  of every row's assertion (7%, 0%) is guaranteed regardless by `PoLineDto.taxRate` being
+  non-nullable at the DTO layer — it does not falsify the effect-split bug either; only
+  productType does. The phrasing above conflated "row 2 as a whole" with "row 2's productType"; it
+  is corrected here rather than rewritten in place, per the coordinator's instruction to fold the
+  correction into the attempt log.
   Wrote the e2e test (2-line PO: line1 GOOD@7% productId:null, line2 SERVICE@0% via a freshly
   API-created SERVICE product) + CTA-path assertions (row count, description, VAT%, productType
   via `getByTestId('vi-line-product-type').toHaveValue(...)`, I2 category-editable check) +
@@ -180,3 +207,36 @@ change to `useVendor`/queries, or the e2e needs a new backend endpoint.
   booted fresh (API :5080, next dev :3000 — both were down at dispatch start) and left running.
   DEVIATION (documented, not silent): openapi.yaml's exact spec'd anchor didn't exist; used an
   in-repo precedent instead of inventing a full schema (see checklist item 3, advisor-endorsed).
+- 2026-09-05 sonnet-implementer (Round 2, Tier-2 remediation — COMPLETE): coordinator relayed
+  Tier-2 REJECT with 5 Fable-verified findings on top of commit 77e40c4 (WP-B already committed).
+  Blast cap raised to 9 files (§8 updated). Session hit the 95% quota-guard threshold right after
+  reading `git log`/`git show 77e40c4` before any edit; checkpointed a resume note (since removed
+  — folded here) and paused (no `ScheduleWakeup` available to a dispatched worker). Quota reset;
+  resumed and applied all 5 findings:
+  - F1 `components/ui/ProductTypeSelect.tsx` — `PRODUCT_TYPE_OPTIONS` now
+    `['GOOD','SERVICE','EXEMPT_GOOD','EXEMPT_SERVICE']`; comment rewritten to explain the desync
+    (PO lines can arrive as EXEMPT_GOOD per `PurchaseOrderService.cs`'s `LineProductType` —
+    verified: a productId-null line with `TaxRate` 0 returns `"EXEMPT_GOOD"`, confirmed by reading
+    the function directly). `messages/en.json` already had `EXEMPT_GOOD`/`EXEMPT_SERVICE` labels
+    (:708-709, verified) — no en.json edit needed.
+  - F3 `page.tsx` — `const vendor = useVendor(...).data` split into
+    `const vendorQ = useVendor(vendorId ?? 0); const vendor = vendorQ.data;`; Effect B's guard is
+    now `if (fromPoId && !vendorQ.isError && vendor?.vendorId !== poDetail.vendorId) return;` with
+    `vendorQ.isError` added to the deps array; added a one-line comment on the error fallback.
+  - F4 `e2e/purchase-chain.spec.ts` (my new test's line 1 ONLY — pre-existing test #1's
+    `taxCodeId: 1` lines untouched, out of scope) — changed to `taxCodeId: null, taxCode: 'VAT7',
+    taxRate: 0.07`; verified `ResolveTaxCodesAsync`'s byCode/standardInput backstop resolves the FK
+    without depending on a specific seeded id.
+  - F5 §8 header bumped to "Max 9 files", listing `ProductTypeSelect.tsx` + `messages/en.json`
+    (not actually touched — already had the labels) alongside the Round-1 files.
+  - F2 wording-only: corrected Invariants §3 I1 and the Round-1 attempt-log entry above to state
+    the VAT-rate assertions cannot falsify the effect split (guaranteed by non-nullable
+    `PoLineDto.taxRate` regardless); only the productType assertions do. No new test added.
+  Gates: `tsc --noEmit` 0 errors (ran twice, after F1+F3 and again after F4). `eslint` on the 5
+  touched files (incl. `ProductTypeSelect.tsx`): 0 errors/warnings; full `pnpm lint`: 0 errors,
+  same 17 pre-existing warnings elsewhere. `vitest run lib/po-line-vat`: 5/5 green. `next dev`
+  :3000 was still running from Round 1 — killed (PID on :3000) and restarted fresh; API :5080
+  left as-is (no rebuild needed, F1/F3/F4 are FE-only). e2e re-run by title
+  (`-g "rows carry the PO line"`) twice against the fresh dev server: 2/2 green (23.1s, 17.0s).
+  `git status --porcelain` for my files: `page.tsx`, `ProductTypeSelect.tsx`,
+  `e2e/purchase-chain.spec.ts`, this spec (all `M`, en.json NOT modified).

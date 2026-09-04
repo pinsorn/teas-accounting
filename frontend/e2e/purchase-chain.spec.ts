@@ -300,7 +300,10 @@ test('VI from PO: rows carry the PO line\'s own taxRate + productType, on the CT
         {
           productId: null, descriptionTh: 'PO VAT line 1 (GOOD 7%)', quantity: 1,
           uomText: 'ชิ้น', unitPrice: 1000, discountPercent: 0,
-          taxCodeId: 1, taxCode: 'VAT7', taxRate: 0.07, notes: null,
+          // Tier-2 F4 — taxCodeId: null (not a hardcoded seed id): ResolveTaxCodesAsync's
+          // standard-input backstop resolves the FK from `taxCode` by code, so this isn't
+          // seed-order dependent on a specific tax_code_id existing/active.
+          taxCodeId: null, taxCode: 'VAT7', taxRate: 0.07, notes: null,
         },
         {
           productId: serviceProductId, descriptionTh: 'PO VAT line 2 (SERVICE 0%)', quantity: 1,
