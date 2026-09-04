@@ -4,6 +4,16 @@
 > relative links inside archived files may point at root-era paths).
 
 ## Now
+- **🔎 2026-09-04 — GPT-5.6 Sol external review (8 findings) VERIFIED, remediation PLANNED, nothing
+  dispatched yet.** All 8 CONFIRMED in source (idempotency arbitrates AFTER the business op — real
+  concurrent-duplicate window; catch-all DbUpdateException + jsonb NOT NULL silently disable the
+  record on oversized keys / 204 `send`; PO→VI VAT stale-vendor + hardcoded GOOD; RD skeleton
+  selectable by typo (prod is Mock); CORS header typo; 4 BFF routes leak `e.message`; FE CI =
+  tsc only, lint has no config; dev StorageRoot U:). Board: `PLAN-gpt56-review-2026-09-04.md`;
+  money spec: `specs/fix-idempotency-claim-first.md` (claim-first INSERT…ON CONFLICT design —
+  ambient-tx rejected because v1 services open their own tx). BLOCKED on Ham: D1 stale threshold
+  (5 min) · D2 key contract (opaque 1–128) · D3 contender 409-after-2s-poll. Round 1 (WP-B/C/D/E/F +
+  designer hardening) can start on Ham's go.
 - **🚀 2026-08-20 — v2.3.1 RELEASED: the full Codex external-review round closed same-day.**
   12 findings across 3 Codex reports (4 code + 3 UI-test + 5 UI-codebase) — every one Fable-
   verified, fixed, and Tier-2-reviewed (one REJECT round: reviewer caught our own 160 fix breaking

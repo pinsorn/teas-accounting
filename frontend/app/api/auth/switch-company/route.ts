@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { bffInternalError } from '@/lib/bff-error';
 
 /**
  * BFF company-switch route (super-admin company switcher, onboarding-switcher spec 2026-06-16).
@@ -67,8 +68,6 @@ export async function POST(request: Request) {
     });
     return res;
   } catch (e) {
-    console.error('[/api/auth/switch-company] handler threw:', e);
-    const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    return NextResponse.json({ title: 'auth.handler_error', detail }, { status: 500 });
+    return bffInternalError('auth.switch_company', e);
   }
 }

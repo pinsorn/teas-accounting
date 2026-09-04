@@ -6,7 +6,7 @@ namespace Accounting.Infrastructure.ETax;
 
 public sealed class RdApiOptions
 {
-    public string Provider          { get; init; } = "Mock";   // 'Mock' | 'RdUat' | 'RdProduction'
+    public string Provider          { get; init; } = "Mock";   // 'Mock' only until Tier 2/3 lands
     public string BaseUrl           { get; init; } = "http://localhost:1080";
     public string ServiceProviderId { get; init; } = "";
     public string ApiKey            { get; init; } = "";

@@ -31,7 +31,16 @@ public sealed class FileStorageOptions
 public sealed class LocalDiskFileStorage(IOptions<FileStorageOptions> opts)
     : IFileStorageService
 {
-    private readonly string _root = Path.GetFullPath(opts.Value.StorageRoot);
+    // LOW-01 (2026-09-04) — create the root eagerly so an unwritable/misconfigured root
+    // fails fast at first resolution instead of silently on the first SaveAsync.
+    private readonly string _root = CreateRoot(opts.Value.StorageRoot);
+
+    private static string CreateRoot(string root)
+    {
+        var full = Path.GetFullPath(root);
+        Directory.CreateDirectory(full);
+        return full;
+    }
 
     private static string Sanitize(string name)
     {

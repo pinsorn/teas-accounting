@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { bffInternalError } from '@/lib/bff-error';
 
 /**
  * BFF first-run bootstrap (first-run-bootstrap spec 2026-06-17). ANONYMOUS by necessity: on a fresh
@@ -70,8 +71,6 @@ export async function POST(request: Request) {
     });
     return res;
   } catch (e) {
-    console.error('[/api/setup/bootstrap-admin] handler threw:', e);
-    const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    return NextResponse.json({ title: 'auth.handler_error', detail }, { status: 500 });
+    return bffInternalError('setup.bootstrap_admin', e);
   }
 }

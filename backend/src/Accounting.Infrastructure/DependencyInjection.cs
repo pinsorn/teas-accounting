@@ -155,11 +155,18 @@ public static class DependencyInjection
         services.AddScoped<IETaxSubmissionAudit, ETax.ETaxSubmissionAudit>();
 
         // RD e-Filing client — Tier 1 Mock vs Tier 2/3 real HTTP, by config.
-        services.AddOptions<ETax.RdApiOptions>().Bind(cfg.GetSection("RdApi"));
-        if ((cfg["RdApi:Provider"] ?? "Mock") == "Mock")
+        // Fail-closed: any non-Mock provider fails startup until the Tier 2/3 HTTP
+        // client's response parsing is implemented (HIGH-03, 2026-09-04).
+        var rdProvider = string.IsNullOrWhiteSpace(cfg["RdApi:Provider"]) ? "Mock" : cfg["RdApi:Provider"]!.Trim();
+        var rdIsMock = rdProvider.Equals("Mock", StringComparison.OrdinalIgnoreCase);
+        services.AddOptions<ETax.RdApiOptions>().Bind(cfg.GetSection("RdApi"))
+            .Validate(_ => rdIsMock,
+                $"RdApi:Provider '{rdProvider}' is not supported: the HTTP e-Filing client is a Tier 2/3 skeleton (no response parsing). Use 'Mock' until the RD contract is implemented.")
+            .ValidateOnStart();
+        if (rdIsMock)
             services.AddSingleton<IRdEfilingClient, ETax.MockRdEfilingClient>();
         else
-            services.AddHttpClient<IRdEfilingClient, ETax.RdHttpEfilingClient>();
+            services.AddHttpClient<IRdEfilingClient, ETax.RdHttpEfilingClient>();   // unreachable until the validator is widened
 
         // Submission pipeline (Phase-1 best-effort). The retry BackgroundService
         // lives in the API composition root (Infra stays hosting-free).

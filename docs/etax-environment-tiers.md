@@ -151,7 +151,9 @@ public interface IRdEfilingClient
 
 DI-registered based on `RdApi:Provider` config:
 - `"Mock"` (Tier 1) → `MockRdEfilingClient` returning fixed responses
-- `"RdProduction"` (Tier 2/3) → `RdHttpEfilingClient` with real OAuth + endpoint
+- `"RdProduction"` (Tier 2/3, future) → `RdHttpEfilingClient` with real OAuth + endpoint —
+  any non-`"Mock"` value, including `"RdProduction"`, fails startup TODAY, since the
+  response parsing isn't implemented yet (HIGH-03, 2026-09-04).
 
 ### 3.5 Retry queue + dead-letter
 
