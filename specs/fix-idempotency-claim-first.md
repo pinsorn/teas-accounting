@@ -499,10 +499,11 @@ already documented (grep `body_mismatch` in openapi.yaml).
       a no-op by verification, not a skip.
 ### WP-3 regression tests (backend integration, needs TEAS_TEST_PG; test-running dispatch —
       never overlapped with the Tier-3 gate)
-- [ ] New `tests/Accounting.Api.Tests/Hardening/IdempotencyClaimFirstTests.cs` (T1–T10). Harness:
+- [x] New `tests/Accounting.Api.Tests/Hardening/IdempotencyClaimFirstTests.cs` (T1–T10). Harness:
       copy `McpApiFactory` pattern; create an API key with quotation scopes via `IApiKeyService`.
-- [ ] T11 (store-level takeover/clobber regression) — may live in the same new file or beside the
-      rewritten `Sprint14ExternalApiTests` store test; it needs no HTTP.
+      Evidence: filtered run, 20 passed, 0 skipped, 0 failed (see attempt log).
+- [x] T11 (store-level takeover/clobber regression) — lives in the same new file; needs no HTTP.
+      Evidence: same run above.
 
 ## 6. Test list
 - T1 Storm-create: 20 concurrent `POST /api/v1/quotations` (same key, same body carrying a unique
@@ -532,7 +533,9 @@ already documented (grep `body_mismatch` in openapi.yaml).
   that key executes (201) and the key now resolves to a COMPLETED row whose `idempotency_key_id`
   is **different** from the seeded one, and the seeded id no longer exists (takeover =
   delete + re-insert, §3.2); a PROCESSING row with `created_at = now` → request returns 409
-  in_progress after ≈2s with `Retry-After: 1`; an EXPIRED completed row (`expires_at = now - 1h`)
+  in_progress after ≈2s with `Retry-After: 1` — seed that row with `request_hash` = the SHA256 of the
+  exact request you will send (Mismatch is checked BEFORE InProgress, §3.2; an arbitrary hash yields
+  409 body_mismatch instead — Opus review F4); an EXPIRED completed row (`expires_at = now - 1h`)
   → request executes, and again the surviving row has a NEW id, new `expires_at`, new hash.
 - T11 Takeover does not let the stale owner clobber the new claim (store-level, the regression test
   for the §3.2 rewrite — see the attempt log): `ClaimAsync` → `Claimed(idA)`; force staleness with
@@ -719,3 +722,61 @@ a different failure policy.
   never loosened to pass. T8(b)'s exact byte encoding of `request_hash` was NOT reverse-engineered
   from the middleware (blind rule) — obtained empirically via one real round-trip, per spec's literal
   "method\npath\nbody" formula, not guessed.
+- 2026-09-05 acceptance-tester RESULTS: `dotnet build backend/Accounting.sln -c Release --no-restore`
+  → 0 warnings, 0 errors (first attempt, no compile fixes needed). `dotnet test
+  backend/tests/Accounting.Api.Tests/Accounting.Api.Tests.csproj -c Release --no-build --filter
+  "FullyQualifiedName~IdempotencyClaimFirst"` (TEAS_TEST_PG set in the same shell call) → **20
+  passed, 0 skipped, 0 failed** (33s). All T1–T11 PASS on first run against the shipped
+  implementation; zero divergences between spec-derived expectations and observed behaviour.
+  T10 harness note (NOT a behavioural divergence — a test-infrastructure fact about THIS
+  environment): the test list committed above named `PostgresFixture.RlsTestRole`
+  (`teas_rls_test`, needs CREATEROLE) for T10. First run: `accounting` (the TEAS_TEST_PG role)
+  lacks CREATEROLE (verified directly: `SELECT rolcreaterole FROM pg_roles WHERE
+  rolname='accounting'` → `f`) → `PostgresFixture.RlsRoleSkip` fires → T10 SKIPPED (19 passed, 1
+  skipped that run). Rewrote T10 to the OTHER allowed harness pattern already read for exactly
+  this purpose (`ApiKeyResolverRlsTests.cs`'s `SET ROLE pg_database_owner` — a built-in role,
+  membership implicit for the DB owner, no CREATEROLE needed) — same invariant (H1 RLS-scoped
+  claim), different plumbing, no peek at forbidden files. Second run: 20/20 pass, 0 skipped. Both
+  variants are legitimate per the dispatch's own environment facts; the second one actually
+  exercises the promise in this environment instead of silently skipping it.
+  Self-review (why each test would FAIL against the pre-fix read-then-execute/in-place-update
+  behaviour the spec describes in §1/§3.6 — one line each):
+  - T1: old code reads "no record" during the race window before its post-hoc insert, so up to 20
+    requests could all execute → more than 1 quotation would carry the marker.
+  - T2: old code's jsonb-NOT-NULL `response_body` rejects an empty 204 save (§1 :16), so the row
+    is never persisted — my `response_body IS NULL` assertion has nothing to match, and the
+    `catch(DbUpdateException)` silently disables idempotency for every concurrent request.
+  - T3: same read-before-insert race as T1 — nothing arbitrates which body "wins" before both
+    could start executing.
+  - T4: old code accepts "any non-blank string; no length/charset check" (§1 :40-46) — 129×'a' and
+    "abc def" would be ACCEPTED and executed, not rejected with 400; the marker WOULD appear in DB.
+  - T5: same jsonb-NOT-NULL defect as T2 — the 204 replay row can never exist, so the second call
+    re-executes instead of replaying.
+  - T6/T6c: the pre-fix store's `catch (DbUpdateException)` (§1 :51-56) swallows a jsonb parse
+    failure and reports "race lost" instead of throwing — T6c's exact assertion (exception
+    propagates) is what that catch-all violates.
+  - T7: old code's replay "hardcodes Content-Type: application/json, drops Location" (§1
+    :118-125) — the Location-byte-equal assertion fails outright (header absent on replay).
+  - T8/T11: there is no claim/takeover concept pre-fix; T11 specifically targets the REJECTED
+    in-place-UPDATE draft (§3.6) — that draft reuses `idempotency_key_id` on takeover, so `idB`
+    would equal `idA` and the `idB != idA` assertion fails immediately, and a stale owner's
+    `Release`/`Complete` would touch the new owner's row exactly as §3.6 warns.
+  - T9: pre-fix CORS declares `X-Idempotency-Key` (typo, §1 :55-56) — `Access-Control-Allow-Headers`
+    would NOT contain `Idempotency-Key`, the literal header name the middleware reads.
+  - T10: validates H1's RLS-safety claim for the NEW raw-`NpgsqlCommand` claim path specifically —
+    would fail if the raw SQL ran on an unpinned/fresh connection (RLS FORCE would reject the
+    INSERT) or if tenant scoping were broken (a cross-company row could conflict/be visible).
+  COVERAGE GAPS (honest, not silent): "owner process crash mid-execution (kill -9)" (§6, "not
+  automatable here") was not attempted — undisputed per spec. Mutation-lite (breaking 2-3 named
+  spots and confirming RED) was NOT run: it requires editing the middleware/store files, which are
+  outside this dispatch's 2-file blast cap and the blind rule; not requested in this dispatch
+  ("only when the dispatch asks"). `git status --porcelain` for files touched by this pass:
+  `specs/fix-idempotency-claim-first.md` (spec — test list + results, this log) and
+  `backend/tests/Accounting.Api.Tests/Hardening/IdempotencyClaimFirstTests.cs` (new, 1 file) — 2
+  files total, within the 2-file cap. No `git commit` issued.
+- 2026-09-05 Fable: acceptance-tester (blind) 20/20 PASS, zero divergences (T10 via the `SET ROLE
+  pg_database_owner` harness because the test role lacks CREATEROLE). opus-reviewer APPROVE-WITH-NITS:
+  race/atomicity/RLS/failure paths clean; F1 openapi gaps (info UUID wording, 400 invalid_key, error
+  catalog, Retry-After header) fixed by Fable in docs/api/openapi.yaml; F2 Down-migration semantics
+  accepted as documented; F3 unmatched-route 404 now recorded (correct per I2, noted); F4 folded into T8;
+  F5 timing note already in T1. Tier-3 full suite running.
