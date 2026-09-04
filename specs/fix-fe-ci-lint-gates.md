@@ -96,13 +96,15 @@ the Docker build passes and add the same as job `env:` with placeholder values �
   `pnpm-lock.yaml`, `ci.yml` (+ `.gitignore` if 2.4).
 
 ## 4. Checklist
-- [ ] `pnpm add -D @eslint/eslintrc` (first action).
-- [ ] `eslint.config.mjs` per 2.1, with baseline downgrades only for ERROR-level rules found.
-- [ ] `package.json` lint script.
-- [ ] `ci.yml` frontend job per 2.3.
-- [ ] Baseline counts recorded in the Attempt log: total errors before downgrades, per-rule
+- [x] `pnpm add -D @eslint/eslintrc` (first action). — v3.3.7 installed, pnpm stayed 10.33.4.
+- [x] `eslint.config.mjs` per 2.1, with baseline downgrades only for ERROR-level rules found. —
+      baseline had 0 errors, so the rules block stays empty (no downgrades needed).
+- [x] `package.json` lint script. — `"lint": "eslint ."`.
+- [x] `ci.yml` frontend job per 2.3. — applied verbatim (pnpm/action-setup before setup-node, no
+      `version:`, node 22, cache: pnpm, +Lint/Unit tests/Build steps).
+- [x] Baseline counts recorded in the Attempt log: total errors before downgrades, per-rule
       counts, total warnings after.
-- [ ] T1, T2 evidence pasted.
+- [x] T1, T2 evidence pasted.
 
 ## 5. Tests
 - T1 `pnpm lint` → exit 0; paste the summary line (`✖ N problems (0 errors, M warnings)`).
@@ -131,3 +133,30 @@ whether to start from `next/core-web-vitals` only); `pnpm build` in CI needs a s
 ## Attempt log
 - 2026-09-04 Fable: spec written; dispatch after Round 1a lands (node_modules relink must not
   overlap other workers' vitest).
+- 2026-09-04 Sonnet worker: implemented per spec, no deviations.
+  - `pnpm add -D @eslint/eslintrc` → v3.3.7, pnpm stayed 10.33.4 (declined the offered 11.25.0
+    self-update prompt; not in scope).
+  - **Baseline** (before any downgrade, `pnpm lint` on current tree with `next lint` already
+    replaced by `eslint .` and the new flat config): **0 errors, 17 warnings** — no rule needed a
+    `warn` downgrade in `eslint.config.mjs`; the rules block stays empty as drafted in 2.1.
+    Per-rule warning breakdown (all pre-existing, none touched): `react-hooks/exhaustive-deps`
+    unused-directive ×5, `@typescript-eslint/no-unused-vars` ×4, `react/no-array-index-key`
+    unused-directive ×1, `react-hooks/exhaustive-deps` (real) ×2, `@next/next/no-img-element` ×2,
+    `jsx-a11y/role-has-required-aria-props` ×1, `import/no-anonymous-default-export` ×1 (on
+    `eslint.config.mjs` itself, from its own default array export — left as-is, cosmetic).
+  - T1: `pnpm lint` exit 0 → `✖ 17 problems (0 errors, 17 warnings)`.
+  - T2: created `frontend/lib/__lint_probe.ts` (`const x: any = 1; export {};`) → `pnpm lint`
+    exit 1, reported `1:10 error Unexpected any. Specify a different type
+    @typescript-eslint/no-explicit-any` naming that file (`✖ 19 problems (1 error, 18 warnings)`).
+    Deleted the probe → rerun exit 0, back to the 17-warning baseline.
+  - `pnpm exec tsc --noEmit` → exit 0, no output.
+  - `pnpm vitest run` → `Test Files 16 passed (16)` / `Tests 71 passed (71)` (drifted up from the
+    spec's 15/70 baseline — other in-flight workers added files concurrently; expected).
+  - `ci.yml` frontend job: checked `frontend/Dockerfile` (build stage sets only
+    `NEXT_TELEMETRY_DISABLED`/`NODE_OPTIONS`, no `NEXT_PUBLIC_*`/`API_URL` at build time) and
+    `docker-compose.coolify.yml` (frontend env is all *runtime*, not build-time) — `pnpm build`
+    needs no env vars/secrets in CI, so none were added.
+  - No `.eslintcache` produced by `eslint .` (no `--cache` flag) — `.gitignore` left untouched.
+  - Files touched (exactly): `frontend/eslint.config.mjs` (new), `frontend/package.json`,
+    `frontend/pnpm-lock.yaml`, `.github/workflows/ci.yml`, `specs/fix-fe-ci-lint-gates.md`. 5 of 6
+    cap; `.gitignore` not needed.
