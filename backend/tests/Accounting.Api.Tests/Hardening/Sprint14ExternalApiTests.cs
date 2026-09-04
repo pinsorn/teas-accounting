@@ -12,6 +12,7 @@ using Accounting.Infrastructure.Persistence;
 using Accounting.TestKit;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -191,6 +192,10 @@ public sealed class Sprint14ExternalApiTests
         (log.AfterValueJson ?? "").Should().NotContain(r.Plaintext);
     }
 
+    // Claim-first rewrite (fix-idempotency-claim-first.md §5 WP-1): store-level only, no HTTP.
+    // Exercises Claim -> InProgress-on-second-claim -> Complete -> Completed-on-third-claim,
+    // the T11 stale-takeover/clobber regression (the reason idempotency_key_id must change on
+    // takeover — spec §3.2/§3.6), and purge.
     [SkippableFact]
     public async Task Idempotency_store_get_save_race_and_purge()
     {
@@ -198,21 +203,66 @@ public sealed class Sprint14ExternalApiTests
         await using var sp = Provider();
         await using var s = sp.CreateAsyncScope();
         var store = s.ServiceProvider.GetRequiredService<IIdempotencyStore>();
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
         var now = DateTimeOffset.UtcNow;
+        var staleAfter = TimeSpan.FromMinutes(5);
         var k = "shopify-order-" + Guid.NewGuid().ToString("N")[..8];
 
-        (await store.GetAsync(1, 99, k, default)).Should().BeNull();
-        (await store.TrySaveAsync(1, 99, k, "h1", 201, "{\"id\":1}", now, default)).Should().BeTrue();
-        // Same key again → unique violation → race lost.
-        (await store.TrySaveAsync(1, 99, k, "h1", 201, "{\"id\":1}", now, default)).Should().BeFalse();
-        var got = await store.GetAsync(1, 99, k, default);
-        got!.RequestHash.Should().Be("h1");
-        got.ResponseStatus.Should().Be(201);
+        // Claim -> in flight.
+        var claimed = await store.ClaimAsync(1, 99, k, "h1", now, staleAfter, default);
+        claimed.Outcome.Should().Be(ClaimOutcome.Claimed);
+        var claimId = claimed.ClaimId!.Value;
 
-        // Expired row is purged + not returned.
+        // Same key, still in flight (not stale) -> InProgress.
+        (await store.ClaimAsync(1, 99, k, "h1", now, staleAfter, default)).Outcome
+            .Should().Be(ClaimOutcome.InProgress);
+
+        // Complete the claim.
+        (await store.CompleteAsync(claimId, 201, "{\"id\":1}", "{\"Content-Type\":\"application/json\"}", default))
+            .Should().Be(1);
+
+        // Now resolves Completed with the recorded response.
+        var completed = await store.ClaimAsync(1, 99, k, "h1", now, staleAfter, default);
+        completed.Outcome.Should().Be(ClaimOutcome.Completed);
+        completed.Record!.RequestHash.Should().Be("h1");
+        completed.Record.ResponseStatus.Should().Be(201);
+        completed.Record.ResponseBody.Should().Be("{\"id\":1}");
+
+        // ── T11 — stale takeover must never let the old owner clobber the new claim ──────────
+        var tk = "takeover-" + Guid.NewGuid().ToString("N")[..8];
+        var claimA = await store.ClaimAsync(1, 99, tk, "hA", now, staleAfter, default);
+        claimA.Outcome.Should().Be(ClaimOutcome.Claimed);
+        var idA = claimA.ClaimId!.Value;
+
+        // Force staleness directly, then claim again -> takeover (delete + re-insert, never
+        // an in-place UPDATE reusing idA — see spec §3.6's rejected alternative).
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE sys.idempotency_keys SET created_at = {now.AddMinutes(-10)} WHERE idempotency_key_id = {idA}");
+        var claimB = await store.ClaimAsync(1, 99, tk, "hA", now, staleAfter, default);
+        claimB.Outcome.Should().Be(ClaimOutcome.Claimed);
+        var idB = claimB.ClaimId!.Value;
+        idB.Should().NotBe(idA);
+
+        // The stale owner's CompleteAsync must affect 0 rows and leave idB's live claim untouched.
+        (await store.CompleteAsync(idA, 201, "{\"stale\":true}", null, default)).Should().Be(0);
+        (await store.ClaimAsync(1, 99, tk, "hA", now, staleAfter, default)).Outcome
+            .Should().Be(ClaimOutcome.InProgress);   // idB still live
+
+        // The stale owner's ReleaseAsync must not delete idB's live claim.
+        await store.ReleaseAsync(idA, default);
+        var idBRow = await db.IdempotencyKeys.AsNoTracking()
+            .SingleAsync(x => x.IdempotencyKeyId == idB, default);
+        idBRow.ResponseStatus.Should().BeNull();
+
+        // Completing the real owner works, and a third claim now replays it.
+        (await store.CompleteAsync(idB, 201, "{\"id\":2}", null, default)).Should().Be(1);
+        (await store.ClaimAsync(1, 99, tk, "hA", now, staleAfter, default)).Outcome
+            .Should().Be(ClaimOutcome.Completed);
+
+        // Expired row is purged.
         var expKey = "exp-" + Guid.NewGuid().ToString("N")[..8];
-        await store.TrySaveAsync(1, 99, expKey, "h", 200, "{}", now.AddHours(-48), default);
-        (await store.GetAsync(1, 99, expKey, default)).Should().BeNull();   // expires_at in the past
+        var expClaim = await store.ClaimAsync(1, 99, expKey, "h", now.AddHours(-48), staleAfter, default);
+        (await store.CompleteAsync(expClaim.ClaimId!.Value, 200, "{}", null, default)).Should().Be(1);
         (await store.PurgeExpiredAsync(now, default)).Should().BeGreaterThanOrEqualTo(1);
     }
 

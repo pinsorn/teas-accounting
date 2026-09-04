@@ -4905,6 +4905,7 @@ paths:
           description: |
             One of:
             - `idempotency.body_mismatch` — same Idempotency-Key with different body within 24h TTL
+            - `idempotency.in_progress` — a request with this Idempotency-Key is still being processed (see `Retry-After` header, seconds); retry after it elapses
             - `business_unit.locked_mismatch` — request BU differs from key's default_business_unit_id
             - `business_unit.cross_bu_not_allowed_for_this_key` — receipt apply spans multiple BUs (API key callers locked to single-BU)
 
@@ -5263,8 +5264,8 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      schema: { type: string, format: uuid }
-      description: UUID v4 to prevent duplicate operations
+      schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[\x21-\x7E]{1,128}$' }
+      description: 'Opaque client key, unique per operation; a UUID v4 is recommended. Replayed for 24h.'
     Cursor:
       name: cursor
       in: query

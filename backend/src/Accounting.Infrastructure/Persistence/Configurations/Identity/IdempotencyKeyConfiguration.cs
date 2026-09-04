@@ -13,7 +13,12 @@ internal sealed class IdempotencyKeyConfiguration : IEntityTypeConfiguration<Ide
 
         b.Property(k => k.Key).HasMaxLength(255).IsRequired();
         b.Property(k => k.RequestHash).HasMaxLength(64).IsRequired();
-        b.Property(k => k.ResponseBody).HasColumnType("jsonb").IsRequired();
+        // Claim-first (fix-idempotency-claim-first.md §3.1): ResponseStatus/ResponseBody are
+        // nullable — NULL means "claimed, in flight". ResponseBody is TEXT (was jsonb NOT NULL,
+        // which rejected a 204's empty body); ResponseHeaders is the new jsonb column carrying
+        // the replayable Content-Type/Location as a JSON object.
+        b.Property(k => k.ResponseBody).HasColumnType("text");
+        b.Property(k => k.ResponseHeaders).HasColumnType("jsonb");
         b.Property(k => k.CreatedAt).HasColumnType("timestamptz(3)");
         b.Property(k => k.ExpiresAt).HasColumnType("timestamptz(3)");
 

@@ -327,7 +327,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddCors(o => o.AddPolicy("frontend", p =>
     p.WithOrigins(builder.Configuration["Frontend:Origin"] ?? "http://localhost:3000")
      .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
-     .WithHeaders("Content-Type", "Authorization", "X-Api-Key", "X-Idempotency-Key", "Accept")
+     .WithHeaders("Content-Type", "Authorization", "X-Api-Key", "Idempotency-Key", "Accept")
      .AllowCredentials()));
 
 builder.Services.AddHealthChecks();
