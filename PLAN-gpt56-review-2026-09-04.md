@@ -95,6 +95,6 @@ posting). Ham decides whether a prod probe is wanted at all.
 - [x] Ham rulings D1–D3 — all defaults ratified 2026-09-04; G + branch-protection also approved as recommended.
 - [x] Round 1a landed — `c4b4a56` (WP-C/D/F + PO DTO); designer hardening returned (found + fixed an in-place-UPDATE takeover bug in the draft; I10/purge-worker findings → WP-H/WP-I).
 - [x] Round 1b landed — `0826d4c` (WP-E: lint 0 err/17 warn baseline, CI gates).
-- [~] Round 1c — WP-B FE dispatched (waits for the full-suite sentinel before touching the local stack).
-- [ ] Round 2 (WP-A) dispatched.
-- [ ] Release + Tier-4.
+- [x] Round 1c landed — `77e40c4` + Tier-2 REJECT fixes `6bdd3d9` (EXEMPT_* selectable, vendor-error guard, seed-free e2e).
+- [x] Round 2 landed — `ab2bb32` implementation (Fable full-diff review) + `97957b4` blind acceptance 20/20 + Opus APPROVE-WITH-NITS (openapi nits fixed). Tier-3: Domain 188/188, Api 1370/1384, 0 fail; external-api e2e 1/1.
+- [~] Release — VERSION 2.3.3, branch `gpt56-review-remediation` pushed, PR open; CI with the new frontend gates watched. Ham merges (= Coolify deploy). Tier-4 per §3 after deploy — Ham decides on the prod probe.

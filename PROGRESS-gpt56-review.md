@@ -1,4 +1,10 @@
-# PROGRESS — GPT-5.6 review remediation (quota-cliff checkpoint 2026-09-04 ~22:30)
+# PROGRESS — GPT-5.6 review remediation
+
+**2026-09-05 02:00 — ROUND COMPLETE.** All work committed on branch `gpt56-review-remediation` (PR open);
+nothing in flight. Remaining = Ham's merge (prod deploy) + Tier-4 decision, then archive this file to
+`docs/archive/`. The sections below are the historical checkpoint.
+
+## (historical) quota-cliff checkpoint 2026-09-04 ~22:30
 
 Board: `PLAN-gpt56-review-2026-09-04.md`. Resume = read THIS file + the spec checklists; never re-plan.
 Ham's standing rulings: D1 5 min · D2 opaque key 1–128 · D3 poll 2s→409 · G/H/I follow-ups approved.
