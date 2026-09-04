@@ -47,6 +47,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4 # no `version:` — reads packageManager (pnpm@10.33.4), same as Docker
+        with:
+          package_json_file: frontend/package.json # the action reads the REPO ROOT by default; job `working-directory` does not apply to `uses:` steps
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
