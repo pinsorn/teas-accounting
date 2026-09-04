@@ -4,16 +4,16 @@
 > relative links inside archived files may point at root-era paths).
 
 ## Now
-- **🔎 2026-09-04 — GPT-5.6 Sol external review (8 findings) VERIFIED, remediation PLANNED, nothing
-  dispatched yet.** All 8 CONFIRMED in source (idempotency arbitrates AFTER the business op — real
-  concurrent-duplicate window; catch-all DbUpdateException + jsonb NOT NULL silently disable the
-  record on oversized keys / 204 `send`; PO→VI VAT stale-vendor + hardcoded GOOD; RD skeleton
-  selectable by typo (prod is Mock); CORS header typo; 4 BFF routes leak `e.message`; FE CI =
-  tsc only, lint has no config; dev StorageRoot U:). Board: `PLAN-gpt56-review-2026-09-04.md`;
-  money spec: `specs/fix-idempotency-claim-first.md` (claim-first INSERT…ON CONFLICT design —
-  ambient-tx rejected because v1 services open their own tx). BLOCKED on Ham: D1 stale threshold
-  (5 min) · D2 key contract (opaque 1–128) · D3 contender 409-after-2s-poll. Round 1 (WP-B/C/D/E/F +
-  designer hardening) can start on Ham's go.
+- **🔧 2026-09-04 — GPT-5.6 Sol review (8/8 CONFIRMED) — remediation IN FLIGHT.** Landed:
+  `c4b4a56` Round 1a (RdApi fail-closed null-safe · BFF 500s no longer leak · PO DTO `taxRate` ·
+  portable dev StorageRoot) · `0826d4c` Round 1b (ESLint flat config, lint 0 err/17 warn baseline,
+  CI frontend job = tsc+lint+vitest+build on node 22/pnpm 10). In flight: WP-B FE (PO→VI VAT from
+  DTO taxRate + effect split + e2e) · WP-A idempotency claim-first implement (spec hardened by
+  opus-designer — found + fixed an in-place-UPDATE takeover bug in Fable's draft; H1–H5 answered
+  with file:line) · full backend suite validating 1a. Next: blind acceptance-tester T1–T11 →
+  Opus review → Tier-3 → release + Tier-4. Follow-ups logged: WP-G lint burn-down, WP-H create
+  paths' un-transacted doc+activity saves (I10), WP-I purge worker blind under RLS. Board:
+  `PLAN-gpt56-review-2026-09-04.md`.
 - **🚀 2026-08-20 — v2.3.1 RELEASED: the full Codex external-review round closed same-day.**
   12 findings across 3 Codex reports (4 code + 3 UI-test + 5 UI-codebase) — every one Fable-
   verified, fixed, and Tier-2-reviewed (one REJECT round: reviewer caught our own 160 fix breaking

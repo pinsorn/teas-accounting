@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login, logout } from './_helpers';
+import { login, logout, pickVendor } from './_helpers';
 import { TestIds } from './helpers/test-ids';
 import { attachVendorTaxInvoice } from './helpers/attachments';
 
@@ -241,5 +241,129 @@ test('purchase chain: PO (multi-line) → VI from PO → PV w/ WHT → 50ทว�
     await expect(chain(), 'PV PurchaseDocumentChain').toBeVisible({ timeout: 15_000 });
     await expect(paper(), 'PV PaperDocument').toBeVisible();
     await expect(printMenu(), 'PV PrintMenu').toBeVisible();
+  });
+});
+
+// fix-po-vi-vat-derivation (WP-B, GPT-5.6 review HIGH-02) — a VI initialised from a linked PO
+// must carry each line's OWN taxRate + productType, on BOTH the "arrive via PO CTA" query-param
+// path (where the effect used to read a still-stale `vendor` on the first render) and the manual
+// "link a PO from the dropdown" path (vendor picked first, so no staleness) — and must never
+// hardcode every line's productType to 'GOOD'. Never posts the VI (accounting_dev stays clean);
+// the PO is left Approved/unlinked, same disposable-naming convention as the chain test above.
+test('VI from PO: rows carry the PO line\'s own taxRate + productType, on the CTA path and the manual-link path', async ({ page }) => {
+  test.setTimeout(90_000);
+  // ── admin seeds a VAT vendor + a SERVICE product (so a PO line can carry productType
+  //    SERVICE — PurchaseOrderLineInput has no productType field; the server derives it from
+  //    the line's productId → Product.ProductType, defaulting to GOOD when productId is null) ──
+  await login(page, 'admin');
+  const vendorCode = TestIds.vendorCode('POVAT');
+  const mkVendor = await page.request.post(`${API}/vendors/`, {
+    data: {
+      vendorCode, vendorType: 'Corporate', nameTh: 'ผู้ขาย po-vi-vat e2e',
+      // vendor.vat_registered_requires_taxid (validator drift, troubles-wiki.md) — vatRegistered:
+      // true now requires a checksum-valid Thai Tax ID; any valid-checksum id works (no
+      // uniqueness constraint), same value _helpers.ts's createVendor() UI helper already uses.
+      nameEn: null, taxId: '0105556123453', branchCode: null, branchName: null,
+      vatRegistered: true, address: null, contactPerson: null, phone: null,
+      email: null, paymentTermDays: 30, defaultCurrency: 'THB',
+      defaultWhtTypeCode: null,
+    },
+  });
+  expect(mkVendor.status(), 'vendor create').toBe(201);
+  const vendors = await (await page.request.get(
+    `${API}/vendors?search=${vendorCode}&pageSize=10`)).json();
+  const vendorId = vendors[0].vendorId;
+
+  const productCode = TestIds.productCode('POVAT');
+  const mkProduct = await page.request.post(`${API}/products/`, {
+    data: {
+      productCode, nameTh: 'บริการ po-vi-vat e2e', nameEn: null,
+      productType: 'SERVICE', defaultUomText: null, defaultUnitPrice: null,
+      defaultOutputTaxCodeId: null, defaultInputTaxCodeId: null, defaultWhtTypeId: null,
+      descriptionTh: null, notes: null, isSaleable: false, isPurchasable: true,
+    },
+  });
+  expect(mkProduct.status(), 'product create').toBe(201);
+  const serviceProductId = (await mkProduct.json()).product_id;
+
+  // ── ap_clerk creates a Draft PO — line 1 GOOD @ 7%, line 2 SERVICE @ 0% (exempt: the PO
+  //    itself says no VAT on this line, which must survive verbatim onto the VI, not fall
+  //    through to the company/vendor std-rate fallback) ──────────────────────────────────────
+  await logout(page);
+  await login(page, 'ap_clerk');
+  const created = await page.request.post(`${API}/purchase-orders/`, {
+    data: {
+      docDate: today, expectedDeliveryDate: today, vendorId,
+      businessUnitId: null, currencyCode: 'THB', exchangeRate: 1,
+      notes: 'po-vi-vat-derivation e2e', internalNotes: null,
+      lines: [
+        {
+          productId: null, descriptionTh: 'PO VAT line 1 (GOOD 7%)', quantity: 1,
+          uomText: 'ชิ้น', unitPrice: 1000, discountPercent: 0,
+          taxCodeId: 1, taxCode: 'VAT7', taxRate: 0.07, notes: null,
+        },
+        {
+          productId: serviceProductId, descriptionTh: 'PO VAT line 2 (SERVICE 0%)', quantity: 1,
+          uomText: 'ครั้ง', unitPrice: 500, discountPercent: 0,
+          taxCodeId: null, taxCode: null, taxRate: 0, notes: null,
+        },
+      ],
+    },
+  });
+  expect(created.status(), 'PO create').toBe(201);
+  const poId = (await created.json()).purchase_order_id;
+
+  await logout(page);
+  await login(page, 'approver');
+  const ap = await page.request.post(`${API}/purchase-orders/${poId}/approve`);
+  expect(ap.status(), 'PO approve').toBe(200);
+
+  await logout(page);
+  await login(page, 'ap_clerk');
+  const sent = await page.request.post(`${API}/purchase-orders/${poId}/mark-sent`);
+  expect(sent.status(), 'PO mark-sent').toBe(204);
+
+  // admin has SCOPE purchase.vendor_invoice.create (SUPER_ADMIN) — mirrors the chain test above.
+  await logout(page);
+  await login(page, 'admin');
+
+  const row = (i: number) => page.locator('.rounded-lg.border.border-base-300.p-3').nth(i);
+
+  await test.step('CTA path (?fromPurchaseOrderId=): rows carry the PO lines\' own values', async () => {
+    await page.goto(`/vendor-invoices/new?fromPurchaseOrderId=${poId}`);
+    await expect(page.locator('.rounded-lg.border.border-base-300.p-3'), 'two PO lines rendered')
+      .toHaveCount(2, { timeout: 15_000 });
+
+    await expect(row(0).getByLabel(/รายละเอียด/), 'row 1 description').toHaveValue('PO VAT line 1 (GOOD 7%)');
+    await expect(row(0).getByLabel('อัตรา VAT'), 'row 1 VAT rate = 7%').toHaveValue('7');
+    await expect(row(0).getByTestId('vi-line-product-type'), 'row 1 productType = GOOD').toHaveValue('GOOD');
+
+    // The case the pre-fix code broke: hardcoded productType 'GOOD' on every row regardless of
+    // the PO line's own taxonomy, and (on this CTA path specifically) derived VAT off a still-
+    // stale `vendor` closure on the first render.
+    await expect(row(1).getByLabel(/รายละเอียด/), 'row 2 description').toHaveValue('PO VAT line 2 (SERVICE 0%)');
+    await expect(row(1).getByLabel('อัตรา VAT'), 'row 2 VAT rate = 0% (exempt, not std rate)').toHaveValue('0');
+    await expect(row(1).getByTestId('vi-line-product-type'), 'row 2 productType = SERVICE').toHaveValue('SERVICE');
+
+    // I2 — the expense category select is still editable once the PO-derived rows have settled
+    // (the merge preserves a row's own pick across any re-init; here just proving the control
+    // isn't stuck disabled/empty post-settle).
+    const cat = row(0).getByTestId('expense-category-select');
+    await cat.selectOption({ index: 1 });
+    await expect(cat, 'category pick sticks').not.toHaveValue('');
+  });
+
+  await test.step('Manual link-a-PO path: vendor picked first, rows still appear correctly', async () => {
+    await page.goto('/vendor-invoices/new');
+    await pickVendor(page, vendorCode);
+    const poSelect = page.getByTestId('vi-po-select');
+    await expect(poSelect, 'linkPo dropdown appears for the picked vendor').toBeVisible({ timeout: 10_000 });
+    await poSelect.selectOption(String(poId));
+
+    await expect(page.locator('.rounded-lg.border.border-base-300.p-3'), 'two PO lines rendered')
+      .toHaveCount(2, { timeout: 15_000 });
+    await expect(row(1).getByTestId('vi-line-product-type'), 'row 2 productType = SERVICE (manual-link path)')
+      .toHaveValue('SERVICE');
+    await expect(row(1).getByLabel('อัตรา VAT'), 'row 2 VAT rate = 0% (manual-link path)').toHaveValue('0');
   });
 });

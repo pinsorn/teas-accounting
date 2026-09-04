@@ -37,7 +37,9 @@ Reviewer claims NOT accepted as-is:
 | **D** | MEDIUM-02 | ≤6: 4 routes + `lib/proxy-error.ts` helper + 1 vitest | same worker as C | vitest | Helper `bffInternalError(tag, e)`: `console.error(tag, traceId, e)` server-side, respond `{ title: 'auth.handler_error', detail: 'Internal error', traceId }` 500. Apply to the 4 routes; `login` may adopt it too (same shape). No request bodies/tokens in the log line. |
 | **E** | MEDIUM-03 | ≤6: `eslint.config.mjs`, `package.json` (lint script, `@eslint/eslintrc` devDep), `ci.yml`, `.gitignore` if needed | sonnet-implementer (FE build system only — parallel-safe with backend workers) | CI itself | Flat config via FlatCompat extending `next/core-web-vitals` + `next/typescript`; script `lint: eslint .`. CI frontend job: node 22, drop `version: 9` (action reads `packageManager`), add `pnpm test -- --run`, `pnpm lint`, `pnpm build`. **Baseline rule:** worker reports the lint error/warning counts and fixes NOTHING outside config in this WP (other workers hold FE files); errors > 0 → downgrade those rules to `warn` with a `// TODO(lint-baseline)` note in the config, and a follow-up WP-G burns them down. `ignoreBuildErrors` stays (documented deploy-box OOM) — CI `tsc` + `next build` now cover it; Ham marks the CI check required in branch protection. |
 | **F** | LOW-01 | 2: `appsettings.Development.json`, `.gitignore` (+ optional 1-line `Directory.CreateDirectory(_root)` in `LocalDiskFileStorage` ctor) | same worker as C/D | none | `StorageRoot: ".attachments-dev"` (relative → under `backend/src/Accounting.Api` on `dotnet run`), gitignored. Env override unchanged. |
-| **G** (follow-up) | lint baseline burn-down from E; Playwright smoke job in CI | TBD | Haiku/Sonnet | — | Only if Ham wants; scoped after E reports the numbers. |
+| **G** (follow-up) | lint baseline burn-down from E (17 warnings); Playwright smoke job in CI; test hygiene: `TenantIsolationTests` random company ids collide with leftover teas_test rows (flaked 2026-09-04 on FK `branches` RESTRICT in its own cleanup — wiki :715) → use `TestIds`/a sequence | TBD | Haiku/Sonnet | — | Ham approved as follow-up 2026-09-04; schedule after WP-A ships. |
+| **H** (follow-up, designer finding 2026-09-04) | I10 — three v1 create paths save the document and then the activity row as TWO un-transacted `SaveChangesAsync` calls (`TaxInvoiceService.cs:379/381`, `ReceiptService.cs:104/106`, `QuotationChainServices.cs:108/110`); a throw between them leaves the document committed while the idempotency claim is released → a retry duplicates. Pre-existing, independent of WP-A. | 3 services + tests | opus-designer (money) → Sonnet | integration | Wrap doc+activity in one tx (mirror the H8 pattern at `QuotationChainServices.cs:202-205`). Schedule after WP-A ships. |
+| **I** (follow-up, designer finding) | `IdempotencyCleanupHostedService.cs:32` purges tenant-free → under the prod NOBYPASSRLS role `ExecuteDeleteAsync` matches 0 rows (table is FORCE RLS). Harmless after WP-A (takeover, not purge, unblocks an expired key) but the table grows forever in prod. | 1 file | Sonnet | 1 RLS test | Pin `app.bypass_rls` LOCAL in a tx like `ETaxRetryWorker.cs:45`. troubles-wiki entry added 2026-09-04. |
 
 ## 3. Sequencing
 
@@ -91,6 +93,8 @@ posting). Ham decides whether a prod probe is wanted at all.
 - [x] Verification of all 8 findings (2026-09-04).
 - [x] `specs/fix-idempotency-claim-first.md` drafted.
 - [x] Ham rulings D1–D3 — all defaults ratified 2026-09-04; G + branch-protection also approved as recommended.
-- [~] Round 1 dispatched — 1a running (designer ∥ Sonnet WP-C/D/F+DTO).
+- [x] Round 1a landed — `c4b4a56` (WP-C/D/F + PO DTO); designer hardening returned (found + fixed an in-place-UPDATE takeover bug in the draft; I10/purge-worker findings → WP-H/WP-I).
+- [x] Round 1b landed — `0826d4c` (WP-E: lint 0 err/17 warn baseline, CI gates).
+- [~] Round 1c — WP-B FE dispatched (waits for the full-suite sentinel before touching the local stack).
 - [ ] Round 2 (WP-A) dispatched.
 - [ ] Release + Tier-4.

@@ -716,6 +716,15 @@ for historical context only.
 - **Root cause:** ~575 tests share one `teas_test` Postgres DB inside one `[Collection(nameof(PostgresCollection))]`; xUnit doesn't guarantee test-class run order within a collection, and some tests depend on mutable shared rows (e.g. `RbacCartesianTests.cs`'s own comment: "finalising CIT year 2099 a Pnd50 test relies on"). Over the ~5.5 min full run the local Postgres connection also occasionally drops mid-`SaveChangesAsync` (Npgsql "ReadMessageLong" reset) — a transient/environmental hit, not a test-logic bug.
 - **Fix:** a single full-suite failure is not automatically a regression from your diff. Re-run just the failing test (filter by `FullyQualifiedName~<Name>`) in isolation and re-run the FULL suite again — if it passes alone, or a DIFFERENT single test fails on the next full run, it's pre-existing order/connection flakiness. Only escalate if the SAME test fails deterministically across repeated full runs, or it's in a file your diff actually touches.
 - **Seen:** 2026-07-04, H3 PUT-validation fix (`specs/fix-review-findings-2026-07-04.md`) — full run failed `Pnd50FilingServiceTests.Pnd50_with_nonzero_adjustments_renders_the_ladder_in_v2`; isolated re-run of that file failed a DIFFERENT method (`Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder`); a run excluding the new H3 tests entirely failed a THIRD, unrelated test (`TenantIsolationTests.Customer_from_company_A_is_invisible_to_company_B`, raw Npgsql connection reset). None of these files/areas are touched by the H3 diff (Customer/Branch/Vendor/Account validators + endpoints only).
+- **Seen again:** 2026-09-04, GPT-5.6 round-1a validation run (Domain 188/188, Api 1349/1364, 14 baseline
+  skips, 1 fail): `TenantIsolationTests.Customer_from_company_A_is_invisible_to_company_B` failed in its
+  own `finally` cleanup — `23001 … fk_branches_companies_company_id … Key (company_id)=(648198) is
+  referenced from table "branches"`. The test picks `Random.Shared.Next(500_000, 699_999)` for company
+  ids; that id already existed in the bloated teas_test with branches (leftover from another class), so
+  the insert collided and the cleanup's `ExecuteDelete` on companies hit RESTRICT. Diff under test
+  (RdApi DI gate, PO DTO TaxRate, storage root, BFF routes) touches neither companies nor branches →
+  same pre-existing random-id-collision class, not a regression. Durable fix = unique ids from a
+  sequence/`TestIds` instead of `Random.Shared` (tracked with WP-G in PLAN-gpt56-review-2026-09-04.md).
 - **Seen again:** 2026-07-22, WP-A army-findings fix (GlPostingService.cs VI-linked self-withhold gross-up, `specs/fix-army-findings-2026-07-22.md`) — TWO consecutive full-suite runs both failed the SAME method, `Pnd50FilingServiceTests.Pnd50_preview_carries_cd_schedules_that_foot_to_the_ladder` (921 passed/8 skipped/1 failed/930 total, identical both times — skip count matched the 921/8 baseline exactly, and the new WP-A test's pass exactly offset the flake's fail in the pass-count). Isolated re-run of that one test (plus the new/regression tests) passed clean. File is `TaxFilings/Pnd50FilingServiceTests.cs` — unrelated to the diff (`Ledger/GlPostingService.cs`, PV frontend page, `Hardening/Sprint87ForeignVendorTests.cs`). Treated as the same pre-existing order/shared-row flakiness, not a regression — but note it can now repeat on the SAME method across separate full runs, not just "a different test each time" as originally observed.
 - **Seen again:** 2026-07-25, WP-B Opus Tier-2 fix round (PaymentVoucher Version-token liveness +
   Draft-cancel, `specs/fix-army-findings-2026-07-22.md`) — a full-suite run failed 2 tests: the
@@ -1704,3 +1713,27 @@ losing the test DB costs nothing.
   inside Coolify on the publish step, check VERSION for CRLF/whitespace (the Dockerfile
   `tr -d ' \r\n'` should already strip it).
 - Seen: 2026-08-22, first Coolify deploy on the new server showed 0.0.0-alpha.0.
+
+## Idempotency cleanup worker purges 0 rows in prod (RLS)
+- **Symptom:** `sys.idempotency_keys` never shrinks on prod; `IdempotencyCleanupHostedService` logs 0 rows removed every run.
+- **Root cause:** the hosted service runs tenant-free (no `app.company_id`, no `app.bypass_rls`), and the table is ENABLE+FORCE RLS with a company-only policy (`600_superadmin_scoped_rls.sql`), so under the NOBYPASSRLS app role `ExecuteDeleteAsync` sees no rows. Invisible on dev/test (superuser bypasses RLS).
+- **Fix:** pin `SELECT set_config('app.bypass_rls','true',true)` inside a transaction around the delete, like `ETaxRetryWorker.cs:45`. Tracked as WP-I in `PLAN-gpt56-review-2026-09-04.md`. Found by the opus-designer hardening pass, 2026-09-04.
+
+## e2e vendor-create 400s: `vendor.vat_registered_requires_taxid` (pre-existing test now broken)
+- **Symptom:** a Playwright test's `POST /vendors/` with `vatRegistered: true, taxId: null` returns
+  400 `{"fieldErrors":[{"field":"taxId","messages":["vendor.vat_registered_requires_taxid", ...]}]}`.
+  Confirmed hitting the ALREADY-EXISTING, unmodified `purchase-chain.spec.ts` test #1 (line 28) —
+  not something a new test introduces; a validator drift landed after that test was last green.
+- **Root cause:** the vendor create validator now requires a checksum-valid Thai Tax ID whenever
+  `vatRegistered: true` (same drift `_helpers.ts`'s `createVendor()` UI helper comment already
+  documents for the form path — this is the API-payload equivalent, hitting every e2e spec that
+  POSTs a VAT-registered vendor directly with `taxId: null`).
+- **Fix:** send a valid-checksum Thai Tax ID (no uniqueness constraint, any valid checksum works) —
+  e.g. `'0105556123453'`, the same value `_helpers.ts` already uses.
+- **Not yet fixed:** `purchase-chain.spec.ts` test #1 (`purchase chain: PO (multi-line) → VI from PO
+  → PV w/ WHT → ...`, line 28) still sends `taxId: null` and is currently RED on `accounting_dev`
+  for this reason — out of scope for the WP that found it (fix-po-vi-vat-derivation, blast cap only
+  covered a new test block); needs its own 1-line fix.
+- Seen: 2026-09-04, fix-po-vi-vat-derivation (WP-B) e2e authoring — probed via a standalone
+  fetch script against `/api/proxy/vendors/` to get the actual 400 body (Playwright's
+  `error-context.md` doesn't capture the response body).

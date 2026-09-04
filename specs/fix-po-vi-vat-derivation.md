@@ -96,15 +96,36 @@ siblings do cleanup; otherwise use the same disposable naming they use).
 - I4 Nothing else changes: payload shape, `canSave`, the server-side computation.
 
 ## 4. Checklist
-- [ ] Pre-check: DTO `TaxRate` + `PoLineDto.taxRate` present.
-- [ ] 2.1 effect split.
-- [ ] 2.2 comment + 1 unit case.
-- [ ] `docs/api/openapi.yaml`: find the PO detail line schema (grep `taxAmount` near the
-      purchase-orders paths) and add `taxRate: { type: number }` beside it (1 line; doc drift from
-      Round 1a's DTO change). Cap becomes 7 files.
-- [ ] 2.3 e2e (T2/T3) green against the local stack (API rebuilt, :3000 restarted).
-- [ ] `pnpm exec tsc --noEmit` 0 · `pnpm vitest run lib/po-line-vat` green · `pnpm lint` (if the
-      flat config from WP-E is present) shows no NEW error in `page.tsx`.
+- [x] Pre-check: DTO `TaxRate` + `PoLineDto.taxRate` present. Verified: backend
+      `PurchaseOrderDtos.cs:15,36` (`PurchaseOrderLineInput.TaxRate` / `PurchaseOrderLineDto.TaxRate`);
+      frontend `lib/types.ts:1172` (`PoLineDto.taxRate: number`).
+- [x] 2.1 effect split. `page.tsx` now has Effect A (BU + vendor selection only, deps
+      `[poDetail, poId, fromPoId]`, unchanged) and Effect B (row-init, guarded
+      `if (fromPoId && vendor?.vendorId !== poDetail.vendorId) return;`, deps
+      `[poDetail, poId, fromPoId, vendor, companyVatRegistered, stdRate]`, no eslint-disable).
+      `productType: l.productType` (was hardcoded `'GOOD'`).
+- [x] 2.2 comment + 1 unit case. Header comment updated in `lib/po-line-vat.ts`; new test
+      "an explicit taxRate: 0 from the PO line stays 0 at a registered company+vendor" added to
+      `lib/po-line-vat.test.ts` — 5/5 green (`corepack pnpm vitest run lib/po-line-vat`).
+- [x] `docs/api/openapi.yaml`: spec's exact anchor (grep `taxAmount` near purchase-orders paths)
+      does NOT exist — the whole `/purchase-orders/{id}` GET response was documented as bare
+      `description: OK` with zero schema/properties (confirmed: no PO line schema anywhere in the
+      file — `lineAmount`/`PoLine`/`PurchaseOrderLine` all zero hits). Per advisor consult: followed
+      the in-repo inline-description precedent at line 726 (`'{ noteId, docNo, ... }'` string) —
+      added one `description:` line on `/purchase-orders/{id}` GET `'200'` listing the `lines[]`
+      shape incl. `taxRate` (sourced from the C# `PurchaseOrderLineDto` record, not types.ts).
+      YAML re-validated (275 paths intact). Cap now 7 files (docs/api/openapi.yaml added).
+- [x] 2.3 e2e (T2/T3) green against the local stack (API rebuilt Debug --no-restore, :3000
+      freshly started — neither was up before this dispatch). New test in
+      `e2e/purchase-chain.spec.ts`: "VI from PO: rows carry the PO line's own taxRate +
+      productType, on the CTA path and the manual-link path" — 3/3 clean runs green (one earlier
+      combined run hit an unrelated 30s login timeout on the LAST login cycle, reproduced as a
+      one-off flake, not a logic bug — see Attempt log).
+- [x] `pnpm exec tsc --noEmit` 0 errors · `pnpm vitest run lib/po-line-vat` 5/5 green ·
+      `pnpm lint` 0 errors repo-wide (17 pre-existing warnings, none in touched files); ran
+      `eslint` directly on all 4 touched frontend files — 0 errors/warnings, confirmed the
+      `eslint-disable-next-line react-hooks/exhaustive-deps` is gone with no new "unused
+      eslint-disable" complaint.
 
 ## 5. Tests
 T1 unit (2.2) · T2 e2e CTA path · T3 e2e manual-link path (same test file).
@@ -124,3 +145,38 @@ change to `useVendor`/queries, or the e2e needs a new backend endpoint.
 
 ## Attempt log
 - 2026-09-04 Fable: spec written; dispatch in Round 1c after WP-C (DTO) and WP-E land.
+- 2026-09-04 sonnet-implementer: pre-check passed. Read `page.tsx`, `lib/po-line-vat.ts`(+test),
+  `lib/types.ts` (VendorDetail.vendorId, PurchaseOrderDetail.vendorId, PoLineDto, PurchaseOrderLineInput —
+  confirmed NO productType field on the create-request line shape; productType is server-derived
+  from productId → Product.ProductType), `payment-vouchers/new/page.tsx` (sibling pattern),
+  `PercentRateInput`/`ProductTypeSelect`/`ExpenseCategorySelector` components, `_helpers.ts`
+  (`pickVendor`), `e2e/helpers/test-ids.ts`. Backend: `PurchaseOrderService.cs` `Fill()`/
+  `ResolveTaxCodesAsync` (confirmed `TaxRate` is taken verbatim from the request, never re-derived
+  from `taxCodeId`) + `LineProductType()` (confirmed productType comes from `Product.ProductType`
+  via `productId`, defaults GOOD). `ProductDtos.cs` (`CreateProductRequest`/validator — needs
+  `IsSaleable || IsPurchasable`).
+  Consulted advisor before writing the e2e: confirmed effect-split guard field names, flagged the
+  openapi.yaml anchor mismatch (resolved via line-726 precedent, see checklist), the biggest e2e
+  risk (taxRate re-derivation from taxCodeId — verified NOT the case), and that row-1 (7%/GOOD)
+  is indistinguishable from the pre-fix default so row-2 (SERVICE/0%) is the assertion that
+  actually falsifies the bug.
+  Wrote the e2e test (2-line PO: line1 GOOD@7% productId:null, line2 SERVICE@0% via a freshly
+  API-created SERVICE product) + CTA-path assertions (row count, description, VAT%, productType
+  via `getByTestId('vi-line-product-type').toHaveValue(...)`, I2 category-editable check) +
+  manual-link-path assertions (I3).
+  First run: BOTH the new test AND the pre-existing (unmodified) test #1 failed identically at
+  vendor create (400 `vendor.vat_registered_requires_taxid`) — probed the actual response body via
+  a standalone node fetch script (`Z:/temp/.../scratchpad/probe-vendor.mjs`) since Playwright's
+  error-context.md doesn't capture it. Confirmed pre-existing validator drift, unrelated to this
+  WP (test #1 untouched by this diff) — documented in troubles-wiki.md, fixed only the NEW test's
+  vendor payload (`taxId: '0105556123453'`, same value `_helpers.ts` already uses). Re-ran: new
+  test green, test #1 still red (out of scope, flagged for separate 1-line fix).
+  Isolated re-runs of the new test: run 2 hit an unrelated 30s login timeout on the 5th
+  login/logout cycle (dev-server first-hit compile latency under single-worker load, not a
+  logic bug); runs 3 and 4 both green (17-18s each). 3/4 total green, the one red run failed
+  on infra timing, not an assertion.
+  gates: tsc 0 errors, vitest 5/5, lint 0 errors (17 pre-existing warnings elsewhere, 0 in the
+  4 touched files). Backend build: Debug --no-restore succeeded 0 warnings/errors. Local stack
+  booted fresh (API :5080, next dev :3000 — both were down at dispatch start) and left running.
+  DEVIATION (documented, not silent): openapi.yaml's exact spec'd anchor didn't exist; used an
+  in-repo precedent instead of inventing a full schema (see checklist item 3, advisor-endorsed).
