@@ -5,7 +5,7 @@ info:
     REST API สำหรับระบบบัญชี enterprise ของไทย
 
     **Authentication:** API Key + HMAC signature, OR OAuth2 client_credentials
-    **Idempotency:** ทุก POST/PUT ต้องมี Idempotency-Key header (UUID v4)
+    **Idempotency:** ทุก POST/PUT/PATCH ต้องมี Idempotency-Key header — opaque key 1–128 printable-ASCII chars, unique per operation (UUID v4 recommended); replayed for 24h, 409 idempotency.in_progress while a same-key request is still running
     **Rate limit:** 1,000 req/min per API key (default)
   version: 1.0.0
   contact:
@@ -1331,7 +1331,7 @@ paths:
       tags: [Purchase Orders]
       responses:
         '200':
-          description: OK
+          description: 'OK — `lines[]` items are `{ lineNo, productId, productCode, descriptionTh, quantity, uomText, unitPrice, lineAmount, taxAmount, taxRate, totalAmount, productType }` (`taxRate` added Round 1a / HIGH-02, PurchaseOrderLineDto).'
         '404':
           $ref: '#/components/responses/NotFound'
     put:
@@ -4898,13 +4898,16 @@ paths:
       responses:
         '201':
           description: 'Created (or replayed via Idempotency-Key match — see `Idempotency-Replayed: true` header)'
-        '400': { description: 'Validation error or idempotency.required (missing Idempotency-Key header on mutation)' }
+        '400': { description: 'Validation error, idempotency.required (missing Idempotency-Key header on mutation) or idempotency.invalid_key (key is not 1–128 printable-ASCII characters)' }
         '401': { description: 'auth.* (missing/invalid/expired/revoked API key)' }
         '403': { description: 'auth.scope_required (key lacks sales.tax_invoice.create scope)' }
         '409':
+          headers:
+            Retry-After: { schema: { type: integer }, description: 'Seconds to wait before retrying (present only for idempotency.in_progress)' }
           description: |
             One of:
             - `idempotency.body_mismatch` — same Idempotency-Key with different body within 24h TTL
+            - `idempotency.in_progress` — a request with this Idempotency-Key is still being processed (see `Retry-After` header, seconds); retry after it elapses
             - `business_unit.locked_mismatch` — request BU differs from key's default_business_unit_id
             - `business_unit.cross_bu_not_allowed_for_this_key` — receipt apply spans multiple BUs (API key callers locked to single-BU)
 
@@ -5263,8 +5266,8 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      schema: { type: string, format: uuid }
-      description: UUID v4 to prevent duplicate operations
+      schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[\x21-\x7E]{1,128}$' }
+      description: 'Opaque client key, unique per operation; a UUID v4 is recommended. Replayed for 24h.'
     Cursor:
       name: cursor
       in: query
@@ -5526,7 +5529,7 @@ components:
         Stable error type catalog (urn:teas:error:*):
         - auth.unauthenticated | auth.forbidden
         - auth.missing_api_key | auth.invalid_api_key | auth.expired_api_key | auth.revoked_api_key | auth.scope_required
-        - idempotency.required | idempotency.body_mismatch | idempotency.conflict
+        - idempotency.required | idempotency.invalid_key | idempotency.body_mismatch | idempotency.in_progress
         - validation                                           (validation failures use fieldErrors[])
         - tenant.cross_tenant_access | tenant.required
         - business_unit.required | business_unit.locked_mismatch | business_unit.cross_bu_not_allowed_for_this_key

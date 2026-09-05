@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { bffInternalError } from '@/lib/bff-error';
 
 /**
  * WP2.1 (F16, D6 sliding re-issue) — BFF refresh route. Mirrors
@@ -54,8 +55,6 @@ export async function POST() {
     });
     return res;
   } catch (e) {
-    console.error('[/api/auth/refresh] handler threw:', e);
-    const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    return NextResponse.json({ title: 'auth.handler_error', detail }, { status: 500 });
+    return bffInternalError('auth.refresh', e);
   }
 }

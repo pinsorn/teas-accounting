@@ -4,6 +4,18 @@
 > relative links inside archived files may point at root-era paths).
 
 ## Now
+- **✅ 2026-09-05 — GPT-5.6 Sol external review (8/8 CONFIRMED) REMEDIATED — PR open, awaiting Ham's
+  merge (= prod deploy via Coolify).** Branch `gpt56-review-remediation`: claim-first idempotency
+  (INSERT…ON CONFLICT before the endpoint; delete+re-insert stale takeover; 400 invalid_key; 409
+  in_progress; 204/headers replay; DDL-only migration) · PO→VI VAT + productType from the PO DTO,
+  EXEMPT_* selectable · RdApi fail-closed (null-safe) · BFF 500s no longer leak · ESLint flat config +
+  CI lint/vitest/build gates · dev StorageRoot portable · openapi contract synced · VERSION 2.3.3.
+  Gates: blind acceptance 20/20 (T1 = 20-way storm → exactly one document) · Opus Tier-2 WP-A
+  APPROVE-WITH-NITS (nits fixed) · WP-B REJECT→fixed→green · full suite Domain 188/188 + Api
+  1370/1384 (0 fail, 14 baseline skips) · external-api e2e 1/1 on the rebuilt API. Follow-ups logged
+  in the PLAN: WP-G (17 lint warnings, Playwright-in-CI, TenantIsolation random ids), WP-H (I10:
+  un-transacted doc+activity saves in 3 create paths), WP-I (purge worker blind under RLS). Board:
+  `PLAN-gpt56-review-2026-09-04.md`; Tier-4 prod probe = Ham's call (PLAN §3).
 - **🚀 2026-08-20 — v2.3.1 RELEASED: the full Codex external-review round closed same-day.**
   12 findings across 3 Codex reports (4 code + 3 UI-test + 5 UI-codebase) — every one Fable-
   verified, fixed, and Tier-2-reviewed (one REJECT round: reviewer caught our own 160 fix breaking

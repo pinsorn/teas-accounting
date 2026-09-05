@@ -19,4 +19,11 @@ describe('derivePoLineVatRate', () => {
     expect(derivePoLineVatRate({ lineAmount: 3000, taxAmount: 0 }, false, true, 0.07)).toBe(0);
     expect(derivePoLineVatRate({ lineAmount: 3000, taxAmount: 0 }, true, false, 0.07)).toBe(0);
   });
+
+  // WP-B (fix-po-vi-vat-derivation) — a PO line whose OWN taxRate is 0 must stay 0 even at a
+  // VAT-registered company+vendor: the PO said exempt, so it must not fall through to the std
+  // rate just because taxAmount is also 0 (that fallback is for callers with NO taxRate at all).
+  it('an explicit taxRate: 0 from the PO line stays 0 at a registered company+vendor (exempt line, not blanket std rate)', () => {
+    expect(derivePoLineVatRate({ taxRate: 0, lineAmount: 3000, taxAmount: 0 }, true, true, 0.07)).toBe(0);
+  });
 });

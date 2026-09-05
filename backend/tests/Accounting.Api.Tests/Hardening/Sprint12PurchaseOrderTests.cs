@@ -216,6 +216,22 @@ public sealed class Sprint12PurchaseOrderTests
     }
 
     [SkippableFact]
+    public async Task GetDetail_line_TaxRate_matches_entity()
+    {
+        // HIGH-02 — PurchaseOrderLineDto now carries TaxRate; assert it round-trips
+        // from the request through the entity into the detail DTO.
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        await using var sp = Provider();
+        var vid = await NewVendor(sp);
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IPurchaseOrderService>();
+        var poId = await svc.CreateDraftAsync(Req(vid), default);
+        var d = await svc.GetDetailAsync(poId, default);
+        d!.Lines.Should().ContainSingle();
+        d.Lines[0].TaxRate.Should().Be(0.07m);
+    }
+
+    [SkippableFact]
     public async Task Outstanding_report_buckets_an_overdue_approved_po()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);

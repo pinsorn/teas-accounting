@@ -9,8 +9,11 @@ export function derivePoLineVatRate(
   vendorVat: boolean,
   stdRate: number,
 ): number {
-  // Prefer the PO line's own rate if the DTO ever exposes one (avoids the reverse-derivation
-  // rounding below). PoLineDto does not carry taxRate today — this branch is future-proofing.
+  // WP-B (fix-po-vi-vat-derivation) — PoLineDto now delivers `taxRate` (backend Round 1a), so
+  // this first branch is the common path for every PO-linked VI, not future-proofing: it wins
+  // whenever the PO line carries its own rate — INCLUDING 0 (an exempt line must never fall
+  // through to the reverse-derivation or the registered-company std-rate fallback below, which
+  // are now legacy paths kept for callers whose line shape omits `taxRate`).
   if (line.taxRate != null) return line.taxRate;
   if (line.lineAmount > 0 && line.taxAmount > 0)
     return Math.round((line.taxAmount / line.lineAmount) * 100) / 100;

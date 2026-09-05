@@ -81,7 +81,8 @@ function VendorInvoiceNewForm() {
   // "arrive via PO CTA" path (fromPoId) is still stale on the very first run (vendorId hasn't
   // propagated to a re-render yet); the manual "link a PO from the dropdown" path (vendor
   // already selected first) is unaffected.
-  const vendor = useVendor(vendorId ?? 0).data;
+  const vendorQ = useVendor(vendorId ?? 0);
+  const vendor = vendorQ.data;
   const autoNoInputVat = !!vendor &&
     (!vendor.vatRegistered || (vendor.isForeign && !vendor.hasThaiVatDReg));
   const foreignNoVatD = !!vendor?.isForeign && !vendor.hasThaiVatDReg;
@@ -107,15 +108,28 @@ function VendorInvoiceNewForm() {
       setVendorId(poDetail.vendorId);
       setVendorLabel(poDetail.vendorName);
     }
+  }, [poDetail, poId, fromPoId]);
+
+  // WP-B (fix-po-vi-vat-derivation) — row-init split from the vendor-selection effect above: on
+  // the "arrive via PO CTA" path (fromPoId), `vendor` (useVendor(vendorId ?? 0)) is still the
+  // STALE/undefined vendor on the very render that sets vendorId — deriving VAT off it here read
+  // a vendor that didn't match the PO. Wait until the vendor query has actually caught up to the
+  // PO's own vendor before deriving; the manual "link a PO from the dropdown" path (vendor
+  // already picked by the user before a PO can even be chosen) is unaffected by this guard.
+  // Tier-2 F3 — `vendorQ.isError` escapes the wait if the vendor fetch itself fails: without it,
+  // an errored query never resolves to the PO's vendorId and rows would never initialise at all.
+  useEffect(() => {
+    if (!poDetail || poDetail.purchaseOrderId !== poId) return;
+    if (fromPoId && !vendorQ.isError && vendor?.vendorId !== poDetail.vendorId) return;
     // WP5 (specs/fix-swarm-findings-all.md, round-4 ap01 HIGH) — MERGE, don't replace: this
-    // effect fires again whenever `poDetail` settles, and used to blindly null out every row's
-    // categoryId even when the user had already picked one on a pre-existing row (by position) —
-    // e.g. the single placeholder row, picked during the async gap before this PO's lines
-    // arrived. That silently discarded the pick with no error/toast, and `canSave` (below)
+    // effect fires again whenever `poDetail`/`vendor` settles, and used to blindly null out every
+    // row's categoryId even when the user had already picked one on a pre-existing row (by
+    // position) — e.g. the single placeholder row, picked during the async gap before this PO's
+    // lines arrived. That silently discarded the pick with no error/toast, and `canSave` (below)
     // requires every row to have a categoryId, so Post never enabled. Preserve a row's own
     // already-chosen categoryId (+ its matching `recoverable`, derived together at pick time —
     // see ExpenseCategorySelector's onChange below) across the replace; description/amount/
-    // vatRate always come from the PO (that IS the point of linking one).
+    // vatRate/productType always come from the PO (that IS the point of linking one).
     setRows((prev) => poDetail.lines.map((l, i) => ({
       key: i + 1,
       categoryId: prev[i]?.categoryId ?? null,
@@ -126,12 +140,15 @@ function VendorInvoiceNewForm() {
       description: l.descriptionTh,
       amount: l.lineAmount,
       // WP1.3 (F14) — scoped derivation: only fall back to the company std rate when BOTH
-      // company and vendor are VAT-registered; a genuinely non-VAT PO/vendor stays 0%.
+      // company and vendor are VAT-registered; a genuinely non-VAT PO/vendor stays 0%. The PO
+      // line's own `taxRate` (first branch of derivePoLineVatRate) wins whenever the DTO carries
+      // one, so this fallback only matters for callers without it.
       vatRate: derivePoLineVatRate(l, companyVatRegistered, !!vendor?.vatRegistered, stdRate),
-      productType: 'GOOD' as ProductTypeStr,
+      // WP-B — carry the PO line's own product taxonomy (was hardcoded 'GOOD', silently
+      // reclassifying every SERVICE/EXEMPT_* line on the CTA and manual-link paths alike).
+      productType: l.productType,
     })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poDetail, poId, fromPoId]);
+  }, [poDetail, poId, fromPoId, vendor, vendorQ.isError, companyVatRegistered, stdRate]);
 
   const options = useMemo(() => claimOptions(tiDate), [tiDate]);
   const effClaim = claim ?? options[0] ?? null;

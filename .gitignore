@@ -81,6 +81,7 @@ secrets/
 
 # ===== Runtime file-storage (Sprint 11 LocalDisk; never commit) =====
 _attachments/
+.attachments-dev/
 
 # Derived knowledge-graph artifacts (CLAUDE.md §17 — regenerate, never commit)
 graphify-out/

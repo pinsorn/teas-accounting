@@ -334,7 +334,7 @@ public sealed class PurchaseOrderService(
             linked, po.TotalAmount - linked,
             po.Lines.OrderBy(l => l.LineNo).Select(l => new PurchaseOrderLineDto(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
-                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
+                l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TaxRate, l.TotalAmount,
                 LineProductType(l))).ToList(),
             vis, bu?.Code, bu?.NameTh,   // cont.79 — BU display
             po.CreatedViaApiKeyName);    // M4a — agent-drafted badge

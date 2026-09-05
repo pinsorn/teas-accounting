@@ -1169,7 +1169,7 @@ export interface AttachmentItem {
 export interface PoLineDto {
   lineNo: number; productId: number | null; productCode: string | null;
   descriptionTh: string; quantity: number; uomText: string | null;
-  unitPrice: number; lineAmount: number; taxAmount: number; totalAmount: number;
+  unitPrice: number; lineAmount: number; taxAmount: number; taxRate: number; totalAmount: number;
   // cont.94d — product taxonomy so a PV prefill derives the correct VAT (not a flat 7%).
   productType: ProductTypeStr;
 }

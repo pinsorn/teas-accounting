@@ -46,13 +46,21 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # no `version:` — reads packageManager (pnpm@10.33.4), same as Docker
+        with:
+          package_json_file: frontend/package.json # the action reads the REPO ROOT by default; job `working-directory` does not apply to `uses:` steps
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm exec tsc --noEmit
+      - name: Lint
+        run: pnpm lint
+      - name: Unit tests
+        run: pnpm vitest run
+      - name: Build
+        run: pnpm build

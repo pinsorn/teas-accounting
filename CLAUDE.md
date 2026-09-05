@@ -101,7 +101,9 @@ blast-radius cap (max files / API changes — hitting it = stop-and-re-spec).
   mid-gate, 2026-07-08 — reviewers that only read code are safe to parallel).
   "Different area" does NOT make two dispatches parallel-safe — the test DB is
   shared, so the SECOND one gets an explicit hold-your-test-run message and an
-  all-clear when the first finishes (2026-07-25). Any dispatch that will run a
+  all-clear when the first finishes (2026-07-25). Same for shared BUILD outputs: two
+  `dotnet build`s race on `obj/`, a `pnpm install` relinks `node_modules` under a running
+  vitest, a local `next build` clobbers the `.next/` a dev server serves (2026-09-04). Any dispatch that will run a
   long suite also carries: poll the run IN-TURN, never end your turn to wait
   for a notification (workers stalled on their own monitors 4× this session).
   Two workers on genuinely different build systems (e.g. one `dotnet build`
