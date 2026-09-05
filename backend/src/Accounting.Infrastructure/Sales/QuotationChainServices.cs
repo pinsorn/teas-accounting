@@ -8,6 +8,8 @@ using Accounting.Domain.ValueObjects;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -34,7 +36,7 @@ internal static class ChainMath
 public sealed class QuotationService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    ICompanyTaxConfigService taxCfg) : IQuotationService
+    ICompanyTaxConfigService taxCfg, IIdempotencyContext idem) : IQuotationService
 {
     private void Auth()
     {
@@ -42,9 +44,53 @@ public sealed class QuotationService(
             throw new DomainException("auth.required", "User must be authenticated.");
     }
 
+    // WP-J (specs/fix-idempotency-document-fence.md §3.3) — AsNoTracking lookup shared by the
+    // initial check and the post-23505 re-lookup; same predicate both times.
+    private Task<Quotation?> FindFencedAsync(long apiKeyId, string key, CancellationToken ct) =>
+        db.Quotations.AsNoTracking()
+            .Where(x => x.CompanyId == tenant.CompanyId          // M13 explicit, belt over the
+                     && x.CreatedViaApiKeyId == apiKeyId         //   global query filter + RLS
+                     && x.IdempotencyKey == key)
+            .FirstOrDefaultAsync(ct);
+
+    /// WP-J: this method OWNS its transaction and its change tracker (BeginTransaction + Commit;
+    /// the 23505 net calls ChangeTracker.Clear()). Never call it from inside a caller's
+    /// transaction or with caller-tracked entities pending — see
+    /// SalesOrderDeliveryServices.GenerateTiAsync, which calls it BEFORE touching its own tracked
+    /// DeliveryOrder.
     public async Task<long> CreateDraftAsync(CreateQuotationRequest req, CancellationToken ct)
     {
         Auth();
+
+        // WP-J document idempotency fence (§3.3) — lookup at the TOP (after auth), lock BEFORE
+        // lookup, single tx on BOTH the keyed and the unkeyed path.
+        var key = idem.Key;
+        var hash = idem.RequestHash;
+        var apiKeyId = tenant.ApiKeyId;
+        var fenced = key is not null && apiKeyId is not null;
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        if (fenced)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock(@company, @lock)",
+                new NpgsqlParameter[]
+                {
+                    new("company", NpgsqlDbType.Integer) { Value = tenant.CompanyId },
+                    new("lock", NpgsqlDbType.Integer) { Value = IdempotencyFenceLock.LockKey(apiKeyId!.Value, key!) },
+                }, ct);
+
+            var existing = await FindFencedAsync(apiKeyId.Value, key!, ct);
+            if (existing is not null)
+            {
+                if (!string.Equals(existing.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                await tx.CommitAsync(ct);
+                return existing.QuotationId;
+            }
+        }
 
         // Sprint 14 P7 — per-key BU lock (SO/DO inherit this locked Q BU; v1
         // exposes no direct SO/DO create, so the lock at Q entry is sufficient).
@@ -82,6 +128,11 @@ public sealed class QuotationService(
             ShowWhtNote = cust.CustomerType == CustomerType.Corporate,
             // M4a — stamp the key name when created by an API-key principal (MCP agent).
             CreatedViaApiKeyName = tenant.ApiKeyName,
+            // WP-J — audit id ALWAYS stamped; key/hash only when fenced (partial index ignores
+            // unkeyed rows).
+            CreatedViaApiKeyId = tenant.ApiKeyId,
+            IdempotencyKey = fenced ? key : null,
+            IdempotencyRequestHash = fenced ? hash : null,
         };
         // §4.6 / ม.80 — VAT rate + tax-code classification come from company master data.
         var cfg = await taxCfg.GetAsync(ct);
@@ -105,9 +156,30 @@ public sealed class QuotationService(
             q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;
         }
         db.Quotations.Add(q);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IdempotencyFenceLock.IsFenceCollision(ex))
+        {
+            // 23505 safety net (§3.3) — the lock's braces. Explicit rollback + ChangeTracker
+            // clear: the failed insert is still Added, and `await using` disposal alone would
+            // not let us re-lookup on this same, still-open connection before the method returns.
+            await tx.RollbackAsync(ct);
+            db.ChangeTracker.Clear();
+            var found = await FindFencedAsync(apiKeyId!.Value, key!, ct);
+            if (found is not null)
+            {
+                if (!string.Equals(found.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                return found.QuotationId;
+            }
+            throw;   // unexplained collision — never swallow into a wrong id
+        }
         activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Created", toStatus: "Draft");
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return q.QuotationId;
     }
 
@@ -184,6 +256,14 @@ public sealed class QuotationService(
 
     // Sprint 13h P4 — hard-delete a Draft. Allowed because no doc_no allocated yet,
     // so the gap-rule (Plan §17.6) is not violated.
+    // WP-J J9 — the fence lives on the document, so deleting the draft must release the
+    // operation key too: otherwise a retry inside the 24h claim window replays a 201 for a now-
+    // dead id, and after 24h the key is silently free anyway (the deletion just makes it free
+    // immediately, deterministically). The (company, api_key, key) tuple comes from the DOCUMENT
+    // being deleted, never the deleting principal's own tenant/key. Raw SQL mirrors the advisory-
+    // lock call in CreateDraftAsync — no IIdempotencyStore interface change, which would force
+    // every test decorator to grow a passthrough. This method now OWNS a transaction (J8 — same
+    // discipline as CreateDraftAsync): never call it from inside a caller's unit of work.
     public async Task DeleteDraftAsync(long id, CancellationToken ct)
     {
         Auth();
@@ -191,9 +271,21 @@ public sealed class QuotationService(
         if (q.Status != QuotationStatus.Draft)
             throw new DomainException("quotation.cannot_delete_after_send",
                 "Quotation can only be deleted while in Draft.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         db.RemoveRange(q.Lines);
         db.Quotations.Remove(q);
         await db.SaveChangesAsync(ct);
+        if (q.IdempotencyKey is not null && q.CreatedViaApiKeyId is not null)
+            await db.Database.ExecuteSqlRawAsync(
+                "DELETE FROM sys.idempotency_keys WHERE company_id = @c AND api_key_id = @a AND \"key\" = @k",
+                new NpgsqlParameter[]
+                {
+                    new("c", NpgsqlDbType.Integer) { Value = q.CompanyId },
+                    new("a", NpgsqlDbType.Bigint) { Value = q.CreatedViaApiKeyId.Value },
+                    new("k", NpgsqlDbType.Text) { Value = q.IdempotencyKey },
+                }, ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task SendAsync(long id, CancellationToken ct)

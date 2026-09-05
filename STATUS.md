@@ -4,6 +4,19 @@
 > relative links inside archived files may point at root-era paths).
 
 ## Now
+- **✅ 2026-09-05 — WP-J document-level idempotency fence COMPLETE — PR #120 open (stacked on #119); Codex
+  round 2 (WPJ-F1 lifecycle, WPJ-F2 T-F1 sync) CLOSED: J9 delete-releases-key + deterministic T-F1 + RLS leg;
+  Opus APPROVE; Tier-3 1401/0/14; fence suite 32/0/0.**
+  Closes Codex F1/F2: `(created_via_api_key_id, idempotency_key, idempotency_request_hash)` now persist ON the
+  document inside the create service's own transaction, serialised by `pg_advisory_xact_lock` + partial UNIQUE
+  `ux_<t>_idem`; a create for an existing key returns that document, a different body is a permanent 409
+  `idempotency.body_mismatch`. Document + activity row commit atomically (I10 closed). Middleware diff = two
+  assignments; Complete-failure policy unchanged. Migration DDL-only. VERSION 2.4.0.
+  Gates: blind acceptance 27/27 (0 skipped) · claim-first regression 20/20 · Domain 188/188 · Api 1397 pass /
+  0 fail / 14 baseline skips · e2e external-api 1/1 on the rebuilt API · Opus Tier-2 APPROVE-WITH-NITS (fixed).
+  F1b "takeover bug" was proved a test-harness cold-start race by opus-debugger — no product change.
+  **Merge order: #119 first, then #120.** Both merges deploy to prod via Coolify.
+
 - **✅ 2026-09-05 — GPT-5.6 Sol external review (8/8 CONFIRMED) REMEDIATED — PR open, awaiting Ham's
   merge (= prod deploy via Coolify).** Branch `gpt56-review-remediation`: claim-first idempotency
   (INSERT…ON CONFLICT before the endpoint; delete+re-insert stale takeover; 400 invalid_key; 409

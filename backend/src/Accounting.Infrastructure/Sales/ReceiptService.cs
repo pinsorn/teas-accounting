@@ -10,6 +10,7 @@ using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -31,20 +32,66 @@ public sealed partial class ReceiptService : IReceiptService
     private readonly IActivityRecorder       _activity;
     private readonly ICompanyTaxConfigService _taxCfg;
     private readonly IFileStorageService     _storage;   // Sprint 13k — logo on PDF
+    private readonly IIdempotencyContext     _idem;       // WP-J document idempotency fence
 
     public ReceiptService(AccountingDbContext db, ITenantContext tenant, IClock clock,
         INumberSequenceService numbers, IGlPostingService gl, IPeriodCloseService period,
-        IActivityRecorder activity, ICompanyTaxConfigService taxCfg, IFileStorageService storage)
+        IActivityRecorder activity, ICompanyTaxConfigService taxCfg, IFileStorageService storage,
+        IIdempotencyContext idem)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period; _activity = activity; _taxCfg = taxCfg;
-        _storage = storage;
+        _storage = storage; _idem = idem;
     }
 
+    // WP-J (specs/fix-idempotency-document-fence.md §3.3) — AsNoTracking lookup shared by the
+    // initial check and the post-23505 re-lookup; same predicate both times.
+    private Task<Receipt?> FindFencedAsync(long apiKeyId, string key, CancellationToken ct) =>
+        _db.Receipts.AsNoTracking()
+            .Where(x => x.CompanyId == _tenant.CompanyId         // M13 explicit, belt over the
+                     && x.CreatedViaApiKeyId == apiKeyId         //   global query filter + RLS
+                     && x.IdempotencyKey == key)
+            .FirstOrDefaultAsync(ct);
+
+    /// WP-J: this method OWNS its transaction and its change tracker (BeginTransaction + Commit;
+    /// the 23505 net calls ChangeTracker.Clear()). Never call it from inside a caller's
+    /// transaction or with caller-tracked entities pending — see
+    /// SalesOrderDeliveryServices.GenerateTiAsync, which calls it BEFORE touching its own tracked
+    /// DeliveryOrder.
     public async Task<long> CreateDraftAsync(CreateReceiptRequest req, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
+
+        // WP-J document idempotency fence (§3.3) — lookup at the TOP (after auth), lock BEFORE
+        // lookup, single tx on BOTH the keyed and the unkeyed path.
+        var key = _idem.Key;
+        var hash = _idem.RequestHash;
+        var apiKeyId = _tenant.ApiKeyId;
+        var fenced = key is not null && apiKeyId is not null;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        if (fenced)
+        {
+            await _db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock(@company, @lock)",
+                new NpgsqlParameter[]
+                {
+                    new("company", NpgsqlDbType.Integer) { Value = _tenant.CompanyId },
+                    new("lock", NpgsqlDbType.Integer) { Value = IdempotencyFenceLock.LockKey(apiKeyId!.Value, key!) },
+                }, ct);
+
+            var existing = await FindFencedAsync(apiKeyId.Value, key!, ct);
+            if (existing is not null)
+            {
+                if (!string.Equals(existing.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                await tx.CommitAsync(ct);
+                return existing.ReceiptId;
+            }
+        }
 
         // Sprint 14 P7 — per-key BU lock.
         var (effBu, buErr) = ApiKeyBuBinding.Resolve(
@@ -94,6 +141,11 @@ public sealed partial class ReceiptService : IReceiptService
             Notes           = req.Notes,
             // M4a — stamp the key name when created by an API-key principal (MCP agent).
             CreatedViaApiKeyName = _tenant.ApiKeyName,
+            // WP-J — audit id ALWAYS stamped; key/hash only when fenced (partial index ignores
+            // unkeyed rows).
+            CreatedViaApiKeyId = _tenant.ApiKeyId,
+            IdempotencyKey = fenced ? key : null,
+            IdempotencyRequestHash = fenced ? hash : null,
             Applications = computed.Applications,
             // Standalone non-VAT receipt — own line items (cash bill). Empty for the
             // apply path (lines are derived from the applied TI/DO on read).
@@ -101,9 +153,30 @@ public sealed partial class ReceiptService : IReceiptService
         };
 
         _db.Receipts.Add(rc);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IdempotencyFenceLock.IsFenceCollision(ex))
+        {
+            // 23505 safety net (§3.3) — the lock's braces. Explicit rollback + ChangeTracker
+            // clear: the failed insert is still Added, and `await using` disposal alone would
+            // not let us re-lookup on this same, still-open connection before the method returns.
+            await tx.RollbackAsync(ct);
+            _db.ChangeTracker.Clear();
+            var found = await FindFencedAsync(apiKeyId!.Value, key!, ct);
+            if (found is not null)
+            {
+                if (!string.Equals(found.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                return found.ReceiptId;
+            }
+            throw;   // unexplained collision — never swallow into a wrong id
+        }
         _activity.Record("Receipt", rc.ReceiptId, rc.DocNo, rc.CompanyId, "Created", toStatus: "Draft");
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return rc.ReceiptId;
     }
 

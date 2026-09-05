@@ -47,6 +47,13 @@ public static class DependencyInjection
         services.AddScoped<IApiKeyResolver, Identity.ApiKeyResolver>();   // Sprint 14
         services.AddScoped<Application.Identity.IApiKeyService, Identity.ApiKeyService>();
         services.AddScoped<IIdempotencyStore, Identity.IdempotencyStore>();   // Sprint 14 P4
+        // WP-J document idempotency fence (specs/fix-idempotency-document-fence.md §3.2) — a
+        // FACTORY DELEGATE, not two plain registrations: the middleware sets Key/RequestHash on
+        // IdempotencyContext, and the create services read the SAME scoped instance through
+        // IIdempotencyContext. Two separate `AddScoped<T>()` calls would create two instances and
+        // silently disable the fence with a fully green test suite.
+        services.AddScoped<IdempotencyContext>();
+        services.AddScoped<IIdempotencyContext>(sp => sp.GetRequiredService<IdempotencyContext>());
         services.AddScoped<INumberSequenceService, Numbering.NumberSequenceService>();
         services.AddScoped<Application.Master.ICustomerService, Master.CustomerService>();
         services.AddScoped<Application.Ledger.IJournalService, Ledger.JournalService>();

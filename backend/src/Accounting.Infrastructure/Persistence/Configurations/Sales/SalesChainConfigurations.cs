@@ -44,6 +44,13 @@ internal sealed class QuotationConfiguration : IEntityTypeConfiguration<Quotatio
         b.Property(x => x.Version).IsConcurrencyToken();
         b.HasIndex(x => new { x.CompanyId, x.DocNo }).IsUnique()
             .HasFilter("doc_no IS NOT NULL");
+
+        // WP-J document idempotency fence (specs/fix-idempotency-document-fence.md §3.1).
+        b.Property(x => x.IdempotencyKey).HasMaxLength(128);
+        b.Property(x => x.IdempotencyRequestHash).HasMaxLength(64);
+        b.HasIndex(x => new { x.CompanyId, x.CreatedViaApiKeyId, x.IdempotencyKey })
+         .IsUnique().HasFilter("idempotency_key IS NOT NULL")
+         .HasDatabaseName("ux_quotations_idem");     // MANDATORY named index — see §3.1 trap.
     }
 }
 

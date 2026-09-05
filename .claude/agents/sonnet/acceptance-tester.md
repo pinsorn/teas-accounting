@@ -41,6 +41,26 @@ code does — if you read their work first, you become them.
   spots in the implementation, confirm the combined suite goes RED each
   time, restore, report which mutations survived (a survivor = a coverage
   hole).
+- **Assert the ROWCOUNT of any DB-mutating test SETUP.** A setup step that
+  back-dates a row, hand-DELETEs one, or flips a status must assert it
+  affected the expected number of rows (`(await Backdate(...)).Should().Be(1)`).
+  A silent 0-row setup makes the test exercise a different scenario than you
+  think and turns into a phantom "product bug". This is blind-compatible — it
+  needs no look at the implementation — and it is the cheapest guard you have.
+  (2026-09-05: a 0-row back-date was reported as a takeover defect in shipped
+  money middleware; the product was correct, the setup had never applied.)
+- **Never gate setup on `Task.Delay(N)` + `task.IsCompleted == false`** to
+  prove a request is parked at an injected pause. A cold `WebApplicationFactory`
+  first request (JIT, DI graph, pool warmup, slow password/key hashing) can
+  still be *starting* when the delay expires, so the assertion passes before
+  the request reached the pause. Have the injected seam signal an explicit
+  `TaskCompletionSource` ("pause reached") and `await` that with a timeout.
+- **An interleaving/race test must assert the artifact only that interleaving
+  produces** (a changed claim/lock id, a waiter count, the ABSENCE of a replay
+  header) — never only the converged end state ("one row, same id, 2xx"),
+  which the boring path also yields. If the test would pass with the race
+  removed, it proves nothing. (2026-09-05: a takeover test passed on a plain
+  replay for a full review round before an external reviewer noticed.)
 - Shared test DB: one test-runner at a time — obey the dispatch's DB status.
 - No `git commit`. Environment: Windows 11, PowerShell 5.1 (`-Encoding utf8`,
   no `&&`), prefer dedicated file tools.
