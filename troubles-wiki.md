@@ -1753,3 +1753,15 @@ losing the test DB costs nothing.
 - **Fix (test-only, `IdempotencyDocumentFenceTests.cs`):** add a `PauseReachedSignal` `TaskCompletionSource` set by `PausingQuotationDecorator` immediately BEFORE it awaits the gate (i.e. after the owner has claimed — the claim INSERT precedes the endpoint). F1b awaits `reached.Task.WaitAsync(15s)` instead of `Task.Delay(500)`, and asserts `BackdateClaimAsync(...) == 1`. Deterministic; A is guaranteed to be the parked claim owner before B fires. No product change.
 - **General kernel (belongs in the acceptance-tester template, not just here):** In a `WebApplicationFactory` integration test that injects a pause to hold a request mid-pipeline, NEVER gate setup on `Task.Delay(N)` + `task.IsCompleted == false` — a cold first request can be slow enough that the assertion passes before the request reaches the pause. Signal the pause point explicitly (a TCS the injected seam sets) and await that.
 - **Blind-compatible catch (the cheapest guard, applies even with no injectable pause):** any test whose SETUP mutates DB state (a back-date, a hand-DELETE, a status flip) must ASSERT the mutation's rowcount. `(await BackdateClaimAsync(...)).Should().Be(1)` would have flagged this instantly without reading the implementation — the acceptance-tester's blind rule blocked the impl read, but not this assertion.
+
+## [NOTE 2026-09-05] Running `Accounting.Api.dll` from the repo root → "ConnectionStrings:Postgres is required"
+- **Symptom:** `dotnet backend/src/Accounting.Api/bin/Release/net10.0/Accounting.Api.dll` from the repo root exits 127 with
+  `InvalidOperationException: ConnectionStrings:Postgres is required` (DependencyInjection.cs:16).
+- **Cause:** ASP.NET Core's ContentRoot = current directory, so `appsettings.Development.json` (in the project dir) is never loaded.
+- **Fix:** `dotnet run --project backend/src/Accounting.Api -c Release --no-build` (ContentRoot = project dir), or `cd` into the bin dir.
+  Also: any `dotnet build` while this dev server runs hits MSB3027 (DLL locks) — stop the server first, restart after.
+
+## [NOTE 2026-09-05] Stacked PR merge without a rebase
+- Merge the base PR with a **merge commit** (`gh pr merge N --merge`), then `gh pr edit M --base main` on the stacked PR: its
+  commits are already in main, the diff stays feature-only, the SHAs (and their green required checks) are unchanged → merge
+  immediately. A squash of the base PR would have orphaned the stacked branch's history and forced a rebase + a 25-min CI re-run.
