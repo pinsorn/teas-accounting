@@ -504,10 +504,16 @@ public sealed class IdempotencyDocumentFenceTests
 
             // (2) Poll pg_locks until A is genuinely blocked on OUR advisory lock (not merely slow
             // on a cold WebApplicationFactory — the exact failure mode this rewrite closes).
+            // Bounded to 5s (not the 15s default): Npgsql's CommandTimeout on the fence's
+            // pg_advisory_xact_lock is 30s (spec §3.3's "guard-has-an-exit"), and steps (2)+(4)+(5)
+            // stacking 15s each (45s worst case) could exceed that timeout on a slow box, so a real
+            // command-timeout failure could surface as this test looping past a lock that no longer
+            // exists rather than failing loudly and immediately. Realistic latencies are sub-second.
             await PollUntilAsync(
                 () => CountUngrantedAdvisoryWaitersAsync(1, lockKey),
                 n => n == 1,
-                "(2) A must show as exactly ONE ungranted advisory waiter on (classid=company, objid=lockKey, objsubid=2)");
+                "(2) A must show as exactly ONE ungranted advisory waiter on (classid=company, objid=lockKey, objsubid=2)",
+                TimeSpan.FromSeconds(5));
             taskA.IsCompleted.Should().BeFalse("A must still be blocked on the advisory lock, not merely claimed");
 
             // (3) Back-date A's claim past StaleAfter — assert the rowcount so a silent 0-row
@@ -521,7 +527,8 @@ public sealed class IdempotencyDocumentFenceTests
             var afterTakeover = await PollUntilAsync(
                 () => ReadClaimRowAsync(1, apiKeyId, key),
                 r => r.Id is not null && r.Id != claimA,
-                "(4) the claim row's id must change (takeover DELETE + re-INSERT) after B is fired");
+                "(4) the claim row's id must change (takeover DELETE + re-INSERT) after B is fired",
+                TimeSpan.FromSeconds(5));
             claimB = afterTakeover.Id!.Value;
 
             // (5) Poll pg_locks until BOTH A and B are parked as ungranted waiters simultaneously —
@@ -529,7 +536,8 @@ public sealed class IdempotencyDocumentFenceTests
             await PollUntilAsync(
                 () => CountUngrantedAdvisoryWaitersAsync(1, lockKey),
                 n => n == 2,
-                "(5) both A and B must show as ungranted advisory waiters on the same lock simultaneously");
+                "(5) both A and B must show as ungranted advisory waiters on the same lock simultaneously",
+                TimeSpan.FromSeconds(5));
         }
         finally
         {
@@ -1272,6 +1280,109 @@ public sealed class IdempotencyDocumentFenceTests
         var after = await CountIdempotencyKeysForCompanyAsync(1);
         after.Should().Be(before,
             "control: an UNFENCED draft's delete must never touch sys.idempotency_keys — count(*) for the company must be unchanged");
+    }
+
+    // ── T-J12d — RLS leg for the J9 DELETE (memory: rls-masked-by-superuser-tests — teas_test
+    // connects as a Postgres SUPERUSER, so RLS is silently bypassed unless we force it). Copies
+    // J7's pattern (SET ROLE pg_database_owner + explicit GRANTs on a raw, RLS-pinned connection;
+    // NOT teas_rls_test, which silently SKIPs without CREATEROLE — a skip fakes green).
+    //
+    // VARIANT BUILT: raw SQL replicating J9's EXACT delete statement
+    // ("DELETE FROM sys.idempotency_keys WHERE company_id=@c AND api_key_id=@a AND \"key\"=@k")
+    // on the role-switched, company-pinned connection — the same approach J7 already uses for its
+    // SELECT leg. The alternative (driving the real IQuotationService.DeleteDraftAsync through a
+    // BuildProvider whose pooled connection has SET ROLE + set_config applied) was NOT built: J7's
+    // own harness comment establishes that only a connection manually pinned via
+    // db.Database.OpenConnectionAsync() + raw ADO.NET commands reliably keeps the role switch in
+    // effect for the query that matters — a service call resolves its own DbContext/connection
+    // through the normal DI-managed pool, which is not guaranteed to be the same physical,
+    // role-switched connection, and reopens the risk of quietly falling back to the superuser role
+    // (silently re-bypassing RLS, the exact failure this leg exists to catch). The raw-SQL variant
+    // exercises the SAME statement, SAME schema/table, SAME RLS policy as the real DeleteDraftAsync
+    // delete, so it proves the identical policy behaviour without that risk.
+    [SkippableFact]
+    public async Task T_J12d_Rls_scopes_the_delete_releasing_claim_to_the_owning_company()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var customerId = await SeedCustomerAsync(1);
+        var (apiKey, apiKeyId) = await MintKeyAsync(1, 1, ["sales.quotation.create"]);
+        var coB = await SeedVatCompanyAsync(); // only used as a distinct company_id to pin RLS to
+
+        await using var factory = new DocumentFenceApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+
+        // K/B: company 1's fenced quotation whose claim row the OWNING company must be able to delete.
+        var markerK = $"j12d-k-{Guid.NewGuid():N}";
+        var key = $"j12dkey-{Guid.NewGuid():N}";
+        var respK = await PostAsync(http, "/api/v1/quotations", apiKey, key, BuildQuotationJson(customerId, markerK));
+        respK.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await CountIdempotencyKeyRowsAsync(1, apiKeyId, key)).Should().Be(1,
+            "K's claim row must exist before the RLS-scoped delete");
+
+        // K2/B2: a SECOND company-1 fenced quotation, attacked from a DIFFERENT company's RLS pin.
+        var markerK2 = $"j12d-k2-{Guid.NewGuid():N}";
+        var key2 = $"j12dkey2-{Guid.NewGuid():N}";
+        var respK2 = await PostAsync(http, "/api/v1/quotations", apiKey, key2, BuildQuotationJson(customerId, markerK2));
+        respK2.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await CountIdempotencyKeyRowsAsync(1, apiKeyId, key2)).Should().Be(1,
+            "K2's claim row must exist before the cross-company delete attempt");
+
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, 1, 1);
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+
+        await db.Database.OpenConnectionAsync();
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "GRANT USAGE ON SCHEMA sys TO pg_database_owner; " +
+                "GRANT SELECT, DELETE ON sys.idempotency_keys TO pg_database_owner;");
+            await db.Database.ExecuteSqlRawAsync("SET ROLE pg_database_owner");
+
+            var conn = (System.Data.Common.DbConnection)db.Database.GetDbConnection();
+
+            // Pinned as the OWNING company (1): J9's exact DELETE for K must succeed — the policy
+            // lets the owner company delete its own claim row.
+            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.company_id', {0}, false)", "1");
+            int ownRows;
+            await using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM sys.idempotency_keys WHERE company_id = @c AND api_key_id = @a AND \"key\" = @k";
+                var pc = cmd.CreateParameter(); pc.ParameterName = "c"; pc.Value = 1; cmd.Parameters.Add(pc);
+                var pa = cmd.CreateParameter(); pa.ParameterName = "a"; pa.Value = apiKeyId; cmd.Parameters.Add(pa);
+                var pk = cmd.CreateParameter(); pk.ParameterName = "k"; pk.Value = key; cmd.Parameters.Add(pk);
+                ownRows = await cmd.ExecuteNonQueryAsync();
+            }
+            ownRows.Should().Be(1,
+                "J9/J6: the RLS-enforced DELETE J9 issues must affect exactly one row when pinned to the document's OWNING company");
+
+            // Pinned as a DIFFERENT company: the SAME statement naming K2's exact tuple (which
+            // really belongs to company 1) must be invisible under RLS — 0 rows, never a
+            // WHERE-predicate miss (the predicate itself is correct; RLS is what must hide it).
+            await db.Database.ExecuteSqlRawAsync("SELECT set_config('app.company_id', {0}, false)", coB.CompanyId.ToString());
+            int crossRows;
+            await using (var cmd2 = conn.CreateCommand())
+            {
+                cmd2.CommandText = "DELETE FROM sys.idempotency_keys WHERE company_id = @c AND api_key_id = @a AND \"key\" = @k";
+                var pc2 = cmd2.CreateParameter(); pc2.ParameterName = "c"; pc2.Value = 1; cmd2.Parameters.Add(pc2);
+                var pa2 = cmd2.CreateParameter(); pa2.ParameterName = "a"; pa2.Value = apiKeyId; cmd2.Parameters.Add(pa2);
+                var pk2 = cmd2.CreateParameter(); pk2.ParameterName = "k"; pk2.Value = key2; cmd2.Parameters.Add(pk2);
+                crossRows = await cmd2.ExecuteNonQueryAsync();
+            }
+            crossRows.Should().Be(0,
+                "J6: pinned as a DIFFERENT company, a DELETE naming company 1's exact fence tuple (K2) must affect ZERO rows — RLS-invisible, not merely unmatched by other predicates");
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlRawAsync("RESET ROLE");
+            await db.Database.CloseConnectionAsync();
+        }
+
+        // Re-check with the ordinary (superuser) connection: K really gone, K2 really untouched.
+        (await CountIdempotencyKeyRowsAsync(1, apiKeyId, key)).Should().Be(0,
+            "K's own-company delete must have actually removed the row");
+        (await CountIdempotencyKeyRowsAsync(1, apiKeyId, key2)).Should().Be(1,
+            "J6: K2's claim row must still exist — the cross-company delete attempt pinned as a different company must not have touched it");
     }
 
     // ── T-J10 (scope extension) — IsFenceCollision: pure unit test, no DB. Contract per spec
