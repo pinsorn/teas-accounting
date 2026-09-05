@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.4.0](https://github.com/pinsorn/teas-accounting/compare/v2.3.2...v2.4.0) (2026-09-05)
+
+
+### Features
+
+* **idempotency:** document-level fence — the Idempotency-Key travels into the create transaction (WP-J, closes Codex F1/F2) ([3675144](https://github.com/pinsorn/teas-accounting/commit/367514499b151269f48d1a2f2757adc2dbbe0651))
+* **idempotency:** document-level fence — the Idempotency-Key travels into the create transaction (WP-J, Codex F1/F2) ([841eab9](https://github.com/pinsorn/teas-accounting/commit/841eab9ee372f55e26976b3aef6503248365a0cf))
+
+
+### Bug Fixes
+
+* **api:** external-API idempotency claims the key BEFORE executing the endpoint (GPT-5.6 review CRITICAL-01 / HIGH-01 / MEDIUM-01) ([ab2bb32](https://github.com/pinsorn/teas-accounting/commit/ab2bb3288344d03c181601070786cda86cdbc798))
+* **build:** let CI own type-checking, not the Docker image build ([#117](https://github.com/pinsorn/teas-accounting/issues/117)) ([cefaf52](https://github.com/pinsorn/teas-accounting/commit/cefaf52599548baf1142a21736e390029249bfc3))
+* **deploy:** stamp real version in Coolify builds via backend/VERSION override ([b90c2f5](https://github.com/pinsorn/teas-accounting/commit/b90c2f5dc63a4de4301191cd6b018f6005d8111e))
+* GPT-5.6 external review remediation - claim-first idempotency, PO-VI VAT, fail-closed RdApi, BFF leaks, FE CI gates (v2.3.3) ([50c5f03](https://github.com/pinsorn/teas-accounting/commit/50c5f039bc59af23b0da033f1156fe3f864a6e06))
+* **idempotency:** deleting a fenced quotation draft releases its operation key (WP-J J9, Codex WPJ-F1) ([237e59e](https://github.com/pinsorn/teas-accounting/commit/237e59e727e3226c20871afed3688a02d2f5405b))
+* **purchase,fe:** product-type select exposes the exempt codes a PO line can carry; PO-CTA row init no longer waits forever on a failed vendor fetch (WP-B Tier-2 fixes) ([6bdd3d9](https://github.com/pinsorn/teas-accounting/commit/6bdd3d9fb5e8d6755ec2d3316e1ae4e71b56dbdc))
+* **purchase,fe:** vendor invoice from PO takes each line's own taxRate and productType, not a stale vendor closure (GPT-5.6 review HIGH-02) ([77e40c4](https://github.com/pinsorn/teas-accounting/commit/77e40c45ace2374503751c6cff5ac3ed87c2fcd5))
+* **security,purchase:** GPT-5.6 review round 1a — fail-closed RdApi provider, BFF 500s stop leaking exception text, PO line DTO carries taxRate, portable dev StorageRoot ([c4b4a56](https://github.com/pinsorn/teas-accounting/commit/c4b4a5684d90fa48614e2c74792c545077542be6))
+* **storage:** create the attachment root lazily again — the eager create failed 351 tests on Linux CI (/var/teas unwritable) ([db0f7f7](https://github.com/pinsorn/teas-accounting/commit/db0f7f7e95928f994adb625d39770fc17365dbfd))
+* **ui:** white text on active row in company switcher dropdown ([d1a8974](https://github.com/pinsorn/teas-accounting/commit/d1a897487dc0e5d2162d37b0877b334a41542bdb))
+
 ## [2.3.2](https://github.com/pinsorn/teas-accounting/compare/v2.3.1...v2.3.2) (2026-08-20)
 
 
