@@ -28,14 +28,18 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
    6d. [x] F1b diagnostic DONE (tester): probe at B's 409 showed a FRESH claim row (id 1342, status NULL,
    age ~2s = a DELETE+re-INSERT takeover fired) yet B got 409 in_progress and the new claim went UNSERVICED.
    Bucket 2 = product-relevant, in the SHIPPED claim-first ClaimAsync/wait-loop (PR #119), NOT the fence.
-   6e. [~] opus-debugger (a7a8a498e518a5a3b) dispatched: root cause + production-reachability ruling + minimal
-   fix IF reachable/cheap ELSE documented narrow residual (blast cap 3 src + test; must NOT touch the approved
-   fence logic; runs the claim-first + fence filters). Sole test runner; blocks Tier-3.
-   Fable's reachability argument (for the debugger to confirm/break): trigger = owner stale (>5min) while parked
-   BETWEEN claim-insert and service-entry — in prod that span is routing→lambda→service, no I/O, unreachable;
-   realistic stale = owner hanging INSIDE the service = T-F1, which PASSES; and WP-J fence prevents duplicates
-   regardless → does NOT block #119 or WP-J. T3/T11 (claim-first) + T-F1 (fence) all prove normal takeover works;
-   the gap is specific to a LIVE parked owner mid-pipeline.
+   6e. [x] opus-debugger VERDICT: F1b was a TEST-HARNESS cold-start race, NOT a product defect. Old F1b gated on
+   `Task.Delay(500)+IsCompleted==false` (satisfied by a slow cold WebApplicationFactory) → A hadn't claimed →
+   back-date hit 0 rows → A/B raced (spurious 409 or deadlock). No takeover ever fired; the "fresh row" was a live
+   claim. `IdempotencyStore.ClaimAsync`/`IdempotencyMiddleware` CORRECT + UNCHANGED (product diff empty). Fix
+   test-only: `PauseReachedSignal` + assert back-date rowcount==1; un-skipped. Reachability argument CONFIRMED.
+   Committed `c2afcfa` (F1b fix + wiki general-kernel + spec §4 T-F1b sync mandate). Gate: claim-first+fence 47/0/0.
+7. [~] Tier-3 FULL suite RUNNING (bg bhjz27vot, log scratchpad/tier3.log): Release build 0/0 done; Domain then
+   full Api.Tests, TEAS_TEST_PG set. Baseline Api 1370 pass / 14 skip / 0 fail + ~19 new fence tests (F1b now
+   un-skipped → expect ~1389 pass / 14 skip / 0 fail); Domain 188/0/0. Watch for the known TenantIsolation
+   random-id flake (troubles-wiki) — re-run once if it's the only failure.
+   Then: rebuild + restart local stack (API :5080 was KILLED by the debugger — stale 8h dev server; needs
+   restart for e2e) → run `frontend/e2e/external-api-microservice.spec.ts`.
    6c. [ ] Spec Tier-2 records — run
    `python Z:/temp/claude/Y--ClaudePlayground-TEAS-Project/485d6f4e-ebb5-4fb9-b1cd-3d278b885897/scratchpad/wpj-tier2.py`
    (tester finished writing the spec; safe now). Then commit the spec.
