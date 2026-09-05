@@ -39,7 +39,8 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
    e2e `external-api-microservice.spec.ts` **1/1** against the Release API on :5080 (restarted; DbInitializer
    MigrateAsync applied the fence migration to accounting_dev — all 9 columns verified present).
 8. [x] `backend/VERSION` 2.3.3 -> **2.4.0** (`2025b7b`); branch pushed; **PR #120** opened, base
-   `gpt56-review-remediation` (STACKED on #119 so the diff is WP-J only). Awaiting CI + Ham.
+   `gpt56-review-remediation` (STACKED on #119 so the diff is WP-J only). **CI GREEN on `719d4a0`: backend
+   pass 24m38s (Linux + Postgres 16), frontend pass 1m46s.** Awaiting Ham: merge #119 then #120; GPT re-review welcome.
 9. [ ] After #119 merges: if the merge rewrites history (squash), rebase this branch onto `main` and retarget
    #120; else GitHub retargets it. Then archive PROGRESS-gpt56-review.md + this file to docs/archive/, update
    STATUS.md + PLAN WP-J row -> shipped, self-retro.

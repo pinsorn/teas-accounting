@@ -4,7 +4,7 @@
 > relative links inside archived files may point at root-era paths).
 
 ## Now
-- **✅ 2026-09-05 — WP-J document-level idempotency fence COMPLETE — PR #120 open (stacked on #119).**
+- **✅ 2026-09-05 — WP-J document-level idempotency fence COMPLETE — PR #120 open (stacked on #119), CI GREEN.**
   Closes Codex F1/F2: `(created_via_api_key_id, idempotency_key, idempotency_request_hash)` now persist ON the
   document inside the create service's own transaction, serialised by `pg_advisory_xact_lock` + partial UNIQUE
   `ux_<t>_idem`; a create for an existing key returns that document, a different body is a permanent 409
