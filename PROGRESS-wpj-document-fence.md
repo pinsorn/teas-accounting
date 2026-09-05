@@ -54,9 +54,16 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
   = claimB/201); rowcount guards on F2/J4/J8 (J3 guarded by its 23505 throw — accepted). Fence suite
   **31/0/0**, claim-first **20/0/0**, T-F1 ×3 4–6 s. No divergences. Fable read the diff: no Skip=, no residue.
 - [x] Dev API :5080 restarted (Release, no-build); external-api e2e **1/1** on the J9 build.
-- [~] opus-reviewer on `08b24b6..2218612` (read-only, 7 lenses) ∥ Tier-3 round 2 full suite (bg, log
-  scratchpad/tier3-r2.log; expect Api 1397+4 = 1401 pass / 14 skip / 0 fail, Domain 188).
-- [ ] Then push (one CI run) → CI → Codex round 3 welcome.
+- [x] opus-reviewer on `08b24b6..2218612` = **APPROVE-WITH-NITS**, Codex WPJ-F1 + WPJ-F2 ruled CLOSED (7 lenses
+  clean). Nits: N1 no RLS leg on the J9 DELETE → T-J12d; N2 T-F1 poll budget vs 30 s lock timeout → 5 s/step;
+  N3 cross-type claim purge (benign) + N4 checklist → spec `1ef9b0e` (also pre-answers the round-3 pokes:
+  cancel/reject wording, pre-existing read-before-tx guarded by the `Version` concurrency token).
+- [x] Tier-3 round 2 GREEN: Domain 188/188, Api **1401 pass / 0 fail / 14 skip** (= +4 T-J12; baseline skips
+  unchanged). e2e external-api 1/1 on the J9 build.
+- [~] Tester (warm) released with ALL-CLEAR: T-J12d (RLS leg, raw-SQL variant under `pg_database_owner` +
+  pinned `app.company_id`; own-company DELETE → 1, cross-company → 0) + T-F1 polls 5 s/step — edits reviewed
+  by Fable; running fence (expect 32/0/0) + claim-first (20/0/0) filters now.
+- [ ] Then commit the test file → push (one CI run) → CI → STATUS/PROGRESS final → Codex round 3 welcome.
 9. [ ] After #119 merges: if the merge rewrites history (squash), rebase this branch onto `main` and retarget
    #120; else GitHub retargets it. Then archive PROGRESS-gpt56-review.md + this file to docs/archive/, update
    STATUS.md + PLAN WP-J row -> shipped, self-retro.
