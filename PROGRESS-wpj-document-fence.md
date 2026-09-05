@@ -21,11 +21,12 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
 6. [x] opus-reviewer on `841eab9` = APPROVE-WITH-NITS (N1 `SalesOrderDeliveryServices.cs:470` internal
    caller → contract comments + spec §1/J8; N2 openapi reworded; N3 LockKey InvariantCulture; N4 lock-timeout
    raw 500 accepted).
-   6b. [~] Fix batch N1-comments/N2/N3 ON DISK, UNCOMMITTED, UNBUILT (5 files: IdempotencyFenceLock.cs,
-   QuotationChainServices.cs, ReceiptService.cs, TaxInvoiceService.cs, openapi.yaml). Fable read the diff = OK.
-   Tester is DONE → obj/ + teas_test are FREE. Next: implementer (warm, id in ROUTING/transcript; or fresh
-   Sonnet) runs `dotnet build backend -c Release` + filtered suites (incl. `~IdempotencyDocumentFence` and
-   `~IdempotencyClaimFirst`), then Fable commits the 5 files + the new test file (explicit list).
+   6b. [x] Fix batch N1/N2/N3 + blind suite COMMITTED `be87266`. Implementer verified: Release build 0/0;
+   filtered Api run 2 = 188 pass / 0 fail / 1 skip (only F1b); Domain 188/0/0. Run 1 had the known
+   `TenantIsolationTests.Customer_from_company_A_...` random-id flake (troubles-wiki), cleared on re-run — not
+   a fence regression. Test file scanned (only F1b has Skip=; no prod leakage) before commit.
+   6d. [~] F1b decisive diagnostic dispatched to warm tester (throwaway copy prints the claim-row state at
+   B's 409: age/status/id → classifies harness vs product; reverts the copy after). Sole test runner; blocks Tier-3.
    6c. [ ] Spec Tier-2 records — run
    `python Z:/temp/claude/Y--ClaudePlayground-TEAS-Project/485d6f4e-ebb5-4fb9-b1cd-3d278b885897/scratchpad/wpj-tier2.py`
    (tester finished writing the spec; safe now). Then commit the spec.
