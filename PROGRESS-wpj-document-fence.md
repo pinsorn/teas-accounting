@@ -49,11 +49,14 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
   106/0/0; sole caller = root route). Ham may still override to tombstone before merge.
 - WPJ-F2 T-F1 sync → accepted; §4 now mandates pg_locks waiter counts + claim-id change + rowcounts +
   no-replay assertions. My earlier "T-F1 proves takeover" claim was too strong — corrected in the attempt log.
-- [~] FRESH acceptance-tester (previous one was stopped by Ham) writing T-J12 (a/b/c + unfenced control) and
-  rewriting T-F1 per §4, plus the rowcount sweep. Sole test runner. Dev API :5080 is DOWN (killed for DLL
-  locks) — restart AFTER the tester finishes, then re-run the external-api e2e.
-- [ ] opus-reviewer on the round-2 delta (`08b24b6..HEAD`: J9 + tests) → Tier-3 full suite → push → CI →
-  Codex round 3 welcome.
+- [x] FRESH acceptance-tester DONE → `2218612`: T-J12 a/b/c + unfenced control; T-F1 rewritten with the 6
+  bounded DB polls (proof sample: claimA 2002 → claimB 2004, waiters 1 → 2, both 201 non-replayed, final row
+  = claimB/201); rowcount guards on F2/J4/J8 (J3 guarded by its 23505 throw — accepted). Fence suite
+  **31/0/0**, claim-first **20/0/0**, T-F1 ×3 4–6 s. No divergences. Fable read the diff: no Skip=, no residue.
+- [x] Dev API :5080 restarted (Release, no-build); external-api e2e **1/1** on the J9 build.
+- [~] opus-reviewer on `08b24b6..2218612` (read-only, 7 lenses) ∥ Tier-3 round 2 full suite (bg, log
+  scratchpad/tier3-r2.log; expect Api 1397+4 = 1401 pass / 14 skip / 0 fail, Domain 188).
+- [ ] Then push (one CI run) → CI → Codex round 3 welcome.
 9. [ ] After #119 merges: if the merge rewrites history (squash), rebase this branch onto `main` and retarget
    #120; else GitHub retargets it. Then archive PROGRESS-gpt56-review.md + this file to docs/archive/, update
    STATUS.md + PLAN WP-J row -> shipped, self-retro.
