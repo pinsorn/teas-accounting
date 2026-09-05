@@ -25,8 +25,17 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
    filtered Api run 2 = 188 pass / 0 fail / 1 skip (only F1b); Domain 188/0/0. Run 1 had the known
    `TenantIsolationTests.Customer_from_company_A_...` random-id flake (troubles-wiki), cleared on re-run — not
    a fence regression. Test file scanned (only F1b has Skip=; no prod leakage) before commit.
-   6d. [~] F1b decisive diagnostic dispatched to warm tester (throwaway copy prints the claim-row state at
-   B's 409: age/status/id → classifies harness vs product; reverts the copy after). Sole test runner; blocks Tier-3.
+   6d. [x] F1b diagnostic DONE (tester): probe at B's 409 showed a FRESH claim row (id 1342, status NULL,
+   age ~2s = a DELETE+re-INSERT takeover fired) yet B got 409 in_progress and the new claim went UNSERVICED.
+   Bucket 2 = product-relevant, in the SHIPPED claim-first ClaimAsync/wait-loop (PR #119), NOT the fence.
+   6e. [~] opus-debugger (a7a8a498e518a5a3b) dispatched: root cause + production-reachability ruling + minimal
+   fix IF reachable/cheap ELSE documented narrow residual (blast cap 3 src + test; must NOT touch the approved
+   fence logic; runs the claim-first + fence filters). Sole test runner; blocks Tier-3.
+   Fable's reachability argument (for the debugger to confirm/break): trigger = owner stale (>5min) while parked
+   BETWEEN claim-insert and service-entry — in prod that span is routing→lambda→service, no I/O, unreachable;
+   realistic stale = owner hanging INSIDE the service = T-F1, which PASSES; and WP-J fence prevents duplicates
+   regardless → does NOT block #119 or WP-J. T3/T11 (claim-first) + T-F1 (fence) all prove normal takeover works;
+   the gap is specific to a LIVE parked owner mid-pipeline.
    6c. [ ] Spec Tier-2 records — run
    `python Z:/temp/claude/Y--ClaudePlayground-TEAS-Project/485d6f4e-ebb5-4fb9-b1cd-3d278b885897/scratchpad/wpj-tier2.py`
    (tester finished writing the spec; safe now). Then commit the spec.
