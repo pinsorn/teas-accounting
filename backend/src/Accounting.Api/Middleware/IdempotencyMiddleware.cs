@@ -56,7 +56,7 @@ public sealed class IdempotencyMiddleware
 
     private static readonly JsonSerializerOptions HeadersJson = new();
 
-    public async Task InvokeAsync(HttpContext ctx, ITenantContext tenant, IIdempotencyStore store)
+    public async Task InvokeAsync(HttpContext ctx, ITenantContext tenant, IIdempotencyStore store, IdempotencyContext idem)
     {
         if (!ctx.Request.Path.StartsWithSegments("/api/v1")
             || !Mutations.Contains(ctx.Request.Method)
@@ -112,6 +112,12 @@ public sealed class IdempotencyMiddleware
                 await ReplayAsync(ctx, claim.Record!);
                 return;
             case ClaimOutcome.Claimed:
+                // WP-J (§3.2) — set the ambient key/hash BEFORE the endpoint runs so the create
+                // services can fence on them. This is the ONLY set-site: it covers both the
+                // first-claim owner and a wait-loop waiter that becomes the owner (claim =
+                // resolved falls into this same arm, §3.9-J7) with one line each.
+                idem.Key = key;
+                idem.RequestHash = hash;
                 await ExecuteClaimedAsync(ctx, store, claim.ClaimId!.Value, key);
                 return;
             default:

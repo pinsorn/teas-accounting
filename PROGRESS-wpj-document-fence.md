@@ -13,8 +13,10 @@ after `19c24ed` (docs-only) — check `gh pr checks 119`; Ham merges when ready 
    public wrappers, FNV-1a int4 lock pair, Complete-failure policy KEPT (middleware = 2 assignments).
 3. [x] Fable full read + rulings R1 (TaxInvoice initializer stamp is the one permitted core edit),
    pipeline-order fact for T-J8, contract sharpening ACKNOWLEDGED — spec attempt log 2026-09-05.
-4. [~] sonnet-implementer WP-1/WP-2 (Release build, isolated -o, teas_test slot, filtered tests; NO WP-3).
-5. [ ] acceptance-tester BLIND WP-3 (T-F1, T-F2, T-J3..J7 per spec §4) — sole `dotnet test` runner.
+4. [x] sonnet-implementer WP-1/WP-2 DONE (18 files; Release 0/0; filtered Api 162/0/0 + Domain 188/0/0;
+   migration DDL-only; DB probe: quotations key_stamped=27 → ambient channel live). Fable diff review PASS
+   (conversion callers verified root/MCP-only, never /api/v1). Checkpoint commit = implementation (pre-review).
+5. [~] acceptance-tester BLIND WP-3 (T-F1, T-F2, T-J3..J7 per spec §4) — sole `dotnet test` runner.
 6. [ ] opus-reviewer (lenses: lock/lookup ordering inside the tx, 23505 recovery + ChangeTracker state,
    RLS on the lookup, unkeyed-path regression, clone/convert sweep, migration).
 7. [ ] Tier-3 full suite (Fable, detached + Monitor) + external-api e2e on a rebuilt local API.

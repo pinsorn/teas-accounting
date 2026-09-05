@@ -4906,7 +4906,7 @@ paths:
             Retry-After: { schema: { type: integer }, description: 'Seconds to wait before retrying (present only for idempotency.in_progress)' }
           description: |
             One of:
-            - `idempotency.body_mismatch` — same Idempotency-Key with different body within 24h TTL
+            - `idempotency.body_mismatch` — same Idempotency-Key with a different body — from the claim row for 24h, and from the created document permanently (the key is bound to the document it created)
             - `idempotency.in_progress` — a request with this Idempotency-Key is still being processed (see `Retry-After` header, seconds); retry after it elapses
             - `business_unit.locked_mismatch` — request BU differs from key's default_business_unit_id
             - `business_unit.cross_bu_not_allowed_for_this_key` — receipt apply spans multiple BUs (API key callers locked to single-BU)
@@ -5267,7 +5267,7 @@ components:
       in: header
       required: true
       schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[\x21-\x7E]{1,128}$' }
-      description: 'Opaque client key, unique per operation; a UUID v4 is recommended. Replayed for 24h.'
+      description: 'Opaque client key, unique per operation; a UUID v4 is recommended. Replayed for 24h. The key is also bound to the created document: a retry after a server-side failure returns the same document, and re-using a key with a different request body returns 409 `idempotency.body_mismatch` even after the 24-hour replay window.'
     Cursor:
       name: cursor
       in: query

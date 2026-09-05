@@ -39,6 +39,16 @@ public class Quotation : ITenantOwned, IAuditable, IConcurrencyVersioned
     /// Value = the key name (TenantClaims.ApiKeyName). Null for JWT/human creates.</summary>
     public string? CreatedViaApiKeyName { get; set; }
 
+    /// <summary>WP-J document idempotency fence — the API key's id (never the name, which is
+    /// not id-gated). Always stamped when created via an API key; NULL for JWT/human creates.</summary>
+    public long? CreatedViaApiKeyId { get; set; }
+    /// <summary>WP-J — the client's Idempotency-Key, persisted on the document so a stale
+    /// takeover / crash-retry converges on this row. NULL unless created via a keyed request.</summary>
+    public string? IdempotencyKey { get; set; }
+    /// <summary>WP-J — SHA256(method\npath\nbody) of the creating request. NULL unless
+    /// IdempotencyKey is set. A re-use with a different hash is a permanent 409.</summary>
+    public string? IdempotencyRequestHash { get; set; }
+
     /// <summary>Auto from CustomerType (CORPORATE=true). WHT note computed at
     /// PDF time, never stored.</summary>
     public bool ShowWhtNote { get; set; }

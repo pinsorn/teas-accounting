@@ -59,6 +59,13 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
         b.Property(t => t.Notes).HasColumnType("text");
         b.Property(t => t.CreatedViaApiKeyName).HasMaxLength(120);
 
+        // WP-J document idempotency fence (specs/fix-idempotency-document-fence.md §3.1).
+        b.Property(t => t.IdempotencyKey).HasMaxLength(128);
+        b.Property(t => t.IdempotencyRequestHash).HasMaxLength(64);
+        b.HasIndex(t => new { t.CompanyId, t.CreatedViaApiKeyId, t.IdempotencyKey })
+         .IsUnique().HasFilter("idempotency_key IS NOT NULL")
+         .HasDatabaseName("ux_tax_invoices_idem");   // MANDATORY named index — see §3.1 trap.
+
         b.Property(t => t.PostedAt).HasColumnType("timestamptz(3)");
         b.Property(t => t.ETaxSignedAt).HasColumnType("timestamptz(3)");
         b.Property(t => t.ETaxSubmittedAt).HasColumnType("timestamptz(3)");

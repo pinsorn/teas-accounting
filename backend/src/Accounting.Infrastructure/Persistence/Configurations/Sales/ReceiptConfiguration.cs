@@ -44,6 +44,13 @@ internal sealed class ReceiptConfiguration : IEntityTypeConfiguration<Receipt>
         b.Property(r => r.Notes).HasColumnType("text");
         b.Property(r => r.CreatedViaApiKeyName).HasMaxLength(120);
 
+        // WP-J document idempotency fence (specs/fix-idempotency-document-fence.md §3.1).
+        b.Property(r => r.IdempotencyKey).HasMaxLength(128);
+        b.Property(r => r.IdempotencyRequestHash).HasMaxLength(64);
+        b.HasIndex(r => new { r.CompanyId, r.CreatedViaApiKeyId, r.IdempotencyKey })
+         .IsUnique().HasFilter("idempotency_key IS NOT NULL")
+         .HasDatabaseName("ux_receipts_idem");       // MANDATORY named index — see §3.1 trap.
+
         b.Property(r => r.PostedAt).HasColumnType("timestamptz(3)");
         b.Property(r => r.CreatedAt).HasColumnType("timestamptz(3)");
         b.Property(r => r.UpdatedAt).HasColumnType("timestamptz(3)");

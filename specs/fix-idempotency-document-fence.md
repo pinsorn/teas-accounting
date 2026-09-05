@@ -374,24 +374,56 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
 
 ### 3.7 Requirements checklist
 #### WP-1 schema + ambient context
-- [ ] Migration `AddDocumentIdempotencyFence` (DDL only, §3.1 shapes verbatim) + 3 entity props ×3
-      entities + 3 EF configs (named index!) + regenerated snapshot.
-- [ ] `IIdempotencyContext` + `IdempotencyContext` + the **factory-delegate** scoped registration in
+- [x] Migration `AddDocumentIdempotencyFence` (DDL only, §3.1 shapes verbatim) + 3 entity props ×3
+      entities + 3 EF configs (named index!) + regenerated snapshot. Evidence: generated via
+      `dotnet ef migrations add AddDocumentIdempotencyFence --project backend/src/Accounting.Infrastructure/Accounting.Infrastructure.csproj`
+      from the real `Y:` path (confirmed not a subst drive). `Up()` = exactly 9 `AddColumn` + 3
+      `CreateIndex` (`ux_quotations_idem`/`ux_tax_invoices_idem`/`ux_receipts_idem`, filter
+      `idempotency_key IS NOT NULL`); `Down()` = 3 `DropIndex` + 9 `DropColumn`, no
+      `migrationBuilder.Sql(`. Snapshot diff is exactly the 3×3 property adds + 3 index adds, no
+      drift. Full bodies pasted in the attempt log below.
+- [x] `IIdempotencyContext` + `IdempotencyContext` + the **factory-delegate** scoped registration in
       `Infrastructure/DependencyInjection.cs` + middleware sets Key/RequestHash in the `Claimed` arm.
+      Evidence: `Application/Abstractions/IIdempotencyContext.cs` (new); DI registration is the
+      exact `AddScoped<IdempotencyContext>(); AddScoped<IIdempotencyContext>(sp => sp.GetRequiredService<IdempotencyContext>());`
+      shape next to the store; `IdempotencyMiddleware.InvokeAsync` takes `IdempotencyContext idem`
+      as a 4th method-injected param, sets `idem.Key`/`idem.RequestHash` as the first two
+      statements of `case ClaimOutcome.Claimed:`. `dotnet build backend -c Release` → 0/0.
 #### WP-2 services
-- [ ] `IdempotencyFenceLock` (LockKey + IsFenceCollision) — one place, `public static`.
-- [ ] `TaxInvoiceService.CreateDraftCoreAsync:338` initializer: the three stamps ONLY (R1) — nothing else
-      in the core moves; conversion tests pass with no edits (J7).
-- [ ] Fence + single transaction in `QuotationService.CreateDraftAsync`,
+- [x] `IdempotencyFenceLock` (LockKey + IsFenceCollision) — one place, `public static`. Evidence:
+      `Infrastructure/Persistence/IdempotencyFenceLock.cs`, code verbatim from §3.3.
+- [x] `TaxInvoiceService.CreateDraftCoreAsync:338` initializer: the three stamps ONLY (R1) — nothing else
+      in the core moves; conversion tests pass with no edits (J7). Evidence: `git diff` on
+      `TaxInvoiceService.cs` shows the core's only change is the 3-line stamp block in the `new
+      TaxInvoice {` initializer; `Sprint10ChainTests.Quotation_to_so_to_do_combined_creates_linked_ti`
+      and `SalesChainConversionAuthorizationTests.BnCreateTaxInvoice_denies_...` (conversion-path
+      tests) pass unedited.
+- [x] Fence + single transaction in `QuotationService.CreateDraftAsync`,
       `TaxInvoiceService.CreateDraftAsync` (the wrapper), `ReceiptService.CreateDraftAsync`; both
-      saves inside the tx on BOTH the keyed and the unkeyed path.
-- [ ] 23505-on-`ux_*_idem` safety net → rollback + `ChangeTracker.Clear()` → re-lookup → same id.
-- [ ] Consumer sweep §2 executed and re-confirmed: `CreateDraftCoreAsync` and the four
-      `CreateFrom*Async` untouched; no path copies a fence column between documents.
-- [ ] `docs/api/openapi.yaml` — append to the `Idempotency-Key` param description: "The key is also
+      saves inside the tx on BOTH the keyed and the unkeyed path. Evidence: all three implemented
+      per §3.3 pseudocode verbatim (lookup after auth/before BU-lock, lock before lookup, tx spans
+      both `SaveChangesAsync` calls, `tx.CommitAsync` at the end of every return path). Build 0/0;
+      filtered test run green (see gate evidence below).
+- [x] 23505-on-`ux_*_idem` safety net → rollback + `ChangeTracker.Clear()` → re-lookup → same id.
+      Evidence: implemented identically in all three services (`catch (DbUpdateException ex) when
+      (IdempotencyFenceLock.IsFenceCollision(ex))` → explicit `RollbackAsync` + `ChangeTracker.Clear()`
+      → re-lookup via the shared `FindFencedAsync` → hash-compare → return id, or re-throw on an
+      unexplained collision). Not exercised by WP-1/2 (no test file — WP-3 is the blind tester's);
+      compiles and matches the spec's exact recovery shape.
+- [x] Consumer sweep §2 executed and re-confirmed: `CreateDraftCoreAsync` and the four
+      `CreateFrom*Async` untouched; no path copies a fence column between documents. Evidence: `git
+      diff backend/src/Accounting.Infrastructure/Sales/TaxInvoiceService.cs` shows zero changes to
+      `CreateFromBillingNoteAsync`/`CreateFromDeliveryOrderAsync`/`CreateFromSalesOrderAsync`/
+      `CreateFromQuotationAsync`; grepped the repo for `new QuotationService(`/`new
+      TaxInvoiceService(`/`new ReceiptService(` — no direct constructions anywhere (all callers go
+      through DI), so no test fixture needed a ctor-arg update.
+- [x] `docs/api/openapi.yaml` — append to the `Idempotency-Key` param description: "The key is also
       bound to the created document: a retry after a server-side failure returns the same document,
       and re-using a key with a different request body returns 409 `idempotency.body_mismatch` even
       after the 24-hour replay window." Then grep `docs/manual/api` for the same text (likely no-op).
+      Evidence: `:5270` sentence appended verbatim (backtick-quoted `idempotency.body_mismatch` to
+      match this file's existing code-span convention); YAML re-validated
+      (`yaml.safe_load` — OK). `grep -rn Idempotency docs/manual/api` → no matches, confirmed no-op.
 #### WP-3 tests (blind acceptance-tester; implementer only runs existing suites)
 - [ ] T-F1, T-F2 (Codex's), T-J3..T-J8 per §4.
 
@@ -602,3 +634,100 @@ needing to touch `CreateDraftCoreAsync` beyond the three initializer stamps (R1)
   independently: `ITenantContext.CompanyId` is `int` (int4 lock arg needs no cast); the middleware's
   `InvokeAsync(HttpContext, ITenantContext, IIdempotencyStore)` already method-injects, so
   `IdempotencyContext idem` slots in. Dispatching sonnet-implementer for WP-1 + WP-2.
+- 2026-09-05 sonnet-implementer: WP-1 + WP-2 implemented, 16 files touched (within the 18-file
+  WP-1/2 sub-budget of the 19/20 cap; WP-3's test file and this spec edit are the remaining slots).
+  **Files:** `Domain/Entities/Sales/{Quotation,Receipt,TaxInvoice}.cs` (+3 props each);
+  `Infrastructure/Persistence/Configurations/Sales/{SalesChainConfigurations,ReceiptConfiguration,TaxInvoiceConfiguration}.cs`
+  (EF config + named partial unique index each); new migration
+  `20260905043849_AddDocumentIdempotencyFence{.cs,.Designer.cs}` + regenerated
+  `AccountingDbContextModelSnapshot.cs`; new `Application/Abstractions/IIdempotencyContext.cs`;
+  `Infrastructure/DependencyInjection.cs` (factory-delegate registration);
+  `Api/Middleware/IdempotencyMiddleware.cs` (4th method-injected param + 2-line set in the
+  `Claimed` arm); new `Infrastructure/Persistence/IdempotencyFenceLock.cs`;
+  `Infrastructure/Sales/{QuotationChainServices,ReceiptService,TaxInvoiceService}.cs` (fence +
+  ctor injection); `docs/api/openapi.yaml` (1 sentence).
+  **Migration bodies** (verbatim, full file is
+  `Migrations/20260905043849_AddDocumentIdempotencyFence.cs`):
+  ```csharp
+  protected override void Up(MigrationBuilder migrationBuilder)
+  {
+      migrationBuilder.AddColumn<long>(name: "created_via_api_key_id", schema: "sales", table: "tax_invoices", type: "bigint", nullable: true);
+      migrationBuilder.AddColumn<string>(name: "idempotency_key", schema: "sales", table: "tax_invoices", type: "character varying(128)", maxLength: 128, nullable: true);
+      migrationBuilder.AddColumn<string>(name: "idempotency_request_hash", schema: "sales", table: "tax_invoices", type: "character varying(64)", maxLength: 64, nullable: true);
+      migrationBuilder.AddColumn<long>(name: "created_via_api_key_id", schema: "sales", table: "receipts", type: "bigint", nullable: true);
+      migrationBuilder.AddColumn<string>(name: "idempotency_key", schema: "sales", table: "receipts", type: "character varying(128)", maxLength: 128, nullable: true);
+      migrationBuilder.AddColumn<string>(name: "idempotency_request_hash", schema: "sales", table: "receipts", type: "character varying(64)", maxLength: 64, nullable: true);
+      migrationBuilder.AddColumn<long>(name: "created_via_api_key_id", schema: "sales", table: "quotations", type: "bigint", nullable: true);
+      migrationBuilder.AddColumn<string>(name: "idempotency_key", schema: "sales", table: "quotations", type: "character varying(128)", maxLength: 128, nullable: true);
+      migrationBuilder.AddColumn<string>(name: "idempotency_request_hash", schema: "sales", table: "quotations", type: "character varying(64)", maxLength: 64, nullable: true);
+      migrationBuilder.CreateIndex(name: "ux_tax_invoices_idem", schema: "sales", table: "tax_invoices",
+          columns: new[] { "company_id", "created_via_api_key_id", "idempotency_key" }, unique: true, filter: "idempotency_key IS NOT NULL");
+      migrationBuilder.CreateIndex(name: "ux_receipts_idem", schema: "sales", table: "receipts",
+          columns: new[] { "company_id", "created_via_api_key_id", "idempotency_key" }, unique: true, filter: "idempotency_key IS NOT NULL");
+      migrationBuilder.CreateIndex(name: "ux_quotations_idem", schema: "sales", table: "quotations",
+          columns: new[] { "company_id", "created_via_api_key_id", "idempotency_key" }, unique: true, filter: "idempotency_key IS NOT NULL");
+  }
+  protected override void Down(MigrationBuilder migrationBuilder)
+  {
+      migrationBuilder.DropIndex(name: "ux_tax_invoices_idem", schema: "sales", table: "tax_invoices");
+      migrationBuilder.DropIndex(name: "ux_receipts_idem", schema: "sales", table: "receipts");
+      migrationBuilder.DropIndex(name: "ux_quotations_idem", schema: "sales", table: "quotations");
+      migrationBuilder.DropColumn(name: "created_via_api_key_id", schema: "sales", table: "tax_invoices");
+      migrationBuilder.DropColumn(name: "idempotency_key", schema: "sales", table: "tax_invoices");
+      migrationBuilder.DropColumn(name: "idempotency_request_hash", schema: "sales", table: "tax_invoices");
+      migrationBuilder.DropColumn(name: "created_via_api_key_id", schema: "sales", table: "receipts");
+      migrationBuilder.DropColumn(name: "idempotency_key", schema: "sales", table: "receipts");
+      migrationBuilder.DropColumn(name: "idempotency_request_hash", schema: "sales", table: "receipts");
+      migrationBuilder.DropColumn(name: "created_via_api_key_id", schema: "sales", table: "quotations");
+      migrationBuilder.DropColumn(name: "idempotency_key", schema: "sales", table: "quotations");
+      migrationBuilder.DropColumn(name: "idempotency_request_hash", schema: "sales", table: "quotations");
+  }
+  ```
+  Exact op count verified: `Up()` = 9 `AddColumn` + 3 `CreateIndex`; `Down()` = 3 `DropIndex` + 9
+  `DropColumn`. **No `migrationBuilder.Sql(` anywhere. DDL-only: YES.**
+  **End-to-end wiring proof (not just build 0/0 — §3.8-2's silently-inert-fence trap compiles
+  clean too):** after the filtered test run, probed `teas_test` directly (read-only, psql):
+  `SELECT count(*) FILTER (WHERE created_via_api_key_id IS NOT NULL) id_stamped, count(*) FILTER
+  (WHERE idempotency_key IS NOT NULL) key_stamped, count(*) FILTER (WHERE
+  idempotency_request_hash IS NOT NULL) hash_stamped FROM sales.quotations WHERE created_at >
+  now() - interval '1 hour';` → **id_stamped=36, key_stamped=27, hash_stamped=27** (key=hash
+  always, as expected). `key_stamped > 0` proves the middleware→service ambient channel is LIVE:
+  the factory-delegate DI shape shares one scoped `IdempotencyContext` instance (a two-registration
+  bug would show `id_stamped > 0, key_stamped = 0`). Same probe on `sales.tax_invoices` /
+  `sales.receipts` shows `id_stamped=9, key_stamped=0, hash_stamped=0` for both — expected, not a
+  wiring gap: grepped `IdempotencyClaimFirstTests.cs` and `Sprint14ExternalApiTests.cs`, and
+  neither has any test hitting `/api/v1/tax-invoices` or `/api/v1/receipts` with an
+  `Idempotency-Key` header (only `/api/v1/quotations` is exercised keyed today) — so those two
+  services' fence code is compiled and structurally identical to Quotation's proven-live path, but
+  its OWN keyed end-to-end proof is deferred to WP-3's acceptance tests. Also confirmed exactly one
+  composition root registers these services: `grep -rn "AddInfrastructure("` shows a single
+  production call site (`Api/Program.cs:68`) plus ~60 test-fixture call sites, all resolving the
+  SAME `Infrastructure/DependencyInjection.AddInfrastructure` method — no parallel/duplicate
+  registration path exists.
+  **Divergences from the spec:** none in shape or placement. One clarification: TaxInvoice's
+  `CreateDraftAsync` wrapper does not duplicate an auth check — when unauthenticated,
+  `tenant.ApiKeyId` is null ⇒ `fenced` is false ⇒ the wrapper calls `CreateDraftCoreAsync`
+  unconditionally, whose own `IsAuthenticated` check throws inside the (still-open, uncommitted)
+  tx; `await using` rolls it back on unwind. Behaviour is identical to pre-fence (an
+  `auth.required` DomainException), just one call-depth deeper — matches §3.3's silence on adding
+  an auth check to the wrapper.
+  **Gates:** `dotnet build backend -c Release` → **0 Warning(s), 0 Error(s)** (full solution,
+  8 projects). Filtered `Accounting.Api.Tests` run (`Idempotency|Quotation|TaxInvoice|Receipt|
+  Sprint14|TenantIsolation`): first run 161/1/162 (one failure, not investigated in detail — no
+  trx captured); re-ran twice more, both **162 passed / 0 failed / 0 skipped**, so the single
+  failure is treated as a pre-existing flake (this repo's shared, long-lived `teas_test` DB has
+  documented accumulated-state races unrelated to this diff — troubles-wiki "Random-id test
+  isolation collides", "PND50 tests intermittently fail from stale CIT data"), not a regression;
+  flagged for the orchestrator's awareness rather than silently dismissed.
+  `Accounting.Domain.Tests` unfiltered: **188 passed / 0 failed / 0 skipped**. No skip-count
+  drift from baseline in either run (baseline skips live in the FULL Api.Tests suite, which this
+  worker was not dispatched to run — orchestrator's Tier-1 gate per CLAUDE.md).
+  **Consumer sweep re-confirmed:** no direct `new QuotationService(`/`new TaxInvoiceService(`/
+  `new ReceiptService(` construction anywhere in the repo (grepped); all test callers resolve
+  through `TestCompanyFactory.BuildProvider` → `AddInfrastructure`, so the new ctor args needed no
+  test-fixture edits. `CreateFromBillingNoteAsync`/`CreateFromDeliveryOrderAsync`/
+  `CreateFromSalesOrderAsync`/`CreateFromQuotationAsync` are byte-for-byte unchanged (confirmed via
+  `git diff`).
+  **WP-3 note:** no test file added (blind acceptance-tester's job per dispatch); a throwaway
+  FNV-1a sanity check (`LockKey` of an empty string) was run ad hoc in the scratchpad only, not
+  committed to the repo.

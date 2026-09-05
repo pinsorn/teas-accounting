@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -42,6 +43,7 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     // unlike every sibling mapper this service had no file-storage dependency until the
     // signature/stamp resolver needed one (PaperSignatureSource.ResolveAsync).
     private readonly IFileStorageService     _storage;
+    private readonly IIdempotencyContext     _idem;       // WP-J document idempotency fence
 
     public TaxInvoiceService(
         AccountingDbContext db,
@@ -56,14 +58,24 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         ICompanyTaxConfigService taxCfg,
         ILogger<TaxInvoiceService> log,
         IActivityRecorder activity,
-        IFileStorageService storage)
+        IFileStorageService storage,
+        IIdempotencyContext idem)
     {
         _db = db; _tenant = tenant; _clock = clock; _numbers = numbers;
         _gl = gl; _period = period;
         _etaxXml = etaxXml; _etaxPipeline = etaxPipeline;
         _etaxOpts = etaxOpts.Value; _taxCfg = taxCfg; _log = log;
-        _activity = activity; _storage = storage;
+        _activity = activity; _storage = storage; _idem = idem;
     }
+
+    // WP-J (specs/fix-idempotency-document-fence.md §3.3) — AsNoTracking lookup shared by the
+    // initial check and the post-23505 re-lookup; same predicate both times.
+    private Task<TaxInvoice?> FindFencedAsync(long apiKeyId, string key, CancellationToken ct) =>
+        _db.TaxInvoices.AsNoTracking()
+            .Where(x => x.CompanyId == _tenant.CompanyId         // M13 explicit, belt over the
+                     && x.CreatedViaApiKeyId == apiKeyId         //   global query filter + RLS
+                     && x.IdempotencyKey == key)
+            .FirstOrDefaultAsync(ct);
 
     // Non-VAT companies (ม.86/4) cannot issue Tax Invoices. This is the single
     // chokepoint for ALL TI creation — manual, Pattern X (DO→TI combined), and
@@ -265,8 +277,66 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     // Public/request-fed entry point — DERIVES the per-line VAT rate from company master
     // data (§4.6 / ม.80). The DO→TI and Invoice→TI chain-copy paths call CreateDraftCoreAsync
     // with deriveLineTax:false so an already-normalized source rate is inherited, not re-derived.
-    public Task<long> CreateDraftAsync(CreateTaxInvoiceRequest req, CancellationToken ct)
-        => CreateDraftCoreAsync(req, deriveLineTax: true, ct);
+    // WP-J (specs/fix-idempotency-document-fence.md §3.3, R1) — this wrapper owns the fence, the
+    // advisory lock, the lookup and the 23505 net; CreateDraftCoreAsync itself is UNCHANGED
+    // beyond the three property stamps in its `new TaxInvoice {` initializer (:338±) — its four
+    // conversion callers (CreateFrom*Async) never run under the middleware, so their ambient key
+    // is always null and they are unaffected.
+    public async Task<long> CreateDraftAsync(CreateTaxInvoiceRequest req, CancellationToken ct)
+    {
+        var key = _idem.Key;
+        var hash = _idem.RequestHash;
+        var apiKeyId = _tenant.ApiKeyId;
+        var fenced = key is not null && apiKeyId is not null;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        if (fenced)
+        {
+            await _db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock(@company, @lock)",
+                new NpgsqlParameter[]
+                {
+                    new("company", NpgsqlDbType.Integer) { Value = _tenant.CompanyId },
+                    new("lock", NpgsqlDbType.Integer) { Value = IdempotencyFenceLock.LockKey(apiKeyId!.Value, key!) },
+                }, ct);
+
+            var existing = await FindFencedAsync(apiKeyId.Value, key!, ct);
+            if (existing is not null)
+            {
+                if (!string.Equals(existing.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                await tx.CommitAsync(ct);
+                return existing.TaxInvoiceId;
+            }
+        }
+
+        long tiId;
+        try
+        {
+            tiId = await CreateDraftCoreAsync(req, deriveLineTax: true, ct);
+        }
+        catch (DbUpdateException ex) when (IdempotencyFenceLock.IsFenceCollision(ex))
+        {
+            // 23505 safety net (§3.3) — the lock's braces. Explicit rollback + ChangeTracker
+            // clear: the failed insert is still Added, and `await using` disposal alone would
+            // not let us re-lookup on this same, still-open connection before the method returns.
+            await tx.RollbackAsync(ct);
+            _db.ChangeTracker.Clear();
+            var found = await FindFencedAsync(apiKeyId!.Value, key!, ct);
+            if (found is not null)
+            {
+                if (!string.Equals(found.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                return found.TaxInvoiceId;
+            }
+            throw;   // unexplained collision — never swallow into a wrong id
+        }
+        await tx.CommitAsync(ct);
+        return tiId;
+    }
 
     private async Task<long> CreateDraftCoreAsync(
         CreateTaxInvoiceRequest req, bool deriveLineTax, CancellationToken ct)
@@ -373,6 +443,14 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             Lines            = lines,
             // M4a — stamp the key name when created by an API-key principal (MCP agent).
             CreatedViaApiKeyName = _tenant.ApiKeyName,
+            // WP-J (R1) — the ONLY permitted edit inside CreateDraftCoreAsync (spec §3.3/§3.8-1):
+            // audit id ALWAYS stamped; key/hash only when fenced (both key AND ApiKeyId
+            // non-null) — the four conversion callers never run under the middleware, so their
+            // ambient key is always null and only the audit id is stamped for them, exactly like
+            // CreatedViaApiKeyName above.
+            CreatedViaApiKeyId = _tenant.ApiKeyId,
+            IdempotencyKey = _tenant.ApiKeyId is not null ? _idem.Key : null,
+            IdempotencyRequestHash = _tenant.ApiKeyId is not null && _idem.Key is not null ? _idem.RequestHash : null,
         };
 
         _db.TaxInvoices.Add(ti);

@@ -8,6 +8,8 @@ using Accounting.Domain.ValueObjects;
 using Accounting.Infrastructure.Numbering;
 using Accounting.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace Accounting.Infrastructure.Sales;
 
@@ -34,7 +36,7 @@ internal static class ChainMath
 public sealed class QuotationService(
     AccountingDbContext db, ITenantContext tenant, IClock clock,
     INumberSequenceService numbers, IActivityRecorder activity,
-    ICompanyTaxConfigService taxCfg) : IQuotationService
+    ICompanyTaxConfigService taxCfg, IIdempotencyContext idem) : IQuotationService
 {
     private void Auth()
     {
@@ -42,9 +44,48 @@ public sealed class QuotationService(
             throw new DomainException("auth.required", "User must be authenticated.");
     }
 
+    // WP-J (specs/fix-idempotency-document-fence.md §3.3) — AsNoTracking lookup shared by the
+    // initial check and the post-23505 re-lookup; same predicate both times.
+    private Task<Quotation?> FindFencedAsync(long apiKeyId, string key, CancellationToken ct) =>
+        db.Quotations.AsNoTracking()
+            .Where(x => x.CompanyId == tenant.CompanyId          // M13 explicit, belt over the
+                     && x.CreatedViaApiKeyId == apiKeyId         //   global query filter + RLS
+                     && x.IdempotencyKey == key)
+            .FirstOrDefaultAsync(ct);
+
     public async Task<long> CreateDraftAsync(CreateQuotationRequest req, CancellationToken ct)
     {
         Auth();
+
+        // WP-J document idempotency fence (§3.3) — lookup at the TOP (after auth), lock BEFORE
+        // lookup, single tx on BOTH the keyed and the unkeyed path.
+        var key = idem.Key;
+        var hash = idem.RequestHash;
+        var apiKeyId = tenant.ApiKeyId;
+        var fenced = key is not null && apiKeyId is not null;
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        if (fenced)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock(@company, @lock)",
+                new NpgsqlParameter[]
+                {
+                    new("company", NpgsqlDbType.Integer) { Value = tenant.CompanyId },
+                    new("lock", NpgsqlDbType.Integer) { Value = IdempotencyFenceLock.LockKey(apiKeyId!.Value, key!) },
+                }, ct);
+
+            var existing = await FindFencedAsync(apiKeyId.Value, key!, ct);
+            if (existing is not null)
+            {
+                if (!string.Equals(existing.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                await tx.CommitAsync(ct);
+                return existing.QuotationId;
+            }
+        }
 
         // Sprint 14 P7 — per-key BU lock (SO/DO inherit this locked Q BU; v1
         // exposes no direct SO/DO create, so the lock at Q entry is sufficient).
@@ -82,6 +123,11 @@ public sealed class QuotationService(
             ShowWhtNote = cust.CustomerType == CustomerType.Corporate,
             // M4a — stamp the key name when created by an API-key principal (MCP agent).
             CreatedViaApiKeyName = tenant.ApiKeyName,
+            // WP-J — audit id ALWAYS stamped; key/hash only when fenced (partial index ignores
+            // unkeyed rows).
+            CreatedViaApiKeyId = tenant.ApiKeyId,
+            IdempotencyKey = fenced ? key : null,
+            IdempotencyRequestHash = fenced ? hash : null,
         };
         // §4.6 / ม.80 — VAT rate + tax-code classification come from company master data.
         var cfg = await taxCfg.GetAsync(ct);
@@ -105,9 +151,30 @@ public sealed class QuotationService(
             q.SubtotalAmount += net; q.VatAmount += vat; q.TotalAmount += total;
         }
         db.Quotations.Add(q);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IdempotencyFenceLock.IsFenceCollision(ex))
+        {
+            // 23505 safety net (§3.3) — the lock's braces. Explicit rollback + ChangeTracker
+            // clear: the failed insert is still Added, and `await using` disposal alone would
+            // not let us re-lookup on this same, still-open connection before the method returns.
+            await tx.RollbackAsync(ct);
+            db.ChangeTracker.Clear();
+            var found = await FindFencedAsync(apiKeyId!.Value, key!, ct);
+            if (found is not null)
+            {
+                if (!string.Equals(found.IdempotencyRequestHash, hash, StringComparison.Ordinal))
+                    throw new DomainException("idempotency.body_mismatch",
+                        "This Idempotency-Key was already used with a different request body.");
+                return found.QuotationId;
+            }
+            throw;   // unexplained collision — never swallow into a wrong id
+        }
         activity.Record("Quotation", q.QuotationId, q.DocNo, q.CompanyId, "Created", toStatus: "Draft");
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return q.QuotationId;
     }
 
