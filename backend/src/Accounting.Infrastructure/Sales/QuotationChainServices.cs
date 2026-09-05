@@ -256,6 +256,14 @@ public sealed class QuotationService(
 
     // Sprint 13h P4 — hard-delete a Draft. Allowed because no doc_no allocated yet,
     // so the gap-rule (Plan §17.6) is not violated.
+    // WP-J J9 — the fence lives on the document, so deleting the draft must release the
+    // operation key too: otherwise a retry inside the 24h claim window replays a 201 for a now-
+    // dead id, and after 24h the key is silently free anyway (the deletion just makes it free
+    // immediately, deterministically). The (company, api_key, key) tuple comes from the DOCUMENT
+    // being deleted, never the deleting principal's own tenant/key. Raw SQL mirrors the advisory-
+    // lock call in CreateDraftAsync — no IIdempotencyStore interface change, which would force
+    // every test decorator to grow a passthrough. This method now OWNS a transaction (J8 — same
+    // discipline as CreateDraftAsync): never call it from inside a caller's unit of work.
     public async Task DeleteDraftAsync(long id, CancellationToken ct)
     {
         Auth();
@@ -263,9 +271,21 @@ public sealed class QuotationService(
         if (q.Status != QuotationStatus.Draft)
             throw new DomainException("quotation.cannot_delete_after_send",
                 "Quotation can only be deleted while in Draft.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         db.RemoveRange(q.Lines);
         db.Quotations.Remove(q);
         await db.SaveChangesAsync(ct);
+        if (q.IdempotencyKey is not null && q.CreatedViaApiKeyId is not null)
+            await db.Database.ExecuteSqlRawAsync(
+                "DELETE FROM sys.idempotency_keys WHERE company_id = @c AND api_key_id = @a AND \"key\" = @k",
+                new NpgsqlParameter[]
+                {
+                    new("c", NpgsqlDbType.Integer) { Value = q.CompanyId },
+                    new("a", NpgsqlDbType.Bigint) { Value = q.CreatedViaApiKeyId.Value },
+                    new("k", NpgsqlDbType.Text) { Value = q.IdempotencyKey },
+                }, ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task SendAsync(long id, CancellationToken ct)
