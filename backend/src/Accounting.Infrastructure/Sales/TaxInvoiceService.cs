@@ -282,6 +282,11 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     // beyond the three property stamps in its `new TaxInvoice {` initializer (:338±) — its four
     // conversion callers (CreateFrom*Async) never run under the middleware, so their ambient key
     // is always null and they are unaffected.
+    // WP-J: this method OWNS its transaction and its change tracker (BeginTransaction + Commit;
+    // the 23505 net calls ChangeTracker.Clear()). Never call it from inside a caller's
+    // transaction or with caller-tracked entities pending — see
+    // SalesOrderDeliveryServices.GenerateTiAsync, which calls it BEFORE touching its own tracked
+    // DeliveryOrder.
     public async Task<long> CreateDraftAsync(CreateTaxInvoiceRequest req, CancellationToken ct)
     {
         var key = _idem.Key;

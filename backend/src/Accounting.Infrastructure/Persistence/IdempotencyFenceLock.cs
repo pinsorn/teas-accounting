@@ -20,7 +20,8 @@ public static class IdempotencyFenceLock
         {
             const uint offsetBasis = 2166136261u, prime = 16777619u;
             var h = offsetBasis;
-            foreach (var b in System.Text.Encoding.UTF8.GetBytes($"{apiKeyId}:{idempotencyKey}"))
+            var input = apiKeyId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + idempotencyKey;
+            foreach (var b in System.Text.Encoding.UTF8.GetBytes(input))
                 h = (h ^ b) * prime;
             return (int)h;
         }

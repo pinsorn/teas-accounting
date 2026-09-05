@@ -53,6 +53,11 @@ public sealed class QuotationService(
                      && x.IdempotencyKey == key)
             .FirstOrDefaultAsync(ct);
 
+    /// WP-J: this method OWNS its transaction and its change tracker (BeginTransaction + Commit;
+    /// the 23505 net calls ChangeTracker.Clear()). Never call it from inside a caller's
+    /// transaction or with caller-tracked entities pending — see
+    /// SalesOrderDeliveryServices.GenerateTiAsync, which calls it BEFORE touching its own tracked
+    /// DeliveryOrder.
     public async Task<long> CreateDraftAsync(CreateQuotationRequest req, CancellationToken ct)
     {
         Auth();

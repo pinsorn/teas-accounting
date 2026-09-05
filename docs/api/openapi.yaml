@@ -5267,7 +5267,7 @@ components:
       in: header
       required: true
       schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[\x21-\x7E]{1,128}$' }
-      description: 'Opaque client key, unique per operation; a UUID v4 is recommended. Replayed for 24h. The key is also bound to the created document: a retry after a server-side failure returns the same document, and re-using a key with a different request body returns 409 `idempotency.body_mismatch` even after the 24-hour replay window.'
+      description: 'Opaque client key, unique per operation; a UUID v4 is recommended. Replayed for 24h. For the document-creating operations (POST /quotations, /tax-invoices, /receipts) the key is additionally bound to the document it created: once a document exists under a key, a retry with the same body returns that document (even after a server-side failure or after the 24-hour window), and a re-use with a different body returns 409 `idempotency.body_mismatch` permanently. Other operations replay from the 24-hour record only.'
     Cursor:
       name: cursor
       in: query
