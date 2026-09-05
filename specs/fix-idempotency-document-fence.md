@@ -318,6 +318,17 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
   (`NumberedDocumentWriter.cs:69`, `NumberSequenceService.cs:50`) but are NOT on the create path, so
   the new ambient tx cannot change their savepoint behaviour. It IS however now the ambient tx for
   anything the create body calls — verified: only EF reads + `IActivityRecorder.Record`.
+- **Lifecycle — delete releases the key (J9).** `QuotationService.DeleteDraftAsync` becomes: `Auth` →
+  load → Draft check → `await using var tx = BeginTransactionAsync` → `RemoveRange(lines)`, `Remove(q)`,
+  `SaveChangesAsync` → **if** `q.IdempotencyKey is not null && q.CreatedViaApiKeyId is not null`:
+  `ExecuteSqlRawAsync("DELETE FROM sys.idempotency_keys WHERE company_id = @c AND api_key_id = @a AND
+  \"key\" = @k", …)` with explicit `NpgsqlDbType` (Integer / Bigint / Text) — same raw-SQL shape the
+  fence already uses for the advisory lock, one file, no store-interface change (a new `IIdempotencyStore`
+  member would force every test decorator to grow a passthrough) → `CommitAsync`. Runs under the human's
+  JWT connection: `sys.idempotency_keys` is FORCE-RLS company-scoped, the pinned `app.company_id` is the
+  document's company, and the tuple comes from the DOCUMENT (`CreatedViaApiKeyId`/`IdempotencyKey`), not
+  from the deleting principal. Rowcount 0 (already purged) is fine. J8 applies: `DeleteDraftAsync` now
+  owns a transaction — grep its callers (root route only, verified) before adding one.
 - **Rollout note:** during a rolling deploy, old pods write no fence columns and take no lock, so
   F1/F2 protection is only claim-first-strength until every pod is on the new build. Acceptable
   (minutes); no migration ordering hazard — the columns are nullable and the index is partial.
@@ -359,6 +370,11 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
 - Longer `StaleAfter` / request timeouts: shrink F1, prove nothing, do nothing for F2. Not adopted.
 - Storing the key only in `sys.idempotency_keys` with a `document_id` back-reference written by the
   middleware after `_next`: same crash window as today (written after the business commit). Rejected.
+- Operation TOMBSTONE surviving document deletion (Codex WPJ-F1 suggestion): rejected — see J9. It
+  preserves "forever" at the price of a new durable table (or soft-delete on a draft the UI expects to
+  vanish) and a retry response with no good meaning for an integrator; drafts have no numbering or GL, so
+  the only thing a tombstone protects is the literal word "permanent". Release + claim-row purge gives
+  consistent semantics at every age instead.
 - Fencing `POST /api/v1/customers` (§3.9-J5): rejected — `CreateCustomerRequest.CustomerCode`
   (`Application/Master/CustomerDtos.cs:8`) is client-supplied and already carries a UNIQUE
   `(company_id, customer_code)` index (`CustomerConfiguration.cs:43`) plus an explicit pre-check
@@ -373,7 +389,20 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
 - J2 Every create through the same tuple AND the same request hash returns the SAME document id —
   T-F1, T-F2, T-J4.
 - J2b The same tuple with a DIFFERENT request hash returns 409 `idempotency.body_mismatch` and
-  creates nothing — from the claim row while it lives, from the document forever after — T-J8.
+  creates nothing — from the claim row while it lives, from the document **for as long as that document
+  exists** — T-J8. (J2 is scoped the same way: "forever" in earlier drafts meant "for the document's
+  lifetime"; Codex WPJ-F1 2026-09-05 made the scope explicit — see J9.)
+- J9 **Lifecycle (Codex WPJ-F1 ruling — RELEASE, not tombstone).** Hard-deleting a fenced quotation draft
+  (`QuotationService.DeleteDraftAsync`, the only delete path among the three types — tax invoices and
+  receipts have none, v1 has no DELETE, MCP has no delete tool; verified 2026-09-05) RELEASES the operation
+  key entirely: the document row and the claim row for `(company_id, created_via_api_key_id,
+  idempotency_key)` are removed in ONE transaction. A subsequent request with that key is a NEW operation
+  at any age — same body creates a new draft with a new id, a different body creates a new draft (no 409),
+  and no retry can ever replay a stale 201 pointing at the deleted id. Rationale: a delete is an explicit
+  human discard of the operation's result; drafts carry no DocNo and no ledger entry; every version before
+  WP-J re-created after the 24 h purge, so nothing regresses; a tombstone would need a response no
+  integrator can act on (410 forever? a burned key?) and new schema for zero money benefit. Rejected
+  alternative recorded in §3.5. — T-J12.
 - J3 A create without an idempotency key (BFF/JWT/MCP in-process) behaves exactly as today except
   that document + activity row commit atomically (I10 closed) and the three columns stay NULL — T-J5.
 - J4 No DocNo is consumed by a create, fenced or not — T-J6 (drafts have DocNo null; Send/Post
@@ -432,6 +461,12 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
       `CreateFromQuotationAsync`; grepped the repo for `new QuotationService(`/`new
       TaxInvoiceService(`/`new ReceiptService(` — no direct constructions anywhere (all callers go
       through DI), so no test fixture needed a ctor-arg update.
+- [ ] **J9** `QuotationService.DeleteDraftAsync` — single tx: lines + document + the claim row for the
+      document's `(company_id, created_via_api_key_id, idempotency_key)` (raw DELETE, explicit NpgsqlDbType);
+      no-op when the draft is unfenced. Callers grepped (root route only).
+- [ ] `docs/api/openapi.yaml` — Idempotency-Key param: replace "permanently" with "for as long as that
+      document exists; deleting a draft releases its key, and a later request with that key is a new
+      operation" (both the param description and the 409 catalog line at ~4909).
 - [x] `docs/api/openapi.yaml` — append to the `Idempotency-Key` param description: "The key is also
       bound to the created document: a retry after a server-side failure returns the same document,
       and re-using a key with a different request body returns 409 `idempotency.body_mismatch` even
@@ -593,6 +628,27 @@ Harness: `IdempotencyApiFactory` + `descriptor`-swap decorators (`IdempotencyCla
   still exactly one document, no document with B′'s marker.** Then re-POST key K with body B → 201,
   id X (the mismatch RELEASED the claim on its way out — pipeline-order fact in §1 — so this is a
   fresh execution that converges; `Idempotency-Replayed` may be absent, assert id + row count).
+- **T-J12 Lifecycle (J9, Codex WPJ-F1) — three legs, quotations.** (a) create K/B → 201 X; delete X via
+  the human path (`IQuotationService.DeleteDraftAsync` in-process through `TestCompanyFactory.BuildProvider`,
+  or the root `DELETE /quotations/{id}` with a JWT); assert `sys.idempotency_keys` has NO row for K
+  (rowcount query, not inference) and no quotation with the marker; re-POST K/B → 201 with a NEW id ≠ X,
+  exactly one live quotation with the marker, response NOT `Idempotency-Replayed`. (b) same setup, re-POST
+  K/B′ (different marker) → 201 (new operation, NOT 409), one live quotation, carrying B′'s marker. (c)
+  processing-claim variant: decorate `IIdempotencyStore.CompleteAsync` to throw once → 201 X with the claim
+  still PROCESSING; delete X; assert the claim row is gone; re-POST K/B → 201 new id ≠ X. Also assert an
+  UNFENCED draft's delete leaves `sys.idempotency_keys` untouched (count before == after).
+- **T-F1 SYNCHRONISATION (MANDATORY — Codex WPJ-F2 2026-09-05).** A fixed `Task.Delay` + `IsCompleted ==
+  false` cannot distinguish "blocked on the lock" from "still cold-starting": if the back-date hits 0 rows,
+  B merely waits on A's LIVE claim, A creates X after the release and B gets a REPLAY — one document, same
+  id, green, and no takeover ever happened. T-F1 must therefore prove each step with a bounded DB poll
+  (≤ 15 s, fail with a setup/synchronisation message): (1) A's claim row exists → capture `claimA`;
+  (2) `pg_locks` shows ONE ungranted `advisory` waiter on `(classid = company, objid = LockKey, objsubid = 2)`
+  → A is inside the fence; (3) back-date rowcount == 1; (4) after firing B the claim row id for K != `claimA`
+  → the takeover happened, capture `claimB`; (5) `pg_locks` shows TWO ungranted waiters → both owners inside
+  the fence; (6) release; assert one document, B 2xx, all 2xx ids equal, NEITHER response carries
+  `Idempotency-Replayed: true` (both executed: A's claim was deleted so its Complete hit 0 rows; B converged
+  through the fence under `claimB`), and the final claim row for K is `claimB` with `response_status = 201`.
+  Every other DB-mutating setup in the file (F2/J4/J8 claim mutations, J3's UPDATE) asserts its rowcount.
 - Regression: claim-first T1–T11 + Sprint14 + full suite unchanged; TaxInvoice conversion tests
   (`CreateFrom*Async`) must pass with no edits (J7).
 
@@ -616,6 +672,8 @@ type in one request (the ambient key would fence the second onto the first) · a
 that structurally requires copying a fence column · the fence forcing a change to
 `NumberedDocumentWriter`/`NumberSequenceService`/`IdempotencyStore` · any DML in the migration ·
 needing to touch `CreateDraftCoreAsync` beyond the three initializer stamps (R1), or any `CreateFrom*Async`.
+J9 adds no new file (QuotationChainServices.cs, openapi.yaml, the test file and this spec are already in the
+list); a store-interface change for J9 IS a trigger — rejected in §3.3 for that reason.
 
 ## Attempt log
 - 2026-09-05 Fable: spec drafted (Ham ruled option 1 — full fence). Dispatching opus-designer for §3.9.
@@ -765,3 +823,14 @@ needing to touch `CreateDraftCoreAsync` beyond the three initializer stamps (R1)
   T-J11 `LockKey` culture determinism. Not adopted: a composition test for the default `CommandTimeout`
   (fixture overrides it; would test the fixture) and an ambient-tx pin test for N1 (J8 + the comment
   carry the contract; the failure is loud — EF throws — the day it is violated).
+- 2026-09-05 Fable: Codex re-review of PR #120 (`_review/Codex-WP-J-document-fence-review-2026-09-05.md`,
+  HEAD 719d4a0) — 2×P2, both VERIFIED. **WPJ-F1** (lifecycle): the fence lives on the document row and
+  `QuotationService.DeleteDraftAsync` hard-deletes drafts (root route only; TI/receipts have no delete path;
+  v1 has no DELETE) → after a delete the key is silently free again and, inside 24 h, a retry replays a 201
+  pointing at a dead id. Ruling = RELEASE (J9): delete removes document + claim row in one tx; "permanent"
+  in J2/J2b/openapi narrowed to the document's lifetime; tombstone rejected (§3.5). **WPJ-F2** (test): T-F1
+  had the same cold-start flaw F1b had (fixed delay, no rowcount) — it can pass on a plain replay without a
+  takeover; the earlier attempt-log claim that T-F1 "proves takeover" was therefore too strong. Fix = the §4
+  synchronisation mandate (pg_locks waiter counts, claim-id change, rowcounts, no-replay assertions).
+  Pipeline: Sonnet implements J9 (one file + openapi) → fresh blind acceptance-tester writes T-J12 + rewrites
+  T-F1 → Opus reviews the delta → Tier-3 → CI → Codex round 3 welcome.
