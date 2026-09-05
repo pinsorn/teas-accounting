@@ -34,43 +34,19 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
    claim. `IdempotencyStore.ClaimAsync`/`IdempotencyMiddleware` CORRECT + UNCHANGED (product diff empty). Fix
    test-only: `PauseReachedSignal` + assert back-date rowcount==1; un-skipped. Reachability argument CONFIRMED.
    Committed `c2afcfa` (F1b fix + wiki general-kernel + spec §4 T-F1b sync mandate). Gate: claim-first+fence 47/0/0.
-7. [~] Tier-3 FULL suite RUNNING (bg bhjz27vot, log scratchpad/tier3.log): Release build 0/0 done; Domain then
-   full Api.Tests, TEAS_TEST_PG set. Baseline Api 1370 pass / 14 skip / 0 fail + ~19 new fence tests (F1b now
-   un-skipped → expect ~1389 pass / 14 skip / 0 fail); Domain 188/0/0. Watch for the known TenantIsolation
-   random-id flake (troubles-wiki) — re-run once if it's the only failure.
-   Then: rebuild + restart local stack (API :5080 was KILLED by the debugger — stale 8h dev server; needs
-   restart for e2e) → run `frontend/e2e/external-api-microservice.spec.ts`.
-   6c. [ ] Spec Tier-2 records — run
-   `python Z:/temp/claude/Y--ClaudePlayground-TEAS-Project/485d6f4e-ebb5-4fb9-b1cd-3d278b885897/scratchpad/wpj-tier2.py`
-   (tester finished writing the spec; safe now). Then commit the spec.
-
-## ADJUDICATION — F1b 409 in_progress (RE-READ: takeover invariant IS proven; F1b is a harness edge)
-CORRECTION to the earlier note: T-F1 (mandatory, lines 351-425) DOES prove takeover. It asserts B blocks on
-the SAME advisory lock (line 391), and after release B MUST be 2xx (lines 419-421) with the SAME id as A
-(line 424); A alone may be a tolerated 5xx. It PASSED. So two live owners inside the fence serialise onto one
-document and the stale-takeover converges — the invariant holds, and the shipped claim-first store (T3/T11,
-which also assert takeover with the same DB-`now()` back-date helper) is unaffected.
-Store/middleware clock is consistent (verified): middleware passes `DateTimeOffset.UtcNow` (IdempotencyMiddleware.cs:91,141);
-store predicate `created_at < now - staleAfter` (IdempotencyStore.cs:35,74,112); both test back-date helpers
-use DB `now()`. No IClock override in either factory.
-F1b (OPTIONAL per spec §4) uses an INTERFACE-level pause (`PausingQuotationDecorator` before the fence) that
-§3.9-J4 explicitly says does NOT reproduce the real F1 window; there B got 409 in_progress instead of taking
-over. The tester also found+fixed a real bug in F1b's OWN harness mid-run (per-scope latch → factory-level).
-CHEAP DECISIVE DIAGNOSTIC (warm tester, AFTER the implementer frees the DB — never overlap test runs): un-skip
-F1b; at the moment B gets 409, SELECT the `sys.idempotency_keys` row for that key and assert its state.
-  - Row is B's FRESH claim (created_at recent, status NULL) yet B still 409 → real product gap → opus-debugger.
-  - Row is still A's ORIGINAL (back-date didn't match, or not deleted) → harness bug → fix F1b, it passes.
-Given T-F1 + T3/T11 all prove takeover, product gap is unlikely; this only closes the loop so an external
-reviewer can't poke the skip. Committing the test file now with the honest `Skip` reason is fine as a checkpoint.
-
-7. [ ] Tier-3 full suite (Fable, backgrounded `dotnet test` per project, TEAS_TEST_PG in the same call;
-   baseline Domain 188/188, Api 1370 pass / 14 skips / 0 fail, + the new file 26/1) + rebuild local API and
-   run `frontend/e2e/external-api-microservice.spec.ts` (API :5080 + next dev :3000).
-8. [ ] Rebase onto main after #119 merges (or PR stacked on #119), `backend/VERSION` 2.3.3 → 2.4.0, PR body,
-   CI, report to Ham; Codex re-review welcome. Then archive PROGRESS files to docs/archive/, STATUS.md, PLAN
-   WP-J row → shipped, self-retro (lesson candidate: a blind test whose assertion tolerates the non-takeover
-   outcome cannot prove serialisation — assert the contended request's SUCCESS, not just "no duplicate").
-
+7. [x] Tier-3 FULL suite GREEN: Domain **188/188**, Api **1397 passed / 0 failed / 14 skipped** (baseline
+   1370+14; +27 = exactly the fence suite, skip count unchanged, F1b now runs). Release build 0/0.
+   e2e `external-api-microservice.spec.ts` **1/1** against the Release API on :5080 (restarted; DbInitializer
+   MigrateAsync applied the fence migration to accounting_dev — all 9 columns verified present).
+8. [x] `backend/VERSION` 2.3.3 -> **2.4.0** (`2025b7b`); branch pushed; **PR #120** opened, base
+   `gpt56-review-remediation` (STACKED on #119 so the diff is WP-J only). Awaiting CI + Ham.
+9. [ ] After #119 merges: if the merge rewrites history (squash), rebase this branch onto `main` and retarget
+   #120; else GitHub retargets it. Then archive PROGRESS-gpt56-review.md + this file to docs/archive/, update
+   STATUS.md + PLAN WP-J row -> shipped, self-retro.
+   Follow-ups: fold the acceptance-tester kernel (assert the rowcount of any DB-mutating test setup; never gate
+   a WebApplicationFactory pause on Task.Delay+IsCompleted) into `.claude/agents/sonnet/acceptance-tester.md`
+   AND commit back to minions-assemble. Plus the pre-existing WP-G (17 lint warnings, Playwright-in-CI,
+   TenantIsolation random-id flake) and WP-I (purge worker blind under prod RLS).
 ## Resume order after the quota cliff
 6b build + filtered suites (implementer) → adjudicate F1b (H1 → H2) + strengthen T-F1 → commit code + test
 + run wpj-tier2.py + commit spec → Tier-3 → step 8.
