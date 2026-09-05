@@ -52,14 +52,22 @@ public sealed class IdempotencyDocumentFenceTests
     /// decorator — ASP.NET creates a NEW scoped instance of this decorator per HTTP request, so an
     /// instance field resets to unconsumed for every request and cannot serialise across them.</summary>
     private sealed class PausingQuotationDecorator(
-        IQuotationService inner, Func<(string? Marker, TaskCompletionSource<bool>? Gate, Func<bool> TryConsume)> state)
+        IQuotationService inner,
+        Func<(string? Marker, TaskCompletionSource<bool>? Gate, TaskCompletionSource<bool>? Reached, Func<bool> TryConsume)> state)
         : IQuotationService
     {
         public async Task<long> CreateDraftAsync(CreateQuotationRequest req, CancellationToken ct)
         {
-            var (marker, gate, tryConsume) = state();
+            var (marker, gate, reached, tryConsume) = state();
             if (marker is not null && gate is not null && req.Notes == marker && tryConsume())
+            {
+                // The claim INSERT already ran in IdempotencyMiddleware BEFORE the endpoint, so
+                // reaching this pause proves the pausing owner has a LIVE claim row and is parked
+                // ahead of the fence. Signal it so the test can back-date that row deterministically
+                // (see F1b's cold-start-race comment) instead of guessing with a fixed delay.
+                reached?.TrySetResult(true);
                 await gate.Task;
+            }
             return await inner.CreateDraftAsync(req, ct);
         }
 
@@ -123,6 +131,7 @@ public sealed class IdempotencyDocumentFenceTests
         public bool ThrowOnQuotationCreatedActivity;
         public string? PauseMarker;
         public TaskCompletionSource<bool>? PauseGate;
+        public TaskCompletionSource<bool>? PauseReachedSignal;
         private int _pauseConsumed;
 
         /// <summary>Global (factory-lifetime) "first caller wins" latch for the pause gate — see
@@ -147,7 +156,7 @@ public sealed class IdempotencyDocumentFenceTests
                     IQuotationService real = quotationDescriptor.ImplementationFactory is not null
                         ? (IQuotationService)quotationDescriptor.ImplementationFactory(sp)
                         : (IQuotationService)ActivatorUtilities.CreateInstance(sp, quotationDescriptor.ImplementationType!);
-                    return new PausingQuotationDecorator(real, () => (PauseMarker, PauseGate, TryConsumePause));
+                    return new PausingQuotationDecorator(real, () => (PauseMarker, PauseGate, PauseReachedSignal, TryConsumePause));
                 });
 
                 var storeDescriptor = services.Last(d => d.ServiceType == typeof(IIdempotencyStore));
@@ -425,39 +434,49 @@ public sealed class IdempotencyDocumentFenceTests
     }
 
     // ── T-F1b (optional, cheap) — late owner after a full takeover: convergence, not the F1 race ──
-    // SKIPPED (see acceptance-tester report): this harness — pause A at the IQuotationService
-    // interface boundary via a TaskCompletionSource, let B run uncontended, then release A —
-    // reproducibly makes B itself receive 409 idempotency.in_progress (~4.7s, matching the
-    // wait-loop's own timeout) instead of the clean 2xx the spec's §3.9-J4 note predicts for this
-    // exact shape ("simply takes an uncontended lock and finds B's document"). T-F1 (mandatory,
-    // the REAL F1 reproduction via the external advisory lock) uses the identical
-    // MintKeyAsync/BackdateClaimAsync staleness-takeover mechanism and PASSES, so the takeover
-    // path itself is proven; this leaves the discrepancy specific to the interface-level pause
-    // harness, not diagnosable further without reading IdempotencyMiddleware.cs (forbidden by the
-    // blind rule). Since T-F1b is explicitly optional and T-F1 already proves J1/J2 convergence,
-    // it is skipped here rather than left flaky or force-reconciled. See DIVERGENCES in the report.
-    [SkippableFact(Skip = "Harness-only issue: B unexpectedly gets 409 in_progress instead of the " +
-        "predicted clean 2xx (see comment above / acceptance-tester report). Optional per spec; " +
-        "T-F1 (mandatory) already proves the real F1 staleness-takeover convergence.")]
+    // The earlier skip blamed a "harness-only" B→409. Root cause (opus-debugger 2026-09-05): the
+    // old harness fired A, waited a fixed Task.Delay(500), then asserted only taskA.IsCompleted ==
+    // false before back-dating A's claim. That assertion is satisfied by A merely being SLOW (the
+    // first request to a cold WebApplicationFactory pays JIT + DI graph build + Npgsql warmup +
+    // deliberately-slow API-key hashing — easily >500ms), NOT by A having claimed and parked. In
+    // that window A had not yet inserted its claim row, so BackdateClaimAsync hit 0 rows and B
+    // raced A for the SAME key: whichever request reached the pipeline first claimed and (Notes ==
+    // marker) consumed the pause latch. Two race outcomes: a spurious B→409 in_progress (A claims
+    // first; the tester saw this), or an outright deadlock (B wins the latch and parks holding the
+    // only claim while the test awaits B; the diagnostic run reproduced this). The back-date hit 0
+    // rows — there was no stale row, so no takeover occurred; the probe's "fresh claim nobody
+    // serviced" is consistent with a live claim, not a takeover artifact. IdempotencyStore /
+    // IdempotencyMiddleware were never at fault.
+    // Fix is deterministic + test-only: PauseReachedSignal fires from the decorator only
+    // AFTER the pausing owner has claimed (the claim INSERT precedes the endpoint), so awaiting it
+    // guarantees A's claim row exists before the back-date. No product change — IdempotencyStore /
+    // IdempotencyMiddleware are correct; the takeover path is exercised here and in T-F1.
+    [SkippableFact]
     public async Task F1b_Late_owner_after_full_takeover_converges_on_existing_document()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         var customerId = await SeedCustomerAsync(1);
         var (apiKey, apiKeyId) = await MintKeyAsync(1, 1, ["sales.quotation.create"]);
         var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var marker = $"f1b-{Guid.NewGuid():N}";
         var key = $"f1bkey-{Guid.NewGuid():N}";
         var body = BuildQuotationJson(customerId, marker);
 
         await using var factory = new DocumentFenceApiFactory(_fx.ConnectionString)
-        { PauseMarker = marker, PauseGate = gate };
+        { PauseMarker = marker, PauseGate = gate, PauseReachedSignal = reached };
         using var http = factory.CreateClient();
 
         var taskA = SafePostAsync(http, "/api/v1/quotations", apiKey, key, body);
-        await Task.WhenAny(taskA, Task.Delay(500));
+        // Wait until A has genuinely CLAIMED and parked at the interface pause — not merely until
+        // some fixed delay elapsed (which could not distinguish "parked" from "still cold-starting"
+        // and let the back-date below hit 0 rows). A is the only in-flight request here, so it is
+        // necessarily the pause-latch owner.
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
         taskA.IsCompleted.Should().BeFalse("A must be paused BEFORE it ever enters the fence (interface-level pause)");
 
-        await BackdateClaimAsync(1, apiKeyId, key, TimeSpan.FromMinutes(10));
+        (await BackdateClaimAsync(1, apiKeyId, key, TimeSpan.FromMinutes(10)))
+            .Should().Be(1, "A's live claim row must exist to be back-dated — guards against the cold-start race");
 
         var respB = await PostAsync(http, "/api/v1/quotations", apiKey, key, body);
         ((int)respB.StatusCode).Should().BeInRange(200, 299, "B must run to completion cleanly — A hasn't touched the fence yet");

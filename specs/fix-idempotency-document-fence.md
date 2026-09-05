@@ -551,6 +551,12 @@ Harness: `IdempotencyApiFactory` + `descriptor`-swap decorators (`IdempotencyCla
   `TaskCompletionSource` BEFORE delegating; A pauses, back-date A's claim, B runs to completion (201,
   id X), release A. Assert one document and A returning X (or 5xx). This proves CONVERGENCE, not the
   F1 interleaving — T-F1 is the one that proves serialisation.
+  **SYNCHRONISATION (MANDATORY — opus-debugger 2026-09-05, else this test is a cold-start flake):** the
+  decorator must fire a SECOND `TaskCompletionSource` ("pause reached") right before it awaits the gate,
+  and the test must `await reached` — NOT `Task.Delay(N)` — before back-dating. A fixed delay + a bare
+  `IsCompleted == false` assert is satisfied by A merely being slow on a cold `WebApplicationFactory`, so
+  A has not claimed yet, the back-date hits 0 rows, and A/B race (spurious 409 or deadlock). Additionally
+  ASSERT the back-date's rowcount is 1 — the blind-compatible guard that catches the whole class.
 - **T-F2 (Codex) Crash-after-commit.** Decorate `IIdempotencyStore.CompleteAsync` to throw once for
   key K → the first request returns 201 (id X). Assert the claim row for K is **still PROCESSING**
   (`response_status IS NULL`) — §3.4 keeps it, this is NOT a Release. Then back-date that claim by 10
