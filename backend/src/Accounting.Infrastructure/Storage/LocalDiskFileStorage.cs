@@ -31,16 +31,11 @@ public sealed class FileStorageOptions
 public sealed class LocalDiskFileStorage(IOptions<FileStorageOptions> opts)
     : IFileStorageService
 {
-    // LOW-01 (2026-09-04) — create the root eagerly so an unwritable/misconfigured root
-    // fails fast at first resolution instead of silently on the first SaveAsync.
-    private readonly string _root = CreateRoot(opts.Value.StorageRoot);
-
-    private static string CreateRoot(string root)
-    {
-        var full = Path.GetFullPath(root);
-        Directory.CreateDirectory(full);
-        return full;
-    }
+    // Resolved eagerly, CREATED lazily (SaveAsync). An eager Directory.CreateDirectory here broke
+    // 351 tests on Linux CI (2026-09-05): the default root /var/teas/attachments is unwritable
+    // there, and every test that merely resolves this service died in the ctor — while the
+    // Windows local run passed because the same path resolves under the current drive.
+    private readonly string _root = Path.GetFullPath(opts.Value.StorageRoot);
 
     private static string Sanitize(string name)
     {

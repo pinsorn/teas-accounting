@@ -1737,3 +1737,9 @@ losing the test DB costs nothing.
 - Seen: 2026-09-04, fix-po-vi-vat-derivation (WP-B) e2e authoring — probed via a standalone
   fetch script against `/api/proxy/vendors/` to get the actual 400 body (Playwright's
   `error-context.md` doesn't capture the response body).
+
+## Linux CI: 351 backend tests fail with `Access to the path '/var/teas' is denied` after an eager storage-root create
+- **Symptom:** PR CI backend job red with hundreds of `System.UnauthorizedAccessException : Access to the path '/var/teas' is denied` (and a few "expected DomainException but found UnauthorizedAccessException"); the same suite is fully green locally on Windows.
+- **Root cause:** base `appsettings.json` has no `FileStorage` section, so `LocalDiskFileStorage` falls back to `/var/teas/attachments`. On the ubuntu runner that path needs root; on Windows `Path.GetFullPath("/var/teas/...")` resolves under the current drive and is writable. Anything EAGER in `LocalDiskFileStorage`'s constructor (2026-09-05: a `Directory.CreateDirectory(_root)` added for LOW-01) therefore kills every test that merely resolves the service via DI — on CI only.
+- **Fix:** keep the root resolved eagerly but created lazily in `SaveAsync` (reverted 2026-09-05). If a startup writability check is ever wanted, gate it behind a readiness check or set `FileStorage__StorageRoot` to a temp dir in ci.yml first.
+- **Lesson:** the local Windows suite is NOT a gate for filesystem-path behaviour; the Linux CI run is. Seen 2026-09-05, PR #119.
