@@ -50,7 +50,14 @@ a different body is a client defect and 409 is the safe answer at any age. No li
   (`Application/Audit/IActivityRecorder.cs:14`) — a synchronous change-tracker add. e-Tax auto-send
   (`TaxInvoiceService.cs:662-665 TryAutoSendETaxAsync`) and PDF/`IFileStorageService` are POST-path
   only, never in create. §3.9-J2 ruling: the whole create body is transaction-safe.
-- No caller of the three `CreateDraftAsync` is inside a transaction: callers are minimal-API endpoint
+- No caller of the three `CreateDraftAsync` is inside a transaction (**corrected 2026-09-05, Opus
+  Tier-2 N1:** the sweep below missed ONE Infrastructure-internal caller —
+  `SalesOrderDeliveryServices.GenerateTiAsync:470`, the DO→TI path behind the root route
+  `SalesChainEndpoints.cs:176`. Verified: it opens no transaction and has no modified tracked state
+  when it calls the wrapper (`dord.TaxInvoiceId` is assigned only AFTER the call), so the wrapper's own
+  tx is safe there; but its sibling methods H8-wrap themselves, so the wrappers now carry a contract
+  comment — they OWN their transaction and change tracker and must never be called from inside a
+  caller's unit of work — invariant J8): callers are minimal-API endpoint
   lambdas (`ApiV1Endpoints.cs:47/:72/:95`, `TaxInvoiceEndpoints.cs:23`, `ReceiptEndpoints.cs:28`,
   `SalesChainEndpoints.cs:46`) and MCP tool handlers (`Mcp/TeasMcpTools.cs:450/:577/:631/:906/:960/:1014/:1934/:1993`).
   The only `BeginTransactionAsync` in `Accounting.Api` are `BootstrapAdminEndpoints.cs:70`,
@@ -301,6 +308,11 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
   bounds it: a timeout throws → `await using var tx` rolls back → nothing committed → the middleware
   releases the claim (`IdempotencyMiddleware.cs:151-156`) → the client's retry claims immediately.
   No `lock_timeout`/`SET LOCAL` is added (nothing to configure, nothing to get wrong).
+  **Opus N4 (accepted):** that timeout surfaces as a RAW 500 (an `NpgsqlException` is not a
+  `DomainException`, so the v1 error envelope is not applied); the claim is released and an immediate
+  retry converges. Rare (needs another owner holding the fence > 30 s) — not enveloped on purpose;
+  revisit only if it is ever observed. The 30 s bound is verified for the code and the in-repo
+  connection strings; prod's Coolify-supplied connection string is not visible from the repo.
 - Draft creation allocates no DocNo → a rolled-back insert leaves no numbering gap (§0 invariant).
   `NumberedDocumentWriter`/`NumberSequenceService` read `Database.CurrentTransaction`
   (`NumberedDocumentWriter.cs:69`, `NumberSequenceService.cs:50`) but are NOT on the create path, so
@@ -371,6 +383,9 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
   `CompanyId ==` predicate; company B never sees company A's fenced document — T-J7 (RLS leg).
 - J7 The TaxInvoice conversion paths (`CreateFrom*Async`) are byte-for-byte unchanged in behaviour —
   their existing tests stay green with no edits.
+- J8 The three `CreateDraftAsync` wrappers OWN their transaction and change tracker (contract comment
+  on each). No caller opens a transaction around them or holds modified tracked entities across the
+  call; `SalesOrderDeliveryServices.cs:470` is the only in-process caller and complies (Opus N1).
 
 ### 3.7 Requirements checklist
 #### WP-1 schema + ambient context
@@ -731,3 +746,16 @@ needing to touch `CreateDraftCoreAsync` beyond the three initializer stamps (R1)
   **WP-3 note:** no test file added (blind acceptance-tester's job per dispatch); a throwaway
   FNV-1a sanity check (`LockKey` of an empty string) was run ad hoc in the scratchpad only, not
   committed to the repo.
+- 2026-09-05 Fable: Tier-2 opus-reviewer on `841eab9` = **APPROVE-WITH-NITS** (10 lenses CLEAN; F1/F2 traced
+  in both arrival orders → one document, same id; I10 atomicity confirmed real — `ActivityRecorder` writes to
+  the same change tracker with no save of its own). N1 LOW: §1 caller sweep missed
+  `SalesOrderDeliveryServices.cs:470` → §1 corrected, J8 added, contract comment on the three wrappers.
+  N2 LOW: the shared openapi `IdempotencyKey` parameter over-claimed for the 8 unfenced operations and for
+  a key whose first use never committed → reworded (fenced ops named; "once a document exists under a
+  key"). N3 NIT: `LockKey` now concatenates `apiKeyId.ToString(InvariantCulture)` (same bytes for every
+  culture; nothing deployed yet, so no lock-space split). N4 INFO: lock-timeout 500 is unenveloped —
+  accepted, recorded in §3.3. Coverage adds routed to the blind tester: T-F2/T-J8 × all three types,
+  T-J10 `IsFenceCollision` unit (pins the predicate that gates the otherwise-unreachable 23505 net),
+  T-J11 `LockKey` culture determinism. Not adopted: a composition test for the default `CommandTimeout`
+  (fixture overrides it; would test the fixture) and an ambient-tx pin test for N1 (J8 + the comment
+  carry the contract; the failure is loud — EF throws — the day it is violated).

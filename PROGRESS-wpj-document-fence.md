@@ -30,27 +30,24 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
    `python Z:/temp/claude/Y--ClaudePlayground-TEAS-Project/485d6f4e-ebb5-4fb9-b1cd-3d278b885897/scratchpad/wpj-tier2.py`
    (tester finished writing the spec; safe now). Then commit the spec.
 
-## ADJUDICATION PENDING (Fable, first thing after reset) — F1b 409 in_progress
-Read F1b at lines 442-480 of the test file: A fires with body marker → paused by `PausingQuotationDecorator`
-(interface-level, before the fence) → after 500 ms `BackdateClaimAsync(1, apiKeyId, key, 10 min)` → B posts
-same key/body → EXPECTED takeover + 201, OBSERVED 409 in_progress (= B's ClaimAsync saw A's claim as
-NOT stale for the whole 2 s wait). Two hypotheses to test, in order:
-  H1 (harness/product clock): the middleware's `now` for the stale check — if it comes from an `IClock` that
-  `DocumentFenceApiFactory`/`IdempotencyApiFactory` overrides (fake/frozen clock) or is otherwise offset from
-  DB `now()`, a row back-dated by DB time can look fresh. Check `IdempotencyMiddleware` (`now` source) and
-  the factory's DI overrides; compare with `BackdateClaimAsync` (line 272) which uses DB time.
-  H2 (product): stale-takeover path in `IdempotencyStore.ClaimAsync` fails for a claim whose owner is still
-  connected (A holds a pinned connection + scope) — reproduce with F1b un-skipped + middleware logs.
-  CRITICAL GAP FOUND: T-F1's assertion tolerates B being NON-2xx ("every 2xx carries the same id"), so T-F1
-  PASSES EVEN IF THE TAKEOVER NEVER HAPPENS (B = 409, A = 201, one document). T-F1 therefore does NOT prove
-  serialisation of two owners inside the fence. Fix: strengthen T-F1 (and F1b) to assert B's status is 2xx
-  AND B's id == A's id (B MUST take over and converge). If strengthened T-F1 fails → the stale takeover is
-  broken under these conditions → opus-debugger with the test as repro (this would also affect the shipped
-  claim-first middleware in PR #119 — check T3/T11 of IdempotencyClaimFirstTests, which DO assert takeover,
-  to see what differs: they back-date with the same helper?).
-  Resolution owner: Fable adjudicates; the warm tester (or fresh Sonnet) edits the TEST; product fixes only
-  via implementer after a confirmed root cause. Do not commit the test file with F1b skipped-as-harness
-  until adjudicated; committing it with an honest `Skip` reason + this note is acceptable as a checkpoint.
+## ADJUDICATION — F1b 409 in_progress (RE-READ: takeover invariant IS proven; F1b is a harness edge)
+CORRECTION to the earlier note: T-F1 (mandatory, lines 351-425) DOES prove takeover. It asserts B blocks on
+the SAME advisory lock (line 391), and after release B MUST be 2xx (lines 419-421) with the SAME id as A
+(line 424); A alone may be a tolerated 5xx. It PASSED. So two live owners inside the fence serialise onto one
+document and the stale-takeover converges — the invariant holds, and the shipped claim-first store (T3/T11,
+which also assert takeover with the same DB-`now()` back-date helper) is unaffected.
+Store/middleware clock is consistent (verified): middleware passes `DateTimeOffset.UtcNow` (IdempotencyMiddleware.cs:91,141);
+store predicate `created_at < now - staleAfter` (IdempotencyStore.cs:35,74,112); both test back-date helpers
+use DB `now()`. No IClock override in either factory.
+F1b (OPTIONAL per spec §4) uses an INTERFACE-level pause (`PausingQuotationDecorator` before the fence) that
+§3.9-J4 explicitly says does NOT reproduce the real F1 window; there B got 409 in_progress instead of taking
+over. The tester also found+fixed a real bug in F1b's OWN harness mid-run (per-scope latch → factory-level).
+CHEAP DECISIVE DIAGNOSTIC (warm tester, AFTER the implementer frees the DB — never overlap test runs): un-skip
+F1b; at the moment B gets 409, SELECT the `sys.idempotency_keys` row for that key and assert its state.
+  - Row is B's FRESH claim (created_at recent, status NULL) yet B still 409 → real product gap → opus-debugger.
+  - Row is still A's ORIGINAL (back-date didn't match, or not deleted) → harness bug → fix F1b, it passes.
+Given T-F1 + T3/T11 all prove takeover, product gap is unlikely; this only closes the loop so an external
+reviewer can't poke the skip. Committing the test file now with the honest `Skip` reason is fine as a checkpoint.
 
 7. [ ] Tier-3 full suite (Fable, backgrounded `dotnet test` per project, TEAS_TEST_PG in the same call;
    baseline Domain 188/188, Api 1370 pass / 14 skips / 0 fail, + the new file 26/1) + rebuild local API and
