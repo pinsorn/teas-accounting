@@ -63,7 +63,18 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
 - [x] Tester DONE: T-J12d (RLS leg under `pg_database_owner` + pinned `app.company_id`: own-company DELETE
   → 1, cross-company → 0, post-check 0/1) + T-F1 polls 5 s/step. Fence **32/0/0**, claim-first **20/0/0**,
   T-F1 ×3 4 s. Committed; branch PUSHED (one CI run). Round 2 COMPLETE — Codex round 3 welcome.
-- [ ] CI on the pushed head → then Ham: merge #119, then #120.
+- [x] CI GREEN on `85451e7` (backend + frontend). **PR #120 merge-ready.** Ham: merge #119, then #120 (both
+  deploy prod via Coolify); say so if you prefer the tombstone over J9-release before merging.
+
+## Self-retro (Fable)
+- Orchestration miss: I declared "T-F1 proves takeover" from assertions (B 2xx + same id) that a plain REPLAY
+  also satisfies. Lesson (general, folded into the acceptance-tester template): an interleaving test must
+  assert the artifact that ONLY the intended interleaving produces (claim-id change, no-replay header,
+  lock-waiter count), never just the converged end state. Codex caught it; Opus round 1 had missed it too.
+- Quota: five Claude dispatches took the 5 h window 5→97%; insurance (PROGRESS + wakeup + Monitor) at 85%
+  worked — zero rework after the reset. No rule change.
+- Worker stalls: the first tester ended its turn twice waiting for a notification despite the rule; the
+  rule is already in CLAUDE.md — no new line, just enforce in dispatches (done for every later dispatch).
 9. [ ] After #119 merges: if the merge rewrites history (squash), rebase this branch onto `main` and retarget
    #120; else GitHub retargets it. Then archive PROGRESS-gpt56-review.md + this file to docs/archive/, update
    STATUS.md + PLAN WP-J row -> shipped, self-retro.

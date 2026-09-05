@@ -55,6 +55,12 @@ code does — if you read their work first, you become them.
   still be *starting* when the delay expires, so the assertion passes before
   the request reached the pause. Have the injected seam signal an explicit
   `TaskCompletionSource` ("pause reached") and `await` that with a timeout.
+- **An interleaving/race test must assert the artifact only that interleaving
+  produces** (a changed claim/lock id, a waiter count, the ABSENCE of a replay
+  header) — never only the converged end state ("one row, same id, 2xx"),
+  which the boring path also yields. If the test would pass with the race
+  removed, it proves nothing. (2026-09-05: a takeover test passed on a plain
+  replay for a full review round before an external reviewer noticed.)
 - Shared test DB: one test-runner at a time — obey the dispatch's DB status.
 - No `git commit`. Environment: Windows 11, PowerShell 5.1 (`-Encoding utf8`,
   no `&&`), prefer dedicated file tools.
