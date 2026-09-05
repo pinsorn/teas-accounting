@@ -303,6 +303,108 @@ public sealed class IdempotencyDocumentFenceTests
         return (true, reader.IsDBNull(0) ? null : reader.GetInt32(0));
     }
 
+    // ── Harness additions — T-J12 (J9 lifecycle) + T-F1 rewrite (bounded DB-observable sync) ──
+
+    /// <summary>Rowcount query (not inference) for a single (company, api_key, key) tuple —
+    /// used by T-J12 to prove the claim row is truly GONE after a delete, per spec §4 T-J12's
+    /// explicit "rowcount query, not inference" instruction.</summary>
+    private Task<int> CountIdempotencyKeyRowsAsync(int companyId, long apiKeyId, string key) =>
+        ExecuteScalarIntAsync(
+            "SELECT count(*) FROM sys.idempotency_keys WHERE company_id=@c AND api_key_id=@a AND \"key\"=@k",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("c", companyId);
+                cmd.Parameters.AddWithValue("a", apiKeyId);
+                cmd.Parameters.AddWithValue("k", key);
+            });
+
+    /// <summary>Whole-company row count — T-J12's control leg asserts this is UNCHANGED across an
+    /// unfenced draft's delete (no key ever existed for it, so nothing should be touched).</summary>
+    private Task<int> CountIdempotencyKeysForCompanyAsync(int companyId) =>
+        ExecuteScalarIntAsync(
+            "SELECT count(*) FROM sys.idempotency_keys WHERE company_id=@c",
+            cmd => cmd.Parameters.AddWithValue("c", companyId));
+
+    private async Task<int> ExecuteScalarIntAsync(string sql, Action<NpgsqlCommand> bind)
+    {
+        await using var conn = new NpgsqlConnection(_fx.ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        bind(cmd);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    /// <summary>Reads the claim row's own primary key (idempotency_key_id) plus response_status —
+    /// T-F1's rewrite polls THIS to prove a takeover DELETE+re-INSERT actually happened (the id
+    /// changes), never inferring it from timing.</summary>
+    private async Task<(long? Id, int? ResponseStatus)> ReadClaimRowAsync(int companyId, long apiKeyId, string key)
+    {
+        await using var conn = new NpgsqlConnection(_fx.ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT idempotency_key_id, response_status FROM sys.idempotency_keys " +
+            "WHERE company_id=@c AND api_key_id=@a AND \"key\"=@k", conn);
+        cmd.Parameters.AddWithValue("c", companyId);
+        cmd.Parameters.AddWithValue("a", apiKeyId);
+        cmd.Parameters.AddWithValue("k", key);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return (null, null);
+        return (reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetInt32(1));
+    }
+
+    /// <summary>Counts ungranted `advisory` waiters on the EXACT (company, lockKey) 2-arg
+    /// pg_advisory_xact_lock — the dispatch's pinned shape: a 2-arg int4 lock is stored with
+    /// classid=key1, objid=key2, objsubid=2. objid is an OID (unsigned 32-bit) column, so a
+    /// negative FNV-derived lockKey is masked to its unsigned 32-bit bit pattern before compare
+    /// (two's-complement bigint AND — sign-extension-safe) rather than bound directly as int4.</summary>
+    private Task<int> CountUngrantedAdvisoryWaitersAsync(int companyId, int lockKey) =>
+        ExecuteScalarIntAsync(
+            "SELECT count(*) FROM pg_locks " +
+            "WHERE locktype = 'advisory' " +
+            "  AND database = (SELECT oid FROM pg_database WHERE datname = current_database()) " +
+            "  AND classid = @company::oid " +
+            "  AND objid::bigint = (@lockKey::bigint & 4294967295) " +
+            "  AND objsubid = 2 " +
+            "  AND NOT granted",
+            cmd =>
+            {
+                cmd.Parameters.Add(new NpgsqlParameter("company", NpgsqlDbType.Integer) { Value = companyId });
+                cmd.Parameters.Add(new NpgsqlParameter("lockKey", NpgsqlDbType.Bigint) { Value = (long)lockKey });
+            });
+
+    /// <summary>Bounded poll (default 15s @ 100ms) for a DB-observable condition. On timeout,
+    /// FAILS with a message naming the step as a setup/synchronisation failure — per the dispatch's
+    /// explicit "never silently degrade" instruction — rather than falling through to a
+    /// mis-attributed assertion failure later in the test.</summary>
+    private static async Task<T> PollUntilAsync<T>(
+        Func<Task<T>> probe, Func<T, bool> ok, string stepName, TimeSpan? timeout = null)
+    {
+        var bound = timeout ?? TimeSpan.FromSeconds(15);
+        var deadline = DateTime.UtcNow + bound;
+        var last = await probe();
+        while (!ok(last))
+        {
+            if (DateTime.UtcNow >= deadline)
+                throw new TimeoutException(
+                    $"[setup/synchronisation failure] step '{stepName}' did not reach the expected " +
+                    $"condition within {bound.TotalSeconds}s. Last observed: {last}");
+            await Task.Delay(100);
+            last = await probe();
+        }
+        return last;
+    }
+
+    /// <summary>The J9 "human path": IQuotationService.DeleteDraftAsync in-process through an
+    /// UNKEYED provider (StubTenant.ApiKeyId == null) — per spec §3.9-J4's harness note and the
+    /// dispatch's explicit permission to use this path instead of a JWT-authenticated root route.</summary>
+    private async Task DeleteDraftInProcessAsync(int companyId, int branchId, long quotationId)
+    {
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, companyId, branchId);
+        await using var scope = sp.CreateAsyncScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IQuotationService>();
+        await svc.DeleteDraftAsync(quotationId, default);
+    }
+
     // ── Harness — cross-type parametrization for T-F2/T-J8 (scope extension: J1/J2/J2b cover
     // each fenced type, but only quotations have ever executed keyed in any environment) ──────
 
@@ -355,6 +457,12 @@ public sealed class IdempotencyDocumentFenceTests
     };
 
     // ── T-F1 (Codex; real F1 interleaving, external advisory-lock harness, no production seam) ──
+    // REWRITTEN per spec §4 "T-F1 SYNCHRONISATION (MANDATORY — Codex WPJ-F2 2026-09-05)": the prior
+    // Task.Delay(500) + IsCompleted==false gate could not distinguish "blocked on the lock" from
+    // "still cold-starting" — if the back-date hit 0 rows (no claim yet), B would simply wait on A's
+    // LIVE claim, A would create X after the external lock releases, and B would REPLAY X: one
+    // document, same id, green, and NO takeover ever exercised. Every step below is now a bounded
+    // (≤15s @ 100ms) DB-observable poll; a timeout FAILS naming the step, never silently degrades.
 
     [SkippableFact]
     public async Task F1_External_lock_holder_serialises_two_stale_takeover_owners_onto_one_document()
@@ -368,6 +476,7 @@ public sealed class IdempotencyDocumentFenceTests
         var marker = $"f1-{Guid.NewGuid():N}";
         var key = $"f1key-{Guid.NewGuid():N}";
         var body = BuildQuotationJson(customerId, marker);
+        var lockKey = IdempotencyFenceLock.LockKey(apiKeyId, key);
 
         await using var lockConn = new NpgsqlConnection(_fx.ConnectionString);
         await lockConn.OpenAsync();
@@ -375,39 +484,62 @@ public sealed class IdempotencyDocumentFenceTests
 
         Task<HttpResponseMessage?> taskA = null!;
         Task<HttpResponseMessage?> taskB = null!;
+        long claimA, claimB;
         try
         {
             await using (var lockCmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(@company, @lock)", lockConn, lockTx))
             {
                 lockCmd.Parameters.Add(new NpgsqlParameter("company", NpgsqlDbType.Integer) { Value = 1 });
-                lockCmd.Parameters.Add(new NpgsqlParameter("lock", NpgsqlDbType.Integer)
-                { Value = IdempotencyFenceLock.LockKey(apiKeyId, key) });
+                lockCmd.Parameters.Add(new NpgsqlParameter("lock", NpgsqlDbType.Integer) { Value = lockKey });
                 await lockCmd.ExecuteNonQueryAsync();
             }
 
-            // (2) Request A claims and must block inside the service on the SAME lock.
+            // (1) Fire A; poll sys.idempotency_keys until its claim row exists — capture claimA.
             taskA = SafePostAsync(http, "/api/v1/quotations", apiKey, key, body);
-            await Task.WhenAny(taskA, Task.Delay(500));
-            taskA.IsCompleted.Should().BeFalse("A must be blocked on the advisory lock before any work happens");
+            var afterClaim = await PollUntilAsync(
+                () => ReadClaimRowAsync(1, apiKeyId, key),
+                r => r.Id is not null,
+                "(1) A's claim row must appear in sys.idempotency_keys");
+            claimA = afterClaim.Id!.Value;
 
-            // (3) Back-date A's claim past StaleAfter (T11 pattern).
-            await BackdateClaimAsync(1, apiKeyId, key, TimeSpan.FromMinutes(10));
+            // (2) Poll pg_locks until A is genuinely blocked on OUR advisory lock (not merely slow
+            // on a cold WebApplicationFactory — the exact failure mode this rewrite closes).
+            await PollUntilAsync(
+                () => CountUngrantedAdvisoryWaitersAsync(1, lockKey),
+                n => n == 1,
+                "(2) A must show as exactly ONE ungranted advisory waiter on (classid=company, objid=lockKey, objsubid=2)");
+            taskA.IsCompleted.Should().BeFalse("A must still be blocked on the advisory lock, not merely claimed");
 
-            // (4) Request B takes the now-stale claim over and must ALSO block on the SAME lock —
-            // two live owners at once is exactly the F1 window this fence must close.
+            // (3) Back-date A's claim past StaleAfter — assert the rowcount so a silent 0-row
+            // back-date (which would turn this into a plain replay, not a takeover) cannot pass.
+            (await BackdateClaimAsync(1, apiKeyId, key, TimeSpan.FromMinutes(10))).Should().Be(1,
+                "(3) back-dating A's claim must affect exactly one row");
+
+            // (4) Fire B; poll until the claim row's PRIMARY KEY changes from claimA — this is the
+            // takeover DELETE + re-INSERT actually happening, not an inference from timing.
             taskB = SafePostAsync(http, "/api/v1/quotations", apiKey, key, body);
-            await Task.WhenAny(taskB, Task.Delay(500));
-            taskB.IsCompleted.Should().BeFalse("B must ALSO be blocked on the same lock");
+            var afterTakeover = await PollUntilAsync(
+                () => ReadClaimRowAsync(1, apiKeyId, key),
+                r => r.Id is not null && r.Id != claimA,
+                "(4) the claim row's id must change (takeover DELETE + re-INSERT) after B is fired");
+            claimB = afterTakeover.Id!.Value;
+
+            // (5) Poll pg_locks until BOTH A and B are parked as ungranted waiters simultaneously —
+            // proof that both owners are inside the fence at once (the real F1 interleaving).
+            await PollUntilAsync(
+                () => CountUngrantedAdvisoryWaitersAsync(1, lockKey),
+                n => n == 2,
+                "(5) both A and B must show as ungranted advisory waiters on the same lock simultaneously");
         }
         finally
         {
-            // (5) Always release the external lock, pass or fail, so the shared DB isn't left locked.
+            // (6a) Always release the external holder, pass or fail, so the shared DB isn't left locked.
             await lockTx.CommitAsync();
             await lockTx.DisposeAsync();
             await lockConn.CloseAsync();
         }
 
-        // (6) Await both with a timeout. Either arrival order converges (spec).
+        // (6b) Await both with a timeout. Either arrival order converges (spec).
         await Task.WhenAll(taskA, taskB).WaitAsync(TimeSpan.FromSeconds(20));
         var respA = await taskA;
         var respB = await taskB;
@@ -420,7 +552,11 @@ public sealed class IdempotencyDocumentFenceTests
 
         var twoXxIds = new List<long>();
         if (respA is not null && (int)respA.StatusCode is >= 200 and < 300)
+        {
             twoXxIds.Add(ExtractId(respA));
+            (respA.Headers.TryGetValues("Idempotency-Replayed", out var vA) && vA.Contains("true")).Should().BeFalse(
+                "A executed for real under the takeover — the middleware must not report it as a replay");
+        }
         else
             (respA is null ? 599 : (int)respA.StatusCode).Should().BeGreaterThanOrEqualTo(500,
                 "spec §4 T-F1 tolerates ONLY a 5xx/transport-failure from A, never anything else");
@@ -429,8 +565,16 @@ public sealed class IdempotencyDocumentFenceTests
         ((int)respB!.StatusCode).Should().BeInRange(200, 299,
             "B must succeed with a 2xx — the spec's tolerated 5xx applies to A only");
         twoXxIds.Add(ExtractId(respB));
+        (respB.Headers.TryGetValues("Idempotency-Replayed", out var vB) && vB.Contains("true")).Should().BeFalse(
+            "B executed for real through the fence under the takeover claim — the middleware must not report it as a replay");
 
         twoXxIds.Distinct().Should().HaveCount(1, "J2: every 2xx response across A and B must carry the SAME document id");
+
+        var final = await ReadClaimRowAsync(1, apiKeyId, key);
+        final.Id.Should().Be(claimB,
+            "the final claim row must be B's takeover row — A's UPDATE targeted a claim id that no longer exists and affects 0 rows");
+        final.ResponseStatus.Should().Be(201,
+            "the final claim row must record the 201 that actually completed through claimB");
     }
 
     // ── T-F1b (optional, cheap) — late owner after a full takeover: convergence, not the F1 race ──
@@ -527,7 +671,8 @@ public sealed class IdempotencyDocumentFenceTests
         exists.Should().BeTrue("the claim row must still exist after a Complete throw");
         responseStatus.Should().BeNull("§3.4: Complete-failure policy is UNCHANGED — the claim stays PROCESSING, never Released");
 
-        await BackdateClaimAsync(companyId, apiKeyId, key, TimeSpan.FromMinutes(10));
+        (await BackdateClaimAsync(companyId, apiKeyId, key, TimeSpan.FromMinutes(10))).Should().Be(1,
+            "the back-date must affect exactly the one PROCESSING claim row — a silent 0-row back-date would make this a no-op setup, not the intended stale-retry scenario");
 
         var retry = await PostAsync(http, route, apiKey, key, body);
         ((int)retry.StatusCode).Should().BeInRange(200, 299, "a fresh execution must converge, not error");
@@ -566,6 +711,11 @@ public sealed class IdempotencyDocumentFenceTests
         cmd.Parameters.AddWithValue("k1", key1);
         cmd.Parameters.AddWithValue("id2", id2);
 
+        // Rowcount guard for this setup UPDATE: it is EXPECTED to throw 23505 before ever returning
+        // an affected-row count, so there is no successful rowcount to assert separately — the
+        // ThrowAsync<PostgresException> assertion below IS the guard. A silent 0-row UPDATE (e.g. a
+        // wrong id2 predicate) would NOT throw, so the test would fail loudly right here ("expected
+        // an exception but none was thrown") rather than silently passing on an unexercised setup.
         var act = async () => await cmd.ExecuteNonQueryAsync();
         var ex = await act.Should().ThrowAsync<PostgresException>(
             "the partial unique index must reject a forced duplicate (company, api_key, key) tuple");
@@ -977,6 +1127,151 @@ public sealed class IdempotencyDocumentFenceTests
         row.CreatedViaApiKeyId.Should().Be(apiKeyId, "proves the ambient middleware→service channel is live for receipts too");
         row.IdempotencyKey.Should().Be(key);
         row.IdempotencyRequestHash.Should().MatchRegex("^[0-9a-f]{64}$");
+    }
+
+    // ── T-J12 Lifecycle (J9, Codex WPJ-F1) — quotations, three legs + the unfenced control ────
+
+    [SkippableFact]
+    public async Task T_J12a_Delete_releases_key_same_body_reposted_creates_new_document()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var customerId = await SeedCustomerAsync(1);
+        var (apiKey, apiKeyId) = await MintKeyAsync(1, 1, ["sales.quotation.create"]);
+        await using var factory = new DocumentFenceApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+
+        var marker = $"j12a-{Guid.NewGuid():N}";
+        var key = $"j12akey-{Guid.NewGuid():N}";
+        var body = BuildQuotationJson(customerId, marker);
+
+        var first = await PostAsync(http, "/api/v1/quotations", apiKey, key, body);
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        var idX = ExtractId(first);
+
+        await DeleteDraftInProcessAsync(1, 1, idX);
+
+        (await CountIdempotencyKeyRowsAsync(1, apiKeyId, key)).Should().Be(0,
+            "J9: deleting the draft via the human path must release the claim row for its (company, api_key, key) tuple — rowcount query, not inference");
+
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, 1, 1))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            (await db.Quotations.CountAsync(q => q.Notes == marker)).Should().Be(0,
+                "J9: no quotation may carry the marker once the document is deleted");
+        }
+
+        var repost = await PostAsync(http, "/api/v1/quotations", apiKey, key, body);
+        repost.StatusCode.Should().Be(HttpStatusCode.Created,
+            "J9: a released key is a NEW operation — the same body must create a brand-new draft, never a 409 or a replay of the dead id");
+        var idNew = ExtractId(repost);
+        idNew.Should().NotBe(idX, "the re-post must mint a NEW id — never the deleted document's id");
+        (repost.Headers.TryGetValues("Idempotency-Replayed", out var v) && v.Contains("true")).Should().BeFalse(
+            "J9: this is a fresh execution of a new operation, not a replay of the deleted document's response");
+
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, 1, 1))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            (await db.Quotations.CountAsync(q => q.Notes == marker)).Should().Be(1,
+                "exactly one LIVE quotation must carry the marker after the re-post");
+        }
+    }
+
+    [SkippableFact]
+    public async Task T_J12b_Delete_releases_key_different_body_reposted_creates_new_document_no_409()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var customerId = await SeedCustomerAsync(1);
+        var (apiKey, apiKeyId) = await MintKeyAsync(1, 1, ["sales.quotation.create"]);
+        await using var factory = new DocumentFenceApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+
+        var marker = $"j12b-{Guid.NewGuid():N}";
+        var markerPrime = $"j12bp-{Guid.NewGuid():N}";
+        var key = $"j12bkey-{Guid.NewGuid():N}";
+        var body = BuildQuotationJson(customerId, marker);
+        var bodyPrime = BuildQuotationJson(customerId, markerPrime);
+
+        var first = await PostAsync(http, "/api/v1/quotations", apiKey, key, body);
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        var idX = ExtractId(first);
+
+        await DeleteDraftInProcessAsync(1, 1, idX);
+
+        (await CountIdempotencyKeyRowsAsync(1, apiKeyId, key)).Should().Be(0,
+            "J9: the claim row must be gone (rowcount query) before the different-body re-post — else this would just be exercising T-J8's still-live-claim mismatch path");
+
+        var repost = await PostAsync(http, "/api/v1/quotations", apiKey, key, bodyPrime);
+        repost.StatusCode.Should().Be(HttpStatusCode.Created,
+            "J9: a key freed by delete is a NEW operation — a DIFFERENT body must NOT trip J2b's 409 idempotency.body_mismatch (that only applies within a document's lifetime)");
+
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, 1, 1);
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        (await db.Quotations.CountAsync(q => q.Notes == markerPrime)).Should().Be(1,
+            "the new document must carry B-prime's marker");
+        (await db.Quotations.CountAsync(q => q.Notes == marker)).Should().Be(0,
+            "the original deleted document's marker must never resurrect");
+    }
+
+    [SkippableFact]
+    public async Task T_J12c_Delete_of_document_with_processing_claim_releases_key()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var customerId = await SeedCustomerAsync(1);
+        var (apiKey, apiKeyId) = await MintKeyAsync(1, 1, ["sales.quotation.create"]);
+        await using var factory = new DocumentFenceApiFactory(_fx.ConnectionString) { ThrowOnNextComplete = true };
+        using var http = factory.CreateClient();
+
+        var marker = $"j12c-{Guid.NewGuid():N}";
+        var key = $"j12ckey-{Guid.NewGuid():N}";
+        var body = BuildQuotationJson(customerId, marker);
+
+        var first = await PostAsync(http, "/api/v1/quotations", apiKey, key, body);
+        first.StatusCode.Should().Be(HttpStatusCode.Created, "§3.4: a Complete throw must still emit the fresh 201");
+        var idX = ExtractId(first);
+
+        var (exists, responseStatus) = await ReadClaimStatusAsync(1, apiKeyId, key);
+        exists.Should().BeTrue("the claim row must still exist after the forced Complete throw");
+        responseStatus.Should().BeNull("the claim must still be response_status IS NULL (PROCESSING) when we delete the document");
+
+        await DeleteDraftInProcessAsync(1, 1, idX);
+
+        (await CountIdempotencyKeyRowsAsync(1, apiKeyId, key)).Should().Be(0,
+            "J9: deleting a document whose claim is still PROCESSING must also release that claim row (rowcount query, not inference)");
+
+        var repost = await PostAsync(http, "/api/v1/quotations", apiKey, key, body);
+        repost.StatusCode.Should().Be(HttpStatusCode.Created);
+        var idNew = ExtractId(repost);
+        idNew.Should().NotBe(idX, "the re-post after deleting a processing-claim document must mint a NEW id, never X");
+    }
+
+    [SkippableFact]
+    public async Task T_J12_Control_Unfenced_draft_delete_does_not_touch_idempotency_keys()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var customerId = await SeedCustomerAsync(1);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var marker = $"j12ctrl-{Guid.NewGuid():N}";
+
+        var before = await CountIdempotencyKeysForCompanyAsync(1);
+
+        long id;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, 1, 1))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<IQuotationService>();
+            id = await svc.CreateDraftAsync(new CreateQuotationRequest(
+                today, today.AddDays(30), customerId, null, "THB", 1m, marker, null,
+                [new ChainLineInput(null, "j12 control line", 1m, "หน่วย", 100m, 0m, null, null, 0m, null)]), default);
+        }
+
+        await DeleteDraftInProcessAsync(1, 1, id);
+
+        var after = await CountIdempotencyKeysForCompanyAsync(1);
+        after.Should().Be(before,
+            "control: an UNFENCED draft's delete must never touch sys.idempotency_keys — count(*) for the company must be unchanged");
     }
 
     // ── T-J10 (scope extension) — IsFenceCollision: pure unit test, no DB. Contract per spec
