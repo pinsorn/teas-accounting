@@ -402,7 +402,17 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
   human discard of the operation's result; drafts carry no DocNo and no ledger entry; every version before
   WP-J re-created after the 24 h purge, so nothing regresses; a tombstone would need a response no
   integrator can act on (410 forever? a burned key?) and new schema for zero money benefit. Rejected
-  alternative recorded in §3.5. — T-J12.
+  alternative recorded in §3.5. — T-J12 (a/b/c + unfenced control; T-J12d = RLS leg, Opus round-2 N1).
+  **Known-benign consequences (Opus round-2):** (i) the claim row is keyed by `(company, api_key, key)`
+  with no document type, so if the SAME key was later reused on a different endpoint (legitimate after the
+  24 h purge, §3.3) deleting the quotation also purges THAT document's claim row — its retry loses byte-exact
+  replay only and converges through its own document fence (same id, no duplicate; a different body still
+  409s on the document hash). (ii) `cancel`/`reject` (and Send) leave a fenced quotation that is no longer
+  a Draft and therefore NOT deletable, so a retry with that key keeps returning that document's id — intended:
+  the document exists, J2 holds, transitions are state-machine-guarded and out of the fence's scope (§6).
+  (iii) PRE-EXISTING, out of scope: `DeleteDraftAsync` reads the row and checks `Status == Draft` BEFORE
+  `BeginTransactionAsync`; a concurrent Send committing in between is caught by the entity's concurrency
+  token (`IConcurrencyVersioned`) as a `DbUpdateConcurrencyException` on the delete, not by the new tx.
 - J3 A create without an idempotency key (BFF/JWT/MCP in-process) behaves exactly as today except
   that document + activity row commit atomically (I10 closed) and the three columns stay NULL — T-J5.
 - J4 No DocNo is consumed by a create, fenced or not — T-J6 (drafts have DocNo null; Send/Post
@@ -461,10 +471,10 @@ SaveChanges; activity.Record(...); SaveChanges; await tx.CommitAsync(ct); return
       `CreateFromQuotationAsync`; grepped the repo for `new QuotationService(`/`new
       TaxInvoiceService(`/`new ReceiptService(` — no direct constructions anywhere (all callers go
       through DI), so no test fixture needed a ctor-arg update.
-- [ ] **J9** `QuotationService.DeleteDraftAsync` — single tx: lines + document + the claim row for the
+- [x] **J9** `QuotationService.DeleteDraftAsync` — single tx (`237e59e`; Release 0/0; filtered 106/0/0): lines + document + the claim row for the
       document's `(company_id, created_via_api_key_id, idempotency_key)` (raw DELETE, explicit NpgsqlDbType);
       no-op when the draft is unfenced. Callers grepped (root route only).
-- [ ] `docs/api/openapi.yaml` — Idempotency-Key param: replace "permanently" with "for as long as that
+- [x] `docs/api/openapi.yaml` (`237e59e`) — Idempotency-Key param: replace "permanently" with "for as long as that
       document exists; deleting a draft releases its key, and a later request with that key is a new
       operation" (both the param description and the 409 catalog line at ~4909).
 - [x] `docs/api/openapi.yaml` — append to the `Idempotency-Key` param description: "The key is also
@@ -834,3 +844,10 @@ list); a store-interface change for J9 IS a trigger — rejected in §3.3 for th
   synchronisation mandate (pg_locks waiter counts, claim-id change, rowcounts, no-replay assertions).
   Pipeline: Sonnet implements J9 (one file + openapi) → fresh blind acceptance-tester writes T-J12 + rewrites
   T-F1 → Opus reviews the delta → Tier-3 → CI → Codex round 3 welcome.
+- 2026-09-05 Fable: Opus Tier-2 on the round-2 delta (`08b24b6..2218612`) = **APPROVE-WITH-NITS**; Codex
+  WPJ-F1 and WPJ-F2 ruled CLOSED (7 lenses clean; J9 tx/tuple/typing/RLS/concurrency traced; T-F1 cannot pass
+  on a replay path — step (3) rowcount + step (4) claim-id change are structural). Nits: N1 no RLS leg on the
+  J9 DELETE → T-J12d (tester); N2 T-F1 poll budget 15 s × 3 vs the 30 s lock CommandTimeout → 5 s per step
+  (tester); N3 cross-type claim purge on delete → recorded above as benign; N4 checklist ticked. Round-3
+  pokes pre-answered in J9: cancel/reject wording, pre-existing read-before-tx in DeleteDraftAsync (concurrency
+  token guards it; out of scope).
