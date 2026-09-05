@@ -19,9 +19,17 @@ namespace Accounting.Api.Middleware;
 /// Claim-first (fix-idempotency-claim-first.md, 2026-09-04): the key row is
 /// CLAIMED (inserted with <c>response_status IS NULL</c>) BEFORE the endpoint
 /// executes, not read-then-save-after — the UNIQUE index arbitrates at claim
-/// time, so two concurrent requests can never both execute. A claim not
-/// completed within <see cref="StaleAfter"/> is taken over by a later request
-/// (delete + re-insert; see <c>IdempotencyStore</c>). Policy: <c>Idempotency-Key</c>
+/// time, so while a claim is LIVE (in flight for less than <see cref="StaleAfter"/>,
+/// or completed within 24h) no second request executes. A claim not completed
+/// within <see cref="StaleAfter"/> is taken over by a later request (delete +
+/// re-insert; see <c>IdempotencyStore</c>).
+/// ACCEPTED RESIDUALS (spec D1/H5, Codex review 2026-09-05 F1/F2 — NOT exactly-once):
+/// (1) an owner still running after <see cref="StaleAfter"/> can be taken over and
+/// both may commit; (2) a crash between the business commit and <c>CompleteAsync</c>
+/// leaves a claim a retry takes over after <see cref="StaleAfter"/>. The claim id fences
+/// the idempotency ROW, not the business commit; closing both windows needs the
+/// key persisted with the document in its own transaction (PLAN WP-J).
+/// Policy: <c>Idempotency-Key</c>
 /// REQUIRED on every v1 POST/PUT/PATCH (financial doc creation =
 /// no-replay-tolerance). 5xx / exceptions release the claim so a client can
 /// retry a transient failure; 2xx/4xx (&lt; 500) are recorded + replayed for 24h.

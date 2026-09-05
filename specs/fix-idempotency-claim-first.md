@@ -439,11 +439,11 @@ already documented (grep `body_mismatch` in openapi.yaml).
   the purge, unblocks an expired key) — report to Fable for `troubles-wiki.md`.
 
 ## 4. Invariants
-- I1 For a `(company, api_key, key)` tuple at most ONE business execution is IN FLIGHT at a time,
-  and at most one execution ever completes while a given claim is live (< 24h, not stale) — T1, T2,
-  T3, T11. I1 constrains CONCURRENT execution; it does not promise "never re-executed": an
-  execution that ends in an exception or a 5xx releases the claim BY DESIGN (I4), so a later retry
-  legitimately executes again.
+- I1 For a `(company, api_key, key)` tuple, while a claim is LIVE (in flight < StaleAfter, or
+  completed < 24h) no second business execution starts — T1, T2, T3, T11. I1 constrains CONCURRENT
+  execution within the claim's lifetime; it does not promise "never re-executed": an execution that
+  ends in an exception or a 5xx releases the claim BY DESIGN (I4), so a later retry legitimately
+  executes again — and see I11 for the two accepted windows where a duplicate IS possible.
 - I2 No response with status < 500 **produced inside `_next`** is ever emitted by the owner without
   a durable completed record for it — T4 (invalid keys never execute), T5 (204 persisted), T7.
   TWO EXPLICIT EXCEPTIONS, both of the I10 class (a response the client can act on beats a durable
@@ -465,6 +465,16 @@ already documented (grep `body_mismatch` in openapi.yaml).
 - I8 CORS preflight allows `Idempotency-Key` — T9.
 - I9 A stale takeover NEVER lets the previous owner write to, or delete, the new owner's claim:
   every claim carries a distinct `idempotency_key_id` — T11.
+- I11 **NON-invariant, ACCEPTED RISK (Codex review 2026-09-05 F1/F2; ratified by D1/H5):** the claim
+  id fences the idempotency ROW, not the business commit. Two windows can still produce a duplicate
+  document: (F1) an owner that is still executing after `StaleAfter` (5 min — a pathological pause,
+  not a slow request: v1 creates/posts take seconds) is taken over and both may commit; (F2) a crash
+  or lost response between the business commit and `CompleteAsync` leaves a claim that a retry
+  takes over after `StaleAfter`. Both are STRICTLY NARROWER than before this fix (any concurrent
+  pair duplicated; a crash was never recorded either). Not testable without demonstrating the
+  accepted duplicate. Closing them = a document-level fence: persist the idempotency key WITH the
+  document inside the service's own transaction + partial unique index, and check documents before
+  a takeover executes — PLAN WP-J (touches the three create services → Opus design, Ham's scope call).
 - I10 **NON-invariant, accepted residual (H2b/H5), reviewer must not treat it as a defect):** if the
   endpoint throws or is cancelled AFTER the create paths' first `SaveChangesAsync` but before the
   second (`TaxInvoiceService.cs:379/:381`, `ReceiptService.cs:104/:106`,
@@ -780,3 +790,10 @@ a different failure policy.
   catalog, Retry-After header) fixed by Fable in docs/api/openapi.yaml; F2 Down-migration semantics
   accepted as documented; F3 unmatched-route 404 now recorded (correct per I2, noted); F4 folded into T8;
   F5 timing note already in T1. Tier-3 full suite running.
+- 2026-09-05 Fable: Codex cross-family review (`_review/Codex-idempotency-claim-first-review-2026-09-05.md`)
+  — 2×P1 = F1 stale-takeover vs still-running owner, F2 crash between business commit and Complete.
+  Verified: both are the D1/H5 residuals already in this spec, not implementation drift; the overclaim
+  was in the WORDING (I1 "at most one in flight", middleware summary "can never both execute") — narrowed
+  here + in the two code summaries, recorded as I11, and the durable fix (document-level fence) opened
+  as PLAN WP-J. Codex's regression tests for F1/F2 become WP-J's acceptance tests (they demonstrate the
+  duplicate today, by design).

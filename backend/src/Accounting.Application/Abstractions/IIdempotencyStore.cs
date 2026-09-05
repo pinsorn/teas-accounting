@@ -18,7 +18,9 @@ public sealed record ClaimResult(ClaimOutcome Outcome, long? ClaimId, Idempotenc
 /// external-API idempotency. Scoped by (company, api_key, key). The UNIQUE
 /// index arbitrates concurrency at claim time (<see cref="ClaimAsync"/>): the
 /// key row is INSERTed BEFORE the endpoint executes, so two concurrent
-/// requests never both execute. <c>idempotency_key_id</c> is the claim TOKEN —
+/// requests never both execute while the claim is live (the stale-takeover and
+/// crash-after-commit residuals are documented on <c>IdempotencyMiddleware</c>).
+/// <c>idempotency_key_id</c> is the claim TOKEN —
 /// a stale takeover deletes the dead row and re-inserts, so it always changes;
 /// a stale owner's <see cref="CompleteAsync"/>/<see cref="ReleaseAsync"/> can
 /// therefore never affect the new owner's row.
