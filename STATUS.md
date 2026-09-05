@@ -11,8 +11,10 @@
   deleting a draft releases the key. Gates: blind 32/0/0 · claim-first 20/0/0 · Tier-3 1401/0/14 · e2e 1/1 ·
   Opus APPROVE ×2 · Codex rounds 1+2 closed · Linux CI green. Records: `docs/archive/PROGRESS-gpt56-review.md`,
   `docs/archive/PROGRESS-wpj-document-fence.md`, `specs/fix-idempotency-document-fence.md`.
-  **Open: Tier-4 live leg on prod (keyed create → replay → mismatch via the public API) — Ham's call on
-  company/key; deploy verification (footer 2.4.0) in progress.**
+  **Deploy VERIFIED 2026-09-05 15:20: public `https://teas.kazaki-rio.com` → BFF login → `/api/proxy/system/info`
+  = version 2.4.0 (login-page asset fingerprint changed 95ec4bae → 3c85f942).** Open: Tier-4 live leg on prod
+  (keyed create → replay → mismatch via the public v1 API) — Ham's call on company/key; release-please PR #118
+  ("chore(main): release 2.4.0") awaits Ham.
 
 - **✅ 2026-09-05 — GPT-5.6 Sol external review (8/8 CONFIRMED) REMEDIATED — PR open, awaiting Ham's
   merge (= prod deploy via Coolify).** Branch `gpt56-review-remediation`: claim-first idempotency
