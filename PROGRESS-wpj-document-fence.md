@@ -41,6 +41,19 @@ Ham's ruling 2026-09-05: option 1, full fence ("ทำให้เรียบ�
 8. [x] `backend/VERSION` 2.3.3 -> **2.4.0** (`2025b7b`); branch pushed; **PR #120** opened, base
    `gpt56-review-remediation` (STACKED on #119 so the diff is WP-J only). **CI GREEN on `719d4a0`: backend
    pass 24m38s (Linux + Postgres 16), frontend pass 1m46s.** Awaiting Ham: merge #119 then #120; GPT re-review welcome.
+## Codex round 2 (`_review/Codex-WP-J-document-fence-review-2026-09-05.md`, HEAD 719d4a0) — 2×P2, both VERIFIED
+- WPJ-F1 lifecycle → ruling **J9 RELEASE** (spec §3.6 J9, §3.3 Lifecycle bullet, §3.5 tombstone rejected):
+  `DeleteDraftAsync` removes lines + document + the claim row in ONE tx; "permanent" narrowed to the document's
+  lifetime in J2/J2b + openapi. Quotations only (TI/receipts have no delete path; v1 has no DELETE).
+  CODE DONE + COMMITTED `237e59e` (implementer: Release 0/0; filtered Quotation|Fence|ClaimFirst|SalesChain
+  106/0/0; sole caller = root route). Ham may still override to tombstone before merge.
+- WPJ-F2 T-F1 sync → accepted; §4 now mandates pg_locks waiter counts + claim-id change + rowcounts +
+  no-replay assertions. My earlier "T-F1 proves takeover" claim was too strong — corrected in the attempt log.
+- [~] FRESH acceptance-tester (previous one was stopped by Ham) writing T-J12 (a/b/c + unfenced control) and
+  rewriting T-F1 per §4, plus the rowcount sweep. Sole test runner. Dev API :5080 is DOWN (killed for DLL
+  locks) — restart AFTER the tester finishes, then re-run the external-api e2e.
+- [ ] opus-reviewer on the round-2 delta (`08b24b6..HEAD`: J9 + tests) → Tier-3 full suite → push → CI →
+  Codex round 3 welcome.
 9. [ ] After #119 merges: if the merge rewrites history (squash), rebase this branch onto `main` and retarget
    #120; else GitHub retargets it. Then archive PROGRESS-gpt56-review.md + this file to docs/archive/, update
    STATUS.md + PLAN WP-J row -> shipped, self-retro.
