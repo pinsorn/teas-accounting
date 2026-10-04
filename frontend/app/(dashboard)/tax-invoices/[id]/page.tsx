@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ReceiptText } from 'lucide-react';
+import { Pencil, ReceiptText } from 'lucide-react';
 import { PrintMenu } from '@/components/ui/PrintMenu';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -115,19 +115,27 @@ export default function TaxInvoiceDetailPage() {
           // A TI created from an Invoice lands as Draft (no number yet). Posting
           // assigns the sequential number + fires e-Tax (§4.3/§4.4) — guarded by
           // PostConfirmDialog so the user reviews buyer tax fields first (ม.86/4 #3).
-          // Hidden while the ?action=approve banner is up — one post CTA at a time.
-          d.status === 'Draft' && !isApproveAction ? (
-            <PermissionGate scope="sales.tax_invoice.post">
-              <button
-                data-testid="ti-post-action"
-                className="btn btn-primary btn-sm"
-                disabled={post.isPending}
-                onClick={() => setConfirmPost(true)}
-              >
-                {t('post')}
-              </button>
-            </PermissionGate>
-          ) : undefined
+          // Post is hidden while the ?action=approve banner is up — one post CTA at a time;
+          // Edit stays visible in both layouts.
+          <>
+            {d.status === 'Draft' && hasScope('sales.tax_invoice.create') && (
+              <Link data-testid="ti-edit" href={`/tax-invoices/${id}/edit`} className="btn btn-secondary btn-sm gap-1">
+                <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
+              </Link>
+            )}
+            {d.status === 'Draft' && !isApproveAction && (
+              <PermissionGate scope="sales.tax_invoice.post">
+                <button
+                  data-testid="ti-post-action"
+                  className="btn btn-primary btn-sm"
+                  disabled={post.isPending}
+                  onClick={() => setConfirmPost(true)}
+                >
+                  {t('post')}
+                </button>
+              </PermissionGate>
+            )}
+          </>
         }
       />
 

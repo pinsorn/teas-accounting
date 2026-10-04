@@ -743,6 +743,8 @@
   "rc": {
     "title": "Receipts",
     "create": "Create Receipt",
+    "editTitle": "Edit receipt",
+    "editUnsupported": "This draft receipt can't be edited in the browser (delivery-order settlement or legacy withholding). You can still post it, or edit it via the API.",
     "date": "Date",
     "docNo": "No.",
     "customer": "Customer",
@@ -2181,6 +2183,7 @@
       "fromQuotation": "From Quotation"
     },
     "form": {
+      "editTitle": "Edit tax invoice",
       "customer": "Customer",
       "docDate": "Date (locked to today, Asia/Bangkok)",
       "lines": "Lines",
