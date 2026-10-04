@@ -394,6 +394,8 @@ export interface CreateTaxInvoiceLineInput {
   taxCodeId: number | null;
   taxCode: string | null;
   taxRate: number;
+  // draft-edit-receipt-taxinvoice — null/absent = server default (re-typed from the product master).
+  productType?: string | null;
 }
 export interface CreateTaxInvoiceRequest {
   docDate: string;

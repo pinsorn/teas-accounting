@@ -476,6 +476,71 @@ public sealed class TeasMcpTools
         CancellationToken ct) =>
         svc.GetDetailAsync(id, ct);
 
+    /// <summary>Settlement-mode resolution shared by create_receipt_draft and update_receipt_draft
+    /// (specs/draft-edit-receipt-taxinvoice.md 3.5). Polymorphic by company VAT mode; settles the
+    /// FULL outstanding amount. The sales.tax_invoice.read authz re-check (F5 mirror) lives HERE so
+    /// both tools carry it.</summary>
+    private static async Task<(IReadOnlyList<ReceiptApplicationInput> Applications, List<ReceiptWhtLineInput>? WhtLines)>
+        ResolveSettlementAsync(
+            long invoiceId, int? whtTypeId, decimal? whtBaseAmount,
+            ICompanyTaxConfigService taxCfg, AccountingDbContext db,
+            IAuthorizationService authz, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct)
+    {
+        IReadOnlyList<ReceiptApplicationInput> applications;
+        List<ReceiptWhtLineInput>? whtLines = null;
+        // §B / D1 — polymorphic by company VAT mode (CRUX-1): VAT co → Tax Invoice;
+        // non-VAT co → Invoice (BillingNote). Settles the FULL outstanding amount
+        // (no partial settlement this cycle).
+        var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
+        if (vatMode)
+        {
+            // F5 mirror (PLAN-fix-findings-2026-08-16.md Unit F, same shape as WP-1 in
+            // create_invoice_draft above) — this branch reads a TAX INVOICE's status and
+            // amounts, so the caller must ADDITIONALLY hold sales.tax_invoice.read; the
+            // static [Authorize(Policy = ReceiptCreate)] above can't express this because
+            // which document family gets read is only known at runtime (company VAT mode +
+            // whether invoiceId was supplied). Same IAuthorizationService re-run, same
+            // fail-closed ClaimsPrincipal DI (Program.cs).
+            var authResult = await authz.AuthorizeAsync(user, resource: null, TaxInvoiceRead);
+            if (!authResult.Succeeded)
+                throw new McpE2Exception("mcp.forbidden",
+                    "'sales.tax_invoice.read' required to settle a receipt against a tax invoice.");
+
+            var ti = await db.TaxInvoices.AsNoTracking()
+                .Where(t => t.TaxInvoiceId == invoiceId)
+                .Select(t => new { t.Status, t.TotalAmount, t.AmountPaid })
+                .FirstOrDefaultAsync(ct)
+                ?? throw new McpE2Exception("mcp.not_found", $"Tax invoice {invoiceId} not found.");
+            if (ti.Status != DocumentStatus.Posted)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Tax invoice {invoiceId} must be posted before a receipt can settle it.");
+            var outstanding = ti.TotalAmount - ti.AmountPaid;
+            if (outstanding <= 0m)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Tax invoice {invoiceId} is already fully paid — nothing to settle.");
+            applications = [new ReceiptApplicationInput(TaxInvoiceId: invoiceId, AppliedAmount: outstanding)];
+        }
+        else
+        {
+            var bn = await db.BillingNotes.AsNoTracking()
+                .Where(b => b.BillingNoteId == invoiceId)
+                .Select(b => new { b.Status, b.TotalAmount })
+                .FirstOrDefaultAsync(ct)
+                ?? throw new McpE2Exception("mcp.not_found", $"Invoice {invoiceId} not found.");
+            if (bn.Status == BillingNoteStatus.Draft)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Invoice {invoiceId} must be issued before a receipt can settle it.");
+            if (bn.Status == BillingNoteStatus.Settled)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Invoice {invoiceId} is already fully settled.");
+            applications = [new ReceiptApplicationInput(
+                TaxInvoiceId: null, AppliedAmount: bn.TotalAmount, BillingNoteId: invoiceId)];
+        }
+        if (whtTypeId is { } wt)
+            whtLines = [new ReceiptWhtLineInput(wt, whtBaseAmount ?? 0m)];
+        return (applications, whtLines);
+    }
+
     [McpServerTool(Name = "create_receipt_draft"), Authorize(Policy = ReceiptCreate)]
     [Description("Create a DRAFT receipt (no document number — reversible). doc_date is pinned to today. Returns the draft id and an approval deep-link for a human to review then post. The agent cannot post. Two modes: (1) invoiceId absent — standalone non-VAT cash-bill receipt (unchanged E2 behavior): every line must carry a productId resolving to an existing product; customerId must resolve to an existing customer. (2) invoiceId set — settlement mode: settles a posted invoice in FULL (this cycle has no partial settlement); amount/lines derive from the invoice automatically (omit lines); a VAT company's invoiceId resolves to a Tax Invoice (must be Posted, not already PAID), a non-VAT company's resolves to an Invoice/BillingNote (must be issued, not already Settled). Optionally attach whtTypeId+whtBaseAmount if the customer withheld tax.")]
     public async Task<DraftCreated> CreateReceiptDraftAsync(
@@ -503,56 +568,8 @@ public sealed class TeasMcpTools
 
         if (request.InvoiceId is { } invoiceId)
         {
-            // §B / D1 — polymorphic by company VAT mode (CRUX-1): VAT co → Tax Invoice;
-            // non-VAT co → Invoice (BillingNote). Settles the FULL outstanding amount
-            // (no partial settlement this cycle).
-            var vatMode = (await taxCfg.GetAsync(ct)).VatMode;
-            if (vatMode)
-            {
-                // F5 mirror (PLAN-fix-findings-2026-08-16.md Unit F, same shape as WP-1 in
-                // create_invoice_draft above) — this branch reads a TAX INVOICE's status and
-                // amounts, so the caller must ADDITIONALLY hold sales.tax_invoice.read; the
-                // static [Authorize(Policy = ReceiptCreate)] above can't express this because
-                // which document family gets read is only known at runtime (company VAT mode +
-                // whether invoiceId was supplied). Same IAuthorizationService re-run, same
-                // fail-closed ClaimsPrincipal DI (Program.cs).
-                var authResult = await authz.AuthorizeAsync(user, resource: null, TaxInvoiceRead);
-                if (!authResult.Succeeded)
-                    throw new McpE2Exception("mcp.forbidden",
-                        "'sales.tax_invoice.read' required to settle a receipt against a tax invoice.");
-
-                var ti = await db.TaxInvoices.AsNoTracking()
-                    .Where(t => t.TaxInvoiceId == invoiceId)
-                    .Select(t => new { t.Status, t.TotalAmount, t.AmountPaid })
-                    .FirstOrDefaultAsync(ct)
-                    ?? throw new McpE2Exception("mcp.not_found", $"Tax invoice {invoiceId} not found.");
-                if (ti.Status != DocumentStatus.Posted)
-                    throw new McpE2Exception("mcp.domain_rule",
-                        $"Tax invoice {invoiceId} must be posted before a receipt can settle it.");
-                var outstanding = ti.TotalAmount - ti.AmountPaid;
-                if (outstanding <= 0m)
-                    throw new McpE2Exception("mcp.domain_rule",
-                        $"Tax invoice {invoiceId} is already fully paid — nothing to settle.");
-                applications = [new ReceiptApplicationInput(TaxInvoiceId: invoiceId, AppliedAmount: outstanding)];
-            }
-            else
-            {
-                var bn = await db.BillingNotes.AsNoTracking()
-                    .Where(b => b.BillingNoteId == invoiceId)
-                    .Select(b => new { b.Status, b.TotalAmount })
-                    .FirstOrDefaultAsync(ct)
-                    ?? throw new McpE2Exception("mcp.not_found", $"Invoice {invoiceId} not found.");
-                if (bn.Status == BillingNoteStatus.Draft)
-                    throw new McpE2Exception("mcp.domain_rule",
-                        $"Invoice {invoiceId} must be issued before a receipt can settle it.");
-                if (bn.Status == BillingNoteStatus.Settled)
-                    throw new McpE2Exception("mcp.domain_rule",
-                        $"Invoice {invoiceId} is already fully settled.");
-                applications = [new ReceiptApplicationInput(
-                    TaxInvoiceId: null, AppliedAmount: bn.TotalAmount, BillingNoteId: invoiceId)];
-            }
-            if (request.WhtTypeId is { } whtTypeId)
-                whtLines = [new ReceiptWhtLineInput(whtTypeId, request.WhtBaseAmount ?? 0m)];
+            (applications, whtLines) = await ResolveSettlementAsync(
+                invoiceId, request.WhtTypeId, request.WhtBaseAmount, taxCfg, db, authz, user, ct);
         }
         else
         {
@@ -1535,33 +1552,81 @@ public sealed class TeasMcpTools
     }
 
     [McpServerTool(Name = "update_receipt_draft"), Authorize(Policy = ReceiptCreate)]
-    [Description("Edit a DRAFT receipt — full replace of header + lines (delete-and-recreate). Totals/WHT are re-derived server-side exactly like create (client-suggested amounts are never trusted). Only allowed while still Draft; editing a posted receipt throws rc.cannot_edit_after_post. doc_date is NOT editable (server-controlled). E2: this tool edits a standalone non-VAT cash-bill receipt; every line must carry a productId resolving to an existing product; customerId must resolve to an existing customer. Server-controlled fields in the payload (e.g. docDate) are ignored on update.")]
+    [Description("Edit a DRAFT receipt — full replace (delete-and-recreate). Same two modes as create_receipt_draft: (1) invoiceId set — settlement mode: re-settles that posted invoice in FULL (amount = current outstanding), optional whtTypeId+whtBaseAmount (omitting them REMOVES withholding); requires sales.tax_invoice.read on a VAT company. (2) invoiceId absent — standalone cash-bill: every line needs a valid productId. Refused (mcp.domain_rule): a settlement receipt without invoiceId, a receipt settling several documents or a delivery order, and any withholding this tool cannot express (multi-category, or cash-bill mode) — edit those in the web app. Totals/WHT are recomputed server-side. Only Draft; posted → rc.cannot_edit_after_post. doc_date is server-controlled.")]
     public async Task UpdateReceiptDraftAsync(
         [Description("The receipt id to edit.")] long receiptId,
         McpCreateReceiptRequest request,
         IReceiptService svc,
         ICustomerService customerSvc,
         IProductService productSvc,
+        ICompanyTaxConfigService taxCfg,
+        AccountingDbContext db,
         IValidator<CreateReceiptRequest> validator,
+        IAuthorizationService authz,
+        System.Security.Claims.ClaimsPrincipal user,
         CancellationToken ct)
     {
         await GuardCustomerAsync(customerSvc, request.CustomerId, ct);
-        foreach (var line in request.Lines ?? [])
-            await GuardProductAsync(productSvc, line.ProductId, ct);
 
         if (!Enum.TryParse<PaymentMethod>(request.PaymentMethod, ignoreCase: true, out var pm))
             throw new McpE2Exception("mcp.invalid_payment_method",
                 $"Unknown payment method '{request.PaymentMethod}'.");
 
+        // Shape of the stored receipt. null = not found -> skip the guards; the service throws
+        // rc.not_found (keeps the cross-tenant behaviour).
+        var existing = await db.Receipts.AsNoTracking().Where(r => r.ReceiptId == receiptId)
+            .Select(r => new
+            {
+                r.Status,
+                AppCount = r.Applications.Count(),
+                HasDoApp = r.Applications.Any(a => a.DeliveryOrderId != null),
+                WhtCount = r.WhtLines.Count(),
+            })
+            .FirstOrDefaultAsync(ct);
+
+        IReadOnlyList<ReceiptApplicationInput> applications = [];
+        IReadOnlyList<ReceiptLineInput> lines = [];
+        List<ReceiptWhtLineInput>? whtLines = null;
+
+        // Draft only: a posted receipt falls through to the service -> rc.cannot_edit_after_post.
+        if (existing is { Status: DocumentStatus.Draft })
+        {
+            if (existing.HasDoApp || existing.AppCount > 1)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Receipt {receiptId} settles several documents (or a delivery order); this tool can only express one invoice — edit it in the web app.");
+            if (existing.WhtCount > 1)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Receipt {receiptId} carries multi-category withholding; edit it in the web app.");
+            if (request.InvoiceId is null && existing.AppCount > 0)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Receipt {receiptId} settles an invoice — pass invoiceId to edit it in settlement mode (converting it to a cash bill is not allowed).");
+            if (request.InvoiceId is null && existing.WhtCount > 0)
+                throw new McpE2Exception("mcp.domain_rule",
+                    $"Receipt {receiptId} carries withholding, which cash-bill mode cannot express — edit it in the web app.");
+        }
+
+        if (request.InvoiceId is { } invoiceId)
+        {
+            (applications, whtLines) = await ResolveSettlementAsync(
+                invoiceId, request.WhtTypeId, request.WhtBaseAmount, taxCfg, db, authz, user, ct);
+        }
+        else
+        {
+            foreach (var line in request.Lines ?? [])
+                await GuardProductAsync(productSvc, line.ProductId, ct);
+            lines = (request.Lines ?? []).Select(l => new ReceiptLineInput(
+                l.DescriptionTh, l.Quantity, l.UnitPrice, l.Amount,
+                l.ProductId, null, l.ProductType, l.UomText)).ToList();
+        }
+
         var appRequest = new CreateReceiptRequest(
             request.DocDate, request.CustomerId, pm,
             request.ChequeNo, request.ChequeDate, request.BankAccountId,
             request.CurrencyCode, request.ExchangeRate, request.Notes,
-            Applications: [],
+            Applications: applications,
             BusinessUnitId: request.BusinessUnitId,
-            Lines: (request.Lines ?? []).Select(l => new ReceiptLineInput(
-                l.DescriptionTh, l.Quantity, l.UnitPrice, l.Amount,
-                l.ProductId, null, l.ProductType, l.UomText)).ToList());
+            WhtLines: whtLines,
+            Lines: applications.Count > 0 ? null : lines);
 
         await validator.ValidateAndThrowAsync(appRequest, ct);
         try

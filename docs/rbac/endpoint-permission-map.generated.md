@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 17 |
-| Perm | 300 |
+| Perm | 304 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **364** |
+| **TOTAL** | **368** |
 
 ## Routes
 
@@ -266,7 +266,9 @@
 | POST | `/receipts/` | Perm | sales.receipt.create |
 | POST | `/receipts/wht-base-suggest` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}` | Perm | sales.receipt.read |
+| PUT | `/receipts/{id:long}` | Perm | sales.receipt.create |
 | GET | `/receipts/{id:long}/activity` | Perm | sales.receipt.read |
+| GET | `/receipts/{id:long}/draft-input` | Perm | sales.receipt.create |
 | POST | `/receipts/{id:long}/mark-printed` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/paper` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/pdf` | Perm | sales.receipt.read |
@@ -354,7 +356,9 @@
 | GET | `/tax-invoices/` | Perm | sales.tax_invoice.read |
 | POST | `/tax-invoices/` | Perm | sales.tax_invoice.create |
 | GET | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.read |
+| PUT | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.create |
 | GET | `/tax-invoices/{id:long}/activity` | Perm | sales.tax_invoice.read |
+| GET | `/tax-invoices/{id:long}/draft-input` | Perm | sales.tax_invoice.create |
 | POST | `/tax-invoices/{id:long}/mark-printed` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/paper` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/pdf` | Perm | sales.tax_invoice.read |

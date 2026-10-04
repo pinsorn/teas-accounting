@@ -30,6 +30,23 @@ public static class ReceiptEndpoints
         })
         .RequireAuthorization(createPol);
 
+        // draft-edit-receipt-taxinvoice — Draft-only full replace; same policy/validator/DTO as create
+        // (mirrors SalesChainEndpoints quotation PUT). 204. Posted -> 422 rc.cannot_edit_after_post.
+        group.MapPut("/{id:long}", async (long id, [FromBody] CreateReceiptRequest req,
+            IValidator<CreateReceiptRequest> validator, IReceiptService service, CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(req, ct);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            await service.UpdateDraftAsync(id, req, ct);
+            return Results.NoContent();
+        })
+        .RequireAuthorization(createPol);
+
+        // The exact CreateReceiptRequest that reproduces this Draft - the edit form's prefill.
+        group.MapGet("/{id:long}/draft-input", async (long id, IReceiptService svc, CancellationToken ct) =>
+            await svc.GetDraftInputAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound())
+        .RequireAuthorization(createPol);
+
         group.MapPost("/{id:long}/post", async (long id, IReceiptService service, CancellationToken ct) =>
             Results.Ok(await service.PostAsync(id, ct)))
         .RequireAuthorization(postPol);

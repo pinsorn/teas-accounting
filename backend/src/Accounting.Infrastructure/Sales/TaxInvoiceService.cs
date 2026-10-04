@@ -535,22 +535,32 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         return (lines, subtotal, taxable, nontaxable, vatAmount, total);
     }
 
-    /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit. Mirrors
+    /// <summary>D3 (spec mcp-expansion.md) - draft-only full edit. Mirrors
     /// <c>QuotationService.UpdateDraftAsync</c>'s delete-and-recreate-lines pattern (D3.0
-    /// template). HARD REQUIREMENT (D3.2): lines are ALWAYS removed + rebuilt, even for a
-    /// header-only edit, so DB trigger 582 (fn_ti_lines_immutable) stays the concurrency
-    /// backstop uniformly — trigger 583 (header) only guards CRITICAL fields, so a header-only
-    /// edit that skipped the line rewrite could otherwise race a concurrent post undetected.
+    /// template): lines are ALWAYS removed + rebuilt, even for a header-only edit.
     /// Server-controlled fields are NEVER accepted from the client: DocNo/Status/PostedAt are
     /// untouched, and DocDate/TaxPointDate are left exactly as pinned at create (re-pinned again
-    /// at PostAsync) — this method does not touch them at all.</summary>
+    /// at PostAsync) - this method does not touch them at all.
+    ///
+    /// CONCURRENCY (specs/draft-edit-receipt-taxinvoice.md 3.2): header trigger 583 only guards
+    /// CRITICAL fields, so the real backstop vs a racing post is a row lock + Version bump.
+    /// - Edit locks first: PostAsync's header UPDATE blocks on the row lock; when the edit commits,
+    ///   its WHERE version = @old misses -> DbUpdateConcurrencyException -> ti.locked_mismatch (409),
+    ///   post's tx rolls back (no DocNo, no JE).
+    /// - Post updates first: the FOR UPDATE below blocks until post commits, then the EF load reads
+    ///   Status = Posted -> ti.cannot_edit_after_post (422).</summary>
     public async Task UpdateDraftAsync(long taxInvoiceId, CreateTaxInvoiceRequest req, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
-        // Defense: a draft TI may survive a VAT→non-VAT config switch; it must not be editable
+        // Defense: a draft TI may survive a VAT->non-VAT config switch; it must not be editable
         // either (mirrors the same defensive re-check PostAsync already does).
         await EnsureVatRegisteredAsync(ct);
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        // Row lock FIRST, before the EF load (id-only predicate: RLS hides other tenants' rows).
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT tax_invoice_id FROM sales.tax_invoices WHERE tax_invoice_id = {taxInvoiceId} FOR UPDATE", ct);
 
         var ti = await _db.TaxInvoices
             .Include(t => t.Lines)
@@ -559,6 +569,20 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         if (ti.Status != Domain.Enums.DocumentStatus.Draft)
             throw new DomainException("ti.cannot_edit_after_post",
                 "Tax Invoice can only be edited while in Draft.");
+
+        // A draft TI referenced by a live Billing Note is frozen (BN snapshots its totals/lines and
+        // would strand in Issued). Exit: edit/delete the draft BN, or cancel it.
+        var bnRef = await _db.BillingNotes.AsNoTracking()
+            .Where(b => b.Status != Domain.Enums.BillingNoteStatus.Cancelled
+                     && b.TaxInvoiceLinks.Any(j => j.TaxInvoiceId == taxInvoiceId))
+            .Select(b => new { b.BillingNoteId, b.DocNo })
+            .FirstOrDefaultAsync(ct);
+        if (bnRef is not null)
+            throw new DomainException("ti.linked_to_billing_note",
+                $"ใบกำกับภาษีนี้ถูกอ้างอิงในใบแจ้งหนี้ {bnRef.DocNo ?? "#" + bnRef.BillingNoteId} — " +
+                "แก้ไข/ลบใบแจ้งหนี้ฉบับร่าง หรือยกเลิกใบแจ้งหนี้ก่อน " +
+                $"(Tax Invoice {taxInvoiceId} is linked from Invoice {bnRef.DocNo ?? bnRef.BillingNoteId.ToString()}; " +
+                "edit/delete that draft Invoice or cancel it first.)");
 
         // Sprint 14 P7 — same per-key BU lock as create.
         var (effBu, buErr) = ApiKeyBuBinding.Resolve(
@@ -623,18 +647,25 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         ti.TotalAmount      = total;
         ti.TotalAmountThb   = Math.Round(total * req.ExchangeRate, 4, MidpointRounding.AwayFromZero);
 
-        await _db.SaveChangesAsync(ct);
+        ti.Version++;   // makes a racing post's UPDATE (WHERE version = old) miss
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId, "Updated");
+        try { await _db.SaveChangesAsync(ct); }
+        catch (Exception ex) when (ex is DbUpdateConcurrencyException || IsPostedRaceViolation(ex))
+        {
+            throw new DomainException("ti.locked_mismatch",
+                "This tax invoice was changed by someone else. Reload and try again.");
+        }
+        await tx.CommitAsync(ct);
     }
 
     /// <summary>
-    /// R3/H2 — thin wrapper so a concurrent double-post race maps to a clean 409 instead of a
-    /// raw 500. TaxInvoice.Version is never incremented by MarkPosted (unlike PaymentVoucher
-    /// post-WP-B), so EF's own optimistic-concurrency check never actually diverges between two
-    /// racing writers — what stops the loser from corrupting the winner's already-committed row
-    /// is sales.fn_enforce_ti_immutability (583_tax_invoice_header_immutable_v2.sql), which
-    /// raises a raw 23514 check_violation when the loser's UPDATE tries to change doc_no/status
-    /// on a row that is now POSTED. Also covers the (currently unreachable, since Version is
-    /// inert here) case of a genuine DbUpdateConcurrencyException, mirroring the PV pattern.
+    /// R3/H2 - thin wrapper so a concurrent double-post race maps to a clean 409 instead of a
+    /// raw 500. TaxInvoice.Version is incremented by UpdateDraftAsync (draft-edit-receipt-taxinvoice),
+    /// so the DbUpdateConcurrencyException branch IS reachable: an edit committing between this
+    /// post's load and its header UPDATE makes the UPDATE (WHERE version = old) miss. The other
+    /// double-post loser is stopped by sales.fn_enforce_ti_immutability
+    /// (583_tax_invoice_header_immutable_v2.sql), which raises a raw 23514 check_violation when its
+    /// UPDATE tries to change doc_no/status on a row that is now POSTED.
     /// </summary>
     public async Task<TaxInvoicePostedResult> PostAsync(long taxInvoiceId, CancellationToken ct)
     {
@@ -661,7 +692,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
     /// all RAISE EXCEPTION with ERRCODE 'check_violation' (23514) when a second writer's UPDATE
     /// tries to touch a critical field on a row another writer already flipped to Posted.</summary>
     private static bool IsPostedRaceViolation(Exception ex) =>
-        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" } };
+        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" or "40P01" } }
+        or PostgresException { SqlState: "40P01" };   // 40P01 = deadlock_detected: edit vs post lock cycle
 
     /// <summary>N2 — 23505 on ix_tax_invoices_quotation_id ONLY. Constraint-name-scoped so the
     /// doc_no collision retry (CRIT-1, NumberedDocumentWriter.IsDocNoCollision) is never masked:

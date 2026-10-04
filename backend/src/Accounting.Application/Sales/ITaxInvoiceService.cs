@@ -40,6 +40,11 @@ public interface ITaxInvoiceService
     /// DocNo/Status/PostedAt/DocDate/TaxPointDate are server-controlled and untouched here.</summary>
     Task UpdateDraftAsync(long taxInvoiceId, CreateTaxInvoiceRequest req, CancellationToken ct);
 
+    /// <summary>The exact request that reproduces this Draft (edit-form prefill). Null = not found
+    /// (tenant-scoped). Non-Draft throws ti.cannot_edit_after_post. PUT(GetDraftInputAsync(id)) is a
+    /// no-op on every persisted column except UpdatedAt/UpdatedBy/Version.</summary>
+    Task<CreateTaxInvoiceRequest?> GetDraftInputAsync(long taxInvoiceId, CancellationToken ct);
+
     /// <summary>Post the draft: allocate TI-NNNN, freeze status, write posted_at. Throws on validation failure.</summary>
     Task<TaxInvoicePostedResult> PostAsync(long taxInvoiceId, CancellationToken ct);
 

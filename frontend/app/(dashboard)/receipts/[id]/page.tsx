@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { Pencil } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -122,17 +124,25 @@ export default function ReceiptDetailPage() {
         actions={
           // B8 — a human-saved Draft receipt must be postable via normal
           // navigation, not only the agent ?action=approve deep-link.
-          // Hidden while the ?action=approve banner is up — one post CTA at a time.
-          d.status === 'Draft' && !isApproveAction && hasScope('sales.receipt.post') ? (
-            <button
-              data-testid="rc-post-action"
-              className="btn btn-primary btn-sm"
-              disabled={post.isPending}
-              onClick={doPost}
-            >
-              {tr('post')}
-            </button>
-          ) : undefined
+          // Post is hidden while the ?action=approve banner is up — one post CTA at a time;
+          // Edit stays visible in both layouts (a human may fix an agent draft before approving).
+          <>
+            {d.status === 'Draft' && hasScope('sales.receipt.create') && (
+              <Link data-testid="rc-edit" href={`/receipts/${id}/edit`} className="btn btn-secondary btn-sm gap-1">
+                <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
+              </Link>
+            )}
+            {d.status === 'Draft' && !isApproveAction && hasScope('sales.receipt.post') && (
+              <button
+                data-testid="rc-post-action"
+                className="btn btn-primary btn-sm"
+                disabled={post.isPending}
+                onClick={doPost}
+              >
+                {tr('post')}
+              </button>
+            )}
+          </>
         }
       />
 

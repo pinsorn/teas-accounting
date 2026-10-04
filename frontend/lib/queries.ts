@@ -174,6 +174,32 @@ export function useCreateTaxInvoice() {
   });
 }
 
+// draft-edit-receipt-taxinvoice — the exact create-request that reproduces a Draft (edit prefill).
+export function useTaxInvoiceDraftInput(id: number, enabled = true) {
+  return useQuery({
+    queryKey: ['tax-invoice-draft-input', id],
+    queryFn: () => apiGet<CreateTaxInvoiceRequest>(`tax-invoices/${id}/draft-input`),
+    enabled: enabled && id > 0,
+    staleTime: 0,
+  });
+}
+
+export function useUpdateTaxInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: CreateTaxInvoiceRequest }) =>
+      apiPut(`tax-invoices/${v.id}`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['tax-invoices'] });
+      qc.invalidateQueries({ queryKey: ['tax-invoice', v.id] });
+      qc.invalidateQueries({ queryKey: ['tax-invoice-draft-input', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      qc.invalidateQueries({ queryKey: ['doc-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
+    },
+  });
+}
+
 export function usePostTaxInvoice() {
   const qc = useQueryClient();
   return useMutation({
@@ -221,6 +247,29 @@ export function useCreateReceipt() {
   return useMutation({
     mutationFn: (req: CreateReceiptRequest) => apiPost<{ receipt_id: number }>('receipts', req),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['receipts'] }),
+  });
+}
+// draft-edit-receipt-taxinvoice — see useTaxInvoiceDraftInput.
+export function useReceiptDraftInput(id: number, enabled = true) {
+  return useQuery({
+    queryKey: ['receipt-draft-input', id],
+    queryFn: () => apiGet<CreateReceiptRequest>(`receipts/${id}/draft-input`),
+    enabled: enabled && id > 0,
+    staleTime: 0,
+  });
+}
+export function useUpdateReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; req: CreateReceiptRequest }) => apiPut(`receipts/${v.id}`, v.req),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['receipts'] });
+      qc.invalidateQueries({ queryKey: ['receipt', v.id] });
+      qc.invalidateQueries({ queryKey: ['receipt-draft-input', v.id] });
+      qc.invalidateQueries({ queryKey: ['paper-doc'] });
+      qc.invalidateQueries({ queryKey: ['doc-chain'] });
+      qc.invalidateQueries({ queryKey: ['activity'] });
+    },
   });
 }
 export function usePostReceipt() {

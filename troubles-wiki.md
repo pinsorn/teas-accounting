@@ -531,6 +531,7 @@ for historical context only.
   REQUIREMENT for `UpdateDraftAsync`, and it applies to every table with this trigger shape, not
   just Tax Invoice.
 - **Seen:** 2026-07-08, mcp-expansion write-side (§D3, `update_receipt_draft`'s race-backstop test).
+- **Not a uniform backstop for VAT receipts:** they have no `receipt_lines`, and `receipt_applications`/`receipt_wht_lines` have no trigger. Since draft-edit-receipt-taxinvoice, `UpdateDraftAsync` takes `SELECT ... FOR UPDATE` on the header row and bumps `Version`; that, not the line trigger, is the race backstop.
 
 ## `WhtBatchExportServiceTests.Pnd53_batch_groups_by_payee_and_excludes_individuals_and_pnd54` fails with `RecordCount to be 2, but found 4` (or similar off-by-N)
 - **Root cause:** the test picks a "distinct far-future period" via `RandPeriod()` (year 3000-8999,
@@ -1660,6 +1661,7 @@ losing the test DB costs nothing.
 - **Root cause:** the conversion path (Decision 1 in the spec) creates a draft from the tracked quotation entity server-side, with no line payload from the browser. This eliminates a vector where a client-side form could lose data (discount, tax code) on a round-trip prefill. However, no `PUT /tax-invoices/{id}` route or draft-edit screen was built to give the user an undo for a mis-click; abandoning the draft is the current exit, and it is real (a draft burns no document number per `CreateDraftCoreAsync` behavior — `DocNo` is allocated only at `PostAsync`).
 - **Fix:** expose the existing `ITaxInvoiceService.UpdateDraftAsync` as `PUT /tax-invoices/{id}` plus a draft-edit screen mirroring the quotation/sales-order draft-edit pattern. Out of scope for this unit; Ham's call whether it becomes the next feature unit (escalation E4).
 - **Seen:** 2026-08-16, `specs/fix-chain-conversion-integrity.md` §10.5 (escalation E4, §3.0 Decision 1 consequence); also pre-existing for every manually created draft TI (F1.24).
+- **RESOLVED (edit) by specs/draft-edit-receipt-taxinvoice.md**; delete still has no route.
 
 ## Sonner toasts never auto-dismiss under headless Chromium — silently swallow clicks on top-of-page action-bar buttons
 - Symptom: a Playwright click on a `data-testid` action-bar button (e.g. quotation `q-accept`,

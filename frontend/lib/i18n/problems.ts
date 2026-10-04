@@ -219,6 +219,13 @@ const TH: Record<string, string> = {
   'product.not_found': 'ไม่พบสินค้านี้',
   'product.in_use': 'ไม่สามารถลบสินค้านี้ได้ เนื่องจากถูกใช้งานอยู่',
   'product.bu_invalid': 'หน่วยธุรกิจของสินค้านี้ไม่ถูกต้อง',
+  // rc.* / ti.* (specs/draft-edit-receipt-taxinvoice.md)
+  'rc.cannot_edit_after_post': 'ใบเสร็จรับเงินนี้บันทึก (Post) แล้ว แก้ไขไม่ได้',
+  'ti.cannot_edit_after_post': 'ใบกำกับภาษีนี้บันทึก (Post) แล้ว แก้ไขไม่ได้',
+  'rc.locked_mismatch': 'ใบเสร็จรับเงินนี้ถูกแก้ไขหรือบันทึก (Post) โดยผู้อื่นแล้ว กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง',
+  'ti.locked_mismatch': 'ใบกำกับภาษีนี้ถูกแก้ไขหรือบันทึก (Post) โดยผู้อื่นแล้ว กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง',
+  'rc.overpaid': 'ยอดรับชำระเกินยอดค้างชำระของใบกำกับภาษี',
+  'ti.linked_to_billing_note': 'ใบกำกับภาษีนี้ถูกอ้างอิงในใบแจ้งหนี้แล้ว กรุณาแก้ไขหรือลบใบแจ้งหนี้ฉบับร่าง หรือยกเลิกใบแจ้งหนี้ก่อน แล้วจึงแก้ไขใบกำกับภาษี',
 };
 
 /** Resolve a domain-error CODE to Thai. Returns null when the locale isn't `th` or the code
