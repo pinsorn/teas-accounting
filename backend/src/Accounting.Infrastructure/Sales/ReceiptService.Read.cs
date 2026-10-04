@@ -40,6 +40,31 @@ public sealed partial class ReceiptService
         return new CursorPage<ReceiptListItem>(rows, more ? rows[^1].ReceiptId : null, more);
     }
 
+    public async Task<CreateReceiptRequest?> GetDraftInputAsync(long receiptId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        var r = await _db.Receipts.AsNoTracking()
+            .Include(x => x.Applications).Include(x => x.Lines).Include(x => x.WhtLines)
+            .FirstOrDefaultAsync(x => x.ReceiptId == receiptId, ct);
+        if (r is null) return null;
+        if (r.Status != DocumentStatus.Draft)
+            throw new DomainException("rc.cannot_edit_after_post",
+                "Receipt can only be edited while in Draft.");
+        return new CreateReceiptRequest(
+            r.DocDate, r.CustomerId, r.PaymentMethod, r.ChequeNo, r.ChequeDate, r.BankAccountId,
+            r.CurrencyCode, r.ExchangeRate, r.Notes,
+            Applications: r.Applications.OrderBy(a => a.ApplicationId)
+                .Select(a => new ReceiptApplicationInput(a.TaxInvoiceId, a.AppliedAmount, a.DeliveryOrderId, a.BillingNoteId)).ToList(),
+            BusinessUnitId: r.BusinessUnitId,
+            WhtAmount: r.WhtAmount, WhtTypeId: r.WhtTypeId,   // verbatim; rebuild prefers WhtLines when non-empty
+            CustomerWhtCertNo: r.CustomerWhtCertNo, CustomerWhtCertDate: r.CustomerWhtCertDate,
+            WhtLines: r.WhtLines.OrderBy(w => w.ReceiptWhtLineId)
+                .Select(w => new ReceiptWhtLineInput(w.WhtTypeId, w.BaseAmount)).ToList(),
+            Lines: r.Lines.OrderBy(l => l.LineNo).Select(l => new ReceiptLineInput(
+                l.DescriptionTh, l.Quantity, l.UnitPrice, l.Amount, l.ProductId, l.ProductCode, l.ProductType, l.UomText)).ToList());
+    }
+
     public async Task<ReceiptDetail?> GetDetailAsync(long id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)

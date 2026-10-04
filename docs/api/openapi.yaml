@@ -593,6 +593,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaxInvoice'
+    put:
+      summary: แก้ไขใบกำกับภาษี (Draft only)
+      description: |
+        Full replace of a DRAFT tax invoice (BFF route, same permission/validator/body as create).
+        Consumes no document number and books no GL. Errors: `ti.cannot_edit_after_post` (422, not Draft),
+        `ti.linked_to_billing_note` (422, a non-cancelled Invoice references this draft),
+        `ti.locked_mismatch` (409, lost a race with post/another edit — reload).
+      tags: [Tax Invoices]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxInvoiceCreateRequest'
+      responses:
+        '204': { description: Updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: 'ti.cannot_edit_after_post / ti.linked_to_billing_note / other domain rule' }
+
+  /tax-invoices/{id}/draft-input:
+    parameters:
+      - $ref: '#/components/parameters/DocId'
+    get:
+      summary: คำขอที่ reproduce ใบกำกับภาษีฉบับร่างนี้ได้พอดี (edit-form prefill)
+      description: |
+        Returns the exact create request that reproduces this DRAFT; `PUT /tax-invoices/{id}` with it
+        unchanged is a no-op. Non-Draft returns 422 `ti.cannot_edit_after_post`.
+      tags: [Tax Invoices]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxInvoiceCreateRequest'
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { description: ti.cannot_edit_after_post }
 
   /tax-invoices/{id}/xml:
     parameters:
@@ -803,6 +842,44 @@ paths:
       responses:
         '200': { description: OK }
         '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: แก้ไขใบเสร็จรับเงิน (Draft only)
+      description: |
+        Full replace of a DRAFT receipt (BFF route, same permission/validator/body as create).
+        Consumes no document number and books no GL. Errors: `rc.cannot_edit_after_post` (422, not Draft),
+        `rc.overpaid` (422), `rc.locked_mismatch` (409, lost a race with post/another edit — reload).
+      tags: [Receipts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReceiptRequest'
+      responses:
+        '204': { description: Updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: 'rc.cannot_edit_after_post / rc.overpaid / other domain rule' }
+
+  /receipts/{id}/draft-input:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      summary: คำขอที่ reproduce ใบเสร็จฉบับร่างนี้ได้พอดี (edit-form prefill)
+      description: |
+        Returns the exact create request that reproduces this DRAFT; `PUT /receipts/{id}` with it
+        unchanged is a no-op. Non-Draft returns 422 `rc.cannot_edit_after_post`.
+      tags: [Receipts]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateReceiptRequest'
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { description: rc.cannot_edit_after_post }
 
   /receipts/{id}/wht-cert:
     post:

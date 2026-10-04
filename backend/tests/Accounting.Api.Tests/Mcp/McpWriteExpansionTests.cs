@@ -1151,4 +1151,159 @@ public sealed class McpWriteExpansionTests
         (await db.Receipts.CountAsync(r => r.CustomerId == co.CustomerId)).Should().Be(1,
             "the authorized call must have minted the settlement draft receipt");
     }
+
+    // ── T12 (specs/draft-edit-receipt-taxinvoice.md WP-2) — update_receipt_draft never silently
+    // converts a settlement receipt to a cash bill nor drops its withholding. ──
+
+    private static object RcUpdateRequest(
+        TestCompanyFactory.SeededCompany co, string? notes, long? invoiceId, object[]? lines = null) => new
+    {
+        docDate = new SystemClock().TodayInBangkok(), customerId = co.CustomerId, paymentMethod = "Cash",
+        chequeNo = (string?)null, chequeDate = (DateOnly?)null, bankAccountId = (long?)null,
+        currencyCode = "THB", exchangeRate = 1m, notes, invoiceId, lines,
+    };
+
+    private async Task<CallToolResult> CallUpdateReceiptAsync(
+        TestCompanyFactory.SeededCompany co, IReadOnlyList<string> scopes, long receiptId, object request)
+    {
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, scopes);
+        await using var factory = new McpApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+        await using var client = await ConnectAsync(http);
+        return await client.CallToolAsync("update_receipt_draft",
+            new Dictionary<string, object?> { ["receiptId"] = receiptId, ["request"] = request });
+    }
+
+    private async Task<Accounting.Domain.Entities.Sales.Receipt> LoadReceiptAsync(TestCompanyFactory.SeededCompany co, long id)
+    {
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        await using var scope = sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        return await db.Receipts.AsNoTracking().Include(r => r.Applications).Include(r => r.Lines)
+            .Include(r => r.WhtLines).FirstAsync(r => r.ReceiptId == id);
+    }
+
+    private async Task<long> CreateRcViaServiceAsync(TestCompanyFactory.SeededCompany co, CreateReceiptRequest req)
+    {
+        await using var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId);
+        await using var scope = sp.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IReceiptService>().CreateDraftAsync(req, default);
+    }
+
+    [SkippableFact]
+    public async Task T12a_update_receipt_draft_settlement_mode_preserves_application_and_changes_notes()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+        var scopes = new[] { "sales.receipt.create", "sales.tax_invoice.read" };
+
+        var key = await MintKeyAsync(co.CompanyId, co.BranchId, scopes);
+        long rcId;
+        await using (var factory = new McpApiFactory(_fx.ConnectionString))
+        {
+            using var http = factory.CreateClient();
+            http.DefaultRequestHeaders.Add(ApiKeyHeader, key);
+            await using var client = await ConnectAsync(http);
+            var created = await client.CallToolAsync("create_receipt_draft",
+                new Dictionary<string, object?> { ["request"] = RcUpdateRequest(co, "before", tiId) });
+            created.IsError.Should().NotBe(true);
+            rcId = JsonDocument.Parse(created.Content.OfType<TextContentBlock>().Single().Text)
+                .RootElement.GetProperty("id").GetInt64();
+        }
+        var before = await LoadReceiptAsync(co, rcId);
+
+        var result = await CallUpdateReceiptAsync(co, scopes, rcId, RcUpdateRequest(co, "after", tiId));
+        result.IsError.Should().NotBe(true, result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text);
+
+        var after = await LoadReceiptAsync(co, rcId);
+        after.Notes.Should().Be("after");
+        after.Applications.Should().ContainSingle().Which.TaxInvoiceId.Should().Be(tiId);
+        after.Applications.Single().AppliedAmount.Should().Be(before.Applications.Single().AppliedAmount,
+            "amount = the invoice's current outstanding, same as at create");
+        after.Amount.Should().Be(before.Amount);
+    }
+
+    [SkippableFact]
+    public async Task T12b_update_receipt_draft_refuses_converting_a_settlement_receipt_to_a_cash_bill()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+        var rcId = await CreateRcViaServiceAsync(co, new CreateReceiptRequest(
+            new SystemClock().TodayInBangkok(), co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m,
+            "orig", Applications: [new ReceiptApplicationInput(tiId, 1070m)]));
+
+        var result = await CallUpdateReceiptAsync(co, ["sales.receipt.create"], rcId, RcUpdateRequest(
+            co, "converted", null,
+            [new { productId = 1L, descriptionTh = "x", quantity = 1m, unitPrice = 10m, amount = 10m, productType = "GOOD", uomText = "ชิ้น" }]));
+
+        result.IsError.Should().BeTrue();
+        result.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("mcp.domain_rule");
+        var after = await LoadReceiptAsync(co, rcId);
+        after.Applications.Should().ContainSingle().Which.TaxInvoiceId.Should().Be(tiId);
+        after.Notes.Should().Be("orig");
+    }
+
+    [SkippableFact]
+    public async Task T12c_update_receipt_draft_refuses_a_receipt_settling_several_documents()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiA = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+        var tiB = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+        var rcId = await CreateRcViaServiceAsync(co, new CreateReceiptRequest(
+            new SystemClock().TodayInBangkok(), co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m,
+            "orig", Applications: [new ReceiptApplicationInput(tiA, 100m), new ReceiptApplicationInput(tiB, 100m)]));
+
+        var result = await CallUpdateReceiptAsync(co, ["sales.receipt.create", "sales.tax_invoice.read"], rcId,
+            RcUpdateRequest(co, "x", tiA));
+
+        result.IsError.Should().BeTrue();
+        result.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("mcp.domain_rule");
+        (await LoadReceiptAsync(co, rcId)).Applications.Should().HaveCount(2);
+    }
+
+    [SkippableFact]
+    public async Task T12d_update_receipt_draft_settlement_mode_without_tax_invoice_read_is_forbidden()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+        var rcId = await CreateRcViaServiceAsync(co, new CreateReceiptRequest(
+            new SystemClock().TodayInBangkok(), co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m,
+            "orig", Applications: [new ReceiptApplicationInput(tiId, 1070m)]));
+
+        var result = await CallUpdateReceiptAsync(co, ["sales.receipt.create"], rcId, RcUpdateRequest(co, "x", tiId));
+
+        result.IsError.Should().BeTrue();
+        var text = result.Content.OfType<TextContentBlock>().Single().Text;
+        text.Should().Contain("mcp.forbidden").And.Contain("sales.tax_invoice.read");
+        (await LoadReceiptAsync(co, rcId)).Notes.Should().Be("orig");
+    }
+
+    [SkippableFact]
+    public async Task T12e_update_receipt_draft_refuses_cash_bill_edit_of_a_receipt_with_withholding()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        int whtId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        await using (var scope = sp.CreateAsyncScope())
+            whtId = await scope.ServiceProvider.GetRequiredService<AccountingDbContext>().WhtTypes
+                .Where(w => w.CompanyId == co.CompanyId && w.Code == "SVC").Select(w => w.WhtTypeId).FirstAsync();
+        var rcId = await CreateRcViaServiceAsync(co, new CreateReceiptRequest(
+            new SystemClock().TodayInBangkok(), co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m,
+            "orig", Applications: [], WhtLines: [new ReceiptWhtLineInput(whtId, 100m)],
+            Lines: [new ReceiptLineInput("งาน", 1m, 100m, 100m)]));
+
+        var result = await CallUpdateReceiptAsync(co, ["sales.receipt.create"], rcId, RcUpdateRequest(
+            co, "x", null,
+            [new { productId = 1L, descriptionTh = "x", quantity = 1m, unitPrice = 10m, amount = 10m, productType = "GOOD", uomText = "ชิ้น" }]));
+
+        result.IsError.Should().BeTrue();
+        result.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("mcp.domain_rule");
+        (await LoadReceiptAsync(co, rcId)).WhtLines.Should().ContainSingle();
+    }
 }

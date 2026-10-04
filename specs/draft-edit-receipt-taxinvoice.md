@@ -603,21 +603,21 @@ postable and API/MCP-editable, so no state is trapped.
 ## 5. Requirements checklist
 
 ### WP-1 — Backend services + endpoints + tests *(first; sonnet implements, opus reviews — money/concurrency)*
-- [ ] `ReceiptService.UpdateDraftAsync`: tx + `FOR UPDATE` + `Version++` + activity "Updated" + locked_mismatch mapping (§3.2); doc-comment rewritten (two-direction trace).
-- [ ] `TaxInvoiceService.UpdateDraftAsync`: same + BN guard `ti.linked_to_billing_note` (§3.2); `EnsureVatRegisteredAsync` stays first.
-- [ ] Both `PostAsync` doc-comments corrected re Version (§3.2).
-- [ ] `GetDraftInputAsync` on both interfaces + impls (§3.4), in `ReceiptService.Read.cs` / `TaxInvoiceService.Read.cs`.
-- [ ] Endpoints: PUT + GET draft-input on both (§3.1).
-- [ ] New test file `backend/tests/Accounting.Api.Tests/Sales/DraftEditReceiptTaxInvoiceTests.cs` with T1–T10 (§6).
-- [ ] Run `RbacAuthMapTests` → commit-ready regenerated `docs/rbac/endpoint-permission-map.generated.md` (4 new rows); `RbacCartesianTests` green.
-- [ ] `docs/api/openapi.yaml` entries (§3.7).
-- Done = §7.1 gates green, evidence pasted.
+- [x] `ReceiptService.UpdateDraftAsync`: tx + `FOR UPDATE` + `Version++` + activity "Updated" + locked_mismatch mapping (§3.2); doc-comment rewritten (two-direction trace).
+- [x] `TaxInvoiceService.UpdateDraftAsync`: same + BN guard `ti.linked_to_billing_note` (§3.2); `EnsureVatRegisteredAsync` stays first.
+- [x] Both `PostAsync` doc-comments corrected re Version (§3.2).
+- [x] `GetDraftInputAsync` on both interfaces + impls (§3.4), in `ReceiptService.Read.cs` / `TaxInvoiceService.Read.cs`.
+- [x] Endpoints: PUT + GET draft-input on both (§3.1).
+- [x] New test file `backend/tests/Accounting.Api.Tests/Sales/DraftEditReceiptTaxInvoiceTests.cs` with T1–T10 (§6).
+- [x] Run `RbacAuthMapTests` → commit-ready regenerated `docs/rbac/endpoint-permission-map.generated.md` (4 new rows); `RbacCartesianTests` green.
+- [x] `docs/api/openapi.yaml` entries (§3.7).
+- Done = §7.1 gates green, evidence pasted. **WP-1 evidence:** 108 passed / 0 failed / 0 skipped (DraftEditReceiptTaxInvoice 11 + McpWriteExpansion + RbacAuthMap + RbacCartesian + IdempotencyDocumentFence + ChainConversionIntegrity + McpDocumentChain). T2/T4 round-trips: no divergence. T9 discriminating: without FOR UPDATE the RC edit on a now-POSTED row throws nothing (silently rewrites applications), TI gives ti.locked_mismatch instead of cannot_edit_after_post; without Version++ both stale-post halves fail (no DbUpdateConcurrencyException). Map +4 rows (Perm 304, total 368).
 
 ### WP-2 — MCP `update_receipt_draft` *(after WP-1, SAME worker via SendMessage — shares the test DB and TeasMcpTools is BE)*
-- [ ] Extract `ResolveSettlementAsync` (authz travels with it); create behaviour unchanged (§3.5.1).
-- [ ] Update tool rules + DI params + description (§3.5.2-5).
-- [ ] T12 tests appended to `Mcp/McpWriteExpansionTests.cs` (same harness as `D3_rc_*`).
-- Done = §7.1 gates incl. `FullyQualifiedName~Mcp` green.
+- [x] Extract `ResolveSettlementAsync` (authz travels with it); create behaviour unchanged (§3.5.1).
+- [x] Update tool rules + DI params + description (§3.5.2-5).
+- [x] T12 tests appended to `Mcp/McpWriteExpansionTests.cs` (same harness as `D3_rc_*`).
+- Done = §7.1 gates incl. `FullyQualifiedName~Mcp` green. **WP-2 evidence:** filter `~Mcp|~DraftEditReceiptTaxInvoice` = 208 passed / 0 failed / 0 skipped (T12a-e added; D3_rc_* and Mcp_create_receipt_draft_* still green).
 
 ### WP-3 — Frontend *(sonnet; separate git worktree; tsc/lint/vitest may run in parallel with WP-1/2 — no DB; e2e only after WP-1 is in the tree)*
 - [ ] `components/forms/ReceiptForm.tsx` (moved + edit mode §3.6.2); `receipts/new/page.tsx` thin.
@@ -630,8 +630,8 @@ postable and API/MCP-editable, so no state is trapped.
 - Done = §7.2 gates green.
 
 ### WP-4 — Wiki *(any worker, last)*
-- [ ] `troubles-wiki.md` :1658 entry ("A draft tax invoice created from a quotation cannot be edited…") — append "**RESOLVED (edit) by specs/draft-edit-receipt-taxinvoice.md**; delete still has no route."
-- [ ] `troubles-wiki.md` :516 entry — append: "Not a uniform backstop for VAT receipts: they have no `receipt_lines`, and `receipt_applications`/`receipt_wht_lines` have no trigger. Since draft-edit-receipt-taxinvoice, `UpdateDraftAsync` takes `SELECT … FOR UPDATE` on the header row and bumps `Version`; that, not the line trigger, is the race backstop."
+- [x] `troubles-wiki.md` :1658 entry ("A draft tax invoice created from a quotation cannot be edited…") — append "**RESOLVED (edit) by specs/draft-edit-receipt-taxinvoice.md**; delete still has no route."
+- [x] `troubles-wiki.md` :516 entry — append: "Not a uniform backstop for VAT receipts: they have no `receipt_lines`, and `receipt_applications`/`receipt_wht_lines` have no trigger. Since draft-edit-receipt-taxinvoice, `UpdateDraftAsync` takes `SELECT … FOR UPDATE` on the header row and bumps `Version`; that, not the line trigger, is the race backstop."
 
 ## 6. Test list
 

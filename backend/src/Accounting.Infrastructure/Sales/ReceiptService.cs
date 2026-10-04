@@ -405,22 +405,34 @@ public sealed partial class ReceiptService : IReceiptService
         return new ReceiptComputedFields(amount, whtTotal, headerWhtType, whtLines, applications, lines);
     }
 
-    /// <summary>D3 (spec mcp-expansion.md) — draft-only full edit. Mirrors
+    /// <summary>D3 (spec mcp-expansion.md) - draft-only full edit. Mirrors
     /// <c>QuotationService.UpdateDraftAsync</c>'s delete-and-recreate pattern (D3.0 template),
-    /// extended here to Applications + WhtLines as well as Lines. HARD REQUIREMENT (D3.2):
-    /// Applications/Lines/WhtLines are ALWAYS removed + rebuilt, even for a header-only edit.
-    /// Receipt header trigger 570 (fn_enforce_receipt_immutability) only freezes a NAMED critical-
-    /// field allowlist (doc_no/customer_id/amount/total_amount/wht_amount/... — mirrors TI's 583,
-    /// confirmed against 570_receipt_immutability_rls.sql) — a non-critical field alone (e.g.
-    /// Notes) would NOT trip it. The uniform backstop is line trigger 582
-    /// (fn_receipt_lines_immutable, scoped to sales.receipt_lines): always-rewriting Lines means
-    /// ANY edit — header-only or not — still performs a line DELETE/INSERT that 582 aborts once
-    /// the parent is POSTED. DocNo/Status/PostedAt/DocDate are server-controlled and untouched
-    /// here (DocDate stays exactly as pinned at create).</summary>
+    /// extended here to Applications + WhtLines as well as Lines. Applications/Lines/WhtLines are
+    /// ALWAYS removed + rebuilt, even for a header-only edit. DocNo/Status/PostedAt/DocDate are
+    /// server-controlled and untouched here (DocDate stays exactly as pinned at create).
+    ///
+    /// CONCURRENCY (specs/draft-edit-receipt-taxinvoice.md 3.2). Header trigger 570 only freezes a
+    /// named field allowlist, receipt_applications / receipt_wht_lines have NO immutability trigger,
+    /// and a VAT receipt has zero receipt_lines (so line trigger 582 never fires for it). The backstop
+    /// is therefore a row lock + Version bump, not the line trigger:
+    /// - Edit locks first: PostAsync's header UPDATE blocks on the row lock; once the edit commits,
+    ///   Postgres re-evaluates its WHERE version = @old against the new row (version+1) -> 0 rows ->
+    ///   DbUpdateConcurrencyException -> PostAsync maps it to rc.locked_mismatch (409), its tx rolls
+    ///   back. The user reloads and posts the edited draft.
+    /// - Post updates first: the FOR UPDATE below blocks until post commits, then the EF load (same
+    ///   tx, READ COMMITTED) reads Status = Posted -> rc.cannot_edit_after_post (422). No child touched.
+    /// pg_advisory_xact_lock would not work (post never takes it); Version++ alone would not work
+    /// (post never bumps Version).</summary>
     public async Task UpdateDraftAsync(long receiptId, CreateReceiptRequest req, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
             throw new DomainException("auth.required", "User must be authenticated.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        // Row lock FIRST, before the EF load. Predicate is id-only on purpose: RLS (prod) hides other
+        // companies' rows from FOR UPDATE; the EF load below + its not_found throw scope in tests.
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT receipt_id FROM sales.receipts WHERE receipt_id = {receiptId} FOR UPDATE", ct);
 
         var rc = await _db.Receipts
                 .Include(r => r.Applications).Include(r => r.Lines).Include(r => r.WhtLines)
@@ -474,18 +486,25 @@ public sealed partial class ReceiptService : IReceiptService
         rc.TotalAmount = computed.Amount;
         rc.TotalAmountThb = Math.Round(computed.Amount * req.ExchangeRate, 4, MidpointRounding.AwayFromZero);
 
-        await _db.SaveChangesAsync(ct);
+        rc.Version++;   // makes a racing post's UPDATE (WHERE version = old) miss
+        _activity.Record("Receipt", rc.ReceiptId, rc.DocNo, rc.CompanyId, "Updated");
+        try { await _db.SaveChangesAsync(ct); }
+        catch (Exception ex) when (ex is DbUpdateConcurrencyException || IsPostedRaceViolation(ex))
+        {
+            throw new DomainException("rc.locked_mismatch",
+                "This receipt was changed by someone else. Reload and try again.");
+        }
+        await tx.CommitAsync(ct);
     }
 
     /// <summary>
-    /// R3/H2 — thin wrapper so a concurrent double-post race maps to a clean 409 instead of a
-    /// raw 500. Receipt.Version is never incremented by MarkPosted (unlike PaymentVoucher
-    /// post-WP-B), so EF's own optimistic-concurrency check never actually diverges between two
-    /// racing writers — what stops the loser from corrupting the winner's already-committed row
-    /// is sales.fn_enforce_receipt_immutability (570_receipt_immutability_rls.sql), which raises
-    /// a raw 23514 check_violation when the loser's UPDATE tries to change doc_no/amounts on a
-    /// row that is now POSTED. Also covers the (currently unreachable, since Version is inert
-    /// here) case of a genuine DbUpdateConcurrencyException, mirroring the PV pattern.
+    /// R3/H2 - thin wrapper so a concurrent double-post race maps to a clean 409 instead of a
+    /// raw 500. Receipt.Version is incremented by UpdateDraftAsync (draft-edit-receipt-taxinvoice),
+    /// so the DbUpdateConcurrencyException branch IS reachable: an edit that commits between this
+    /// post's load and its header UPDATE makes the UPDATE (WHERE version = old) miss. The other
+    /// double-post loser is stopped by sales.fn_enforce_receipt_immutability
+    /// (570_receipt_immutability_rls.sql), which raises a raw 23514 check_violation when its UPDATE
+    /// tries to change doc_no/amounts on a row that is now POSTED.
     /// </summary>
     public async Task<ReceiptPostedResult> PostAsync(long receiptId, CancellationToken ct)
     {

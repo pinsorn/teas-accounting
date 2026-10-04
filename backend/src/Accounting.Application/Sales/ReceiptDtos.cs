@@ -159,6 +159,11 @@ public interface IReceiptService
     /// left Draft. DocNo/Status/PostedAt/DocDate are server-controlled and untouched here.</summary>
     Task UpdateDraftAsync(long receiptId, CreateReceiptRequest req, CancellationToken ct);
 
+    /// <summary>The exact request that reproduces this Draft (edit-form prefill). Null = not found
+    /// (tenant-scoped). Non-Draft throws rc.cannot_edit_after_post. PUT(GetDraftInputAsync(id)) is a
+    /// no-op on every persisted column except UpdatedAt/UpdatedBy/Version.</summary>
+    Task<CreateReceiptRequest?> GetDraftInputAsync(long receiptId, CancellationToken ct);
+
     Task<ReceiptPostedResult> PostAsync(long receiptId, CancellationToken ct);
     // E1 — added optional date-range/customer/product filters (all null = unfiltered, prior behavior).
     Task<CursorPage<ReceiptListItem>> ListAsync(long? cursor, int limit, CancellationToken ct,

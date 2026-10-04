@@ -25,6 +25,22 @@ public static class TaxInvoiceEndpoints
         })
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceCreate);
 
+        // draft-edit-receipt-taxinvoice - Draft-only full replace; same policy/validator/DTO as create.
+        group.MapPut("/{id:long}", async (long id, [FromBody] CreateTaxInvoiceRequest req,
+            IValidator<CreateTaxInvoiceRequest> validator, ITaxInvoiceService service, CancellationToken ct) =>
+        {
+            var validation = await validator.ValidateAsync(req, ct);
+            if (!validation.IsValid) return Results.ValidationProblem(validation.ToDictionary());
+            await service.UpdateDraftAsync(id, req, ct);
+            return Results.NoContent();
+        })
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceCreate);
+
+        // The exact CreateTaxInvoiceRequest that reproduces this Draft - the edit form's prefill.
+        group.MapGet("/{id:long}/draft-input", async (long id, ITaxInvoiceService svc, CancellationToken ct) =>
+            await svc.GetDraftInputAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound())
+        .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceCreate);
+
         group.MapPost("/{id:long}/post", async (long id, ITaxInvoiceService service, CancellationToken ct) =>
             Results.Ok(await service.PostAsync(id, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoicePost);

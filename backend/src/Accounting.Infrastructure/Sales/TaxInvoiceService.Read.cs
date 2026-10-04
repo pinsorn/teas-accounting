@@ -71,6 +71,26 @@ public sealed partial class TaxInvoiceService
         return new CursorPage<TaxInvoiceListItem>(rows, next, hasMore);
     }
 
+    public async Task<CreateTaxInvoiceRequest?> GetDraftInputAsync(long taxInvoiceId, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated)
+            throw new DomainException("auth.required", "User must be authenticated.");
+        var t = await _db.TaxInvoices.AsNoTracking()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.TaxInvoiceId == taxInvoiceId, ct);
+        if (t is null) return null;
+        if (t.Status != DocumentStatus.Draft)
+            throw new DomainException("ti.cannot_edit_after_post",
+                "Tax Invoice can only be edited while in Draft.");
+        return new CreateTaxInvoiceRequest(
+            t.DocDate, t.CustomerId, t.IsTaxInclusive, t.CurrencyCode, t.ExchangeRate,
+            t.Notes, t.PaymentTerms, t.DueDate,
+            t.Lines.OrderBy(l => l.LineNo).Select(l => new TaxInvoiceLineInput(
+                l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity, l.UomId, l.UomText,
+                l.UnitPrice, l.DiscountPercent, l.TaxCodeId, l.TaxCode, l.TaxRate, l.ProductType)).ToList(),
+            t.BusinessUnitId, t.QuotationId);
+    }
+
     public async Task<TaxInvoiceDetail?> GetDetailAsync(long id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated)
