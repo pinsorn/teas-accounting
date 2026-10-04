@@ -1306,4 +1306,35 @@ public sealed class McpWriteExpansionTests
         result.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("mcp.domain_rule");
         (await LoadReceiptAsync(co, rcId)).WhtLines.Should().ContainSingle();
     }
+
+    [SkippableFact]
+    public async Task T12f_update_receipt_draft_on_a_posted_settlement_receipt_reports_cannot_edit_after_post()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await TestCompanyFactory.CreateAsync(_fx.ConnectionString, vatRegistered: true);
+        var tiId = await SeedPostedTaxInvoiceAsync(co.CompanyId, co.BranchId, co.CustomerId);
+        long productId, rcId;
+        await using (var sp = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId))
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            productId = await scope.ServiceProvider.GetRequiredService<IProductService>().CreateAsync(new CreateProductRequest(
+                TestIds.ProductCode(), "T12f", null, "GOOD", "unit", 50m,
+                null, null, null, null, null, IsSaleable: true), default);
+            var rcSvc = scope.ServiceProvider.GetRequiredService<IReceiptService>();
+            rcId = await rcSvc.CreateDraftAsync(new CreateReceiptRequest(
+                new SystemClock().TodayInBangkok(), co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m,
+                "orig", Applications: [new ReceiptApplicationInput(tiId, 1070m)]), default);
+            await rcSvc.PostAsync(rcId, default);
+        }
+
+        // No invoiceId: against a DRAFT settlement receipt this would be the mcp.domain_rule shape
+        // refusal; against a POSTED one the refusal must not pre-empt the service's own error.
+        var result = await CallUpdateReceiptAsync(co, ["sales.receipt.create"], rcId, RcUpdateRequest(
+            co, "x", null,
+            [new { productId, descriptionTh = "x", quantity = 1m, unitPrice = 10m, amount = 10m, productType = "GOOD", uomText = "unit" }]));
+
+        result.IsError.Should().BeTrue();
+        result.Content.OfType<TextContentBlock>().Single().Text.Should().Contain("only be edited while in Draft",
+            "the service refusal, not the tool's settlement-shape refusal");
+    }
 }

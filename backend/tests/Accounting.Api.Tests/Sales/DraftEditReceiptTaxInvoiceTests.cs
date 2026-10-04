@@ -277,6 +277,47 @@ public sealed class DraftEditReceiptTaxInvoiceTests
             .Should().Be(qId, "the quotation link survives the round trip");
     }
 
+    [SkippableFact]
+    public async Task T2_TaxInvoice_converted_from_billing_note_and_delivery_order_round_trip_is_a_no_op()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await VatCo();
+        long bnId, doId;
+        await using (var sp = Sp(co)) await using (var s = sp.CreateAsyncScope())
+        {
+            bnId = await s.ServiceProvider.GetRequiredService<IBillingNoteService>().CreateDraftAsync(
+                new CreateBillingNoteRequest(Today(), Today().AddDays(30), co.CustomerId, null, null, null,
+                    "THB", 1m, "bn notes", null,
+                    [new BillingLineInput(null, null, "bn line", 2m, "unit", 1250.00m, 15m, 1, "VAT7", 0.07m)]), default);
+            var dos = s.ServiceProvider.GetRequiredService<IDeliveryOrderService>();
+            doId = await dos.CreateDraftAsync(new CreateDeliveryOrderRequest(
+                Today(), co.CustomerId, null, IsCombinedWithTi: false, "do notes", null,
+                [new DeliveryLineInput(null, null, "do line", 3m, "unit", 400m, 5m, 1, "VAT7", 0.07m)]), default);
+            await dos.IssueAsync(doId, default);
+        }
+        long idBn, idDo;
+        await using (var sp = Sp(co)) await using (var s = sp.CreateAsyncScope())
+        {
+            var ti = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            idBn = await ti.CreateFromBillingNoteAsync(bnId, default);
+            idDo = await ti.CreateFromDeliveryOrderAsync(doId, default);
+        }
+
+        await using var factory = new RbacApiFactory(_fx.ConnectionString);
+        using var http = factory.CreateClient();
+        var token = Token(co);
+        foreach (var id in new[] { idBn, idDo })
+        {
+            var snap1 = await TiGraphAsync(co, id, EditNoise);
+            var (gs, json) = await GetAsync(http, $"/tax-invoices/{id}/draft-input", token);
+            gs.Should().Be(200, json);
+            var (ps, pbody) = await PutAsync(http, $"/tax-invoices/{id}", token, JsonDocument.Parse(json).RootElement);
+            ps.Should().Be(204, pbody);
+            (await TiGraphAsync(co, id, EditNoise)).Should().Equal(snap1,
+                $"I4: PUT(GET draft-input) of converted TI {id} must change no persisted column");
+        }
+    }
+
     // ── T3 — RC edit (VAT, money) ────────────────────────────────────────────
 
     [SkippableFact]
@@ -655,6 +696,39 @@ public sealed class DraftEditReceiptTaxInvoiceTests
         var post = () => staleDb.SaveChangesAsync();
         await post.Should().ThrowAsync<DbUpdateConcurrencyException>(
             "the edit bumped Version, so the stale post's UPDATE ... WHERE version = old misses");
+
+        // Half 3 - the REAL PostAsync loses to a committed edit and rolls back TOTALLY. The scope's
+        // DbContext already tracks the receipt at its old Version, and PostCoreAsync's query returns
+        // that tracked (stale) instance - so the edit lands "between post's load and its UPDATE"
+        // deterministically. Ordering invariant relied on: post's FIRST write is the header save.
+        var rc3 = await CreateRcAsync(co, RcApplyReq(co, "t9c", [new ReceiptApplicationInput(tiA, 1070m)]));
+        await using var postSp = Sp(co); await using var postScope = postSp.CreateAsyncScope();
+        await postScope.ServiceProvider.GetRequiredService<AccountingDbContext>().Receipts
+            .FirstAsync(r => r.ReceiptId == rc3);   // header only, tracked at old Version (children load fresh in post)
+        await using (var sp = Sp(co)) await using (var s = sp.CreateAsyncScope())
+            await s.ServiceProvider.GetRequiredService<IReceiptService>().UpdateDraftAsync(rc3,
+                RcApplyReq(co, "edit-wins-real-post", [new ReceiptApplicationInput(tiB, 1070m)]), default);
+        var before = await CountersAsync(co);
+        async Task<decimal> PaidA()
+        {
+            await using var sp2 = Sp(co); await using var s2 = sp2.CreateAsyncScope();
+            return await s2.ServiceProvider.GetRequiredService<AccountingDbContext>().TaxInvoices.AsNoTracking()
+                .Where(t => t.TaxInvoiceId == tiA).Select(t => t.AmountPaid).FirstAsync();
+        }
+        var paidBefore = await PaidA();
+
+        var realPost = () => postScope.ServiceProvider.GetRequiredService<IReceiptService>().PostAsync(rc3, default);
+        (await realPost.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("rc.locked_mismatch");
+
+        await using (var sp = Sp(co)) await using (var s = sp.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var r = await db.Receipts.AsNoTracking().FirstAsync(x => x.ReceiptId == rc3);
+            r.DocNo.Should().BeNull("the losing post rolled back its doc_no");
+            r.Status.Should().Be(DocumentStatus.Draft);
+        }
+        (await CountersAsync(co)).Should().BeEquivalentTo(before, "no JE booked, number sequence untouched");
+        (await PaidA()).Should().Be(paidBefore, "no AR settlement leaked from the rolled-back post");
     }
 
     [SkippableFact]
@@ -704,6 +778,49 @@ public sealed class DraftEditReceiptTaxInvoiceTests
         var post = () => staleDb.SaveChangesAsync();
         await post.Should().ThrowAsync<DbUpdateConcurrencyException>(
             "the edit bumped Version, so the stale post's UPDATE ... WHERE version = old misses");
+
+        // Half 3 - REAL PostAsync loses to a committed edit; rollback is total (see the RC twin).
+        var ti3 = await CreateTiAsync(co, TiReq(co, "t9c", TiLine("orig", 1m, 1000m)));
+        await using var postSp = Sp(co); await using var postScope = postSp.CreateAsyncScope();
+        await postScope.ServiceProvider.GetRequiredService<AccountingDbContext>().TaxInvoices
+            .Include(t => t.Lines).FirstAsync(t => t.TaxInvoiceId == ti3);   // tracked at old Version
+        await using (var sp = Sp(co)) await using (var s = sp.CreateAsyncScope())
+            await s.ServiceProvider.GetRequiredService<ITaxInvoiceService>().UpdateDraftAsync(ti3,
+                TiReq(co, "edit-wins-real-post", TiLine("new", 3m, 1000m)), default);
+        var before = await CountersAsync(co);
+
+        var realPost = () => postScope.ServiceProvider.GetRequiredService<ITaxInvoiceService>().PostAsync(ti3, default);
+        (await realPost.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("ti.locked_mismatch");
+
+        await using (var sp = Sp(co)) await using (var s = sp.CreateAsyncScope())
+        {
+            var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+            var t = await db.TaxInvoices.AsNoTracking().FirstAsync(x => x.TaxInvoiceId == ti3);
+            t.DocNo.Should().BeNull("the losing post rolled back its doc_no");
+            t.Status.Should().Be(DocumentStatus.Draft);
+            t.AmountPaid.Should().Be(0m);
+        }
+        (await CountersAsync(co)).Should().BeEquivalentTo(before, "no JE booked, number sequence untouched");
+    }
+
+    // R1-2 - deadlock_detected (40P01) between an edit and a post must surface as *.locked_mismatch
+    // (409), same as the version-miss / 23514 losers. The mapping helper is checked directly (a
+    // forced deadlock is not deterministic).
+    [Theory]
+    [InlineData("Accounting.Infrastructure.Sales.ReceiptService")]
+    [InlineData("Accounting.Infrastructure.Sales.TaxInvoiceService")]
+    public void R1_2_deadlock_40P01_is_classified_as_a_post_race_loser(string typeName)
+    {
+        var m = typeof(AccountingDbContext).Assembly.GetType(typeName)!
+            .GetMethod("IsPostedRaceViolation", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        bool Is(Exception e) => (bool)m.Invoke(null, [e])!;
+        PostgresException Pg(string state) => new("m", "ERROR", "ERROR", state);
+
+        Is(Pg("40P01")).Should().BeTrue("raw deadlock");
+        Is(new DbUpdateException("x", Pg("40P01"))).Should().BeTrue("deadlock wrapped by EF");
+        Is(new DbUpdateException("x", Pg("23514"))).Should().BeTrue("existing immutability-trigger loser");
+        Is(new DbUpdateException("x", Pg("23505"))).Should().BeFalse("unrelated unique violation");
+        Is(new InvalidOperationException()).Should().BeFalse();
     }
 
     // ── T10 — BN guard + exit ────────────────────────────────────────────────

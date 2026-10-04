@@ -620,13 +620,13 @@ postable and API/MCP-editable, so no state is trapped.
 - Done = §7.1 gates incl. `FullyQualifiedName~Mcp` green. **WP-2 evidence:** filter `~Mcp|~DraftEditReceiptTaxInvoice` = 208 passed / 0 failed / 0 skipped (T12a-e added; D3_rc_* and Mcp_create_receipt_draft_* still green).
 
 ### WP-3 — Frontend *(sonnet; separate git worktree; tsc/lint/vitest may run in parallel with WP-1/2 — no DB; e2e only after WP-1 is in the tree)*
-- [ ] `components/forms/ReceiptForm.tsx` (moved + edit mode §3.6.2); `receipts/new/page.tsx` thin.
-- [ ] `components/forms/TaxInvoiceForm.tsx` (moved + edit mode §3.6.3); `tax-invoices/new/page.tsx` thin.
-- [ ] `receipts/[id]/edit/page.tsx`, `tax-invoices/[id]/edit/page.tsx` (§3.6.4).
-- [ ] Edit buttons on both detail pages (§3.6.5).
-- [ ] Hooks (§3.6.6) in `lib/queries.ts`; `lib/types.ts` (`productType` on TI line input; WHT view type only if missing).
-- [ ] `messages/th.json`, `messages/en.json`, `lib/i18n/problems.ts` (§3.6.6).
-- [ ] `frontend/e2e/draft-edit-receipt-taxinvoice.spec.ts` (E1, E2 §6).
+- [x] `components/forms/ReceiptForm.tsx` (moved + edit mode §3.6.2); `receipts/new/page.tsx` thin. (WP-3 worker: tsc clean, lint 0 errors, vitest 72/72, glyph clean)
+- [x] `components/forms/TaxInvoiceForm.tsx` (moved + edit mode §3.6.3); `tax-invoices/new/page.tsx` thin.
+- [x] `receipts/[id]/edit/page.tsx`, `tax-invoices/[id]/edit/page.tsx` (§3.6.4).
+- [x] Edit buttons on both detail pages (§3.6.5).
+- [x] Hooks (§3.6.6) in `lib/queries.ts`; `lib/types.ts` (`productType` on TI line input; WHT view type only if missing).
+- [x] `messages/th.json`, `messages/en.json`, `lib/i18n/problems.ts` (§3.6.6).
+- [~] `frontend/e2e/draft-edit-receipt-taxinvoice.spec.ts` (E1, E2 §6). - pending orchestrator e2e run
 - Done = §7.2 gates green.
 
 ### WP-4 — Wiki *(any worker, last)*
@@ -762,3 +762,23 @@ fresh row; needing a new permission; touching > 30 files.
 
 ## Attempt log
 - 2026-10-04 opus-designer: spec written (read-only investigation; no code changed).
+
+## 10. Post-review remediation R1 (opus-reviewer APPROVE-WITH-NITS, 2026-10-04) — cap unchanged (30; all files already in §9)
+Fable rulings (explicit authorization for the §9 PostAsync trigger on item R1-2 ONLY: exception mapping in the
+existing wrapper catch, no change to post logic):
+- [x] R1-1 T9 hardening: add an edit-wins case that calls the real `PostAsync` (stale scope loads before the edit **done: Mcp|DraftEdit filter 210/212 first run, 2 test-side fixes, re-run 31/31 green; number sequence rollback confirmed.**
+  commits, e.g. via a second DbContext / hook) and asserts `rc.locked_mismatch` / `ti.locked_mismatch` AND that the
+  rollback is total: DocNo still NULL, `sys.number_sequences` row unchanged, TI `AmountPaid` unchanged, JE count
+  unchanged. If a real-PostAsync interleave cannot be built deterministically, report why and keep the raw-SaveChanges
+  half plus a comment naming the ordering invariant (header save is post's first write).
+- [x] R1-2 Map Postgres 40P01 (deadlock_detected) to `*.locked_mismatch` in BOTH `UpdateDraftAsync` catches and BOTH **done: Mcp|DraftEdit filter 210/212 first run, 2 test-side fixes, re-run 31/31 green; number sequence rollback confirmed.**
+  `PostAsync` wrapper catches (RC + TI). Unit-level test of the mapping helper is enough (no forced deadlock).
+- [x] R1-3 T2: add BN→TI and DO→TI converted round-trip cases (PUT(GET draft-input) changes nothing but **done: Mcp|DraftEdit filter 210/212 first run, 2 test-side fixes, re-run 31/31 green; number sequence rollback confirmed.**
+  UpdatedAt/UpdatedBy/Version). Divergence = STOP and report (§9 trigger), do not patch.
+- [x] R1-4 FE `ReceiptForm.tsx` `onSelectProduct`: set `productCode` from the selected product (or null) so a **done: tsc --noEmit clean, eslint clean.**
+  product change never keeps the old code.
+- [x] R1-5 MCP `update_receipt_draft`: run the shape refusals only when the stored receipt is Draft (select Status in **done: Mcp|DraftEdit filter 210/212 first run, 2 test-side fixes, re-run 31/31 green; number sequence rollback confirmed.**
+  the pre-check); a posted receipt falls through to the service → `rc.cannot_edit_after_post`. Add a T12f asserting it.
+- [x] R1-6 Tick WP-3 checklist with the WP-3 worker's evidence (tsc clean, lint 0 errors, vitest 72/72, glyph clean;
+  e2e `[~]` pending orchestrator run).
+- 2026-10-04 opus-reviewer: APPROVE-WITH-NITS, 6 findings → §10 R1.

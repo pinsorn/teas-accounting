@@ -526,7 +526,8 @@ public sealed partial class ReceiptService : IReceiptService
     /// all RAISE EXCEPTION with ERRCODE 'check_violation' (23514) when a second writer's UPDATE
     /// tries to touch a critical field on a row another writer already flipped to Posted.</summary>
     private static bool IsPostedRaceViolation(Exception ex) =>
-        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" } };
+        ex is DbUpdateException { InnerException: PostgresException { SqlState: "23514" or "40P01" } }
+        or PostgresException { SqlState: "40P01" };   // 40P01 = deadlock_detected: edit vs post lock cycle
 
     private async Task<ReceiptPostedResult> PostCoreAsync(long receiptId, CancellationToken ct)
     {

@@ -530,7 +530,7 @@ export function ReceiptForm({ edit }: { edit?: ReceiptEditProps } = {}) {
                           ariaLabel={`lineDesc ${i + 1}`}
                           onDescriptionChange={(text) => setLineRow(i, { description: text })}
                           onSelectProduct={(p) => setLineRow(i, {
-                            description: p.nameTh, productId: p.productId, productType: p.productType,
+                            description: p.nameTh, productId: p.productId, productCode: p.productCode ?? null, productType: p.productType,
                             unitPrice: p.defaultUnitPrice ?? l.unitPrice,
                             amount: (p.defaultUnitPrice ?? l.unitPrice) * (l.quantity || 1),
                             uomText: p.defaultUomText ?? l.uomText,

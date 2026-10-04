@@ -1572,11 +1572,12 @@ public sealed class TeasMcpTools
             throw new McpE2Exception("mcp.invalid_payment_method",
                 $"Unknown payment method '{request.PaymentMethod}'.");
 
-        // Shape of the stored draft. null = not found -> skip the guards; the service throws
+        // Shape of the stored receipt. null = not found -> skip the guards; the service throws
         // rc.not_found (keeps the cross-tenant behaviour).
         var existing = await db.Receipts.AsNoTracking().Where(r => r.ReceiptId == receiptId)
             .Select(r => new
             {
+                r.Status,
                 AppCount = r.Applications.Count(),
                 HasDoApp = r.Applications.Any(a => a.DeliveryOrderId != null),
                 WhtCount = r.WhtLines.Count(),
@@ -1587,7 +1588,8 @@ public sealed class TeasMcpTools
         IReadOnlyList<ReceiptLineInput> lines = [];
         List<ReceiptWhtLineInput>? whtLines = null;
 
-        if (existing is not null)
+        // Draft only: a posted receipt falls through to the service -> rc.cannot_edit_after_post.
+        if (existing is { Status: DocumentStatus.Draft })
         {
             if (existing.HasDoApp || existing.AppCount > 1)
                 throw new McpE2Exception("mcp.domain_rule",
