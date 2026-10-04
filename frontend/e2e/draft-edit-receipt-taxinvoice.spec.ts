@@ -66,9 +66,7 @@ test('E2: edit a draft receipt (applied amount), then post it', async ({ page })
   await page.waitForURL(new RegExp(`/receipts/${id}$`), { timeout: 15_000 });
   await expect(page.locator('main')).toContainText('1,070.00');
 
+  // Receipt detail posts directly (no confirm dialog, unlike the tax invoice page).
   await page.getByTestId('rc-post-action').click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: /Confirm post|ยืนยันบันทึก/i }).click();
   await expect(page.locator('body')).toContainText(/-RC-\d{4}/, { timeout: 15_000 });
 });

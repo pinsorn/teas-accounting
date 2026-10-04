@@ -626,7 +626,7 @@ postable and API/MCP-editable, so no state is trapped.
 - [x] Edit buttons on both detail pages (§3.6.5).
 - [x] Hooks (§3.6.6) in `lib/queries.ts`; `lib/types.ts` (`productType` on TI line input; WHT view type only if missing).
 - [x] `messages/th.json`, `messages/en.json`, `lib/i18n/problems.ts` (§3.6.6).
-- [~] `frontend/e2e/draft-edit-receipt-taxinvoice.spec.ts` (E1, E2 §6). - pending orchestrator e2e run
+- [x] `frontend/e2e/draft-edit-receipt-taxinvoice.spec.ts` (E1, E2 §6). - e2e 2026-10-04 on accounting_dev, API :5080 rebuilt from HEAD c16b3da + `next start` on fresh build: 4/4 pass (E1, E2, issue-receipt, login-and-create-tax-invoice). One test fix: receipt detail posts with no confirm dialog (only TI has one) — removed the dialog step from E2.
 - Done = §7.2 gates green.
 
 ### WP-4 — Wiki *(any worker, last)*
