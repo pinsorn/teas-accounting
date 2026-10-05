@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.5.0](https://github.com/pinsorn/teas-accounting/compare/v2.4.0...v2.5.0) (2026-10-05)
+
+
+### Features
+
+* **fe:** draft edit pages for receipts and tax invoices (WP-3) ([d6d2714](https://github.com/pinsorn/teas-accounting/commit/d6d2714042cf430db27389be1bd8104864b84c99))
+* **fe:** notes (หมายเหตุ) input on receipt and tax invoice forms ([3761e66](https://github.com/pinsorn/teas-accounting/commit/3761e66e1f4e85347fb1bdaced53582adec858d0))
+* **reports:** voided TIs in sales registers, AR subledger by JE date (WP-3) ([fb0e785](https://github.com/pinsorn/teas-accounting/commit/fb0e7853ed8b95738371d16439c2663114bd5659))
+* **sales:** cancel + reissue posted tax invoices, receipts and invoices; notes on RC/TI ([d68572a](https://github.com/pinsorn/teas-accounting/commit/d68572a5f1830bbd67d68681204efe7df1c4ae4f))
+* **sales:** cancel+reissue schema, immutability v3, cancel permissions (WP-1) ([1187136](https://github.com/pinsorn/teas-accounting/commit/11871360b535878626a0fb824b65c54ccafeb755))
+* **sales:** edit draft receipts and tax invoices ([b1907dc](https://github.com/pinsorn/teas-accounting/commit/b1907dc03ca7084b98fcd28bb4486dceb587718d))
+* **sales:** edit draft receipts and tax invoices via REST; close edit-vs-post race; MCP update_receipt_draft keeps settlement ([eae8b4c](https://github.com/pinsorn/teas-accounting/commit/eae8b4ce4a8fdc4624b4f6d90a7b10d8cf547bdd))
+
+
+### Bug Fixes
+
+* **sales:** cancel+reissue Tier-2 R1 — receipt post vs cancel race, O11 customer, guards ([85119a8](https://github.com/pinsorn/teas-accounting/commit/85119a86d4c5c284cb46cd7502574a73206c3dc9))
+* **sales:** draft-edit review R1 — deadlock maps to locked_mismatch, real-PostAsync race test, converted-TI round-trips, MCP posted-receipt error, FE productCode ([c16b3da](https://github.com/pinsorn/teas-accounting/commit/c16b3daaadb45cc39557bec258c5881607263c0a))
+
 ## [2.4.0](https://github.com/pinsorn/teas-accounting/compare/v2.3.2...v2.4.0) (2026-09-05)
 
 
