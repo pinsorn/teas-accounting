@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,7 +13,7 @@ import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { DateInput } from '@/components/ui/DateInput';
 import { LineItemsTable, EMPTY_LINE, type LineItem } from '@/components/ui/LineItemsTable';
 import { BusinessUnitSelector } from '@/components/ui/BusinessUnitSelector';
-import { useCreateTaxInvoice, useUpdateTaxInvoice, usePostTaxInvoice, useCompanyBuSetting, useCompanyProfile, useSystemInfo, useMePermissions } from '@/lib/queries';
+import { useCreateTaxInvoice, useUpdateTaxInvoice, usePostTaxInvoice, useCompanyBuSetting, useCompanyProfile, useSystemInfo, useMePermissions, useDefaultDocNote } from '@/lib/queries';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
 import type { CreateTaxInvoiceRequest, CreateTaxInvoiceLineInput } from '@/lib/types';
 import { bangkokToday, formatTHB } from '@/lib/utils';
@@ -58,7 +58,7 @@ const SCOPE = 'sales.tax_invoice.create';
 
 // draft-edit-receipt-taxinvoice — edit mode. `input` is GET /tax-invoices/{id}/draft-input (the exact
 // create-request that reproduces the draft). Save sends `{...input, customerId, businessUnitId, lines}`:
-// the form manages only those three, so quotationId / notes / paymentTerms / dueDate / isTaxInclusive /
+// the form manages only those three, so quotationId / paymentTerms / dueDate / isTaxInclusive /
 // currency / docDate pass through untouched (a missing quotationId would UNLINK the quotation).
 export type TaxInvoiceEditProps = { id: number; input: CreateTaxInvoiceRequest; customerName: string };
 
@@ -98,6 +98,16 @@ export function TaxInvoiceForm({ edit }: { edit?: TaxInvoiceEditProps } = {}) {
   const [customerLabel, setCustomerLabel] = useState(edit?.customerName ?? '');
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(edit?.input.businessUnitId ?? null);
   const [buError, setBuError] = useState(false);
+  const [notes, setNotes] = useState(edit?.input.notes ?? '');
+
+  // Create-time default หมายเหตุ prefill (one-shot, never over an edited draft's own value).
+  const defaultNote = useDefaultDocNote('taxInvoice');
+  const notesSeeded = useRef(false);
+  useEffect(() => {
+    if (isEdit || notesSeeded.current || defaultNote === undefined) return;
+    notesSeeded.current = true;
+    if (!notes.trim()) setNotes(defaultNote);
+  }, [isEdit, defaultNote, notes]);
 
   const invalid = onInvalidSubmit((m) => toast.error(m), tt('validationFailed'));
 
@@ -120,6 +130,7 @@ export function TaxInvoiceForm({ edit }: { edit?: TaxInvoiceEditProps } = {}) {
     reset({ customerId: edit.input.customerId, lines: edit.input.lines.map(toLine) });
     setBusinessUnitId(edit.input.businessUnitId ?? null);
     setCustomerLabel(edit.customerName);
+    setNotes(edit.input.notes ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit?.id]);
 
@@ -158,7 +169,7 @@ export function TaxInvoiceForm({ edit }: { edit?: TaxInvoiceEditProps } = {}) {
       if (edit) {
         await update.mutateAsync({
           id: edit.id,
-          req: { ...edit.input, customerId: v.customerId, businessUnitId, lines: mappedLines },
+          req: { ...edit.input, customerId: v.customerId, businessUnitId, notes: notes.trim() || null, lines: mappedLines },
         });
         toast.success(tc('draftSaved'));
         return edit.id;
@@ -174,7 +185,7 @@ export function TaxInvoiceForm({ edit }: { edit?: TaxInvoiceEditProps } = {}) {
         isTaxInclusive: false,
         currencyCode: 'THB',
         exchangeRate: 1,
-        notes: null,
+        notes: notes.trim() || null,
         paymentTerms: null,
         dueDate: null,
         lines: mappedLines,
@@ -337,6 +348,17 @@ export function TaxInvoiceForm({ edit }: { edit?: TaxInvoiceEditProps } = {}) {
               )}
             />
           </SectionCard>
+
+        {/* ④ หมายเหตุ */}
+        <SectionCard number={4} title={tcr('notes')}>
+          <textarea
+            className="textarea textarea-bordered w-full"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            aria-label={tcr('notes')}
+          />
+        </SectionCard>
         </form>
       </DocumentCreateLayout>
 
