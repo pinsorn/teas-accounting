@@ -222,6 +222,10 @@ type CancelDocVars = { id: number; reasonCode: string; reason: string };
 function invalidateCancelDoc(qc: ReturnType<typeof useQueryClient>, kind: CancelDocKind, id: number) {
   const one = kind === 'tax-invoices' ? 'tax-invoice' : 'receipt';
   qc.invalidateQueries({ queryKey: [kind] });
+  if (kind === 'receipts') {
+    qc.invalidateQueries({ queryKey: ['tax-invoices'] });
+    qc.invalidateQueries({ queryKey: ['tax-invoice'] });
+  }
   qc.invalidateQueries({ queryKey: [one, id] });
   qc.invalidateQueries({ queryKey: [one] });
   qc.invalidateQueries({ queryKey: ['paper-doc'] });

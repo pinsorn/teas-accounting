@@ -629,4 +629,156 @@ public sealed class CancelReissueReceiptTests
             (await period.CloseAsync(2031, 5, null, default)).Should().NotBeNull();
         }
     }
+
+    // ── R1-F1 — receipt post vs a TI cancel that commits while the post is waiting on the row lock ──
+
+    [SkippableFact]
+    public async Task R1_F1_receipt_post_refused_when_ti_cancel_commits_first_under_lock()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await CancelKit.VatCoAsync(_fx);
+        await using var sp = CancelKit.Sp(_fx, co);
+        var tiId = await CancelKit.PostTiAsync(sp, co.CustomerId);
+        long rcDraft;
+        await using (var s = sp.CreateAsyncScope())
+            rcDraft = await s.ServiceProvider.GetRequiredService<IReceiptService>().CreateDraftAsync(new CreateReceiptRequest(
+                Today, co.CustomerId, PaymentMethod.Cash, null, null, null, "THB", 1m, null,
+                [new ReceiptApplicationInput(tiId, 1070m)]), default);
+
+        // A second connection holds the TI row lock. The cancel queues first, then the receipt post queues behind it;
+        // releasing the lock makes the cancel commit before the post can take the lock.
+        await using var raw = new NpgsqlConnection(_fx.ConnectionString);
+        await raw.OpenAsync();
+        await using var rawTx = await raw.BeginTransactionAsync();
+        await using (var cmd = new NpgsqlCommand("SELECT tax_invoice_id FROM sales.tax_invoices WHERE tax_invoice_id = @id FOR UPDATE", raw, rawTx))
+        {
+            cmd.Parameters.AddWithValue("id", tiId);
+            await cmd.ExecuteScalarAsync();
+        }
+
+        var cancelTask = Task.Run(async () =>
+        {
+            await using var s = sp.CreateAsyncScope();
+            var svc = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            return await CancelKit.CodeOfAsync(() => svc.CancelAsync(tiId, "DUPLICATE", "r1", default));
+        });
+        await Task.Delay(800);
+        var postTask = Task.Run(async () =>
+        {
+            await using var s = sp.CreateAsyncScope();
+            var svc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            return await CancelKit.CodeOfAsync(() => svc.PostAsync(rcDraft, default));
+        });
+        await Task.Delay(800);
+        await rawTx.CommitAsync();
+
+        (await cancelTask).Should().Be("NO_EXCEPTION");
+        (await postTask).Should().Be("rc.ti_not_posted");
+        var ti = await CancelKit.WithDbAsync(sp, db => db.TaxInvoices.AsNoTracking().FirstAsync(t => t.TaxInvoiceId == tiId));
+        ti.Status.Should().Be(DocumentStatus.Voided);
+        ti.AmountPaid.Should().Be(0m);
+        (await CancelKit.WithDbAsync(sp, db => db.Receipts.AsNoTracking().FirstAsync(r => r.ReceiptId == rcDraft))).Status.Should().Be(DocumentStatus.Draft);
+        await AssertI4Async(sp, co.CompanyId);
+    }
+
+    // ── R1-F2 — T23b: the TI is reissued under a different buyer; the replacement receipt ADOPTS that customer ──
+
+    [SkippableFact]
+    public async Task R1_F2_Paid_ti_reissued_to_another_customer_receipt_adopts_it()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await CancelKit.VatCoAsync(_fx);
+        await using var sp = CancelKit.Sp(_fx, co);
+        var wht = await CancelKit.WhtSvcTypeIdAsync(sp, co.CompanyId);
+        var custB = await CancelKit.WithDbAsync(sp, async db =>
+        {
+            var c = new Accounting.Domain.Entities.Master.Customer
+            {
+                CompanyId = co.CompanyId, CustomerCode = Accounting.TestKit.TestIds.CustomerCode(),
+                CustomerType = CustomerType.Corporate, NameTh = "ผู้ซื้อที่ถูกต้อง จำกัด", TaxId = "0105556123453",
+                BranchCode = "00000", VatRegistered = true, BillingAddress = "ที่อยู่ B", IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Customers.Add(c);
+            await db.SaveChangesAsync();
+            return c;
+        });
+
+        var tiId = await CancelKit.PostTiAsync(sp, co.CustomerId);
+        var (rcId, _) = await CancelKit.PostReceiptAsync(sp, co.CustomerId, tiId, 1070m,
+            wht: [new ReceiptWhtLineInput(wht, 1000m)], certNo: "50T-F2");
+        await CancelRcAsync(sp, rcId);
+
+        long replTi;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var tsvc = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            replTi = (await tsvc.CancelAndReissueAsync(tiId, "BUYER_DETAILS_ERROR", "ผิดผู้ซื้อ", default)).ReplacementTaxInvoiceId!.Value;
+            var req = (await tsvc.GetDraftInputAsync(replTi, default))!;
+            await tsvc.UpdateDraftAsync(replTi, req with { CustomerId = custB.CustomerId }, default);
+            await tsvc.PostAsync(replTi, default);
+        }
+
+        long replRc;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var rsvc = s.ServiceProvider.GetRequiredService<IReceiptService>();
+            replRc = await rsvc.ReissueAsync(rcId, default);
+            var draft = await CancelKit.WithDbAsync(sp, db => db.Receipts.AsNoTracking().FirstAsync(r => r.ReceiptId == replRc));
+            draft.CustomerId.Should().Be(custB.CustomerId, "the replacement adopts the retargeted TI's customer");
+            draft.CustomerName.Should().Be("ผู้ซื้อที่ถูกต้อง จำกัด");
+            await rsvc.PostAsync(replRc, default);
+        }
+
+        var rc = await CancelKit.WithDbAsync(sp, db => db.Receipts.AsNoTracking().FirstAsync(r => r.ReceiptId == replRc));
+        rc.CustomerId.Should().Be(custB.CustomerId);
+        var certs = await CancelKit.WithDbAsync(sp, db => db.WhtCertificates.AsNoTracking().Where(w => w.ReceiptId == replRc).ToListAsync());
+        certs.Should().ContainSingle().Which.PayerName.Should().Be("ผู้ซื้อที่ถูกต้อง จำกัด");
+        await AssertI4Async(sp, co.CompanyId);
+
+        // AR subledger: A (the wrong buyer) nets to zero, B carries invoice + receipt and also nets to zero.
+        await using var s2 = sp.CreateAsyncScope();
+        var sub = s2.ServiceProvider.GetRequiredService<Accounting.Application.Reports.ISubledgerReportService>();
+        var from = Today.AddDays(-1); var to = Today.AddDays(1);
+        var stA = await sub.CustomerStatementAsync(co.CustomerId, from, to, default);
+        stA.ClosingBalance.Should().Be(0m);
+        stA.Lines.Should().Contain(l => l.DocType == "TaxInvoiceCancel");
+        var stB = await sub.CustomerStatementAsync(custB.CustomerId, from, to, default);
+        stB.ClosingBalance.Should().Be(0m);
+        stB.Lines.Select(l => l.DocType).Should().Contain(["TaxInvoice", "Receipt"]);
+
+        // a replacement receipt whose applied TI belongs to someone else is refused at post
+        var tiC = await CancelKit.PostTiAsync(sp, custB.CustomerId);
+        var (rcOk, _) = await CancelKit.PostReceiptAsync(sp, custB.CustomerId, tiC, 100m);
+        await CancelRcAsync(sp, rcOk);
+        long replBad;
+        await using (var s = sp.CreateAsyncScope())
+            replBad = await s.ServiceProvider.GetRequiredService<IReceiptService>().ReissueAsync(rcOk, default);
+        await CancelKit.WithDbAsync(sp, async db =>
+        {
+            var r = await db.Receipts.FirstAsync(x => x.ReceiptId == replBad);
+            r.CustomerId = co.CustomerId;   // out-of-band tamper: draft customer no longer matches its TI
+            await db.SaveChangesAsync();
+            return 0;
+        });
+        await using (var s = sp.CreateAsyncScope())
+            (await CancelKit.CodeOfAsync(() => s.ServiceProvider.GetRequiredService<IReceiptService>().PostAsync(replBad, default)))
+                .Should().Be("rc.customer_mismatch");
+    }
+
+    // ── R1-F3 — a Voided TI cannot be grouped into an Invoice ──────────────────────────────────
+
+    [SkippableFact]
+    public async Task R1_F3_voided_ti_cannot_be_grouped_into_a_billing_note()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await CancelKit.VatCoAsync(_fx);
+        await using var sp = CancelKit.Sp(_fx, co);
+        var ti = await CancelKit.PostTiAsync(sp, co.CustomerId);
+        await using var s = sp.CreateAsyncScope();
+        await s.ServiceProvider.GetRequiredService<ITaxInvoiceService>().CancelAsync(ti, "DUPLICATE", "x", default);
+        (await CancelKit.CodeOfAsync(() => s.ServiceProvider.GetRequiredService<IBillingNoteService>().CreateDraftAsync(
+            new CreateBillingNoteRequest(Today, Today.AddDays(30), co.CustomerId, null, null, [ti], "THB", 1m, null, null, []), default)))
+            .Should().Be("billing_note.ti_not_posted");
+    }
 }

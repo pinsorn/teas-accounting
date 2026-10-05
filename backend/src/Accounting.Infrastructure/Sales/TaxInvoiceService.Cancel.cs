@@ -75,6 +75,13 @@ public sealed partial class TaxInvoiceService
             if (ti.Status != DocumentStatus.Draft || ti.ReplacesTaxInvoiceId is not { } origId)
                 throw new DomainException("ti.delete_not_allowed",
                     "Only a replacement draft can be discarded.");
+            // R1-F4: a draft replacement may already be grouped by an Invoice; refuse cleanly instead of an FK 500.
+            var bnLink = await _db.BillingNotes.AsNoTracking()
+                .Where(b => b.Status != BillingNoteStatus.Cancelled && b.TaxInvoiceLinks.Any(j => j.TaxInvoiceId == id))
+                .Select(b => b.DocNo).FirstOrDefaultAsync(ct);
+            if (bnLink is not null || await _db.BillingNoteTaxInvoices.AnyAsync(j => j.TaxInvoiceId == id, ct))
+                throw new DomainException("ti.linked_to_billing_note",
+                    "This replacement is referenced by an Invoice; cancel or edit that Invoice first.");
             var origNo = await _db.TaxInvoices.Where(t => t.TaxInvoiceId == origId)
                 .Select(t => t.DocNo).FirstOrDefaultAsync(ct);
             _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId, "ReplacementDiscarded",
@@ -98,7 +105,7 @@ public sealed partial class TaxInvoiceService
             throw new DomainException("ti.cannot_cancel_status", ti.Status == DocumentStatus.Voided
                 ? "Tax Invoice is already cancelled."
                 : "Only a Posted Tax Invoice can be cancelled.");
-        CancelReasonCodes.Require(reasonCode, reissue ? CancelReasonCodes.TaxInvoiceReissue : CancelReasonCodes.TaxInvoiceCancel);
+        CancelReasonCodes.Require(reasonCode, reissue ? [CancelReasonCodes.TaxInvoiceReissue] : [CancelReasonCodes.TaxInvoiceCancel, CancelReasonCodes.TaxInvoiceReissue]);
         if (string.IsNullOrWhiteSpace(reason))
             throw new DomainException("validation.reason_required", "A reason is required.");
         if (reason.Length > 500)
@@ -129,7 +136,7 @@ public sealed partial class TaxInvoiceService
 
         var je = await DocumentCancellation.ResolveOriginalJournalAsync(
             _db, ti.CompanyId, ti.JournalEntryId, ti.DocNo, "TI ", ct);
-        var glDate = await DocumentCancellation.ResolveGlDateAsync(_period, _clock, ti.DocDate, ct);
+        var glDate = await DocumentCancellation.ResolveReversalDateAsync(_period, _clock, ti.DocDate, je.DocDate, ct);
 
         // The TI is tracked and CLEAN here: PostReversalAsync saves internally, and a flush of a half-set
         // VOIDED row would make the later cancel-column UPDATE hit the 643 freeze.
@@ -269,8 +276,13 @@ public sealed partial class TaxInvoiceService
         if (req.IsTaxInclusive != ti.IsTaxInclusive) diffs.Add("IsTaxInclusive");
         if (req.CurrencyCode != ti.CurrencyCode) diffs.Add("CurrencyCode");
         if (req.ExchangeRate != ti.ExchangeRate) diffs.Add("ExchangeRate");
-        if (req.BusinessUnitId != ti.BusinessUnitId) diffs.Add("BusinessUnitId");
-        if (req.QuotationId != ti.QuotationId) diffs.Add("QuotationId");
+        // R1-F5: resolve the effective BU through the API-key binding first; a null QuotationId means "keep".
+        var (effBu, buErr) = ApiKeyBuBinding.Resolve(req.BusinessUnitId, _tenant.ApiKeyDefaultBusinessUnitId);
+        if (buErr is not null)
+            throw new DomainException(buErr,
+                $"This API key is bound to Business Unit {_tenant.ApiKeyDefaultBusinessUnitId}; request specified {req.BusinessUnitId}.");
+        if (effBu != ti.BusinessUnitId) diffs.Add("BusinessUnitId");
+        if (req.QuotationId is not null && req.QuotationId != ti.QuotationId) diffs.Add("QuotationId");
         var stored = ti.Lines.OrderBy(l => l.LineNo).ToList();
         if (req.Lines.Count != stored.Count) diffs.Add("Lines.Count");
         else

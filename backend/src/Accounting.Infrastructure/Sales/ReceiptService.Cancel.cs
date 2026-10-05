@@ -96,7 +96,7 @@ public sealed partial class ReceiptService
             throw new DomainException("rc.cannot_cancel_status", rc.Status == DocumentStatus.Voided
                 ? "Receipt is already cancelled."
                 : "Only a Posted receipt can be cancelled.");
-        CancelReasonCodes.Require(reasonCode, reissue ? CancelReasonCodes.ReceiptReissue : CancelReasonCodes.ReceiptCancel);
+        CancelReasonCodes.Require(reasonCode, reissue ? [CancelReasonCodes.ReceiptReissue] : [CancelReasonCodes.ReceiptCancel, CancelReasonCodes.ReceiptReissue]);
         if (string.IsNullOrWhiteSpace(reason))
             throw new DomainException("validation.reason_required", "A reason is required.");
         if (reason.Length > 500)
@@ -108,7 +108,7 @@ public sealed partial class ReceiptService
 
         var je = await DocumentCancellation.ResolveOriginalJournalAsync(
             _db, rc.CompanyId, rc.JournalEntryId, rc.DocNo, "RC ", ct);
-        var glDate = await DocumentCancellation.ResolveGlDateAsync(_period, _clock, rc.DocDate, ct);
+        var glDate = await DocumentCancellation.ResolveReversalDateAsync(_period, _clock, rc.DocDate, je.DocDate, ct);
 
         // (a) unwind every applied TI (ascending id lock first).
         var tiApps = rc.Applications.Where(a => a.TaxInvoiceId.HasValue)
@@ -230,14 +230,23 @@ public sealed partial class ReceiptService
     {
         if (await _db.Receipts.AnyAsync(r => r.ReplacesReceiptId == o.ReceiptId, ct))
             throw new DomainException("rc.replacement_exists", "A replacement already exists for this receipt.");
-        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.CustomerId == o.CustomerId, ct)
-            ?? throw new DomainException("rc.customer_missing", $"Customer {o.CustomerId} not found.");
         var src = await _db.Receipts.AsNoTracking()
             .Include(r => r.Applications).Include(r => r.Lines).Include(r => r.WhtLines)
             .FirstAsync(r => r.ReceiptId == o.ReceiptId, ct);
 
         var map = await BuildRetargetMapAsync(
             src.Applications.Where(a => a.TaxInvoiceId.HasValue).Select(a => a.TaxInvoiceId!.Value), ct);
+
+        // R1-F2 (O11): when a TI was reissued under a different buyer, the replacement receipt ADOPTS the retargeted TIs' customer
+        // (re-snapshot from master); retargeted TIs must all share one customer.
+        var mappedTis = map.Values.ToList();
+        var tiCustomers = await _db.TaxInvoices.AsNoTracking()
+            .Where(t => mappedTis.Contains(t.TaxInvoiceId)).Select(t => t.CustomerId).Distinct().ToListAsync(ct);
+        if (tiCustomers.Count > 1)
+            throw new DomainException("rc.customer_mismatch", "The applied Tax Invoices belong to different customers.");
+        var custId = tiCustomers.Count == 1 ? tiCustomers[0] : o.CustomerId;
+        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.CustomerId == custId, ct)
+            ?? throw new DomainException("rc.customer_missing", $"Customer {custId} not found.");
 
         var repl = new Receipt
         {
@@ -367,6 +376,9 @@ public sealed partial class ReceiptService
             var m = await RetargetTiAsync(a.TaxInvoiceId!.Value, ct);
             if (m != a.TaxInvoiceId) a.TaxInvoiceId = m;
         }
+        var appliedTiIds = rc.Applications.Where(a => a.TaxInvoiceId.HasValue).Select(a => a.TaxInvoiceId!.Value).Distinct().ToList();
+        if (await _db.TaxInvoices.AsNoTracking().AnyAsync(t => appliedTiIds.Contains(t.TaxInvoiceId) && t.CustomerId != rc.CustomerId, ct))
+            throw new DomainException("rc.customer_mismatch", "An applied Tax Invoice belongs to a different customer than this receipt.");
         var orig = await LoadVoidedOriginalAsync(origId, ct);
         var map = await BuildRetargetMapAsync(
             orig.Applications.Where(a => a.TaxInvoiceId.HasValue).Select(a => a.TaxInvoiceId!.Value), ct);

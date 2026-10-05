@@ -234,6 +234,10 @@ public sealed class BillingNoteService(
         if (tiIds is null || tiIds.Length == 0)
             return new List<BillingNoteTaxInvoice>();
         var distinct = tiIds.Distinct().ToArray();
+        // R1-F3: a cancelled (Voided) TI can never be grouped. Drafts stay allowed (existing ti.linked_to_billing_note guard).
+        if (await db.TaxInvoices.AsNoTracking().AnyAsync(
+                t => t.CompanyId == tenant.CompanyId && distinct.Contains(t.TaxInvoiceId) && t.Status == DocumentStatus.Voided, ct))
+            throw new DomainException("billing_note.ti_not_posted", "A cancelled Tax Invoice cannot be grouped into an Invoice.");
         var totals = await db.TaxInvoices.AsNoTracking()
             .Where(t => t.CompanyId == tenant.CompanyId && distinct.Contains(t.TaxInvoiceId))
             .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.TotalAmount, ct);
@@ -394,7 +398,7 @@ public sealed class BillingNoteService(
                     $"Invoice {bn.DocNo} has posted receipts; cancel those receipts first.");
             var je = await DocumentCancellation.ResolveOriginalJournalAsync(
                 db, bn.CompanyId, bn.JournalEntryId, bn.DocNo, "IV ", ct);
-            var glDate = await DocumentCancellation.ResolveGlDateAsync(period, clock, bn.DocDate, ct);
+            var glDate = await DocumentCancellation.ResolveReversalDateAsync(period, clock, bn.DocDate, je.DocDate, ct);
             revId = await gl.PostReversalAsync(je.JournalId, glDate, "ยกเลิก " + je.Description, ct);
         }
 

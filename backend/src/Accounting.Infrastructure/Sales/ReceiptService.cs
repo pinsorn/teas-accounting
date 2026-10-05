@@ -563,11 +563,15 @@ public sealed partial class ReceiptService : IReceiptService
         // Post-time status re-check: a TI cancelled / a BN cancelled or settled since the draft was written
         // must not receive this payment.
         var chkTiIds = rc.Applications.Where(a => a.TaxInvoiceId.HasValue).Select(a => a.TaxInvoiceId!.Value).Distinct().ToList();
+        var chkBnIds = rc.Applications.Where(a => a.BillingNoteId.HasValue).Select(a => a.BillingNoteId!.Value).Distinct().ToList();
+        // R1-F1: lock the applied TIs then BNs (ascending, lock order 3.3.5) BEFORE the status re-check, so a concurrent
+        // cancel either committed first (re-check refuses) or waits for this post (its own guards then see the receipt).
+        await DocumentCancellation.LockTaxInvoicesAsync(_db, chkTiIds, ct);
+        await DocumentCancellation.LockBillingNotesAsync(_db, chkBnIds, ct);
         if (chkTiIds.Count > 0 && await _db.TaxInvoices.AsNoTracking()
                 .CountAsync(t => chkTiIds.Contains(t.TaxInvoiceId) && t.Status == DocumentStatus.Posted, ct) != chkTiIds.Count)
             throw new DomainException("rc.ti_not_posted",
                 "An applied Tax Invoice is no longer POSTED (cancelled?); this receipt cannot be posted.");
-        var chkBnIds = rc.Applications.Where(a => a.BillingNoteId.HasValue).Select(a => a.BillingNoteId!.Value).Distinct().ToList();
         if (chkBnIds.Count > 0)
             foreach (var chk in await _db.BillingNotes.AsNoTracking()
                          .Where(b => chkBnIds.Contains(b.BillingNoteId)).Select(b => new { b.BillingNoteId, b.Status }).ToListAsync(ct))
@@ -636,6 +640,9 @@ public sealed partial class ReceiptService : IReceiptService
         foreach (var (tiId, applied) in tiApps)
         {
             var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
+            if (ti.Status != DocumentStatus.Posted)
+                throw new DomainException("rc.ti_not_posted",
+                    $"Tax Invoice {ti.DocNo} is no longer POSTED; this receipt cannot be posted.");
             if (ti.AmountPaid + applied > ti.TotalAmount + 0.01m)
                 throw new DomainException("receipt.over_applied",
                     $"Applying {applied} to Tax Invoice {ti.DocNo} would exceed its total " +
@@ -726,6 +733,9 @@ public sealed partial class ReceiptService : IReceiptService
 
             foreach (var bn in directBns)
             {
+                if (bn.Status == BillingNoteStatus.Cancelled)
+                    throw new DomainException("rc.invoice_cancelled",
+                        $"Invoice {bn.DocNo} is cancelled; this receipt cannot be posted.");
                 var paid = paidByDirectBn.TryGetValue(bn.BillingNoteId, out var p) ? p : 0m;
                 if (paid > bn.TotalAmount + 0.01m)
                     throw new DomainException("receipt.over_applied",

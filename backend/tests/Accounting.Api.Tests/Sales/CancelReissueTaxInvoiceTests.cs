@@ -259,7 +259,7 @@ public sealed class CancelReissueTaxInvoiceTests
         // Bad / wrong-set reason code, empty reason, over-long reason
         var t1 = await CancelKit.PostTiAsync(sp, co.CustomerId);
         (await Cancel(t1, "NOPE")).Should().Be("cancel.reason_code_invalid");
-        (await Cancel(t1, "BUYER_DETAILS_ERROR")).Should().Be("cancel.reason_code_invalid", "reissue codes are not valid for a standalone cancel");
+        (await Cancel(t1, "PAYMENT_NOT_RECEIVED")).Should().Be("cancel.reason_code_invalid", "a receipt code is not valid for a TI");
         (await Cancel(t1, reason: "  ")).Should().Be("validation.reason_required");
         (await Cancel(t1, reason: new string('x', 501))).Should().Be("validation.reason_too_long");
 
@@ -688,5 +688,102 @@ public sealed class CancelReissueTaxInvoiceTests
         (await CancelKit.WithDbAsync(sp, db => db.JournalEntries.AsNoTracking().FirstAsync(j => j.JournalId == res.ReversalJournalId)))
             .ReversalOfId.Should().Be(origJe);
         (await CancelKit.WithDbAsync(sp, db => db.Receipts.AsNoTracking().FirstAsync(r => r.ReceiptId == rc))).JournalEntryId.Should().Be(origJe);
+    }
+
+    // ── R1-F4 — discarding a replacement draft that an Invoice already groups is refused cleanly ──
+
+    [SkippableFact]
+    public async Task R1_F4_discard_replacement_refused_when_grouped_by_billing_note()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await CancelKit.VatCoAsync(_fx);
+        await using var sp = CancelKit.Sp(_fx, co);
+        var ti = await CancelKit.PostTiAsync(sp, co.CustomerId);
+        await using var s = sp.CreateAsyncScope();
+        var tsvc = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+        var repl = (await tsvc.CancelAndReissueAsync(ti, "OTHER_PARTICULARS_ERROR", "x", default)).ReplacementTaxInvoiceId!.Value;
+        var bn = await s.ServiceProvider.GetRequiredService<IBillingNoteService>().CreateDraftAsync(
+            new CreateBillingNoteRequest(Today, Today.AddDays(30), co.CustomerId, null, null, [repl], "THB", 1m, null, null, []), default);
+        (await CancelKit.CodeOfAsync(() => tsvc.DiscardReplacementAsync(repl, default))).Should().Be("ti.linked_to_billing_note");
+        await s.ServiceProvider.GetRequiredService<IBillingNoteService>().DeleteDraftAsync(bn, default);
+        await tsvc.DiscardReplacementAsync(repl, default);
+    }
+
+    // ── R1-F5 — a key-bound caller's default BU is resolved before the lock comparison ──
+
+    [SkippableFact]
+    public async Task R1_F5_replacement_update_resolves_key_default_bu()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await CancelKit.VatCoAsync(_fx);
+        await using var sp = CancelKit.Sp(_fx, co);
+        int bu;
+        await using (var s = sp.CreateAsyncScope())
+            bu = await s.ServiceProvider.GetRequiredService<Accounting.Application.Master.IBusinessUnitService>()
+                .CreateAsync(new Accounting.Application.Master.CreateBusinessUnitRequest("R5", "หน่วย R5", "R5", null), default);
+        long ti;
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            ti = await svc.CreateDraftAsync(CancelKit.TiReq(co.CustomerId, 1000m, "bu") with { BusinessUnitId = bu }, default);
+            await svc.PostAsync(ti, default);
+        }
+        long repl;
+        await using (var s = sp.CreateAsyncScope())
+            repl = (await s.ServiceProvider.GetRequiredService<ITaxInvoiceService>()
+                .CancelAndReissueAsync(ti, "BUYER_DETAILS_ERROR", "x", default)).ReplacementTaxInvoiceId!.Value;
+
+        await using var spKey = TestCompanyFactory.BuildProvider(_fx.ConnectionString, co.CompanyId, co.BranchId, 1, null, bu);
+        await using var sk = spKey.CreateAsyncScope();
+        var ksvc = sk.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+        var req = (await ksvc.GetDraftInputAsync(repl, default))!;
+        // the key omits the BU (null) and the quotation (null): both mean "keep"
+        await ksvc.UpdateDraftAsync(repl, req with { BusinessUnitId = null, QuotationId = null, Notes = "key edit" }, default);
+        (await CancelKit.WithDbAsync(sp, db => db.TaxInvoices.AsNoTracking().FirstAsync(t => t.TaxInvoiceId == repl))).Notes.Should().Be("key edit");
+    }
+
+    // ── R1-F6 — a standalone cancel accepts the standalone AND the reissue reason codes ──
+
+    [SkippableFact]
+    public async Task R1_F6_standalone_cancel_accepts_reissue_codes()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await CancelKit.VatCoAsync(_fx);
+        await using var sp = CancelKit.Sp(_fx, co);
+        var ti = await CancelKit.PostTiAsync(sp, co.CustomerId);
+        await using var s = sp.CreateAsyncScope();
+        await s.ServiceProvider.GetRequiredService<ITaxInvoiceService>().CancelAsync(ti, "BUYER_DETAILS_ERROR", "x", default);
+        var t2 = await CancelKit.PostTiAsync(sp, co.CustomerId);
+        // cancel-and-reissue stays reissue-set only
+        (await CancelKit.CodeOfAsync(() => s.ServiceProvider.GetRequiredService<ITaxInvoiceService>()
+            .CancelAndReissueAsync(t2, "DUPLICATE", "x", default))).Should().Be("cancel.reason_code_invalid");
+    }
+
+    // ── R1-F7 — the reversal is never dated before the journal it reverses ──
+
+    [SkippableFact]
+    public async Task R1_F7_reversal_not_dated_before_the_original_je()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var co = await CancelKit.VatCoAsync(_fx);
+        long tiA;
+        await using (var spMar = CancelKit.Sp(_fx, co, new FixedClock(Mar15)))
+        {
+            tiA = await CancelKit.PostTiAsync(spMar, co.CustomerId);
+            await using var s = spMar.CreateAsyncScope();
+            await s.ServiceProvider.GetRequiredService<IPeriodCloseService>().CloseAsync(2031, 3, "f7", default);
+        }
+        await using var spApr = CancelKit.Sp(_fx, co, new FixedClock(Apr06));
+        long repl;
+        await using (var s = spApr.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<ITaxInvoiceService>();
+            repl = (await svc.CancelAndReissueAsync(tiA, "BUYER_DETAILS_ERROR", "x", default)).ReplacementTaxInvoiceId!.Value;
+            await svc.PostAsync(repl, default);   // DocDate March, JE dated April 6
+            await s.ServiceProvider.GetRequiredService<IPeriodCloseService>().ReopenAsync(2031, 3, "reopen for f7", default);
+
+            var res = await svc.CancelAsync(repl, "DUPLICATE", "f7", default);
+            res.GlDate.Should().Be(new DateOnly(2031, 4, 6), "March is open again but the replacement JE is dated April 6");
+        }
     }
 }

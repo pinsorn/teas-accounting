@@ -105,7 +105,8 @@ public static class TestCompanyFactory
     /// there is no Tax:VatMode config any more. <paramref name="clock"/> (cancel-reissue spec 6) swaps
     /// the IClock after AddInfrastructure so a test can post in far-future months.</summary>
     public static ServiceProvider BuildProvider(
-        string connectionString, int companyId, int branchId, long userId = 1, IClock? clock = null)
+        string connectionString, int companyId, int branchId, long userId = 1, IClock? clock = null,
+        int? apiKeyDefaultBusinessUnitId = null)
     {
         var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -117,7 +118,8 @@ public static class TestCompanyFactory
         if (clock is not null) s.AddSingleton<IClock>(clock);
         return s
             .AddSingleton<ITenantContext>(new StubTenant
-            { CompanyId = companyId, BranchId = branchId, UserId = userId, IsSuperAdmin = false })
+            { CompanyId = companyId, BranchId = branchId, UserId = userId, IsSuperAdmin = false,
+              ApiKeyDefaultBusinessUnitId = apiKeyDefaultBusinessUnitId })
             .BuildServiceProvider();
     }
 

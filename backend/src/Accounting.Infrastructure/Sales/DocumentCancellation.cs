@@ -20,6 +20,17 @@ internal static class DocumentCancellation
         return gl;
     }
 
+    /// <summary>R1-F7: reversal date = glDate(docDate), but never before the JE being reversed (a replacement for a closed month
+    /// is posted in the open month; reopening the old month must not date its reversal earlier). Still EnsureOpen on the result.</summary>
+    public static async Task<DateOnly> ResolveReversalDateAsync(
+        IPeriodCloseService period, IClock clock, DateOnly docDate, DateOnly originalJeDate, CancellationToken ct)
+    {
+        var gl = await ResolveGlDateAsync(period, clock, docDate, ct);
+        if (gl >= originalJeDate) return gl;
+        await period.EnsureOpenAsync(originalJeDate, ct);
+        return originalJeDate;
+    }
+
     /// <summary>The unreversed posting JE of a document: the stored id when present, else lookup by
     /// Reference = DocNo and Description = prefix + DocNo (legacy docs stored no id).</summary>
     public static async Task<JournalEntry> ResolveOriginalJournalAsync(

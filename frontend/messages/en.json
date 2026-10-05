@@ -170,6 +170,11 @@
         "cannot_cancel_status": "Only a posted receipt can be cancelled (an already-cancelled one cannot be cancelled again)",
         "bank_reconciled": "This receipt is matched to a bank statement line; unmatch it first",
         "unwind_negative": "The tax invoice paid amount would go negative after the reversal; contact an administrator",
+        "ti_not_posted": "An applied Tax Invoice was cancelled; this receipt cannot be posted",
+        "invoice_cancelled": "The applied Invoice was cancelled",
+        "invoice_already_settled": "The applied Invoice is already fully settled",
+        "not_posted": "Only a posted receipt can do this",
+        "customer_mismatch": "The applied Tax Invoice belongs to a different customer than this receipt",
         "not_cancelled": "This receipt has not been cancelled",
         "replacement_exists": "A replacement for this receipt already exists",
         "delete_not_allowed": "Only a replacement draft can be deleted",
@@ -177,6 +182,7 @@
       },
       "billing_note": {
         "bad_status": "The invoice status does not allow cancellation",
+        "ti_not_posted": "A cancelled Tax Invoice cannot be grouped into an Invoice",
         "settled_cannot_cancel": "This invoice is fully paid; cancel its receipts first (it returns to Issued)",
         "has_posted_receipts": "Posted receipts reference this invoice; cancel the receipts first",
         "locked_mismatch": "The document was changed by someone else; reload and try again"
@@ -186,6 +192,9 @@
         "journal_not_found": "The original journal entry for this document was not found; use a credit/debit note or contact an administrator",
         "journal_ambiguous": "More than one original journal entry was found; contact an administrator",
         "already_reversed": "This document has already been reversed"
+      },
+      "note": {
+        "original_not_posted": "The original Tax Invoice is no longer posted, so this credit/debit note cannot be posted"
       },
       "gl": {
         "reversal_source_not_posted": "The original journal entry is not posted, so it cannot be reversed",
