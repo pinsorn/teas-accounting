@@ -554,8 +554,8 @@ may run in parallel with WP-3 if worktrees are used. WP-1 is footgun-zone: Opus 
 - [ ] `Fixtures/TestCompanyFactory.cs`: `BuildProvider(..., IClock? clock = null)` registers `AddSingleton<IClock>(clock)` after `AddInfrastructure` when non-null (+ a tiny `FixedClock` class in Fixtures).
 - [ ] New: `Sales/CancelReissueTaxInvoiceTests.cs`, `Sales/CancelReissueReceiptTests.cs`, `Sales/BillingNoteCancelReversalTests.cs`, `Reports/CancelReissueReportTests.cs`, `Persistence/CancelReissueRlsTests.cs`.
 - [ ] Modify `Sales/NonVatArAccrualTests.cs` (T12).
-- [ ] `frontend/e2e/cancel-reissue.spec.ts` (T21).
-- [ ] Commit regenerated `docs/rbac/endpoint-permission-map.generated.md` + `docs/rbac/role-permission-matrix.md`.
+- [x] `frontend/e2e/cancel-reissue.spec.ts` (T21). Evidence 2026-10-05: 2 passed (T21a TI cancel-and-reissue + replacement paper ref line; T21b receipt cancel -> rc-cancelled-banner); tsc 0.
+- [x] (already committed; no pending changes) Commit regenerated `docs/rbac/endpoint-permission-map.generated.md` + `docs/rbac/role-permission-matrix.md`.
 
 ## 6. Test list
 All money tests post through REAL services (never seed the target state). Cross-month tests use `FixedClock` with **far-future months**
