@@ -45,6 +45,19 @@ public interface ITaxInvoiceService
     /// no-op on every persisted column except UpdatedAt/UpdatedBy/Version.</summary>
     Task<CreateTaxInvoiceRequest?> GetDraftInputAsync(long taxInvoiceId, CancellationToken ct);
 
+    /// <summary>cancel-reissue O1 (spec 3.4.1) - Posted -> Voided with an exact mirror reversing JE. Guards:
+    /// status, reason code, e-Tax submitted, posted receipts, posted CN/DN, live billing note. Cash is never touched.</summary>
+    Task<TaxInvoiceCancelResult> CancelAsync(long taxInvoiceId, string reasonCode, string reason, CancellationToken ct);
+
+    /// <summary>cancel-reissue O4 - CancelAsync (reissue code set) plus a replacement draft, ONE transaction.</summary>
+    Task<TaxInvoiceCancelResult> CancelAndReissueAsync(long taxInvoiceId, string reasonCode, string reason, CancellationToken ct);
+
+    /// <summary>cancel-reissue O4b - create the replacement draft of an already-Voided TI. Returns the new draft id.</summary>
+    Task<long> ReissueAsync(long taxInvoiceId, CancellationToken ct);
+
+    /// <summary>cancel-reissue O4c - delete a replacement DRAFT (the exit for a replacement that cannot post).</summary>
+    Task DiscardReplacementAsync(long taxInvoiceId, CancellationToken ct);
+
     /// <summary>Post the draft: allocate TI-NNNN, freeze status, write posted_at. Throws on validation failure.</summary>
     Task<TaxInvoicePostedResult> PostAsync(long taxInvoiceId, CancellationToken ct);
 

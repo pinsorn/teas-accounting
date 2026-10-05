@@ -390,20 +390,109 @@ public sealed class NonVatArAccrualTests
         }
     }
 
-    // ── WP-1 checklist — a posted (accrued) Invoice cannot be cancelled ────────────────
+    // ── cancel-reissue T12 (O3, I1) — an accrued Invoice cancels with an exact mirror reversal ──
 
     [SkippableFact]
-    public async Task Cancel_on_accrued_invoice_is_refused()
+    public async Task Cancel_on_accrued_invoice_posts_reversal()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var (bnId, docNo, total) = await CreateAndIssueBnAsync(sp, c.CustomerId, 500m);
+
+        await using (var s = sp.CreateAsyncScope())
+        {
+            var svc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+            await svc.CancelAsync(bnId, "ISSUED_IN_ERROR", "test cancel", default);
+        }
+
+        await using var s2 = sp.CreateAsyncScope();
+        var db = s2.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var bn = await db.BillingNotes.AsNoTracking().FirstAsync(b => b.BillingNoteId == bnId);
+        bn.Status.Should().Be(BillingNoteStatus.Cancelled);
+        bn.CancelReasonCode.Should().Be("ISSUED_IN_ERROR");
+        bn.CancelledReason.Should().Be("test cancel");
+        bn.CancelledAt.Should().NotBeNull();
+        bn.ReversalJournalEntryId.Should().NotBeNull();
+
+        var orig = await db.JournalEntries.Include(j => j.Lines).AsNoTracking().SingleAsync(j => j.JournalId == bn.JournalEntryId!.Value);
+        var rev = await db.JournalEntries.Include(j => j.Lines).AsNoTracking().SingleAsync(j => j.JournalId == bn.ReversalJournalEntryId!.Value);
+        rev.ReversalOfId.Should().Be(orig.JournalId);
+        rev.TotalDebit.Should().Be(orig.TotalCredit).And.Be(total);
+        rev.Reference.Should().Be(docNo);
+        rev.DocDate.Should().Be(orig.DocDate);
+        // I1 — per account net across {original, reversal} is zero.
+        orig.Lines.Concat(rev.Lines).GroupBy(l => l.AccountId)
+            .Should().OnlyContain(g => g.Sum(l => l.DebitAmount - l.CreditAmount) == 0m);
+
+        var detail = await s2.ServiceProvider.GetRequiredService<IBillingNoteService>().GetAsync(bnId, default);
+        detail!.ReversalJournalDocNo.Should().Be(rev.DocNo);
+        detail.HasJournal.Should().BeTrue();
+
+        // Exit: a second cancel is refused; a bad code is refused.
+        var svc2 = s2.ServiceProvider.GetRequiredService<IBillingNoteService>();
+        (await FluentActions.Awaiting(() => svc2.CancelAsync(bnId, "ISSUED_IN_ERROR", "again", default))
+            .Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("billing_note.bad_status");
+    }
+
+    [SkippableFact]
+    public async Task Cancel_reason_code_must_match_the_document_set()
     {
         Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
         var c = await NonVatCompanyAsync();
         await using var sp = Provider(c.CompanyId, c.BranchId);
         var (bnId, _, _) = await CreateAndIssueBnAsync(sp, c.CustomerId, 500m);
+        await using var s = sp.CreateAsyncScope();
+        var svc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+        (await FluentActions.Awaiting(() => svc.CancelAsync(bnId, "PAYMENT_NOT_RECEIVED", "x", default))
+            .Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("cancel.reason_code_invalid");
+    }
+
+    [SkippableFact]
+    public async Task Settled_bn_cancel_refused_until_receipt_cancelled()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var ar = await AccountId(sp, "1130");
+        var (bnId, _, total) = await CreateAndIssueBnAsync(sp, c.CustomerId, 500m);
+        var res = await PostReceiptForBnAsync(sp, c.CustomerId, bnId, total);
+
+        await using var s = sp.CreateAsyncScope();
+        var bsvc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
+        (await bsvc.GetAsync(bnId, default))!.Status.Should().Be("Settled");
+        (await FluentActions.Awaiting(() => bsvc.CancelAsync(bnId, "ISSUED_IN_ERROR", "x", default))
+            .Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("billing_note.settled_cannot_cancel");
+
+        // exit: cancel the receipt (reverts the invoice to Issued), then the invoice cancels with a mirror reversal
+        var db = s.ServiceProvider.GetRequiredService<AccountingDbContext>();
+        var rcId = await db.Receipts.Where(r => r.DocNo == res.DocNo).Select(r => r.ReceiptId).SingleAsync();
+        await s.ServiceProvider.GetRequiredService<IReceiptService>().CancelAsync(rcId, "ISSUED_IN_ERROR", "x", default);
+        (await bsvc.GetAsync(bnId, default))!.Status.Should().Be("Issued");
+        await bsvc.CancelAsync(bnId, "ISSUED_IN_ERROR", "x", default);
+
+        // accrual, receipt, receipt reversal and accrual reversal: every account nets to zero
+        var net = await db.JournalLines.AsNoTracking().Where(l => l.AccountId == ar).SumAsync(l => l.DebitAmount - l.CreditAmount);
+        net.Should().Be(0m);
+        var all = await db.JournalLines.AsNoTracking().Where(l => l.Journal!.CompanyId == c.CompanyId)
+            .GroupBy(l => l.AccountId).Select(g => g.Sum(l => l.DebitAmount - l.CreditAmount)).ToListAsync();
+        all.Should().OnlyContain(v => v == 0m, "every posting was exactly reversed");
+    }
+
+    [SkippableFact]
+    public async Task Partially_paid_accrued_bn_refused()
+    {
+        Skip.If(_fx.SkipReason is not null, _fx.SkipReason);
+        var c = await NonVatCompanyAsync();
+        await using var sp = Provider(c.CompanyId, c.BranchId);
+        var (bnId, _, total) = await CreateAndIssueBnAsync(sp, c.CustomerId, 500m);
+        await PostReceiptForBnAsync(sp, c.CustomerId, bnId, total / 2);
 
         await using var s = sp.CreateAsyncScope();
         var svc = s.ServiceProvider.GetRequiredService<IBillingNoteService>();
-        var act = () => svc.CancelAsync(bnId, "test cancel", default);
-        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("billing_note.cannot_cancel_posted");
+        (await svc.GetAsync(bnId, default))!.Status.Should().Be("Issued", "a partial payment leaves it Issued");
+        (await FluentActions.Awaiting(() => svc.CancelAsync(bnId, "ISSUED_IN_ERROR", "x", default))
+            .Should().ThrowAsync<DomainException>()).Which.Code.Should().Be("billing_note.has_posted_receipts");
     }
 
     // ── Cross-period AR reconciliation — Repttown's real pattern: invoice issued in

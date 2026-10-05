@@ -133,6 +133,12 @@ public sealed partial class TaxAdjustmentNoteService : ITaxAdjustmentNoteService
         var note = await _db.TaxAdjustmentNotes.FirstOrDefaultAsync(n => n.NoteId == noteId, ct)
             ?? throw new DomainException("note.not_found", $"Note {noteId} not found.");
 
+        // cancel-reissue (spec 2) - the original TI may have been cancelled since the draft was created.
+        if (!await _db.TaxInvoices.AnyAsync(
+                t => t.TaxInvoiceId == note.OriginalTaxInvoiceId && t.Status == DocumentStatus.Posted, ct))
+            throw new DomainException("note.original_not_posted",
+                "The original Tax Invoice is no longer Posted; this note cannot be posted.");
+
         await _period.EnsureOpenAsync(note.DocDate, ct);
 
         var buCode = note.BusinessUnitId is { } bid

@@ -860,7 +860,7 @@ public sealed class DraftEditReceiptTaxInvoiceTests
         var (s2, b2) = await PutAsync(http, $"/tax-invoices/{tiId}", token, edit);
         s2.Should().Be(422, b2); b2.Should().Contain("ti.linked_to_billing_note");
         await using (var sp = Sp(co)) await using (var s = sp.CreateAsyncScope())
-            await s.ServiceProvider.GetRequiredService<IBillingNoteService>().CancelAsync(bn2, "t10", default);
+            await s.ServiceProvider.GetRequiredService<IBillingNoteService>().CancelAsync(bn2, "ISSUED_IN_ERROR", "t10", default);
         (await PutAsync(http, $"/tax-invoices/{tiId}", token, edit)).Status.Should().Be(204);
     }
 }

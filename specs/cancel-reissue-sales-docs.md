@@ -527,16 +527,16 @@ may run in parallel with WP-3 if worktrees are used. WP-1 is footgun-zone: Opus 
 - [x] `Permissions.cs`: 3 constants + `All`.
 - Done (WP-1 verified 2026-10-05, see Attempt log) = migration applies to an EMPTY teas_test; `sys.applied_sql_scripts` has 643-645; §3.2.4 probe counts on teas_test; RbacMatrix + RbacAuthMap green.
 
-### WP-2 Services + endpoints (cap: 26 files)
-- [ ] `IGlPostingService.cs` + `GlPostingService.cs`: `PostReversalAsync`, `reversalOfId` on `BuildAndPostAsync`, `glDate` params (§3.3.3).
-- [ ] New `Sales/DocumentCancellation.cs` (§3.3.1-3.3.2) and `Accounting.Application/Sales/CancelReasonCodes.cs` (§3.3.4).
-- [ ] `ITaxInvoiceService.cs`, `TaxInvoiceDtos.cs` (result + detail fields), new `TaxInvoiceService.Cancel.cs` (O1, O4, O4b, O4c, replacement core, lock helper), `TaxInvoiceService.cs` (UpdateDraft lock branch, PostCore replacement branch + JournalEntryId stamp + no e-Tax for replacement, dedup guards exclude Voided), `TaxInvoiceService.Read.cs` (detail fields, paper notes, watermark, `unpaid` Posted filter).
-- [ ] `ReceiptDtos.cs` (interface + result), `AdjustmentReadDtos.cs` (ReceiptDetail), new `ReceiptService.Cancel.cs` (O2, O5*, lock helper), `ReceiptService.cs` (BN Cancelled guard, post-time TI/BN status rechecks, PostCore replacement branch, JournalEntryId stamp, SetWhtCert status guard), `ReceiptService.Read.cs` (detail, paper notes, watermark).
-- [ ] `BillingNoteDtos.cs` (CancelAsync signature + detail), `BillingNoteService.cs` (O3, dedup guards exclude Cancelled).
-- [ ] `TaxAdjustmentNoteService.cs` (post-time original-TI recheck); `PeriodCloseService.cs` (replacement receipt drafts).
-- [ ] Endpoints: `TaxInvoiceEndpoints.cs`, `ReceiptEndpoints.cs`, `BillingNoteEndpoints.cs`, new `CancelDocumentBody.cs` (+ `BillingNoteCancelBody`).
-- [ ] Update callers of the changed `IBillingNoteService.CancelAsync` signature: `DraftEditReceiptTaxInvoiceTests.cs:863`, `NonVatArAccrualTests.cs:405` (that test inverts: see T12).
-- Done = `dotnet build` 0 errors; filtered tests T1-T12, T15-T20 green.
+### WP-2 Services + endpoints + backend tests (cap: 36 files)
+- [x] `IGlPostingService.cs` + `GlPostingService.cs`: `PostReversalAsync`, `reversalOfId` on `BuildAndPostAsync`, `glDate` params (§3.3.3).
+- [x] New `Sales/DocumentCancellation.cs` (§3.3.1-3.3.2) and `Accounting.Application/Sales/CancelReasonCodes.cs` (§3.3.4).
+- [x] `ITaxInvoiceService.cs`, `TaxInvoiceDtos.cs` (result + detail fields), new `TaxInvoiceService.Cancel.cs` (O1, O4, O4b, O4c, replacement core, lock helper), `TaxInvoiceService.cs` (UpdateDraft lock branch, PostCore replacement branch + JournalEntryId stamp + no e-Tax for replacement, dedup guards exclude Voided), `TaxInvoiceService.Read.cs` (detail fields, paper notes, watermark, `unpaid` Posted filter).
+- [x] `ReceiptDtos.cs` (interface + result), `AdjustmentReadDtos.cs` (ReceiptDetail), new `ReceiptService.Cancel.cs` (O2, O5*, lock helper), `ReceiptService.cs` (BN Cancelled guard, post-time TI/BN status rechecks, PostCore replacement branch, JournalEntryId stamp, SetWhtCert status guard), `ReceiptService.Read.cs` (detail, paper notes, watermark).
+- [x] `BillingNoteDtos.cs` (CancelAsync signature + detail), `BillingNoteService.cs` (O3, dedup guards exclude Cancelled).
+- [x] `TaxAdjustmentNoteService.cs` (post-time original-TI recheck); `PeriodCloseService.cs` (replacement receipt drafts).
+- [x] Endpoints: `TaxInvoiceEndpoints.cs`, `ReceiptEndpoints.cs`, `BillingNoteEndpoints.cs`, new `CancelDocumentBody.cs` (+ `BillingNoteCancelBody`).
+- [x] Update callers of the changed `IBillingNoteService.CancelAsync` signature: `DraftEditReceiptTaxInvoiceTests.cs:863`, `NonVatArAccrualTests.cs:405` (that test inverts: see T12).
+- Done (WP-2, 2026-10-05) = `dotnet build backend/Accounting.sln` 0 errors / 0 warnings; gate filter 0 failed / 0 skipped (see Attempt log).
 
 ### WP-3 Reports + sweep (cap: 7 files)
 - [ ] `VatReportDtos.cs`, `VatReportService.cs`, `TaxFilingDtos.cs`, `TaxFilingService.cs` (§3.5.1).
@@ -545,12 +545,12 @@ may run in parallel with WP-3 if worktrees are used. WP-1 is footgun-zone: Opus 
 - Done = T11, T13, T14 green; existing `SubledgerReportTests`, `NonVatArAccrualTests`, tax-filing tests green.
 
 ### WP-4 Frontend (cap: 12 files)
-- [ ] `components/documents/CancelDocumentModal.tsx` (new), `lib/cancel-reasons.ts` (new), `lib/queries.ts`, `lib/types.ts`, `lib/utils.ts` (`DOC_TYPE_I18N_KEY` + 3 DocTypes, F33).
-- [ ] `app/(dashboard)/tax-invoices/[id]/page.tsx`, `receipts/[id]/page.tsx`, `invoices/[id]/page.tsx`, `tax-invoices/[id]/edit/page.tsx`, `receipts/[id]/edit/page.tsx`.
-- [ ] `messages/th.json`, `messages/en.json` (§3.9 keys, both files).
-- Done = `tsc --noEmit` 0; lint; i18n key-diff empty; Bengali grep clean.
+- [x] `components/documents/CancelDocumentModal.tsx` (new; also exports CancelledBanner, ReplacementBanner, useCancelErrorToast), `lib/cancel-reasons.ts` (new), `lib/queries.ts` (8 hooks), `lib/types.ts`, `lib/utils.ts` (`DOC_TYPE_I18N_KEY` + 3 DocTypes, F33). Evidence: tsc 0.
+- [x] `app/(dashboard)/tax-invoices/[id]/page.tsx`, `receipts/[id]/page.tsx`, `invoices/[id]/page.tsx`, `tax-invoices/[id]/edit/page.tsx`, `receipts/[id]/edit/page.tsx`. Evidence: tsc 0, lint 0 errors.
+- [x] `messages/th.json`, `messages/en.json` (§3.9 keys, both files; `cancelDoc.errors` nested by code prefix because next-intl forbids dots in key names). Evidence: parity `[] []`.
+- Done = `tsc --noEmit` 0; lint; i18n key-diff empty; Bengali grep clean. VERIFIED 2026-10-05: tsc 0 errors; `pnpm lint` 0 errors (17 pre-existing warnings); parity `[] []`; `rg ম` no output; vitest 16 files / 72 tests pass. No browser smoke (no dev server per dispatch).
 
-### WP-5 Tests (cap: 12 files)
+### WP-5 E2E + RBAC docs (cap: 4 files; backend test files moved to WP-2)
 - [ ] `Fixtures/TestCompanyFactory.cs`: `BuildProvider(..., IClock? clock = null)` registers `AddSingleton<IClock>(clock)` after `AddInfrastructure` when non-null (+ a tiny `FixedClock` class in Fixtures).
 - [ ] New: `Sales/CancelReissueTaxInvoiceTests.cs`, `Sales/CancelReissueReceiptTests.cs`, `Sales/BillingNoteCancelReversalTests.cs`, `Reports/CancelReissueReportTests.cs`, `Persistence/CancelReissueRlsTests.cs`.
 - [ ] Modify `Sales/NonVatArAccrualTests.cs` (T12).
@@ -608,7 +608,7 @@ whose effect is already present.
 Feature B (doc-date backdating); BN reissue; e-Tax cancellation messages to RD; ใบแทน ม.86/12 (`IsSubstitute`); writing `BookNo` (no UI sets it, so เล่มที่ never prints until a later feature); a sales-tax-register FE page (O5); disabling inputs on replacement edit forms (O7); cancel for CN/DN/PV/VI; amended ภ.พ.30; ภ.ง.ด.50 re-computation for voided R-certs; the AR aging as-of divergence for voided docs (§2).
 
 ## 9. Blast-radius cap
-**Max 70 files total** (WP-1 13, WP-2 26, WP-3 7, WP-4 12, WP-5 12). Public API changes ALLOWED only as listed in §3.7 (new routes; BN cancel body + policy change; appended DTO fields).
+**Max 72 files total** (WP-1 13, WP-2 36, WP-3 7, WP-4 12, WP-5 4). Rebalanced 2026-10-05: WP-2 owns its backend tests (FixedClock fixture + Cancel* test files, T1-T12, T15-T20, T23), the PermissionCatalog labels and the 645 SUPER_ADMIN fix; WP-5 keeps e2e T21 + RBAC docs. Public API changes ALLOWED only as listed in §3.7 (new routes; BN cancel body + policy change; appended DTO fields).
 Stop-and-re-spec triggers: touching `NumberSequenceService`/`NumberedDocumentWriter`; editing any existing SqlScript (040-642); any change to SalesCategorizer or TaxFiling persistence; any MCP file; needing a new table; a period/JE trigger change; the amount lock needing to relax.
 
 ## 10. Open items (Fable / Ham)
@@ -648,3 +648,5 @@ Stop-and-re-spec triggers: touching `NumberSequenceService`/`NumberedDocumentWri
 ## Attempt log
 - 2026-10-05 opus-designer: spec written from verified code reads (file:line in §1). No implementation.
 - 2026-10-05 sonnet-implementer WP-1: DONE. 13 files (3 entities, 3 configs, migration 20261005114215_AddCancelReissueColumns + Designer + snapshot, SQL 643/644/645, Permissions.cs). Build 0 errors. teas_test dropped+recreated EMPTY (accounting role is non-superuser but BYPASSRLS=t, so RLS still not exercised): fixture applied migration + 643-645 (sys.applied_sql_scripts). Probe: 3 rows, each 57 companies == master.companies 57. O1 mirror: roles holding billing_note.manage 286 == roles holding billing_note.cancel 286, 0 manage-without-cancel. Filtered `FullyQualifiedName~Rbac`: 79 passed / 0 failed / 0 skipped. Deviation: 645 step 4 added a SUPER_ADMIN (company_id IS NULL) mirror of billing_note.cancel under `SET LOCAL app.bypass_rls` (pattern of 620) because the global SUPER_ADMIN role holds billing_note.manage but sits outside the per-company loop (first run left manage 286 vs cancel 285). Not exercised: real NOBYPASSRLS role run of 645 (teas_test role bypasses RLS).
+- 2026-10-05 sonnet-implementer WP-4 (FE): DONE, 12 files (cap 12). tsc 0; lint 0 errors; i18n parity [] []; Bengali grep clean; vitest 72/72. Deviations: cancelDoc.errors nested by prefix (ti/rc/billing_note/cancel/gl/replacement/receipt/period/validation) and resolved via useCancelErrorToast (t.has, falls back to apiErrorToast) since lib/i18n/problems.ts is outside the cap; modal has extra props busy/onClose (mounted conditionally); extra keys bannerReversal/viewOriginal. No e2e uses bn-cancel-* testids (kept as-is; bn-cancel-confirm replaced by cancel-confirm in modal). No browser smoke run.
+- 2026-10-05 sonnet-implementer WP-2: DONE (code-complete, Fable runs the full suite). 33 files: 19 modified backend/src, 4 modified backend/tests, 9 new (CancelDocumentBody, CancelReasonCodes, DocumentCancellation, TaxInvoiceService.Cancel, ReceiptService.Cancel, CancelReissueTaxInvoiceTests (also hosts CancelKit helpers), CancelReissueReceiptTests, BillingNoteCancelReversalTests, CancelReissueRlsTests), plus docs/rbac/endpoint-permission-map.generated.md (regenerated by RbacAuthMapTests, not hand-edited). Baseline before work (same filter minus new classes): 193 passed / 0 skipped. After: build 0 errors 0 warnings; gate filter 226 passed / 0 failed / 0 skipped. Tests: T1-T10, T12, T15-T20, T23 + legacy-JE lookup (found / not_found / ambiguous), post-time rechecks, period-close replacement-receipt draft, 4 BN tests. Proven: I1 I2 I3 I4 I5 I6 I8 I10. NOT proven here by design: I7 and I9 (T11/T13/T14 are WP-3). Review fixes: (a) PermissionCatalog labels th/en; (b) 645 step 4b grants TI+receipt .cancel to global SUPER_ADMIN (rls645.sql probe run against teas_test under SET LOCAL ROLE pg_database_owner then ROLLBACK: all 3 codes listed for SUPER_ADMIN, per-company counts == companies); teas_test dropped+recreated EMPTY after the 645 edit; (c) trigger trap: reversal JE posted first, then Status + 5 cancel columns + JournalEntryId in ONE SaveChanges (TI, receipt, BN). Mutation probe: 3 mutants (skip post-time lock check, skip AmountPaid unwind, skip BN unsettle) -> 8 failing tests, restored -> green. Deviations: LockAsync became 3 typed Lock*Async helpers (EF1002 blocks a generic one); UpdateDraft on a replacement TI REJECTS a differing QuotationId (spec 3.4.6 says ignore, T5 says locked_field; reject satisfies T5 and the FE prefill always resends the same id); standalone cancel uses the standalone code set and cancel-and-reissue the reissue set (strict per action); TI/Receipt replacement activity note on post. Test-side techniques: CancelKit.MakeLegacyAsync disables the header trigger inside a tx only to null journal_entry_id (fabricates the pre-feature legacy data shape; the cancel itself runs through the real service); T20 GrantAllAsync grants ALL on every schema to pg_database_owner (real service chain touches ~15 tables; grants persist on teas_test). No section-9 stop trigger hit. role-permission-matrix.md unchanged.

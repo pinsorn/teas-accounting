@@ -50,7 +50,7 @@ public sealed partial class TaxInvoiceService
                 || EF.Functions.ILike(t.CustomerName, like));
         }
         if (q.Unpaid)
-            query = query.Where(t => t.AmountPaid < t.TotalAmount);
+            query = query.Where(t => t.Status == DocumentStatus.Posted && t.AmountPaid < t.TotalAmount);
 
         // Desc paging by id; cursor = last id from the previous page.
         if (q.Cursor is { } cur) query = query.Where(t => t.TaxInvoiceId < cur);
@@ -106,6 +106,21 @@ public sealed partial class TaxInvoiceService
                 .Select(b => b.Code).FirstOrDefaultAsync(ct)
             : null;
 
+        // cancel-reissue (spec 3.7) — cancel audit + replacement links.
+        var revDocNo = t.ReversalJournalEntryId is { } rj
+            ? await _db.JournalEntries.AsNoTracking().Where(j => j.JournalId == rj)
+                .Select(j => j.DocNo).FirstOrDefaultAsync(ct)
+            : null;
+        var replaces = t.ReplacesTaxInvoiceId is { } ro
+            ? await _db.TaxInvoices.AsNoTracking().Where(x => x.TaxInvoiceId == ro)
+                .Select(x => new { x.DocNo }).FirstOrDefaultAsync(ct)
+            : null;
+        var replacedBy = await _db.TaxInvoices.AsNoTracking().Where(x => x.ReplacesTaxInvoiceId == id)
+            .Select(x => new { x.TaxInvoiceId, x.DocNo, x.Status }).FirstOrDefaultAsync(ct);
+        var period = t.DocDate.Year * 100 + t.DocDate.Month;
+        var pnd30Filed = await _db.TaxFilings.AsNoTracking().AnyAsync(
+            f => f.FormType == "PND30" && f.Period == period && f.FinalizedAt != null, ct);
+
         return new TaxInvoiceDetail(
             t.TaxInvoiceId, t.DocNo, t.Status.ToString(), t.DocDate, t.TaxPointDate,
             t.SupplierName, t.SupplierTaxId, t.SupplierBranchCode, t.SupplierAddress,
@@ -120,7 +135,11 @@ public sealed partial class TaxInvoiceService
                 l.UnitPrice, l.DiscountAmount, l.LineAmount, l.TaxCode, l.TaxRate,
                 l.TaxAmount, l.TotalAmount)).ToList(),
             t.QuotationId,   // Sprint 13h P6.1 — cross-ref
-            t.CreatedViaApiKeyName);
+            t.CreatedViaApiKeyName,
+            t.CancelReasonCode, t.CancelReason, t.CancelledAt, revDocNo,
+            t.ReplacesTaxInvoiceId, replaces?.DocNo,
+            replacedBy?.TaxInvoiceId, replacedBy?.DocNo, replacedBy?.Status.ToString(),
+            pnd30Filed);
     }
 
     public async Task<string> BuildXmlAsync(long id, CancellationToken ct)
@@ -157,6 +176,26 @@ public sealed partial class TaxInvoiceService
         var (hdrTh, hdrEn) = DocumentLabels.TaxInvoiceHeader(
             tax.VatMode, tax.NonVatDocLabelTh, tax.NonVatDocLabelEn);
 
+        // cancel-reissue (spec 3.6) — legal reference line: replacement -> the original; Voided original with a
+        // POSTED replacement -> the replacement (a still-draft replacement prints no line).
+        string? refLine = null;
+        if (d.ReplacesId is { } ro)
+        {
+            var o = await _db.TaxInvoices.AsNoTracking().Where(x => x.TaxInvoiceId == ro)
+                .Select(x => new { x.DocNo, x.DocDate, x.BookNo }).FirstOrDefaultAsync(ct);
+            if (o is not null)
+                refLine = "ยกเลิกและออกแทนฉบับเดิม " + (o.BookNo is { Length: > 0 } bk ? $"เล่มที่ {bk} " : "")
+                          + $"เลขที่ {o.DocNo} ลงวันที่ {BuddhistDate(o.DocDate)}";
+        }
+        else if (d.Status == "Voided" && d.ReplacedById is { } rid && d.ReplacedByStatus == "Posted")
+        {
+            var r = await _db.TaxInvoices.AsNoTracking().Where(x => x.TaxInvoiceId == rid)
+                .Select(x => new { x.DocNo, x.DocDate }).FirstAsync(ct);
+            refLine = $"ออกใบแทนแล้ว เลขที่ {r.DocNo} ลงวันที่ {BuddhistDate(r.DocDate)}";
+        }
+        string? paperNotes = string.Join("\n", new[] { refLine, d.Notes }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        if (paperNotes.Length == 0) paperNotes = null;
+
         // Sprint 13j-PDF — render via the shared PaperDocument mirror, IDENTICAL to
         // the FE TI detail mapping (tax-invoices/[id]/page.tsx): posted snapshot for
         // seller+buyer (immutable §4.2), taxId formatted, line amount = net lineAmount,
@@ -187,8 +226,8 @@ public sealed partial class TaxInvoiceService
                 // ponytail (01-L3): pass non-taxable amount so the exempt row renders when > 0
                 NonTaxable: d.NonTaxableAmount > 0m ? d.NonTaxableAmount : null),
             SignRoles: new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
-            Notes: d.Notes,
-            Watermark: copy
+            Notes: paperNotes,
+            Watermark: copy && d.Status != "Voided"
                 ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
                 : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.TaxInvoice, d.Status),
             Signatures: await Pdf.PaperSignatureSource.ResolveAsync(

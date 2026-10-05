@@ -18,7 +18,8 @@ import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { useConfirm } from '@/hooks/useConfirm';
 import { PrintMenu } from '@/components/ui/PrintMenu';
-import { useScopeState } from '@/components/PermissionGate';
+import { useScopeState, useHasScope } from '@/components/PermissionGate';
+import { CancelDocumentModal, useCancelErrorToast } from '@/components/documents/CancelDocumentModal';
 import { problemToast } from '@/lib/api';
 
 // Sprint 13h P6.2 — Billing Note detail. Draft → Issue/Delete. Issued → Cancel; Settled only
@@ -31,6 +32,7 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
   const t = useTranslations('billingNote');
   const tc = useTranslations('common');
   const tca = useTranslations('confirmAction');
+  const tcd = useTranslations('cancelDoc');
   const q = useBillingNote(bnId);
   const act = useBillingNoteAction();
   const createTi = useCreateTaxInvoiceFromBillingNote();
@@ -44,7 +46,9 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
   const vatMode = useSystemInfo().data?.vatMode ?? true;
   // F6 — this button creates a Tax Invoice, so it needs sales.tax_invoice.create.
   const canCreateTi = useScopeState('sales.tax_invoice.create');
-  const [cancelReason, setCancelReason] = useState('');
+  // cancel-reissue-sales-docs O3 — reason-coded cancel via CancelDocumentModal (replaces the inline input).
+  const canCancel = useHasScope()('sales.billing_note.cancel');
+  const cancelErr = useCancelErrorToast();
   const [showCancel, setShowCancel] = useState(false);
   // S11 — issue had no confirm dialog (issue issues the doc number immediately,
   // immutable numbering). R2/WP-7 removed the sibling mark-settled confirm along
@@ -58,6 +62,16 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
       toast.success(tc('save'));
     } catch (e) {
       problemToast(e, tc('error'));
+    }
+  }
+
+  async function doCancel(code: string, reason: string) {
+    try {
+      await act.mutateAsync({ id: bnId, action: 'cancel', body: { reasonCode: code, reason } });
+      setShowCancel(false);
+      toast.success(tc('save'));
+    } catch (e) {
+      cancelErr(e);
     }
   }
 
@@ -144,10 +158,17 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
                 </button>
               </span>
             )}
-            {d.status === 'Issued' && (
-              <button data-testid="bn-cancel-toggle" className="btn btn-danger btn-sm" onClick={() => setShowCancel((v) => !v)}>
+            {d.status === 'Issued' && canCancel && (
+              <button data-testid="bn-cancel-toggle" className="btn btn-danger btn-sm" onClick={() => setShowCancel(true)}>
                 {tc('cancel')}
               </button>
+            )}
+            {d.status === 'Settled' && canCancel && (
+              <span className="tooltip" data-tip={t('cancelSettledHint')}>
+                <button data-testid="bn-cancel-settled" className="btn btn-danger btn-sm" disabled>
+                  {tc('cancel')}
+                </button>
+              </span>
             )}
           </>
         }
@@ -173,24 +194,26 @@ export default function BillingNoteDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {showCancel && d.status === 'Issued' && (
-        <div className="mb-4 flex items-center gap-2">
-          <input
-            className="input input-bordered input-sm max-w-md flex-1"
-            placeholder={t('cancelReasonPlaceholder')}
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            maxLength={500}
-          />
-          <button
-            data-testid="bn-cancel-confirm"
-            className="btn btn-danger btn-sm"
-            disabled={!cancelReason.trim() || act.isPending}
-            onClick={() => run('cancel', { reason: cancelReason.trim() })}
-          >
-            {tc('confirm')}
-          </button>
+      {d.status === 'Cancelled' && (
+        <div className="mb-4 rounded-lg border border-error bg-error/10 p-4 text-sm" data-testid="bn-cancelled-banner">
+          <p className="font-semibold text-error">
+            {tcd('bannerCancelled')}
+            {d.cancelReasonCode && tcd.has(`reasons.${d.cancelReasonCode}`) ? ` — ${tcd(`reasons.${d.cancelReasonCode}`)}` : ''}
+          </p>
+          {d.cancelledReason && <p className="mt-1 text-base-content/80">{d.cancelledReason}</p>}
+          {d.reversalJournalDocNo && <p className="mt-1 text-base-content/60">{tcd('bannerReversal', { jv: d.reversalJournalDocNo })}</p>}
         </div>
+      )}
+
+      {showCancel && d.status === 'Issued' && (
+        <CancelDocumentModal
+          kind="invoice"
+          mode="cancel"
+          docNo={d.docNo ?? `#${bnId}`}
+          busy={act.isPending}
+          onClose={() => setShowCancel(false)}
+          onConfirm={doCancel}
+        />
       )}
 
       <div className="detail-grid">

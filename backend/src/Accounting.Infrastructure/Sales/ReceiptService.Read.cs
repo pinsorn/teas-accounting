@@ -231,6 +231,18 @@ public sealed partial class ReceiptService
             new[] { r.Notes, refLine }.Where(s => !string.IsNullOrWhiteSpace(s)));
         if (string.IsNullOrWhiteSpace(displayNotes)) displayNotes = null;
 
+        // cancel-reissue (spec 3.7) — cancel audit + replacement links.
+        var revDocNo = r.ReversalJournalEntryId is { } rj
+            ? await _db.JournalEntries.AsNoTracking().Where(j => j.JournalId == rj)
+                .Select(j => j.DocNo).FirstOrDefaultAsync(ct)
+            : null;
+        var replaces = r.ReplacesReceiptId is { } ro
+            ? await _db.Receipts.AsNoTracking().Where(x => x.ReceiptId == ro)
+                .Select(x => new { x.DocNo }).FirstOrDefaultAsync(ct)
+            : null;
+        var replacedBy = await _db.Receipts.AsNoTracking().Where(x => x.ReplacesReceiptId == id)
+            .Select(x => new { x.ReceiptId, x.DocNo, x.Status }).FirstOrDefaultAsync(ct);
+
         return new ReceiptDetail(
             r.ReceiptId, r.DocNo, r.Status.ToString(), r.DocDate, r.CustomerName,
             r.CustomerTaxId, r.PaymentMethod.ToString(), r.ChequeNo, r.Amount,
@@ -246,7 +258,10 @@ public sealed partial class ReceiptService
             lineRows, whtLineViews,
             custParty?.BillingAddress, custParty?.BranchCode,
             r.CreatedViaApiKeyName,
-            subtotalAmount, vatAmount, displayNotes);
+            subtotalAmount, vatAmount, displayNotes,
+            r.CancelReasonCode, r.CancelReason, r.CancelledAt, revDocNo,
+            r.ReplacesReceiptId, replaces?.DocNo,
+            replacedBy?.ReceiptId, replacedBy?.DocNo, replacedBy?.Status.ToString());
     }
 
     public async Task<byte[]> BuildPdfAsync(long id, CancellationToken ct, bool copy = false)
@@ -280,6 +295,24 @@ public sealed partial class ReceiptService
                 $"ใบกำกับภาษี {a.TiDocNo ?? $"#{a.TaxInvoiceId}"}",
                 a.BusinessUnitCode, null, null, null, null, a.AppliedAmount)).ToList();
 
+        // cancel-reissue (spec 3.6) — legal reference line (receipts carry no BookNo, so เล่มที่ is omitted):
+        // replacement -> the original; Voided original with a POSTED replacement -> the replacement.
+        string? refLine = null;
+        if (d.ReplacesId is { } ro)
+        {
+            var o = await _db.Receipts.AsNoTracking().Where(x => x.ReceiptId == ro)
+                .Select(x => new { x.DocNo, x.DocDate }).FirstOrDefaultAsync(ct);
+            if (o is not null)
+                refLine = $"ยกเลิกและออกแทนฉบับเดิม เลขที่ {o.DocNo} ลงวันที่ {BuddhistDate(o.DocDate)}";
+        }
+        else if (d.Status == "Voided" && d.ReplacedById is { } rid && d.ReplacedByStatus == "Posted")
+        {
+            var r = await _db.Receipts.AsNoTracking().Where(x => x.ReceiptId == rid)
+                .Select(x => new { x.DocNo, x.DocDate }).FirstAsync(ct);
+            refLine = $"ออกใบแทนแล้ว เลขที่ {r.DocNo} ลงวันที่ {BuddhistDate(r.DocDate)}";
+        }
+        var paperNotes = string.Join("\n", new[] { refLine, d.DisplayNotes }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
         var model = new PaperDocModel(
             cfg.DocType, cfg.DocTypeEn, d.DocNo ?? string.Empty, d.DocDate,
             await Pdf.PaperSellerSource.FromCompanyProfileAsync(_db, _tenant.CompanyId, ct, _storage),
@@ -297,8 +330,8 @@ public sealed partial class ReceiptService
                 ShowVat: d.VatAmount > 0m,
                 Wht: d.WhtAmount > 0m ? d.WhtAmount : null),
             new PaperSignRoles(cfg.SignLeft, cfg.SignRight),
-            Notes: d.DisplayNotes,
-            Watermark: copy
+            Notes: paperNotes.Length == 0 ? null : paperNotes,
+            Watermark: copy && d.Status != "Voided"
                 ? new PaperWatermark("สำเนา", PaperWatermarkVariant.Warning)
                 : Pdf.PaperDoc.Watermark(Pdf.PaperDocKind.Receipt, d.Status),
             Signatures: await Pdf.PaperSignatureSource.ResolveAsync(

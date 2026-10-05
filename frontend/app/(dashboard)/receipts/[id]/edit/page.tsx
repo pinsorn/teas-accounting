@@ -4,6 +4,7 @@ import { use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { ReplacementBanner } from '@/components/documents/CancelDocumentModal';
 import { ReceiptForm } from '@/components/forms/ReceiptForm';
 import { useReceipt, useReceiptDraftInput } from '@/lib/queries';
 
@@ -47,8 +48,11 @@ export default function ReceiptEditPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <ReceiptForm
-      edit={{ id: rcId, input, customerName: d.customerName, whtViews: d.whtLines ?? [] }}
-    />
+    <>
+      {d.replacesId && <ReplacementBanner prefix="rc" base="/receipts" d={d} draft />}
+      <ReceiptForm
+        edit={{ id: rcId, input, customerName: d.customerName, whtViews: d.whtLines ?? [] }}
+      />
+    </>
   );
 }

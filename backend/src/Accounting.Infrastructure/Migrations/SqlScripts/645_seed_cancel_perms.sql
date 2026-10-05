@@ -93,3 +93,12 @@ WHERE NOT EXISTS (
     SELECT 1 FROM sys.role_permissions x
     WHERE x.role_id = rp.role_id AND x.permission_id = pc.permission_id
 );
+
+-- 4b. SUPER_ADMIN (system-global, company_id IS NULL) also gets the tax invoice and receipt cancel
+--     codes, like 620 gives it every new code. Still under the bypass set in step 4.
+INSERT INTO sys.role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM sys.roles r
+JOIN sys.permissions p ON p.permission_code IN ('sales.tax_invoice.cancel', 'sales.receipt.cancel')
+WHERE r.role_code = 'SUPER_ADMIN' AND r.company_id IS NULL
+ON CONFLICT DO NOTHING;

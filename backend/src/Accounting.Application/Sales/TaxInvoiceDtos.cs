@@ -34,6 +34,12 @@ public sealed record CreateTaxInvoiceRequest(
     int? BusinessUnitId = null,    // Sprint 8 — revenue stream tag
     long? QuotationId = null);     // Sprint 13h P6.1 — optional Q reverse-link
 
+/// <summary>cancel-reissue spec 3.4.1 - result of cancel / cancel-and-reissue. ReplacementTaxInvoiceId is set only
+/// by cancel-and-reissue.</summary>
+public sealed record TaxInvoiceCancelResult(
+    long TaxInvoiceId, string Status, long ReversalJournalId, string ReversalDocNo, DateOnly GlDate,
+    long? ReplacementTaxInvoiceId);
+
 public sealed record TaxInvoicePostedResult(
     long TaxInvoiceId, string DocNo, DateTimeOffset PostedAt, decimal TotalAmount, decimal TaxAmount);
 
@@ -121,7 +127,13 @@ public sealed record TaxInvoiceDetail(
     IReadOnlyList<TaxInvoiceDetailLine> Lines,
     long?    QuotationId = null,   // Sprint 13h P6.1 — cross-ref to originating Q
     // M4a — non-null when draft was created by an MCP/API-key agent.
-    string?  CreatedViaApiKey = null);
+    string?  CreatedViaApiKey = null,
+    // cancel-reissue (spec 3.7) - cancel audit + replacement links (appended; all null/false on a plain doc).
+    string?  CancelReasonCode = null, string? CancelReason = null, DateTimeOffset? CancelledAt = null,
+    string?  ReversalJournalDocNo = null,
+    long?    ReplacesId = null, string? ReplacesDocNo = null,
+    long?    ReplacedById = null, string? ReplacedByDocNo = null, string? ReplacedByStatus = null,
+    bool     Pnd30FiledForMonth = false);
 
 /// <summary>Result of a (currently inert) e-Tax resend attempt.</summary>
 public sealed record TaxInvoiceResendResult(long TaxInvoiceId, bool Sent, string Message);

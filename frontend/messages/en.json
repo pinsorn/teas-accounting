@@ -116,6 +116,98 @@
     "emptyTitle": "No outstanding payables",
     "emptySubtitle": "No posted vendor invoices outstanding as of the selected date."
   },
+  "cancelDoc": {
+    "cancel": "Cancel",
+    "cancelReissue": "Cancel and reissue",
+    "reissue": "Reissue replacement",
+    "discardReplacement": "Discard replacement draft",
+    "modalTitleCancel": "Cancel document",
+    "modalTitleReissue": "Cancel and reissue",
+    "reasonCode": "Reason",
+    "reasonText": "Reason details",
+    "reasonRequired": "Please enter the reason details",
+    "warnBadDebt": "Customer did not pay → use bad debt, not cancellation (Sec. 82/11)",
+    "warnValueChange": "Value changed → issue a credit/debit note",
+    "warnManualJv": "If payment was recorded with a manual journal, reverse it first",
+    "warnPnd30Filed": "ภ.พ.30 for this month is already filed — cancelling does not amend the filed return",
+    "warnReissueLocked": "The new document keeps the original date and amounts; only descriptive details (name, address, tax ID, item description) can be edited",
+    "warnReceiptUnwind": "The cash receipt entry is reversed, the tax invoice balance is restored, and customer withholding certificates tied to this receipt are voided",
+    "bannerCancelled": "This document has been cancelled",
+    "bannerReversal": "Reversal journal {jv}",
+    "bannerReplacementDraft": "Replacement for {docNo} — amounts are locked",
+    "bannerReplacedBy": "Replacement issued: {docNo}",
+    "bannerReplaces": "Replaces {docNo}",
+    "viewOriginal": "View original",
+    "amountLocked": "Amounts are locked; only descriptive details can be edited",
+    "confirmDiscard": "Discard this replacement draft? The original stays cancelled and can be reissued again.",
+    "reasons": {
+      "BUYER_DETAILS_ERROR": "Buyer name/address/tax ID/branch is wrong",
+      "ITEM_DESCRIPTION_ERROR": "Item/service description is wrong",
+      "OTHER_PARTICULARS_ERROR": "Other Sec. 86/4 particulars are wrong",
+      "ISSUED_IN_ERROR": "Issued in error",
+      "DUPLICATE": "Issued twice (duplicate)",
+      "SALE_CANCELLED_BEFORE_DELIVERY": "Sale cancelled before delivery/service",
+      "PAYER_DETAILS_ERROR": "Payer details are wrong",
+      "PAYMENT_DETAILS_ERROR": "Payment method/cheque no./account is wrong",
+      "PAYMENT_NOT_RECEIVED": "Cheque bounced / money never received",
+      "SALE_CANCELLED": "Sale cancelled",
+      "DETAILS_ERROR": "Details are wrong"
+    },
+    "errors": {
+      "ti": {
+        "cannot_cancel_status": "Only a posted tax invoice can be cancelled (an already-cancelled one cannot be cancelled again)",
+        "etax_submitted": "This tax invoice was submitted to the Revenue Department (e-Tax) and cannot be cancelled; use a credit/debit note",
+        "has_posted_receipts": "Posted receipts reference this tax invoice; cancel the receipts first",
+        "has_adjustment_notes": "A credit/debit note references this tax invoice, so it cannot be cancelled; issue a further credit/debit note instead",
+        "linked_to_billing_note": "This tax invoice is grouped in an invoice; cancel that invoice first",
+        "not_cancelled": "This tax invoice has not been cancelled",
+        "replacement_exists": "A replacement for this tax invoice already exists",
+        "delete_not_allowed": "Only a replacement draft can be deleted",
+        "customer_incomplete": "Customer details are incomplete under Sec. 86/4; fix the customer record before reissuing",
+        "locked_mismatch": "The document was changed by someone else; reload and try again"
+      },
+      "rc": {
+        "cannot_cancel_status": "Only a posted receipt can be cancelled (an already-cancelled one cannot be cancelled again)",
+        "bank_reconciled": "This receipt is matched to a bank statement line; unmatch it first",
+        "unwind_negative": "The tax invoice paid amount would go negative after the reversal; contact an administrator",
+        "not_cancelled": "This receipt has not been cancelled",
+        "replacement_exists": "A replacement for this receipt already exists",
+        "delete_not_allowed": "Only a replacement draft can be deleted",
+        "locked_mismatch": "The document was changed by someone else; reload and try again"
+      },
+      "billing_note": {
+        "bad_status": "The invoice status does not allow cancellation",
+        "settled_cannot_cancel": "This invoice is fully paid; cancel its receipts first (it returns to Issued)",
+        "has_posted_receipts": "Posted receipts reference this invoice; cancel the receipts first",
+        "locked_mismatch": "The document was changed by someone else; reload and try again"
+      },
+      "cancel": {
+        "reason_code_invalid": "The reason code is not valid for this document or action",
+        "journal_not_found": "The original journal entry for this document was not found; use a credit/debit note or contact an administrator",
+        "journal_ambiguous": "More than one original journal entry was found; contact an administrator",
+        "already_reversed": "This document has already been reversed"
+      },
+      "gl": {
+        "reversal_source_not_posted": "The original journal entry is not posted, so it cannot be reversed",
+        "reversal_closing_entry": "A closing entry cannot be reversed"
+      },
+      "replacement": {
+        "original_not_cancelled": "The original of this replacement has not been cancelled",
+        "locked_field": "A replacement cannot change amounts, only descriptive details; to change value, discard it and issue a credit/debit note"
+      },
+      "receipt": {
+        "over_applied": "The tax invoice was paid by another receipt meanwhile and the amount exceeds the balance; discard the replacement draft"
+      },
+      "period": {
+        "closed": "The accounting period for the posting date is closed; reopen it first",
+        "draft_present": "An unposted replacement draft exists in this month; post or discard it first"
+      },
+      "validation": {
+        "reason_required": "Please enter a reason",
+        "reason_too_long": "The reason must be at most 500 characters"
+      }
+    }
+  },
   "crossRef": {
     "title": "Related documents",
     "quotation": "Quotation",
@@ -127,7 +219,10 @@
     "debitNote": "Debit Note",
     "billingNote": "Invoice",
     "vendorInvoice": "Vendor Invoice",
-    "paymentVoucher": "Payment Voucher"
+    "paymentVoucher": "Payment Voucher",
+    "taxInvoiceCancel": "Tax Invoice cancellation",
+    "receiptCancel": "Receipt cancellation",
+    "invoiceCancel": "Invoice cancellation"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -1858,6 +1953,7 @@
     "ariaLabel": "Delivery order reference"
   },
   "billingNote": {
+    "cancelSettledHint": "This invoice is fully paid; cancel its receipts first",
     "listTitle": "Invoices",
     "create": "New Invoice",
     "docNo": "Doc No.",

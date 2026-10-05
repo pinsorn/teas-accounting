@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Pencil } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -14,7 +14,12 @@ import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
 import { ReceiptWhtCertSection } from '@/components/doc/ReceiptWhtCertSection';
-import { useReceipt, useCompanyProfile, usePaperDoc, usePostReceipt } from '@/lib/queries';
+import {
+  useReceipt, useCompanyProfile, usePaperDoc, usePostReceipt, useCancelReceipt,
+  useCancelAndReissueReceipt, useReissueReceipt, useDiscardReceiptReplacement,
+} from '@/lib/queries';
+import { CancelDocumentModal, CancelledBanner, ReplacementBanner, useCancelErrorToast } from '@/components/documents/CancelDocumentModal';
+import { useConfirm } from '@/hooks/useConfirm';
 import { formatTHB } from '@/lib/utils';
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
@@ -35,6 +40,15 @@ export default function ReceiptDetailPage() {
   const paper = usePaperDoc('receipts', id);
   const post = usePostReceipt();
   const hasScope = useHasScope();
+  const router = useRouter();
+  const tcd = useTranslations('cancelDoc');
+  const confirm = useConfirm();
+  const cancelErr = useCancelErrorToast();
+  const cancel = useCancelReceipt();
+  const cancelReissue = useCancelAndReissueReceipt();
+  const reissue = useReissueReceipt();
+  const discard = useDiscardReceiptReplacement();
+  const [cancelMode, setCancelMode] = useState<'cancel' | 'reissue' | null>(null);
   const [isApproveAction, setIsApproveAction] = useState(false);
 
   useEffect(() => {
@@ -52,6 +66,37 @@ export default function ReceiptDetailPage() {
     } catch (e) {
       problemToast(e, tc('error'));
     }
+  }
+
+  const canCancel = hasScope('sales.receipt.cancel');
+  const canReissue = canCancel && hasScope('sales.receipt.create');
+
+  async function doReissue() {
+    try {
+      const r = await reissue.mutateAsync(id);
+      router.push(`/receipts/${r.replacementReceiptId}/edit`);
+    } catch (e) { cancelErr(e); }
+  }
+  async function doDiscard() {
+    if (!(await confirm({ description: tcd('confirmDiscard'), variant: 'destructive' }))) return;
+    try {
+      await discard.mutateAsync(id);
+      toast.success(tc('save'));
+      if (d?.replacesId) router.push(`/receipts/${d.replacesId}`);
+    } catch (e) { cancelErr(e); }
+  }
+  async function doCancel(code: string, reason: string) {
+    try {
+      if (cancelMode === 'reissue') {
+        const r = await cancelReissue.mutateAsync({ id, reasonCode: code, reason });
+        setCancelMode(null);
+        if (r.replacementReceiptId) router.push(`/receipts/${r.replacementReceiptId}/edit`);
+      } else {
+        await cancel.mutateAsync({ id, reasonCode: code, reason });
+        setCancelMode(null);
+        toast.success(tc('save'));
+      }
+    } catch (e) { cancelErr(e); }
   }
 
   if (isLoading || paper.isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
@@ -118,6 +163,20 @@ export default function ReceiptDetailPage() {
         </div>
       )}
 
+      {d.status === 'Voided' && (
+        <CancelledBanner prefix="rc" base="/receipts" d={d} canReissue={canReissue} busy={reissue.isPending} onReissue={doReissue} />
+      )}
+      {d.replacesId && d.status === 'Draft' && (
+        <ReplacementBanner prefix="rc" base="/receipts" d={d} draft>
+          {canCancel && (
+            <button data-testid="rc-discard-replacement" className="btn btn-ghost btn-sm text-error" disabled={discard.isPending} onClick={doDiscard}>
+              {tcd('discardReplacement')}
+            </button>
+          )}
+        </ReplacementBanner>
+      )}
+      {d.replacesId && d.status === 'Posted' && <ReplacementBanner prefix="rc" base="/receipts" d={d} draft={false} />}
+
       <DocActionBar
         status={d.status}
         docNo={d.docNo ?? `#${d.receiptId}`}
@@ -131,6 +190,16 @@ export default function ReceiptDetailPage() {
               <Link data-testid="rc-edit" href={`/receipts/${id}/edit`} className="btn btn-secondary btn-sm gap-1">
                 <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
               </Link>
+            )}
+            {d.status === 'Posted' && canCancel && (
+              <button data-testid="rc-cancel" className="btn btn-danger btn-sm" onClick={() => setCancelMode('cancel')}>
+                {tcd('cancel')}
+              </button>
+            )}
+            {d.status === 'Posted' && canReissue && (
+              <button data-testid="rc-cancel-reissue" className="btn btn-danger btn-sm" onClick={() => setCancelMode('reissue')}>
+                {tcd('cancelReissue')}
+              </button>
             )}
             {d.status === 'Draft' && !isApproveAction && hasScope('sales.receipt.post') && (
               <button
@@ -194,6 +263,17 @@ export default function ReceiptDetailPage() {
       />
 
       <AttachmentsSection parentType="RECEIPT" parentId={id} />
+
+      {cancelMode && (
+        <CancelDocumentModal
+          kind="receipt"
+          mode={cancelMode}
+          docNo={d.docNo ?? `#${id}`}
+          busy={cancel.isPending || cancelReissue.isPending}
+          onClose={() => setCancelMode(null)}
+          onConfirm={doCancel}
+        />
+      )}
     </>
   );
 }

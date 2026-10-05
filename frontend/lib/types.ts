@@ -348,6 +348,12 @@ export interface TaxInvoiceDetail {
   lines: TaxInvoiceDetailLine[];
   quotationId?: number | null;   // Sprint 13h P6.1 — Q cross-ref
   createdViaApiKey?: string | null; // E6/B3 — agent-draft badge
+  // cancel-reissue-sales-docs §3.7 — cancel / replacement metadata.
+  cancelReasonCode?: string | null; cancelReason?: string | null; cancelledAt?: string | null;
+  reversalJournalDocNo?: string | null;
+  replacesId?: number | null; replacesDocNo?: string | null;
+  replacedById?: number | null; replacedByDocNo?: string | null; replacedByStatus?: string | null;
+  pnd30FiledForMonth?: boolean; // a finalized ภ.พ.30 exists for the DocDate month
 }
 
 export interface NumberGapRow {
@@ -737,6 +743,11 @@ export interface ReceiptDetail {
   subtotalAmount: number;
   vatAmount: number;
   displayNotes: string | null;
+  // cancel-reissue-sales-docs §3.7 — cancel / replacement metadata.
+  cancelReasonCode?: string | null; cancelReason?: string | null; cancelledAt?: string | null;
+  reversalJournalDocNo?: string | null;
+  replacesId?: number | null; replacesDocNo?: string | null;
+  replacedById?: number | null; replacedByDocNo?: string | null; replacedByStatus?: string | null;
 }
 
 export type AdjustmentNoteType = 'Credit' | 'Debit';
@@ -1143,6 +1154,14 @@ export interface BillingNoteDetail {
   taxInvoices: BillingNoteTaxInvoiceRef[];
   currencyCode: string; subtotalAmount: number; vatAmount: number; totalAmount: number;
   notes: string | null; lines: ChainLineDto[];
+  cancelReasonCode?: string | null; cancelledReason?: string | null; cancelledAt?: string | null;
+  reversalJournalDocNo?: string | null; hasJournal?: boolean;
+}
+// cancel-reissue-sales-docs §3.4/§3.7 — TI/Receipt cancel result (replacement id set by cancel-and-reissue).
+export interface CancelDocResult {
+  status: string; reversalJournalId: number; reversalDocNo: string; glDate: string;
+  taxInvoiceId?: number; receiptId?: number;
+  replacementTaxInvoiceId?: number | null; replacementReceiptId?: number | null;
 }
 export interface BillingLineInput {
   productId: number | null; taxInvoiceId: number | null;
