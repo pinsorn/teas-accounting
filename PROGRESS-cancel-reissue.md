@@ -10,9 +10,9 @@ Branch `feat/notes-receipt-taxinvoice`. Ham (2026-10-05): "เริ่มเล
 - WP-4 FE (12 files) — tsc/lint/vitest 72/i18n parity green. Checkpoint-committed, DTO cross-check vs WP-2 pending.
 
 ## Resume order
-1. Fable personal diff review of the WP-2 + WP-4 checkpoint commit (focus: TaxInvoiceService.Cancel.cs, ReceiptService.Cancel.cs, DocumentCancellation.cs, GlPostingService diff; FE `lib/types.ts` field names vs BE DTOs: TaxInvoiceCancelResult/ReceiptCancelResult/details).
+1. [x] DONE 2026-10-05 21:15 — reviewed: core money files OK, DTO names match FE. (was: Fable personal diff review of the WP-2 + WP-4 checkpoint commit (focus: TaxInvoiceService.Cancel.cs, ReceiptService.Cancel.cs, DocumentCancellation.cs, GlPostingService diff; FE `lib/types.ts` field names vs BE DTOs: TaxInvoiceCancelResult/ReceiptCancelResult/details).
    Note: WP-2 deviation — replacement UpdateDraft REJECTS differing QuotationId (spec said ignore) — accept. T20 GrantAllAsync leaves grants on pg_database_owner in teas_test (watch full suite).
-2. WP-3 reports (§5 WP-3: VatReport/TaxFiling registers voided rows + cross-month memo, SubledgerReport JE-date rule, TaxSummaryService filter; tests T11, T13, T14) → sonnet-implementer.
+2. [~] DISPATCHED 21:20 — WP-3 reports (§5 WP-3: VatReport/TaxFiling registers voided rows + cross-month memo, SubledgerReport JE-date rule, TaxSummaryService filter; tests T11, T13, T14) → sonnet-implementer.
 3. WP-5: e2e `frontend/e2e/cancel-reissue.spec.ts` (T21; testids ti-*/rc-*/cancel-*), RBAC docs.
 4. Fable: full backend suite (backgrounded), e2e.
 5. Tier-2 Opus review (money+schema lenses) on whole branch diff vs main.

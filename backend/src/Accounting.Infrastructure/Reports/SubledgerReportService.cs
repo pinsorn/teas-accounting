@@ -69,12 +69,16 @@ public sealed class SubledgerReportService(
 
     private async Task<List<PartyMovement>> ArMovementsAsync(long? customerId, CancellationToken ct)
     {
-        var tiRows = await db.TaxInvoices.AsNoTracking()
-            .Where(t => t.CompanyId == tenant.CompanyId && t.Status == DocumentStatus.Posted
+        // Cancel+reissue (spec 3.5.3): a movement is dated by the JE that POSTED it (a replacement
+        // is posted in a later month than its DocDate), and a Voided TI / Voided Receipt /
+        // Cancelled-with-JE Invoice also emits a mirror row at its reversal JE's date, so the
+        // subledger ties to GL 1130 as-of every date. JournalEntryId == null (legacy) -> DocDate.
+        var tiRaw = await db.TaxInvoices.AsNoTracking()
+            .Where(t => t.CompanyId == tenant.CompanyId
+                     && (t.Status == DocumentStatus.Posted || t.Status == DocumentStatus.Voided)
                      && (customerId == null || t.CustomerId == customerId))
-            .Select(t => new PartyMovement(
-                t.CustomerId, t.DocDate, "TaxInvoice", 0, t.TaxInvoiceId, t.DocNo ?? "", null,
-                t.TotalAmount, 0m))
+            .Select(t => new { t.CustomerId, t.DocDate, t.TaxInvoiceId, t.DocNo, t.TotalAmount,
+                               t.JournalEntryId, t.ReversalJournalEntryId, t.Status })
             .ToListAsync(ct);
 
         // R1/C6 (WP-1) — accrued Invoices (BillingNote.JournalEntryId != null) debit AR at
@@ -82,13 +86,12 @@ public sealed class SubledgerReportService(
         // Dr 1130/Cr 4000 shape. A pre-fix Invoice (JournalEntryId == null) is deliberately
         // excluded: it never touched the GL, so it stays out of AR exactly as it is out of
         // the GL (transition safety — self-heals once WP-2 backfills it).
-        var bnRows = await db.BillingNotes.AsNoTracking()
+        var bnRaw = await db.BillingNotes.AsNoTracking()
             .Where(b => b.CompanyId == tenant.CompanyId && b.JournalEntryId != null
-                     && b.Status != BillingNoteStatus.Cancelled
+                     && (b.Status != BillingNoteStatus.Cancelled || b.ReversalJournalEntryId != null)
                      && (customerId == null || b.CustomerId == customerId))
-            .Select(b => new PartyMovement(
-                b.CustomerId, b.DocDate, "Invoice", 0, b.BillingNoteId, b.DocNo ?? "", null,
-                b.TotalAmount, 0m))
+            .Select(b => new { b.CustomerId, b.DocDate, b.BillingNoteId, b.DocNo, b.TotalAmount,
+                               b.JournalEntryId, b.ReversalJournalEntryId, b.Status })
             .ToListAsync(ct);
 
         // Every accrued Invoice id (company-wide, NOT customer-filtered — this only
@@ -108,20 +111,18 @@ public sealed class SubledgerReportService(
         // AppliedAmount already includes any WHT withheld on that application (cash + WHT =
         // sum(applied), Sprint 8.6), so it ties to the AR credit GlPostingService actually posts.
         var receiptRaw = await db.Receipts.AsNoTracking()
-            .Where(r => r.CompanyId == tenant.CompanyId && r.Status == DocumentStatus.Posted
+            .Where(r => r.CompanyId == tenant.CompanyId
+                     && (r.Status == DocumentStatus.Posted || r.Status == DocumentStatus.Voided)
                      && (customerId == null || r.CustomerId == customerId))
             .Select(r => new
             {
                 r.CustomerId, r.ReceiptId, r.DocDate, r.DocNo,
+                r.JournalEntryId, r.ReversalJournalEntryId, r.Status,
                 TiApplied = r.Applications.Where(a => a.TaxInvoiceId != null).Sum(a => a.AppliedAmount),
                 BnApplied = r.Applications.Where(a => a.BillingNoteId != null
                          && accruedBnIds.Contains(a.BillingNoteId!.Value)).Sum(a => a.AppliedAmount),
             })
             .ToListAsync(ct);
-        var rcRows = receiptRaw.Where(x => x.TiApplied + x.BnApplied > 0m)
-            .Select(x => new PartyMovement(
-                x.CustomerId, x.DocDate, "Receipt", 1, x.ReceiptId, x.DocNo ?? "", null, 0m,
-                x.TiApplied + x.BnApplied));
 
         // CN reverses AR (Credit); DN increases AR (Debit) — sign per GlPostingService
         // .PostTaxAdjustmentNoteAsync.
@@ -130,6 +131,54 @@ public sealed class SubledgerReportService(
                      && (customerId == null || n.CustomerId == customerId))
             .Select(n => new { n.CustomerId, n.NoteId, n.DocDate, n.DocNo, n.NoteType, n.TotalAmount, n.Reason })
             .ToListAsync(ct);
+
+        var jeIds = new HashSet<long>();
+        foreach (var (j, r) in tiRaw.Select(x => (x.JournalEntryId, x.ReversalJournalEntryId))
+                     .Concat(bnRaw.Select(x => (x.JournalEntryId, x.ReversalJournalEntryId)))
+                     .Concat(receiptRaw.Select(x => (x.JournalEntryId, x.ReversalJournalEntryId))))
+        {
+            if (j is { } a) jeIds.Add(a);
+            if (r is { } b) jeIds.Add(b);
+        }
+        var jeList = jeIds.ToList();
+        var jeDates = await db.JournalEntries.AsNoTracking()
+            .Where(j => j.CompanyId == tenant.CompanyId && jeList.Contains(j.JournalId))
+            .Select(j => new { j.JournalId, j.DocDate })
+            .ToDictionaryAsync(j => j.JournalId, j => j.DocDate, ct);
+        DateOnly D(long? jeId, DateOnly fallback) =>
+            jeId is { } id && jeDates.TryGetValue(id, out var d) ? d : fallback;
+
+        var tiRows = new List<PartyMovement>();
+        foreach (var t in tiRaw)
+        {
+            tiRows.Add(new PartyMovement(t.CustomerId, D(t.JournalEntryId, t.DocDate), "TaxInvoice", 0,
+                t.TaxInvoiceId, t.DocNo ?? "", null, t.TotalAmount, 0m));
+            if (t.Status == DocumentStatus.Voided && t.ReversalJournalEntryId is { } rv)
+                tiRows.Add(new PartyMovement(t.CustomerId, D(rv, t.DocDate), "TaxInvoiceCancel", 0,
+                    t.TaxInvoiceId, t.DocNo ?? "", null, 0m, t.TotalAmount));
+        }
+
+        var bnRows = new List<PartyMovement>();
+        foreach (var b in bnRaw)
+        {
+            bnRows.Add(new PartyMovement(b.CustomerId, D(b.JournalEntryId, b.DocDate), "Invoice", 0,
+                b.BillingNoteId, b.DocNo ?? "", null, b.TotalAmount, 0m));
+            if (b.Status == BillingNoteStatus.Cancelled && b.ReversalJournalEntryId is { } rv)
+                bnRows.Add(new PartyMovement(b.CustomerId, D(rv, b.DocDate), "InvoiceCancel", 0,
+                    b.BillingNoteId, b.DocNo ?? "", null, 0m, b.TotalAmount));
+        }
+
+        var rcRows = new List<PartyMovement>();
+        foreach (var x in receiptRaw.Where(x => x.TiApplied + x.BnApplied > 0m))
+        {
+            var amt = x.TiApplied + x.BnApplied;
+            rcRows.Add(new PartyMovement(x.CustomerId, D(x.JournalEntryId, x.DocDate), "Receipt", 1,
+                x.ReceiptId, x.DocNo ?? "", null, 0m, amt));
+            if (x.Status == DocumentStatus.Voided && x.ReversalJournalEntryId is { } rv)
+                rcRows.Add(new PartyMovement(x.CustomerId, D(rv, x.DocDate), "ReceiptCancel", 1,
+                    x.ReceiptId, x.DocNo ?? "", null, amt, 0m));
+        }
+
         var noteRows = noteRaw.Select(n => n.NoteType == TaxAdjustmentNoteType.Credit
             ? new PartyMovement(n.CustomerId, n.DocDate, "CreditNote", 2, n.NoteId, n.DocNo ?? "", n.Reason, 0m, n.TotalAmount)
             : new PartyMovement(n.CustomerId, n.DocDate, "DebitNote", 2, n.NoteId, n.DocNo ?? "", n.Reason, n.TotalAmount, 0m));

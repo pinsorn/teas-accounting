@@ -59,7 +59,7 @@ public sealed class TaxSummaryService(
         // Same half-open-range rewrite as glRows above — avoid `date_part('year', cert_date)::int`
         // (dtoi4 int4-overflow → 22003). Keeps the per-year scope identical.
         var certQuery = db.WhtCertificates.AsNoTracking()
-            .Where(w => w.CertDate >= yearStart && w.CertDate < nextYearStart);
+            .Where(w => w.Status == DocumentStatus.Posted && w.CertDate >= yearStart && w.CertDate < nextYearStart);
         if (businessUnitId is { } whtBu)
         {
             certQuery = certQuery.Where(w =>

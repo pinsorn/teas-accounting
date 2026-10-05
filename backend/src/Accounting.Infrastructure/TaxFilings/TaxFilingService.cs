@@ -186,15 +186,21 @@ public sealed class TaxFilingService(
         // Per-TI category: header TaxAmount>0 ⇒ taxable; otherwise inspect that
         // TI's line codes (exempt wins, then zero-rated). Mixed-line docs collapse
         // to a doc-level label — per-line register granularity = Phase 2.
+        // Cancel+reissue (spec 3.5.1): Voided TIs are listed at 0.00 (Category CANCELLED) + a cross-month
+        // memo row for TIs voided this month but dated earlier. VatTotal/SubtotalTotal sum zeros.
         var tis = await db.TaxInvoices
-            .Where(t => t.Status == DocumentStatus.Posted
+            .Where(t => (t.Status == DocumentStatus.Posted || t.Status == DocumentStatus.Voided)
                      && t.DocDate >= from && t.DocDate <= to)
             .Select(t => new
             {
                 t.TaxInvoiceId, t.DocDate, t.DocNo, t.CustomerName, t.CustomerTaxId,
-                t.SubtotalAmount, t.TaxAmount, t.TotalAmount,
+                t.SubtotalAmount, t.TaxAmount, t.TotalAmount, t.Status,
             })
             .ToListAsync(ct);
+        var memoTis = await Reports.VatReportService.MemoTisAsync(db, from, to, null, ct);
+        var remarks = await Reports.VatReportService.RemarksAsync(db,
+            tis.Select(t => new Reports.VatReportService.RegisterTi(t.TaxInvoiceId, t.DocDate, t.DocNo,
+                t.CustomerName, t.CustomerTaxId, t.SubtotalAmount, t.TaxAmount, t.TotalAmount, t.Status)), ct);
 
         var tiIds = tis.Select(t => t.TaxInvoiceId).ToList();
         var lineCodes = await db.TaxInvoiceLines
@@ -218,10 +224,13 @@ public sealed class TaxFilingService(
 
         var rows = tis
             .OrderBy(t => t.DocDate).ThenBy(t => t.DocNo)
-            .Select(t => new OutputVatRegisterRow(
-                t.DocDate, t.DocNo ?? "", "TI", t.CustomerName, t.CustomerTaxId,
-                t.SubtotalAmount, t.TaxAmount, t.TotalAmount,
-                CategoryOf(t.TaxInvoiceId, t.TaxAmount)))
+            .Select(t => t.Status == DocumentStatus.Voided
+                ? new OutputVatRegisterRow(t.DocDate, t.DocNo ?? "", "TI", t.CustomerName, t.CustomerTaxId,
+                    0m, 0m, 0m, "CANCELLED", "Voided", remarks.GetValueOrDefault(t.TaxInvoiceId))
+                : new OutputVatRegisterRow(
+                    t.DocDate, t.DocNo ?? "", "TI", t.CustomerName, t.CustomerTaxId,
+                    t.SubtotalAmount, t.TaxAmount, t.TotalAmount,
+                    CategoryOf(t.TaxInvoiceId, t.TaxAmount), "Posted", remarks.GetValueOrDefault(t.TaxInvoiceId)))
             .ToList();
 
         var noteRows = await db.TaxAdjustmentNotes
@@ -278,7 +287,9 @@ public sealed class TaxFilingService(
                 CategoryOfOriginal(n.OriginalTaxInvoiceId)))
             .ToList();
 
-        var all = rows.Concat(notes).OrderBy(r => r.DocDate).ThenBy(r => r.DocNo).ToList();
+        var memo = memoTis.Select(t => new OutputVatRegisterRow(t.DocDate, t.DocNo ?? "", "TI", t.CustomerName,
+            t.CustomerTaxId, 0m, 0m, 0m, "CANCELLED", "Voided", Reports.VatReportService.MemoRemark(t.DocDate)));
+        var all = rows.Concat(notes).OrderBy(r => r.DocDate).ThenBy(r => r.DocNo).Concat(memo).ToList();
         return new OutputVatRegister(period, all,
             SubtotalTotal: all.Sum(r => r.Subtotal),
             VatTotal:      all.Sum(r => r.Vat));

@@ -68,7 +68,8 @@ public sealed record InputVatRegister(
 public sealed record OutputVatRegisterRow(
     DateOnly DocDate, string DocNo, string DocType,
     string CustomerName, string? CustomerTaxId,
-    decimal Subtotal, decimal Vat, decimal Total, string Category);
+    decimal Subtotal, decimal Vat, decimal Total, string Category,
+    string Status = "Posted", string? Remark = null);
 
 public sealed record OutputVatRegister(
     int Period,
