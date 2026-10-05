@@ -243,3 +243,28 @@ Nothing below is dispatched yet.
 **Still running in parallel, no code needed:** the Repttown tax track — amended ภ.ง.ด.50 for the
 understated years. Voluntary filing before an RD summons waives เบี้ยปรับ; เงินเพิ่ม 1.5%/month is
 statutory and accrues now. Details: `specs/research-thai-prior-period-correction.md`.
+
+## 8. ANSWERED by Ham — 2026-10-05. Binding (Feature A scope).
+
+Request (Ham): Invoice cancellable; Receipt + TaxInvoice cancellable even after post; notes on all three
+(shipped separately, commit 3761e66); "ออกใบใหม่" button on Receipt + TI printing "ยกเลิกและออกแทนฉบับเดิม
+เล่มที่… เลขที่… ลงวันที่…". Research: `specs/research-ti-cancel-reissue.md` (UNVERIFIED — CPA confirm before ship).
+
+1. **Cancel a posted Receipt → full automatic unwind**: reversing JE; decrement TI `AmountPaid` + recompute
+   `PaymentStatus`; Settled BN → Issued; void linked WHT certificates (Direction R); refused while the receipt is
+   bank-reconciled (unmatch first).
+2. **Replacement date/number**: replacement DocDate = ORIGINAL DocDate (ป.86/2542 ข้อ 25), new running number in
+   that DocDate's month sequence even if that month is closed — explicit exception to §6 Q2 for replacements only.
+   GL: reversal + replacement post in the original period if open, else both in the current open period.
+3. **Standalone TI cancel (no reissue)**: allowed with a required reason code from a fixed list (e.g. issued in
+   error/duplicate, sale cancelled before delivery) + free text; UI warns: non-payment → bad debt, value change →
+   CN/DN. Refused while a posted Receipt applies to it or a posted CN/DN references it.
+4. **Invoice (BillingNote) cancel**: any Issued invoice, incl. non-VAT with a JE (reversing JE). Settled → refused
+   until its receipts are cancelled (which reverts it to Issued).
+5. **"ยกเลิกและออกใบใหม่"** (TI + Receipt): one atomic action — cancel original with reason + create a pre-filled
+   replacement DRAFT linked both ways. Replacement total amount LOCKED (§6 Q1); descriptive fields editable.
+   Replacement PDF auto-prints "ยกเลิกและออกแทนฉบับเดิม [เล่มที่ X] เลขที่ Y ลงวันที่ Z"; original shows ยกเลิก
+   watermark + "ออกใบแทนแล้ว เลขที่ …". Sales-tax report lists the cancelled TI as ยกเลิก 0.00, never omitted.
+6. **เล่มที่**: printed only when `BookNo` is set; otherwise omitted.
+7. **Permission**: new `.cancel` scopes for TI, Receipt, Invoice (not folded into `.manage`); every cancel in the
+   activity log with actor, time, reason.

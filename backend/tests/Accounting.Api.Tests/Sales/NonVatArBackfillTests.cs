@@ -70,12 +70,14 @@ public sealed class NonVatArBackfillTests
     {
         private int _manualPostCount;
 
-        public Task<long> PostTaxInvoiceAsync(long taxInvoiceId, CancellationToken ct) =>
-            inner.PostTaxInvoiceAsync(taxInvoiceId, ct);
+        public Task<long> PostTaxInvoiceAsync(long taxInvoiceId, CancellationToken ct, DateOnly? glDate = null) =>
+            inner.PostTaxInvoiceAsync(taxInvoiceId, ct, glDate);
+        public Task<long> PostReversalAsync(long originalJournalId, DateOnly glDate, string description, CancellationToken ct) =>
+            inner.PostReversalAsync(originalJournalId, glDate, description, ct);
         public Task<long> PostBillingNoteAsync(long billingNoteId, CancellationToken ct) =>
             inner.PostBillingNoteAsync(billingNoteId, ct);
-        public Task<long> PostReceiptAsync(long receiptId, CancellationToken ct) =>
-            inner.PostReceiptAsync(receiptId, ct);
+        public Task<long> PostReceiptAsync(long receiptId, CancellationToken ct, DateOnly? glDate = null) =>
+            inner.PostReceiptAsync(receiptId, ct, glDate);
         public Task<long> PostPaymentVoucherAsync(long paymentVoucherId, CancellationToken ct) =>
             inner.PostPaymentVoucherAsync(paymentVoucherId, ct);
         public Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct) =>

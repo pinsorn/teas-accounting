@@ -13,7 +13,10 @@ public sealed record ManualJvLine(
 /// </summary>
 public interface IGlPostingService
 {
-    Task<long> PostTaxInvoiceAsync(long taxInvoiceId, CancellationToken ct);
+    /// <param name="glDate">cancel-reissue (spec 3.3.3) - overrides the JE date (a replacement for a
+    /// closed-month original is dated in the open month). Null = the document's DocDate. The CALLER owns
+    /// the period check.</param>
+    Task<long> PostTaxInvoiceAsync(long taxInvoiceId, CancellationToken ct, DateOnly? glDate = null);
 
     /// <summary>
     /// R1/C6 (WP-1) — non-VAT revenue+AR accrual at Invoice issue (BillingNoteService
@@ -24,7 +27,12 @@ public interface IGlPostingService
     /// </summary>
     Task<long> PostBillingNoteAsync(long billingNoteId, CancellationToken ct);
 
-    Task<long> PostReceiptAsync(long receiptId, CancellationToken ct);
+    Task<long> PostReceiptAsync(long receiptId, CancellationToken ct, DateOnly? glDate = null);
+
+    /// <summary>cancel-reissue (spec 3.3.3) - mirrors a POSTED JE line-for-line (Dr/Cr swapped, same
+    /// account and BU) dated <paramref name="glDate"/>, linked via ReversalOfId. Caller owns the period
+    /// check (F5 convention). Refuses a non-Posted source or a closing entry.</summary>
+    Task<long> PostReversalAsync(long originalJournalId, DateOnly glDate, string description, CancellationToken ct);
     Task<long> PostPaymentVoucherAsync(long paymentVoucherId, CancellationToken ct);
     Task<long> PostVendorInvoiceAsync(long vendorInvoiceId, CancellationToken ct);
 

@@ -57,7 +57,10 @@ public sealed record BillingNoteDetail(
     string? Notes, IReadOnlyList<ChainLineDto> Lines,
     // R1/C6 (WP-1) — additive: set once the non-VAT accrual JE posts at Issue; always
     // null for a VAT company (its BN never posts) or a Draft/pre-fix Invoice.
-    long? JournalEntryId = null);
+    long? JournalEntryId = null,
+    // cancel-reissue (spec 3.7) - additive cancel audit.
+    string? CancelReasonCode = null, string? CancelledReason = null, DateTimeOffset? CancelledAt = null,
+    string? ReversalJournalDocNo = null, bool HasJournal = false);
 
 public interface IBillingNoteService
 {
@@ -79,7 +82,7 @@ public interface IBillingNoteService
     Task UpdateDraftAsync(long id, CreateBillingNoteRequest req, CancellationToken ct);
     Task DeleteDraftAsync(long id, CancellationToken ct);
     Task IssueAsync(long id, CancellationToken ct);
-    Task CancelAsync(long id, string reason, CancellationToken ct);
+    Task CancelAsync(long id, string reasonCode, string reason, CancellationToken ct);
     // E1 — added optional date-range/customer/product filters (all null = unfiltered, prior behavior).
     Task<IReadOnlyList<BillingNoteListItem>> ListAsync(string? status, CancellationToken ct,
         DateOnly? dateFrom = null, DateOnly? dateTo = null, long? customerId = null, long? productId = null);

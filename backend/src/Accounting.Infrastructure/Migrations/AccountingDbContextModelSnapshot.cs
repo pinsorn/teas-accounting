@@ -4277,6 +4277,19 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("business_unit_id");
 
+                    b.Property<string>("CancelReasonCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("cancel_reason_code");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<long?>("CancelledBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cancelled_by");
+
                     b.Property<string>("CancelledReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -4380,6 +4393,10 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("QuotationId")
                         .HasColumnType("bigint")
                         .HasColumnName("quotation_id");
+
+                    b.Property<long?>("ReversalJournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reversal_journal_entry_id");
 
                     b.Property<long?>("SalesOrderId")
                         .HasColumnType("bigint")
@@ -5191,6 +5208,24 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("business_unit_id");
 
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("cancel_reason");
+
+                    b.Property<string>("CancelReasonCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("cancel_reason_code");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<long?>("CancelledBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cancelled_by");
+
                     b.Property<decimal>("CashReceived")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(19, 4)
@@ -5293,6 +5328,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("idempotency_request_hash");
 
+                    b.Property<long?>("JournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_entry_id");
+
                     b.Property<string>("Notes")
                         .HasColumnType("text")
                         .HasColumnName("notes");
@@ -5318,6 +5357,14 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<int>("PrintCount")
                         .HasColumnType("integer")
                         .HasColumnName("print_count");
+
+                    b.Property<long?>("ReplacesReceiptId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("replaces_receipt_id");
+
+                    b.Property<long?>("ReversalJournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reversal_journal_entry_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -5366,6 +5413,11 @@ namespace Accounting.Infrastructure.Migrations
 
                     b.HasIndex("BusinessUnitId")
                         .HasDatabaseName("ix_receipts_business_unit_id");
+
+                    b.HasIndex("ReplacesReceiptId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_receipts_replaces")
+                        .HasFilter("replaces_receipt_id IS NOT NULL");
 
                     b.HasIndex("WhtTypeId")
                         .HasDatabaseName("ix_receipts_wht_type_id");
@@ -6099,6 +6151,24 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("business_unit_id");
 
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("cancel_reason");
+
+                    b.Property<string>("CancelReasonCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("cancel_reason_code");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamptz(3)")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<long?>("CancelledBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cancelled_by");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("integer")
                         .HasColumnName("company_id");
@@ -6265,6 +6335,10 @@ namespace Accounting.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_tax_inclusive");
 
+                    b.Property<long?>("JournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("journal_entry_id");
+
                     b.Property<decimal>("NonTaxableAmount")
                         .HasPrecision(19, 4)
                         .HasColumnType("numeric(19,4)")
@@ -6310,6 +6384,14 @@ namespace Accounting.Infrastructure.Migrations
                     b.Property<long?>("QuotationId")
                         .HasColumnType("bigint")
                         .HasColumnName("quotation_id");
+
+                    b.Property<long?>("ReplacesTaxInvoiceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("replaces_tax_invoice_id");
+
+                    b.Property<long?>("ReversalJournalEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reversal_journal_entry_id");
 
                     b.Property<long?>("SalesOrderId")
                         .HasColumnType("bigint")
@@ -6422,6 +6504,11 @@ namespace Accounting.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_tax_invoices_quotation_id")
                         .HasFilter("quotation_id IS NOT NULL AND status = 'POSTED'");
+
+                    b.HasIndex("ReplacesTaxInvoiceId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_tax_invoices_replaces")
+                        .HasFilter("replaces_tax_invoice_id IS NOT NULL");
 
                     b.HasIndex("SalesOrderId")
                         .HasDatabaseName("ix_tax_invoices_sales_order_id")
@@ -8195,6 +8282,12 @@ namespace Accounting.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_receipts_business_units_business_unit_id");
 
+                    b.HasOne("Accounting.Domain.Entities.Sales.Receipt", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacesReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_receipts_receipts_replaces_receipt_id");
+
                     b.HasOne("Accounting.Domain.Entities.Tax.WhtType", null)
                         .WithMany()
                         .HasForeignKey("WhtTypeId")
@@ -8314,6 +8407,12 @@ namespace Accounting.Infrastructure.Migrations
                         .HasForeignKey("QuotationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_tax_invoices_quotations_quotation_id");
+
+                    b.HasOne("Accounting.Domain.Entities.Sales.TaxInvoice", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacesTaxInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tax_invoices_tax_invoices_replaces_tax_invoice_id");
 
                     b.HasOne("Accounting.Domain.Entities.Sales.SalesOrder", null)
                         .WithMany()

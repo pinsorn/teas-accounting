@@ -22,14 +22,27 @@ public sealed class VatReportService : IVatReportService
     {
         var (from, to) = MonthRange(year, month);
 
-        var ti = await _db.TaxInvoices
-            .Where(t => t.Status == DocumentStatus.Posted && t.DocDate >= from && t.DocDate <= to)
+        // Cancel+reissue (spec 3.5.1): Voided TIs stay listed at 0.00 (never omitted) with a remark,
+        // a replacement carries "ออกแทนเลขที่ ..." and a TI voided THIS month but dated earlier is a
+        // zero-amount memo row after the in-month rows. Pnd30 math is unchanged (voided rows sum 0).
+        var tiRaw = await _db.TaxInvoices
+            .Where(t => (t.Status == DocumentStatus.Posted || t.Status == DocumentStatus.Voided)
+                     && t.DocDate >= from && t.DocDate <= to)
             .Where(t => businessUnitId == null || t.BusinessUnitId == businessUnitId)
             .OrderBy(t => t.DocDate).ThenBy(t => t.DocNo)
-            .Select(t => new SalesVatRegisterRow(t.DocDate, t.DocNo!, "TI",
-                t.CustomerName, t.CustomerTaxId,
-                t.SubtotalAmount, t.TaxAmount, t.TotalAmount))
+            .Select(t => new RegisterTi(t.TaxInvoiceId, t.DocDate, t.DocNo, t.CustomerName, t.CustomerTaxId,
+                t.SubtotalAmount, t.TaxAmount, t.TotalAmount, t.Status))
             .ToListAsync(ct);
+        var memoRaw = await MemoTisAsync(_db, from, to, businessUnitId, ct);
+        var remarks = await RemarksAsync(_db, tiRaw, ct);
+        var ti = tiRaw.Select(t => t.Status == DocumentStatus.Voided
+                ? new SalesVatRegisterRow(t.DocDate, t.DocNo!, "TI", t.CustomerName, t.CustomerTaxId, 0m, 0m, 0m,
+                    "Voided", remarks.GetValueOrDefault(t.Id))
+                : new SalesVatRegisterRow(t.DocDate, t.DocNo!, "TI", t.CustomerName, t.CustomerTaxId,
+                    t.Subtotal, t.Tax, t.Total, "Posted", remarks.GetValueOrDefault(t.Id)))
+            .ToList();
+        var memo = memoRaw.Select(t => new SalesVatRegisterRow(t.DocDate, t.DocNo!, "TI", t.CustomerName,
+                t.CustomerTaxId, 0m, 0m, 0m, "Voided", MemoRemark(t.DocDate))).ToList();
 
         var notes = await _db.TaxAdjustmentNotes
             .Where(n => n.Status == DocumentStatus.Posted && n.DocDate >= from && n.DocDate <= to)
@@ -45,7 +58,7 @@ public sealed class VatReportService : IVatReportService
                 n.NoteType == TaxAdjustmentNoteType.Credit ? -n.TotalAmount    : n.TotalAmount))
             .ToListAsync(ct);
 
-        var sales = ti.Concat(notes).OrderBy(x => x.DocDate).ThenBy(x => x.DocNo).ToList();
+        var sales = ti.Concat(notes).OrderBy(x => x.DocDate).ThenBy(x => x.DocNo).Concat(memo).ToList();
 
         // ภาษีซื้อ source = Vendor Invoices by ม.82/4 vat_claim_period (NOT doc_date,
         // NOT Payment Voucher). One row per VI; legal refs = the vendor's tax invoice
@@ -88,6 +101,61 @@ public sealed class VatReportService : IVatReportService
             InputVat:  reg.InputVatTotal,
             NetVatPayable:    net > 0 ? net : 0m,
             NetVatRefundable: net < 0 ? -net : 0m);
+    }
+
+    /// <summary>TI projection shared by the two sales registers (this service + TaxFilingService).</summary>
+    internal sealed record RegisterTi(long Id, DateOnly DocDate, string? DocNo, string CustomerName,
+        string? CustomerTaxId, decimal Subtotal, decimal Tax, decimal Total, DocumentStatus Status);
+
+    private static string BuddhistDate(DateOnly d) => $"{d.Day:00}/{d.Month:00}/{d.Year + 543}";
+
+    internal static string MemoRemark(DateOnly docDate) =>
+        $"หมายเหตุ: ยกเลิกใบลงวันที่ {BuddhistDate(docDate)} — ไม่นำมารวมยอดเดือนนี้";
+
+    /// <summary>TIs voided in this Bangkok month but dated before it (cross-month memo rows).</summary>
+    internal static async Task<List<RegisterTi>> MemoTisAsync(
+        AccountingDbContext db, DateOnly from, DateOnly to, int? businessUnitId, CancellationToken ct)
+    {
+        var bkk = TimeSpan.FromHours(7);
+        var start = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), bkk).ToUniversalTime();
+        var end = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), bkk).ToUniversalTime();
+        return await db.TaxInvoices
+            .Where(t => t.Status == DocumentStatus.Voided && t.DocDate < from
+                     && t.CancelledAt >= start && t.CancelledAt < end)
+            .Where(t => businessUnitId == null || t.BusinessUnitId == businessUnitId)
+            .OrderBy(t => t.DocDate).ThenBy(t => t.DocNo)
+            .Select(t => new RegisterTi(t.TaxInvoiceId, t.DocDate, t.DocNo, t.CustomerName, t.CustomerTaxId,
+                t.SubtotalAmount, t.TaxAmount, t.TotalAmount, t.Status))
+            .ToListAsync(ct);
+    }
+
+    /// <summary>Remark per TI id: replacement -> "ออกแทนเลขที่ X ลงวันที่ d"; voided -> "ยกเลิก [— ออกแทนโดย Y]";
+    ///</summary>
+    internal static async Task<Dictionary<long, string>> RemarksAsync(
+        AccountingDbContext db, IEnumerable<RegisterTi> tis, CancellationToken ct)
+    {
+        var list = tis.DistinctBy(t => t.Id).ToList();
+        var ids = list.Select(t => t.Id).ToList();
+        var replaces = await db.TaxInvoices
+            .Where(t => t.ReplacesTaxInvoiceId != null && ids.Contains(t.ReplacesTaxInvoiceId.Value))
+            .Select(t => new { Orig = t.ReplacesTaxInvoiceId!.Value, t.DocNo, t.Status }).ToListAsync(ct);
+        var replDoc = replaces.Where(r => r.Status == DocumentStatus.Posted && r.DocNo != null)
+            .ToDictionary(r => r.Orig, r => r.DocNo!);
+        var mine = await db.TaxInvoices
+            .Where(t => ids.Contains(t.TaxInvoiceId) && t.ReplacesTaxInvoiceId != null)
+            .Join(db.TaxInvoices, t => t.ReplacesTaxInvoiceId, o => o.TaxInvoiceId,
+                (t, o) => new { t.TaxInvoiceId, o.DocNo, o.DocDate }).ToListAsync(ct);
+        var origOf = mine.ToDictionary(m => m.TaxInvoiceId, m => $"ออกแทนเลขที่ {m.DocNo} ลงวันที่ {BuddhistDate(m.DocDate)}");
+
+        var res = new Dictionary<long, string>();
+        foreach (var t in list)
+        {
+            if (t.Status == DocumentStatus.Voided)
+                res[t.Id] = replDoc.TryGetValue(t.Id, out var rd) ? $"ยกเลิก — ออกแทนโดย {rd}" : "ยกเลิก";
+            else if (origOf.TryGetValue(t.Id, out var o))
+                res[t.Id] = o;
+        }
+        return res;
     }
 
     // WP-2 (2026-08-16) — bad year/month used to construct DateOnly directly and leak an

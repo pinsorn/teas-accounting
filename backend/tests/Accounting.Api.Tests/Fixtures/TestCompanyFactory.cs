@@ -102,9 +102,11 @@ public static class TestCompanyFactory
 
     /// <summary>Infrastructure DI container with a <see cref="StubTenant"/> for the
     /// given company/branch. VAT behaviour comes from the company row (§4.6) —
-    /// there is no Tax:VatMode config any more.</summary>
+    /// there is no Tax:VatMode config any more. <paramref name="clock"/> (cancel-reissue spec 6) swaps
+    /// the IClock after AddInfrastructure so a test can post in far-future months.</summary>
     public static ServiceProvider BuildProvider(
-        string connectionString, int companyId, int branchId, long userId = 1)
+        string connectionString, int companyId, int branchId, long userId = 1, IClock? clock = null,
+        int? apiKeyDefaultBusinessUnitId = null)
     {
         var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -112,10 +114,20 @@ public static class TestCompanyFactory
         }).Build();
         var s = new ServiceCollection();
         s.AddLogging();
-        return s.AddInfrastructure(cfg)
+        s.AddInfrastructure(cfg);
+        if (clock is not null) s.AddSingleton<IClock>(clock);
+        return s
             .AddSingleton<ITenantContext>(new StubTenant
-            { CompanyId = companyId, BranchId = branchId, UserId = userId, IsSuperAdmin = false })
+            { CompanyId = companyId, BranchId = branchId, UserId = userId, IsSuperAdmin = false,
+              ApiKeyDefaultBusinessUnitId = apiKeyDefaultBusinessUnitId })
             .BuildServiceProvider();
     }
 
+}
+
+/// <summary>Fixed IClock for cross-month tests (spec 6: far-future months, e.g. 2031-03-15 12:00 Bangkok).</summary>
+public sealed class FixedClock(DateTimeOffset utcNow) : IClock
+{
+    public DateTimeOffset UtcNow => utcNow;
+    public DateOnly TodayInBangkok() => DateOnly.FromDateTime(utcNow.ToOffset(TimeSpan.FromHours(7)).DateTime);
 }

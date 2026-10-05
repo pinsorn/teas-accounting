@@ -49,7 +49,12 @@ public sealed record ReceiptDetail(
     // VatAmount so Grand == Amount exactly) and the display notes composed ONCE (raw Notes +
     // "อ้างอิงใบกำกับภาษี" ref line) so the PDF and the on-screen PaperDocument render an
     // identical footer + notes. VatAmount == 0 for non-VAT (BillingNote/DO) receipts.
-    decimal SubtotalAmount = 0m, decimal VatAmount = 0m, string? DisplayNotes = null);
+    decimal SubtotalAmount = 0m, decimal VatAmount = 0m, string? DisplayNotes = null,
+    // cancel-reissue (spec 3.7) - cancel audit + replacement links (appended; null on a plain doc).
+    string? CancelReasonCode = null, string? CancelReason = null, System.DateTimeOffset? CancelledAt = null,
+    string? ReversalJournalDocNo = null,
+    long? ReplacesId = null, string? ReplacesDocNo = null,
+    long? ReplacedById = null, string? ReplacedByDocNo = null, string? ReplacedByStatus = null);
 
 public sealed record AdjustmentNoteListItem(
     long NoteId, string? DocNo, string NoteType, DateOnly DocDate,

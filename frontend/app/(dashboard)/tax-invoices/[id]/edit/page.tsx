@@ -3,6 +3,7 @@
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { ReplacementBanner } from '@/components/documents/CancelDocumentModal';
 import { TaxInvoiceForm } from '@/components/forms/TaxInvoiceForm';
 import { useTaxInvoice, useTaxInvoiceDraftInput } from '@/lib/queries';
 
@@ -24,5 +25,10 @@ export default function TaxInvoiceEditPage({ params }: { params: Promise<{ id: s
   }
   if (!input) return loading;
 
-  return <TaxInvoiceForm edit={{ id: tiId, input, customerName: d.customerName }} />;
+  return (
+    <>
+      {d.replacesId && <ReplacementBanner prefix="ti" base="/tax-invoices" d={d} draft />}
+      <TaxInvoiceForm edit={{ id: tiId, input, customerName: d.customerName }} />
+    </>
+  );
 }

@@ -101,7 +101,8 @@ public sealed class BillingNoteService(
 
         // cont.69 (Ham) — one Invoice per Delivery Order: block a duplicate create.
         if (await db.BillingNotes.AnyAsync(
-                b => b.CompanyId == tenant.CompanyId && b.DeliveryOrderId == deliveryOrderId, ct))
+                b => b.CompanyId == tenant.CompanyId && b.DeliveryOrderId == deliveryOrderId
+                  && b.Status != BillingNoteStatus.Cancelled, ct))
             throw new DomainException("do.invoice_exists",
                 $"Delivery Order {deliveryOrderId} already has an Invoice.");
 
@@ -170,7 +171,8 @@ public sealed class BillingNoteService(
             throw new DomainException("so.delivery_required",
                 $"Sales Order {salesOrderId} has goods lines — create a Delivery Order first.");
         if (await db.BillingNotes.AnyAsync(
-                b => b.CompanyId == tenant.CompanyId && b.SalesOrderId == salesOrderId, ct))
+                b => b.CompanyId == tenant.CompanyId && b.SalesOrderId == salesOrderId
+                  && b.Status != BillingNoteStatus.Cancelled, ct))
             throw new DomainException("so.invoice_exists",
                 $"Sales Order {salesOrderId} already has an Invoice.");
 
@@ -232,6 +234,10 @@ public sealed class BillingNoteService(
         if (tiIds is null || tiIds.Length == 0)
             return new List<BillingNoteTaxInvoice>();
         var distinct = tiIds.Distinct().ToArray();
+        // R1-F3: a cancelled (Voided) TI can never be grouped. Drafts stay allowed (existing ti.linked_to_billing_note guard).
+        if (await db.TaxInvoices.AsNoTracking().AnyAsync(
+                t => t.CompanyId == tenant.CompanyId && distinct.Contains(t.TaxInvoiceId) && t.Status == DocumentStatus.Voided, ct))
+            throw new DomainException("billing_note.ti_not_posted", "A cancelled Tax Invoice cannot be grouped into an Invoice.");
         var totals = await db.TaxInvoices.AsNoTracking()
             .Where(t => t.CompanyId == tenant.CompanyId && distinct.Contains(t.TaxInvoiceId))
             .ToDictionaryAsync(t => t.TaxInvoiceId, t => t.TotalAmount, ct);
@@ -364,23 +370,56 @@ public sealed class BillingNoteService(
         await tx.CommitAsync(ct);
     }
 
-    public async Task CancelAsync(long id, string reason, CancellationToken ct)
+    // cancel-reissue spec 3.4.3 (O3) - cancel an Invoice. A JE'd Issued invoice (non-VAT accrual) posts
+    // an exact mirror reversal first, THEN the status/cancel columns land in one SaveChanges.
+    public async Task CancelAsync(long id, string reasonCode, string reason, CancellationToken ct)
     {
         Auth();
+        CancelReasonCodes.Require(reasonCode, CancelReasonCodes.BillingNoteCancel);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await DocumentCancellation.LockBillingNotesAsync(db, [id], ct);
         var bn = await LoadAsync(id, ct);
-        if (bn.Status is BillingNoteStatus.Settled or BillingNoteStatus.Cancelled)
-            throw new DomainException("billing_note.bad_status",
-                "Cannot cancel a settled or already cancelled billing note.");
-        // R1/C6 (WP-1) — an accrued Invoice (JournalEntryId set) is ledger-backed and
-        // immutable like every other posted document: cancelling it would strand its AR
-        // debit with nothing left to clear it.
+        if (bn.Status == BillingNoteStatus.Cancelled)
+            throw new DomainException("billing_note.bad_status", "Invoice is already cancelled.");
+        if (bn.Status == BillingNoteStatus.Settled)
+            throw new DomainException("billing_note.settled_cannot_cancel",
+                "Cancel its receipts first (that returns the invoice to Issued), then cancel the invoice.");
+
+        long? revId = null;
         if (bn.JournalEntryId is not null)
-            throw new DomainException("billing_note.cannot_cancel_posted",
-                $"Invoice {bn.DocNo} has already posted to the GL and cannot be cancelled.");
-        var fromCancel = bn.Status.ToString();
-        bn.Status = BillingNoteStatus.Cancelled; bn.CancelledReason = reason;
-        activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Cancelled", fromCancel, "Cancelled", note: reason);
-        await db.SaveChangesAsync(ct);
+        {
+            var hasReceipts = await db.ReceiptApplications
+                .Where(a => a.BillingNoteId == id)
+                .Join(db.Receipts.Where(r => r.Status == DocumentStatus.Posted),
+                    a => a.ReceiptId, r => r.ReceiptId, (a, r) => a.ReceiptId)
+                .AnyAsync(ct);
+            if (hasReceipts)
+                throw new DomainException("billing_note.has_posted_receipts",
+                    $"Invoice {bn.DocNo} has posted receipts; cancel those receipts first.");
+            var je = await DocumentCancellation.ResolveOriginalJournalAsync(
+                db, bn.CompanyId, bn.JournalEntryId, bn.DocNo, "IV ", ct);
+            var glDate = await DocumentCancellation.ResolveReversalDateAsync(period, clock, bn.DocDate, je.DocDate, ct);
+            revId = await gl.PostReversalAsync(je.JournalId, glDate, "ยกเลิก " + je.Description, ct);
+        }
+
+        var from = bn.Status.ToString();
+        bn.Status = BillingNoteStatus.Cancelled;
+        bn.CancelledReason = reason;
+        bn.CancelReasonCode = reasonCode;
+        bn.CancelledAt = clock.UtcNow;
+        bn.CancelledBy = tenant.UserId;
+        bn.ReversalJournalEntryId = revId;
+        bn.Version++;
+        activity.Record("BillingNote", bn.BillingNoteId, bn.DocNo, bn.CompanyId, "Cancelled", from, "Cancelled",
+            note: DocumentCancellation.Note(reasonCode, reason));
+        try { await db.SaveChangesAsync(ct); }
+        catch (Exception ex) when (ex is DbUpdateConcurrencyException
+            or DbUpdateException { InnerException: Npgsql.PostgresException { SqlState: "23514" or "40P01" } })
+        {
+            throw new DomainException("billing_note.locked_mismatch",
+                "This invoice was changed by someone else. Reload and try again.");
+        }
+        await tx.CommitAsync(ct);
     }
 
     // Sprint 13j-PDF — shared PaperDocument mirror. Seller = company; customer
@@ -469,6 +508,10 @@ public sealed class BillingNoteService(
             select new BillingNoteTaxInvoiceRef(j.TaxInvoiceId, t.DocNo, j.AppliedAmount)
         ).ToListAsync(ct);
 
+        var revDocNo = bn.ReversalJournalEntryId is { } rj
+            ? await db.JournalEntries.AsNoTracking().Where(j => j.JournalId == rj).Select(j => j.DocNo).FirstOrDefaultAsync(ct)
+            : null;
+
         return new BillingNoteDetail(
             bn.BillingNoteId, bn.DocNo, bn.Status.ToString(), bn.DocDate, bn.DueDate,
             bn.CustomerId, bn.CustomerName, bn.BusinessUnitId,
@@ -479,7 +522,8 @@ public sealed class BillingNoteService(
                 l.LineNo, l.ProductId, l.ProductCode, l.DescriptionTh, l.Quantity,
                 l.UomText, l.UnitPrice, l.LineAmount, l.TaxAmount, l.TotalAmount,
                 l.DiscountPercent, l.TaxCode, l.TaxCodeId)).ToList(),
-            bn.JournalEntryId);
+            bn.JournalEntryId,
+            bn.CancelReasonCode, bn.CancelledReason, bn.CancelledAt, revDocNo, bn.JournalEntryId != null);
     }
 
     // Compliance backstops (SalesLineBackstop): snapshot ProductType from the product

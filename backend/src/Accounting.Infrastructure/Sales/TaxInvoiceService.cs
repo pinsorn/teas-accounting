@@ -123,7 +123,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             ?? throw new DomainException("billing_note.not_found", $"Invoice {billingNoteId} not found.");
         // mcp-document-chain (§B addition, Ham 2026-07-13) — one active TI per BN.
         if (await _db.TaxInvoices.AnyAsync(
-                t => t.CompanyId == _tenant.CompanyId && t.BillingNoteId == billingNoteId, ct))
+                t => t.CompanyId == _tenant.CompanyId && t.BillingNoteId == billingNoteId
+                  && t.Status != DocumentStatus.Voided, ct))
             throw new DomainException("bn.ti_exists",
                 $"Invoice {billingNoteId} already has a linked Tax Invoice.");
 
@@ -167,7 +168,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             throw new DomainException("do.not_issued",
                 $"Delivery Order {deliveryOrderId} must be issued before creating a Tax Invoice.");
         if (await _db.TaxInvoices.AnyAsync(
-                t => t.CompanyId == _tenant.CompanyId && t.DeliveryOrderId == deliveryOrderId, ct))
+                t => t.CompanyId == _tenant.CompanyId && t.DeliveryOrderId == deliveryOrderId
+                  && t.Status != DocumentStatus.Voided, ct))
             throw new DomainException("do.ti_exists",
                 $"Delivery Order {deliveryOrderId} already has a linked Tax Invoice.");
 
@@ -212,7 +214,8 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             throw new DomainException("so.delivery_required",
                 $"Sales Order {salesOrderId} has goods lines — create a Delivery Order first.");
         if (await _db.TaxInvoices.AnyAsync(
-                t => t.CompanyId == _tenant.CompanyId && t.SalesOrderId == salesOrderId, ct))
+                t => t.CompanyId == _tenant.CompanyId && t.SalesOrderId == salesOrderId
+                  && t.Status != DocumentStatus.Voided, ct))
             throw new DomainException("so.invoice_exists",
                 $"Sales Order {salesOrderId} already has an Invoice.");
 
@@ -584,6 +587,23 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
                 $"(Tax Invoice {taxInvoiceId} is linked from Invoice {bnRef.DocNo ?? bnRef.BillingNoteId.ToString()}; " +
                 "edit/delete that draft Invoice or cancel it first.)");
 
+        // cancel-reissue (spec 3.4.6) — a replacement draft keeps the original's date and amounts: only the
+        // customer snapshot and descriptive fields are editable, and tax is never recomputed.
+        if (ti.ReplacesTaxInvoiceId is not null)
+        {
+            await UpdateReplacementDraftAsync(ti, req, ct);
+            ti.Version++;
+            _activity.Record("TaxInvoice", ti.TaxInvoiceId, ti.DocNo, ti.CompanyId, "Updated");
+            try { await _db.SaveChangesAsync(ct); }
+            catch (Exception ex) when (ex is DbUpdateConcurrencyException || IsPostedRaceViolation(ex))
+            {
+                throw new DomainException("ti.locked_mismatch",
+                    "This tax invoice was changed by someone else. Reload and try again.");
+            }
+            await tx.CommitAsync(ct);
+            return;
+        }
+
         // Sprint 14 P7 — same per-key BU lock as create.
         var (effBu, buErr) = ApiKeyBuBinding.Resolve(
             req.BusinessUnitId, _tenant.ApiKeyDefaultBusinessUnitId);
@@ -723,10 +743,26 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
         // stale draft-creation date. Re-pin to server today in Asia/Bangkok so a draft created
         // last month and posted today gets THIS month's period bucket + sequential number +
         // tax point. Same-day flow = no-op. (DocDate == TaxPointDate keeps MarkPosted's guard.)
-        var postDate = _clock.TodayInBangkok();
-        ti.DocDate      = postDate;
-        ti.TaxPointDate = postDate;
-        await _period.EnsureOpenAsync(postDate, ct);
+        // cancel-reissue (spec 3.4.5) — a REPLACEMENT keeps the original's DocDate and takes its number from that
+        // month's sequence even when the month is closed (§8.2: the allocator has no period check). Only a row
+        // whose replaces_tax_invoice_id was set by the reissue path (frozen by 643) reaches this branch; the JE
+        // is dated by glDate (original month if open, else today).
+        var isReplacement = ti.ReplacesTaxInvoiceId is not null;
+        DateOnly postDate;
+        DateOnly? glDate = null;
+        if (ti.ReplacesTaxInvoiceId is { } origId)
+        {
+            await CheckReplacementAsync(ti, origId, ct);
+            postDate = ti.DocDate;
+            glDate = await DocumentCancellation.ResolveGlDateAsync(_period, _clock, ti.DocDate, ct);
+        }
+        else
+        {
+            postDate = _clock.TodayInBangkok();
+            ti.DocDate      = postDate;
+            ti.TaxPointDate = postDate;
+            await _period.EnsureOpenAsync(postDate, ct);
+        }
 
         var buCode = ti.BusinessUnitId is { } bid
             ? await _db.BusinessUnits.Where(x => x.BusinessUnitId == bid)
@@ -764,18 +800,27 @@ public sealed partial class TaxInvoiceService : ITaxInvoiceService
             c => _numbers.NextAsync(ti.CompanyId, TiPrefix, subPrefix: buCode, postDate, c),
             (v, first) => { if (first) ti.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else ti.DocNo = v.Value; },
             ct)).Value;
-        _activity.Record("TaxInvoice", ti.TaxInvoiceId, docNo, ti.CompanyId, "Posted", "Draft", "Posted");
+        string? replNote = null;
+        if (ti.ReplacesTaxInvoiceId is { } oid)
+            replNote = "แทน " + await _db.TaxInvoices.Where(t => t.TaxInvoiceId == oid)
+                .Select(t => t.DocNo).FirstOrDefaultAsync(ct);
+        _activity.Record("TaxInvoice", ti.TaxInvoiceId, docNo, ti.CompanyId, "Posted", "Draft", "Posted", note: replNote);
 
         await _db.SaveChangesAsync(ct);
 
-        // GL auto-post — fails fast if CoA mapping incomplete; rolled back with the TI.
-        await _gl.PostTaxInvoiceAsync(ti.TaxInvoiceId, ct);
+        // GL auto-post — fails fast if CoA mapping incomplete; rolled back with the TI. The JE id is stamped
+        // (cancel-reissue 3.2.1): NULL to value stays legal under trigger 643.
+        ti.JournalEntryId = await _gl.PostTaxInvoiceAsync(ti.TaxInvoiceId, ct, glDate);
+        await _db.SaveChangesAsync(ct);
 
         await tx.CommitAsync(ct);
 
         // e-Tax submission — best-effort post-commit. Per RD spec the submission is
         // real-time and customer-facing; failures are logged so an operator can re-send.
-        if (_etaxOpts.Enabled && _etaxOpts.AutoSendOnTaxInvoicePost)
+        // A replacement is never auto-sent (spec 3.4.5).
+        if (isReplacement)
+            _log.LogInformation("Replacement TI {DocNo} posted; e-Tax auto-send skipped.", docNo);
+        else if (_etaxOpts.Enabled && _etaxOpts.AutoSendOnTaxInvoicePost)
             await TryAutoSendETaxAsync(ti, ct);
 
         return new TaxInvoicePostedResult(ti.TaxInvoiceId, docNo, now, ti.TotalAmount, ti.TaxAmount);

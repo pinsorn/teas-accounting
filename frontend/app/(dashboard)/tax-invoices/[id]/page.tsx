@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Pencil, ReceiptText } from 'lucide-react';
 import { PrintMenu } from '@/components/ui/PrintMenu';
@@ -15,7 +15,12 @@ import { PostConfirmDialog } from '@/components/ui/PostConfirmDialog';
 import { PaperDocument } from '@/components/paper/PaperDocument';
 import { ActivityLog } from '@/components/doc/ActivityLog';
 import { DocumentChain } from '@/components/doc/DocumentChain';
-import { useTaxInvoice, useSystemInfo, usePostTaxInvoice, usePaperDoc } from '@/lib/queries';
+import {
+  useTaxInvoice, useSystemInfo, usePostTaxInvoice, usePaperDoc, useCancelTaxInvoice,
+  useCancelAndReissueTaxInvoice, useReissueTaxInvoice, useDiscardTaxInvoiceReplacement,
+} from '@/lib/queries';
+import { CancelDocumentModal, CancelledBanner, ReplacementBanner, useCancelErrorToast } from '@/components/documents/CancelDocumentModal';
+import { useConfirm } from '@/hooks/useConfirm';
 import { paperDtoToProps } from '@/lib/paper-doc-config';
 import { AttachmentsSection } from '@/components/attachments/AttachmentsSection';
 import { NonVatGuard } from '@/components/ui/NonVatGuard';
@@ -37,11 +42,51 @@ export default function TaxInvoiceDetailPage() {
   const [confirmPost, setConfirmPost] = useState(false);
   const [isApproveAction, setIsApproveAction] = useState(false);
   const hasScope = useHasScope();
+  const router = useRouter();
+  const tcd = useTranslations('cancelDoc');
+  const confirm = useConfirm();
+  const cancelErr = useCancelErrorToast();
+  const cancel = useCancelTaxInvoice();
+  const cancelReissue = useCancelAndReissueTaxInvoice();
+  const reissue = useReissueTaxInvoice();
+  const discard = useDiscardTaxInvoiceReplacement();
+  const [cancelMode, setCancelMode] = useState<'cancel' | 'reissue' | null>(null);
 
   useEffect(() => {
     const action = new URLSearchParams(window.location.search).get('action');
     if (action === 'approve') setIsApproveAction(true);
   }, []);
+
+  const canCancel = hasScope('sales.tax_invoice.cancel');
+  const canReissue = canCancel && hasScope('sales.tax_invoice.create');
+
+  async function doReissue() {
+    try {
+      const r = await reissue.mutateAsync(id);
+      router.push(`/tax-invoices/${r.replacementTaxInvoiceId}/edit`);
+    } catch (e) { cancelErr(e); }
+  }
+  async function doDiscard() {
+    if (!(await confirm({ description: tcd('confirmDiscard'), variant: 'destructive' }))) return;
+    try {
+      await discard.mutateAsync(id);
+      toast.success(tc('save'));
+      if (d?.replacesId) router.push(`/tax-invoices/${d.replacesId}`);
+    } catch (e) { cancelErr(e); }
+  }
+  async function doCancel(code: string, reason: string) {
+    try {
+      if (cancelMode === 'reissue') {
+        const r = await cancelReissue.mutateAsync({ id, reasonCode: code, reason });
+        setCancelMode(null);
+        if (r.replacementTaxInvoiceId) router.push(`/tax-invoices/${r.replacementTaxInvoiceId}/edit`);
+      } else {
+        await cancel.mutateAsync({ id, reasonCode: code, reason });
+        setCancelMode(null);
+        toast.success(tc('save'));
+      }
+    } catch (e) { cancelErr(e); }
+  }
 
   if (!sys?.vatMode && sys !== undefined) return <NonVatGuard title={t('title')} />;
   if (isLoading || paper.isLoading) return <p className="text-base-content/50">{tc('loading')}</p>;
@@ -108,6 +153,20 @@ export default function TaxInvoiceDetailPage() {
         </div>
       )}
 
+      {d.status === 'Voided' && (
+        <CancelledBanner prefix="ti" base="/tax-invoices" d={d} canReissue={canReissue} busy={reissue.isPending} onReissue={doReissue} />
+      )}
+      {d.replacesId && d.status === 'Draft' && (
+        <ReplacementBanner prefix="ti" base="/tax-invoices" d={d} draft>
+          {canCancel && (
+            <button data-testid="ti-discard-replacement" className="btn btn-ghost btn-sm text-error" disabled={discard.isPending} onClick={doDiscard}>
+              {tcd('discardReplacement')}
+            </button>
+          )}
+        </ReplacementBanner>
+      )}
+      {d.replacesId && d.status === 'Posted' && <ReplacementBanner prefix="ti" base="/tax-invoices" d={d} draft={false} />}
+
       <DocActionBar
         status={d.status}
         docNo={d.docNo ?? `#${d.taxInvoiceId}`}
@@ -122,6 +181,16 @@ export default function TaxInvoiceDetailPage() {
               <Link data-testid="ti-edit" href={`/tax-invoices/${id}/edit`} className="btn btn-secondary btn-sm gap-1">
                 <Pencil className="h-4 w-4" aria-hidden /> {tc('edit')}
               </Link>
+            )}
+            {d.status === 'Posted' && canCancel && (
+              <button data-testid="ti-cancel" className="btn btn-danger btn-sm" onClick={() => setCancelMode('cancel')}>
+                {tcd('cancel')}
+              </button>
+            )}
+            {d.status === 'Posted' && canReissue && (
+              <button data-testid="ti-cancel-reissue" className="btn btn-danger btn-sm" onClick={() => setCancelMode('reissue')}>
+                {tcd('cancelReissue')}
+              </button>
             )}
             {d.status === 'Draft' && !isApproveAction && (
               <PermissionGate scope="sales.tax_invoice.post">
@@ -150,6 +219,18 @@ export default function TaxInvoiceDetailPage() {
       </div>
 
       <AttachmentsSection parentType="TAX_INVOICE" parentId={id} />
+
+      {cancelMode && (
+        <CancelDocumentModal
+          kind="tax-invoice"
+          mode={cancelMode}
+          docNo={d.docNo ?? `#${id}`}
+          pnd30Filed={d.pnd30FiledForMonth}
+          busy={cancel.isPending || cancelReissue.isPending}
+          onClose={() => setCancelMode(null)}
+          onConfirm={doCancel}
+        />
+      )}
 
       <PostConfirmDialog
         docType="tax_invoice"

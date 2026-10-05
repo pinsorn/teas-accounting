@@ -88,6 +88,9 @@ public static class PermissionCatalog
             [Permissions.Sales.DeliveryOrderManage] = ("จัดการใบส่งของ", "Manage delivery orders"),
             [Permissions.Sales.BillingNoteRead]     = ("ดูใบวางบิล/ใบแจ้งหนี้", "View billing notes"),
             [Permissions.Sales.BillingNoteManage]   = ("จัดการใบวางบิล/ใบแจ้งหนี้", "Manage billing notes"),
+            [Permissions.Sales.TaxInvoiceCancel]    = ("ยกเลิกใบกำกับภาษี", "Cancel tax invoices"),
+            [Permissions.Sales.ReceiptCancel]       = ("ยกเลิกใบเสร็จรับเงิน", "Cancel receipts"),
+            [Permissions.Sales.BillingNoteCancel]   = ("ยกเลิกใบวางบิล/ใบแจ้งหนี้", "Cancel billing notes"),
 
             // purchase
             [Permissions.Purchase.PaymentVoucherCreate]  = ("สร้างใบสำคัญจ่าย", "Create payment vouchers"),

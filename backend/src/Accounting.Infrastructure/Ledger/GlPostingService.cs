@@ -39,7 +39,7 @@ public sealed class GlPostingService : IGlPostingService
         _accounts = accounts.Value;
     }
 
-    public async Task<long> PostTaxInvoiceAsync(long taxInvoiceId, CancellationToken ct)
+    public async Task<long> PostTaxInvoiceAsync(long taxInvoiceId, CancellationToken ct, DateOnly? glDate = null)
     {
         var ti = await _db.TaxInvoices.Include(t => t.Lines)
                 .FirstOrDefaultAsync(t => t.TaxInvoiceId == taxInvoiceId, ct)
@@ -62,7 +62,7 @@ public sealed class GlPostingService : IGlPostingService
             lines.Add(new JournalLine { LineNo = 3, AccountId = ovat, DebitAmount = 0m, CreditAmount = vat, Description = $"Output VAT {ti.DocNo}" });
 
         return await BuildAndPostAsync(
-            ti.CompanyId, ti.BranchId, ti.DocDate, $"TI {ti.DocNo}", ti.DocNo, lines, ct,
+            ti.CompanyId, ti.BranchId, glDate ?? ti.DocDate, $"TI {ti.DocNo}", ti.DocNo, lines, ct,
             businessUnitId: ti.BusinessUnitId);
     }
 
@@ -96,7 +96,7 @@ public sealed class GlPostingService : IGlPostingService
             businessUnitId: bn.BusinessUnitId);
     }
 
-    public async Task<long> PostReceiptAsync(long receiptId, CancellationToken ct)
+    public async Task<long> PostReceiptAsync(long receiptId, CancellationToken ct, DateOnly? glDate = null)
     {
         var rc = await _db.Receipts.Include(r => r.Applications)
                 .FirstOrDefaultAsync(r => r.ReceiptId == receiptId, ct)
@@ -199,7 +199,31 @@ public sealed class GlPostingService : IGlPostingService
 
         // businessUnitId: null — lines carry their own BU; cash line stays NULL.
         return await BuildAndPostAsync(
-            rc.CompanyId, rc.BranchId, rc.DocDate, $"RC {rc.DocNo}", rc.DocNo, lines, ct);
+            rc.CompanyId, rc.BranchId, glDate ?? rc.DocDate, $"RC {rc.DocNo}", rc.DocNo, lines, ct);
+    }
+
+    /// <summary>cancel-reissue (spec 3.3.3) - exact mirror of a posted JE. Never for closing entries.
+    /// Saves internally: the caller must hold no pending changes on the document being cancelled.</summary>
+    public async Task<long> PostReversalAsync(
+        long originalJournalId, DateOnly glDate, string description, CancellationToken ct)
+    {
+        var orig = await _db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+                .FirstOrDefaultAsync(j => j.JournalId == originalJournalId, ct)
+            ?? throw new DomainException("gl.reversal_source_missing", $"Journal {originalJournalId} not found.");
+        if (orig.Status != DocumentStatus.Posted)
+            throw new DomainException("gl.reversal_source_not_posted", $"Journal {orig.DocNo} is not posted.");
+        if (orig.IsClosingEntry)
+            throw new DomainException("gl.reversal_closing_entry", "A closing entry cannot be reversed here.");
+
+        var lines = orig.Lines.OrderBy(l => l.LineNo).Select((l, i) => new JournalLine
+        {
+            LineNo = i + 1, AccountId = l.AccountId,
+            DebitAmount = l.CreditAmount, CreditAmount = l.DebitAmount,
+            BusinessUnitId = l.BusinessUnitId,
+            Description = "ยกเลิก " + l.Description,
+        }).ToList();
+        return await BuildAndPostAsync(orig.CompanyId, orig.BranchId, glDate, description, orig.Reference,
+            lines, ct, reversalOfId: orig.JournalId);
     }
 
     public async Task<long> PostPaymentVoucherAsync(long paymentVoucherId, CancellationToken ct)
@@ -582,7 +606,7 @@ public sealed class GlPostingService : IGlPostingService
     private async Task<long> BuildAndPostAsync(
         int companyId, int branchId, DateOnly docDate,
         string description, string? reference, List<JournalLine> lines, CancellationToken ct,
-        int? businessUnitId = null)
+        int? businessUnitId = null, long? reversalOfId = null)
     {
         // Sprint 8 — snapshot the source document's BU onto every line that didn't
         // already set one (Receipt cross-BU sets per-line BU itself, cash = null).
@@ -609,6 +633,7 @@ public sealed class GlPostingService : IGlPostingService
             TotalDebit  = totalD,
             TotalCredit = totalC,
             Lines       = lines,
+            ReversalOfId = reversalOfId,
         };
         _db.JournalEntries.Add(je);
 

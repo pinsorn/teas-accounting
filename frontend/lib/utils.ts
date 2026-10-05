@@ -135,6 +135,10 @@ const DOC_TYPE_I18N_KEY: Record<string, string> = {
   // R1/C6 (WP-1) — non-VAT accrued Invoice row from SubledgerReportService.ArMovementsAsync.
   // Reuses the existing 'billingNote' message key (already "Invoice"/"ใบแจ้งหนี้").
   Invoice: 'billingNote',
+  // cancel-reissue-sales-docs §3.5.3 — mirror (reversal) rows dated at the reversal JE.
+  TaxInvoiceCancel: 'taxInvoiceCancel',
+  ReceiptCancel: 'receiptCancel',
+  InvoiceCancel: 'invoiceCancel',
 };
 
 /** Raw docType string → `crossRef` i18n key (falls back to the raw value for

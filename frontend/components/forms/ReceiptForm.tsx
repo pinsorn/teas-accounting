@@ -20,7 +20,7 @@ import { InvoicePicker } from '@/components/forms/InvoicePicker';
 import { ProductPicker } from '@/components/forms/ProductPicker';
 import {
   useCreateReceipt, useUpdateReceipt, usePostReceipt, useCompanyBuSetting, useWhtBaseSuggest,
-  useCompanyProfile, useSystemInfo, useMePermissions,
+  useCompanyProfile, useSystemInfo, useMePermissions, useDefaultDocNote,
 } from '@/lib/queries';
 import { apiGet } from '@/lib/api';
 import type {
@@ -60,7 +60,7 @@ const emptyLine = (): LineRow => ({
 
 // draft-edit-receipt-taxinvoice — edit mode. `input` is GET /receipts/{id}/draft-input (the exact
 // create-request that reproduces the draft). On save the payload is `{...input, ...managed fields}`:
-// the form only overwrites what it manages, so payment method / bank account / cheque / notes /
+// the form only overwrites what it manages, so payment method / bank account / cheque /
 // currency / docDate pass through untouched (they decide the GL debit account at post).
 export type ReceiptEditProps = {
   id: number;
@@ -100,6 +100,16 @@ export function ReceiptForm({ edit }: { edit?: ReceiptEditProps } = {}) {
   const [businessUnitId, setBusinessUnitId] = useState<number | null>(edit?.input.businessUnitId ?? null);
   const [buError, setBuError] = useState(false);
   const [confirm, setConfirm] = useState<{ id: number } | null>(null);
+  const [notes, setNotes] = useState(edit?.input.notes ?? '');
+
+  // Create-time default หมายเหตุ prefill (one-shot, never over an edited draft's own value).
+  const defaultNote = useDefaultDocNote('receipt');
+  const notesSeeded = useRef(false);
+  useEffect(() => {
+    if (isEdit || notesSeeded.current || defaultNote === undefined) return;
+    notesSeeded.current = true;
+    if (!notes.trim()) setNotes(defaultNote);
+  }, [isEdit, defaultNote, notes]);
 
   // Mode: forced 'ti' when arriving from a TI or when VAT mode is on. For a non-VAT
   // company default to a standalone cash bill; the user can switch to apply-to-Invoice.
@@ -343,6 +353,7 @@ export function ReceiptForm({ edit }: { edit?: ReceiptEditProps } = {}) {
           customerId: v.customerId, applications,
           lines: mode === 'standalone' ? reqLines : [],
           businessUnitId,
+          notes: notes.trim() || null,
           whtAmount: 0, whtTypeId: null,
           whtLines: whtOn ? aggWht : [],
           customerWhtCertNo: whtOn ? (whtCertNo || null) : null,
@@ -355,7 +366,7 @@ export function ReceiptForm({ edit }: { edit?: ReceiptEditProps } = {}) {
       const res = await create.mutateAsync({
         docDate, customerId: v.customerId, paymentMethod: 'Transfer',
         chequeNo: null, chequeDate: null, bankAccountId: null,
-        currencyCode: 'THB', exchangeRate: 1, notes: null,
+        currencyCode: 'THB', exchangeRate: 1, notes: notes.trim() || null,
         applications,
         lines: reqLines,
         businessUnitId,
@@ -724,6 +735,17 @@ export function ReceiptForm({ edit }: { edit?: ReceiptEditProps } = {}) {
               <p className="text-xs text-warning">{tw('multiCatExplain')}</p>
             </div>
           )}
+        </SectionCard>
+
+        {/* ⑤ หมายเหตุ */}
+        <SectionCard number={5} title={tcr('notes')}>
+          <textarea
+            className="textarea textarea-bordered w-full"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            aria-label={tcr('notes')}
+          />
         </SectionCard>
       </form>
       </DocumentCreateLayout>

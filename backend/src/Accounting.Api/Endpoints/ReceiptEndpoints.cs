@@ -90,6 +90,30 @@ public static class ReceiptEndpoints
             Results.Ok(await svc.BuildPaperAsync(id, ct, copy ?? false)))
         .RequireAuthorization(readPol);
 
+        // cancel-reissue (spec 3.7). Reissue variants need BOTH .cancel and .create.
+        var cancelPol = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.ReceiptCancel;
+        group.MapPost("/{id:long}/cancel", async (long id, [FromBody] CancelDocumentBody b,
+            IReceiptService svc, CancellationToken ct) =>
+            Results.Ok(await svc.CancelAsync(id, b.ReasonCode, SalesChainEndpoints.RequireReason(b.Reason), ct)))
+        .RequireAuthorization(cancelPol);
+
+        group.MapPost("/{id:long}/cancel-and-reissue", async (long id, [FromBody] CancelDocumentBody b,
+            IReceiptService svc, CancellationToken ct) =>
+            Results.Ok(await svc.CancelAndReissueAsync(id, b.ReasonCode, SalesChainEndpoints.RequireReason(b.Reason), ct)))
+        .RequireAuthorization(cancelPol, createPol);
+
+        group.MapPost("/{id:long}/reissue", async (long id, IReceiptService svc, CancellationToken ct) =>
+            Results.Ok(new { replacementReceiptId = await svc.ReissueAsync(id, ct) }))
+        .RequireAuthorization(cancelPol, createPol);
+
+        // Replacement DRAFTS only (rc.delete_not_allowed otherwise).
+        group.MapDelete("/{id:long}", async (long id, IReceiptService svc, CancellationToken ct) =>
+        {
+            await svc.DiscardReplacementAsync(id, ct);
+            return Results.NoContent();
+        })
+        .RequireAuthorization(cancelPol);
+
         return app;
     }
 }

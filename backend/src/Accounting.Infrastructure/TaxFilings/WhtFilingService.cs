@@ -436,6 +436,8 @@ public sealed class WhtFilingService(
         // Exclude reversal entries themselves via x.j.ReversalOfId == null below. R3/F1 Tier-2
         // remediation (FIX 6) — this used to ALSO exclude any entry that HAD BEEN reversed, via a
         // company-wide, NO-DATE-BOUND `reversedIds` list fed into `!reversedIds.Contains(...)`.
+        // (Cancel-reissue 2026-10 NOTE: sales cancels now write reversal JEs (ReversalOfId set), but they only mirror
+        // AR/Sales/Output-VAT/cash legs and never touch AP, so this filter's premise below still holds for AP.)
         // §1.3 established there is no user-invocable reversal feature that can ever reach AP:
         // ReversalOfId is written in exactly one place (GlPostingService.cs:536, reached only
         // from YearCloseService, filtered to Revenue/Expense) — so that list was always empty and

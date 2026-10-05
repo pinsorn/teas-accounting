@@ -85,6 +85,31 @@ public static class TaxInvoiceEndpoints
             Results.Ok(await service.BuildPaperAsync(id, ct, copy ?? false)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceRead);
 
+        // cancel-reissue (spec 3.7). Reissue variants need BOTH .cancel and .create (stacked policies AND together).
+        var tiCancelPol = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceCancel;
+        var tiCreatePol = PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoiceCreate;
+        group.MapPost("/{id:long}/cancel", async (long id, [FromBody] CancelDocumentBody b,
+            ITaxInvoiceService service, CancellationToken ct) =>
+            Results.Ok(await service.CancelAsync(id, b.ReasonCode, SalesChainEndpoints.RequireReason(b.Reason), ct)))
+        .RequireAuthorization(tiCancelPol);
+
+        group.MapPost("/{id:long}/cancel-and-reissue", async (long id, [FromBody] CancelDocumentBody b,
+            ITaxInvoiceService service, CancellationToken ct) =>
+            Results.Ok(await service.CancelAndReissueAsync(id, b.ReasonCode, SalesChainEndpoints.RequireReason(b.Reason), ct)))
+        .RequireAuthorization(tiCancelPol, tiCreatePol);
+
+        group.MapPost("/{id:long}/reissue", async (long id, ITaxInvoiceService service, CancellationToken ct) =>
+            Results.Ok(new { replacementTaxInvoiceId = await service.ReissueAsync(id, ct) }))
+        .RequireAuthorization(tiCancelPol, tiCreatePol);
+
+        // Replacement DRAFTS only (ti.delete_not_allowed otherwise).
+        group.MapDelete("/{id:long}", async (long id, ITaxInvoiceService service, CancellationToken ct) =>
+        {
+            await service.DiscardReplacementAsync(id, ct);
+            return Results.NoContent();
+        })
+        .RequireAuthorization(tiCancelPol);
+
         group.MapPost("/{id:long}/resend", async (long id, ITaxInvoiceService service, CancellationToken ct) =>
             Results.Ok(await service.ResendAsync(id, ct)))
         .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.TaxInvoicePost);

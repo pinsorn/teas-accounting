@@ -286,6 +286,9 @@ public sealed partial class ReceiptService : IReceiptService
                 if (bn.Status == BillingNoteStatus.Draft)
                     throw new DomainException("rc.invoice_not_issued",
                         $"Invoice {bn.BillingNoteId} must be issued before a receipt applies to it.");
+                if (bn.Status == BillingNoteStatus.Cancelled)
+                    throw new DomainException("rc.invoice_cancelled",
+                        $"Invoice {bn.BillingNoteId} is cancelled; a receipt cannot apply to it.");
                 // mcp-document-chain (D5) — dedup guard: a Settled Invoice is already fully
                 // collected; block a further application (mirrors the TI over-collection guard
                 // above, which a Settled/PAID TI already fails via the outstanding check).
@@ -454,7 +457,12 @@ public sealed partial class ReceiptService : IReceiptService
                 .FirstOrDefaultAsync(c => c.CustomerId == req.CustomerId, ct)
             ?? throw new DomainException("rc.customer_missing", $"Customer {req.CustomerId} not found.");
 
-        var computed = await RebuildLinesAndTotalsAsync(customer, req, ct);
+        // cancel-reissue (spec 3.4.6) — a replacement receipt keeps the original amounts (replacement.locked_field).
+        ReceiptComputedFields computed;
+        if (rc.ReplacesReceiptId is { } replOrigId)
+            (req, computed) = await LockReplacementUpdateAsync(rc, replOrigId, customer, req, ct);
+        else
+            computed = await RebuildLinesAndTotalsAsync(customer, req, ct);
 
         rc.CustomerId      = customer.CustomerId;
         rc.CustomerName    = customer.NameTh;
@@ -540,7 +548,39 @@ public sealed partial class ReceiptService : IReceiptService
                 .FirstOrDefaultAsync(r => r.ReceiptId == receiptId, ct)
             ?? throw new DomainException("rc.not_found", $"Receipt {receiptId} not found.");
 
-        await _period.EnsureOpenAsync(rc.DocDate, ct);
+        // cancel-reissue (spec 3.4.7 / O11b) — a REPLACEMENT keeps the original DocDate: its applications are retargeted
+        // to the newest Posted replacement TI and the amount lock re-runs; the period gate checks the GL date
+        // (original month if open, else today) instead of the DocDate. Numbering below already uses rc.DocDate.
+        DateOnly? glDate = null;
+        if (rc.ReplacesReceiptId is { } origRcId)
+        {
+            await CheckAndRetargetReplacementAsync(rc, origRcId, ct);
+            glDate = await DocumentCancellation.ResolveGlDateAsync(_period, _clock, rc.DocDate, ct);
+        }
+        else
+            await _period.EnsureOpenAsync(rc.DocDate, ct);
+
+        // Post-time status re-check: a TI cancelled / a BN cancelled or settled since the draft was written
+        // must not receive this payment.
+        var chkTiIds = rc.Applications.Where(a => a.TaxInvoiceId.HasValue).Select(a => a.TaxInvoiceId!.Value).Distinct().ToList();
+        var chkBnIds = rc.Applications.Where(a => a.BillingNoteId.HasValue).Select(a => a.BillingNoteId!.Value).Distinct().ToList();
+        // R1-F1: lock the applied TIs then BNs (ascending, lock order 3.3.5) BEFORE the status re-check, so a concurrent
+        // cancel either committed first (re-check refuses) or waits for this post (its own guards then see the receipt).
+        await DocumentCancellation.LockTaxInvoicesAsync(_db, chkTiIds, ct);
+        await DocumentCancellation.LockBillingNotesAsync(_db, chkBnIds, ct);
+        if (chkTiIds.Count > 0 && await _db.TaxInvoices.AsNoTracking()
+                .CountAsync(t => chkTiIds.Contains(t.TaxInvoiceId) && t.Status == DocumentStatus.Posted, ct) != chkTiIds.Count)
+            throw new DomainException("rc.ti_not_posted",
+                "An applied Tax Invoice is no longer POSTED (cancelled?); this receipt cannot be posted.");
+        if (chkBnIds.Count > 0)
+            foreach (var chk in await _db.BillingNotes.AsNoTracking()
+                         .Where(b => chkBnIds.Contains(b.BillingNoteId)).Select(b => new { b.BillingNoteId, b.Status }).ToListAsync(ct))
+                if (chk.Status != BillingNoteStatus.Issued)
+                    throw new DomainException(
+                        chk.Status == BillingNoteStatus.Cancelled ? "rc.invoice_cancelled"
+                        : chk.Status == BillingNoteStatus.Settled ? "rc.invoice_already_settled"
+                        : "rc.invoice_not_issued",
+                        $"Invoice {chk.BillingNoteId} is {chk.Status}; a receipt can only settle an Issued invoice.");
 
         // Sprint 8 cross-BU resolution: distinct BU across the applied TIs.
         // Exactly one non-null shared BU → that BU (number gets the sub-prefix).
@@ -582,7 +622,10 @@ public sealed partial class ReceiptService : IReceiptService
             c => _numbers.NextAsync(rc.CompanyId, RcPrefix, subPrefix: buCode, rc.DocDate, c),
             (v, first) => { if (first) rc.MarkPosted(v.Value, _tenant.UserId ?? 0, now); else rc.DocNo = v.Value; },
             ct)).Value;
-        _activity.Record("Receipt", rc.ReceiptId, rcNo, rc.CompanyId, "Posted", "Draft", "Posted");
+        string? replNote = rc.ReplacesReceiptId is { } replOid
+            ? "แทน " + await _db.Receipts.Where(r => r.ReceiptId == replOid).Select(r => r.DocNo).FirstOrDefaultAsync(ct)
+            : null;
+        _activity.Record("Receipt", rc.ReceiptId, rcNo, rc.CompanyId, "Posted", "Draft", "Posted", note: replNote);
 
         // Apply payments → update each TI's AmountPaid / PaymentStatus. Only TI
         // applications settle AR; DO applications + standalone lines recognize revenue
@@ -597,6 +640,9 @@ public sealed partial class ReceiptService : IReceiptService
         foreach (var (tiId, applied) in tiApps)
         {
             var ti = await _db.TaxInvoices.FirstAsync(t => t.TaxInvoiceId == tiId, ct);
+            if (ti.Status != DocumentStatus.Posted)
+                throw new DomainException("rc.ti_not_posted",
+                    $"Tax Invoice {ti.DocNo} is no longer POSTED; this receipt cannot be posted.");
             if (ti.AmountPaid + applied > ti.TotalAmount + 0.01m)
                 throw new DomainException("receipt.over_applied",
                     $"Applying {applied} to Tax Invoice {ti.DocNo} would exceed its total " +
@@ -687,6 +733,9 @@ public sealed partial class ReceiptService : IReceiptService
 
             foreach (var bn in directBns)
             {
+                if (bn.Status == BillingNoteStatus.Cancelled)
+                    throw new DomainException("rc.invoice_cancelled",
+                        $"Invoice {bn.DocNo} is cancelled; this receipt cannot be posted.");
                 var paid = paidByDirectBn.TryGetValue(bn.BillingNoteId, out var p) ? p : 0m;
                 if (paid > bn.TotalAmount + 0.01m)
                     throw new DomainException("receipt.over_applied",
@@ -703,7 +752,8 @@ public sealed partial class ReceiptService : IReceiptService
             await _db.SaveChangesAsync(ct);
         }
 
-        await _gl.PostReceiptAsync(rc.ReceiptId, ct);
+        rc.JournalEntryId = await _gl.PostReceiptAsync(rc.ReceiptId, ct, glDate);
+        await _db.SaveChangesAsync(ct);   // stamp the JE id (NULL to value stays legal under trigger 643)
 
         await tx.CommitAsync(ct);
 
@@ -721,6 +771,8 @@ public sealed partial class ReceiptService : IReceiptService
                 .Include(r => r.WhtLines)
                 .FirstOrDefaultAsync(r => r.ReceiptId == receiptId, ct)
             ?? throw new DomainException("rc.not_found", $"Receipt {receiptId} not found.");
+        if (rc.Status != DocumentStatus.Posted)
+            throw new DomainException("rc.not_posted", "A 50 tawi can only be recorded on a POSTED receipt.");
         if (rc.WhtAmount <= 0 || rc.WhtLines.Count == 0)
             throw new DomainException("rc.no_wht", "Receipt has no withholding tax.");
         if (string.IsNullOrWhiteSpace(certNo))

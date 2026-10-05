@@ -63,7 +63,12 @@ public sealed class PeriodCloseService : IPeriodCloseService
             .AnyAsync(p => p.DocDate >= from && p.DocDate <= to && p.Status == DocumentStatus.Draft, ct);
         var draftJe = await _db.JournalEntries
             .AnyAsync(j => j.DocDate >= from && j.DocDate <= to && j.Status == DocumentStatus.Draft, ct);
-        if (draftTi || draftPv || draftJe)
+        // cancel-reissue: a replacement receipt draft carries the original DocDate and must be posted or
+        // discarded first. Plain receipt drafts are deliberately not checked (they have no delete path).
+        var draftRc = await _db.Receipts
+            .AnyAsync(r => r.DocDate >= from && r.DocDate <= to && r.Status == DocumentStatus.Draft
+                        && r.ReplacesReceiptId != null, ct);
+        if (draftTi || draftPv || draftJe || draftRc)
             throw new DomainException("period.draft_present",
                 "Cannot close period — draft fiscal documents still exist. Post or void them first.");
 

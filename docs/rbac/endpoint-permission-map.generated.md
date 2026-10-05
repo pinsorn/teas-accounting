@@ -9,11 +9,11 @@
 |---|---:|
 | Anonymous | 8 |
 | AuthnOnly | 17 |
-| Perm | 304 |
+| Perm | 312 |
 | Assertion | 13 |
 | ApiKeyOnly | 26 |
 | Unprotected | 0 |
-| **TOTAL** | **368** |
+| **TOTAL** | **376** |
 
 ## Routes
 
@@ -97,7 +97,7 @@
 | GET | `/billing-notes/{id:long}` | Perm | sales.billing_note.read |
 | PUT | `/billing-notes/{id:long}` | Perm | sales.billing_note.manage |
 | GET | `/billing-notes/{id:long}/activity` | Perm | sales.billing_note.read |
-| POST | `/billing-notes/{id:long}/cancel` | Perm | sales.billing_note.manage |
+| POST | `/billing-notes/{id:long}/cancel` | Perm | sales.billing_note.cancel |
 | POST | `/billing-notes/{id:long}/create-tax-invoice` | Perm | sales.billing_note.manage / sales.tax_invoice.create |
 | POST | `/billing-notes/{id:long}/issue` | Perm | sales.billing_note.manage |
 | POST | `/billing-notes/{id:long}/mark-printed` | Perm | sales.billing_note.read |
@@ -265,14 +265,18 @@
 | GET | `/receipts/` | Perm | sales.receipt.read |
 | POST | `/receipts/` | Perm | sales.receipt.create |
 | POST | `/receipts/wht-base-suggest` | Perm | sales.receipt.read |
+| DELETE | `/receipts/{id:long}` | Perm | sales.receipt.cancel |
 | GET | `/receipts/{id:long}` | Perm | sales.receipt.read |
 | PUT | `/receipts/{id:long}` | Perm | sales.receipt.create |
 | GET | `/receipts/{id:long}/activity` | Perm | sales.receipt.read |
+| POST | `/receipts/{id:long}/cancel` | Perm | sales.receipt.cancel |
+| POST | `/receipts/{id:long}/cancel-and-reissue` | Perm | sales.receipt.cancel / sales.receipt.create |
 | GET | `/receipts/{id:long}/draft-input` | Perm | sales.receipt.create |
 | POST | `/receipts/{id:long}/mark-printed` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/paper` | Perm | sales.receipt.read |
 | GET | `/receipts/{id:long}/pdf` | Perm | sales.receipt.read |
 | POST | `/receipts/{id:long}/post` | Perm | sales.receipt.post |
+| POST | `/receipts/{id:long}/reissue` | Perm | sales.receipt.cancel / sales.receipt.create |
 | POST | `/receipts/{id:long}/wht-cert` | Perm | sales.receipt.create |
 | GET | `/reports/ap-aging` | Perm | purchase.purchase_order.read |
 | GET | `/reports/ar-aging` | Perm | sales.tax_invoice.read |
@@ -355,14 +359,18 @@
 | GET | `/tax-filings/pp36/pdf` | Perm | tax.filing.preview |
 | GET | `/tax-invoices/` | Perm | sales.tax_invoice.read |
 | POST | `/tax-invoices/` | Perm | sales.tax_invoice.create |
+| DELETE | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.cancel |
 | GET | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.read |
 | PUT | `/tax-invoices/{id:long}` | Perm | sales.tax_invoice.create |
 | GET | `/tax-invoices/{id:long}/activity` | Perm | sales.tax_invoice.read |
+| POST | `/tax-invoices/{id:long}/cancel` | Perm | sales.tax_invoice.cancel |
+| POST | `/tax-invoices/{id:long}/cancel-and-reissue` | Perm | sales.tax_invoice.cancel / sales.tax_invoice.create |
 | GET | `/tax-invoices/{id:long}/draft-input` | Perm | sales.tax_invoice.create |
 | POST | `/tax-invoices/{id:long}/mark-printed` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/paper` | Perm | sales.tax_invoice.read |
 | GET | `/tax-invoices/{id:long}/pdf` | Perm | sales.tax_invoice.read |
 | POST | `/tax-invoices/{id:long}/post` | Perm | sales.tax_invoice.post |
+| POST | `/tax-invoices/{id:long}/reissue` | Perm | sales.tax_invoice.cancel / sales.tax_invoice.create |
 | POST | `/tax-invoices/{id:long}/resend` | Perm | sales.tax_invoice.post |
 | GET | `/tax-invoices/{id:long}/xml` | Perm | sales.tax_invoice.read |
 | GET | `/vendor-invoices/` | Perm | purchase.vendor_invoice.read |

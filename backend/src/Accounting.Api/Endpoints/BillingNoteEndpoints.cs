@@ -47,10 +47,10 @@ public static class BillingNoteEndpoints
             { await s.IssueAsync(id, ct); return Results.NoContent(); })
             .RequireAuthorization(managePol);
 
-        g.MapPost("/{id:long}/cancel", async (long id, [FromBody] SalesChainEndpoints.ReasonBody b,
+        g.MapPost("/{id:long}/cancel", async (long id, [FromBody] BillingNoteCancelBody b,
             IBillingNoteService s, CancellationToken ct) =>
-            { await s.CancelAsync(id, SalesChainEndpoints.RequireReason(b.Reason), ct); return Results.NoContent(); })
-            .RequireAuthorization(managePol);
+            { await s.CancelAsync(id, b.ReasonCode, SalesChainEndpoints.RequireReason(b.Reason), ct); return Results.NoContent(); })
+            .RequireAuthorization(PermissionPolicyProvider.PolicyPrefix + Permissions.Sales.BillingNoteCancel);
 
         // cont.69 Phase 1 — Invoice → Tax Invoice (manual, VAT only). Throws
         // ti.non_vat_blocked (422) for a non-VAT company.

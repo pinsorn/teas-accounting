@@ -65,6 +65,11 @@ public sealed record WhtSuggestLine(
     string? TiDocNo, string Description, string ProductType, decimal LineAmount,
     int? SuggestedWhtTypeId, string? SuggestedCode, decimal SuggestedRate);
 
+/// <summary>cancel-reissue spec 3.4.2 - result of a receipt cancel / cancel-and-reissue.</summary>
+public sealed record ReceiptCancelResult(
+    long ReceiptId, string Status, long ReversalJournalId, string ReversalDocNo, DateOnly GlDate,
+    long? ReplacementReceiptId);
+
 public sealed record ReceiptPostedResult(
     long ReceiptId, string DocNo, DateTimeOffset PostedAt, decimal Amount,
     bool CrossesBusinessUnits = false,
@@ -164,6 +169,19 @@ public interface IReceiptService
     /// no-op on every persisted column except UpdatedAt/UpdatedBy/Version.</summary>
     Task<CreateReceiptRequest?> GetDraftInputAsync(long receiptId, CancellationToken ct);
 
+
+    /// <summary>cancel-reissue O2 (spec 3.4.2) - Posted -> Voided: unwinds every TI AmountPaid, re-derives Settled
+    /// billing notes, voids the Direction-R WHT certs and posts an exact mirror reversing JE.</summary>
+    Task<ReceiptCancelResult> CancelAsync(long receiptId, string reasonCode, string reason, CancellationToken ct);
+
+    /// <summary>cancel-reissue O5 - CancelAsync (reissue code set) plus a replacement draft, ONE transaction.</summary>
+    Task<ReceiptCancelResult> CancelAndReissueAsync(long receiptId, string reasonCode, string reason, CancellationToken ct);
+
+    /// <summary>cancel-reissue O5b - create the replacement draft of an already-Voided receipt.</summary>
+    Task<long> ReissueAsync(long receiptId, CancellationToken ct);
+
+    /// <summary>cancel-reissue O5c - delete a replacement DRAFT.</summary>
+    Task DiscardReplacementAsync(long receiptId, CancellationToken ct);
     Task<ReceiptPostedResult> PostAsync(long receiptId, CancellationToken ct);
     // E1 — added optional date-range/customer/product filters (all null = unfiltered, prior behavior).
     Task<CursorPage<ReceiptListItem>> ListAsync(long? cursor, int limit, CancellationToken ct,

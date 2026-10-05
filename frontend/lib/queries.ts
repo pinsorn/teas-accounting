@@ -136,6 +136,7 @@ import type {
   CreateExpenseClaimRequest,
   PayExpenseClaimRequest,
   RejectExpenseClaimRequest,
+  CancelDocResult,
 } from './types';
 
 export interface TaxInvoiceFilters {
@@ -213,6 +214,52 @@ export function usePostTaxInvoice() {
     },
   });
 }
+
+// cancel-reissue-sales-docs §3.9 — cancel / cancel-and-reissue / reissue / discard for TI + receipt.
+// Refreshes the doc, its lists, paper, chain/activity, the replacement, tax + AR reports.
+type CancelDocKind = 'tax-invoices' | 'receipts';
+type CancelDocVars = { id: number; reasonCode: string; reason: string };
+function invalidateCancelDoc(qc: ReturnType<typeof useQueryClient>, kind: CancelDocKind, id: number) {
+  const one = kind === 'tax-invoices' ? 'tax-invoice' : 'receipt';
+  qc.invalidateQueries({ queryKey: [kind] });
+  if (kind === 'receipts') {
+    qc.invalidateQueries({ queryKey: ['tax-invoices'] });
+    qc.invalidateQueries({ queryKey: ['tax-invoice'] });
+  }
+  qc.invalidateQueries({ queryKey: [one, id] });
+  qc.invalidateQueries({ queryKey: [one] });
+  qc.invalidateQueries({ queryKey: ['paper-doc'] });
+  qc.invalidateQueries({ queryKey: ['doc-chain'] });
+  qc.invalidateQueries({ queryKey: ['activity'] });
+  qc.invalidateQueries({ queryKey: ['billing-note'] });
+  qc.invalidateQueries({ queryKey: ['billing-notes'] });
+  qc.invalidateQueries({ queryKey: ['ar-aging'] });
+  qc.invalidateQueries({ queryKey: ['customer-statement'] });
+  invalidateTaxReports(qc);
+}
+function useCancelDocMutation<V, R>(kind: CancelDocKind, fn: (v: V) => Promise<R>, idOf: (v: V) => number) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: (_r, v) => invalidateCancelDoc(qc, kind, idOf(v)) });
+}
+const cancelBody = (v: CancelDocVars) => ({ reasonCode: v.reasonCode, reason: v.reason });
+const idOf = (v: { id: number } | number) => (typeof v === 'number' ? v : v.id);
+
+export const useCancelTaxInvoice = () =>
+  useCancelDocMutation('tax-invoices', (v: CancelDocVars) => apiPost<CancelDocResult>(`tax-invoices/${v.id}/cancel`, cancelBody(v)), idOf);
+export const useCancelAndReissueTaxInvoice = () =>
+  useCancelDocMutation('tax-invoices', (v: CancelDocVars) => apiPost<CancelDocResult>(`tax-invoices/${v.id}/cancel-and-reissue`, cancelBody(v)), idOf);
+export const useReissueTaxInvoice = () =>
+  useCancelDocMutation('tax-invoices', (id: number) => apiPost<{ replacementTaxInvoiceId: number }>(`tax-invoices/${id}/reissue`), idOf);
+export const useDiscardTaxInvoiceReplacement = () =>
+  useCancelDocMutation('tax-invoices', (id: number) => apiDelete(`tax-invoices/${id}`), idOf);
+export const useCancelReceipt = () =>
+  useCancelDocMutation('receipts', (v: CancelDocVars) => apiPost<CancelDocResult>(`receipts/${v.id}/cancel`, cancelBody(v)), idOf);
+export const useCancelAndReissueReceipt = () =>
+  useCancelDocMutation('receipts', (v: CancelDocVars) => apiPost<CancelDocResult>(`receipts/${v.id}/cancel-and-reissue`, cancelBody(v)), idOf);
+export const useReissueReceipt = () =>
+  useCancelDocMutation('receipts', (id: number) => apiPost<{ replacementReceiptId: number }>(`receipts/${id}/reissue`), idOf);
+export const useDiscardReceiptReplacement = () =>
+  useCancelDocMutation('receipts', (id: number) => apiDelete(`receipts/${id}`), idOf);
 
 export function useNumberGaps(year?: number, month?: number, docType?: string) {
   return useQuery({

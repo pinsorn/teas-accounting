@@ -56,6 +56,14 @@ internal sealed class ReceiptConfiguration : IEntityTypeConfiguration<Receipt>
         b.Property(r => r.UpdatedAt).HasColumnType("timestamptz(3)");
         b.Property(r => r.Version).IsConcurrencyToken();
 
+        // Cancel + reissue (specs/cancel-reissue-sales-docs.md §3.2.1).
+        b.Property(x => x.CancelReasonCode).HasMaxLength(40);
+        b.Property(x => x.CancelReason).HasMaxLength(500);
+        b.Property(x => x.CancelledAt).HasColumnType("timestamptz(3)");
+        b.HasOne<Receipt>().WithMany().HasForeignKey(x => x.ReplacesReceiptId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.ReplacesReceiptId).IsUnique().HasFilter("replaces_receipt_id IS NOT NULL")
+            .HasDatabaseName("ux_receipts_replaces");
+
         b.HasOne<BusinessUnit>().WithMany().HasForeignKey(r => r.BusinessUnitId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Accounting.Domain.Entities.Tax.WhtType>().WithMany()
             .HasForeignKey(r => r.WhtTypeId).OnDelete(DeleteBehavior.Restrict);

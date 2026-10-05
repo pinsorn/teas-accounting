@@ -9,7 +9,9 @@ public sealed record SalesVatRegisterRow(
     string?  CustomerTaxId,
     decimal  SubtotalAmount,
     decimal  TaxAmount,
-    decimal  TotalAmount);
+    decimal  TotalAmount,
+    string   Status = "Posted",   // "Posted" | "Voided" (cancel+reissue: voided rows listed at 0.00)
+    string?  Remark = null);
 
 /// <summary>One row of the purchase VAT register (รายงานภาษีซื้อ).</summary>
 public sealed record PurchaseVatRegisterRow(
