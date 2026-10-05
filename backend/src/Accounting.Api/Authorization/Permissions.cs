@@ -85,6 +85,10 @@ public static class Permissions
         // Sprint 13h P6.2 — Billing Note (ใบแจ้งหนี้/ใบวางบิล).
         public const string BillingNoteRead     = "sales.billing_note.read";
         public const string BillingNoteManage   = "sales.billing_note.manage";
+        // Cancel + reissue (specs/cancel-reissue-sales-docs.md). API keys can never hold .cancel scopes.
+        public const string TaxInvoiceCancel    = "sales.tax_invoice.cancel";
+        public const string ReceiptCancel       = "sales.receipt.cancel";
+        public const string BillingNoteCancel   = "sales.billing_note.cancel";
     }
 
     public static class Purchase
@@ -182,6 +186,7 @@ public static class Permissions
         Sales.SalesOrderManage, Sales.SalesOrderRead,
         Sales.DeliveryOrderManage, Sales.DeliveryOrderRead,
         Sales.BillingNoteRead, Sales.BillingNoteManage,
+        Sales.TaxInvoiceCancel, Sales.ReceiptCancel, Sales.BillingNoteCancel,
         Purchase.PaymentVoucherCreate, Purchase.PaymentVoucherApprove, Purchase.PaymentVoucherPost,
         Purchase.PaymentVoucherRead, Purchase.WhtRead,
         Purchase.VendorInvoiceCreate, Purchase.VendorInvoicePost, Purchase.VendorInvoiceRead,

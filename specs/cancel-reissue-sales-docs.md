@@ -520,12 +520,12 @@ tools hit the service amount lock (§2). The tool descriptions for `get_tax_invo
 may run in parallel with WP-3 if worktrees are used. WP-1 is footgun-zone: Opus reviews the diff before WP-2 starts. WP-2 + WP-3 can be one warm worker.
 
 ### WP-1 Schema, triggers, perms (cap: 13 files)
-- [ ] Entities: `TaxInvoice.cs`, `Receipt.cs`, `BillingNote.cs`, with the §3.2.1 properties.
-- [ ] Configs: `TaxInvoiceConfiguration.cs`, `ReceiptConfiguration.cs`, `SalesChainConfigurations.cs` (BN): lengths, `timestamptz(3)`, self-FKs RESTRICT, unique filtered indexes `ux_tax_invoices_replaces`, `ux_receipts_replaces` (named via `HasDatabaseName`).
-- [ ] EF migration `AddCancelReissueColumns` (+ Designer + snapshot). Build from the REAL path, not `W:`.
-- [ ] `643_cancel_reissue_immutability_v3.sql`, `644_number_gap_view_voided.sql`, `645_seed_cancel_perms.sql` per §3.2.2-3.2.4. Zero braces. Bengali-glyph grep.
-- [ ] `Permissions.cs`: 3 constants + `All`.
-- Done = migration applies to an EMPTY teas_test; `sys.applied_sql_scripts` has 643-645; §3.2.4 probe counts on teas_test; RbacMatrix + RbacAuthMap green.
+- [x] Entities: `TaxInvoice.cs`, `Receipt.cs`, `BillingNote.cs`, with the §3.2.1 properties.
+- [x] Configs: `TaxInvoiceConfiguration.cs`, `ReceiptConfiguration.cs`, `SalesChainConfigurations.cs` (BN): lengths, `timestamptz(3)`, self-FKs RESTRICT, unique filtered indexes `ux_tax_invoices_replaces`, `ux_receipts_replaces` (named via `HasDatabaseName`).
+- [x] EF migration `AddCancelReissueColumns` (+ Designer + snapshot). Build from the REAL path, not `W:`.
+- [x] `643_cancel_reissue_immutability_v3.sql`, `644_number_gap_view_voided.sql`, `645_seed_cancel_perms.sql` per §3.2.2-3.2.4. Zero braces. Bengali-glyph grep.
+- [x] `Permissions.cs`: 3 constants + `All`.
+- Done (WP-1 verified 2026-10-05, see Attempt log) = migration applies to an EMPTY teas_test; `sys.applied_sql_scripts` has 643-645; §3.2.4 probe counts on teas_test; RbacMatrix + RbacAuthMap green.
 
 ### WP-2 Services + endpoints (cap: 26 files)
 - [ ] `IGlPostingService.cs` + `GlPostingService.cs`: `PostReversalAsync`, `reversalOfId` on `BuildAndPostAsync`, `glDate` params (§3.3.3).
@@ -647,3 +647,4 @@ Stop-and-re-spec triggers: touching `NumberSequenceService`/`NumberedDocumentWri
   to the replacement TI, replacement TI PAID, original TI Voided with AmountPaid 0, I2+I3+I4 hold, net GL == original.
 ## Attempt log
 - 2026-10-05 opus-designer: spec written from verified code reads (file:line in §1). No implementation.
+- 2026-10-05 sonnet-implementer WP-1: DONE. 13 files (3 entities, 3 configs, migration 20261005114215_AddCancelReissueColumns + Designer + snapshot, SQL 643/644/645, Permissions.cs). Build 0 errors. teas_test dropped+recreated EMPTY (accounting role is non-superuser but BYPASSRLS=t, so RLS still not exercised): fixture applied migration + 643-645 (sys.applied_sql_scripts). Probe: 3 rows, each 57 companies == master.companies 57. O1 mirror: roles holding billing_note.manage 286 == roles holding billing_note.cancel 286, 0 manage-without-cancel. Filtered `FullyQualifiedName~Rbac`: 79 passed / 0 failed / 0 skipped. Deviation: 645 step 4 added a SUPER_ADMIN (company_id IS NULL) mirror of billing_note.cancel under `SET LOCAL app.bypass_rls` (pattern of 620) because the global SUPER_ADMIN role holds billing_note.manage but sits outside the per-company loop (first run left manage 286 vs cancel 285). Not exercised: real NOBYPASSRLS role run of 645 (teas_test role bypasses RLS).

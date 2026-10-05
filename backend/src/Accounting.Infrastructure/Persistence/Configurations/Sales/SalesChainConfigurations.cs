@@ -201,6 +201,8 @@ internal sealed class BillingNoteConfiguration : IEntityTypeConfiguration<Billin
         // UseSnakeCaseNamingConvention() already maps it to journal_entry_id by convention.
         b.Property(x => x.IssuedAt).HasColumnType("timestamptz(3)");
         b.Property(x => x.SettledAt).HasColumnType("timestamptz(3)");
+        b.Property(x => x.CancelReasonCode).HasMaxLength(40);
+        b.Property(x => x.CancelledAt).HasColumnType("timestamptz(3)");
         b.Property(x => x.CreatedAt).HasColumnType("timestamptz(3)");
         b.Property(x => x.UpdatedAt).HasColumnType("timestamptz(3)");
         b.Property(x => x.Version).IsConcurrencyToken();

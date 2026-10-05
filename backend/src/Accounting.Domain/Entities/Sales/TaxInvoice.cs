@@ -131,6 +131,17 @@ public class TaxInvoice : ITenantOwned, IAuditable, IConcurrencyVersioned
     public DateTimeOffset? OriginalPrintedAt { get; set; }
     public int PrintCount { get; set; }
 
+    // ---- Cancel + reissue (specs/cancel-reissue-sales-docs.md §3.2.1) ----
+    /// <summary>Posting JE; stamped at post (new posts only). No FK (mirrors BillingNote).</summary>
+    public long? JournalEntryId { get; set; }
+    public long? ReversalJournalEntryId { get; set; }
+    public string? CancelReasonCode { get; set; }
+    public string? CancelReason { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
+    public long? CancelledBy { get; set; }
+    /// <summary>Set only on a replacement draft created by the reissue path; points at the Voided original.</summary>
+    public long? ReplacesTaxInvoiceId { get; set; }
+
     public ICollection<TaxInvoiceLine> Lines { get; set; } = new List<TaxInvoiceLine>();
 
     public void MarkPosted(string docNo, long userId, DateTimeOffset postedAt)

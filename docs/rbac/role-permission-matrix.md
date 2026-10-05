@@ -61,6 +61,7 @@
 | `report.general_ledger.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `report.profit_loss.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
 | `report.trial_balance.read` | ✓ |  |  |  | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ |
+| `sales.billing_note.cancel` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.billing_note.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.billing_note.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.credit_note.create` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
@@ -73,11 +74,13 @@
 | `sales.delivery_order.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.quotation.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.quotation.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
+| `sales.receipt.cancel` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.receipt.create` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.receipt.post` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.receipt.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.sales_order.manage` | ✓ |  |  | ✓ |  | ✓ | ✓ |  | ✓ |  |  | ✓ |
 | `sales.sales_order.read` | ✓ |  |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
+| `sales.tax_invoice.cancel` |  |  |  |  |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.tax_invoice.create` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.tax_invoice.post` | ✓ |  |  | ✓ |  | ✓ | ✓ |  |  |  |  | ✓ |
 | `sales.tax_invoice.read` | ✓ | ✓ |  | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  | ✓ |
@@ -103,18 +106,18 @@
 
 | Role | Granted |
 |---|---:|
-| ACCOUNTANT | 59 |
+| ACCOUNTANT | 60 |
 | APPROVER | 8 |
 | AP_CLERK | 17 |
-| AR_CLERK | 27 |
+| AR_CLERK | 28 |
 | AUDITOR | 31 |
-| CHIEF_ACCOUNTANT | 80 |
-| COMPANY_ADMIN | 87 |
+| CHIEF_ACCOUNTANT | 83 |
+| COMPANY_ADMIN | 90 |
 | PURCHASING_STAFF | 7 |
-| SALES_STAFF | 17 |
+| SALES_STAFF | 18 |
 | TAX_OFFICER | 15 |
 | WAREHOUSE_STAFF | 3 |
-| SUPER_ADMIN | 88 (bypass) |
+| SUPER_ADMIN | 91 (bypass) |
 
 ## ⚠️ Segregation-of-duties review (Ham to confirm)
 

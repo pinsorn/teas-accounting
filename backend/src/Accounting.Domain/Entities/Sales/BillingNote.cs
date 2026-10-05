@@ -49,6 +49,11 @@ public class BillingNote : ITenantOwned, IAuditable, IConcurrencyVersioned
     public string? Notes { get; set; }
     public string? InternalNotes { get; set; }
     public string? CancelledReason { get; set; }
+    // Cancel + reissue (specs/cancel-reissue-sales-docs.md §3.2.1).
+    public long? ReversalJournalEntryId { get; set; }
+    public string? CancelReasonCode { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
+    public long? CancelledBy { get; set; }
 
     public DateTimeOffset? IssuedAt { get; set; }
     // doc-signature spec — the user who Issued the billing note; resolves the ผู้ออกใบแจ้งหนี้

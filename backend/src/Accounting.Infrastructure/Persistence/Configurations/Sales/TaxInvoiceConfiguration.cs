@@ -74,6 +74,14 @@ internal sealed class TaxInvoiceConfiguration : IEntityTypeConfiguration<TaxInvo
         b.Property(t => t.UpdatedAt).HasColumnType("timestamptz(3)");
         b.Property(t => t.Version).IsConcurrencyToken();
 
+        // Cancel + reissue (specs/cancel-reissue-sales-docs.md §3.2.1).
+        b.Property(x => x.CancelReasonCode).HasMaxLength(40);
+        b.Property(x => x.CancelReason).HasMaxLength(500);
+        b.Property(x => x.CancelledAt).HasColumnType("timestamptz(3)");
+        b.HasOne<TaxInvoice>().WithMany().HasForeignKey(x => x.ReplacesTaxInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.ReplacesTaxInvoiceId).IsUnique().HasFilter("replaces_tax_invoice_id IS NOT NULL")
+            .HasDatabaseName("ux_tax_invoices_replaces");
+
         b.HasOne<TaxInvoice>().WithMany().HasForeignKey(t => t.OriginalInvoiceId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<BusinessUnit>().WithMany().HasForeignKey(t => t.BusinessUnitId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(t => new { t.CompanyId, t.BusinessUnitId }).HasFilter("business_unit_id IS NOT NULL");
