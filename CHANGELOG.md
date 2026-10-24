@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.5.1](https://github.com/pinsorn/teas-accounting/compare/v2.5.0...v2.5.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **deps:** patch System.Security.Cryptography Pkcs + Xml to 10.0.13 ([6fff90f](https://github.com/pinsorn/teas-accounting/commit/6fff90f4e9c1500f6b80d1ddf70b41344d8f0399))
+* **deps:** patch System.Security.Cryptography Pkcs + Xml to 10.0.13 ([38e03fb](https://github.com/pinsorn/teas-accounting/commit/38e03fb229a035e9e9c7cf4745927a135575231d))
+
 ## [2.5.0](https://github.com/pinsorn/teas-accounting/compare/v2.4.0...v2.5.0) (2026-10-05)
 
 
