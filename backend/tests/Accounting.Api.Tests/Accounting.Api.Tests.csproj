@@ -22,6 +22,8 @@
     <!-- Security pin only (NU1903 / GHSA-q939-rpr3-3284) — no code here uses SSH.NET; it comes in
          under Testcontainers. See the note in Directory.Packages.props. -->
     <PackageReference Include="SSH.NET" />
+    <!-- Direct ref forces Pkcs 10.0.13 (patched) over the vulnerable transitive. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <!-- M2 (MCP) — the client SDK (McpClient/HttpClientTransport) for the /mcp smoke test. -->
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>

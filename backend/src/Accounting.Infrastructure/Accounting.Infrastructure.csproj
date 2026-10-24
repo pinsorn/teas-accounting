@@ -27,6 +27,8 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
     <PackageReference Include="BouncyCastle.Cryptography" />
     <PackageReference Include="System.Security.Cryptography.Xml" />
+    <!-- Direct ref forces Pkcs 10.0.13 (patched) over the vulnerable transitive. See Directory.Packages.props. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <PackageReference Include="QuestPDF" />
     <!-- Bank reconciliation B3 — the only PDF TEXT-EXTRACTION lib in the repo (PDFsharp/QuestPDF
          above are generation-only); K-Plus statement adapter reads per-word positions to
