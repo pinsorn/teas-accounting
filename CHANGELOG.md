@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.5.1](https://github.com/pinsorn/teas-accounting/compare/v2.5.0...v2.5.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **deps:** patch System.Security.Cryptography Pkcs + Xml to 10.0.13 ([6fff90f](https://github.com/pinsorn/teas-accounting/commit/6fff90f4e9c1500f6b80d1ddf70b41344d8f0399))
+* **deps:** patch System.Security.Cryptography Pkcs + Xml to 10.0.13 ([38e03fb](https://github.com/pinsorn/teas-accounting/commit/38e03fb229a035e9e9c7cf4745927a135575231d))
+* **frontend:** bump next + eslint-config-next 15.5.18 -&gt; 15.5.24 (CVE-2026-75604) ([91124a7](https://github.com/pinsorn/teas-accounting/commit/91124a7d30472ade67b54b8c158d9ab30fe2f4ed))
+* **frontend:** bump next 15.5.18 -&gt; 15.5.24 (CVE-2026-75604) ([b7da2a8](https://github.com/pinsorn/teas-accounting/commit/b7da2a84cbe27599dc980e04a79e29bff54b3f04))
+
 ## [2.5.0](https://github.com/pinsorn/teas-accounting/compare/v2.4.0...v2.5.0) (2026-10-05)
 
 
